@@ -50,7 +50,7 @@ class SkvbcLongRunningTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: n == 7)
     async def test_stability(self, bft_network):
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         start = time.time()
         with trio.move_on_after(seconds=ONE_HOUR_IN_SECONDS*72):
             for i in itertools.count():

@@ -61,7 +61,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
              2. The client verifies that the system reached a super stable checkpoint.
              3. The client tries to initiate a new write bft command and fails
          """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
@@ -90,7 +90,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         initial_prim = 0
         late_replicas = bft_network.random_set_of_replicas(1, {initial_prim})
         on_time_replicas = bft_network.all_replicas(without=late_replicas)
-        await bft_network.start_replicas(on_time_replicas)
+        bft_network.start_replicas(on_time_replicas)
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -101,7 +101,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, on_time_replicas)
 
-        await bft_network.start_replicas(late_replicas)
+        bft_network.start_replicas(late_replicas)
 
         await bft_network.wait_for_state_transfer_to_start()
         for r in late_replicas:
@@ -123,7 +123,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
              2. The client then sends a "Have you stopped" read only command such that each replica answers "I have stopped"
              3. The client validates with the metrics that all replicas have stopped
          """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
@@ -158,7 +158,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
              4. Apollo starts all replicas
              5. A client verifies that new write requests are being processed
          """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
@@ -181,12 +181,12 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
-        await bft_network.stop_all_replicas()
+        bft_network.stop_all_replicas()
 
         # Here the system operator runs a manual upgrade
         input("update the software and press any kay to continue")
 
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
 
         await self.validate_state_consistency(skvbc, key, val)
         await skvbc.write_known_kv()
@@ -203,7 +203,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         3. Load  a new configuration to the bft network
         4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
@@ -230,7 +230,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, checkpoint_to_stop_at)
 
-        await bft_network.stop_all_replicas()
+        bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration which means that we
         # need to see in the logs that isNewStorage() = true. Also,
         # we expect to see that lastStableSeqNum = 0 (for example)
@@ -245,7 +245,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                    num_ro_replicas=0)
         await bft_network.change_configuration(conf)
 
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -272,7 +272,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         4. Load  a new configuration to the bft network
         5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
@@ -280,7 +280,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await skvbc.write_known_kv()
         # choose two replicas to crash and crash them
         crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
-        await bft_network.stop_replicas(crashed_replicas)
+        bft_network.stop_replicas(crashed_replicas)
 
         # All next request should be go through the slow path
         for i in range(100):
@@ -309,7 +309,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertGreaterEqual(last_stable_checkpoint, checkpoint_to_stop_at)
 
-        await bft_network.stop_all_replicas()
+        bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration which means that we
         # need to see in the logs that isNewStorage() = true. Also,
         # we expect tp see that lastStableSeqNum = 0 (for example)
@@ -324,7 +324,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           num_ro_replicas=0)
         await bft_network.change_configuration(conf)
 
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)

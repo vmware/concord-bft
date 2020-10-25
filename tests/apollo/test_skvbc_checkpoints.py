@@ -53,7 +53,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         Start all replicas, then send a sufficient number of client requests to trigger the
         checkpoint protocol. Then make sure a checkpoint is created and agreed upon by all replicas.
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -79,7 +79,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         5) Bring the f replicas up
         6) Make sure checkpoint is agreed upon by all the crashed replicas
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -115,7 +115,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         # verify checkpoint creation by the primary after f replicas crash
         self.assertEqual(checkpoint_after_primary, 1 + checkpoint_before_primary)
 
-        await bft_network.start_replicas(crashed_replicas)
+        bft_network.start_replicas(crashed_replicas)
 
         # verify checkpoint propagation to all the stale nodes after they come back up
         await bft_network.wait_for_replicas_to_checkpoint(
@@ -138,7 +138,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         7) Bring the f crashed replicas up
         8) Verify checkpoint propagation to all the nodes
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -183,7 +183,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         )
 
         # trigger a view change by crashing the initial primary and sending a batch of write requests
-        await bft_network.stop_replica(initial_primary)
+        bft_network.stop_replica(initial_primary)
         await self._send_random_writes(skvbc)
 
         crashed_replicas.add(initial_primary)
@@ -197,7 +197,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
             )
 
         # start crashed replicas including the initial primary
-        await bft_network.start_replicas(crashed_replicas)
+        bft_network.start_replicas(crashed_replicas)
 
         # verify view stabilization among all the stale nodes after they come back up
         for crashed_replica in crashed_replicas:
@@ -225,7 +225,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         3) Send sufficient number of client requests to trigger checkpoint protocol
         4) Make sure checkpoint is propagated to all the nodes
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -271,7 +271,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         5) Make sure checkpoint is propagated to all the nodes except the isolated primary
            in the new view
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
@@ -328,7 +328,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
         4) Send sufficient number of client requests to trigger checkpoint protocol
         5) Make sure checkpoint is propagated to all the nodes in the new view
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         n = bft_network.config.n
@@ -388,7 +388,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
     async def _crash_replicas(bft_network, nb_crashing, exclude_replicas=None):
         crash_replicas = bft_network.random_set_of_replicas(nb_crashing, without=exclude_replicas)
 
-        await bft_network.stop_replicas(crash_replicas)
+        bft_network.stop_replicas(crash_replicas)
 
         return crash_replicas
 

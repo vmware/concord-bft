@@ -218,8 +218,8 @@ class SimpleKVBCProtocol:
             persistency_enabled=True):
         with log.start_action(action_type="prime_for_state_transfer"):
             initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
-            await self.bft_network.start_all_replicas()
-            await self.bft_network.stop_replicas(stale_nodes)
+            self.bft_network.start_all_replicas()
+            self.bft_network.stop_replicas(stale_nodes)
             client = SkvbcClient(self.bft_network.random_client())
             # Write a KV pair with a known value
             known_key = self.max_key()
@@ -283,11 +283,11 @@ class SimpleKVBCProtocol:
 
             if verify_checkpoint_persistency:
                 # Stop the initial replicas to ensure the checkpoints get persisted
-                await self.bft_network.stop_replicas(initial_nodes)
+                self.bft_network.stop_replicas(initial_nodes)
 
                 # Bring up the first 3 replicas and ensure that they have the
                 # checkpoint data.
-                [ await self.bft_network.start_replica(i) for i in initial_nodes ]
+                [ self.bft_network.start_replica(i) for i in initial_nodes ]
                 await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
 
     async def assert_successful_put_get(self, testcase):

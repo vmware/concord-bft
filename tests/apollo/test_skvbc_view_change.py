@@ -62,7 +62,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Validate that there is no new block written.
         """
 
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
 
         client = bft_network.random_client()
 
@@ -84,7 +84,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         last_block = skvbc.parse_reply(await client.read(skvbc.get_last_block_req()))
 
-        await bft_network.stop_replica(initial_primary)
+        bft_network.stop_replica(initial_primary)
         try:
             with trio.move_on_after(seconds=1):  # seconds
                 await skvbc.send_indefinite_write_requests()
@@ -139,7 +139,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         4) Verify the BFT network eventually transitions to the next view.
         5) Perform a "read-your-writes" check in the new view
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
 
         n = bft_network.config.n
         f = bft_network.config.f
@@ -195,7 +195,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         missing the view change).
         """
 
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
 
         initial_primary = 0
         expected_next_primary = 1
@@ -212,10 +212,10 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
         log.log_message(message_type=f"Crash replica #{unstable_replica} before the view change.")
-        await bft_network.stop_replica(unstable_replica)
+        bft_network.stop_replica(unstable_replica)
 
         # trigger a view change
-        await bft_network.stop_replica(initial_primary)
+        bft_network.stop_replica(initial_primary)
         await self._send_random_writes(tracker)
 
         await bft_network.wait_for_view(
@@ -229,7 +229,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         await trio.sleep(seconds=5)
 
         # restart the unstable replica and make sure it works in the new view
-        await bft_network.start_replica(unstable_replica)
+        bft_network.start_replica(unstable_replica)
         await tracker.run_concurrent_ops(num_ops=10)
 
 
@@ -253,12 +253,12 @@ class SkvbcViewChangeTest(unittest.TestCase):
         6) Send a batch of concurrent reads/writes
         7) Make sure the restarted replica is alive and that it works in the new view
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         initial_primary = 0
 
         await tracker.run_concurrent_ops(num_ops=10)
 
-        await bft_network.stop_replica(initial_primary)
+        bft_network.stop_replica(initial_primary)
         await self._send_random_writes(tracker)
 
         await bft_network.wait_for_view(
@@ -269,7 +269,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
         current_primary = initial_primary + 1
 
-        await bft_network.start_replica(initial_primary)
+        bft_network.start_replica(initial_primary)
 
         # waiting for the active window to be rebuilt after the view change
         await trio.sleep(seconds=5)
@@ -278,8 +278,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
             bft_network.all_replicas(without={current_primary, initial_primary}))
         log.log_message(message_type=f"Restart replica #{unstable_replica} after the view change.")
 
-        await bft_network.stop_replica(unstable_replica)
-        await bft_network.start_replica(unstable_replica)
+        bft_network.stop_replica(unstable_replica)
+        bft_network.start_replica(unstable_replica)
         await trio.sleep(seconds=5)
 
         await tracker.run_concurrent_ops(num_ops=10)
@@ -320,7 +320,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         B) to ensure transition to the slow path, we need to crash at least c+1 replicas.
         Combining A) and B) yields n-(c+1) >= 2f+2c+1, equivalent to c < f
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
 
         n = bft_network.config.n
         f = bft_network.config.f
@@ -355,7 +355,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
                 err_msg="Make sure a view change has been triggered."
             )
             current_primary = view
-            [await bft_network.start_replica(i) for i in crashed_replicas]
+            [bft_network.start_replica(i) for i in crashed_replicas]
 
         await tracker.tracked_read_your_writes()
 
@@ -400,7 +400,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             tracker,
             num_consecutive_failing_primaries):
 
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         initial_primary = await bft_network.get_current_primary()
         initial_view = await bft_network.get_current_view()
         replcas_to_stop = [ v for v in range(initial_primary,
@@ -418,7 +418,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         )
 
         for replica in replcas_to_stop:
-            await bft_network.stop_replica(replica)
+            bft_network.stop_replica(replica)
 
         await self._send_random_writes(tracker)
 
@@ -455,14 +455,14 @@ class SkvbcViewChangeTest(unittest.TestCase):
 
         crashed_replicas = set()
 
-        await bft_network.stop_replica(primary)
+        bft_network.stop_replica(primary)
         crashed_replicas.add(primary)
 
         crash_candidates = bft_network.all_replicas(
             without=except_replicas.union({primary}))
         random.shuffle(crash_candidates)
         for i in range(nb_crashing - 1):
-            await bft_network.stop_replica(crash_candidates[i])
+            bft_network.stop_replica(crash_candidates[i])
             crashed_replicas.add(crash_candidates[i])
 
         return crashed_replicas

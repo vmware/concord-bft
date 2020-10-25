@@ -89,11 +89,13 @@ class BftClient(ABC):
         self.comm_prepared = False
 
     @abstractmethod
-    async def __aenter__(self):
+    def __enter__(self):
+        """ Context manager method for 'with' statements """
         pass
 
     @abstractmethod
-    async def __aexit__(self, *args):
+    def __exit__(self, *args):
+        """ Context manager method for 'with' statements """
         pass
 
     @abstractmethod
@@ -271,20 +273,12 @@ class UdpClient(BftClient):
             data, sender = await self.sock.recvfrom(self.config.max_msg_size)
             self._process_received_msg(data, sender, replicas_addr, required_replies, cancel_scope)
 
-    async def __aenter__(self):
-        """async context manager method for 'with' statements"""
-        return self
-
-    async def __aexit__(self, *args):
-        """async context manager method for 'with' statements"""
-        self.sock.close()
-
     def __enter__(self):
-        """context manager method for 'with' statements"""
+        """ Context manager method for 'with' statements"""
         return self
 
     def __exit__(self, *args):
-        """context manager method for 'with' statements"""
+        """ Context manager method for 'with' statements"""
         self.sock.close()
 
 class TcpTlsClient(BftClient):
@@ -463,12 +457,12 @@ class TcpTlsClient(BftClient):
                 else:
                     self.establish_ssl_stream_parklot[dest_addr].unpark()
 
-    async def __aenter__(self):
-        """async context manager method for 'with' statements"""
+    def __enter__(self):
+        """ Context manager method for 'with' statements """
         pass
 
-    async def __aexit__(self, *args):
-        """async context manager method for 'with' statements"""
+    def __exit__(self, *args):
+        """ Context manager method for 'with' statements """
         self.exit_flag = True
         for lot in self.establish_ssl_stream_parklot.values():
             lot.unpark()

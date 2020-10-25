@@ -65,7 +65,7 @@ class SkvbcChaosTest(unittest.TestCase):
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         self.bft_network = bft_network
-        await self.bft_network.start_all_replicas()
+        self.bft_network.start_all_replicas()
         await tracker.run_concurrent_ops(num_ops)
 
     @with_trio
@@ -81,14 +81,14 @@ class SkvbcChaosTest(unittest.TestCase):
 
         self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         self.bft_network = bft_network
-        await self.bft_network.start_all_replicas()
+        self.bft_network.start_all_replicas()
         async with trio.open_nursery() as nursery:
             nursery.start_soon(tracker.run_concurrent_ops, num_ops)
             nursery.start_soon(self.crash_primary)
 
     async def crash_primary(self):
         await trio.sleep(.5)
-        await self.bft_network.stop_replica(0)
+        self.bft_network.stop_replica(0)
 
 if __name__ == '__main__':
     unittest.main()

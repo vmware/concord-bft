@@ -66,7 +66,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         This is a regression test for
         https://github.com/vmware/concord-bft/issues/194.
         """
-        [await bft_network.start_replica(i) for i in range(1, bft_network.config.n - 1)]
+        [bft_network.start_replica(i) for i in range(1, bft_network.config.n - 1)]
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(
@@ -93,8 +93,8 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 # bftEngine::impl::PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const
                 # bftEngine::impl::DescriptorOfLastExitFromView &):
                 # Assertion `false' failed.
-                await bft_network.stop_replica(1)
-                await bft_network.start_replica(0)
+                bft_network.stop_replica(1)
+                bft_network.start_replica(0)
                 while True:
                     with trio.move_on_after(.5):  # seconds
                         key = ['replica', 'Gauges', 'lastAgreedView']
@@ -115,13 +115,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
         2) Restart all replicas (stop all, followed by start all)
         3) Verify the same key-value can be read from the blockchain
         """
-        await bft_network.start_all_replicas()
+        bft_network.start_all_replicas()
         key = tracker.skvbc.random_key()
         val = tracker.skvbc.random_value()
         await tracker.write_and_track_known_kv([(key, val)], bft_network.random_client())
 
-        await bft_network.stop_all_replicas()
-        await bft_network.start_all_replicas()
+        bft_network.stop_all_replicas()
+        bft_network.start_all_replicas()
 
         kv_reply = await tracker.read_and_track_known_kv(key, bft_network.random_client())
 
@@ -151,7 +151,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         # Start the replica without any data, and wait for state transfer to
         # complete.
 
-        await bft_network.start_replica(stale_node)
+        bft_network.start_replica(stale_node)
         await bft_network.wait_for_state_transfer_to_start()
         up_to_date_node = 0
         await bft_network.wait_for_state_transfer_to_stop(up_to_date_node,
@@ -193,9 +193,9 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Start the empty replica, wait for it to start fetching, then stop
         # it.
-        await bft_network.start_replica(stale_node)
+        bft_network.start_replica(stale_node)
         await bft_network.wait_for_fetching_state(stale_node)
-        await bft_network.stop_replica(stale_node)
+        bft_network.stop_replica(stale_node)
 
         # Loop repeatedly starting and killing the destination replica after
         # state transfer has started. On each restart, ensure the node is
@@ -203,7 +203,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         await self._fetch_or_finish_state_transfer_while_crashing(bft_network, 0, stale_node)
 
         # Restart the replica and wait for state transfer to stop
-        await bft_network.start_replica(stale_node)
+        bft_network.start_replica(stale_node)
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
 
         await bft_network.force_quorum_including_replica(stale_node)
@@ -225,7 +225,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                                                              nb_crashes=20):
        for _ in range(nb_crashes):
            log.log_message(message_type=f'Restarting replica {stale_node}')
-           await bft_network.start_replica(stale_node)
+           bft_network.start_replica(stale_node)
            try:
                await bft_network.wait_for_fetching_state(stale_node)
                # Sleep a bit to give some time for the fetch to make progress
@@ -242,7 +242,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                              "but we are not fetching either!")
            finally:
                log.log_message(message_type=f'Stopping replica {stale_node}')
-               await bft_network.stop_replica(stale_node)
+               bft_network.stop_replica(stale_node)
 
     from os import environ
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
@@ -308,10 +308,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         if source_replica_id in unstable_replicas:
             log.log_message(message_type=f'Stopping source replica {source_replica_id}')
-            await bft_network.stop_replica(source_replica_id)
+            bft_network.stop_replica(source_replica_id)
 
             log.log_message(message_type=f'Re-starting stale replica {stale} to start state transfer')
-            await bft_network.start_replica(stale)
+            bft_network.start_replica(stale)
 
             await bft_network.wait_for_state_transfer_to_stop(
                 up_to_date_node=primary,
@@ -321,7 +321,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             log.log_message(message_type=f'State transfer completed, despite initial source '
                   f'replica {source_replica_id} being down')
 
-            await bft_network.start_replica(source_replica_id)
+            bft_network.start_replica(source_replica_id)
         else:
             log.log_message(message_type="No source replica set in stale node, checking "
                   "if state transfer has already completed...")
@@ -435,10 +435,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
             self, skvbc, bft_network, n, primary, stale, trigger_view_change=False):
 
         log.log_message(message_type=f'Stopping primary replica {primary} to trigger view change')
-        await bft_network.stop_replica(primary)
+        bft_network.stop_replica(primary)
 
         log.log_message(message_type=f'Re-starting stale replica {stale} to start state transfer')
-        await bft_network.start_replica(stale)
+        bft_network.start_replica(stale)
 
         if trigger_view_change:
             await self._trigger_view_change(skvbc)
@@ -469,7 +469,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         log.log_message(message_type=f'State transfer completed, despite the primary '
               f'replica crashing.')
 
-        await bft_network.start_replica(primary)
+        bft_network.start_replica(primary)
 
     async def _run_state_transfer_while_crashing_primary_repeatedly(
             self, skvbc, bft_network, n, primary, stale):
@@ -480,7 +480,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         for _ in range(2):
             log.log_message(message_type=f'Stopping current primary replica {current_primary} '
                   f'to trigger view change')
-            await bft_network.stop_replica(current_primary)
+            bft_network.stop_replica(current_primary)
             await self._trigger_view_change(skvbc)
 
             log.log_message(message_type=f'Repeatedly restarting stale replica {stale} '
@@ -492,7 +492,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                 stale_node=stale,
                 nb_crashes=3)
 
-            await bft_network.start_replica(current_primary)
+            bft_network.start_replica(current_primary)
 
             current_primary = await bft_network.wait_for_view(
                 replica_id=random.choice(stable_replicas),
@@ -502,7 +502,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             stable_replicas = \
                 bft_network.all_replicas(without={current_primary, stale})
 
-        await bft_network.start_replica(stale)
+        bft_network.start_replica(stale)
 
         await bft_network.wait_for_state_transfer_to_stop(
             up_to_date_node=current_primary,
@@ -533,11 +533,11 @@ class SkvbcPersistenceTest(unittest.TestCase):
               f'it fetches from {unstable_replicas}...')
         with trio.move_on_after(10):  # seconds
             while True:
-                await bft_network.start_replica(stale)
+                bft_network.start_replica(stale)
                 source_replica_id = await bft_network.wait_for_fetching_state(
                     replica_id=stale
                 )
-                await bft_network.stop_replica(stale)
+                bft_network.stop_replica(stale)
                 if source_replica_id in unstable_replicas:
                     # Nice! The source is a replica we can crash
                     break
