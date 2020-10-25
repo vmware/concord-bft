@@ -205,27 +205,25 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
   SCOPED_MDC_CID(clientReqMsg->getCid());
   if (myReplica_.isCollectingState()) {
     LOG_INFO(logger(),
-             "ClientPreProcessRequestMsg"
-                 << KVLOG(reqSeqNum)
-                 << " is ignored because the replica is collecting missing state from other replicas");
+             "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
+                 << KVLOG(reqSeqNum));
     return false;
   }
   if (clientReqMsg->isReadOnly()) {
-    LOG_INFO(logger(),
-             "ClientPreProcessRequestMsg " << KVLOG(reqSeqNum) << " is ignored because it is signed as read-only");
+    LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as it is signed as read-only" << KVLOG(reqSeqNum));
     return false;
   }
   const bool &invalidClient = !myReplica_.isValidClient(clientReqMsg->clientProxyId());
   const bool &sentFromReplicaToNonPrimary =
       myReplica_.isIdOfReplica(clientReqMsg->senderId()) && !myReplica_.isCurrentPrimary();
   if (invalidClient || sentFromReplicaToNonPrimary) {
-    LOG_WARN(logger(),
-             "ClientPreProcessRequestMsg  " << KVLOG(reqSeqNum) << " is ignored as invalid: "
-                                            << KVLOG(invalidClient, sentFromReplicaToNonPrimary));
+    LOG_WARN(
+        logger(),
+        "Ignore ClientPreProcessRequestMsg as invalid" << KVLOG(reqSeqNum, invalidClient, sentFromReplicaToNonPrimary));
     return false;
   }
   if (!myReplica_.currentViewIsActive()) {
-    LOG_INFO(logger(), "ClientPreProcessRequestMsg is ignored because current view is inactive, " << KVLOG(reqSeqNum));
+    LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as current view is inactive" << KVLOG(reqSeqNum));
     return false;
   }
   return true;
@@ -329,6 +327,13 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   const NodeIdType &clientId = preProcessReqMsg->clientId();
   LOG_DEBUG(logger(), "Received PreProcessRequestMsg" << KVLOG(reqSeqNum, senderId, clientId));
 
+  if (myReplica_.isCollectingState()) {
+    LOG_INFO(logger(),
+             "Ignore PreProcessRequestMsg as the replica is collecting missing state from other replicas"
+                 << KVLOG(reqSeqNum));
+    return;
+  }
+
   if (myReplica_.isCurrentPrimary()) {
     LOG_WARN(logger(),
              "Ignore PreProcessRequestMsg as current replica is the primary" << KVLOG(reqSeqNum, senderId, clientId));
@@ -336,7 +341,7 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   }
 
   if (!myReplica_.currentViewIsActive()) {
-    LOG_INFO(logger(), "PreProcessRequestMsg is ignored because current view is inactive," << KVLOG(reqSeqNum));
+    LOG_INFO(logger(), "Ignore PreProcessRequestMsg as current view is inactive" << KVLOG(reqSeqNum));
     return;
   }
   bool registerSucceeded = false;
