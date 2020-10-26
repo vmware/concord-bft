@@ -268,19 +268,25 @@ class BftTestNetwork:
         return bft_network
 
     @classmethod
-    def existing(cls, config, replicas, clients, client_factory=None):
+    def existing(cls, config, replicas, clients, client_factory=None, background_nursery=None):
+        certdir = None
+        if not client_factory:
+            certdir = tempfile.mkdtemp()
+            assert background_nursery is not None, "You must transfer a background nursery which lasts for all test duration!"
         bft_network = cls(
             is_existing=True,
             origdir=None,
             config=config,
             testdir=None,
+            certdir=certdir,
             builddir=None,
             toolsdir=None,
             procs={r.id: r for r in replicas},
             replicas=replicas,
             clients={i: clients[i] for i in range(len(clients))},
             metrics=None,
-            client_factory=client_factory
+            client_factory=client_factory,
+            background_nursery = background_nursery
         )
 
         bft_network._init_metrics()
