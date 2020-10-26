@@ -1529,7 +1529,9 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
           if ((getMonotonicTime() - timeOfLastCommit) >
               (milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli))) {
-            askForStateTransfer = true;
+            LOG_WARN(GL,
+                     "timeToWaitBeforeStartingStateTransferInMainWindowMilli expired,"
+                     " previously would call to startCollectingState");  // TODO [TK] debug, remove eventually
           }
         }
       }
