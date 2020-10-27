@@ -142,6 +142,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   Time lastTimeThisReplicaSentStatusReportMsgToAllPeerReplicas = MinTime;
   Time timeOfLastStateSynch;    // last time the replica received a new state (via the state transfer mechanism)
   Time timeOfLastViewEntrance;  // last time the replica entered to a new view
+  Time timeOfLastExecution;     // last time that some client request has been executed
 
   // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages
   // with view >= v
