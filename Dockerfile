@@ -30,3 +30,6 @@ path-exclude /usr/share/linda/*' > /etc/dpkg/dpkg.cfg.d/01_nodoc && \
             python3-pip \
             python3-setuptools \
             wget
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
