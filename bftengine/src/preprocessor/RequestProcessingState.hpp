@@ -46,11 +46,12 @@ class RequestProcessingState {
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
   uint32_t getPrimaryPreProcessedResultLen() const { return primaryPreProcessResultLen_; }
   bool isReqTimedOut() const;
+  const uint64_t reqRetryId() const { return reqRetryId_; }
   uint64_t getReqTimeoutMilli() const {
     return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestTimeoutMilli() : 0;
   }
   std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
-  void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId) const;
+  void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId, uint64_t reqRetryId) const;
   void releaseResources();
   ReplicaIdsList getRejectedReplicasList() { return rejectedReplicaIds_; }
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
@@ -68,7 +69,8 @@ class RequestProcessingState {
   }
   auto calculateMaxNbrOfEqualHashes(uint16_t& maxNumOfEqualHashes) const;
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
-                                           NodeIdType newSenderId) const;
+                                           NodeIdType newSenderId,
+                                           uint64_t reqRetryId) const;
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
@@ -91,6 +93,7 @@ class RequestProcessingState {
   std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
   bool retrying_ = false;
   bool preprocessingRightNow_ = false;
+  uint64_t reqRetryId_ = 0;
 };
 
 typedef std::unique_ptr<RequestProcessingState> RequestProcessingStateUniquePtr;

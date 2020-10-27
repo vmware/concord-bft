@@ -23,6 +23,7 @@ class PreProcessRequestMsg : public MessageBase {
   PreProcessRequestMsg(NodeIdType senderId,
                        uint16_t clientId,
                        uint64_t reqSeqNum,
+                       uint64_t reqRetryId,
                        uint32_t reqLength,
                        const char* request,
                        const std::string& cid,
@@ -33,6 +34,7 @@ class PreProcessRequestMsg : public MessageBase {
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
+  const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   std::string getCid() const;
 
  protected:
@@ -46,6 +48,7 @@ class PreProcessRequestMsg : public MessageBase {
     NodeIdType senderId;
     uint32_t requestLength;
     uint32_t cidLength;
+    uint64_t reqRetryId;
   };
 #pragma pack(pop)
 
@@ -54,7 +57,7 @@ class PreProcessRequestMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength);
+  void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t reqLength);
 
  private:
   Header* msgBody() const { return ((Header*)msgBody_); }

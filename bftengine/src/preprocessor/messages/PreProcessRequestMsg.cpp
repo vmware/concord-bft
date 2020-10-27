@@ -18,13 +18,14 @@ namespace preprocessor {
 PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            uint16_t clientId,
                                            uint64_t reqSeqNum,
+                                           uint64_t reqRetryId,
                                            uint32_t reqLength,
                                            const char* request,
                                            const std::string& cid,
                                            const concordUtils::SpanContext& span_context)
     : MessageBase(
           senderId, MsgCode::PreProcessRequest, span_context.data().size(), (sizeof(Header) + reqLength + cid.size())) {
-  setParams(senderId, clientId, reqSeqNum, reqLength);
+  setParams(senderId, clientId, reqSeqNum, reqRetryId, reqLength);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
@@ -35,9 +36,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
   uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + cid.size();
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(),
-            "senderId=" << senderId << " clientId=" << clientId << " reqSeqNum=" << reqSeqNum
-                        << " headerSize=" << sizeof(Header) << " reqLength=" << reqLength << " cidSize=" << cid.size()
-                        << " msgLength=" << msgLength);
+            KVLOG(senderId, clientId, reqSeqNum, reqRetryId, sizeof(Header), reqLength, cid.size(), msgLength));
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
@@ -49,10 +48,12 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void PreProcessRequestMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint32_t reqLength) {
+void PreProcessRequestMsg::setParams(
+    NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t reqLength) {
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
   msgBody()->reqSeqNum = reqSeqNum;
+  msgBody()->reqRetryId = reqRetryId;
   msgBody()->requestLength = reqLength;
 }
 

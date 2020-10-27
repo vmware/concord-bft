@@ -50,6 +50,8 @@ const NodeIdType replica_2 = 2;
 const NodeIdType replica_3 = 3;
 const NodeIdType replica_4 = 4;
 
+uint64_t reqRetryId = 20;
+
 ReplicaConfig& replicaConfig = ReplicaConfig::instance();
 char buf[bufLen];
 SigManagerSharedPtr sigManager_[numOfReplicas_4];
@@ -321,7 +323,8 @@ void setUpCommunication() {
 }
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
-  auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum);
+  auto preProcessReplyMsg =
+      make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum, reqRetryId);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
@@ -474,7 +477,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
 
   auto* preProcessReqMsg =
-      new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, bufLen, buf, cid, span);
+      new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, reqRetryId, bufLen, buf, cid, span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion

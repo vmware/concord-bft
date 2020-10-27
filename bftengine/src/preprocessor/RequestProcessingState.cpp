@@ -43,7 +43,7 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
   SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Created RequestProcessingState with" << KVLOG(reqSeqNum, numOfReplicas_));
+  LOG_DEBUG(logger(), "Created RequestProcessingState with" << KVLOG(reqSeqNum, clientId, numOfReplicas_));
 }
 
 void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg) {
@@ -54,6 +54,7 @@ void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr 
     return;
   }
   preProcessRequestMsg_ = preProcessReqMsg;
+  reqRetryId_ = preProcessRequestMsg_->reqRetryId();
 }
 
 void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
@@ -70,19 +71,22 @@ void RequestProcessingState::releaseResources() {
 }
 
 void RequestProcessingState::detectNonDeterministicPreProcessing(const SHA3_256::Digest &newHash,
-                                                                 NodeIdType newSenderId) const {
+                                                                 NodeIdType newSenderId,
+                                                                 uint64_t reqRetryId) const {
   SCOPED_MDC_CID(cid_);
   for (auto &hashArray : preProcessingResultHashes_)
-    if (newHash != hashArray.first) {
-      LOG_WARN(logger(),
+    if ((newHash != hashArray.first) && reqRetryId_ && (reqRetryId_ == reqRetryId)) {
+      // Compare only between matching request/reply retry ids
+      LOG_INFO(logger(),
                "Received pre-processing result hash is different from calculated by other replica"
-                   << KVLOG(reqSeqNum_, clientId_, newSenderId) << " newHash: " << newHash.data()
-                   << " hash: " << hashArray.first.data());
+                   << KVLOG(reqSeqNum_, clientId_, newSenderId));
     }
 }
 
-void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *newHash, NodeIdType senderId) const {
-  detectNonDeterministicPreProcessing(convertToArray(newHash), senderId);
+void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *newHash,
+                                                                 NodeIdType senderId,
+                                                                 uint64_t reqRetryId) const {
+  detectNonDeterministicPreProcessing(convertToArray(newHash), senderId, reqRetryId);
 }
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
@@ -91,7 +95,7 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
     numOfReceivedReplies_++;
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
     preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
-    detectNonDeterministicPreProcessing(newHashArray, senderId);
+    detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
     SCOPED_MDC_CID(cid_);
     LOG_DEBUG(logger(), "Register rejected PreProcessReplyMsg" << KVLOG(senderId, reqSeqNum_, clientId_));
