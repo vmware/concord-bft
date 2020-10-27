@@ -2773,12 +2773,17 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
         duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
     const uint64_t timeFromLastExecution = duration_cast<milliseconds>(currTime - timeOfLastExecution).count();
 
+    if (timeFromEarliestPendingRequest > 0.5 * viewChangeTimeout) {
+      LOG_WARN(VC_LOG,
+               "Time from earliest pending request is larger than half of the viewchange timeout"
+                   << KVLOG(timeFromEarliestPendingRequest, viewChangeTimeout));
+    }
     if (timeFromLastExecution <= viewChangeTimeout && timeFromEarliestPendingRequest > viewChangeTimeout) {
       // If the replica is progressing, but yet client messages are timed out, it means that the replica is busy with
       // other requests, thus we double the viewchange timeout to reduce the possibility of unnecessary viewchange.
       LOG_INFO(VC_LOG,
                "time from eraliest pending request is greater than viewChangeTimeout but time from last execution is "
-               "not. This may indicate that the replcia is struggling to execute requests amd there is no need to "
+               "not. This may indicate that the replcia is struggling to execute requests and there is no need to "
                "trigger a viewchange. Doubling the viewChangeTimeout"
                    << KVLOG(viewChangeTimeout, timeFromEarliestPendingRequest, timeFromLastExecution));
       viewChangeTimeout = viewChangeTimeout * 2;
