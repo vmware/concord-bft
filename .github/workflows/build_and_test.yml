@@ -20,6 +20,13 @@ jobs:
                 - "-DUSE_S3_OBJECT_STORE=ON"
                 - "-DUSE_S3_OBJECT_STORE=OFF"
     steps:
+        - name: Cleanup pre-installed tools
+          run: |
+            # This is a fix for https://github.com/actions/virtual-environments/issues/1918
+            sudo rm -rf /usr/share/dotnet
+            sudo rm -rf /opt/ghc
+            sudo rm -rf "/usr/local/share/boost"
+            sudo rm -rf "$AGENT_TOOLSDIRECTORY"
         - name: Checkout
           uses: actions/checkout@v2
         - name: Create artifact directory

@@ -33,6 +33,7 @@ CONCORD_BFT_CORE_DIR:=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}
 CONCORD_BFT_ADDITIONAL_RUN_PARAMS:=
 
 BASIC_RUN_PARAMS:=-it --init --rm --privileged=true \
+					  --memory-swap -1 \
 					  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
 					  --name="${CONCORD_BFT_DOCKER_CONTAINER}" \
 					  --workdir=${CONCORD_BFT_TARGET_SOURCE_PATH} \
