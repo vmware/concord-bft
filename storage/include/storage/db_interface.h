@@ -6,6 +6,7 @@
 #include "status.hpp"
 #include <unordered_map>
 #include <vector>
+#include <memory>
 #include "Metrics.hpp"
 
 #define OUT
@@ -34,19 +35,27 @@ class ITransaction {
 
   ID getId() const { return id_; }
   std::string getIdStr() const { return std::to_string(id_); }
+
+  // Takes ownership of the passed transaction. Commits the transaction when destructed.
   class Guard {
    public:
-    Guard(ITransaction* t) : txn_(t) {}
-    virtual ~Guard() noexcept(false) {
+    Guard(ITransaction* txn) : txn_{txn} {}
+    Guard(std::unique_ptr<ITransaction>&& txn) : txn_{std::move(txn)} {}
+    Guard(const Guard&) = delete;
+    Guard& operator=(const Guard&) = delete;
+    Guard(Guard&&) = default;
+    Guard& operator=(Guard&&) = default;
+    virtual ~Guard() {
+      // TODO: what is the rationale for doing that?
       if (!std::uncaught_exception()) {
         txn_->commit();
       }
-      delete txn_;
     }
-    ITransaction* txn() const { return txn_; }
+    ITransaction* txn() const noexcept { return txn_.get(); }
+    ITransaction* operator->() const noexcept { return txn_.get(); }
 
-   protected:
-    ITransaction* txn_;
+   private:
+    std::unique_ptr<ITransaction> txn_;
   };
 
  private:
@@ -77,6 +86,10 @@ class IDBClient {
   // possible options: ITransaction::Guard or std::shared_ptr
   virtual ITransaction* beginTransaction() = 0;
 
+  // Alias for beginTransaction() that provides memory safety by returning an std::unique_ptr. Can be upgraded to an
+  // ITransaction::Guard in order to commit automatically on destruction.
+  virtual std::unique_ptr<ITransaction> startTransaction() = 0;
+
   virtual void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) = 0;
   class IDBClientIterator {
    public:
@@ -89,31 +102,12 @@ class IDBClient {
     virtual KeyValuePair previous() = 0;
     virtual KeyValuePair next() = 0;
     virtual KeyValuePair getCurrent() = 0;
-    virtual bool isEnd() = 0;
+    // Returns true if the iterator is valid and points to a key-value pair. Iterators are initially invalid and users
+    // need to call positioning methods to make them valid.
+    virtual bool valid() const = 0;
     // Status of last operation
-    virtual Status getStatus() = 0;
+    virtual Status getStatus() const = 0;
     virtual ~IDBClientIterator() = default;
-
-    class Guard {
-     public:
-      Guard(const IDBClient& db) : db_{db}, iter_{*(db.getIterator())} {}
-      Guard(const IDBClient* db) : db_{*db}, iter_{*(db->getIterator())} {}
-      Guard(const Guard&) = delete;
-      Guard& operator=(const Guard&) = delete;
-      Guard(Guard&&) = default;
-      ~Guard() noexcept {
-        try {
-          db_.freeIterator(&iter_);
-        } catch (...) {
-        }
-      }
-
-      IDBClientIterator* operator->() const noexcept { return &iter_; }
-
-     private:
-      const IDBClient& db_;
-      IDBClientIterator& iter_;
-    };
   };
 
   class IKeyComparator {
@@ -122,9 +116,7 @@ class IDBClient {
     virtual ~IKeyComparator() = default;
   };
 
-  virtual IDBClientIterator* getIterator() const = 0;
-  virtual Status freeIterator(IDBClientIterator* _iter) const = 0;
-  IDBClientIterator::Guard getIteratorGuard() const { return IDBClientIterator::Guard{this}; }
+  virtual std::unique_ptr<IDBClientIterator> getIterator() const = 0;
 };
 
 }  // namespace storage

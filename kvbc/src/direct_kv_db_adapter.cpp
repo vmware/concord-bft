@@ -480,10 +480,10 @@ void DBAdapter::deleteLastReachableBlock() {
  */
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
   LOG_TRACE(logger_, "Getting value of key " << key << " for read version " << blockVersion);
-  auto iter = db_->getIteratorGuard();
+  auto iter = db_->getIterator();
   Key searchKey = keyGen_->dataKey(key, blockVersion);
   KeyValuePair p = iter->seekAtLeast(searchKey);
-  if (!iter->isEnd() && DBKeyManipulator::extractTypeFromKey(p.first) == EDBKeyType::E_DB_KEY_TYPE_KEY) {
+  if (iter->valid() && DBKeyManipulator::extractTypeFromKey(p.first) == EDBKeyType::E_DB_KEY_TYPE_KEY) {
     Key foundKey = DBKeyManipulator::composedToSimple(p).first;
     BlockId currentReadVersion = DBKeyManipulator::extractBlockIdFromKey(p.first);
     // TODO(JGC): Ask about reason for version comparison logic
@@ -537,7 +537,7 @@ BlockId DBAdapter::fetchLatestBlockId() const {
 
   // Generate maximal key for type 'block'.
   const auto maxKey = keyGen_->blockKey(std::numeric_limits<BlockId>::max());
-  auto iter = db_->getIteratorGuard();
+  auto iter = db_->getIterator();
   // Since we use the maximal key, SeekAtLeast will take the iterator
   // to one position beyond the key corresponding to the largest block id.
   iter->seekAtLeast(maxKey);
@@ -567,16 +567,15 @@ BlockId DBAdapter::fetchLastReachableBlockId() const {
   if (mdt_) return mdtGetLastReachableBlockId();
 
   BlockId lastReachableId = 0;
-  storage::IDBClient::IDBClientIterator *iter = db_->getIterator();
+  auto iter = db_->getIterator();
 
   Sliver blockKey = keyGen_->blockKey(1);
   KeyValuePair kvp = iter->seekAtLeast(blockKey);
   if (kvp.first.length() == 0) {
-    db_->freeIterator(iter);
     return 0;
   }
 
-  while (!iter->isEnd() && (DBKeyManipulator::extractTypeFromKey(kvp.first) == EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
+  while (iter->valid() && (DBKeyManipulator::extractTypeFromKey(kvp.first) == EDBKeyType::E_DB_KEY_TYPE_BLOCK)) {
     BlockId id = DBKeyManipulator::extractBlockIdFromKey(kvp.first);
     if (id == lastReachableId + 1) {
       lastReachableId++;
@@ -586,7 +585,6 @@ BlockId DBAdapter::fetchLastReachableBlockId() const {
     }
   }
 
-  db_->freeIterator(iter);
   return lastReachableId;
 }
 

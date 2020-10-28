@@ -18,38 +18,58 @@ namespace concord {
 namespace storage {
 namespace memorydb {
 
-/**
- * @brief Does nothing.
- *
- * Does nothing.
- * @return Status OK.
- */
 void Client::init(bool readOnly) {}
 
-/**
- * @brief Services a read request from the In Memory Database.
- *
- * Tries to get the value associated with a key.
- * @param _key Reference to the key being looked up.
- * @param _outValue Reference to where the value gets stored if the lookup is
- *                  successful.
- * @return Status NotFound if no mapping is found, else, Status OK.
- */
-Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
+std::set<std::string> Client::partitions() const {
+  auto ret = std::set<std::string>{};
+  for (const auto &p : map_) {
+    ret.insert(p.first);
+  }
+  return ret;
+}
+
+bool Client::hasPartition(const std::string &partition) const { return (map_.count(partition) == 1); }
+
+Status Client::addPartition(const std::string &partition) {
+  if (hasPartition(partition)) {
+    return Status::InvalidArgument("Partition already exists");
+  }
+  map_[partition] = TKVStore{[this](const Sliver &a, const Sliver &b) { return comp_(a, b); }};
+  return Status::OK();
+}
+
+Status Client::dropPartition(const std::string &partition) {
+  if (partition == defaultPartition()) {
+    return Status::IllegalOperation("Cannot delete the default partition");
+  }
+  if (!hasPartition(partition)) {
+    return Status::InvalidArgument("Partition doesn't exist");
+  }
+  map_.erase(partition);
+  return Status::OK();
+}
+
+Status Client::get(const std::string &partition, const Sliver &key, Sliver &outValue) const {
+  auto partitionIt = map_.find(partition);
+  if (partitionIt == std::cend(map_)) {
+    return Status::InvalidArgument("Cannot get a key-value from an unknown partition");
+  }
   try {
-    _outValue = map_.at(_key);
+    outValue = partitionIt->second.at(key);
   } catch (const std::out_of_range &oor) {
     return Status::NotFound(oor.what());
   }
   storage_metrics_.keys_reads_.Get().Inc();
-  storage_metrics_.total_read_bytes_.Get().Inc(_outValue.length());
+  storage_metrics_.total_read_bytes_.Get().Inc(outValue.length());
   storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
+Status Client::get(const Sliver &key, Sliver &outValue) const { return get(kDefaultPartition, key, outValue); }
+
 Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const {
   Sliver value;
-  auto status = get(_key, value);
+  auto status = get(kDefaultPartition, _key, value);
   if (!status.isOK()) return status;
 
   _size = static_cast<uint32_t>(value.length());
@@ -61,32 +81,23 @@ Status Client::get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uin
   return status;
 }
 
-Status Client::has(const Sliver &_key) const {
+Status Client::has(const std::string &partition, const Sliver &key) const {
   Sliver dummy_out;
-  return get(_key, dummy_out);
+  return get(partition, key, dummy_out);
 }
 
-/**
- * @brief Returns reference to a new object of IDBClientIterator.
- *
- * @return A pointer to IDBClientIterator object.
- */
-IDBClient::IDBClientIterator *Client::getIterator() const { return new ClientIterator((Client *)this); }
+Status Client::has(const Sliver &key) const { return has(kDefaultPartition, key); }
 
-/**
- * @brief Frees the IDBClientIterator.
- *
- * @param _iter Pointer to object of class IDBClientIterator that needs to be
- *              freed.
- * @return Status InvalidArgument if iterator is null pointer, else, Status OK.
- */
-Status Client::freeIterator(IDBClientIterator *_iter) const {
-  if (_iter == NULL) {
-    return Status::InvalidArgument("Invalid iterator");
+std::unique_ptr<IDBClient::IDBClientIterator> Client::getIterator() const {
+  return std::make_unique<ClientIterator>(this, map_.at(kDefaultPartition));
+}
+
+std::unique_ptr<IDBClient::IDBClientIterator> Client::getIterator(const std::string &partition) const {
+  auto partitionIt = map_.find(partition);
+  if (partitionIt == std::cend(map_)) {
+    return nullptr;
   }
-
-  delete (ClientIterator *)_iter;
-  return Status::OK();
+  return std::make_unique<ClientIterator>(this, partitionIt->second);
 }
 
 /**
@@ -96,88 +107,132 @@ Status Client::freeIterator(IDBClientIterator *_iter) const {
  * If the map already contains the key, it replaces the value with the data
  * referred to by _value.
  *
- * @param _key Key of the mapping.
- * @param _value Value of the mapping.
- * @return Status OK.
+ * @param partition DB partition to put the key value mapping.
+ * @param key Key of the mapping.
+ * @param value Value of the mapping.
+ * @return Status OK on success or IllegalOperation when the passed partition doesn't exist.
  */
-Status Client::put(const Sliver &_key, const Sliver &_value) {
-  map_.insert_or_assign(_key, _value.clone());
+Status Client::put(const std::string &partition, const Sliver &key, const Sliver &value) {
+  auto partitionIt = map_.find(partition);
+  if (partitionIt == std::cend(map_)) {
+    return Status::InvalidArgument("Cannot put key-values into an unknown partition");
+  }
+  partitionIt->second.insert_or_assign(key, value.clone());
   storage_metrics_.keys_writes_.Get().Inc();
-  storage_metrics_.total_written_bytes_.Get().Inc(_key.length() + _value.length());
+  storage_metrics_.total_written_bytes_.Get().Inc(key.length() + value.length());
   storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
+
+Status Client::put(const Sliver &key, const Sliver &value) { return put(kDefaultPartition, key, value); }
 
 /**
  * @brief Deletes mapping from map.
  *
  * If map contains _key, this function will delete the key value pair from it.
  *
- * @param _key Reference to the key of the mapping.
- * @return Status OK.
+ * @param partition DB partition to delete the key from.
+ * @param key Reference to the key of the mapping.
+ * @return Status OK on success or IllegalOperation when the passed partition doesn't exist.
  */
-Status Client::del(const Sliver &_key) {
-  map_.erase(_key);
+Status Client::del(const std::string &partition, const Sliver &key) {
+  auto partitionIt = map_.find(partition);
+  if (partitionIt == std::cend(map_)) {
+    return Status::InvalidArgument("Cannot delete key-values from an unknown partition");
+  }
+  partitionIt->second.erase(key);
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
-  Status status = Status::OK();
-  for (auto const &it : _keysVec) {
+Status Client::del(const Sliver &key) { return del(kDefaultPartition, key); }
+
+Status Client::multiGet(const std::string &partition, const KeysVector &keys, ValuesVector &values) {
+  if (!hasPartition(partition)) {
+    return Status::InvalidArgument("Cannot get key-values from an unknown partition");
+  }
+  for (auto const &it : keys) {
     Sliver sliver;
-    status = get(it, sliver);
+    auto status = get(partition, it, sliver);
     if (!status.isOK()) return status;
-    _valuesVec.push_back(std::move(sliver));
+    values.push_back(std::move(sliver));
   }
-  return status;
+  return Status::OK();
 }
 
-Status Client::multiPut(const SetOfKeyValuePairs &_keyValueMap) {
-  Status status = Status::OK();
-  for (const auto &it : _keyValueMap) {
-    status = put(it.first, it.second);
-    if (!status.isOK()) return status;
-  }
-  return status;
+Status Client::multiGet(const KeysVector &keys, ValuesVector &values) {
+  return multiGet(kDefaultPartition, keys, values);
 }
 
-Status Client::multiDel(const KeysVector &_keysVec) {
-  Status status = Status::OK();
-  for (auto const &it : _keysVec) {
-    status = del(it);
+Status Client::multiPut(const std::string &partition, const SetOfKeyValuePairs &keyValues) {
+  if (!hasPartition(partition)) {
+    return Status::InvalidArgument("Cannot put key-values into an unknown partition");
+  }
+  for (const auto &it : keyValues) {
+    auto status = put(partition, it.first, it.second);
     if (!status.isOK()) return status;
   }
-  return status;
+  return Status::OK();
 }
+
+Status Client::multiPut(const SetOfKeyValuePairs &keyValues) { return multiPut(kDefaultPartition, keyValues); }
+
+Status Client::multiDel(const std::string &partition, const KeysVector &keys) {
+  if (!hasPartition(partition)) {
+    return Status::InvalidArgument("Cannot delete key-values from an unknown partition");
+  }
+  for (auto const &it : keys) {
+    auto status = del(partition, it);
+    if (!status.isOK()) return status;
+  }
+  return Status::OK();
+}
+
+Status Client::multiDel(const KeysVector &keys) { return multiDel(kDefaultPartition, keys); }
 
 /**
  * @brief Deletes keys in the [_beginKey, _endKey) range.
  *
- * @param _begin Reference to the begin key in the range (included).
- * @param _end Reference to the end key in the range (excluded).
- * @return Status OK.
+ * @param partition A DB partition to delete a range from.
+ * @param begin Reference to the begin key in the range (included).
+ * @param end Reference to the end key in the range (excluded).
+ * @return Status OK on success or InvalidArgument when the passed partition doesn't exist.
  */
-Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
-  if (_beginKey == _endKey) {
+Status Client::rangeDel(const std::string &partition, const Sliver &beginKey, const Sliver &endKey) {
+  auto partitionIt = map_.find(partition);
+  if (partitionIt == std::cend(map_)) {
+    return Status::InvalidArgument("Cannot delete a range from an uknown partition");
+  }
+  auto &kvMap = partitionIt->second;
+
+  if (beginKey == endKey) {
     return Status::OK();
   }
 
   // Make sure that _beginKey comes before _endKey .
-  ConcordAssert(comp_(_beginKey, _endKey));
+  ConcordAssert(comp_(beginKey, endKey));
 
-  auto beginIt = map_.lower_bound(_beginKey);
-  if (beginIt == std::end(map_)) {
+  auto beginIt = kvMap.lower_bound(beginKey);
+  if (beginIt == std::end(kvMap)) {
     return Status::OK();
   }
-  auto endIt = map_.lower_bound(_endKey);
-  map_.erase(beginIt, endIt);
+  auto endIt = kvMap.lower_bound(endKey);
+  kvMap.erase(beginIt, endIt);
   return Status::OK();
 }
 
-ITransaction *Client::beginTransaction() {
-  // The transaction ID counter is intentionally not thread-safe as memorydb only supports single-thread operations.
-  static std::uint64_t current_transaction_id = 0;
-  return new Transaction{*this, ++current_transaction_id};
+Status Client::rangeDel(const Sliver &beginKey, const Sliver &endKey) {
+  return rangeDel(kDefaultPartition, beginKey, endKey);
+}
+
+// The transaction ID counter is intentionally not thread-safe as memorydb only supports single-thread operations.
+static std::uint64_t current_transaction_id = 0;
+
+ITransaction *Client::beginTransaction() { return new Transaction{*this, ++current_transaction_id}; }
+
+std::unique_ptr<ITransaction> Client::startTransaction() { return std::unique_ptr<ITransaction>{beginTransaction()}; }
+
+std::unique_ptr<IPartitionedTransaction> Client::startPartitionedTransaction() {
+  return std::make_unique<Transaction>(*this, ++current_transaction_id);
 }
 
 /**
@@ -187,10 +242,12 @@ ITransaction *Client::beginTransaction() {
  * value pair of the map.
  */
 KeyValuePair ClientIterator::first() {
-  m_current = m_parentClient->getMap().begin();
-  if (m_current == m_parentClient->getMap().end()) {
+  m_current = m_partitionStore.begin();
+  if (m_current == m_partitionStore.end()) {
+    m_valid = false;
     return KeyValuePair();
   }
+  m_valid = true;
   auto &metrics = m_parentClient->getStorageMetrics();
   metrics.keys_reads_.Get().Inc();
   metrics.total_read_bytes_.Get().Inc(m_current->second.length());
@@ -203,12 +260,14 @@ KeyValuePair ClientIterator::first() {
  * @return The last element of the map if it is not empty and an empty pair otherwise.
  */
 KeyValuePair ClientIterator::last() {
-  if (m_parentClient->getMap().empty()) {
-    m_current = m_parentClient->getMap().end();
+  if (m_partitionStore.empty()) {
+    m_valid = false;
+    m_current = m_partitionStore.end();
     return KeyValuePair();
   }
+  m_valid = true;
 
-  m_current = --m_parentClient->getMap().end();
+  m_current = --m_partitionStore.end();
   auto &metrics = m_parentClient->getStorageMetrics();
   metrics.keys_reads_.Get().Inc();
   metrics.total_read_bytes_.Get().Inc(m_current->second.length());
@@ -227,11 +286,13 @@ KeyValuePair ClientIterator::last() {
  *  _searchKey.
  */
 KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
-  m_current = m_parentClient->getMap().lower_bound(_searchKey);
-  if (m_current == m_parentClient->getMap().end()) {
+  m_current = m_partitionStore.lower_bound(_searchKey);
+  if (m_current == m_partitionStore.end()) {
+    m_valid = false;
     LOG_TRACE(logger, "Key " << _searchKey << " not found");
     return KeyValuePair();
   }
+  m_valid = true;
   auto &metrics = m_parentClient->getStorageMetrics();
   metrics.keys_reads_.Get().Inc();
   metrics.total_read_bytes_.Get().Inc(m_current->second.length());
@@ -247,16 +308,16 @@ KeyValuePair ClientIterator::seekAtLeast(const Sliver &_searchKey) {
  *  _searchKey.
  */
 KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
-  const auto &map = m_parentClient->getMap();
-  if (map.empty()) {
-    m_current = map.end();
+  if (m_partitionStore.empty()) {
+    m_valid = false;
+    m_current = m_partitionStore.end();
     LOG_TRACE(logger, "Key " << _searchKey << " not found");
     return KeyValuePair();
   }
 
   // Find keys that are greater than or equal to the search key.
-  m_current = map.lower_bound(_searchKey);
-  if (m_current == map.end()) {
+  m_current = m_partitionStore.lower_bound(_searchKey);
+  if (m_current == m_partitionStore.end()) {
     // If there are no keys that are greater than or equal to the search key, then it means the last one is less than
     // the search key. Therefore, go back from the end iterator.
     --m_current;
@@ -264,12 +325,14 @@ KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
     // We have found a key that is greater than the search key. If it is not the first element, it means that the
     // previous one will be less than the search key. If it is the first element, it means there are no keys that are
     // less than the search key and we return an empty key/value pair.
-    if (m_current != map.begin()) {
+    if (m_current != m_partitionStore.begin()) {
       --m_current;
     } else {
+      m_valid = false;
       return KeyValuePair();
     }
   }
+  m_valid = true;
   auto &metrics = m_parentClient->getStorageMetrics();
   metrics.keys_reads_.Get().Inc();
   metrics.total_read_bytes_.Get().Inc(m_current->second.length());
@@ -284,8 +347,11 @@ KeyValuePair ClientIterator::seekAtMost(const Sliver &_searchKey) {
  * @return The previous key value pair.
  */
 KeyValuePair ClientIterator::previous() {
-  if (m_current == m_parentClient->getMap().begin()) {
-    LOG_WARN(logger, "Iterator already at first key");
+  if (!m_valid) {
+    return KeyValuePair();
+  }
+  if (m_current == m_partitionStore.begin()) {
+    m_valid = false;
     return KeyValuePair();
   }
   --m_current;
@@ -303,8 +369,12 @@ KeyValuePair ClientIterator::previous() {
  * @return The next key value pair.
  */
 KeyValuePair ClientIterator::next() {
+  if (!m_valid) {
+    return KeyValuePair();
+  }
   ++m_current;
-  if (m_current == m_parentClient->getMap().end()) {
+  if (m_current == m_partitionStore.end()) {
+    m_valid = false;
     return KeyValuePair();
   }
   auto &metrics = m_parentClient->getStorageMetrics();
@@ -319,7 +389,7 @@ KeyValuePair ClientIterator::next() {
  * @return Current key value pair.
  */
 KeyValuePair ClientIterator::getCurrent() {
-  if (m_current == m_parentClient->getMap().end()) {
+  if (!m_valid) {
     return KeyValuePair();
   }
   auto &metrics = m_parentClient->getStorageMetrics();
@@ -329,18 +399,16 @@ KeyValuePair ClientIterator::getCurrent() {
 }
 
 /**
- * @brief Tells whether iterator is at the end of the map.
- *
- * @return True if iterator is at the end of the map, else False.
+ * @return True if iterator is valid and points to a key-value pair, else False.
  */
-bool ClientIterator::isEnd() { return m_current == m_parentClient->getMap().end(); }
+bool ClientIterator::valid() const { return m_valid; }
 
 /**
  * @brief Does nothing.
  *
  * @return Status OK.
  */
-Status ClientIterator::getStatus() {
+Status ClientIterator::getStatus() const {
   // TODO Should be used for sanity checks.
   return Status::OK();
 }

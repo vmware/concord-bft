@@ -27,3 +27,5 @@ if (BUILD_ROCKSDB_STORAGE)
   target_include_directories(concordbft_storage PUBLIC ${ROCKSDB_INCLUDE_DIR})
   target_link_libraries(concordbft_storage PRIVATE ${ROCKSDB} ${LIBBZ2} ${LIBLZ4} ${LIBZSTD} ${LIBZ} ${LIBSNAPPY} ${CMAKE_DL_LIBS})
 endif(BUILD_ROCKSDB_STORAGE)
+
+add_subdirectory(test)

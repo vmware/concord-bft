@@ -4,7 +4,7 @@
 
 #include "gtest/gtest.h"
 
-#include "storage_test_common.h"
+#include "kvbc_storage_test_common.h"
 
 #include "block_digest.h"
 #include "merkle_tree_block.h"
@@ -102,7 +102,7 @@ ValuesVector createReferenceBlockchain(const std::shared_ptr<IDBClient> &db,
 }
 
 bool hasStaleIndexKeysSince(const std::shared_ptr<IDBClient> &db, const Version &version) {
-  auto iter = db->getIteratorGuard();
+  auto iter = db->getIterator();
   const auto key = iter->seekAtLeast(DBKeyManipulator::genStaleDbKey(version)).first;
   if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key &&
       DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale &&
@@ -113,7 +113,7 @@ bool hasStaleIndexKeysSince(const std::shared_ptr<IDBClient> &db, const Version 
 }
 
 bool hasInternalKeysForVersion(const std::shared_ptr<IDBClient> &db, const Version &version) {
-  auto iter = db->getIteratorGuard();
+  auto iter = db->getIterator();
   const auto key = iter->seekAtLeast(DBKeyManipulator::genInternalDbKey(InternalNodeKey::root(version))).first;
   if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key &&
       DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Internal &&

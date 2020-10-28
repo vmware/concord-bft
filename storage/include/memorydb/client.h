@@ -15,7 +15,7 @@
 #include <map>
 #include "sliver.hpp"
 #include "key_comparator.h"
-#include "storage/db_interface.h"
+#include "storage/partitioned_db_interface.h"
 #include <functional>
 #include "storage/storage_metrics.h"
 
@@ -27,13 +27,16 @@ class Client;
 
 typedef std::function<bool(const Sliver &, const Sliver &)> Compare;
 typedef std::map<Sliver, Sliver, Compare> TKVStore;
+typedef std::map<std::string, TKVStore> PartitionMap;
 
 class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   friend class Client;
 
  public:
-  ClientIterator(Client *_parentClient)
-      : logger(logging::getLogger("concord.storage.memorydb")), m_parentClient(_parentClient) {}
+  ClientIterator(const Client *parentClient, const TKVStore &partitionStore)
+      : logger(logging::getLogger("concord.storage.memorydb")),
+        m_parentClient(parentClient),
+        m_partitionStore{partitionStore} {}
   virtual ~ClientIterator() {}
 
   // Inherited via IDBClientIterator
@@ -44,17 +47,23 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   KeyValuePair previous() override;
   KeyValuePair next() override;
   KeyValuePair getCurrent() override;
-  bool isEnd() override;
-  Status getStatus() override;
+  bool valid() const override;
+  Status getStatus() const override;
 
  private:
   logging::Logger logger;
 
   // Pointer to the Client.
-  Client *m_parentClient;
+  const Client *m_parentClient;
 
-  // Current iterator inside the map.
+  // Current iterator inside the partition store.
   TKVStore::const_iterator m_current;
+
+  // Needed to handle the case of calling previous() when pointing to the first element.
+  bool m_valid{false};
+
+  // The DB partition this iterator refers to.
+  const TKVStore &m_partitionStore;
 };
 
 // In-memory IO operations below are not thread-safe.
@@ -64,19 +73,18 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 //
 // The default KeyComparator provides lexicographical ordering. If 'a' is shorter than 'b' and they match up to the
 // length of 'a', then 'a' is considered to precede 'b'.
-class Client : public IDBClient {
+class Client : public IPartitionedDBClient {
  public:
-  Client(KeyComparator comp = KeyComparator{})
-      : logger(logging::getLogger("concord.storage.memorydb")),
-        comp_(comp),
-        map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}
+  Client(KeyComparator comp = KeyComparator{}) : logger(logging::getLogger("concord.storage.memorydb")), comp_(comp) {
+    // Ensure we always have the default partition.
+    addPartition(kDefaultPartition);
+  }
 
   void init(bool readOnly = false) override;
   concordUtils::Status get(const Sliver &_key, OUT Sliver &_outValue) const override;
   concordUtils::Status get(const Sliver &_key, OUT char *&buf, uint32_t bufSize, OUT uint32_t &_size) const override;
   concordUtils::Status has(const Sliver &_key) const override;
-  virtual IDBClientIterator *getIterator() const override;
-  virtual concordUtils::Status freeIterator(IDBClientIterator *_iter) const override;
+  std::unique_ptr<IDBClientIterator> getIterator() const override;
   virtual concordUtils::Status put(const Sliver &_key, const Sliver &_value) override;
   virtual concordUtils::Status del(const Sliver &_key) override;
   concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
@@ -85,11 +93,31 @@ class Client : public IDBClient {
   concordUtils::Status rangeDel(const Sliver &_beginKey, const Sliver &_endKey) override;
   bool isNew() override { return true; }
   ITransaction *beginTransaction() override;
-  TKVStore &getMap() { return map_; }
+  std::unique_ptr<ITransaction> startTransaction() override;
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
     storage_metrics_.setAggregator(aggregator);
   }
-  InMemoryStorageMetrics &getStorageMetrics() { return storage_metrics_; }
+  InMemoryStorageMetrics &getStorageMetrics() const { return storage_metrics_; }
+
+  std::string defaultPartition() const override { return kDefaultPartition; }
+  std::set<std::string> partitions() const override;
+  bool hasPartition(const std::string &partition) const override;
+  Status addPartition(const std::string &partition) override;
+  Status dropPartition(const std::string &partition) override;
+
+  Status get(const std::string &partition, const Sliver &key, Sliver &outValue) const override;
+  Status has(const std::string &partition, const Sliver &key) const override;
+  Status put(const std::string &partition, const Sliver &key, const Sliver &value) override;
+  Status del(const std::string &partition, const Sliver &key) override;
+  Status multiGet(const std::string &partition, const KeysVector &keys, ValuesVector &values) override;
+  Status multiPut(const std::string &partition, const SetOfKeyValuePairs &keyValues) override;
+  Status multiDel(const std::string &partition, const KeysVector &keys) override;
+  Status rangeDel(const std::string &partition, const Sliver &beginKey, const Sliver &endKey) override;
+
+  std::unique_ptr<IDBClientIterator> getIterator(const std::string &partition) const override;
+  std::unique_ptr<IPartitionedTransaction> startPartitionedTransaction() override;
+
+  static inline const std::string kDefaultPartition{"default"};
 
  private:
   logging::Logger logger;
@@ -98,7 +126,8 @@ class Client : public IDBClient {
   KeyComparator comp_;
 
   // map that stores the in memory database.
-  TKVStore map_;
+  // maps partition -> key-value store
+  PartitionMap map_;
 
   // Metrics
   mutable InMemoryStorageMetrics storage_metrics_;

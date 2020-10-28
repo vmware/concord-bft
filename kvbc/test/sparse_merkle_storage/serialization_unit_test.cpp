@@ -13,7 +13,7 @@
 
 #include "gtest/gtest.h"
 
-#include "storage_test_common.h"
+#include "kvbc_storage_test_common.h"
 
 #include "endianness.hpp"
 #include "kv_types.hpp"

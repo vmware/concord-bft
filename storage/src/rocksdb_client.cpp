@@ -75,6 +75,8 @@ ITransaction *Client::beginTransaction() {
   return new Transaction(txn_db_->BeginTransaction(wo), ++current_transaction_id);
 }
 
+std::unique_ptr<ITransaction> Client::startTransaction() { return std::unique_ptr<ITransaction>{beginTransaction()}; }
+
 bool Client::isNew() {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
@@ -239,23 +241,8 @@ Status Client::has(const Sliver &_key) const {
  *
  * @return RocksDBClientIterator object.
  */
-IDBClient::IDBClientIterator *Client::getIterator() const { return new ClientIterator(this, logger()); }
-
-/**
- * @brief Frees the RocksDBClientIterator.
- *
- * @param _iter Pointer to object of class RocksDBClientIterator (the iterator)
- *              that needs to be freed.
- * @return Status InvalidArgument if iterator is null pointer, else, Status OK.
- */
-Status Client::freeIterator(IDBClientIterator *_iter) const {
-  if (_iter == NULL) {
-    return Status::InvalidArgument("Invalid iterator");
-  }
-
-  delete (ClientIterator *)_iter;
-
-  return Status::OK();
+std::unique_ptr<IDBClient::IDBClientIterator> Client::getIterator() const {
+  return std::make_unique<ClientIterator>(this, logger());
 }
 
 /**
@@ -592,19 +579,16 @@ KeyValuePair ClientIterator::getCurrent() {
 }
 
 /**
- * @brief Tells whether iterator has crossed the bounds of the last key value
- * pair.
- *
- * @return True if iterator is beyond the bounds, else False.
+ * @return True if iterator is valid and points to a key-value pair, else False.
  */
-bool ClientIterator::isEnd() { return !m_iter->Valid(); }
+bool ClientIterator::valid() const { return m_iter->Valid(); }
 
 /**
  * @brief Returns the Status.
  *
  * @return The latest Status logged.
  */
-Status ClientIterator::getStatus() { return m_status; }
+Status ClientIterator::getStatus() const { return m_status; }
 
 }  // namespace rocksdb
 }  // namespace storage

@@ -44,11 +44,13 @@ class ObjectStoreClient : public IDBClient {
 
   bool isNew() override { return pImpl_->isNew(); }
 
-  IDBClient::IDBClientIterator* getIterator() const override { return pImpl_->getIterator(); }
-
-  Status freeIterator(IDBClientIterator* _iter) const override { return pImpl_->freeIterator(_iter); }
+  std::unique_ptr<IDBClient::IDBClientIterator> getIterator() const override { return pImpl_->getIterator(); }
 
   ITransaction* beginTransaction() override { return pImpl_->beginTransaction(); }
+
+  std::unique_ptr<ITransaction> startTransaction() override {
+    return std::unique_ptr<ITransaction>{beginTransaction()};
+  }
 
   Status has(const Sliver& key) const override { return pImpl_->has(key); }
 

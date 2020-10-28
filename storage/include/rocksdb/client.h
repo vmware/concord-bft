@@ -45,8 +45,8 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
   KeyValuePair previous() override;
   KeyValuePair next() override;
   KeyValuePair getCurrent() override;
-  bool isEnd() override;
-  concordUtils::Status getStatus() override;
+  bool valid() const override;
+  concordUtils::Status getStatus() const override;
 
  private:
   logging::Logger logger;
@@ -81,8 +81,7 @@ class Client : public concord::storage::IDBClient {
                            uint32_t bufSize,
                            uint32_t& _realSize) const override;
   concordUtils::Status has(const Sliver& _key) const override;
-  IDBClientIterator* getIterator() const override;
-  concordUtils::Status freeIterator(IDBClientIterator* _iter) const override;
+  std::unique_ptr<IDBClientIterator> getIterator() const override;
   concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;
   concordUtils::Status del(const concordUtils::Sliver& _key) override;
   concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override;
@@ -92,6 +91,7 @@ class Client : public concord::storage::IDBClient {
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
   bool isNew() override;
   ITransaction* beginTransaction() override;
+  std::unique_ptr<ITransaction> startTransaction() override;
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
     storage_metrics_.setAggregator(aggregator);
   }

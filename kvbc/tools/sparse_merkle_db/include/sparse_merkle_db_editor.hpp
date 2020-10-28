@@ -84,9 +84,9 @@ inline v2MerkleTree::DBAdapter getAdapter(const std::string &path, bool read_onl
   // empty one if it doesn't. Therefore, until the below-mentioned RocksDB issue is fixed, we just check if
   // the DB is empty, i.e. no keys are present.
   // https://github.com/facebook/rocksdb/issues/5029
-  auto iter = db->getIteratorGuard();
+  auto iter = db->getIterator();
   iter->first();
-  if (iter->isEnd()) {
+  if (!iter->valid()) {
     throw std::invalid_argument{"RocksDB database is empty at path " + path};
   }
 

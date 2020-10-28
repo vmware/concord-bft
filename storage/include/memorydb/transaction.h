@@ -18,39 +18,55 @@ namespace memorydb {
 
 // Provides transaction support for memorydb. Since memorydb only supports single-thread operations, Transaction takes
 // advantage of that and implements commit() trivially.
-class Transaction : public ITransaction {
+class Transaction : public IPartitionedTransaction {
  public:
-  Transaction(Client& client, ITransaction::ID id) : ITransaction{id}, client_{client} {}
+  using IPartitionedTransaction::get;
+  using IPartitionedTransaction::put;
+  using IPartitionedTransaction::del;
+
+  Transaction(Client& client, ITransaction::ID id) : IPartitionedTransaction{id}, client_{client} {}
 
   void commit() override { commitImpl(); }
 
-  void rollback() override { updates_.clear(); }
+  void rollback() override { partitionOps_.clear(); }
 
-  void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {
-    updates_.emplace(key, WriteOperation{false, value});
+  void put(const std::string& partition, const Sliver& key, const concordUtils::Sliver& value) override {
+    partitionOps_[partition].emplace(key, WriteOperation{false, value});
   }
 
-  std::string get(const concordUtils::Sliver& key) override {
+  void put(const Sliver& key, const concordUtils::Sliver& value) override {
+    return put(Client::kDefaultPartition, key, value);
+  }
+
+  std::string get(const std::string& partition, const concordUtils::Sliver& key) override {
     // Try the transaction first.
-    auto it = updates_.find(key);
-    if (it != std::cend(updates_)) {
-      if (it->second.isDelete) {
-        return std::string{};
+    auto partitionIt = partitionOps_.find(partition);
+    if (partitionIt != std::cend(partitionOps_)) {
+      const auto& writeOps = partitionIt->second;
+      auto kvIt = writeOps.find(key);
+      if (kvIt != std::cend(writeOps)) {
+        if (kvIt->second.isDelete) {
+          return std::string{};
+        }
+        return kvIt->second.value.toString();
       }
-      return it->second.value.toString();
     }
 
     // If not found in the transaction, try to get from storage.
     concordUtils::Sliver val;
-    if (!client_.get(key, val).isOK()) {
+    if (!client_.get(partition, key, val).isOK()) {
       throw std::runtime_error{"memorydb::Transaction: Failed to get key"};
     }
     return val.toString();
   }
 
-  void del(const concordUtils::Sliver& key) override {
-    updates_.emplace(key, WriteOperation{true, concordUtils::Sliver{}});
+  std::string get(const concordUtils::Sliver& key) override { return get(Client::kDefaultPartition, key); }
+
+  void del(const std::string& partition, const concordUtils::Sliver& key) override {
+    partitionOps_[partition].emplace(key, WriteOperation{true, concordUtils::Sliver{}});
   }
+
+  void del(const concordUtils::Sliver& key) override { return del(Client::kDefaultPartition, key); }
 
  private:
   struct WriteOperation {
@@ -58,27 +74,32 @@ class Transaction : public ITransaction {
     concordUtils::Sliver value;
   };
 
-  // Make sure the commit operation cannot throw. If it does, abort the program.
+  // Make sure the commit operation cannot throw. If it does, terminate the program.
   void commitImpl() noexcept {
-    for (const auto& update : updates_) {
-      auto status = concordUtils::Status::OK();
-      if (update.second.isDelete) {
-        status = client_.del(update.first);
-      } else {
-        status = client_.put(update.first, update.second.value);
-      }
+    for (const auto& [partition, ops] : partitionOps_) {
+      for (const auto& [key, op] : ops) {
+        auto status = concordUtils::Status::OK();
+        if (op.isDelete) {
+          status = client_.del(partition, key);
+        } else {
+          status = client_.put(partition, key, op.value);
+        }
 
-      if (!status.isOK()) {
-        std::abort();
+        if (!status.isOK()) {
+          std::terminate();
+        }
       }
     }
-    updates_.clear();
+    partitionOps_.clear();
   }
 
   Client& client_;
 
   // Maps a key to a write operation.
-  std::unordered_map<concordUtils::Sliver, WriteOperation> updates_;
+  using WriteOperations = std::unordered_map<concordUtils::Sliver, WriteOperation>;
+
+  // Maps a partition to a set of write operations for it.
+  std::map<std::string, WriteOperations> partitionOps_;
 };
 
 }  // namespace memorydb

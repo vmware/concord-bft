@@ -101,7 +101,7 @@ KeysVector keysForVersion(const std::shared_ptr<IDBClient> &db,
                           const VersionExtractor &extractVersion) {
   TimeRecorder scoped(*histograms.dba_keys_for_version);
   auto keys = KeysVector{};
-  auto iter = db->getIteratorGuard();
+  auto iter = db->getIterator();
   // Loop until a different key type or a key with the next version is encountered.
   auto currentKey = iter->seekAtLeast(firstKey).first;
   while (!currentKey.empty() && DBKeyManipulator::getDBKeyType(currentKey) == EDBKeyType::Key &&
@@ -141,7 +141,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
   // version from it.
   {
     const auto blockKey = DBKeyManipulator::genBlockDbKey(blockVersion);
-    auto iter = db_->getIteratorGuard();
+    auto iter = db_->getIterator();
     const auto [foundBlockKey, foundBlockValue] = iter->seekAtMost(blockKey);
     if (!foundBlockKey.empty() && DBKeyManipulator::getDBKeyType(foundBlockKey) == EDBKeyType::Block) {
       TimeRecorder scoped(*histograms.dba_deserialize_block);
@@ -171,7 +171,7 @@ std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blo
 
 BlockId DBAdapter::getGenesisBlockId() const {
   TimeRecorder scoped_timer(*histograms.dba_get_genesis_block_id);
-  auto iter = db_->getIteratorGuard();
+  auto iter = db_->getIterator();
   const auto key = iter->seekAtLeast(DBKeyManipulator::genBlockDbKey(INITIAL_GENESIS_BLOCK_ID)).first;
   if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Block) {
     return DBKeyManipulator::extractBlockIdFromKey(key);
@@ -183,7 +183,7 @@ BlockId DBAdapter::getLastReachableBlockId() const {
   TimeRecorder scoped_timer(*histograms.dba_get_last_reachable_block_id);
   // Generate maximal key for type 'BlockId'.
   const auto maxBlockKey = DBKeyManipulator::genBlockDbKey(MAX_BLOCK_ID);
-  auto iter = db_->getIteratorGuard();
+  auto iter = db_->getIterator();
   // As blocks are ordered by block ID, seek for a block key with an ID that is less than or equal to the maximal
   // allowed block ID.
   const auto foundKey = iter->seekAtMost(maxBlockKey).first;
@@ -200,7 +200,7 @@ BlockId DBAdapter::getLastReachableBlockId() const {
 BlockId DBAdapter::getLatestBlockId() const {
   TimeRecorder scoped_timer(*histograms.dba_get_latest_block_id);
   const auto latestBlockKey = DBKeyManipulator::generateSTTempBlockKey(MAX_BLOCK_ID);
-  auto iter = db_->getIteratorGuard();
+  auto iter = db_->getIterator();
   const auto foundKey = iter->seekAtMost(latestBlockKey).first;
   if (!foundKey.empty() && DBKeyManipulator::getDBKeyType(foundKey) == EDBKeyType::BFT &&
       DBKeyManipulator::getBftSubtype(foundKey) == EBFTSubtype::STTempBlock) {
@@ -436,7 +436,7 @@ void DBAdapter::linkSTChainFrom(BlockId blockId) {
 void DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &block, BlockId blockId) {
   // Deleting the ST block and adding the block to the blockchain via the merkle tree should be done atomically. We
   // implement that by using a transaction.
-  auto txn = std::unique_ptr<concord::storage::ITransaction>{db_->beginTransaction()};
+  auto txn = db_->startTransaction();
 
   // Delete the ST block key in the transaction.
   txn->del(sTBlockKey);
@@ -604,7 +604,7 @@ KeysVector DBAdapter::genesisBlockKeyDeletes(BlockId blockId) const {
 std::optional<std::pair<Key, Value>> DBAdapter::getLeafKeyValAtMostVersion(
     const Key &key, const sparse_merkle::Version &version) const {
   TimeRecorder scoped_timer(*histograms.dba_get_leaf_key_val_at_most_version);
-  auto iter = db_->getIteratorGuard();
+  auto iter = db_->getIterator();
   const auto [foundKey, foundValue] = iter->seekAtMost(DBKeyManipulator::genDataDbKey(key, version));
   if (!foundKey.empty() && DBKeyManipulator::getDBKeyType(foundKey) == EDBKeyType::Key &&
       DBKeyManipulator::getKeySubtype(foundKey) == EKeySubtype::Leaf &&

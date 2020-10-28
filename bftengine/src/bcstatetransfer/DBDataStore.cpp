@@ -237,9 +237,9 @@ void DBDataStore::deserializeResPage(
  * [pageId, checkpoint] => <serialized page>
  */
 void DBDataStore::loadResPages() {
-  auto it(dbc_->getIteratorGuard());
+  auto it = dbc_->getIterator();
   for (auto keyValue = it->seekAtLeast(dynamicResPageKey(0, 0));  // start of dynamic keys space
-       !it->isEnd() && keyValue.first.string_view().find(keymanip_->getReservedPageKeyPrefix().string_view()) == 0;
+       it->valid() && keyValue.first.string_view().find(keymanip_->getReservedPageKeyPrefix().string_view()) == 0;
        keyValue = it->next()) {
     std::istringstream iss(
         std::string(reinterpret_cast<const char*>(keyValue.second.data()), keyValue.second.length()));

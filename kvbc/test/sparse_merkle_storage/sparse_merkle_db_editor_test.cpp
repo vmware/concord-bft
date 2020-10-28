@@ -21,7 +21,7 @@
 #include "PersistentStorageImp.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle_db_editor.hpp"
-#include "storage_test_common.h"
+#include "kvbc_storage_test_common.h"
 #include "storage/db_types.h"
 #include "storage/merkle_tree_key_manipulator.h"
 
