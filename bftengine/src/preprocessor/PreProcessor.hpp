@@ -24,6 +24,7 @@
 #include "Metrics.hpp"
 #include "Timers.hpp"
 #include "InternalReplicaApi.hpp"
+#include "diagnostics.h"
 
 #include <mutex>
 
@@ -175,6 +176,39 @@ class PreProcessor {
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
+
+  // 5 Minutes
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5l;
+  // 60 seconds
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000 * 60l;
+  using Recorder = concord::diagnostics::Recorder;
+  struct Recorders {
+    Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("pre-execution",
+                                       {{"onMessage", onMessage},
+                                        {"launchReqPreProcessing", launchReqPreProcessing},
+                                        {"handlePreProcessedReqByNonPrimary", handlePreProcessedReqByNonPrimary},
+                                        {"handlePreProcessedReqByPrimary", handlePreProcessedReqByPrimary},
+                                        {"sendPreProcessRequestToAllReplicas", sendPreProcessRequestToAllReplicas},
+                                        {"finalizePreProcessing", finalizePreProcessing}});
+    }
+
+    std::shared_ptr<Recorder> onMessage =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> launchReqPreProcessing =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> handlePreProcessedReqByNonPrimary =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> handlePreProcessedReqByPrimary =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> sendPreProcessRequestToAllReplicas =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    std::shared_ptr<Recorder> finalizePreProcessing =
+        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+  };
+
+  Recorders histograms_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//
