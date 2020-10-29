@@ -35,6 +35,8 @@ class SeqNumInfo {
   SeqNumInfo();
   ~SeqNumInfo();
 
+  void acquire(SeqNumInfo& rhs);
+
   void resetAndFree();  // TODO(GG): name
   void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
 
@@ -192,6 +194,8 @@ class SeqNumInfo {
   static void free(SeqNumInfo& i) { i.resetAndFree(); }
 
   static void reset(SeqNumInfo& i) { i.resetAndFree(); }
+
+  static void acquire(SeqNumInfo& to, SeqNumInfo& from) { to.acquire(from); }
 };
 
 }  // namespace impl
