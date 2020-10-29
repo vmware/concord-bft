@@ -35,6 +35,8 @@ class PartialProofsSet {
   PartialProofsSet(InternalReplicaApi* const rep);
   ~PartialProofsSet();
 
+  void acquire(PartialProofsSet* rhs);
+
   void addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& digest);
 
   void setTimeOfSelfPartialProof(const Time& t);
