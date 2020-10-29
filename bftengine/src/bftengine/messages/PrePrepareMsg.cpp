@@ -105,6 +105,8 @@ uint32_t PrePrepareMsg::remainingSizeForRequests() const {
   return (internalStorageSize() - b()->endLocationOfLastRequest);
 }
 
+uint32_t PrePrepareMsg::requestsSize() const { return (b()->endLocationOfLastRequest - prePrepareHeaderPrefix); }
+
 void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
   ConcordAssert(getRequestSizeTemp(pRequest) == requestSize);
   ConcordAssert(!isNull());
