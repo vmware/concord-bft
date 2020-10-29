@@ -1,0 +1,124 @@
+// Concord
+//
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
+// compliance with the Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
+// these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
+// file.
+
+#include "gtest/gtest.h"
+#include "SequenceWithActiveWindow.hpp"
+
+using namespace std;
+using namespace bftEngine::impl;
+
+class MockItemFuncs {
+ public:
+  static const uint64_t initialized = std::numeric_limits<uint64_t>::max();
+  static const uint64_t restarted = std::numeric_limits<uint64_t>::max() - 1;
+  static const uint64_t freed = std::numeric_limits<uint64_t>::max() - 2;
+
+  // methods for SequenceWithActiveWindow
+  static void init(uint64_t& i, void* d) { i = initialized; }
+
+  static void free(uint64_t& i) { i = freed; }
+
+  static void reset(uint64_t& i) { i = restarted; }
+
+  static void acquire(uint64_t& to, uint64_t& from) { to = from; }
+
+  template <typename T>
+  static void printActiveWindow(T window) {
+    std::cout << "current active window = " << window.currentActiveWindow().first << ":"
+              << window.currentActiveWindow().second << "\n";
+  }
+};
+
+TEST(testSequenceWithActiveWindow_test, basic_tests) {
+  const int woindowSize = 10;
+  const int resolution = 1;
+  uint64_t beginning = 0;
+  SequenceWithActiveWindow<woindowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
+                                                                                                       nullptr);
+
+  auto initial_start = beginning = 5 * woindowSize;
+  windowOfInts.advanceActiveWindow(beginning);
+
+  // Set consecutive values in Active Window
+  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+    ConcordAssert(MockItemFuncs::restarted == windowOfInts.get(i));
+    ConcordAssert(!windowOfInts.isPressentInHistory(i));
+    windowOfInts.get(i) = i;
+  }
+  // Verify consecutive values in Active Window
+  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+    ConcordAssert(i == windowOfInts.get(i));
+  }
+
+  // MockItemFuncs::printActiveWindow(windowOfInts);
+
+  // Advance Active Window by half
+  beginning += woindowSize / 2;
+  windowOfInts.advanceActiveWindow(beginning);
+
+  // MockItemFuncs::printActiveWindow(windowOfInts);
+
+  // Verify half of the values remain
+  for (uint64_t i = beginning; i < beginning + woindowSize / 2; i += resolution) {
+    ConcordAssert(i == windowOfInts.get(i));
+  }
+
+  // Verify other half is freshly reset
+  for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+    ConcordAssert(MockItemFuncs::restarted == windowOfInts.get(i));
+  }
+
+  // Verify previously second half of Active Window, and now first is not present in history
+  for (uint64_t i = initial_start + woindowSize / 2; i < initial_start + woindowSize; i += resolution) {
+    ConcordAssert(!windowOfInts.isPressentInHistory(i));
+  }
+
+  // std::cout << "beginningOfInactiveWindow = " << windowOfInts.inactiveStorage.beginningOfInactiveWindow << "\n";
+  // std::cout << "elementsInInactiveWindow = " << windowOfInts.inactiveStorage.elementsInInactiveWindow << "\n";
+  // std::cout << "currentPosOfInactiveWindow = " << windowOfInts.inactiveStorage.currentPosOfInactiveWindow << "\n";
+
+  // Verify previously first half of Active Window, is present in history
+  for (uint64_t i = initial_start; i < initial_start + woindowSize / 2; i += resolution) {
+    ConcordAssert(windowOfInts.isPressentInHistory(i));
+    ConcordAssert(i == windowOfInts.getFromHistory(i));
+  }
+}
+
+TEST(testSequenceWithActiveWindow_test, move_working_window_7_times) {
+  const int woindowSize = 20;
+  const int resolution = 1;
+  uint64_t beginning = 0;
+  SequenceWithActiveWindow<woindowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
+                                                                                                       nullptr);
+
+  windowOfInts.advanceActiveWindow(beginning);
+
+  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+    windowOfInts.get(i) = i;
+  }
+
+  for (int i = 0; i < 7; i++) {
+    beginning += woindowSize / 2;
+    windowOfInts.advanceActiveWindow(beginning);
+    for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+      windowOfInts.get(i) = i;
+    }
+  }
+  for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
+    ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
+  }
+}
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  int res = RUN_ALL_TESTS();
+  return res;
+}
