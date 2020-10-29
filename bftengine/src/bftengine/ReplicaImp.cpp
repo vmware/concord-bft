@@ -2651,8 +2651,8 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, "Received ReqMissingDataMsg. " << KVLOG(msgSender, msg->getFlags()));
-  if ((currentViewIsActive()) && mainLog->IsPressentInHistory(msgSeqNum)) {
-    SeqNumInfo &seqNumInfo = mainLog->getFromHistory(msgSeqNum);
+  if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
+    SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
     if (config_.replicaId == currentPrimary()) {
       PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();

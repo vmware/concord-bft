@@ -115,8 +115,9 @@ class SequenceWithActiveWindow {
     return ((n >= beginningOfActiveWindow) && (n < (beginningOfActiveWindow + WindowSize)));
   }
 
-  bool IsPressentInHistory(NumbersType n) const {
-    return ((n >= inactiveStorage.getBeginningOfInactiveWindow()) && (n < (beginningOfActiveWindow + WindowSize)));
+  bool isPressentInHistory(NumbersType n) const {
+    auto BeginningOfInactiveWindow = inactiveStorage.getBeginningOfInactiveWindow();
+    return ((n >= BeginningOfInactiveWindow) && (n < (BeginningOfInactiveWindow + (WindowHistory * WindowSize))));
   }
 
   ItemType &get(NumbersType n) {
@@ -128,13 +129,19 @@ class SequenceWithActiveWindow {
   }
 
   ItemType &getFromHistory(NumbersType n) {
+    ConcordAssert(isPressentInHistory(n));
+    LOG_DEBUG(GL,
+              "Getting info from Inactive Window for SeqNo="
+                  << n << KVLOG(beginningOfActiveWindow, inactiveStorage.getBeginningOfInactiveWindow()));
+    return inactiveStorage.get(n);
+  }
+
+  ItemType &getFromActiveWindowOrHistory(NumbersType n) {
+    ConcordAssert(insideActiveWindow(n) || isPressentInHistory(n));
     if (insideActiveWindow(n)) {
       return get(n);
     } else {
-      LOG_DEBUG(GL,
-                "Getting info from Inactive Window for SeqNo="
-                    << n << KVLOG(beginningOfActiveWindow, inactiveStorage.getBeginningOfInactiveWindow()));
-      return inactiveStorage.get(n);
+      return getFromHistory(n);
     }
   }
 
