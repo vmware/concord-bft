@@ -404,6 +404,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
  private:
   void addTimers();
+  void startConsensusProcess(PrePrepareMsg* pp, bool isInternalNoop);
   void startConsensusProcess(PrePrepareMsg* pp);
   void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::SLOW);
   void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath = CommitPath::SLOW);

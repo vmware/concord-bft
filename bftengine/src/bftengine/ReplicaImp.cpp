@@ -375,6 +375,11 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
+  static constexpr bool isInternalNoop = false;
+  startConsensusProcess(pp, isInternalNoop);
+}
+
+void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   if (!isCurrentPrimary()) return;
   auto firstPath = pp->firstPath();
   if (config_.debugStatisticsEnabled) {
@@ -384,11 +389,15 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
-  {
+
+  if (isInternalNoop) {
+    LOG_INFO(CNSUS, "Sending PrePrepare containing internal NOOP");
+  } else {
     LOG_INFO(CNSUS,
              "Sending PrePrepare with the following payload of the following correlation ids ["
                  << pp->getBatchCorrelationIdAsString() << "]");
   }
+
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
   seqNumInfo.addSelfMsg(pp);
 
@@ -419,7 +428,8 @@ void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
   ClientRequestMsg emptyClientRequest(config_.replicaId);
   pp->addRequest(emptyClientRequest.body(), emptyClientRequest.size());
   pp->finishAddingRequests();
-  startConsensusProcess(pp);
+  static constexpr bool isInternalNoop = true;
+  startConsensusProcess(pp, isInternalNoop);
 }
 
 void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath) {
@@ -534,10 +544,21 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
+    // Check to see if this is a noop.
+    bool isNoop = false;
+    if (msg->numberOfRequests() == 1) {
+      auto it = RequestsIterator(msg);
+      char *requestBody = nullptr;
+      it.getCurrent(requestBody);
+      isNoop = (reinterpret_cast<ClientRequestMsgHeader *>(requestBody)->requestLength == 0);
+    }
+
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
-      {
+      if (isNoop) {
+        LOG_INFO(CNSUS, "Internal NOOP PrePrepare received");
+      } else {
         LOG_INFO(CNSUS,
                  "PrePrepare with the following correlation IDs [" << msg->getBatchCorrelationIdAsString() << "]");
       }
