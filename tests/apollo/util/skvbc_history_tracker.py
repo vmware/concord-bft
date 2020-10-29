@@ -21,7 +21,8 @@ from util.skvbc_exceptions import(
     StaleReadError,
     NoConflictError,
     InvalidReadError,
-    PhantomBlockError
+    PhantomBlockError,
+    ReadTimeoutError
 )
 
 MAX_LOOKBACK=10
@@ -1031,6 +1032,8 @@ class SkvbcTracker:
         #reply = await client.write(self.write_req([], kv, 0))
         #reply = self.parse_reply(reply)
         reply = await self.write_and_track_known_kv(kv, client)
+        if not reply:
+            raise ReadTimeoutError
         assert reply.success
         assert last_block + 1 == reply.last_block_id
 
