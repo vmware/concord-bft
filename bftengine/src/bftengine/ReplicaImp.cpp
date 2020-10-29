@@ -2656,9 +2656,8 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, "Received ReqMissingDataMsg. " << KVLOG(msgSender, msg->getFlags()));
-  if ((currentViewIsActive()) && (msgSeqNum > strictLowerBoundOfSeqNums) && (mainLog->insideActiveWindow(msgSeqNum)) &&
-      (mainLog->insideActiveWindow(msgSeqNum))) {
-    SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
+  if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
+    SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
     if (config_.replicaId == currentPrimary()) {
       PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
@@ -2701,14 +2700,14 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
     }
 
     if (msg->getPartialCommitIsMissing() && (currentPrimary() == msgSender)) {
-      CommitPartialMsg *c = mainLog->get(msgSeqNum).getSelfCommitPartialMsg();
+      CommitPartialMsg *c = seqNumInfo.getSelfCommitPartialMsg();
       if (c != nullptr) {
         sendAndIncrementMetric(c, msgSender, metric_sent_commitPartial_msg_due_to_reqMissingData_);
       }
     }
 
     if (msg->getFullCommitIsMissing()) {
-      CommitFullMsg *c = mainLog->get(msgSeqNum).getValidCommitFullMsg();
+      CommitFullMsg *c = seqNumInfo.getValidCommitFullMsg();
       if (c != nullptr) {
         sendAndIncrementMetric(c, msgSender, metric_sent_commitFull_msg_due_to_reqMissingData_);
       }
