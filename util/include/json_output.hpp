@@ -23,7 +23,7 @@
 namespace concordUtils {
 
 template <typename KVContainer, typename Encoder>
-std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
+inline std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
   auto out = std::string{"{\n"};
   for (const auto &[key, value] : kv) {
     out += ("  \"" + enc(key) + "\": \"" + enc(value) + "\",\n");
@@ -35,7 +35,7 @@ std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) {
   return out;
 }
 
-std::string kContainerToJson(const std::unordered_map<std::string, std::string> &kv) {
+inline std::string kContainerToJson(const std::unordered_map<std::string, std::string> &kv) {
   auto out = std::string{"{\n"};
   for (const auto &[key, value] : kv) {
     out += ("  \"" + key + "\": " + value + ",\n");
@@ -64,15 +64,15 @@ inline std::string toJson(const std::string &key, const std::string &value) {
 }
 
 template <typename T>
-std::string toJson(const std::string &key, const T &value) {
+inline std::string toJson(const std::string &key, const T &value) {
   return toJson(key, std::to_string(value));
 }
 template <typename T>
-std::pair<std::string, std::string> toPair(const std::string &key, const T &value) {
+inline std::pair<std::string, std::string> toPair(const std::string &key, const T &value) {
   return std::make_pair(key, std::to_string(value));
 }
 
-std::pair<std::string, std::string> toPair(const std::string &key, const std::string &value) {
+inline std::pair<std::string, std::string> toPair(const std::string &key, const std::string &value) {
   return std::make_pair(key, value);
 }
 

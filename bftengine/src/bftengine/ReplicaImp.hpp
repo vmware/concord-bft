@@ -35,6 +35,7 @@
 #include "diagnostics.h"
 #include "performance_handler.h"
 #include "RequestsBatchingLogic.hpp"
+#include "ReplicaStatusHandlers.hpp"
 
 namespace bftEngine::impl {
 
@@ -279,7 +280,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgHandlersRegistrator>,
              concordUtil::Timers& timers);
 
-  void registerStatusHandlers();
   void registerMsgHandlers();
 
   template <typename T>
@@ -303,7 +303,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // Generate diagnostics status replies
   std::string getReplicaState() const;
-
   template <typename T>
   void onMessage(T* msg);
 
@@ -450,6 +449,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   Recorders histograms_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
+  ReplicaStatusHandlers replStatusHandlers_;
 };
 
 }  // namespace bftEngine::impl

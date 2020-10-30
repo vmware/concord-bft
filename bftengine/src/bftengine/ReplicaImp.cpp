@@ -58,27 +58,6 @@ using namespace concord::diagnostics;
 
 namespace bftEngine::impl {
 
-void ReplicaImp::registerStatusHandlers() {
-  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-  auto &msgQueue = getIncomingMsgsStorage();
-
-  auto make_handler_callback = [&msgQueue](const string &name, const string &description) {
-    return concord::diagnostics::StatusHandler(name, description, [&msgQueue, name]() {
-      GetStatus get_status{name, std::promise<std::string>()};
-      auto result = get_status.output.get_future();
-      // Send a GetStatus InternalMessage to ReplicaImp, then wait for the result to be published.
-      msgQueue.pushInternalMsg(std::move(get_status));
-      return result.get();
-    });
-  };
-
-  auto replica_handler = make_handler_callback("replica", "Internal state of the concord-bft replica");
-  auto state_transfer_handler = make_handler_callback("state-transfer", "Status of blockchain state transfer");
-
-  registrar.status.registerHandler(replica_handler);
-  registrar.status.registerHandler(state_transfer_handler);
-}
-
 void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint, bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
 
@@ -1058,6 +1037,11 @@ void ReplicaImp::onInternalMsg(GetStatus &status) const {
   if (status.key == "state-transfer") {
     return status.output.set_value(stateTransfer->getStatus());
   }
+
+  if (status.key == "pre-execution") {
+    return status.output.set_value(replStatusHandlers_.preExecutionStatus(getAggregator()));
+  }
+
   // We must always return something to unblock the future.
   return status.output.set_value("** - Invalid Key - **");
 }
@@ -3215,7 +3199,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
-      reqBatchingLogic_(*this, config_, metrics_) {
+      reqBatchingLogic_(*this, config_, metrics_),
+      replStatusHandlers_(*this) {
   ConcordAssertLT(config_.replicaId, config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3223,7 +3208,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   ConcordAssert(firstTime || ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr)));
 
   registerMsgHandlers();
-  registerStatusHandlers();
+  replStatusHandlers_.registerStatusHandlers();
 
   // Register metrics component with the default aggregator.
   metrics_.Register();
