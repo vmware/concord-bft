@@ -101,10 +101,11 @@ TEST(testSequenceWithActiveWindow_test, move_working_window_7_times) {
 
   windowOfInts.advanceActiveWindow(beginning);
 
+  // Set consecutive values in Active Window
   for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
     windowOfInts.get(i) = i;
   }
-
+  // Advance Working Window and set consecutive values accordingly to transfer in history
   for (int i = 0; i < 7; i++) {
     beginning += woindowSize / 2;
     windowOfInts.advanceActiveWindow(beginning);
@@ -112,6 +113,59 @@ TEST(testSequenceWithActiveWindow_test, move_working_window_7_times) {
       windowOfInts.get(i) = i;
     }
   }
+  // Verify values for current and previous Working Windows are pressent and correct
+  for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
+    ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
+  }
+}
+
+TEST(testSequenceWithActiveWindow_test, move_working_window_by_its_full_size_after_previous_fill) {
+  const int woindowSize = 30;
+  const int resolution = 1;
+  uint64_t beginning = 0;
+  SequenceWithActiveWindow<woindowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
+                                                                                                       nullptr);
+
+  windowOfInts.advanceActiveWindow(beginning);
+
+  // Set consecutive values in Active Window
+  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+    windowOfInts.get(i) = i;
+  }
+
+  // Advance Working Window and set consecutive values accordingly to transfer in history
+  for (int i = 0; i < 3; i++) {
+    beginning += woindowSize / 2;
+    windowOfInts.advanceActiveWindow(beginning);
+    for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+      windowOfInts.get(i) = i;
+    }
+  }
+
+  // Verify values for current and previous Working Windows are pressent and correct
+  for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
+    ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
+  }
+
+  // Advance Working Window by its full size
+  beginning += woindowSize;
+  windowOfInts.advanceActiveWindow(beginning);
+
+  // Set consecutive values in Active Window
+  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+    windowOfInts.get(i) = i;
+  }
+
+  // Advance Working Window and set consecutive values accordingly to transfer in history
+  for (int i = 0; i < 5; i++) {
+    beginning += woindowSize / 2;
+    windowOfInts.advanceActiveWindow(beginning);
+    for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+      windowOfInts.get(i) = i;
+    }
+  }
+
+  // Verify values for current and previous Working Windows are pressent and correct
   for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
     ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
   }

@@ -183,8 +183,7 @@ class SequenceWithActiveWindow {
 
     if (newFirstIndexOfActiveWindow - beginningOfActiveWindow >= WindowSize) {
       if (WindowHistory > 0) {
-        inactiveStorage.clear(newFirstIndexOfActiveWindow -
-                              beginningOfActiveWindow);  // clear elements from inactiveStorage to stay in sync
+        inactiveStorage.clear(newFirstIndexOfActiveWindow);  // clear elements from inactiveStorage to stay in sync
       }
       resetAll(newFirstIndexOfActiveWindow);
       return;
