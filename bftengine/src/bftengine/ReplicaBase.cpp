@@ -66,10 +66,12 @@ bool ReplicaBase::isRunning() const { return msgsCommunicator_->isMsgsProcessing
 
 void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   if (config_.debugStatisticsEnabled) DebugStatistics::onSendExMessage(m->type());
+  MsgCode::Type type = static_cast<MsgCode::Type>(m->type());
 
-  LOG_TRACE(GL, "sending msg type: " << m->type() << " dest: " << dest);
-  if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size()))
-    LOG_ERROR(GL, "sendAsyncMessage failed for message type: " << m->type());
+  LOG_DEBUG(MSGS, "sending msg type: " << type << ", dest: " << dest);
+  if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size())) {
+    LOG_ERROR(MSGS, "sendAsyncMessage failed: " << KVLOG(type, dest));
+  }
 }
 
 }  // namespace bftEngine::impl

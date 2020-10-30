@@ -29,3 +29,4 @@ logging::Logger BLS_LOG = logging::getLogger("concord.bft.threshsign.bls");
 logging::Logger KEY_EX_LOG = logging::getLogger("concord.bft.key-exchange");
 logging::Logger VC_LOG = logging::getLogger("concord.bft.viewchange");
 logging::Logger STLogger = logging::getLogger("concord.bft.st");
+logging::Logger MSGS = logging::getLogger("concord.bft.msgs");
