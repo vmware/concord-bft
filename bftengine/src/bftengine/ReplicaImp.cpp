@@ -3468,7 +3468,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
     error = bftRequestsHandler_.execute(clientId,
                                         lastExecutedSeqNum,
-                                        READ_ONLY_FLAG,
+                                        request->flags(),
                                         request->requestLength(),
                                         request->requestBuf(),
                                         reply.maxReplyLength(),

@@ -26,6 +26,9 @@ int RequestHandler::execute(uint16_t clientId,
       outActualReplySize = 0;
     }
     return 0;
+  } else if (flags & READ_ONLY_FLAG) {
+    // Backward compatible with read only flag prior BC-5126
+    flags = READ_ONLY_FLAG;
   }
 
   return userRequestsHandler_->execute(clientId,
