@@ -396,7 +396,7 @@ int PlainUDPCommunication::Stop() {
 
 bool PlainUDPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
 
-ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(const NodeNum node) {
+ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(NodeNum node) {
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
