@@ -29,6 +29,8 @@ class PreProcessRequestMsg : public MessageBase {
                        const std::string& cid,
                        const concordUtils::SpanContext& span_context = concordUtils::SpanContext{});
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessRequestMsg)
+
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   char* requestBuf() const { return body() + sizeof(Header) + spanContextSize(); }
   const uint32_t requestLength() const { return msgBody()->requestLength; }
