@@ -1256,10 +1256,13 @@ void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber,
                                             ViewNum view,
                                             const std::set<uint16_t> &replicasWithBadSigs) {
   LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view));
-
-  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_DEBUG(GL, "Dropping irrelevant signature." << KVLOG(seqNumber, view));
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetPrepareSignatures();
+    LOG_INFO(GL, "Collecting state, reset prepare signatures");
+    return;
+  }
+  if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_INFO(GL, "Dropping irrelevant signature." << KVLOG(seqNumber, view));
 
     return;
   }
@@ -1281,9 +1284,13 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
-  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_INFO(GL, "Not sending prepare full: Invalid state, view, or sequence number." << KVLOG(view, curView));
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetPrepareSignatures();
+    LOG_INFO(GL, "Collecting state, reset prepare signatures");
+    return;
+  }
+  if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_INFO(GL, "Not sending prepare full: Invalid view, or sequence number." << KVLOG(view, curView));
     return;
   }
 
@@ -1318,10 +1325,15 @@ void ReplicaImp::onPrepareVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view
 
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
 
-  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetPrepareSignatures();
+    LOG_INFO(GL, "Collecting state, reset prepare signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_INFO(GL,
-             "Not sending commit partial: Invalid state, view, or sequence number."
+             "Not sending commit partial: Invalid view, or sequence number."
                  << KVLOG(seqNumber, view, curView, mainLog->insideActiveWindow(seqNumber)));
     return;
   }
@@ -1354,9 +1366,14 @@ void ReplicaImp::onCommitCombinedSigFailed(SeqNum seqNumber,
                                            const std::set<uint16_t> &replicasWithBadSigs) {
   LOG_WARN(THRESHSIGN_LOG, KVLOG(seqNumber, view, replicasWithBadSigs.size()));
 
-  if ((isCollectingState()) || (!currentViewIsActive()) || (curView != view) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_DEBUG(GL, "Invalid state, view, or sequence number." << KVLOG(seqNumber, view, curView));
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetCommitSignatres();
+    LOG_INFO(GL, "Collecting state, reset commit signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_DEBUG(GL, "Invalid view, or sequence number." << KVLOG(seqNumber, view, curView));
     return;
   }
 
@@ -1377,10 +1394,15 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, combinedSigLen));
 
-  if (isCollectingState() || (!currentViewIsActive()) || (curView != view) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetCommitSignatres();
+    LOG_INFO(GL, "Collecting state, reset commit signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
     LOG_INFO(GL,
-             "Not sending full commit: Invalid state, view, or sequence number."
+             "Not sending full commit: Invalid view, or sequence number."
                  << KVLOG(view, curView, mainLog->insideActiveWindow(seqNumber)));
     return;
   }
@@ -1423,10 +1445,14 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
     LOG_TRACE(THRESHSIGN_LOG, KVLOG(seqNumber, view, isValid));
   }
 
-  if (isCollectingState() || (!currentViewIsActive()) || (curView != view) ||
-      (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_INFO(
-        GL, "Invalid state, view, or sequence number." << KVLOG(view, curView, mainLog->insideActiveWindow(seqNumber)));
+  if (isCollectingState() && mainLog->insideActiveWindow(seqNumber)) {
+    mainLog->get(seqNumber).resetCommitSignatres();
+    LOG_INFO(GL, "Collecting state, reset commit signatures");
+    return;
+  }
+
+  if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
+    LOG_INFO(GL, "Invalid view, or sequence number." << KVLOG(view, curView, mainLog->insideActiveWindow(seqNumber)));
     return;
   }
 
