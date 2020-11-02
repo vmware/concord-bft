@@ -3512,6 +3512,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         NodeIdType clientId = req.clientProxyId();
 
         const bool validClient = isValidClient(clientId);
+        const bool validNoop = ((clientId == currentPrimary()) && (req.requestLength() == 0));
+        if (validNoop) {
+          continue;
+        }
         if (!validClient) {
           LOG_WARN(GL, "The client is not valid. " << KVLOG(clientId));
           continue;
