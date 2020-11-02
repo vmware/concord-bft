@@ -121,7 +121,7 @@ struct Config {
   uint32_t maxNumOfReservedPages = 2048;
   uint32_t sizeOfReservedPage = 4096;
 
-  uint32_t refreshTimerMilli = 300;                               // ms
+  uint32_t refreshTimerMilli = 30;                                // ms
   uint32_t checkpointSummariesRetransmissionTimeoutMilli = 2500;  // ms
   uint32_t maxAcceptableMsgDelayMilli = 60000;                    // 1 minute
   uint32_t sourceReplicaReplacementTimeoutMilli = 15000;          // 15 seconds
