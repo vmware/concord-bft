@@ -37,6 +37,8 @@ class SeqNumInfo {
 
   void acquire(SeqNumInfo& rhs);
 
+  void resetCommitSignatres();
+  void resetPrepareSignatures();
   void resetAndFree();  // TODO(GG): name
   void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
 
