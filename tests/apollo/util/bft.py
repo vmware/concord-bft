@@ -402,7 +402,7 @@ class BftTestNetwork:
         If the callback accepts three parameters and one of them is named 'config' - pass the network configuration too.
         Append the SSL certificate path. This is needed only for TLS communication.
         """
-        with log.start_action(action_type="start_replica_cmd"):
+        with log.start_action(action_type="start_replica_cmd", replica=replica_id):
             start_replica_fn_args = inspect.getfullargspec(self.config.start_replica_cmd).args
             if "config" in start_replica_fn_args and len(start_replica_fn_args) == 3:
                 cmd = self.config.start_replica_cmd(self.builddir, replica_id, self.config)
@@ -417,7 +417,8 @@ class BftTestNetwork:
         """
         Returns command line to stop a replica with the given id
         """
-        return self.config.stop_replica_cmd(replica_id)
+        with log.start_action(action_type="stop_replica_cmd", replica=replica_id):
+            return self.config.stop_replica_cmd(replica_id)
 
     def start_all_replicas(self):
         with log.start_action(action_type="start_all_replicas"):
@@ -454,7 +455,7 @@ class BftTestNetwork:
         Start a replica if it isn't already started.
         Otherwise raise an AlreadyStoppedError.
         """
-        with log.start_action(action_type="start_replica"):
+        with log.start_action(action_type="start_replica", replica=replica_id):
             stdout_file = None
             stderr_file = None
 
@@ -560,7 +561,7 @@ class BftTestNetwork:
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
         """
-        with log.start_action(action_type="stop_replica"):
+        with log.start_action(action_type="stop_replica", replica=replica_id):
             if replica_id not in self.procs.keys():
                 raise AlreadyStoppedError(replica_id)
 
@@ -579,7 +580,7 @@ class BftTestNetwork:
             del self.procs[replica_id]
 
     def _stop_external_replica(self, replica_id):
-        with log.start_action(action_type="_stop_external_replica"):
+        with log.start_action(action_type="_stop_external_replica", replica=replica_id):
             subprocess.run(
                 self.stop_replica_cmd(replica_id),
                 check=True
@@ -630,19 +631,20 @@ class BftTestNetwork:
         """
         Returns the current primary replica id
         """
-        with log.start_action(action_type="get_current_primary"):
-            current_primary = await self.get_current_view()
-            return current_primary % self.config.n
+        with log.start_action(action_type="get_current_primary") as action:
+            current_primary = await self.get_current_view() % self.config.n
+            action.add_success_fields(current_primary=current_primary)
+            return current_primary
 
     async def get_current_view(self):
         """
         Returns the current view number
         """
-        with log.start_action(action_type="get_current_view"):
+        with log.start_action(action_type="get_current_view") as action:
             live_replica = random.choice(self.get_live_replicas())
             current_view = await self.wait_for_view(
                 replica_id=live_replica, expected=None)
-
+            action.add_success_fields(current_view=current_view)
             return current_view
 
     async def get_metric(self, replica_id, bft_network, mtype, mname):
@@ -655,6 +657,7 @@ class BftTestNetwork:
                     except KeyError:
                         # metrics not yet available, continue looping
                         log.log_message(message_type=f"KeyError! '{mname}' not yet available.")
+                        await trio.sleep(0.1)
                     else:
                         return value
 
@@ -669,7 +672,7 @@ class BftTestNetwork:
 
         In case of a timeout, fails with the provided err_msg
         """
-        with log.start_action(action_type="wait_for_view") as action:
+        with log.start_action(action_type="wait_for_view", replica=replica_id) as action:
             if expected is None:
                 expected = lambda _: True
 
@@ -694,7 +697,7 @@ class BftTestNetwork:
         """
         Wait for the last agreed view to match the "expected" predicate
         """
-        with log.start_action(action_type="_wait_for_matching_agreed_view"):
+        with log.start_action(action_type="_wait_for_matching_agreed_view", replica=replica_id, expected=expected) as action:
             last_agreed_view = None
             with trio.fail_after(seconds=30):
                 while True:
@@ -707,14 +710,16 @@ class BftTestNetwork:
                                 break
                     except KeyError:
                         # metrics not yet available, continue looping
-                        continue
+                        pass
+                    await trio.sleep(0.1)
+            action.add_success_fields(last_agreed_view=last_agreed_view)
             return last_agreed_view
 
     async def _wait_for_active_view(self, view):
         """
         Wait for a view to become active on enough (n-f) replicas
         """
-        with log.start_action(action_type="_wait_for_active_view"):
+        with log.start_action(action_type="_wait_for_active_view", view=view):
             with trio.fail_after(seconds=30):
                 while True:
                     nb_replicas_in_view = await self._count_replicas_in_view(view)
@@ -722,13 +727,14 @@ class BftTestNetwork:
                     # wait for n-f = 2f+2c+1 replicas to be in the expected view
                     if nb_replicas_in_view >= 2 * self.config.f + 2 * self.config.c + 1:
                         break
+                    await trio.sleep(0.1)
             return nb_replicas_in_view
 
     async def _count_replicas_in_view(self, view):
         """
         Count the number of replicas that have activated a given view
         """
-        with log.start_action(action_type="_count_replicas_in_view"):
+        with log.start_action(action_type="_count_replicas_in_view", view=view):
             nb_replicas_in_view = 0
 
             async def count_if_replica_in_view(r, expected_view):
@@ -750,6 +756,7 @@ class BftTestNetwork:
                                         nb_replicas_in_view += 1
                                 except KeyError:
                                     # metrics not yet available, continue looping
+                                    await trio.sleep(0.25)
                                     continue
                                 else:
                                     break
@@ -765,7 +772,7 @@ class BftTestNetwork:
         Bring down a sufficient number of replicas (excluding the primary),
         so that the remaining replicas form a quorum that includes replica_id
         """
-        with log.start_action(action_type="force_quorum_including_replica") as action:
+        with log.start_action(action_type="force_quorum_including_replica", replica=replica_id) as action:
             assert len(self.procs) >= 2 * self.config.f + self.config.c + 1
             primary = await self.get_current_primary()
             self.stop_replicas(self.random_set_of_replicas(
@@ -778,14 +785,16 @@ class BftTestNetwork:
 
         Returns the current source replica for state transfer.
         """
-        with log.start_action(action_type="wait_for_fetching_state"):
+        with log.start_action(action_type="wait_for_fetching_state", replica=replica_id) as action:
             with trio.fail_after(10): # seconds
                 while True:
                     with trio.move_on_after(.5): # seconds
                         is_fetching = await self.is_fetching(replica_id)
                         source_replica_id = await self.source_replica(replica_id)
                         if is_fetching:
+                            action.add_success_fields(source_replica_id=source_replica_id)
                             return source_replica_id
+                        await trio.sleep(0.1)
 
     async def is_fetching(self, replica_id):
         """Return whether the current replica is fetching state"""
@@ -795,10 +804,9 @@ class BftTestNetwork:
 
     async def source_replica(self, replica_id):
         """Return whether the current replica has a source replica already set"""
-        with log.start_action(action_type="source_replica"):
+        with log.start_action(action_type="source_replica", replica=replica_id):
             key = ['bc_state_transfer', 'Gauges', 'current_source_replica']
             source_replica_id = await self.metrics.get(replica_id, *key)
-
             return source_replica_id
 
     async def wait_for_state_transfer_to_start(self):
@@ -819,23 +827,25 @@ class BftTestNetwork:
         Check metrics to see if state transfer started. If so cancel the
         concurrent coroutines in the request scope.
         """
-        with log.start_action(action_type="_wait_to_receive_st_msgs"):
+        with log.start_action(action_type="_wait_to_receive_st_msgs", replica=replica.id) as action:
             while True:
                 with trio.move_on_after(.5): # seconds
                     try:
                         key = ['replica', 'Counters', 'receivedStateTransferMsgs']
                         n = await self.metrics.get(replica.id, *key)
                         if n > 0:
+                            action.log(message_type="State transfer has started. Cancelling concurrent coroutines", receivedStateTransferMsgs=n)
                             cancel_scope.cancel()
                     except KeyError:
-                        continue # metrics not yet available, continue looping
+                        pass # metrics not yet available, continue looping
+                    await trio.sleep(0.1)
 
     async def wait_for_state_transfer_to_stop(
             self,
             up_to_date_node,
             stale_node,
             stop_on_stable_seq_num=False):
-        with log.start_action(action_type="wait_for_state_transfer_to_stop") as action:
+        with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num):
             with trio.fail_after(30): # seconds
                 # Get the lastExecutedSeqNumber from a started node
                 if stop_on_stable_seq_num:
@@ -843,42 +853,40 @@ class BftTestNetwork:
                 else:
                     key = ['replica', 'Gauges', 'lastExecutedSeqNum']
                 expected_seq_num = await self.metrics.get(up_to_date_node, *key)
-                last_n = -1
-                while True:
-                    with trio.move_on_after(.5): # seconds
-                        metrics = await self.metrics.get_all(stale_node)
-                        try:
-                            n = self.metrics.get_local(metrics, *key)
-                        except KeyError:
-                            # ignore - the metric will eventually become available
-                            pass
-                        else:
-                            # Debugging
-                            if n != last_n:
-                                last_n = n
-                                checkpoint = ['bc_state_transfer',
-                                              'Gauges',
-                                              'last_stored_checkpoint']
-                                on_transferring_complete = ['bc_state_transfer',
-                                                            'Counters',
-                                                            'on_transferring_complete']
-                                action.log(message_type="wait_for_st_to_stop: expected_seq_num={} "
-                                      "last_stored_checkpoint={} "
-                                      "on_transferring_complete_count={}".format(
-                                            n,
-                                            self.metrics.get_local(metrics, *checkpoint),
-                                            self.metrics.get_local(metrics,
-                                                *on_transferring_complete)))
-                            # Exit condition
-                            if n >= expected_seq_num:
-                                return
+                with log.start_action(action_type='start_polling', key=key[2], expected_seq_num=expected_seq_num) as action:
+                    last_n = -1
+                    while True:
+                        with trio.move_on_after(.5): # seconds
+                            metrics = await self.metrics.get_all(stale_node)
+                            try:
+                                n = self.metrics.get_local(metrics, *key)
+                            except KeyError:
+                                # ignore - the metric will eventually become available
+                                await trio.sleep(0.1)
+                            else:
+                                # Debugging
+                                if n != last_n:
+                                    last_n = n
+                                    last_stored_checkpoint = self.metrics.get_local(metrics,
+                                        'bc_state_transfer', 'Gauges', 'last_stored_checkpoint')
+                                    on_transferring_complete = self.metrics.get_local(metrics,
+                                        'bc_state_transfer', 'Counters', 'on_transferring_complete')
+                                    action.log(message_type="Not complete yet",
+                                        seq_num=n, last_stored_checkpoint=last_stored_checkpoint, on_transferring_complete=on_transferring_complete)
+
+                                # Exit condition
+                                if n >= expected_seq_num:
+                                    action.add_success_fields(n=n, expected_seq_num=expected_seq_num)
+                                    return
+
+                                await trio.sleep(0.5)
 
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num):
         """
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
         """
-        with log.start_action(action_type="wait_for_replicas_to_checkpoint"):
+        with log.start_action(action_type="wait_for_replicas_to_checkpoint", replica_ids=replica_ids, expected_checkpoint_num=expected_checkpoint_num):
             with trio.fail_after(30): # seconds
                 async with trio.open_nursery() as nursery:
                     for replica_id in replica_ids:
@@ -889,7 +897,7 @@ class BftTestNetwork:
         Wait for a single replica to reach the expected_checkpoint_num.
         If none is provided, return the last stored checkpoint.
         """
-        with log.start_action(action_type="wait_for_checkpoint"):
+        with log.start_action(action_type="wait_for_checkpoint", replica=replica_id, expected_checkpoint_num=expected_checkpoint_num) as action:
             key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
             if expected_checkpoint_num is None:
                 expected_checkpoint_num = lambda _: True
@@ -899,9 +907,10 @@ class BftTestNetwork:
                         try:
                             last_stored_checkpoint = await self.metrics.get(replica_id, *key)
                         except KeyError:
-                            continue
+                            await trio.sleep(0.1)
                         else:
                             if expected_checkpoint_num(last_stored_checkpoint):
+                                action.add_success_fields(last_stored_checkpoint=last_stored_checkpoint)
                                 return last_stored_checkpoint
 
     async def wait_for_fast_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
@@ -963,11 +972,12 @@ class BftTestNetwork:
                             key = ['replica', 'Gauges', 'lastExecutedSeqNum']
                             last_executed_seq_num = await self.metrics.get(replica_id, *key)
                         except KeyError:
-                            continue
+                            pass
                         else:
                             # success!
                             if last_executed_seq_num >= expected:
                                 return last_executed_seq_num
+                        await trio.sleep(0.1)
 
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with log.start_action(action_type="assert_state_transfer_not_started_all_up_nodes"):
@@ -1046,6 +1056,7 @@ class BftTestNetwork:
                     with trio.move_on_after(interval):
                         if await predicate():
                             return
+                        await trio.sleep(0.1)
 
     async def num_of_fast_path_requests(self, replica_id=0):
         """
@@ -1061,7 +1072,7 @@ class BftTestNetwork:
                             return nb_fast_path
                         except KeyError:
                             # metrics not yet available, continue looping
-                            pass
+                            await trio.sleep(0.1)
 
     async def num_of_slow_path_requests(self, replica_id=0):
         """
@@ -1077,7 +1088,7 @@ class BftTestNetwork:
                             return nb_slow_path
                         except KeyError:
                             # metrics not yet available, continue looping
-                            pass
+                            await trio.sleep(0.1)
 
     async def do_key_exchange(self):
         """
@@ -1094,6 +1105,7 @@ class BftTestNetwork:
                                 key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
                                 value = await self.metrics.get(replica_id, *key)
                                 if value < self.config.n:
+                                    await trio.sleep(0.1)
                                     continue
                             except trio.TooSlowError:
                                 print(f"Replica {replica_id} was not able to exchange keys on start")
