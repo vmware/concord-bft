@@ -38,46 +38,46 @@ class MockItemFuncs {
 };
 
 TEST(testSequenceWithActiveWindow_test, basic_tests) {
-  const int woindowSize = 10;
+  const int windowSize = 10;
   const int resolution = 1;
   uint64_t beginning = 0;
-  SequenceWithActiveWindow<woindowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
-                                                                                                       nullptr);
+  SequenceWithActiveWindow<windowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
+                                                                                                      nullptr);
 
-  auto initial_start = beginning = 5 * woindowSize;
+  auto initial_start = beginning = 5 * windowSize;
   windowOfInts.advanceActiveWindow(beginning);
 
   // Set consecutive values in Active Window
-  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+  for (uint64_t i = beginning; i < beginning + windowSize; i += resolution) {
     ConcordAssert(MockItemFuncs::restarted == windowOfInts.get(i));
     ConcordAssert(!windowOfInts.isPressentInHistory(i));
     windowOfInts.get(i) = i;
   }
   // Verify consecutive values in Active Window
-  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+  for (uint64_t i = beginning; i < beginning + windowSize; i += resolution) {
     ConcordAssert(i == windowOfInts.get(i));
   }
 
   // MockItemFuncs::printActiveWindow(windowOfInts);
 
   // Advance Active Window by half
-  beginning += woindowSize / 2;
+  beginning += windowSize / 2;
   windowOfInts.advanceActiveWindow(beginning);
 
   // MockItemFuncs::printActiveWindow(windowOfInts);
 
-  // Verify half of the values remain
-  for (uint64_t i = beginning; i < beginning + woindowSize / 2; i += resolution) {
+  // Verify half of the values remain in the Active Window
+  for (uint64_t i = beginning; i < beginning + windowSize / 2; i += resolution) {
     ConcordAssert(i == windowOfInts.get(i));
   }
 
-  // Verify other half is freshly reset
-  for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+  // Verify other half of the Active Window is freshly reset
+  for (uint64_t i = beginning + windowSize / 2; i < beginning + windowSize; i += resolution) {
     ConcordAssert(MockItemFuncs::restarted == windowOfInts.get(i));
   }
 
   // Verify previously second half of Active Window, and now first is not present in history
-  for (uint64_t i = initial_start + woindowSize / 2; i < initial_start + woindowSize; i += resolution) {
+  for (uint64_t i = initial_start + windowSize / 2; i < initial_start + windowSize; i += resolution) {
     ConcordAssert(!windowOfInts.isPressentInHistory(i));
   }
 
@@ -86,87 +86,87 @@ TEST(testSequenceWithActiveWindow_test, basic_tests) {
   // std::cout << "currentPosOfInactiveWindow = " << windowOfInts.inactiveStorage.currentPosOfInactiveWindow << "\n";
 
   // Verify previously first half of Active Window, is present in history
-  for (uint64_t i = initial_start; i < initial_start + woindowSize / 2; i += resolution) {
+  for (uint64_t i = initial_start; i < initial_start + windowSize / 2; i += resolution) {
     ConcordAssert(windowOfInts.isPressentInHistory(i));
     ConcordAssert(i == windowOfInts.getFromHistory(i));
   }
 }
 
 TEST(testSequenceWithActiveWindow_test, move_working_window_7_times) {
-  const int woindowSize = 20;
-  const int resolution = 1;
+  const int windowSize = 20;
+  const int resolution = 2;
   uint64_t beginning = 0;
-  SequenceWithActiveWindow<woindowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
-                                                                                                       nullptr);
+  SequenceWithActiveWindow<windowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
+                                                                                                      nullptr);
 
   windowOfInts.advanceActiveWindow(beginning);
 
   // Set consecutive values in Active Window
-  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+  for (uint64_t i = beginning; i < beginning + windowSize; i += resolution) {
     windowOfInts.get(i) = i;
   }
   // Advance Working Window and set consecutive values accordingly to transfer in history
   for (int i = 0; i < 7; i++) {
-    beginning += woindowSize / 2;
+    beginning += windowSize / 2;
     windowOfInts.advanceActiveWindow(beginning);
-    for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+    for (uint64_t i = beginning + windowSize / 2; i < beginning + windowSize; i += resolution) {
       windowOfInts.get(i) = i;
     }
   }
   // Verify values for current and previous Working Windows are pressent and correct
-  for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
+  for (uint64_t i = beginning - windowSize; i < beginning + windowSize; i += resolution) {
     ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
   }
 }
 
 TEST(testSequenceWithActiveWindow_test, move_working_window_by_its_full_size_after_previous_fill) {
-  const int woindowSize = 30;
+  const int windowSize = 30;
   const int resolution = 1;
   uint64_t beginning = 0;
-  SequenceWithActiveWindow<woindowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
-                                                                                                       nullptr);
+  SequenceWithActiveWindow<windowSize, resolution, uint64_t, uint64_t, MockItemFuncs, 1> windowOfInts(beginning,
+                                                                                                      nullptr);
 
   windowOfInts.advanceActiveWindow(beginning);
 
   // Set consecutive values in Active Window
-  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+  for (uint64_t i = beginning; i < beginning + windowSize; i += resolution) {
     windowOfInts.get(i) = i;
   }
 
   // Advance Working Window and set consecutive values accordingly to transfer in history
   for (int i = 0; i < 3; i++) {
-    beginning += woindowSize / 2;
+    beginning += windowSize / 2;
     windowOfInts.advanceActiveWindow(beginning);
-    for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+    for (uint64_t i = beginning + windowSize / 2; i < beginning + windowSize; i += resolution) {
       windowOfInts.get(i) = i;
     }
   }
 
   // Verify values for current and previous Working Windows are pressent and correct
-  for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
+  for (uint64_t i = beginning - windowSize; i < beginning + windowSize; i += resolution) {
     ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
   }
 
   // Advance Working Window by its full size
-  beginning += woindowSize;
+  beginning += windowSize;
   windowOfInts.advanceActiveWindow(beginning);
 
   // Set consecutive values in Active Window
-  for (uint64_t i = beginning; i < beginning + woindowSize; i += resolution) {
+  for (uint64_t i = beginning; i < beginning + windowSize; i += resolution) {
     windowOfInts.get(i) = i;
   }
 
   // Advance Working Window and set consecutive values accordingly to transfer in history
   for (int i = 0; i < 5; i++) {
-    beginning += woindowSize / 2;
+    beginning += windowSize / 2;
     windowOfInts.advanceActiveWindow(beginning);
-    for (uint64_t i = beginning + woindowSize / 2; i < beginning + woindowSize; i += resolution) {
+    for (uint64_t i = beginning + windowSize / 2; i < beginning + windowSize; i += resolution) {
       windowOfInts.get(i) = i;
     }
   }
 
   // Verify values for current and previous Working Windows are pressent and correct
-  for (uint64_t i = beginning - woindowSize; i < beginning + woindowSize; i++) {
+  for (uint64_t i = beginning - windowSize; i < beginning + windowSize; i += resolution) {
     ConcordAssert(i == windowOfInts.getFromActiveWindowOrHistory(i));
   }
 }
