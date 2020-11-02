@@ -24,11 +24,11 @@ namespace impl {
 template <uint16_t Resolution, typename NumbersType, typename ItemType, typename ItemFuncs>
 class InactiveStorage {
  public:
-  InactiveStorage(uint16_t maxSize, void *initData) {
+  InactiveStorage(uint16_t maxSize, void *initData, NumbersType windowFirst) {
     if (maxSize > 0) {
-      filled = false;
+      beginningOfInactiveWindow = windowFirst;
       inactiveSavedSeqs.resize(maxSize);
-      elementsInInactiveWindow = currentPosOfInactiveWindow = 0;
+      readPosOfInactiveWindow = elementsInInactiveWindow = writePosOfInactiveWindow = 0;
       for (uint16_t i = 0; i < maxSize; i++) {
         ItemFuncs::init(inactiveSavedSeqs[i], initData);
         ItemFuncs::reset(inactiveSavedSeqs[i]);
@@ -40,24 +40,37 @@ class InactiveStorage {
     for (uint16_t i = 0; i < inactiveSavedSeqs.size(); i++) ItemFuncs::free(inactiveSavedSeqs[i]);
   }
 
+  void clear(NumbersType newBeginningOfInactiveWindow) {
+    beginningOfInactiveWindow = newBeginningOfInactiveWindow;
+    readPosOfInactiveWindow = elementsInInactiveWindow = writePosOfInactiveWindow = 0;
+    for (uint16_t i = 0; i < inactiveSavedSeqs.size(); i++) {
+      ItemFuncs::reset(inactiveSavedSeqs[i]);
+    }
+  }
+
   void add(ItemType &item) {
     ConcordAssertGT(inactiveSavedSeqs.size(), 0);
-    ItemFuncs::reset(inactiveSavedSeqs[currentPosOfInactiveWindow]);
-    ItemFuncs::acquire(inactiveSavedSeqs[currentPosOfInactiveWindow], item);
-    currentPosOfInactiveWindow = (currentPosOfInactiveWindow + 1) % inactiveSavedSeqs.size();
-    if (filled || ++elementsInInactiveWindow > inactiveSavedSeqs.size()) {
-      filled = true;
+    ItemFuncs::reset(inactiveSavedSeqs[writePosOfInactiveWindow]);
+    ItemFuncs::acquire(inactiveSavedSeqs[writePosOfInactiveWindow], item);
+    writePosOfInactiveWindow = (writePosOfInactiveWindow + 1) % inactiveSavedSeqs.size();
+    if (++elementsInInactiveWindow > inactiveSavedSeqs.size()) {
+      elementsInInactiveWindow = inactiveSavedSeqs.size();
       beginningOfInactiveWindow += Resolution;
+      readPosOfInactiveWindow = (readPosOfInactiveWindow + 1) % inactiveSavedSeqs.size();
     }
   }
 
   ItemType &get(NumbersType n) {
     ConcordAssert(n % Resolution == 0);
     ConcordAssertGT(inactiveSavedSeqs.size(), 0);
-    auto index = (currentPosOfInactiveWindow + (n - beginningOfInactiveWindow) / Resolution) % inactiveSavedSeqs.size();
+    auto index = (readPosOfInactiveWindow + (n - beginningOfInactiveWindow) / Resolution) % inactiveSavedSeqs.size();
     LOG_DEBUG(GL,
-              "Actual get from Inactive Window"
-                  << KVLOG(index, currentPosOfInactiveWindow, n, beginningOfInactiveWindow, inactiveSavedSeqs.size()));
+              "Actual get from Inactive Window" << KVLOG(index,
+                                                         readPosOfInactiveWindow,
+                                                         writePosOfInactiveWindow,
+                                                         n,
+                                                         beginningOfInactiveWindow,
+                                                         inactiveSavedSeqs.size()));
     return inactiveSavedSeqs[index];
   }
 
@@ -66,11 +79,13 @@ class InactiveStorage {
     return beginningOfInactiveWindow;
   }
 
+  const NumbersType size() const { return elementsInInactiveWindow * Resolution; }
+
  private:
   std::vector<ItemType> inactiveSavedSeqs;
-  size_t currentPosOfInactiveWindow;
+  size_t writePosOfInactiveWindow;
+  size_t readPosOfInactiveWindow;
   size_t elementsInInactiveWindow;
-  bool filled;
   NumbersType beginningOfInactiveWindow;
 };
 
@@ -96,7 +111,7 @@ class SequenceWithActiveWindow {
 
  public:
   SequenceWithActiveWindow(NumbersType windowFirst, void *initData)
-      : inactiveStorage(WindowHistory * numItems, initData) {
+      : inactiveStorage(WindowHistory * numItems, initData, windowFirst) {
     ConcordAssert(windowFirst % Resolution == 0);
 
     beginningOfActiveWindow = windowFirst;
@@ -117,7 +132,7 @@ class SequenceWithActiveWindow {
 
   bool isPressentInHistory(NumbersType n) const {
     auto BeginningOfInactiveWindow = inactiveStorage.getBeginningOfInactiveWindow();
-    return ((n >= BeginningOfInactiveWindow) && (n < (BeginningOfInactiveWindow + (WindowHistory * WindowSize))));
+    return ((n >= BeginningOfInactiveWindow) && (n < (BeginningOfInactiveWindow + inactiveStorage.size())));
   }
 
   ItemType &get(NumbersType n) {
@@ -167,12 +182,10 @@ class SequenceWithActiveWindow {
     if (newFirstIndexOfActiveWindow == beginningOfActiveWindow) return;
 
     if (newFirstIndexOfActiveWindow - beginningOfActiveWindow >= WindowSize) {
-      resetAll(newFirstIndexOfActiveWindow);
       if (WindowHistory > 0) {
-        for (NumbersType n = 0; n > newFirstIndexOfActiveWindow - beginningOfActiveWindow; n++) {
-          inactiveStorage.add(activeWindow[0]);  // clear necessary elements from inactiveStorage to stay in sync
-        }
+        inactiveStorage.clear(newFirstIndexOfActiveWindow);  // clear elements from inactiveStorage to stay in sync
       }
+      resetAll(newFirstIndexOfActiveWindow);
       return;
     }
 

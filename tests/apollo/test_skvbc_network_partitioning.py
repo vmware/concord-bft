@@ -173,7 +173,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
             await skvbc.fill_and_wait_for_checkpoint(
                 initial_nodes=list(live_replicas),
-                num_of_checkpoints_to_add=1,
+                num_of_checkpoints_to_add=3,
                 verify_checkpoint_persistency=False
             )
 
@@ -274,7 +274,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             # verify checkpoint creation by all replicas except isolated replica
             await skvbc.fill_and_wait_for_checkpoint(
                 initial_nodes=bft_network.all_replicas(without=isolated_replicas),
-                num_of_checkpoints_to_add=1,
+                num_of_checkpoints_to_add=3,
                 verify_checkpoint_persistency=False
             )
 
