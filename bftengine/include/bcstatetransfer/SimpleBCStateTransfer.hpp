@@ -110,7 +110,7 @@ struct Config {
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
   uint32_t maxChunkSize = maxBlockSize;
-  uint16_t maxNumberOfChunksInBatch = 8;
+  uint16_t maxNumberOfChunksInBatch = 64;
 #else
   // maxChunkSize * maxNumberOfChunksInBatch should not exceed 64KB as UDP message size is limited to 64KB.
   uint32_t maxChunkSize = 2048;
