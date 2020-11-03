@@ -31,7 +31,8 @@ extern logging::Logger THRESHSIGN_LOG;
 extern logging::Logger BLS_LOG;
 extern logging::Logger KEY_EX_LOG;
 extern logging::Logger VC_LOG;
-extern logging::Logger STLogger;
+extern logging::Logger ST_SRC_LOG;
+extern logging::Logger ST_DST_LOG;
 
 namespace logging {
 

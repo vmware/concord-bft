@@ -132,6 +132,9 @@ class BCStateTran : public IStateTransfer {
   std::random_device randomDevice_;
   std::mt19937 randomGen_;
 
+  // get ST client or ST server logger according to getFetchingState()
+  logging::Logger& getLogger() const { return (psd_->getIsFetchingState() ? ST_DST_LOG : ST_SRC_LOG); }
+
   ///////////////////////////////////////////////////////////////////////////
   // Unique message IDs
   ///////////////////////////////////////////////////////////////////////////
