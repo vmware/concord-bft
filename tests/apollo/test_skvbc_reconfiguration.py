@@ -43,7 +43,8 @@ def start_replica_cmd(builddir, replica_id):
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE') is not None else "",
-            "-t", os.environ.get('STORAGE_TYPE')]
+            "-t", os.environ.get('STORAGE_TYPE'),
+            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")]
 
 
 class SkvbcReconfigurationTest(unittest.TestCase):
@@ -97,7 +98,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
 
         client = bft_network.random_client()
-        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+        with log.start_action(action_type="send_wedge_cmd",
+                              checkpoint_before=checkpoint_before,
+                              late_replicas=list(late_replicas)):
+           await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, on_time_replicas)
 
@@ -341,37 +345,44 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
-        with trio.fail_after(seconds=120):
-            for replica_id in range(bft_network.config.n):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            key = ['replica', 'Gauges', 'OnCallBackOfSuperStableCP']
-                            value = await bft_network.metrics.get(replica_id, *key)
-                            if value == 0:
-                                continue
-                        except trio.TooSlowError:
-                            log.log_message(message_type=
-                                f"Replica {replica_id} was not able to get to super stable checkpoint within the timeout")
-                            self.assertTrue(False)
-                        else:
-                            self.assertEqual(value, 1)
-                            break
-            try:
-                await skvbc.write_known_kv()
-            except trio.TooSlowError:
-                return
-            else:
-                self.assertTrue(False)
+          with log.start_action(action_type="validate_stop_on_super_stable_checkpoint") as action:
+            with trio.fail_after(seconds=120):
+                for replica_id in range(bft_network.config.n):
+                    while True:
+                        with trio.move_on_after(seconds=1):
+                            try:
+                                key = ['replica', 'Gauges', 'OnCallBackOfSuperStableCP']
+                                value = await bft_network.metrics.get(replica_id, *key)
+                                if value == 0:
+                                    action.log(message_type=f"Replica {replica_id} has not reached super stable checkpoint yet")
+                                    await trio.sleep(0.5)
+                                    continue
+                            except trio.TooSlowError:
+                                action.log(message_type=
+                                    f"Replica {replica_id} was not able to get super stable checkpoint metric within the timeout")
+                                raise
+                            else:
+                                self.assertEqual(value, 1)
+                                action.log(message_type=f"Replica {replica_id} has reached super stable checkpoint")
+                                break
+                with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
+                    with self.assertRaises(trio.TooSlowError):
+                        await skvbc.write_known_kv()
+
 
     async def verify_replicas_are_in_wedged_checkpoint(self, bft_network, previous_checkpoint, replicas):
-        for replica_id in replicas:
-            with trio.fail_after(seconds=60):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
-                        if checkpoint_after == previous_checkpoint + 2:
-                            break
+        with log.start_action(action_type="verify_replicas_are_in_wedged_checkpoint", previous_checkpoint=previous_checkpoint):
+            for replica_id in replicas:
+                with log.start_action(action_type="verify_replica", replica=replica_id):
+                    with trio.fail_after(seconds=60):
+                        while True:
+                            with trio.move_on_after(seconds=1):
+                                checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=replica_id)
+                                if checkpoint_after == previous_checkpoint + 2:
+                                    break
+                                else:
+                                    await trio.sleep(1)
+
 
     async def validate_state_consistency(self, skvbc, key, val):
         return await skvbc.assert_kv_write_executed(key, val)
