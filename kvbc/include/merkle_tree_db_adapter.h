@@ -26,6 +26,7 @@
 #include <future>
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <utility>
 
 namespace concord::kvbc::v2MerkleTree {
@@ -48,6 +49,7 @@ namespace concord::kvbc::v2MerkleTree {
 // getLastReachableBlockId() + 1. Additionally, ReachableSTBlock <= getLatestBlockId().
 class DBAdapter : public IDbAdapter {
  public:
+  using NonProvableKeySet = std::unordered_set<Key>;
   // Unless explicitly turned off, the constructor will try to link the blockchain with any blocks in the temporary
   // state transfer chain. This is done so that the DBAdapter will operate correctly in case a crash or an abnormal
   // shutdown has occurred prior to startup (construction). Only a single DBAdapter instance should operate on a
@@ -55,7 +57,11 @@ class DBAdapter : public IDbAdapter {
   // mechanism. The constructor throws if an error occurs.
   // Note1: The passed DB client must be initialized beforehand.
   // Note2: The 'linkTempSTChain' parameter turns of chain linking and is used for testing/tooling purposes.
-  DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db, bool linkTempSTChain = true);
+  // Note3: The key provided via 'non_provable_key_set' parameter will be stored outside of the Merkle Tree.
+  // Note4: Non-provable keys cannot be deleted for now.
+  DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db,
+            bool linkTempSTChain = true,
+            const NonProvableKeySet &nonProvableKeySet = NonProvableKeySet{});
 
   // Make the adapter non-copyable.
   DBAdapter(const DBAdapter &) = delete;
@@ -208,6 +214,7 @@ class DBAdapter : public IDbAdapter {
   std::shared_ptr<storage::IDBClient> db_;
   sparse_merkle::Tree smTree_;
   std::unique_ptr<concordMetrics::ISummary> commitSizeSummary_;
+  const NonProvableKeySet nonProvableKeySet_;
 };
 
 namespace detail {

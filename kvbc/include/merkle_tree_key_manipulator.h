@@ -26,6 +26,7 @@ namespace concord::kvbc::v2MerkleTree::detail {
 class DBKeyManipulator {
  public:
   static Key genBlockDbKey(BlockId version);
+  static Key genNonProvableBlockDbKey(BlockId block_id, const Key &key);
   static Key genDataDbKey(const sparse_merkle::LeafKey &key);
   static Key genDataDbKey(const Key &key, const sparse_merkle::Version &version);
   static Key genInternalDbKey(const sparse_merkle::InternalNodeKey &key);
@@ -38,6 +39,12 @@ class DBKeyManipulator {
   static Key genStaleDbKey(const sparse_merkle::Version &staleSinceVersion);
 
   static Key generateSTTempBlockKey(BlockId blockId);
+
+  // Extract the block ID from a EDBKeyType::Key and EKeySubtype::NonProvable key.
+  static BlockId extractBlockIdFromNonProvableKey(const Key &key);
+
+  // Extract the key from a EDBKeyType::Key and EKeySubtype::NonProvable key.
+  static Key extractKeyFromNonProvableKey(const Key &key);
 
   // Extract the block ID from a EDBKeyType::Block key or from a EKeySubtype::Leaf key.
   static BlockId extractBlockIdFromKey(const Key &key);

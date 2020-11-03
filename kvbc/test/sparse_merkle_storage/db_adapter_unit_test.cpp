@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -101,11 +102,11 @@ ValuesVector createReferenceBlockchain(const std::shared_ptr<IDBClient> &db,
   return blockchain;
 }
 
-bool hasStaleIndexKeysSince(const std::shared_ptr<IDBClient> &db, const Version &version) {
+bool hasProvableStaleIndexKeysSince(const std::shared_ptr<IDBClient> &db, const Version &version) {
   auto iter = db->getIteratorGuard();
   const auto key = iter->seekAtLeast(DBKeyManipulator::genStaleDbKey(version)).first;
   if (!key.empty() && DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key &&
-      DBKeyManipulator::getKeySubtype(key) == EKeySubtype::Stale &&
+      DBKeyManipulator::getKeySubtype(key) == EKeySubtype::ProvableStale &&
       DBKeyManipulator::extractVersionFromStaleKey(key) == version) {
     return true;
   }
@@ -180,6 +181,113 @@ TEST_P(db_adapter_custom_blockchain, add_block_return) {
   const auto numBlocks = 4u;
   for (auto i = 0u; i < numBlocks; ++i) {
     ASSERT_EQ(adapter.addBlock(updates), i + 1);
+  }
+}
+
+TEST_P(db_adapter_custom_blockchain, add_block_with_non_provable_keys) {
+  std::string key1{"key1"};
+  std::string key2{"key2"};
+  const Sliver skey1{std::move(key1)};
+  const Sliver skey2{std::move(key2)};
+  concord::kvbc::v2MerkleTree::DBAdapter::NonProvableKeySet non_provable_key_set = {skey1, skey2};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb(), true, non_provable_key_set};
+  ASSERT_THROW(adapter.getValue(skey1, 4), NotFoundException);
+
+  const auto updates =
+      SetOfKeyValuePairs{{defaultSliver, defaultSliver}, {skey1, defaultSliver}, {skey2, defaultSliver}};
+  const auto numBlocks = 4u;
+  for (auto i = 0u; i < numBlocks; ++i) {
+    ASSERT_EQ(adapter.addBlock(updates), i + 1);
+  }
+
+  for (const auto &k : non_provable_key_set) {
+    const auto [value, blockId] = adapter.getValue(k, numBlocks);
+    ASSERT_EQ(value, defaultSliver);
+    ASSERT_EQ(blockId, numBlocks);
+  }
+
+  const auto [value, blockId] = adapter.getValue(defaultSliver, numBlocks);
+  ASSERT_EQ(value, defaultSliver);
+  ASSERT_EQ(blockId, numBlocks);
+}
+
+TEST_P(db_adapter_custom_blockchain, add_block_only_with_non_provable_keys) {
+  std::string key1{"key1"};
+  std::string key2{"key2"};
+  const Sliver skey1{std::move(key1)};
+  const Sliver skey2{std::move(key2)};
+  concord::kvbc::v2MerkleTree::DBAdapter::NonProvableKeySet non_provable_key_set = {skey1, skey2};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb(), true, non_provable_key_set};
+  ASSERT_THROW(adapter.getValue(skey1, 4), NotFoundException);
+
+  const auto updates = SetOfKeyValuePairs{{skey1, defaultSliver}, {skey2, defaultSliver}};
+  const auto numBlocks = 4u;
+  for (auto i = 0u; i < numBlocks; ++i) {
+    ASSERT_EQ(adapter.addBlock(updates), i + 1);
+  }
+
+  for (const auto &k : non_provable_key_set) {
+    const auto [value, blockId] = adapter.getValue(k, numBlocks);
+    ASSERT_EQ(value, defaultSliver);
+    ASSERT_EQ(blockId, numBlocks);
+  }
+
+  ASSERT_THROW(adapter.getValue(defaultSliver, numBlocks), NotFoundException);
+}
+
+TEST_P(db_adapter_custom_blockchain, raw_block_with_non_provable_keys) {
+  std::string key1{"key1"};
+  std::string key2{"key2"};
+  std::string key3{"key3"};
+  const Sliver skey1{std::move(key1)};
+  const Sliver skey2{std::move(key2)};
+  const Sliver skey3{std::move(key3)};
+  concord::kvbc::v2MerkleTree::DBAdapter::NonProvableKeySet non_provable_key_set = {skey1, skey2, skey3};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb(), true, non_provable_key_set};
+
+  const auto updates = SetOfKeyValuePairs{{skey1, defaultSliver}, {skey2, defaultSliver}, {skey3, defaultSliver}};
+  const auto numBlocks = 4u;
+  for (auto i = 0u; i < numBlocks; ++i) {
+    ASSERT_EQ(adapter.addBlock(updates), i + 1);
+  }
+
+  for (auto i = 0u; i < numBlocks; ++i) {
+    ASSERT_EQ(block::detail::getData(adapter.getRawBlock(i + 1)), updates);
+  }
+}
+
+TEST_P(db_adapter_custom_blockchain, add_block_throws_if_deletes_contain_non_provable_keys) {
+  std::string key1{"key1"};
+  std::string key2{"key2"};
+  const Sliver skey1{std::move(key1)};
+  const Sliver skey2{std::move(key2)};
+  concord::kvbc::v2MerkleTree::DBAdapter::NonProvableKeySet non_provable_key_set = {skey1, skey2};
+  auto adapter = DBAdapter{GetParam()->newEmptyDb(), true, non_provable_key_set};
+
+  const auto updates = SetOfKeyValuePairs{{skey1, defaultSliver}, {skey2, defaultSliver}};
+  const auto deletes = OrderedKeysSet{skey1};
+  ASSERT_THROW(adapter.addBlock(updates, deletes), std::runtime_error);
+}
+
+TEST_P(db_adapter_custom_blockchain, getValue_finds_non_provable_keys_added_before_the_feature_was_introduced) {
+  std::string key1{"key1"};
+  std::string key2{"key2"};
+  const Sliver skey1{std::move(key1)};
+  const Sliver skey2{std::move(key2)};
+  const auto updates = SetOfKeyValuePairs{{skey1, defaultSliver}, {skey2, defaultSliver}};
+  auto db = GetParam()->newEmptyDb();
+  {
+    auto adapter = DBAdapter{db, true};
+    adapter.addBlock(updates);
+  }
+  {
+    concord::kvbc::v2MerkleTree::DBAdapter::NonProvableKeySet non_provable_key_set = {skey1, skey2};
+    auto adapter = DBAdapter{db, true, non_provable_key_set};
+    for (const auto &k : non_provable_key_set) {
+      auto kvp = adapter.getValue(k, adapter.getLastReachableBlockId());
+      ASSERT_EQ(kvp.first, defaultSliver);
+      ASSERT_EQ(kvp.second, adapter.getLastReachableBlockId());
+    }
   }
 }
 
@@ -1060,25 +1168,25 @@ TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_index) {
   ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(key, Sliver{"v4"})}), 4);
 
   // Verify there are stale keys in the index since version 2 of the tree (block 2 doesn't update the tree version).
-  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 2));
+  ASSERT_TRUE(hasProvableStaleIndexKeysSince(adapter.getDb(), 2));
 
   // Delete the genesis block.
   ASSERT_NO_THROW(adapter.deleteBlock(1));
 
   // Verify there are stale keys in the index since tree version 2.
-  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 2));
+  ASSERT_TRUE(hasProvableStaleIndexKeysSince(adapter.getDb(), 2));
 
   // Delete the genesis block again.
   ASSERT_NO_THROW(adapter.deleteBlock(2));
 
   // Verify there are stale keys in the index since tree version 2.
-  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 2));
+  ASSERT_TRUE(hasProvableStaleIndexKeysSince(adapter.getDb(), 2));
 
   // Delete the genesis block again.
   ASSERT_NO_THROW(adapter.deleteBlock(3));
 
   // Verify there are no stale keys in the index since tree version 2.
-  ASSERT_FALSE(hasStaleIndexKeysSince(adapter.getDb(), 2));
+  ASSERT_FALSE(hasProvableStaleIndexKeysSince(adapter.getDb(), 2));
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_genesis_and_verify_stale_key_deletion) {
@@ -1228,7 +1336,7 @@ TEST_P(db_adapter_custom_blockchain, delete_all_keys) {
   ASSERT_EQ(Version{3}, adapter.getStateVersion());
 
   // Make sure we have stale index keys since version 3, i.e. the empty root should be stale now.
-  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 3));
+  ASSERT_TRUE(hasProvableStaleIndexKeysSince(adapter.getDb(), 3));
 }
 
 TEST_P(db_adapter_custom_blockchain, add_delete_add_key) {
@@ -1294,9 +1402,9 @@ TEST_P(db_adapter_custom_blockchain, delete_existing_keys) {
     ASSERT_THROW(adapter.getValue(key, i), NotFoundException);
   }
 
-  // Verify there are stale keys in the index since version 3 of the tree (block 2 doesn't update the tree version and,
-  // therefore, the tree version at block 4 is 3).
-  ASSERT_TRUE(hasStaleIndexKeysSince(adapter.getDb(), 3));
+  // Verify there are stale keys in the index since version 3 of the tree (block 2 doesn't update the tree version
+  // and, therefore, the tree version at block 4 is 3).
+  ASSERT_TRUE(hasProvableStaleIndexKeysSince(adapter.getDb(), 3));
 }
 
 TEST_P(db_adapter_custom_blockchain, delete_non_existing_keys) {
