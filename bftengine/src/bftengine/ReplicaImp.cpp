@@ -423,6 +423,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
 }
 
 void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
+  if (!checkSendPrePrepareMsgPrerequisites()) return;
   PrePrepareMsg *pp = new PrePrepareMsg(
       config_.replicaId, curView, (primaryLastUsedSeqNum + 1), firstPath, sizeof(ClientRequestMsgHeader));
   ClientRequestMsg emptyClientRequest(config_.replicaId);
