@@ -226,8 +226,8 @@ class BlockchainView {
 
   // Return iterators to the block following the last block.
   // Incrementing or attempting to access results in undefined behavior.
-  const_iterator end() const noexcept { return const_iterator{endId_, genesisId_, endId_, blockInfoInit_, cache_}; }
-  const_iterator cend() const noexcept { return end(); }
+  const_iterator end() const { return const_iterator{endId_, genesisId_, endId_, blockInfoInit_, cache_}; }
+  const_iterator cend() const { return end(); }
 
   // Return reverse iterators to the first block of the reversed view.
   // If the view is empty, the returned iterator is equal to rend() and crend() .

@@ -58,27 +58,6 @@ using namespace concord::diagnostics;
 
 namespace bftEngine::impl {
 
-void ReplicaImp::registerStatusHandlers() {
-  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-  auto &msgQueue = getIncomingMsgsStorage();
-
-  auto make_handler_callback = [&msgQueue](const string &name, const string &description) {
-    return concord::diagnostics::StatusHandler(name, description, [&msgQueue, name]() {
-      GetStatus get_status{name, std::promise<std::string>()};
-      auto result = get_status.output.get_future();
-      // Send a GetStatus InternalMessage to ReplicaImp, then wait for the result to be published.
-      msgQueue.pushInternalMsg(std::move(get_status));
-      return result.get();
-    });
-  };
-
-  auto replica_handler = make_handler_callback("replica", "Internal state of the concord-bft replica");
-  auto state_transfer_handler = make_handler_callback("state-transfer", "Status of blockchain state transfer");
-
-  registrar.status.registerHandler(replica_handler);
-  registrar.status.registerHandler(state_transfer_handler);
-}
-
 void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint, bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
 
@@ -396,6 +375,11 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
+  static constexpr bool isInternalNoop = false;
+  startConsensusProcess(pp, isInternalNoop);
+}
+
+void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   if (!isCurrentPrimary()) return;
   auto firstPath = pp->firstPath();
   if (config_.debugStatisticsEnabled) {
@@ -405,11 +389,15 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
-  {
+
+  if (isInternalNoop) {
+    LOG_INFO(CNSUS, "Sending PrePrepare containing internal NOOP");
+  } else {
     LOG_INFO(CNSUS,
              "Sending PrePrepare with the following payload of the following correlation ids ["
                  << pp->getBatchCorrelationIdAsString() << "]");
   }
+
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
   seqNumInfo.addSelfMsg(pp);
 
@@ -440,7 +428,8 @@ void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
   ClientRequestMsg emptyClientRequest(config_.replicaId);
   pp->addRequest(emptyClientRequest.body(), emptyClientRequest.size());
   pp->finishAddingRequests();
-  startConsensusProcess(pp);
+  static constexpr bool isInternalNoop = true;
+  startConsensusProcess(pp, isInternalNoop);
 }
 
 void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath) {
@@ -555,10 +544,21 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
+    // Check to see if this is a noop.
+    bool isNoop = false;
+    if (msg->numberOfRequests() == 1) {
+      auto it = RequestsIterator(msg);
+      char *requestBody = nullptr;
+      it.getCurrent(requestBody);
+      isNoop = (reinterpret_cast<ClientRequestMsgHeader *>(requestBody)->requestLength == 0);
+    }
+
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
-      {
+      if (isNoop) {
+        LOG_INFO(CNSUS, "Internal NOOP PrePrepare received");
+      } else {
         LOG_INFO(CNSUS,
                  "PrePrepare with the following correlation IDs [" << msg->getBatchCorrelationIdAsString() << "]");
       }
@@ -1058,6 +1058,11 @@ void ReplicaImp::onInternalMsg(GetStatus &status) const {
   if (status.key == "state-transfer") {
     return status.output.set_value(stateTransfer->getStatus());
   }
+
+  if (status.key == "pre-execution") {
+    return status.output.set_value(replStatusHandlers_.preExecutionStatus(getAggregator()));
+  }
+
   // We must always return something to unblock the future.
   return status.output.set_value("** - Invalid Key - **");
 }
@@ -3215,7 +3220,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
-      reqBatchingLogic_(*this, config_, metrics_) {
+      reqBatchingLogic_(*this, config_, metrics_),
+      replStatusHandlers_(*this) {
   ConcordAssertLT(config_.replicaId, config_.numReplicas);
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3223,7 +3229,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   ConcordAssert(firstTime || ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr)));
 
   registerMsgHandlers();
-  registerStatusHandlers();
+  replStatusHandlers_.registerStatusHandlers();
 
   // Register metrics component with the default aggregator.
   metrics_.Register();
@@ -3527,6 +3533,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         NodeIdType clientId = req.clientProxyId();
 
         const bool validClient = isValidClient(clientId);
+        const bool validNoop = ((clientId == currentPrimary()) && (req.requestLength() == 0));
+        if (validNoop) {
+          continue;
+        }
         if (!validClient) {
           LOG_WARN(GL, "The client is not valid. " << KVLOG(clientId));
           continue;

@@ -64,6 +64,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "number of consensus operations that can be executed in parallel "
                "1 <= concurrencyLevel <= 30");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
+  CONFIG_PARAM(blockAccumulation, bool, false, "whether the block accumulation enabled");
   CONFIG_PARAM(viewChangeTimerMillisec, uint16_t, 0, "timeout used by the  view change protocol ");
   CONFIG_PARAM(autoPrimaryRotationEnabled, bool, false, "if automatic primary rotation is enabled");
   CONFIG_PARAM(autoPrimaryRotationTimerMillisec, uint16_t, 0, "timeout for automatic primary rotation");
@@ -181,6 +182,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, debugStatisticsEnabled);
     serialize(outStream, metricsDumpIntervalSeconds);
     serialize(outStream, keyExchangeOnStart);
+    serialize(outStream, blockAccumulation);
     serialize(outStream, keyViewFilePath);
 
     serialize(outStream, config_params_);
@@ -224,6 +226,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, debugStatisticsEnabled);
     deserialize(inStream, metricsDumpIntervalSeconds);
     deserialize(inStream, keyExchangeOnStart);
+    deserialize(inStream, blockAccumulation);
     deserialize(inStream, keyViewFilePath);
 
     deserialize(inStream, config_params_);
@@ -274,6 +277,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
             rc.debugStatisticsEnabled,
             rc.metricsDumpIntervalSeconds,
             rc.keyExchangeOnStart,
+            rc.blockAccumulation,
             rc.keyViewFilePath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";

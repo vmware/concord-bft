@@ -1377,7 +1377,7 @@ int TlsTCPCommunication::Stop() {
 
 bool TlsTCPCommunication::isRunning() const { return _ptrImpl->isRunning(); }
 
-ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum node) {
+ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(NodeNum node) {
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 

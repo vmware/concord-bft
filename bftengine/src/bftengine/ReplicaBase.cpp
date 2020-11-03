@@ -68,8 +68,9 @@ void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   if (config_.debugStatisticsEnabled) DebugStatistics::onSendExMessage(m->type());
 
   LOG_TRACE(GL, "sending msg type: " << m->type() << " dest: " << dest);
-  if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size()))
-    LOG_ERROR(GL, "sendAsyncMessage failed for message type: " << m->type());
+  if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size())) {
+    LOG_ERROR(GL, "sendAsyncMessage failed: " << KVLOG(m->type(), dest));
+  }
 }
 
 }  // namespace bftEngine::impl
