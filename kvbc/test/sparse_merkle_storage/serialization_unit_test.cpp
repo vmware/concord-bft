@@ -95,6 +95,32 @@ TEST(key_manipulator, block_key) {
 }
 
 // Expected key structure with respective bit sizes:
+// [EDBKeyType::Key: 8, EKeySubtype::NonProvableKey: 8, blockId: 64, key: user-defined]
+TEST(key_manipulator, non_provable_key) {
+  const auto non_prov_key = Sliver{"non-provable"};
+  const auto key = DBKeyManipulator::genNonProvableBlockDbKey(defaultBlockId, non_prov_key);
+  const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::NonProvable) +
+                                 serializeIntegral(defaultBlockId) + non_prov_key.toString());
+  ASSERT_EQ(key.length(),
+            sizeof(EDBKeyType::Key) + sizeof(EKeySubtype::NonProvable) + sizeof(BlockId) + non_prov_key.length());
+  ASSERT_TRUE(key == expected);
+}
+
+TEST(key_manipulator, extract_block_id_from_non_provable_key) {
+  const auto non_prov_key = Sliver{"non-provable"};
+  const auto key = DBKeyManipulator::genNonProvableBlockDbKey(defaultBlockId, non_prov_key);
+  const auto expected_block_id = DBKeyManipulator::extractBlockIdFromNonProvableKey(key);
+  ASSERT_EQ(expected_block_id, defaultBlockId);
+}
+
+TEST(key_manipulator, extract_key_from_non_provable_key) {
+  const auto non_prov_key = Sliver{"non-provable"};
+  const auto key = DBKeyManipulator::genNonProvableBlockDbKey(defaultBlockId, non_prov_key);
+  const auto expected_key = DBKeyManipulator::extractKeyFromNonProvableKey(key);
+  ASSERT_EQ(expected_key, non_prov_key);
+}
+
+// Expected key structure with respective bit sizes:
 // [EDBKeyType::Key: 8, EKeySubtype::Leaf: 8, keyHash: 256, keyVersion: 64]
 TEST(key_manipulator, data_key_leaf) {
   const auto leafKey = LeafKey{defaultHash, defaultVersion};
@@ -219,8 +245,8 @@ TEST(key_manipulator, st_temp_block_key) {
 // [EDBKeyType::Key: 8, EKeySubtype::Stale: 8, staleSinceVersion: 64]
 TEST(key_manipulator, stale_db_key_empty) {
   const auto key = DBKeyManipulator::genStaleDbKey(defaultVersion);
-  const auto expected =
-      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Stale) + serializeIntegral(defaultBlockId));
+  const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
+                                 serializeIntegral(defaultBlockId));
   ASSERT_EQ(key.length(), 1 + 1 + 8);
   ASSERT_TRUE(key == expected);
 }
@@ -239,8 +265,8 @@ TEST(key_manipulator, stale_db_key_internal) {
   const auto internalKey = InternalNodeKey{defaultVersion, path};
   const auto key = DBKeyManipulator::genStaleDbKey(internalKey, defaultVersion);
   const auto expected =
-      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Stale) + serializeIntegral(defaultBlockId) +
-               DBKeyManipulator::genInternalDbKey(internalKey).toString());
+      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
+               serializeIntegral(defaultBlockId) + DBKeyManipulator::genInternalDbKey(internalKey).toString());
   ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 8 + 1 + 2);
   ASSERT_TRUE(key == expected);
 }
@@ -252,8 +278,8 @@ TEST(key_manipulator, stale_db_key_leaf) {
   const auto leafKey = LeafKey{defaultHash, defaultVersion};
   const auto key = DBKeyManipulator::genStaleDbKey(leafKey, defaultVersion);
   const auto expected =
-      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::Stale) + serializeIntegral(defaultBlockId) +
-               DBKeyManipulator::genDataDbKey(leafKey).toString());
+      toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::ProvableStale) +
+               serializeIntegral(defaultBlockId) + DBKeyManipulator::genDataDbKey(leafKey).toString());
   ASSERT_EQ(key.length(), 1 + 1 + 8 + 1 + 1 + 32 + 8);
   ASSERT_TRUE(key == expected);
 }

@@ -50,9 +50,18 @@ enum class EDBKeyType : std::uint8_t {
 // containing actual application data.
 enum class EKeySubtype : std::uint8_t {
   Internal,
-  Stale,
+  ProvableStale,
   Leaf,
+  NonProvableStale,
+  NonProvable,
 };
+
+// To enforce the order of keys
+static_assert(static_cast<std::uint8_t>(EKeySubtype::Internal) == 0u);
+static_assert(static_cast<std::uint8_t>(EKeySubtype::ProvableStale) == 1u);
+static_assert(static_cast<std::uint8_t>(EKeySubtype::Leaf) == 2u);
+static_assert(static_cast<std::uint8_t>(EKeySubtype::NonProvableStale) == 3u);
+static_assert(static_cast<std::uint8_t>(EKeySubtype::NonProvable) == 4u);
 
 // BFT subtypes.
 enum class EBFTSubtype : std::uint8_t {
