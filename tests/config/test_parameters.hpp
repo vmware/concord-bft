@@ -22,6 +22,8 @@ struct ClientParams {
   uint16_t numOfSlow = 0;
   std::string configFileName;
   bool measurePerformance = false;
+  uint64_t sleepInterval = 100;  // On how many executed operations to make a sleep
+  uint64_t sleepDuration = 1;    // How much time to sleep (in ms)
 
   uint16_t get_numOfReplicas() { return (uint16_t)(3 * numOfFaulty + 2 * numOfSlow + 1); }
 };

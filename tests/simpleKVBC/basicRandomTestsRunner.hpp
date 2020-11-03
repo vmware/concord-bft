@@ -21,12 +21,16 @@ namespace BasicRandomTests {
 
 class BasicRandomTestsRunner {
  public:
-  BasicRandomTestsRunner(logging::Logger &logger, concord::kvbc::IClient &client, size_t numOfOperations);
+  BasicRandomTestsRunner(logging::Logger &logger,
+                         concord::kvbc::IClient &client,
+                         size_t numOfOperations,
+                         uint32_t sleepInterval,
+                         std::chrono::milliseconds sleepDuration);
   ~BasicRandomTestsRunner() { delete testsBuilder_; }
   void run();
 
  private:
-  static void sleep(int ops);
+  void sleep(int ops);
   bool isReplyCorrect(RequestType requestType,
                       const SimpleReply *expectedReply,
                       const char *reply,
@@ -38,6 +42,8 @@ class BasicRandomTestsRunner {
   concord::kvbc::IClient &client_;
   const size_t numOfOperations_;
   TestsBuilder *testsBuilder_;
+  uint32_t sleepInterval_;
+  std::chrono::milliseconds sleepDuration_;
 };
 
 }  // namespace BasicRandomTests

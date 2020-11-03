@@ -42,9 +42,12 @@ ClientParams setupClientParams(int argc, char **argv) {
   clientParams.numOfFaulty = UINT16_MAX;
   clientParams.numOfSlow = UINT16_MAX;
   clientParams.numOfOperations = UINT16_MAX;
+  clientParams.sleepInterval = 100;  // On how many executed operations to make a sleep
+  clientParams.sleepDuration = 1; 
+  
   char argTempBuffer[PATH_MAX + 10];
   int o = 0;
-  while ((o = getopt(argc, argv, "i:f:c:p:n:")) != EOF) {
+  while ((o = getopt(argc, argv, "i:f:c:p:n:s:d:")) != EOF) {
     switch (o) {
       case 'i': {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
@@ -82,6 +85,22 @@ ClientParams setupClientParams(int argc, char **argv) {
         strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
         argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
         clientParams.configFileName = argTempBuffer;
+      } break;
+
+      case 's': {
+        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+        string opsCountStr = argTempBuffer;
+        uint64_t opsCount = std::stoul(opsCountStr);
+        if (opsCount >= 1 && opsCount < UINT64_MAX) clientParams.sleepInterval = opsCount;
+      } break;
+
+      case 'd': {
+        strncpy(argTempBuffer, optarg, sizeof(argTempBuffer) - 1);
+        argTempBuffer[sizeof(argTempBuffer) - 1] = 0;
+        string sleepDurationStr = argTempBuffer;
+        uint64_t sleepDuration = std::stoul(sleepDurationStr);
+        if (sleepDuration >= 1 && sleepDuration < UINT64_MAX) clientParams.sleepDuration = sleepDuration;
       } break;
 
       default:
@@ -122,13 +141,20 @@ int main(int argc, char **argv) {
   ClientParams clientParams = setupClientParams(argc, argv);
   if (clientParams.clientId == UINT16_MAX || clientParams.numOfFaulty == UINT16_MAX ||
       clientParams.numOfSlow == UINT16_MAX || clientParams.numOfOperations == UINT32_MAX) {
-    LOG_ERROR(logger, "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID");
+    LOG_ERROR(logger, "Wrong usage! Required parameters: " << argv[0] << " -f F -c C -p NUM_OPS -i ID ");
+    LOG_ERROR(logger,
+              "Optional parameters: "
+                  << " -s HOW_MANY_OPS_TO_EXECUTE_BEFORE_SLEEP -d SLEEP_INTERVAL_IN_MS");
     exit(-1);
   }
 
   ClientConfig clientConfig = setupConsensusParams(clientParams);
   auto *comm = setupCommunicationParams(clientParams);
   IClient *client = createClient(clientConfig, comm);
-  BasicRandomTestsRunner testsRunner(logger, *client, clientParams.numOfOperations);
+  BasicRandomTestsRunner testsRunner(logger,
+                                     *client,
+                                     clientParams.numOfOperations,
+                                     clientParams.sleepInterval,
+                                     std::chrono::milliseconds{clientParams.sleepDuration});
   testsRunner.run();
 }

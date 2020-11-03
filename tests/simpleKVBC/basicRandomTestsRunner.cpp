@@ -14,6 +14,7 @@
 #include "basicRandomTestsRunner.hpp"
 #include "assertUtils.hpp"
 #include <chrono>
+#include <thread>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -25,8 +26,16 @@ using concord::kvbc::IClient;
 
 namespace BasicRandomTests {
 
-BasicRandomTestsRunner::BasicRandomTestsRunner(logging::Logger &logger, IClient &client, size_t numOfOperations)
-    : logger_(logger), client_(client), numOfOperations_(numOfOperations) {
+BasicRandomTestsRunner::BasicRandomTestsRunner(logging::Logger &logger,
+                                               IClient &client,
+                                               size_t numOfOperations,
+                                               uint32_t sleepInterval,
+                                               std::chrono::milliseconds sleepDuration)
+    : logger_(logger),
+      client_(client),
+      numOfOperations_(numOfOperations),
+      sleepInterval_{sleepInterval},
+      sleepDuration_{sleepDuration} {
   // We have to start the client here, since construction of the TestsBuilder
   // uses the client.
   ConcordAssert(!client_.isRunning());
@@ -36,7 +45,7 @@ BasicRandomTestsRunner::BasicRandomTestsRunner(logging::Logger &logger, IClient 
 
 void BasicRandomTestsRunner::sleep(int ops) {
 #ifndef _WIN32
-  if (ops % 100 == 0) usleep(100 * 1000);
+  if (ops % sleepInterval_ == 0) std::this_thread::sleep_for(sleepDuration_);
 #endif
 }
 
@@ -61,7 +70,6 @@ void BasicRandomTestsRunner::run() {
     uint32_t actualReplySize = 0;
 
     std::vector<char> reply(expectedReplySize);
-
     auto res = client_.invokeCommandSynch(
         (char *)request, requestSize, readOnly, seconds(0), expectedReplySize, reply.data(), &actualReplySize);
     ConcordAssert(res.isOK());
