@@ -2575,7 +2575,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
     if ((t < lastInfoRequest)) t = lastInfoRequest;
 
-    if (t == MinTime && (t < curTime)) {
+    if (t != MinTime && (t < curTime)) {
       auto diffMilli = duration_cast<milliseconds>(curTime - t);
       if (diffMilli.count() < dynamicUpperLimitOfRounds->upperLimit() / 4)  // TODO(GG): config
         return;
