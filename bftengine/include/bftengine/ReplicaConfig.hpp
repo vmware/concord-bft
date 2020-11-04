@@ -262,23 +262,21 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.autoPrimaryRotationEnabled,
               rc.autoPrimaryRotationTimerMillisec,
               rc.preExecutionFeatureEnabled,
-              rc.preExecReqStatusCheckTimerMillisec)
-     <<
-
-      KVLOG(rc.preExecConcurrencyLevel,
-            rc.batchingPolicy,
-            rc.maxInitialBatchSize,
-            rc.batchingFactorCoefficient,
-            rc.debugPersistentStorageEnabled,
-            rc.maxExternalMessageSize,
-            rc.maxReplyMessageSize,
-            rc.maxNumOfReservedPages,
-            rc.sizeOfReservedPage,
-            rc.debugStatisticsEnabled,
-            rc.metricsDumpIntervalSeconds,
-            rc.keyExchangeOnStart,
-            rc.blockAccumulation,
-            rc.keyViewFilePath);
+              rc.preExecReqStatusCheckTimerMillisec);
+  os << KVLOG(rc.preExecConcurrencyLevel,
+              rc.batchingPolicy,
+              rc.maxInitialBatchSize,
+              rc.batchingFactorCoefficient,
+              rc.debugPersistentStorageEnabled,
+              rc.maxExternalMessageSize,
+              rc.maxReplyMessageSize,
+              rc.maxNumOfReservedPages,
+              rc.sizeOfReservedPage,
+              rc.debugStatisticsEnabled,
+              rc.metricsDumpIntervalSeconds,
+              rc.keyExchangeOnStart,
+              rc.blockAccumulation,
+              rc.keyViewFilePath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
