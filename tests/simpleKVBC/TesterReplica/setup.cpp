@@ -30,6 +30,7 @@
 #include "config/config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
+#include "FakeS3StorageFactory.hpp"
 
 namespace concord::kvbc {
 
@@ -51,6 +52,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string s3ConfigFile;
     std::string certRootPath = "certs";
     std::string logPropsFile = "logging.properties";
+    bool rorPerfMode = false;
+    std::chrono::milliseconds s3OpDelay{0};
     // Set StorageType::V1DirectKeyValue as the default storage type.
     auto storageType = StorageType::V1DirectKeyValue;
 
@@ -61,6 +64,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"view-change-timeout", required_argument, 0, 'v'},
                                           {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
                                           {"s3-config-file", required_argument, 0, '3'},
+                                          {"ror-performance", no_argument, 0, 'r'},
+                                          {"s3-op-delay", required_argument, 0, 'd'},
                                           {"persistence-mode", no_argument, 0, 'p'},
                                           {"storage-type", required_argument, 0, 't'},
                                           {"log-props-file", required_argument, 0, 'l'},
@@ -76,7 +81,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:c:e:b:m:q:y:z:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:c:e:b:m:q:y:z:d:r", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -153,10 +158,18 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           const auto batchFlushPeriod = concord::util::to<std::uint32_t>(std::string(optarg));
           if (!batchFlushPeriod) throw std::runtime_error{"invalid argument for --consensus-batching-flush-period"};
           replicaConfig.batchFlushPeriod = batchFlushPeriod;
+        }
+        case 'r': {
+          rorPerfMode = true;
+          break;
+        }
+        case 'd': {
+          uint64_t opDelayTmp = concord::util::to<std::uint64_t>(std::string(optarg));
+          s3OpDelay = std::chrono::milliseconds{opDelayTmp};
           break;
         }
         case '?': {
-          throw std::runtime_error("invalid arguments");
+          throw std::runtime_error("invalid arguments: " + std::string(argv[optind - 1]));
         } break;
 
         default:
@@ -196,7 +209,9 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                     persistMode == PersistencyMode::RocksDB,
                                                     s3ConfigFile,
                                                     storageType,
-                                                    logPropsFile});
+                                                    logPropsFile,
+                                                    rorPerfMode,
+                                                    s3OpDelay});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
@@ -263,6 +278,9 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
 
 #ifdef USE_S3_OBJECT_STORE
   if (GetReplicaConfig().isReadOnly) {
+    if (rorPerfMode_) {
+      return std::make_unique<concord::test::ror_perf::StorageFactory>(dbPath.str(), s3OpDelay_);
+    }
     if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
     const auto s3Config = ParseS3Config(s3ConfigFile_);
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);

@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.2)
 project(skvbc_replica VERSION 0.1.0.0 LANGUAGES CXX)
 
 add_executable(skvbc_replica main.cpp
+							 FakeS3.cpp
         					 internalCommandsHandler.cpp
         					 setup.cpp
        						 ../simpleKVBTestsBuilder.cpp 

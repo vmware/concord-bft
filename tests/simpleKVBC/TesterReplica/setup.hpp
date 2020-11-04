@@ -54,7 +54,9 @@ class TestSetup {
             bool usePersistentStorage,
             std::string s3ConfigFile,
             StorageType storageType,
-            std::string logPropsFile)
+            std::string logPropsFile,
+            bool rorPerfMode,
+            std::chrono::milliseconds s3OpDelay)
       : replicaConfig_(config),
         communication_(std::move(comm)),
         logger_(logger),
@@ -62,7 +64,9 @@ class TestSetup {
         usePersistentStorage_(usePersistentStorage),
         s3ConfigFile_(s3ConfigFile),
         storageType_(storageType),
-        logPropsFile_(logPropsFile) {}
+        logPropsFile_(logPropsFile),
+        rorPerfMode_{rorPerfMode},
+        s3OpDelay_{s3OpDelay} {}
   TestSetup() = delete;
 #ifdef USE_S3_OBJECT_STORE
   concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
@@ -76,6 +80,8 @@ class TestSetup {
   std::string s3ConfigFile_;
   StorageType storageType_;
   std::string logPropsFile_;
+  bool rorPerfMode_;
+  std::chrono::milliseconds s3OpDelay_;  // applicable only in ROR performance mode
 };
 
 }  // namespace concord::kvbc
