@@ -697,7 +697,7 @@ class BftTestNetwork:
         """
         Wait for the last agreed view to match the "expected" predicate
         """
-        with log.start_action(action_type="_wait_for_matching_agreed_view", replica=replica_id, expected=expected) as action:
+        with log.start_action(action_type="_wait_for_matching_agreed_view", replica=replica_id) as action:
             last_agreed_view = None
             with trio.fail_after(seconds=30):
                 while True:
