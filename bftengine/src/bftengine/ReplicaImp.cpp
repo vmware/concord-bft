@@ -424,10 +424,10 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
 
 void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
   if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
-    LOG_INFO(GL,
-             "Will not send noop PrePrepare since next sequence number ["
-                 << primaryLastUsedSeqNum + 1 << "] exceeds window threshold [" << lastStableSeqNum + kWorkWindowSize
-                 << "]");
+    LOG_DEBUG(CNSUS,
+              "Will not send noop PrePrepare since next sequence number ["
+                  << primaryLastUsedSeqNum + 1 << "] exceeds window threshold [" << lastStableSeqNum + kWorkWindowSize
+                  << "]");
     return;
   }
   PrePrepareMsg *pp = new PrePrepareMsg(
