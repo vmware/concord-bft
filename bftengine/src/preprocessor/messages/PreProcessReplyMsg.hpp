@@ -27,6 +27,8 @@ class PreProcessReplyMsg : public MessageBase {
                      uint64_t reqSeqNum,
                      uint64_t reqRetryId);
 
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
+
   void setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid, ReplyStatus status);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
@@ -37,6 +39,7 @@ class PreProcessReplyMsg : public MessageBase {
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   const uint8_t status() const { return msgBody()->status; }
   std::string getCid() const;
+  void setSigManager(bftEngine::impl::SigManagerSharedPtr sigManager) { sigManager_ = sigManager; }
 
  protected:
 #pragma pack(push, 1)

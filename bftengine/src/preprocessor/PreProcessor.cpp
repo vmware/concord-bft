@@ -54,25 +54,6 @@ void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> agg
 
 //**************************************************//
 
-void PreProcessor::registerMsgHandlers() {
-  msgHandlersRegistrator_->registerMsgHandler(
-      MsgCode::ClientPreProcessRequest, bind(&PreProcessor::messageHandler<ClientPreProcessRequestMsg>, this, _1));
-  msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessRequest,
-                                              bind(&PreProcessor::messageHandler<PreProcessRequestMsg>, this, _1));
-  msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessReply,
-                                              bind(&PreProcessor::messageHandler<PreProcessReplyMsg>, this, _1));
-}
-
-template <typename T>
-void PreProcessor::messageHandler(MessageBase *msg) {
-  if (validateMessage(msg))
-    onMessage<T>(static_cast<T *>(msg));
-  else {
-    preProcessorMetrics_.preProcReqInvalid.Get().Inc();
-    delete msg;
-  }
-}
-
 bool PreProcessor::validateMessage(MessageBase *msg) const {
   try {
     msg->validate(myReplica_.getReplicasInfo());
@@ -404,6 +385,40 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
     if (result == CONTINUE) resendPreProcessRequest(clientEntry->reqProcessingStatePtr);
   }
   handlePreProcessReplyMsg(cid, result, clientId, reqSeqNum);
+}
+
+template <typename T>
+void PreProcessor::messageHandler(MessageBase *msg) {
+  T *trueTypeObj = new T(msg);
+  delete msg;
+  if (validateMessage(trueTypeObj)) {
+    onMessage<T>(trueTypeObj);
+  } else {
+    preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+    delete trueTypeObj;
+  }
+}
+
+template <>
+void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
+  PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
+  trueTypeObj->setSigManager(sigManager_);
+  delete msg;
+  if (validateMessage(trueTypeObj)) {
+    onMessage(trueTypeObj);
+  } else {
+    preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+    delete trueTypeObj;
+  }
+}
+
+void PreProcessor::registerMsgHandlers() {
+  msgHandlersRegistrator_->registerMsgHandler(
+      MsgCode::ClientPreProcessRequest, bind(&PreProcessor::messageHandler<ClientPreProcessRequestMsg>, this, _1));
+  msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessRequest,
+                                              bind(&PreProcessor::messageHandler<PreProcessRequestMsg>, this, _1));
+  msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessReply,
+                                              bind(&PreProcessor::messageHandler<PreProcessReplyMsg>, this, _1));
 }
 
 void PreProcessor::handlePreProcessReplyMsg(const string &cid,
