@@ -77,6 +77,56 @@ class SkvbcTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
+    async def test_request_missing_data_from_previous_window(self, bft_network, exchange_keys=True):
+        """
+        Test that a replica succeeds to ask for missing info from the former window
+
+        1. Start all nodes and process 149 requests.
+        2. Stop f nodes and process 2 more requests (this will cause to the remaining
+            replicas to proceed beyond the checkpoint)
+        3. The node should catchup without executing state transfer.
+        """
+
+        if exchange_keys:
+            await bft_network.do_key_exchange()
+        bft_network.start_all_replicas()
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        stale_nodes = bft_network.random_set_of_replicas(bft_network.config.f, without={0})
+
+        for i in range(151):
+            await skvbc.write_known_kv()
+            if i == 149:
+                bft_network.stop_replicas(stale_nodes)
+
+        with trio.fail_after(seconds=30):
+            all_in_checkpoint = False
+            while all_in_checkpoint is False:
+                all_in_checkpoint = True
+                for r in bft_network.all_replicas(without=stale_nodes):
+                    if await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum") != 150:
+                        all_in_checkpoint = False
+                        break
+
+        bft_network.start_replicas(stale_nodes)
+
+        with self.assertRaises(trio.TooSlowError):
+            await bft_network.wait_for_state_transfer_to_start()
+
+        with trio.fail_after(seconds=30):
+            all_in_checkpoint = False
+            while all_in_checkpoint is False:
+                all_in_checkpoint = True
+                for r in stale_nodes:
+                    if await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum") != 150:
+                        all_in_checkpoint = False
+                        break
+
+        await skvbc.assert_successful_put_get(self)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
     async def test_get_block_data_with_blinking_replica(self, bft_network):
         """
         Test that the cluster continues working when one blinking replica
@@ -104,7 +154,7 @@ class SkvbcTest(unittest.TestCase):
         Ensure that we can put a block and use the GetBlockData API request to
         retrieve its KV pairs.
         """
-    
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
