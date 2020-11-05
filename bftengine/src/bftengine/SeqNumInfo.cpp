@@ -39,6 +39,15 @@ SeqNumInfo::~SeqNumInfo() {
   delete partialProofsSet;
 }
 
+void SeqNumInfo::acquire(SeqNumInfo& rhs) {
+  prePrepareMsg = rhs.prePrepareMsg;
+  rhs.prePrepareMsg = nullptr;
+
+  prepareSigCollector->acquire(rhs.prepareSigCollector);
+  commitMsgsCollector->acquire(rhs.commitMsgsCollector);
+  partialProofsSet->acquire(rhs.partialProofsSet);
+}
+
 void SeqNumInfo::resetAndFree() {
   delete prePrepareMsg;
   prePrepareMsg = nullptr;
