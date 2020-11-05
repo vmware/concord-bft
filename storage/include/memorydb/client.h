@@ -87,9 +87,12 @@ class Client : public IPartitionedDBClient {
   std::unique_ptr<IDBClientIterator> getIterator() const override;
   virtual concordUtils::Status put(const Sliver &_key, const Sliver &_value) override;
   virtual concordUtils::Status del(const Sliver &_key) override;
-  concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) override;
+  concordUtils::Status multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) const override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs &_keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
+  Status multiGet(const std::vector<PartitionedKey> &keys, ValuesVector &values) const override;
+  Status multiPut(const std::vector<PartitionedKeyValue> &keyValues) override;
+  Status multiDel(const std::vector<PartitionedKey> &keys) override;
   concordUtils::Status rangeDel(const Sliver &_beginKey, const Sliver &_endKey) override;
   bool isNew() override { return true; }
   ITransaction *beginTransaction() override;
@@ -109,7 +112,7 @@ class Client : public IPartitionedDBClient {
   Status has(const std::string &partition, const Sliver &key) const override;
   Status put(const std::string &partition, const Sliver &key, const Sliver &value) override;
   Status del(const std::string &partition, const Sliver &key) override;
-  Status multiGet(const std::string &partition, const KeysVector &keys, ValuesVector &values) override;
+  Status multiGet(const std::string &partition, const KeysVector &keys, ValuesVector &values) const override;
   Status multiPut(const std::string &partition, const SetOfKeyValuePairs &keyValues) override;
   Status multiDel(const std::string &partition, const KeysVector &keys) override;
   Status rangeDel(const std::string &partition, const Sliver &beginKey, const Sliver &endKey) override;

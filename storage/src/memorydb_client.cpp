@@ -146,7 +146,8 @@ Status Client::del(const std::string &partition, const Sliver &key) {
 
 Status Client::del(const Sliver &key) { return del(kDefaultPartition, key); }
 
-Status Client::multiGet(const std::string &partition, const KeysVector &keys, ValuesVector &values) {
+Status Client::multiGet(const std::string &partition, const KeysVector &keys, ValuesVector &values) const {
+  values.clear();
   if (!hasPartition(partition)) {
     return Status::InvalidArgument("Cannot get key-values from an unknown partition");
   }
@@ -159,17 +160,18 @@ Status Client::multiGet(const std::string &partition, const KeysVector &keys, Va
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &keys, ValuesVector &values) {
+Status Client::multiGet(const KeysVector &keys, ValuesVector &values) const {
   return multiGet(kDefaultPartition, keys, values);
 }
 
 Status Client::multiPut(const std::string &partition, const SetOfKeyValuePairs &keyValues) {
   if (!hasPartition(partition)) {
-    return Status::InvalidArgument("Cannot put key-values into an unknown partition");
+    return Status::InvalidArgument("Cannot multiPut key-values into an unknown partition");
   }
   for (const auto &it : keyValues) {
-    auto status = put(partition, it.first, it.second);
-    if (!status.isOK()) return status;
+    [[maybe_unused]] const auto status = put(partition, it.first, it.second);
+    // Failing individual puts will leave the DB in inconsistent state. If that happens, assert.
+    ConcordAssert(status.isOK());
   }
   return Status::OK();
 }
@@ -180,14 +182,56 @@ Status Client::multiDel(const std::string &partition, const KeysVector &keys) {
   if (!hasPartition(partition)) {
     return Status::InvalidArgument("Cannot delete key-values from an unknown partition");
   }
-  for (auto const &it : keys) {
-    auto status = del(partition, it);
-    if (!status.isOK()) return status;
+  for (auto &k : keys) {
+    [[maybe_unused]] const auto status = del(partition, k);
+    // Failing individual deletions will leave the DB in inconsistent state. If that happens, assert.
+    ConcordAssert(status.isOK());
   }
   return Status::OK();
 }
 
 Status Client::multiDel(const KeysVector &keys) { return multiDel(kDefaultPartition, keys); }
+
+Status Client::multiGet(const std::vector<PartitionedKey> &keys, ValuesVector &values) const {
+  values.clear();
+  for (auto &pk : keys) {
+    auto value = Sliver{};
+    auto status = get(pk.partition, pk.key, value);
+    if (!status.isOK()) return status;
+    values.emplace_back(std::move(value));
+  }
+  return Status::OK();
+}
+
+Status Client::multiPut(const std::vector<PartitionedKeyValue> &keyValues) {
+  // Ensure individual puts will not fail due to a missing partition before changing the DB.
+  for (auto &pkv : keyValues) {
+    if (!hasPartition(pkv.partition)) {
+      return Status::InvalidArgument("Cannot multiPut key-values into an unknown partition");
+    }
+  }
+  for (auto &pkv : keyValues) {
+    [[maybe_unused]] const auto status = put(pkv.partition, pkv.keyValue.first, pkv.keyValue.second);
+    // Failing individual puts will leave the DB in inconsistent state. If that happens, assert.
+    ConcordAssert(status.isOK());
+  }
+  return Status::OK();
+}
+
+Status Client::multiDel(const std::vector<PartitionedKey> &keys) {
+  // Ensure individual deletions will not fail due to a missing partition before changing the DB.
+  for (auto &pk : keys) {
+    if (!hasPartition(pk.partition)) {
+      return Status::InvalidArgument("Cannot multiDel key-values from an unknown partition");
+    }
+  }
+  for (auto &pk : keys) {
+    [[maybe_unused]] const auto status = del(pk.partition, pk.key);
+    // Failing individual deletions will leave the DB in inconsistent state. If that happens, assert.
+    ConcordAssert(status.isOK());
+  }
+  return Status::OK();
+}
 
 /**
  * @brief Deletes keys in the [_beginKey, _endKey) range.

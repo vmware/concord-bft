@@ -313,7 +313,7 @@ Status Client::del(const Sliver &_key) {
   return Status::OK();
 }
 
-Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) {
+Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec) const {
   std::vector<std::string> values;
   std::vector<::rocksdb::Slice> keys;
   for (auto const &it : _keysVec) keys.push_back(toRocksdbSlice(it));

@@ -99,9 +99,21 @@ class IPartitionedDBClient : public IDBClient, public std::enable_shared_from_th
   virtual Status has(const std::string& partition, const Sliver& key) const = 0;
   virtual Status put(const std::string& partition, const Sliver& key, const Sliver& value) = 0;
   virtual Status del(const std::string& partition, const Sliver& key) = 0;
-  virtual Status multiGet(const std::string& partition, const KeysVector& keys, ValuesVector& values) = 0;
+  virtual Status multiGet(const std::string& partition, const KeysVector& keys, ValuesVector& values) const = 0;
   virtual Status multiPut(const std::string& partition, const SetOfKeyValuePairs& keyValues) = 0;
   virtual Status multiDel(const std::string& partition, const KeysVector& keys) = 0;
+  struct PartitionedKey {
+    std::string partition;
+    Sliver key;
+  };
+  struct PartitionedKeyValue {
+    std::string partition;
+    KeyValuePair keyValue;
+  };
+  virtual Status multiGet(const std::vector<PartitionedKey>& keys, ValuesVector& values) const = 0;
+  virtual Status multiPut(const std::vector<PartitionedKeyValue>& keyValues) = 0;
+  virtual Status multiDel(const std::vector<PartitionedKey>& keys) = 0;
+
   // A version of IDBClient::rangeDel() that works on a single partition. See IDBClient::rangeDel() for more
   // information.
   virtual Status rangeDel(const std::string& partition, const Sliver& beginKey, const Sliver& endKey) = 0;
@@ -162,7 +174,7 @@ class PartitionDBClient : public IDBClient {
   Status has(const Sliver& key) const override { return db_->has(partition_, key); }
   Status put(const Sliver& key, const Sliver& value) override { return db_->put(partition_, key, value); }
   Status del(const Sliver& key) override { return db_->del(partition_, key); }
-  Status multiGet(const KeysVector& keys, ValuesVector& values) override {
+  Status multiGet(const KeysVector& keys, ValuesVector& values) const override {
     return db_->multiGet(partition_, keys, values);
   }
   Status multiPut(const SetOfKeyValuePairs& keyValues) override { return db_->multiPut(partition_, keyValues); }

@@ -84,7 +84,7 @@ class Client : public concord::storage::IDBClient {
   std::unique_ptr<IDBClientIterator> getIterator() const override;
   concordUtils::Status put(const concordUtils::Sliver& _key, const concordUtils::Sliver& _value) override;
   concordUtils::Status del(const concordUtils::Sliver& _key) override;
-  concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) override;
+  concordUtils::Status multiGet(const KeysVector& _keysVec, ValuesVector& _valuesVec) const override;
   concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector& _keysVec) override;
   concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override;
