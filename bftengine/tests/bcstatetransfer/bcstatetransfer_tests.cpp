@@ -37,14 +37,27 @@ using namespace impl;
 
 // Create a test config with small blocks and chunks for testing
 Config TestConfig() {
-  Config config;
-  config.myReplicaId = 1;
-  config.fVal = 1;
-  config.numReplicas = 4;
-  config.maxBlockSize = kMaxBlockSize;
-  config.maxChunkSize = 128;
-  config.maxNumberOfChunksInBatch = 128;
-  return config;
+  return {
+      1,                  // myReplicaId
+      1,                  // fVal
+      0,                  // cVal
+      4,                  // numReplicas
+      false,              // pedanticChecks
+      false,              // isReadOnly
+      128,                // maxChunkSize
+      128,                // maxNumberOfChunksInBatch
+      kMaxBlockSize,      // maxBlockSize
+      256 * 1024 * 1024,  // maxPendingDataFromSourceReplica
+      2048,               // maxNumOfReservedPages
+      4096,               // sizeOfReservedPage
+      300,                // refreshTimerMs
+      2500,               // checkpointSummariesRetransmissionTimeoutMs
+      60000,              // maxAcceptableMsgDelayMs
+      15000,              // sourceReplicaReplacementTimeoutMs
+      250,                // fetchRetransmissionTimeoutMs
+      5,                  // metricsDumpIntervalSec
+      false               // runInSeparateThread
+  };
 }
 
 // Test fixture for blockchain state transfer tests

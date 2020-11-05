@@ -147,10 +147,10 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
       randomGen_{randomDevice_()},
-      sourceSelector_{SourceSelector(
-          allOtherReplicas(), config_.fetchRetransmissionTimeoutMilli, config_.sourceReplicaReplacementTimeoutMilli)},
+      sourceSelector_{
+          allOtherReplicas(), config_.fetchRetransmissionTimeoutMs, config_.sourceReplicaReplacementTimeoutMs},
       last_metrics_dump_time_(0),
-      metrics_dump_interval_in_sec_{config_.metricsDumpIntervalSeconds},
+      metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
           concordMetrics::Component("bc_state_transfer", std::make_shared<concordMetrics::Aggregator>())},
 
@@ -222,21 +222,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
   // TODO(GG): more asserts
   buffer_ = reinterpret_cast<char *>(std::malloc(maxItemSize_));
-  LOG_INFO(getLogger(),
-           "Creating BCStateTran object:"
-               << " myId_=" << config_.myReplicaId << " fVal_=" << config_.fVal << " maxVBlockSize_=" << maxVBlockSize_
-               << " maxChunkSize_=" << config_.maxChunkSize
-               << " maxNumberOfChunksInBatch_=" << config_.maxNumberOfChunksInBatch
-               << " maxPendingDataFromSourceReplica_=" << config_.maxPendingDataFromSourceReplica
-               << " maxNumOfReservedPages_=" << config_.maxNumOfReservedPages << "config_.sizeOfReservedPage_="
-               << config_.sizeOfReservedPage << " refreshTimerMilli_=" << config_.refreshTimerMilli
-               << " checkpointSummariesRetransmissionTimeoutMilli_="
-               << config_.checkpointSummariesRetransmissionTimeoutMilli
-               << " maxAcceptableMsgDelayMilli_=" << config_.maxAcceptableMsgDelayMilli
-               << " sourceReplicaReplacementTimeoutMilli_=" << config_.sourceReplicaReplacementTimeoutMilli
-               << " fetchRetransmissionTimeoutMilli_=" << config_.fetchRetransmissionTimeoutMilli << " maxBlockSize_="
-               << config_.maxBlockSize << " maxNumOfChunksInAppBlock_=" << maxNumOfChunksInAppBlock_
-               << " maxNumOfChunksInVBlock_=" << maxNumOfChunksInVBlock_);
+  LOG_INFO(getLogger(), "Creating BCStateTran object: " << config_);
 
   if (config_.isReadOnly) {
     handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
@@ -340,7 +326,7 @@ void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   ConcordAssertNE(r, nullptr);
   running_ = true;
   replicaForStateTransfer_ = r;
-  replicaForStateTransfer_->changeStateTransferTimerPeriod(config_.refreshTimerMilli);
+  replicaForStateTransfer_->changeStateTransferTimerPeriod(config_.refreshTimerMs);
 }
 
 void BCStateTran::stopRunning() {
@@ -636,7 +622,7 @@ void BCStateTran::onTimer() {
   auto currTime = getMonotonicTimeMilli();
   FetchingState fs = getFetchingState();
   if (fs == FetchingState::GettingCheckpointSummaries) {
-    if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMilli) {
+    if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMs) {
       if (++retransmissionNumberOfAskForCheckpointSummariesMsg > kResetCount_AskForCheckpointSummaries)
         clearInfoAboutGettingCheckpointSummary();
 
@@ -841,8 +827,8 @@ bool BCStateTran::checkValidityAndSaveMsgSeqNum(uint16_t replicaId, uint64_t msg
   const uint64_t milliNow = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
   uint64_t diffMilli = ((milliMsgTime > milliNow) ? (milliMsgTime - milliNow) : (milliNow - milliMsgTime));
 
-  if (diffMilli > config_.maxAcceptableMsgDelayMilli) {
-    auto excessiveMilliseconds = diffMilli - config_.maxAcceptableMsgDelayMilli;
+  if (diffMilli > config_.maxAcceptableMsgDelayMs) {
+    auto excessiveMilliseconds = diffMilli - config_.maxAcceptableMsgDelayMs;
     LOG_WARN(getLogger(), "Msg rejected because it is too old: " << KVLOG(replicaId, msgSeqNum, excessiveMilliseconds));
     return false;
   }
