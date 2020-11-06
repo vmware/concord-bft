@@ -157,7 +157,7 @@ class Client : public concord::storage::IDBClient {
 
   concordUtils::Status del(const concordUtils::Sliver& key) override;
 
-  concordUtils::Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
+  concordUtils::Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) const override {
     ConcordAssert(_keysVec.size() == _valuesVec.size());
 
     for (KeysVector::size_type i = 0; i < _keysVec.size(); ++i)
