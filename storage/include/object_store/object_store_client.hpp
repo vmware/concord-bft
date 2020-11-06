@@ -34,7 +34,7 @@ class ObjectStoreClient : public IDBClient {
 
   Status del(const Sliver& _key) override { return pImpl_->del(_key); }
 
-  Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) override {
+  Status multiGet(const KeysVector& _keysVec, OUT ValuesVector& _valuesVec) const override {
     return pImpl_->multiGet(_keysVec, _valuesVec);
   }
 
