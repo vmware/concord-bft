@@ -47,6 +47,9 @@ void SeqNumInfo::acquire(SeqNumInfo& rhs) {
   commitMsgsCollector->acquire(rhs.commitMsgsCollector);
   partialProofsSet->acquire(rhs.partialProofsSet);
 }
+void SeqNumInfo::resetCommitSignatres() { commitMsgsCollector->resetAndFree(); }
+
+void SeqNumInfo::resetPrepareSignatures() { prepareSigCollector->resetAndFree(); }
 
 void SeqNumInfo::resetAndFree() {
   delete prePrepareMsg;
