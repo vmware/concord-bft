@@ -3778,6 +3778,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
+    SCOPED_MDC_SEQ_NUM(std::to_string(nextExecutedSeqNum));
     SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
 
     PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
