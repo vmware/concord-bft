@@ -40,6 +40,19 @@ class ReqMissingDataMsg : public MessageBase {
   bool getSlowPathHasStarted() const { return b()->flags.bits.slowPathHasStarted != 0; }
 
   uint16_t getFlags() const { return b()->flags.flags; }
+  std::string getFlagsAsBits() const {
+    std::string ret;
+    b()->flags.bits.slowPathHasStarted ? ret += "1" : ret += "0";
+    b()->flags.bits.fullCommitIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.fullPrepareIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.fullCommitProofIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.partialCommitIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.partialPrepareIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.partialProofIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.prePrepareIsMissing ? ret += "1" : ret += "0";
+    b()->flags.bits.reserved ? ret += "1" : ret += "0";
+    return ret;
+  };
 
   void resetFlags();
 
