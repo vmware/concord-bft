@@ -2635,8 +2635,6 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
   for (ReplicaId destRep = firstRepId; destRep <= lastRepId; destRep++) {
     if (destRep == config_.replicaId) continue;  // don't send to myself
 
-    const bool destIsPrimary = (currentPrimary() == destRep);
-
     const bool missingPartialPrepare =
         (routerForPartialPrepare && (!seqNumInfo.preparedOrHasPreparePartialFromReplica(destRep)));
 
@@ -2653,15 +2651,13 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
     const bool missingFullProof = !slowPathOnly && !partialProofsSet.hasFullProof();
 
     bool sendNeeded = missingPartialProof || missingPartialPrepare || missingFullPrepare || missingPartialCommit ||
-                      missingFullCommit || missingFullProof;
-
-    if (destIsPrimary && !sendNeeded) sendNeeded = missingBigRequests || missingPrePrepare;
+                      missingFullCommit || missingFullProof || missingBigRequests || missingPrePrepare;
 
     if (!sendNeeded) continue;
 
     reqData.resetFlags();
 
-    if (destIsPrimary && missingPrePrepare) reqData.setPrePrepareIsMissing();
+    if (missingPrePrepare) reqData.setPrePrepareIsMissing();
 
     if (missingPartialProof) reqData.setPartialProofIsMissing();
     if (missingPartialPrepare) reqData.setPartialPrepareIsMissing();
@@ -2692,14 +2688,14 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
-    if (config_.replicaId == currentPrimary()) {
+    if (msg->getPrePrepareIsMissing()) {
       PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
-      if (msg->getPrePrepareIsMissing()) {
-        if (pp != nullptr) {
-          sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
-        }
+      if (pp != nullptr) {
+        sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
       }
+    }
 
+    if (config_.replicaId == currentPrimary()) {
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
         StartSlowCommitMsg startSlowMsg(config_.replicaId, curView, msgSeqNum);
         sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
