@@ -91,6 +91,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // the latest stable SeqNum known to this replica
   SeqNum lastStableSeqNum = 0;
+  SeqNum nOutOfnCheckpoint = 0;
 
   //
   SeqNum strictLowerBoundOfSeqNums = 0;
@@ -143,7 +144,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   Time timeOfLastStateSynch;    // last time the replica received a new state (via the state transfer mechanism)
   Time timeOfLastViewEntrance;  // last time the replica entered to a new view
   Time timeOfLastExecution;     // last time that some client request has been executed
-
+  Time timeOfLastStableSeqNum;  // last time we reached to a stable checkpoint
   // latest view number v such that the replica received 2f+2c+1 ViewChangeMsg messages
   // with view >= v
   ViewNum lastAgreedView = 0;

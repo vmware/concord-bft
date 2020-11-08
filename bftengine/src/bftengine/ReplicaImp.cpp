@@ -290,6 +290,11 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   ConcordAssert(isCurrentPrimary());
   ConcordAssert(currentViewIsActive());
 
+  if (lastStableSeqNum != nOutOfnCheckpoint && (getMonotonicTime() - timeOfLastStableSeqNum < milliseconds(1000))) {
+    LOG_INFO(GL, "Will not send PrePrepare because we want to give a chance for late replicas to catchup");
+    return;
+  }
+
   if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
@@ -2453,6 +2458,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
+  nOutOfnCheckpoint = superStableSeqNum;
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
@@ -2470,6 +2476,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
   if (newStableSeqNum <= lastStableSeqNum) return;
+  timeOfLastStableSeqNum = getMonotonicTime();
   TimeRecorder scoped_timer(*histograms_.onSeqNumIsStable);
 
   LOG_INFO(GL,
