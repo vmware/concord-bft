@@ -290,7 +290,7 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   ConcordAssert(isCurrentPrimary());
   ConcordAssert(currentViewIsActive());
 
-  if (lastStableSeqNum != nOutOfnCheckpoint &&
+  if (lastStableSeqNum > nOutOfnCheckpoint &&
       (getMonotonicTime() - timeOfLastStableSeqNum < milliseconds(waitForLateReplicasToCatchupTimeoutMilli))) {
     LOG_INFO(GL,
              "Will not send PrePrepare because we want to give a chance for late replicas to catchup"
