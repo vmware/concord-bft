@@ -2461,6 +2461,9 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
+  LOG_INFO(GL,
+           "Reached to n/n checkpoint in " << (getMonotonicTime() - timeOfLastStableSeqNum).count()
+                                           << " after stable checkpoint");
   nOutOfnCheckpoint = superStableSeqNum;
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
@@ -2675,7 +2678,9 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
     if (slowPathStarted) reqData.setSlowPathHasStarted();
 
     auto destinationReplica = destRep;
-    LOG_INFO(GL, "Send ReqMissingDataMsg. " << KVLOG(destinationReplica, seqNumber, reqData.getFlags()));
+    LOG_INFO(GL,
+             "Send ReqMissingDataMsg. " << KVLOG(
+                 destinationReplica, seqNumber, reqData.getFlags(), reqData.getFlagsAsBits()));
 
     send(&reqData, destRep);
     metric_sent_req_for_missing_data_.Get().Inc();
@@ -2688,7 +2693,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
-  LOG_INFO(GL, "Received ReqMissingDataMsg. " << KVLOG(msgSender, msg->getFlags()));
+  LOG_INFO(GL, "Received ReqMissingDataMsg. " << KVLOG(msgSender, msg->getFlags(), msg->getFlagsAsBits()));
   if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
@@ -2706,16 +2711,17 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
     if (msg->getPrePrepareIsMissing()) {
       PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
       if (pp != nullptr) {
+        LOG_DEBUG(GL, "sending PrePrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
         sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
       }
     }
 
     if (msg->getPartialProofIsMissing()) {
       // TODO(GG): consider not to send if msgSender is not a collector
-
       PartialCommitProofMsg *pcf = seqNumInfo.partialProofs().getSelfPartialCommitProof();
 
       if (pcf != nullptr) {
+        LOG_DEBUG(GL, "sending PartialProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
         sendAndIncrementMetric(pcf, msgSender, metric_sent_partialCommitProof_msg_due_to_reqMissingData_);
       }
     }
@@ -2724,6 +2730,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       PreparePartialMsg *pr = seqNumInfo.getSelfPreparePartialMsg();
 
       if (pr != nullptr) {
+        LOG_DEBUG(GL, "sending PartialPrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
         sendAndIncrementMetric(pr, msgSender, metric_sent_preparePartial_msg_due_to_reqMissingData_);
       }
     }
@@ -2732,6 +2739,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       PrepareFullMsg *pf = seqNumInfo.getValidPrepareFullMsg();
 
       if (pf != nullptr) {
+        LOG_DEBUG(GL, "sending FullPrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
         sendAndIncrementMetric(pf, msgSender, metric_sent_prepareFull_msg_due_to_reqMissingData_);
       }
     }
@@ -2739,6 +2747,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
     if (msg->getPartialCommitIsMissing() && (currentPrimary() == msgSender)) {
       CommitPartialMsg *c = seqNumInfo.getSelfCommitPartialMsg();
       if (c != nullptr) {
+        LOG_DEBUG(GL, "sending PartialCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
         sendAndIncrementMetric(c, msgSender, metric_sent_commitPartial_msg_due_to_reqMissingData_);
       }
     }
@@ -2746,16 +2755,22 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
     if (msg->getFullCommitIsMissing()) {
       CommitFullMsg *c = seqNumInfo.getValidCommitFullMsg();
       if (c != nullptr) {
+        LOG_DEBUG(GL, "sending FullCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
         sendAndIncrementMetric(c, msgSender, metric_sent_commitFull_msg_due_to_reqMissingData_);
       }
     }
 
     if (msg->getFullCommitProofIsMissing() && seqNumInfo.partialProofs().hasFullProof()) {
       FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+      LOG_DEBUG(GL, "sending FullCommitProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
       sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
     }
   } else {
-    LOG_INFO(GL, "Ignore the ReqMissingDataMsg message. " << KVLOG(msgSender));
+    LOG_INFO(GL,
+             "Ignore the ReqMissingDataMsg message. " << KVLOG(msgSender,
+                                                               currentViewIsActive(),
+                                                               mainLog->insideActiveWindow(msgSeqNum),
+                                                               mainLog->isPressentInHistory(msgSeqNum)));
   }
 
   delete msg;
