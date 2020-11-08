@@ -163,6 +163,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool enableRetransmitSuperStableCheckpoint_ = false;
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;
+  int minTimeForWaitingToReplicasToCatchup = 1000;
+  int waitForLateReplicasToCatchupTimeoutMilli = 1000;
+  int timeToAddToLateReplicasTimeoutOnRFMD = 50;
+  int maxTimeForWaitToLateReplicasTimeout = 4000;
 
   shared_ptr<PersistentStorage> ps_;
 

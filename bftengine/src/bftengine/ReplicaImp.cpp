@@ -290,8 +290,11 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   ConcordAssert(isCurrentPrimary());
   ConcordAssert(currentViewIsActive());
 
-  if (lastStableSeqNum != nOutOfnCheckpoint && (getMonotonicTime() - timeOfLastStableSeqNum < milliseconds(1000))) {
-    LOG_INFO(GL, "Will not send PrePrepare because we want to give a chance for late replicas to catchup");
+  if (lastStableSeqNum != nOutOfnCheckpoint &&
+      (getMonotonicTime() - timeOfLastStableSeqNum < milliseconds(waitForLateReplicasToCatchupTimeoutMilli))) {
+    LOG_INFO(GL,
+             "Will not send PrePrepare because we want to give a chance for late replicas to catchup"
+                 << KVLOG(waitForLateReplicasToCatchupTimeoutMilli));
     return;
   }
 
@@ -2476,6 +2479,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
   if (newStableSeqNum <= lastStableSeqNum) return;
+  waitForLateReplicasToCatchupTimeoutMilli = minTimeForWaitingToReplicasToCatchup;
   timeOfLastStableSeqNum = getMonotonicTime();
   TimeRecorder scoped_timer(*histograms_.onSeqNumIsStable);
 
@@ -2688,17 +2692,21 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
+    if (config_.replicaId == currentPrimary()) {
+      waitForLateReplicasToCatchupTimeoutMilli += timeToAddToLateReplicasTimeoutOnRFMD;
+      if (waitForLateReplicasToCatchupTimeoutMilli > maxTimeForWaitToLateReplicasTimeout) {
+        waitForLateReplicasToCatchupTimeoutMilli = maxTimeForWaitToLateReplicasTimeout;
+      }
+      if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
+        StartSlowCommitMsg startSlowMsg(config_.replicaId, curView, msgSeqNum);
+        sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
+      }
+    }
+
     if (msg->getPrePrepareIsMissing()) {
       PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
       if (pp != nullptr) {
         sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
-      }
-    }
-
-    if (config_.replicaId == currentPrimary()) {
-      if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
-        StartSlowCommitMsg startSlowMsg(config_.replicaId, curView, msgSeqNum);
-        sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
       }
     }
 
