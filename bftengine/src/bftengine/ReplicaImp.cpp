@@ -2697,6 +2697,28 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   if ((currentViewIsActive()) && (mainLog->insideActiveWindow(msgSeqNum) || mainLog->isPressentInHistory(msgSeqNum))) {
     SeqNumInfo &seqNumInfo = mainLog->getFromActiveWindowOrHistory(msgSeqNum);
 
+    if (msg->getPrePrepareIsMissing()) {
+      PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
+      if (pp != nullptr) {
+        LOG_DEBUG(GL, "sending PrePrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+        sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
+      }
+    }
+
+    if (msg->getFullCommitIsMissing()) {
+      CommitFullMsg *c = seqNumInfo.getValidCommitFullMsg();
+      if (c != nullptr) {
+        LOG_DEBUG(GL, "sending FullCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+        sendAndIncrementMetric(c, msgSender, metric_sent_commitFull_msg_due_to_reqMissingData_);
+      }
+    }
+
+    if (msg->getFullCommitProofIsMissing() && seqNumInfo.partialProofs().hasFullProof()) {
+      FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
+      LOG_DEBUG(GL, "sending FullCommitProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
+      sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
+    }
+
     if (config_.replicaId == currentPrimary()) {
       waitForLateReplicasToCatchupTimeoutMilli += timeToAddToLateReplicasTimeoutOnRFMD;
       if (waitForLateReplicasToCatchupTimeoutMilli > maxTimeForWaitToLateReplicasTimeout) {
@@ -2705,14 +2727,6 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
         StartSlowCommitMsg startSlowMsg(config_.replicaId, curView, msgSeqNum);
         sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
-      }
-    }
-
-    if (msg->getPrePrepareIsMissing()) {
-      PrePrepareMsg *pp = seqNumInfo.getSelfPrePrepareMsg();
-      if (pp != nullptr) {
-        LOG_DEBUG(GL, "sending PrePrepare message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
-        sendAndIncrementMetric(pp, msgSender, metric_sent_preprepare_msg_due_to_reqMissingData_);
       }
     }
 
@@ -2752,22 +2766,10 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       }
     }
 
-    if (msg->getFullCommitIsMissing()) {
-      CommitFullMsg *c = seqNumInfo.getValidCommitFullMsg();
-      if (c != nullptr) {
-        LOG_DEBUG(GL, "sending FullCommit message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
-        sendAndIncrementMetric(c, msgSender, metric_sent_commitFull_msg_due_to_reqMissingData_);
-      }
-    }
-
-    if (msg->getFullCommitProofIsMissing() && seqNumInfo.partialProofs().hasFullProof()) {
-      FullCommitProofMsg *fcp = seqNumInfo.partialProofs().getFullProof();
-      LOG_DEBUG(GL, "sending FullCommitProof message as a response of RFMD" << KVLOG(msgSender, msgSeqNum));
-      sendAndIncrementMetric(fcp, msgSender, metric_sent_fullCommitProof_msg_due_to_reqMissingData_);
-    }
   } else {
     LOG_INFO(GL,
              "Ignore the ReqMissingDataMsg message. " << KVLOG(msgSender,
+                                                               lastExecutedSeqNum,
                                                                currentViewIsActive(),
                                                                mainLog->insideActiveWindow(msgSeqNum),
                                                                mainLog->isPressentInHistory(msgSeqNum)));
