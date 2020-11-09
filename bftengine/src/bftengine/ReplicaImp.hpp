@@ -267,9 +267,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
   SeqNum getLastExecutedSeqNum() const override { return lastExecutedSeqNum; }
   PrePrepareMsg* buildPrePrepareMessage() override;
-  void tryToSendPrePrepareMsg(bool batchingLogic = false) override;
-  void tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
-  void tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
+  bool tryToSendPrePrepareMsg(bool batchingLogic = false) override;
+  bool tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
+  bool tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
 
  protected:
   ReplicaImp(bool firstTime,

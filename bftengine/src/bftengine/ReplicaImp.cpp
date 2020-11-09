@@ -311,7 +311,6 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
-    SCOPED_MDC_CID(first->getCid());
     primaryCombinedReqSize -= first->size();
     delete first;
     requestsQueueOfPrimary.pop();
@@ -319,28 +318,42 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   }
 }
 
-void ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
-  if (!checkSendPrePrepareMsgPrerequisites()) return;
+bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+  if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
+    LOG_INFO(GL,
+             "Not sufficient messages size in the primary replica queue to fill a batch"
+                 << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
+    return false;
+  }
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
 
   removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByBatchSize(requiredBatchSizeInBytes);
-  if (prePrepareMsg) startConsensusProcess(prePrepareMsg);
+  if (!prePrepareMsg) return false;
+
+  startConsensusProcess(prePrepareMsg);
+  return true;
 }
 
-void ReplicaImp::tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+bool ReplicaImp::tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
-    LOG_INFO(GL, "Not enough messages to fill a batch" << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
-    return;
+    LOG_INFO(GL,
+             "Not enough messages in the primary replica queue to fill a batch"
+                 << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
+    return false;
   }
-  if (!checkSendPrePrepareMsgPrerequisites()) return;
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
 
   removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByRequestsNum(requiredRequestsNum);
-  if (prePrepareMsg) startConsensusProcess(prePrepareMsg);
+  if (!prePrepareMsg) return false;
+
+  startConsensusProcess(prePrepareMsg);
+  return true;
 }
 
-void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
-  if (!checkSendPrePrepareMsgPrerequisites()) return;
+bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
 
   removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *pp = nullptr;
@@ -348,7 +361,10 @@ void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     pp = reqBatchingLogic_.batchRequests();
   else
     pp = buildPrePrepareMessage();
-  if (pp) startConsensusProcess(pp);
+  if (!pp) return false;
+
+  startConsensusProcess(pp);
+  return true;
 }
 
 PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
@@ -382,8 +398,8 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
     primaryCombinedReqSize -= nextRequest->size();
   } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
     LOG_ERROR(GL,
-              "Request was dropped because it exceeds maximum allowed size. "
-                  << KVLOG(nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
+              "Request was dropped because it exceeds maximum allowed size" << KVLOG(
+                  prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
   delete nextRequest;
   requestsQueueOfPrimary.pop();
@@ -400,9 +416,13 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
     return nullptr;
   }
   prePrepareMsg->finishAddingRequests();
-  const auto addedRequestsSize = prePrepareMsg->requestsSize();
-  const auto addedRequestsNum = prePrepareMsg->numberOfRequests();
-  LOG_DEBUG(GL, KVLOG(maxSpaceForReqs, requiredRequestsSize, addedRequestsSize, requiredRequestsNum, addedRequestsNum));
+  LOG_DEBUG(GL,
+            KVLOG(prePrepareMsg->seqNumber(),
+                  maxSpaceForReqs,
+                  requiredRequestsSize,
+                  prePrepareMsg->requestsSize(),
+                  requiredRequestsNum,
+                  prePrepareMsg->numberOfRequests()));
   return prePrepareMsg;
 }
 

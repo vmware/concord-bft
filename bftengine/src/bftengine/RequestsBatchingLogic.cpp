@@ -14,6 +14,7 @@
 namespace bftEngine::batchingLogic {
 
 using namespace concordUtil;
+using namespace std;
 using namespace std::chrono;
 
 RequestsBatchingLogic::RequestsBatchingLogic(InternalReplicaApi &replica,
@@ -39,7 +40,13 @@ RequestsBatchingLogic::~RequestsBatchingLogic() {
   if (batchingPolicy_ == BATCH_BY_REQ_SIZE || batchingPolicy_ == BATCH_BY_REQ_NUM) timers_.cancel(batchFlushTimer_);
 }
 
-void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) { replica_.tryToSendPrePrepareMsg(false); }
+void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {
+  if (replica_.isCurrentPrimary()) {
+    lock_guard<mutex> lock(batchProcessingLock_);
+    LOG_DEBUG(GL, "Batching flush period expired" << KVLOG(batchFlushPeriodMs_));
+    if (replica_.tryToSendPrePrepareMsg(false)) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+  }
+}
 
 PrePrepareMsg *RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
                                                                       uint64_t requestsInQueue,
@@ -82,12 +89,16 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
       prePrepareMsg = batchRequestsSelfAdjustedPolicy(
           replica_.getPrimaryLastUsedSeqNum(), requestsInQueue, replica_.getLastExecutedSeqNum());
       break;
-    case BATCH_BY_REQ_NUM:
-      replica_.tryToSendPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
-      break;
-    case BATCH_BY_REQ_SIZE:
-      replica_.tryToSendPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_);
-      break;
+    case BATCH_BY_REQ_NUM: {
+      lock_guard<mutex> lock(batchProcessingLock_);
+      if (replica_.tryToSendPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_))
+        timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+    } break;
+    case BATCH_BY_REQ_SIZE: {
+      lock_guard<mutex> lock(batchProcessingLock_);
+      if (replica_.tryToSendPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_))
+        timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+    } break;
   }
   return prePrepareMsg;
 }

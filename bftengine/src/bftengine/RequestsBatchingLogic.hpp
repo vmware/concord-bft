@@ -52,6 +52,7 @@ class RequestsBatchingLogic {
   const uint32_t maxBatchSizeInBytes_;
   concordUtil::Timers &timers_;
   concordUtil::Timers::Handle batchFlushTimer_;
+  std::mutex batchProcessingLock_;
 };
 
 }  // namespace bftEngine::batchingLogic
