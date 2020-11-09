@@ -676,7 +676,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   SeqNum maxSeqNum = 0;
 
   if (!recentViewChange) {
-    const int16_t searchWindow = 4;  // TODO(GG): TBD - read from configuration
+    const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
     minSeqNum = lastExecutedSeqNum + 1;
     maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
   } else {
@@ -1496,6 +1496,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   LOG_INFO(
       GL,
       "Received checkpoint message from node. " << KVLOG(msgSenderId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
+  LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
 
@@ -1529,6 +1530,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgSenderId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
+      // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
@@ -1553,6 +1555,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         LOG_DEBUG(GL, KVLOG(numRelevant, numRelevantAboveWindow));
 
         if (numRelevantAboveWindow >= config_.getfVal() + 1) {
+          LOG_INFO(GL, "Number of stable checkpoints above window: " << numRelevantAboveWindow);
           askForStateTransfer = true;
         } else if (numRelevant >= config_.getfVal() + 1) {
           Time timeOfLastCommit = MinTime;
@@ -1560,6 +1563,10 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
             timeOfLastCommit = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
           if ((getMonotonicTime() - timeOfLastCommit) >
               (milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli))) {
+            LOG_INFO(GL,
+                     "Number of stable checkpoints in current window: "
+                         << numRelevant
+                         << " time since last execution: " << (getMonotonicTime() - timeOfLastCommit).count() << " ms");
             askForStateTransfer = true;
           }
         }
@@ -1569,7 +1576,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   if (askForStateTransfer && !stateTransfer->isCollectingState()) {
     LOG_INFO(GL, "Call to startCollectingState()");
-
+    clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
     stateTransfer->startCollectingState();
   } else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
     onReportAboutAdvancedReplica(msgSenderId, msgSeqNum);
@@ -2453,8 +2460,8 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
   }
 
   if (askAnotherStateTransfer) {
-    LOG_INFO(GL, "Call to startCollectingState()");
-
+    LOG_INFO(GL, "Call to another startCollectingState()");
+    clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
     stateTransfer->startCollectingState();
   }
 }

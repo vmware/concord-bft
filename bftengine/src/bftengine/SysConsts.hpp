@@ -104,7 +104,7 @@ constexpr bool dynamicCollectorForExecutionProofs = false;  // if false, then th
 // State Transfer
 ///////////////////////////////////////////////////////////////////////////////
 
-constexpr int timeToWaitBeforeStartingStateTransferInMainWindowMilli = 2000;  // TODO(GG): move to configuration??
+constexpr int timeToWaitBeforeStartingStateTransferInMainWindowMilli = 5000;  // TODO(GG): move to configuration??
 
 ///////////////////////////////////////////////////////////////////////////////
 // Debug and Tuning of ControllerWithSimpleHistory
