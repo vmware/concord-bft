@@ -132,7 +132,7 @@ class KeyManager {
   KeysView keysView_;
 
   void onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn);
-  void notifyRegistry();
+  void notifyRegistry(bool save);
 
   // Samples periodically how many connections the replica has with other replicas.
   // returns when num of connections is (clusterSize - 1) i.e. full communication.
