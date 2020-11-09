@@ -39,7 +39,7 @@ KeyManager::KeyManager(InitData* id)
   // If all keys were exchange on start
   if (keyStore_.exchangedReplicas.size() == clusterSize_) {
     LOG_INFO(KEY_EX_LOG, "building crypto system ");
-    notifyRegistry();
+    notifyRegistry(false);
     keysExchanged = true;
     LOG_INFO(KEY_EX_LOG, "All replicas keys loaded from reserved pages, can start accepting msgs");
   }
@@ -116,12 +116,12 @@ void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
   LOG_INFO(KEY_EX_LOG, "building crypto system ");
   keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().outstandingPrivateKey);
   keyStore_.push(kemsg, sn);
-  notifyRegistry();
+  notifyRegistry(true);
   keysExchanged = true;
   LOG_INFO(KEY_EX_LOG, "All replicas exchanged keys, can start accepting msgs");
 }
 
-void KeyManager::notifyRegistry() {
+void KeyManager::notifyRegistry(bool save) {
   for (uint32_t i = 0; i < clusterSize_; i++) {
     keysView_.keys().publicKeys[i] = keyStore_.getReplicaPublicKey(i).key;
     if (i == repID_) {
@@ -134,7 +134,11 @@ void KeyManager::notifyRegistry() {
       e->onPublicKeyExchange(keyStore_.getReplicaPublicKey(i).key, i);
     });
   }
-  keysView_.save();
+  if (save) {
+    keysView_.save();
+  } else {
+    LOG_DEBUG(KEY_EX_LOG, "Not saving keyfile after updating crypto system");
+  }
 }
 
 void KeyManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
@@ -167,7 +171,7 @@ void KeyManager::onCheckpoint(const int& num) {
   }
   LOG_INFO(KEY_EX_LOG, "Check point  " << num << " trigerred rotation ");
   LOG_INFO(KEY_EX_LOG, "building crypto system ");
-  notifyRegistry();
+  notifyRegistry(true);
 }
 
 void KeyManager::registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
@@ -178,6 +182,12 @@ KeyExchangeMsg KeyManager::getReplicaPublicKey(const uint16_t& repID) const {
 
 // Called at the end of a state transfer.
 void KeyManager::loadKeysFromReservedPages() {
+  // Until Key-rotation is implemented, state transfer after the key-exchange has been performed has no side effect.
+  // in order to mitigate BC-5530, we'll not do a redundent work
+  if (keysExchanged) {  // TODO remove when implementing key-rotation!
+    LOG_INFO(KEY_EX_LOG, "After state transfer, return due to already updated crypto system");
+    return;
+  }
   // If we reached state transfer, all keys should have beed exchanged in the source replica
   // TODO might be changed when full rotation is imp
   ConcordAssert(keyStore_.loadAllReplicasKeyStoresFromReservedPages());
@@ -192,7 +202,7 @@ void KeyManager::loadKeysFromReservedPages() {
   }
   keysExchanged = true;
   LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
-  notifyRegistry();
+  notifyRegistry(true);
 }
 
 void KeyManager::sendKeyExchange() {
