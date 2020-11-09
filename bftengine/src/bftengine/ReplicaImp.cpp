@@ -3609,7 +3609,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     } else {
       LOG_DEBUG(CNSUS, "Consensus reached");
     }
-
+    SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
