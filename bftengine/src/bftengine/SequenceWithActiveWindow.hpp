@@ -145,9 +145,9 @@ class SequenceWithActiveWindow {
 
   ItemType &getFromHistory(NumbersType n) {
     ConcordAssert(isPressentInHistory(n));
-    LOG_DEBUG(GL,
-              "Getting info from Inactive Window for SeqNo="
-                  << n << KVLOG(beginningOfActiveWindow, inactiveStorage.getBeginningOfInactiveWindow()));
+    LOG_INFO(GL,
+             "Getting info from Inactive Window for SeqNo="
+                 << n << KVLOG(beginningOfActiveWindow, inactiveStorage.getBeginningOfInactiveWindow()));
     return inactiveStorage.get(n);
   }
 
