@@ -248,6 +248,7 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
   config.protocol = get_config_value("s3-protocol");
   config.url = get_config_value("s3-url");
   config.secretKey = get_config_value("s3-secret-key");
+  config.maxWaitTime = std::stoi(get_config_value("s3-max-wait-time"));
   try {
     // TesterReplica is used for Apollo tests. Each test is executed against new blockchain, so we need brand new
     // bucket for the RO replica. To achieve this we use a hack - set the prefix to a uniqe value so each RO replica
