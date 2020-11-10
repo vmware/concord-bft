@@ -115,8 +115,6 @@ class DummyReplica : public InternalReplicaApi {
 
   void setPrimary(bool primary) { primary_ = primary; };
 
-  PrePrepareMsg* buildPrePrepareMessage() override { return nullptr; }
-
  private:
   bool primary_ = true;
   IncomingMsgsStorage* incomingMsgsStorage_ = nullptr;

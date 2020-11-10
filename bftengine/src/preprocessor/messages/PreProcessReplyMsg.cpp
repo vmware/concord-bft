@@ -37,6 +37,8 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   auto& msgHeader = *msgBody();
   ConcordAssert(msgHeader.senderId != repInfo.myId());
 
+  if (sigManager_ == nullptr) throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig"));
+
   uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
   if (size() < (sizeof(Header) + sigLen)) throw runtime_error(__PRETTY_FUNCTION__ + string(": size"));
 

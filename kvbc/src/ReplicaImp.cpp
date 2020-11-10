@@ -36,7 +36,7 @@ namespace concord::kvbc {
  * Starting.
  */
 Status ReplicaImp::start() {
-  LOG_INFO(logger, "ReplicaImp::Start() id = " << m_replicaConfig.replicaId);
+  LOG_INFO(logger, "ReplicaImp::Start() id = " << replicaConfig_.replicaId);
 
   if (m_currentRepStatus != RepStatus::Idle) {
     return Status::IllegalOperation("todo");
@@ -44,10 +44,10 @@ Status ReplicaImp::start() {
 
   m_currentRepStatus = RepStatus::Starting;
 
-  if (m_replicaConfig.isReadOnly) {
+  if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
     m_replicaPtr =
-        bftEngine::IReplica::createNewRoReplica(m_replicaConfig, m_stateTransfer, m_ptrComm, m_metadataStorage);
+        bftEngine::IReplica::createNewRoReplica(replicaConfig_, m_stateTransfer, m_ptrComm, m_metadataStorage);
   } else {
     createReplicaAndSyncState();
   }
@@ -66,7 +66,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   bool erasedMetaData;
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      m_replicaConfig, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
+      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
   if (erasedMetaData) isNewStorage = true;
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
@@ -202,33 +202,57 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     : logger(logging::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
       m_ptrComm(comm),
-      m_replicaConfig(replicaConfig),
+      replicaConfig_(replicaConfig),
       aggregator_(aggregator) {
-  bftEngine::bcst::Config state_transfer_config;
-  state_transfer_config.myReplicaId = m_replicaConfig.replicaId;
-  state_transfer_config.cVal = m_replicaConfig.cVal;
-  state_transfer_config.fVal = m_replicaConfig.fVal;
-  state_transfer_config.numReplicas = m_replicaConfig.numReplicas + m_replicaConfig.numRoReplicas;
-  state_transfer_config.metricsDumpIntervalSeconds = std::chrono::seconds(m_replicaConfig.metricsDumpIntervalSeconds);
-  state_transfer_config.isReadOnly = replicaConfig.isReadOnly;
-  if (replicaConfig.maxNumOfReservedPages > 0)
-    state_transfer_config.maxNumOfReservedPages = replicaConfig.maxNumOfReservedPages;
-  if (replicaConfig.sizeOfReservedPage > 0) state_transfer_config.sizeOfReservedPage = replicaConfig.sizeOfReservedPage;
+  // Populate ST configuration
+  bftEngine::bcst::Config stConfig = {
+    replicaConfig_.replicaId,
+    replicaConfig_.fVal,
+    replicaConfig_.cVal,
+    (uint16_t)(replicaConfig_.numReplicas + replicaConfig_.numRoReplicas),
+    replicaConfig_.get("st.pedanticChecks", false),
+    replicaConfig_.isReadOnly,
 
-  state_transfer_config.sourceReplicaReplacementTimeoutMilli =
-      replicaConfig.get("sourceReplicaReplacementTimeoutMilli", 5000);
+#if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
+    replicaConfig_.get<uint32_t>("st.maxChunkSize", 30 * 1024 * 1024),
+    replicaConfig_.get<uint16_t>("st.maxNumberOfChunksInBatch", 64),
+#else
+    replicaConfig_.get<uint32_t>("st.maxChunkSize", 2048),
+    replicaConfig_.get<uint16_t>("st.maxNumberOfChunksInBatch", 32),
+#endif
+    replicaConfig_.get<uint32_t>("st.maxBlockSize", 30 * 1024 * 1024),
+    replicaConfig_.get<uint32_t>("st.maxPendingDataFromSourceReplica", 256 * 1024 * 1024),
+    replicaConfig_.getmaxNumOfReservedPages(),
+    replicaConfig_.getsizeOfReservedPage(),
+    replicaConfig_.get<uint32_t>("st.refreshTimerMs", 300),
+    replicaConfig_.get<uint32_t>("st.checkpointSummariesRetransmissionTimeoutMs", 2500),
+    replicaConfig_.get<uint32_t>("st.maxAcceptableMsgDelayMs", 60000),
+    replicaConfig_.get<uint32_t>("st.sourceReplicaReplacementTimeoutMs", 15000),
+    replicaConfig_.get<uint32_t>("st.fetchRetransmissionTimeoutMs", 250),
+    replicaConfig_.get<uint32_t>("st.metricsDumpIntervalSec", 5),
+    replicaConfig_.get("st.runInSeparateThread", replicaConfig_.isReadOnly)
+  };
+
+#if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
+  // maxChunkSize * maxNumberOfChunksInBatch shouldn't exceed UDP message size which is limited to 64KB
+  if (stConfig.maxChunkSize * stConfig.maxNumberOfChunksInBatch > 64 * 1024) {
+    LOG_WARN(logger, "overriding incorrect chunking configuration for UDP");
+    stConfig.maxChunkSize = 2048;
+    stConfig.maxNumberOfChunksInBatch = 32;
+  }
+#endif
+
   auto dbSet = storageFactory->newDatabaseSet();
   m_bcDbAdapter = std::move(dbSet.dbAdapter);
   dbSet.dataDBClient->setAggregator(aggregator);
   dbSet.metadataDBClient->setAggregator(aggregator);
   m_metadataDBClient = dbSet.metadataDBClient;
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
-  m_stateTransfer =
-      bftEngine::bcst::create(state_transfer_config, this, m_metadataDBClient, stKeyManipulator, aggregator_);
+  m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
 
   controlStateManager_ =
-      std::make_shared<bftEngine::ControlStateManager>(m_stateTransfer, m_replicaConfig.sizeOfReservedPage);
+      std::make_shared<bftEngine::ControlStateManager>(m_stateTransfer, replicaConfig_.getsizeOfReservedPage());
 }
 
 ReplicaImp::~ReplicaImp() {

@@ -184,7 +184,7 @@ class PreProcessor {
   using Recorder = concord::diagnostics::Recorder;
   struct Recorders {
     Recorders() {
-      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.registerComponent("pre-execution",
                                        {{"onMessage", onMessage},
                                         {"launchReqPreProcessing", launchReqPreProcessing},
