@@ -22,6 +22,7 @@
 #include <string>
 #include <array>
 #include <cstdint>
+#include <optional>
 
 #include "Logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
@@ -34,6 +35,8 @@
 #include "SourceSelector.hpp"
 #include "callback_registry.hpp"
 #include "Handoff.hpp"
+#include "SysConsts.hpp"
+#include "throughput.hpp"
 
 using std::set;
 using std::map;
@@ -41,6 +44,7 @@ using std::string;
 using concordMetrics::StatusHandle;
 using concordMetrics::GaugeHandle;
 using concordMetrics::CounterHandle;
+using concord::util::Throughput;
 
 namespace bftEngine::bcst::impl {
 
@@ -407,6 +411,19 @@ class BCStateTran : public IStateTransfer {
   mutable Metrics metrics_;
 
   concord::util::CallbackRegistry<uint64_t> on_transferring_complete_cb_registry_;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Internal Statistics
+  ///////////////////////////////////////////////////////////////////////////
+ protected:
+  static constexpr uint32_t get_missing_blocks_summary_window_size = checkpointWindowSize;
+  Throughput blocks_collected_;
+  Throughput bytes_collected_;
+  std::optional<uint64_t> first_collected_block_num_;
+
+  // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
+  void logGettingMissingBlocksSummary(const uint64_t firstRequiredBlock);
+  void startCollectingStats();
 };
 
 }  // namespace bftEngine::bcst::impl
