@@ -156,61 +156,68 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
       // We must make sure that we actually initialize all these metrics in the
       // same order as defined in the header file.
-      metrics_{
-          metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
-          metrics_component_.RegisterStatus("preferred_replicas", ""),
+      metrics_{metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
+               metrics_component_.RegisterStatus("preferred_replicas", ""),
 
-          metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
-          metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
-          metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
-          metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
-          metrics_component_.RegisterGauge("size_of_reserved_page", config_.sizeOfReservedPage),
-          metrics_component_.RegisterGauge("last_msg_seq_num", lastMsgSeqNum_),
-          metrics_component_.RegisterGauge("next_required_block_", nextRequiredBlock_),
-          metrics_component_.RegisterGauge("num_pending_item_data_msgs_", pendingItemDataMsgs.size()),
-          metrics_component_.RegisterGauge("total_size_of_pending_item_data_msgs", totalSizeOfPendingItemDataMsgs),
-          metrics_component_.RegisterGauge("last_block_", 0),
-          metrics_component_.RegisterGauge("last_reachable_block", 0),
+               metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
+               metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
+               metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
+               metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
+               metrics_component_.RegisterGauge("size_of_reserved_page", config_.sizeOfReservedPage),
+               metrics_component_.RegisterGauge("last_msg_seq_num", lastMsgSeqNum_),
+               metrics_component_.RegisterGauge("next_required_block_", nextRequiredBlock_),
+               metrics_component_.RegisterGauge("num_pending_item_data_msgs_", pendingItemDataMsgs.size()),
+               metrics_component_.RegisterGauge("total_size_of_pending_item_data_msgs", totalSizeOfPendingItemDataMsgs),
+               metrics_component_.RegisterGauge("last_block_", 0),
+               metrics_component_.RegisterGauge("last_reachable_block", 0),
 
-          metrics_component_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg"),
-          metrics_component_.RegisterCounter("sent_checkpoint_summary_msg"),
-          metrics_component_.RegisterCounter("sent_fetch_blocks_msg"),
-          metrics_component_.RegisterCounter("sent_fetch_res_pages_msg"),
-          metrics_component_.RegisterCounter("sent_reject_fetch_msg"),
-          metrics_component_.RegisterCounter("sent_item_data_msg"),
+               metrics_component_.RegisterCounter("sent_ask_for_checkpoint_summaries_msg"),
+               metrics_component_.RegisterCounter("sent_checkpoint_summary_msg"),
+               metrics_component_.RegisterCounter("sent_fetch_blocks_msg"),
+               metrics_component_.RegisterCounter("sent_fetch_res_pages_msg"),
+               metrics_component_.RegisterCounter("sent_reject_fetch_msg"),
+               metrics_component_.RegisterCounter("sent_item_data_msg"),
 
-          metrics_component_.RegisterCounter("received_ask_for_checkpoint_summaries_msg"),
-          metrics_component_.RegisterCounter("received_checkpoint_summary_msg"),
-          metrics_component_.RegisterCounter("received_fetch_blocks_msg"),
-          metrics_component_.RegisterCounter("received_fetch_res_pages_msg"),
-          metrics_component_.RegisterCounter("received_reject_fetching_msg"),
-          metrics_component_.RegisterCounter("received_item_data_msg"),
-          metrics_component_.RegisterCounter("received_illegal_msg_"),
+               metrics_component_.RegisterCounter("received_ask_for_checkpoint_summaries_msg"),
+               metrics_component_.RegisterCounter("received_checkpoint_summary_msg"),
+               metrics_component_.RegisterCounter("received_fetch_blocks_msg"),
+               metrics_component_.RegisterCounter("received_fetch_res_pages_msg"),
+               metrics_component_.RegisterCounter("received_reject_fetching_msg"),
+               metrics_component_.RegisterCounter("received_item_data_msg"),
+               metrics_component_.RegisterCounter("received_illegal_msg_"),
 
-          metrics_component_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg"),
-          metrics_component_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg"),
-          metrics_component_.RegisterCounter("invalid_checkpoint_summary_msg"),
-          metrics_component_.RegisterCounter("irrelevant_checkpoint_summary_msg"),
-          metrics_component_.RegisterCounter("invalid_fetch_blocks_msg"),
-          metrics_component_.RegisterCounter("irrelevant_fetch_blocks_msg"),
-          metrics_component_.RegisterCounter("invalid_fetch_res_pages_msg"),
-          metrics_component_.RegisterCounter("irrelevant_fetch_res_pages_msg"),
-          metrics_component_.RegisterCounter("invalid_reject_fetching_msg"),
-          metrics_component_.RegisterCounter("irrelevant_reject_fetching_msg"),
-          metrics_component_.RegisterCounter("invalid_item_data_msg"),
-          metrics_component_.RegisterCounter("irrelevant_item_data_msg"),
+               metrics_component_.RegisterCounter("invalid_ask_for_checkpoint_summaries_msg"),
+               metrics_component_.RegisterCounter("irrelevant_ask_for_checkpoint_summaries_msg"),
+               metrics_component_.RegisterCounter("invalid_checkpoint_summary_msg"),
+               metrics_component_.RegisterCounter("irrelevant_checkpoint_summary_msg"),
+               metrics_component_.RegisterCounter("invalid_fetch_blocks_msg"),
+               metrics_component_.RegisterCounter("irrelevant_fetch_blocks_msg"),
+               metrics_component_.RegisterCounter("invalid_fetch_res_pages_msg"),
+               metrics_component_.RegisterCounter("irrelevant_fetch_res_pages_msg"),
+               metrics_component_.RegisterCounter("invalid_reject_fetching_msg"),
+               metrics_component_.RegisterCounter("irrelevant_reject_fetching_msg"),
+               metrics_component_.RegisterCounter("invalid_item_data_msg"),
+               metrics_component_.RegisterCounter("irrelevant_item_data_msg"),
 
-          metrics_component_.RegisterCounter("create_checkpoint"),
-          metrics_component_.RegisterCounter("mark_checkpoint_as_stable"),
-          metrics_component_.RegisterCounter("load_reserved_page"),
-          metrics_component_.RegisterCounter("load_reserved_page_from_pending"),
-          metrics_component_.RegisterCounter("load_reserved_page_from_checkpoint"),
-          metrics_component_.RegisterCounter("save_reserved_page"),
-          metrics_component_.RegisterCounter("zero_reserved_page"),
-          metrics_component_.RegisterCounter("start_collecting_state"),
-          metrics_component_.RegisterCounter("on_timer"),
-          metrics_component_.RegisterCounter("on_transferring_complete"),
-      },
+               metrics_component_.RegisterCounter("create_checkpoint"),
+               metrics_component_.RegisterCounter("mark_checkpoint_as_stable"),
+               metrics_component_.RegisterCounter("load_reserved_page"),
+               metrics_component_.RegisterCounter("load_reserved_page_from_pending"),
+               metrics_component_.RegisterCounter("load_reserved_page_from_checkpoint"),
+               metrics_component_.RegisterCounter("save_reserved_page"),
+               metrics_component_.RegisterCounter("zero_reserved_page"),
+               metrics_component_.RegisterCounter("start_collecting_state"),
+               metrics_component_.RegisterCounter("on_timer"),
+               metrics_component_.RegisterCounter("on_transferring_complete"),
+
+               metrics_component_.RegisterGauge("overall_blocks_collected", 0),
+               metrics_component_.RegisterGauge("overall_blocks_throughtput", 0),
+               metrics_component_.RegisterGauge("overall_bytes_collected", 0),
+               metrics_component_.RegisterGauge("overall_bytes_throughtput", 0),
+               metrics_component_.RegisterGauge("prev_win_blocks_collected", 0),
+               metrics_component_.RegisterGauge("prev_win_blocks_throughtput", 0),
+               metrics_component_.RegisterGauge("prev_win_bytes_collected", 0),
+               metrics_component_.RegisterGauge("prev_win_bytes_throughtput", 0)},
       blocks_collected_(get_missing_blocks_summary_window_size),
       bytes_collected_(get_missing_blocks_summary_window_size),
       first_collected_block_num_({}) {
@@ -601,6 +608,15 @@ void BCStateTran::startCollectingStats() {
   blocks_collected_.start();
   bytes_collected_.start();
   first_collected_block_num_ = {};
+
+  metrics_.overall_blocks_collected_.Get().Set(0ull);
+  metrics_.overall_blocks_throughtput_.Get().Set(0ull);
+  metrics_.overall_bytes_collected_.Get().Set(0ull);
+  metrics_.overall_bytes_throughtput_.Get().Set(0ull);
+  metrics_.prev_win_blocks_collected_.Get().Set(0ull);
+  metrics_.prev_win_blocks_throughtput_.Get().Set(0ull);
+  metrics_.prev_win_bytes_collected_.Get().Set(0ull);
+  metrics_.prev_win_bytes_throughtput_.Get().Set(0ull);
 }
 
 void BCStateTran::startCollectingState() {
@@ -1944,7 +1960,30 @@ void BCStateTran::EnterGettingCheckpointSummariesState() {
   sendAskForCheckpointSummariesMsg();
 }
 
-void BCStateTran::logGettingMissingBlocksSummary(const uint64_t firstRequiredBlock) {
+void BCStateTran::reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize) {
+  metrics_.overall_blocks_collected_.Get().Inc();
+  metrics_.overall_bytes_collected_.Get().Set(metrics_.overall_bytes_collected_.Get().Get() + actualBlockSize);
+
+  bytes_collected_.report(actualBlockSize);
+  if (blocks_collected_.report()) {
+    auto overall_block_results = blocks_collected_.getOverallResults();
+    auto overall_bytes_results = bytes_collected_.getOverallResults();
+    auto prev_win_block_results = blocks_collected_.getPrevWinResults();
+    auto prev_win_bytes_results = bytes_collected_.getPrevWinResults();
+
+    metrics_.overall_blocks_throughtput_.Get().Set(overall_block_results.throughput_);
+    metrics_.overall_bytes_throughtput_.Get().Set(overall_bytes_results.throughput_);
+
+    metrics_.prev_win_blocks_collected_.Get().Set(prev_win_block_results.num_processed_items_);
+    metrics_.prev_win_blocks_throughtput_.Get().Set(prev_win_block_results.throughput_);
+    metrics_.prev_win_bytes_collected_.Get().Set(prev_win_bytes_results.num_processed_items_);
+    metrics_.prev_win_bytes_throughtput_.Get().Set(prev_win_bytes_results.throughput_);
+
+    logCollectingStatus(firstRequiredBlock);
+  }
+}
+
+void BCStateTran::logCollectingStatus(const uint64_t firstRequiredBlock) {
   std::ostringstream oss;
   const DataStore::CheckpointDesc fetched_cp = psd_->getCheckpointBeingFetched();
   auto blocks_overall_r = blocks_collected_.getOverallResults();
@@ -2099,8 +2138,7 @@ void BCStateTran::processData() {
       ConcordAssert(as_->putBlock(nextRequiredBlock_, buffer_, actualBlockSize));
 
       const uint64_t firstRequiredBlock = g.txn()->getFirstRequiredBlock();
-      bytes_collected_.report(actualBlockSize);
-      if (blocks_collected_.report()) logGettingMissingBlocksSummary(firstRequiredBlock);
+      reportCollectingStatus(firstRequiredBlock, actualBlockSize);
       memset(buffer_, 0, actualBlockSize);
 
       if (firstRequiredBlock < nextRequiredBlock_) {

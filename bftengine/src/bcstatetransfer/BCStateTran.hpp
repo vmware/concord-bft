@@ -406,6 +406,15 @@ class BCStateTran : public IStateTransfer {
     CounterHandle on_timer_;
 
     CounterHandle on_transferring_complete_;
+
+    GaugeHandle overall_blocks_collected_;
+    GaugeHandle overall_blocks_throughtput_;
+    GaugeHandle overall_bytes_collected_;
+    GaugeHandle overall_bytes_throughtput_;
+    GaugeHandle prev_win_blocks_collected_;
+    GaugeHandle prev_win_blocks_throughtput_;
+    GaugeHandle prev_win_bytes_collected_;
+    GaugeHandle prev_win_bytes_throughtput_;
   };
 
   mutable Metrics metrics_;
@@ -422,7 +431,8 @@ class BCStateTran : public IStateTransfer {
   std::optional<uint64_t> first_collected_block_num_;
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
-  void logGettingMissingBlocksSummary(const uint64_t firstRequiredBlock);
+  void logCollectingStatus(const uint64_t firstRequiredBlock);
+  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize);
   void startCollectingStats();
 };
 
