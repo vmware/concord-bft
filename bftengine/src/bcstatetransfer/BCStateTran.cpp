@@ -158,7 +158,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       // same order as defined in the header file.
       metrics_{
           metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
-          metrics_component_.RegisterStatus("pedantic_checks_enabled", config_.pedanticChecks ? "true" : "false"),
           metrics_component_.RegisterStatus("preferred_replicas", ""),
 
           metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),

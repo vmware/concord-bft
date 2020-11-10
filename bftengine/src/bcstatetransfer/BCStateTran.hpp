@@ -348,7 +348,6 @@ class BCStateTran : public IStateTransfer {
   concordMetrics::Component metrics_component_;
   struct Metrics {
     StatusHandle fetching_state_;
-    StatusHandle pedantic_checks_enabled_;
     StatusHandle preferred_replicas_;
 
     GaugeHandle current_source_replica_;
