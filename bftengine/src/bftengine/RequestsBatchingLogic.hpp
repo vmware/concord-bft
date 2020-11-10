@@ -15,13 +15,17 @@
 #include "ReplicaConfig.hpp"
 #include "InternalReplicaApi.hpp"
 #include "messages/PrePrepareMsg.hpp"
+#include "Timers.hpp"
 
 namespace bftEngine::batchingLogic {
 
 class RequestsBatchingLogic {
  public:
-  RequestsBatchingLogic(InternalReplicaApi &replica, const ReplicaConfig &config, concordMetrics::Component &metrics);
-  virtual ~RequestsBatchingLogic() = default;
+  RequestsBatchingLogic(InternalReplicaApi &replica,
+                        const ReplicaConfig &config,
+                        concordMetrics::Component &metrics,
+                        concordUtil::Timers &timers);
+  virtual ~RequestsBatchingLogic();
 
   uint32_t getMaxNumberOfPendingRequestsInRecentHistory() const { return maxNumberOfPendingRequestsInRecentHistory_; }
   uint32_t getBatchingFactor() const { return batchingFactor_; }
@@ -29,6 +33,7 @@ class RequestsBatchingLogic {
   PrePrepareMsg *batchRequests();
 
  private:
+  void onBatchFlushTimer(concordUtil::Timers::Handle timer);
   PrePrepareMsg *batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
                                                  uint64_t requestsInQueue,
                                                  SeqNum lastExecutedSeqNum);
@@ -42,6 +47,12 @@ class RequestsBatchingLogic {
   uint32_t batchingFactor_ = 1;
   const uint32_t batchingFactorCoefficient_;
   const uint32_t maxInitialBatchSize_;
+  const uint32_t batchFlushPeriodMs_;
+  const uint32_t maxNumOfRequestsInBatch_;
+  const uint32_t maxBatchSizeInBytes_;
+  concordUtil::Timers &timers_;
+  concordUtil::Timers::Handle batchFlushTimer_;
+  std::mutex batchProcessingLock_;
 };
 
 }  // namespace bftEngine::batchingLogic

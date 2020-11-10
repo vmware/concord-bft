@@ -164,8 +164,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("seq_num", reqSeqNum);
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    // If Multi sig keys havn't been replaced for all replicas and it's not a key ex msg
-    // then don't accept the msg.
+    // If Multi sig keys haven't been replaced for all replicas and it's not a key ex msg then don't accept the msg.
     if (!KeyManager::get().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
@@ -298,80 +297,170 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
+  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
+  // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
+
+  if (requestsQueueOfPrimary.empty()) LOG_DEBUG(GL, "requestsQueueOfPrimary is empty");
+
   return (!requestsQueueOfPrimary.empty());
 }
 
-void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
-  if (!checkSendPrePrepareMsgPrerequisites()) return;
-
+void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
-    SCOPED_MDC_CID(first->getCid());
     primaryCombinedReqSize -= first->size();
     delete first;
     requestsQueueOfPrimary.pop();
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
+}
 
-  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
-  // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
-  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
+bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+  if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
+    LOG_INFO(GL,
+             "Not sufficient messages size in the primary replica queue to fill a batch"
+                 << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
+    return false;
+  }
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
 
+  removeDuplicatedRequestsFromRequestsQueue();
+  PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByBatchSize(requiredBatchSizeInBytes);
+  if (!prePrepareMsg) return false;
+
+  startConsensusProcess(prePrepareMsg);
+  return true;
+}
+
+bool ReplicaImp::tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+  if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
+    LOG_INFO(GL,
+             "Not enough messages in the primary replica queue to fill a batch"
+                 << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
+    return false;
+  }
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
+
+  removeDuplicatedRequestsFromRequestsQueue();
+  PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByRequestsNum(requiredRequestsNum);
+  if (!prePrepareMsg) return false;
+
+  startConsensusProcess(prePrepareMsg);
+  return true;
+}
+
+bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
+
+  removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *pp = nullptr;
   if (batchingLogic)
     pp = reqBatchingLogic_.batchRequests();
   else
     pp = buildPrePrepareMessage();
-  if (pp) startConsensusProcess(pp);
+  if (!pp) return false;
+
+  startConsensusProcess(pp);
+  return true;
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
+PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
   CommitPath firstPath = controller->getCurrentFirstPath();
 
   ConcordAssertOR((config_.getcVal() != 0), (firstPath != CommitPath::FAST_WITH_THRESHOLD));
+  if (requestsQueueOfPrimary.empty()) {
+    LOG_INFO(GL, "PrePrepareMessage has not created - requestsQueueOfPrimary is empty");
+    return nullptr;
+  }
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
-  ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
-  const auto &span_context = nextRequest ? nextRequest->spanContext<ClientRequestMsg>() : concordUtils::SpanContext{};
+  return new PrePrepareMsg(config_.getreplicaId(),
+                           getCurrentView(),
+                           (primaryLastUsedSeqNum + 1),
+                           firstPath,
+                           requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
+                           primaryCombinedReqSize);
+}
 
-  PrePrepareMsg *prePrepareMsg = new PrePrepareMsg(config_.getreplicaId(),
-                                                   getCurrentView(),
-                                                   (primaryLastUsedSeqNum + 1),
-                                                   firstPath,
-                                                   span_context,
-                                                   primaryCombinedReqSize);
-
-  uint16_t initialStorageForRequests = prePrepareMsg->remainingSizeForRequests();
-  while (nextRequest != nullptr) {
-    if (nextRequest->size() <= prePrepareMsg->remainingSizeForRequests()) {
-      SCOPED_MDC_CID(nextRequest->getCid());
-      if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
-                                                              nextRequest->requestSeqNum())) {
-        prePrepareMsg->addRequest(nextRequest->body(), nextRequest->size());
-        clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
-      }
-      primaryCombinedReqSize -= nextRequest->size();
-    } else if (nextRequest->size() > initialStorageForRequests) {
-      // The message is too big
-      LOG_ERROR(GL,
-                "Request was dropped because it exceeds maximum allowed size. "
-                    << KVLOG(nextRequest->senderId(), nextRequest->size(), initialStorageForRequests));
+ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
+                                                            PrePrepareMsg &prePrepareMsg,
+                                                            uint16_t maxStorageForRequests) {
+  if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
+    SCOPED_MDC_CID(nextRequest->getCid());
+    if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
+                                                            nextRequest->requestSeqNum())) {
+      prePrepareMsg.addRequest(nextRequest->body(), nextRequest->size());
+      clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
     }
-    delete nextRequest;
-    requestsQueueOfPrimary.pop();
-    nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+    primaryCombinedReqSize -= nextRequest->size();
+  } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
+    LOG_ERROR(GL,
+              "Request was dropped because it exceeds maximum allowed size" << KVLOG(
+                  prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
+  delete nextRequest;
+  requestsQueueOfPrimary.pop();
+  return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+}
+
+PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
+                                                               uint16_t maxSpaceForReqs,
+                                                               uint32_t requiredRequestsSize,
+                                                               uint32_t requiredRequestsNum) {
   if (prePrepareMsg->numberOfRequests() == 0) {
     LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
     delete prePrepareMsg;
     return nullptr;
   }
-
   prePrepareMsg->finishAddingRequests();
-  LOG_DEBUG(GL, "Consensus batch size" << KVLOG(prePrepareMsg->numberOfRequests()));
+  LOG_DEBUG(GL,
+            KVLOG(prePrepareMsg->seqNumber(),
+                  maxSpaceForReqs,
+                  requiredRequestsSize,
+                  prePrepareMsg->requestsSize(),
+                  requiredRequestsNum,
+                  prePrepareMsg->numberOfRequests()));
   return prePrepareMsg;
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
+  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  if (!prePrepareMsg) return nullptr;
+
+  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  while (nextRequest != nullptr)
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+
+  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
+  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  if (!prePrepareMsg) return nullptr;
+
+  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+
+  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, requiredRequestsNum);
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
+  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  if (!prePrepareMsg) return nullptr;
+
+  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  while (nextRequest != nullptr &&
+         (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+
+  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, requiredBatchSizeInBytes, 0);
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
@@ -3260,7 +3349,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
-      reqBatchingLogic_(*this, config_, metrics_),
+      reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!

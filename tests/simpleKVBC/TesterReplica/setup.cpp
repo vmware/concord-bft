@@ -66,12 +66,17 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"log-props-file", required_argument, 0, 'l'},
                                           {"key-exchange-on-start", required_argument, 0, 'e'},
                                           {"cert-root-path", required_argument, 0, 'c'},
+                                          {"consensus-batching-policy", required_argument, 0, 'b'},
+                                          {"consensus-batching-max-reqs-size", required_argument, 0, 'm'},
+                                          {"consensus-batching-max-req-num", required_argument, 0, 'q'},
+                                          {"consensus-batching-flush-period", required_argument, 0, 'z'},
+                                          {"consensus-concurrency-level", required_argument, 0, 'y'},
                                           {0, 0, 0, 0}};
 
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:c:e:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:c:e:b:m:q:y:z:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -102,8 +107,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case 'e': {
           replicaConfig.keyExchangeOnStart = true;
         } break;
-        // We can only toggle persistence on or off. It defaults to InMemory
-        // unless -p flag is provided.
+        case 'y': {
+          const auto concurrencyLevel = concord::util::to<std::uint16_t>(std::string(optarg));
+          if (concurrencyLevel < 1 || concurrencyLevel > 30)
+            throw std::runtime_error{"invalid argument for --consensus-concurrency-level"};
+          replicaConfig.concurrencyLevel = concurrencyLevel;
+        } break;
+        // We can only toggle persistence on or off. It defaults to InMemory unless -p flag is provided.
         case 'p': {
           persistMode = PersistencyMode::RocksDB;
         } break;
@@ -122,6 +132,27 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'c': {
           certRootPath = optarg;
+          break;
+        }
+        case 'b': {
+          auto policy = concord::util::to<std::uint32_t>(std::string(optarg));
+          if (policy < bftEngine::BATCH_SELF_ADJUSTED || policy > bftEngine::BATCH_BY_REQ_NUM)
+            throw std::runtime_error{"invalid argument for --consensus-batching-policy"};
+          replicaConfig.batchingPolicy = policy;
+          break;
+        }
+        case 'm': {
+          replicaConfig.maxBatchSizeInBytes = concord::util::to<std::uint32_t>(std::string(optarg));
+          break;
+        }
+        case 'q': {
+          replicaConfig.maxNumOfRequestsInBatch = concord::util::to<std::uint32_t>(std::string(optarg));
+          break;
+        }
+        case 'z': {
+          const auto batchFlushPeriod = concord::util::to<std::uint32_t>(std::string(optarg));
+          if (!batchFlushPeriod) throw std::runtime_error{"invalid argument for --consensus-batching-flush-period"};
+          replicaConfig.batchFlushPeriod = batchFlushPeriod;
           break;
         }
         case '?': {
