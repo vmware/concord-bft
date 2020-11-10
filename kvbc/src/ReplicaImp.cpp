@@ -230,7 +230,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     replicaConfig_.get<uint32_t>("st.sourceReplicaReplacementTimeoutMs", 15000),
     replicaConfig_.get<uint32_t>("st.fetchRetransmissionTimeoutMs", 250),
     replicaConfig_.get<uint32_t>("st.metricsDumpIntervalSec", 5),
-    replicaConfig_.get("st.runInSeparateThread", false)
+    replicaConfig_.get("st.runInSeparateThread", replicaConfig_.isReadOnly)
   };
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP

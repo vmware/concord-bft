@@ -80,8 +80,10 @@ class BCStateTran : public IStateTransfer {
   void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override;
   void zeroReservedPage(uint32_t reservedPageId) override;
 
-  void onTimer() override;
-  void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override;
+  void onTimer() override { timerHandler_(); };
+  void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
+    messageHandler_(msg, msgLen, senderId);
+  };
 
   std::string getStatus() override;
 
@@ -90,11 +92,17 @@ class BCStateTran : public IStateTransfer {
   void setEraseMetadataFlag() override { psd_->setEraseDataStoreFlag(); }
 
  protected:
+  // handling messages from other context
   std::function<void(char*, uint32_t, uint16_t)> messageHandler_;
-  // actual handling function. can be used in context of dedicated thread
   void handleStateTransferMessageImp(char* msg, uint32_t msgLen, uint16_t senderId);
-  // handling from other context
-  void handoff(char* msg, uint32_t msgLen, uint16_t senderId);
+  void handoffMsg(char* msg, uint32_t msgLen, uint16_t senderId) {
+    handoff_->push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
+  }
+
+  // handling timer from other context
+  std::function<void()> timerHandler_;
+  void onTimerImp();
+  void handoffTimer() { handoff_->push(std::bind(&BCStateTran::onTimerImp, this)); }
 
   ///////////////////////////////////////////////////////////////////////////
   // Constants

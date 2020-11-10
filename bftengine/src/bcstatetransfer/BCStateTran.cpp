@@ -224,11 +224,13 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   buffer_ = reinterpret_cast<char *>(std::malloc(maxItemSize_));
   LOG_INFO(getLogger(), "Creating BCStateTran object: " << config_);
 
-  if (config_.isReadOnly) {
+  if (config_.runInSeparateThread) {
     handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
-    messageHandler_ = std::bind(&BCStateTran::handoff, this, _1, _2, _3);
+    messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
+    timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
   } else {
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
+    timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
   }
 
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
@@ -605,7 +607,8 @@ void BCStateTran::startCollectingState() {
   sendAskForCheckpointSummariesMsg();
 }
 
-void BCStateTran::onTimer() {
+// this function can be executed in context of another thread.
+void BCStateTran::onTimerImp() {
   if (!running_) return;
 
   metrics_.on_timer_.Get().Inc();
@@ -631,20 +634,6 @@ void BCStateTran::onTimer() {
   } else if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
     processData();
   }
-}
-
-void BCStateTran::handleStateTransferMessage(char *msg, uint32_t msgLen, uint16_t senderId) {
-  if (!running_) return;
-  bool invalidSender = replicas_.count(senderId) == 0;
-  bool sentFromSelf = senderId == config_.myReplicaId;
-  bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
-  if (msgSizeTooSmall || sentFromSelf || invalidSender) {
-    metrics_.received_illegal_msg_.Get().Inc();
-    LOG_WARN(getLogger(), "Illegal message: " << KVLOG(msgLen, senderId, msgSizeTooSmall, sentFromSelf, invalidSender));
-    replicaForStateTransfer_->freeStateTransferMsg(msg);
-    return;
-  }
-  messageHandler_(msg, msgLen, senderId);
 }
 
 std::string BCStateTran::getStatus() {
@@ -678,12 +667,19 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
   on_transferring_complete_cb_registry_.add(std::move(callback));
 }
 
-void BCStateTran::handoff(char *msg, uint32_t msgLen, uint16_t senderId) {
-  handoff_->push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
-}
-
 // this function can be executed in context of another thread.
 void BCStateTran::handleStateTransferMessageImp(char *msg, uint32_t msgLen, uint16_t senderId) {
+  if (!running_) return;
+  bool invalidSender = replicas_.count(senderId) == 0;
+  bool sentFromSelf = senderId == config_.myReplicaId;
+  bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
+  if (msgSizeTooSmall || sentFromSelf || invalidSender) {
+    metrics_.received_illegal_msg_.Get().Inc();
+    LOG_WARN(getLogger(), "Illegal message: " << KVLOG(msgLen, senderId, msgSizeTooSmall, sentFromSelf, invalidSender));
+    replicaForStateTransfer_->freeStateTransferMsg(msg);
+    return;
+  }
+
   BCStateTranBaseMsg *msgHeader = reinterpret_cast<BCStateTranBaseMsg *>(msg);
   LOG_DEBUG(getLogger(), "new message with type=" << msgHeader->type);
 
