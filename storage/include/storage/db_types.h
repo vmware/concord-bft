@@ -46,22 +46,16 @@ enum class EDBKeyType : std::uint8_t {
   Key,
 };
 
-// Key subtypes. Internal and Stale are used internally by the merkle tree implementation. The Leaf type is the one
-// containing actual application data.
+// Key subtypes. Internal and ProvableStale are used internally by the merkle tree implementation. The Leaf type is the
+// one containing actual application data.
+// For backward compatibility please keep the order. New items have to be added to the end of the enum.
 enum class EKeySubtype : std::uint8_t {
-  Internal,
-  ProvableStale,
-  Leaf,
-  NonProvableStale,
-  NonProvable,
+  Internal = 0u,
+  ProvableStale = 1u,
+  Leaf = 2u,
+  NonProvableStale = 3u,
+  NonProvable = 4u,
 };
-
-// To enforce the order of keys
-static_assert(static_cast<std::uint8_t>(EKeySubtype::Internal) == 0u);
-static_assert(static_cast<std::uint8_t>(EKeySubtype::ProvableStale) == 1u);
-static_assert(static_cast<std::uint8_t>(EKeySubtype::Leaf) == 2u);
-static_assert(static_cast<std::uint8_t>(EKeySubtype::NonProvableStale) == 3u);
-static_assert(static_cast<std::uint8_t>(EKeySubtype::NonProvable) == 4u);
 
 // BFT subtypes.
 enum class EBFTSubtype : std::uint8_t {
@@ -72,22 +66,6 @@ enum class EBFTSubtype : std::uint8_t {
   STCheckpointDescriptor,
   STTempBlock,
 };
-
-// Ordering of the enum values is important, because we want our keyspace to look like the following:
-//
-// -------------------------------------------------------------------
-// |    Block    |    BFT    |    Key [ Internal | Stale | Leaf ]    |
-// -------------------------------------------------------------------
-//
-// Reasons are:
-//  - When searching for blocks, we search for a specific one or we search for the latest one based on a
-// maximum allowed block number.
-//  - State transfer and BFT metadata is based on direct key lookups.
-//  - When searching for versioned Leaf (data) keys, we would like to return the requested one or the most recent
-//  earlier one. Putting Leaf keys at the end allows us support that functionality by expoiting the fact that there are
-//  no keys after Leaf. Getting the previous key from an end() DB iterator ensures that if the type is Leaf, this is the
-//  key we are looking for.
-
 }  // namespace v2MerkleTree::detail
 
 typedef std::uint32_t ObjectId;
