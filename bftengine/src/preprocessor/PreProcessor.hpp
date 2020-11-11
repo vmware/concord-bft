@@ -177,10 +177,9 @@ class PreProcessor {
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
 
-  // 5 Minutes
-  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5l;
-  // 60 seconds
-  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000 * 60l;
+  // 5 Minutes , 300 seconds
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 300000000;
+
   using Recorder = concord::diagnostics::Recorder;
   struct Recorders {
     Recorders() {

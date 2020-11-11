@@ -469,9 +469,9 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
   unique_ptr<ClientRequestMsg> clientRequestMsg;
   const auto &clientEntry = ongoingRequests_[clientId];
   {
+    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);
     lock_guard<mutex> lock(clientEntry->mutex);
     auto &reqProcessingStatePtr = clientEntry->reqProcessingStatePtr;
-    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);
     if (reqProcessingStatePtr) {
       const auto cid = reqProcessingStatePtr->getReqCid();
       const auto reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
