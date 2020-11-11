@@ -241,6 +241,7 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
 
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onMessage);
   updateAggregatorAndDumpMetrics();
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
@@ -468,6 +469,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
   unique_ptr<ClientRequestMsg> clientRequestMsg;
   const auto &clientEntry = ongoingRequests_[clientId];
   {
+    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);
     lock_guard<mutex> lock(clientEntry->mutex);
     auto &reqProcessingStatePtr = clientEntry->reqProcessingStatePtr;
     if (reqProcessingStatePtr) {
@@ -640,6 +642,7 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId) const {
 
 // Primary replica: ask all replicas to pre-process the request
 void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.sendPreProcessRequestToAllReplicas);
   const set<ReplicaId> &idsOfPeerReplicas = myReplica_.getIdsOfPeerReplicas();
   SCOPED_MDC_CID(preProcessReqMsg->getCid());
   for (auto destId : idsOfPeerReplicas) {
@@ -674,6 +677,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                               uint32_t reqLength,
                                               char *reqBuf,
                                               const concordUtils::SpanContext &span_context) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
   uint32_t resultLen = 0;
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   uint32_t replicaSpecificInfoLen = 0;
@@ -726,6 +730,7 @@ void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId, uint32
 void PreProcessor::handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   uint16_t clientId,
                                                   uint32_t resultBufLen) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByPrimary);
   const PreProcessingResult result = handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, resultBufLen);
   if (result != NONE)
     handlePreProcessReplyMsg(preProcessReqMsg->getCid(), result, clientId, preProcessReqMsg->reqSeqNum());
@@ -733,6 +738,7 @@ void PreProcessor::handlePreProcessedReqByPrimary(const PreProcessRequestMsgShar
 
 void PreProcessor::handlePreProcessedReqByNonPrimary(
     uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t resBufLen, const std::string &cid) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   setPreprocessingRightNow(clientId, false);
   auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum, reqRetryId);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen, cid, STATUS_GOOD);

@@ -24,6 +24,7 @@ target_include_directories(preprocessor PUBLIC ${OPENSSL_INCLUDE_DIR})
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include/bftengine)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(preprocessor PUBLIC diagnostics)
 
 target_link_libraries(preprocessor PUBLIC util)
 target_link_libraries(preprocessor PUBLIC threshsign)
