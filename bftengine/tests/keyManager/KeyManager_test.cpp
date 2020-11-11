@@ -663,7 +663,7 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
 }
 TEST(PrivateKeys, ser_der) {
   std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
-  KeyManager::KeysView keys{dls, 4};
+  KeyManager::KeysView keys{dls, nullptr, 4};
   keys.data.generatedPrivateKey = "publish";
   keys.data.outstandingPrivateKey = "outstandingPrivateKey";
   keys.data.privateKey = "privateKey";
@@ -672,7 +672,7 @@ TEST(PrivateKeys, ser_der) {
   concord::serialize::Serializable::serialize(ss, keys.data);
   auto strMsg = ss.str();
 
-  KeyManager::KeysView keys2{dls, 4};
+  KeyManager::KeysView keys2{dls, nullptr, 4};
 
   ss.write(strMsg.c_str(), std::streamsize(strMsg.size()));
   concord::serialize::Serializable::deserialize(ss, keys2.data);
@@ -684,7 +684,7 @@ TEST(PrivateKeys, ser_der) {
 
 TEST(PrivateKeys, SaveLoad) {
   std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
-  KeyManager::KeysView keys{dls, 4};
+  KeyManager::KeysView keys{dls, nullptr, 4};
   keys.data.generatedPrivateKey = "publish";
   keys.data.outstandingPrivateKey = "outstandingPrivateKey";
   keys.data.privateKey = "privateKey";

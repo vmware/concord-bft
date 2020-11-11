@@ -25,7 +25,7 @@ KeyManager::KeyManager(InitData* id)
       client_(id->cl),
       keyStore_{id->clusterSize, *id->reservedPages, id->sizeOfReservedPage},
       multiSigKeyHdlr_(id->kg),
-      keysView_(id->sec, id->clusterSize),
+      keysView_(id->sec, id->backupSec, id->clusterSize),
       timers_(*(id->timers)) {
   registryToExchange_.push_back(id->ke);
   if (keyStore_.exchangedReplicas.size() == 0) {
@@ -117,6 +117,7 @@ void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
   keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().outstandingPrivateKey);
   keyStore_.push(kemsg, sn);
   notifyRegistry(true);
+  keysView_.backup();
   keysExchanged = true;
   LOG_INFO(KEY_EX_LOG, "All replicas exchanged keys, can start accepting msgs");
 }
@@ -144,7 +145,7 @@ void KeyManager::notifyRegistry(bool save) {
 void KeyManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
                                        const uint16_t repID,
                                        const uint16_t numReplicas) {
-  KeysView kv(sec, numReplicas);
+  KeysView kv(sec, nullptr, numReplicas);
   if (!kv.load()) {
     LOG_ERROR(KEY_EX_LOG, "Couldn't load keys");
     return;
@@ -270,7 +271,10 @@ void KeyManager::KeysViewData::deserializeDataMembers(std::istream& inStream) {
   deserialize(inStream, publicKeys);
 }
 
-KeyManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec, uint32_t clusterSize) : secStore(sec) {
+KeyManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec,
+                               std::shared_ptr<ISecureStore> backSec,
+                               uint32_t clusterSize)
+    : secStore(sec), backupSecStore(backSec) {
   data.publicKeys.resize(clusterSize);
 }
 
@@ -280,14 +284,27 @@ void KeyManager::KeysView::rotate(std::string& dst, std::string& src) {
   src.clear();
   save();
 }
+
 void KeyManager::KeysView::save() {
   if (!secStore) {
     LOG_DEBUG(KEY_EX_LOG, "Saver is not set");
     return;
   }
+  save(secStore);
+}
+
+void KeyManager::KeysView::backup() {
+  if (!backupSecStore) {
+    LOG_DEBUG(KEY_EX_LOG, "Backup is not set");
+    return;
+  }
+  save(backupSecStore);
+}
+
+void KeyManager::KeysView::save(std::shared_ptr<ISecureStore>& secureStore) {
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, data);
-  secStore->save(ss.str());
+  secureStore->save(ss.str());
 }
 
 bool KeyManager::KeysView::load() {
