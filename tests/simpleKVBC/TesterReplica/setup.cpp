@@ -30,7 +30,10 @@
 #include "config/config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
+
+#ifdef USE_S3_OBJECT_STORE
 #include "FakeS3StorageFactory.hpp"
+#endif
 
 namespace concord::kvbc {
 
