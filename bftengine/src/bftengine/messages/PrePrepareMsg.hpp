@@ -34,7 +34,7 @@ class PrePrepareMsg : public MessageBase {
     ViewNum viewNum;
     SeqNum seqNum;
     uint16_t flags;
-    uint64_t batch_cid_length;
+    uint64_t batchCidLength;
     Digest digestOfRequests;
 
     uint16_t numberOfRequests;
@@ -74,8 +74,8 @@ class PrePrepareMsg : public MessageBase {
                 SeqNum s,
                 CommitPath firstPath,
                 const concordUtils::SpanContext& spanContext,
-                size_t size,
-                const std::string& correlationID);
+                const std::string& batchCid,
+                size_t size);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PrePrepareMsg)
 

@@ -72,47 +72,27 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              size_t size)
-    : MessageBase(sender,
-                  MsgCode::PrePrepare,
-                  spanContext.data().size(),
-                  (((size + sizeof(Header) + std::to_string(s).size()) < maxMessageSize<PrePrepareMsg>())
-                       ? (size + sizeof(Header) + std::to_string(s).size())
-                       : maxMessageSize<PrePrepareMsg>() - spanContext.data().size()))
-
-{
-  bool ready = size == 0;  // if null, then message is ready
-  if (!ready) {
-    b()->digestOfRequests.makeZero();
-  } else {
-    b()->digestOfRequests = nullDigest;
-  }
-  b()->batch_cid_length = std::to_string(s).size();
-  b()->endLocationOfLastRequest = payloadShift();
-  b()->flags = computeFlagsForPrePrepareMsg(ready, ready, firstPath);
-  b()->numberOfRequests = 0;
-  b()->seqNum = s;
-  b()->viewNum = v;
-
-  char* position = body() + sizeof(Header);
-  memcpy(position, spanContext.data().data(), b()->header.spanContextSize);
-  position += b()->header.spanContextSize;
-  memcpy(position, std::to_string(s).data(), std::to_string(s).size());
-}
+    : PrePrepareMsg::PrePrepareMsg(sender,
+                    v,
+                    s,
+                    firstPath,
+                    spanContext,
+                    std::to_string(s),
+                    size){}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
-                             size_t size,
-                             const std::string& correlationID)
+                             const std::string& batchCid,
+                             size_t size)
     : MessageBase(sender,
                   MsgCode::PrePrepare,
                   spanContext.data().size(),
-                  (((size + sizeof(Header) + correlationID.size()) < maxMessageSize<PrePrepareMsg>())
-                       ? (size + sizeof(Header) + correlationID.size())
+                  (((size + sizeof(Header) + batchCid.size()) < maxMessageSize<PrePrepareMsg>())
+                       ? (size + sizeof(Header) + batchCid.size())
                        : maxMessageSize<PrePrepareMsg>() - spanContext.data().size()))
-
 {
   bool ready = size == 0;  // if null, then message is ready
   if (!ready) {
@@ -120,7 +100,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   } else {
     b()->digestOfRequests = nullDigest;
   }
-  b()->batch_cid_length = correlationID.size();
+  b()->batchCidLength = batchCid.size();
   b()->endLocationOfLastRequest = payloadShift();
   b()->flags = computeFlagsForPrePrepareMsg(ready, ready, firstPath);
   b()->numberOfRequests = 0;
@@ -130,7 +110,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   char* position = body() + sizeof(Header);
   memcpy(position, spanContext.data().data(), b()->header.spanContextSize);
   position += spanContext.data().size();
-  memcpy(position, correlationID.data(), correlationID.size());
+  memcpy(position, batchCid.data(), b()->batchCidLength);
 }
 
 uint32_t PrePrepareMsg::remainingSizeForRequests() const {
@@ -259,7 +239,7 @@ const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
 }
 
 uint32_t PrePrepareMsg::payloadShift() const {
-  return sizeof(Header) + b()->batch_cid_length + b()->header.spanContextSize;
+  return sizeof(Header) + b()->batchCidLength + b()->header.spanContextSize;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -306,7 +286,7 @@ bool RequestsIterator::getAndGoToNext(char*& pRequest) {
 }
 
 std::string PrePrepareMsg::getCid() const {
-  return std::string(this->body() + this->payloadShift() - b()->batch_cid_length, b()->batch_cid_length);
+  return std::string(this->body() + this->payloadShift() - b()->batchCidLength, b()->batchCidLength);
 }
 
 }  // namespace impl

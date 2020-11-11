@@ -164,8 +164,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("seq_num", reqSeqNum);
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    // If Multi sig keys havn't been replaced for all replicas and it's not a key ex msg
-    // then don't accept the msg.
+    // If Multi sig keys haven't been replaced for all replicas and it's not a key ex msg then don't accept the msg.
     if (!KeyManager::get().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
@@ -298,80 +297,171 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
+  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
+  // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
+  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
+
+  if (requestsQueueOfPrimary.empty()) LOG_DEBUG(GL, "requestsQueueOfPrimary is empty");
+
   return (!requestsQueueOfPrimary.empty());
 }
 
-void ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
-  if (!checkSendPrePrepareMsgPrerequisites()) return;
-
+void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr &&
          !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
-    SCOPED_MDC_CID(first->getCid());
     primaryCombinedReqSize -= first->size();
     delete first;
     requestsQueueOfPrimary.pop();
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
+}
 
-  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
-  // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
-  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
+bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+  if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
+    LOG_INFO(GL,
+             "Not sufficient messages size in the primary replica queue to fill a batch"
+                 << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
+    return false;
+  }
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
 
+  removeDuplicatedRequestsFromRequestsQueue();
+  PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByBatchSize(requiredBatchSizeInBytes);
+  if (!prePrepareMsg) return false;
+
+  startConsensusProcess(prePrepareMsg);
+  return true;
+}
+
+bool ReplicaImp::tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+  if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
+    LOG_INFO(GL,
+             "Not enough messages in the primary replica queue to fill a batch"
+                 << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
+    return false;
+  }
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
+
+  removeDuplicatedRequestsFromRequestsQueue();
+  PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByRequestsNum(requiredRequestsNum);
+  if (!prePrepareMsg) return false;
+
+  startConsensusProcess(prePrepareMsg);
+  return true;
+}
+
+bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
+  if (!checkSendPrePrepareMsgPrerequisites()) return false;
+
+  removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *pp = nullptr;
   if (batchingLogic)
     pp = reqBatchingLogic_.batchRequests();
   else
     pp = buildPrePrepareMessage();
-  if (pp) startConsensusProcess(pp);
+  if (!pp) return false;
+
+  startConsensusProcess(pp);
+  return true;
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
+PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
   CommitPath firstPath = controller->getCurrentFirstPath();
 
   ConcordAssertOR((config_.getcVal() != 0), (firstPath != CommitPath::FAST_WITH_THRESHOLD));
+  if (requestsQueueOfPrimary.empty()) {
+    LOG_INFO(GL, "PrePrepareMessage has not created - requestsQueueOfPrimary is empty");
+    return nullptr;
+  }
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
-  ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
-  const auto &span_context = nextRequest ? nextRequest->spanContext<ClientRequestMsg>() : concordUtils::SpanContext{};
+  return new PrePrepareMsg(config_.getreplicaId(),
+                           getCurrentView(),
+                           (primaryLastUsedSeqNum + 1),
+                           firstPath,
+                           requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
+                           primaryCombinedReqSize);
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+}
 
-  PrePrepareMsg *prePrepareMsg = new PrePrepareMsg(config_.getreplicaId(),
-                                                   getCurrentView(),
-                                                   (primaryLastUsedSeqNum + 1),
-                                                   firstPath,
-                                                   span_context,
-                                                   primaryCombinedReqSize);
-
-  uint16_t initialStorageForRequests = prePrepareMsg->remainingSizeForRequests();
-  while (nextRequest != nullptr) {
-    if (nextRequest->size() <= prePrepareMsg->remainingSizeForRequests()) {
-      SCOPED_MDC_CID(nextRequest->getCid());
-      if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
-                                                              nextRequest->requestSeqNum())) {
-        prePrepareMsg->addRequest(nextRequest->body(), nextRequest->size());
-        clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
-      }
-      primaryCombinedReqSize -= nextRequest->size();
-    } else if (nextRequest->size() > initialStorageForRequests) {
-      // The message is too big
-      LOG_ERROR(GL,
-                "Request was dropped because it exceeds maximum allowed size. "
-                    << KVLOG(nextRequest->senderId(), nextRequest->size(), initialStorageForRequests));
+ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
+                                                            PrePrepareMsg &prePrepareMsg,
+                                                            uint16_t maxStorageForRequests) {
+  if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
+    SCOPED_MDC_CID(nextRequest->getCid());
+    if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
+                                                            nextRequest->requestSeqNum())) {
+      prePrepareMsg.addRequest(nextRequest->body(), nextRequest->size());
+      clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
     }
-    delete nextRequest;
-    requestsQueueOfPrimary.pop();
-    nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+    primaryCombinedReqSize -= nextRequest->size();
+  } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
+    LOG_ERROR(GL,
+              "Request was dropped because it exceeds maximum allowed size" << KVLOG(
+                  prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
+  delete nextRequest;
+  requestsQueueOfPrimary.pop();
+  return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
+}
+
+PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
+                                                               uint16_t maxSpaceForReqs,
+                                                               uint32_t requiredRequestsSize,
+                                                               uint32_t requiredRequestsNum) {
   if (prePrepareMsg->numberOfRequests() == 0) {
     LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
     delete prePrepareMsg;
     return nullptr;
   }
-
   prePrepareMsg->finishAddingRequests();
-  LOG_DEBUG(GL, "Consensus batch size" << KVLOG(prePrepareMsg->numberOfRequests()));
+  LOG_DEBUG(GL,
+            KVLOG(prePrepareMsg->seqNumber(),
+                  maxSpaceForReqs,
+                  requiredRequestsSize,
+                  prePrepareMsg->requestsSize(),
+                  requiredRequestsNum,
+                  prePrepareMsg->numberOfRequests()));
   return prePrepareMsg;
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
+  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  if (!prePrepareMsg) return nullptr;
+
+  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  while (nextRequest != nullptr)
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+
+  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
+  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  if (!prePrepareMsg) return nullptr;
+
+  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+
+  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, requiredRequestsNum);
+}
+
+PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
+  PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
+  if (!prePrepareMsg) return nullptr;
+
+  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+  while (nextRequest != nullptr &&
+         (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
+    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+
+  return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, requiredBatchSizeInBytes, 0);
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
@@ -579,7 +669,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       }
 
       if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
-                         // before PrePrepareMsg
+        // before PrePrepareMsg
       {
         sendPartialProof(seqNumInfo);
       } else {
@@ -597,7 +687,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 void ReplicaImp::tryToStartSlowPaths() {
   if (!isCurrentPrimary() || isCollectingState() || !currentViewIsActive())
     return;  // TODO(GG): consider to stop the related timer when this method is not needed (to avoid useless
-             // invocations)
+  // invocations)
 
   const SeqNum minSeqNum = lastExecutedSeqNum + 1;
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
@@ -933,7 +1023,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       ConcordAssert(seqNumInfo.hasPrePrepareMsg());
 
       seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
-                                   // of the  FullCommitProofMsg message)
+      // of the  FullCommitProofMsg message)
 
       if (ps_) {
         ps_->beginWriteTran();
@@ -1243,7 +1333,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
     if (fcp != nullptr) {
       send(fcp,
            msgSender);  // TODO(GG): do we really want to send this message ? (msgSender already has a CommitFullMsg
-                        // for the same seq number)
+      // for the same seq number)
     } else if (commitFull != nullptr) {
       // nop
     } else {
@@ -1751,7 +1841,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
       } break;
 
       default:
-        ConcordAssert(false);
+      ConcordAssert(false);
     }
   }
 }
@@ -1826,9 +1916,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
   }
 
-  /////////////////////////////////////////////////////////////////////////
-  // msgSenderId needes information to enter view curView
-  /////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////
+    // msgSenderId needes information to enter view curView
+    /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == curView) && (!msg->currentViewIsActive())) {
     auto sendViewChangeMsg = [&msg, &msgSenderId, this]() {
@@ -1887,7 +1977,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
             if (msg->isMissingPrePrepareMsgForViewChange(i)) {
               PrePrepareMsg *prePrepareMsg =
                   viewsManager->getPrePrepare(i);  // TODO(GG): we can avoid sending misleading message by using the
-                                                   // digest of the expected pre prepare message
+              // digest of the expected pre prepare message
               if (prePrepareMsg != nullptr) {
                 sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
               }
@@ -1900,9 +1990,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     }
   }
 
-  /////////////////////////////////////////////////////////////////////////
-  // msgSenderId is also in view curView
-  /////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////
+    // msgSenderId is also in view curView
+    /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == curView) && msg->currentViewIsActive()) {
     if (isCurrentPrimary()) {
@@ -1910,7 +2000,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         SeqNum beginRange =
             std::max(lastStableSeqNum + 1,
                      msg->getLastExecutedSeqNum() + 1);  // Notice that after a view change, we don't have to pass the
-                                                         // PrePrepare messages from the previous view. TODO(GG): verify
+        // PrePrepare messages from the previous view. TODO(GG): verify
         SeqNum endRange = std::min(lastStableSeqNum + kWorkWindowSize, msgLastStable + kWorkWindowSize);
 
         for (SeqNum i = beginRange; i <= endRange; i++) {
@@ -1929,9 +2019,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     }
   }
 
-  /////////////////////////////////////////////////////////////////////////
-  // msgSenderId is in a newer view curView
-  /////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////
+    // msgSenderId is in a newer view curView
+    /////////////////////////////////////////////////////////////////////////
   else {
     ConcordAssertGT(msgViewNum, curView);
     tryToSendStatusReport();
@@ -3024,7 +3114,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         seqNumInfo.partialProofs().addSelfMsgAndPPDigest(
             p,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
-                         // examples below)
+        // examples below)
       }
       std::shared_ptr<ISecureStore> secStore(
           new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
@@ -3097,7 +3187,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       if (e.isFullCommitProofMsgSet()) {
         PartialProofsSet &pps = seqNumInfo.partialProofs();
         bool added = pps.addMsg(e.getFullCommitProofMsg());  // TODO(GG): consider using a method that directly adds
-                                                             // the message (as in the examples below)
+        // the message (as in the examples below)
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
           KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
@@ -3123,7 +3213,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                   s > ld.lastStableSeqNum ||                                        // not stable
                   e.isCheckpointMsgSet() ||                                         // if stable need to be set
                   ld.lastStableSeqNum == ld.lastExecutedSeqNum - kWorkWindowSize);  // after ST last executed may be on
-                                                                                    // the upper working window boundary
+    // the upper working window boundary
 
     if (!e.isCheckpointMsgSet()) continue;
 
@@ -3171,7 +3261,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers)
     : ReplicaImp(
-          true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
+    true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3260,7 +3350,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
-      reqBatchingLogic_(*this, config_, metrics_),
+      reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
@@ -3329,10 +3419,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   mainLog.reset(new WindowOfSeqNumInfo(1, (InternalReplicaApi *)this));
 
   checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
-                                                checkpointWindowSize,
-                                                SeqNum,
-                                                CheckpointInfo,
-                                                CheckpointInfo>(0, (InternalReplicaApi *)this);
+      checkpointWindowSize,
+      SeqNum,
+      CheckpointInfo,
+      CheckpointInfo>(0, (InternalReplicaApi *)this);
 
   // create controller . TODO(GG): do we want to pass the controller as a parameter ?
   controller = new ControllerWithSimpleHistory(
@@ -3609,7 +3699,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     } else {
       LOG_DEBUG(CNSUS, "Consensus reached");
     }
-    SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
+
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
