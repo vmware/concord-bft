@@ -429,6 +429,7 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -441,6 +442,7 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -453,6 +455,7 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t required
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -686,7 +689,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 void ReplicaImp::tryToStartSlowPaths() {
   if (!isCurrentPrimary() || isCollectingState() || !currentViewIsActive())
     return;  // TODO(GG): consider to stop the related timer when this method is not needed (to avoid useless
-             // invocations)
+  // invocations)
 
   const SeqNum minSeqNum = lastExecutedSeqNum + 1;
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
@@ -1022,7 +1025,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       ConcordAssert(seqNumInfo.hasPrePrepareMsg());
 
       seqNumInfo.forceComplete();  // TODO(GG): remove forceComplete() (we know that  seqNumInfo is committed because
-                                   // of the  FullCommitProofMsg message)
+      // of the  FullCommitProofMsg message)
 
       if (ps_) {
         ps_->beginWriteTran();
@@ -1332,7 +1335,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
     if (fcp != nullptr) {
       send(fcp,
            msgSender);  // TODO(GG): do we really want to send this message ? (msgSender already has a CommitFullMsg
-                        // for the same seq number)
+      // for the same seq number)
     } else if (commitFull != nullptr) {
       // nop
     } else {
@@ -1976,7 +1979,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
             if (msg->isMissingPrePrepareMsgForViewChange(i)) {
               PrePrepareMsg *prePrepareMsg =
                   viewsManager->getPrePrepare(i);  // TODO(GG): we can avoid sending misleading message by using the
-                                                   // digest of the expected pre prepare message
+              // digest of the expected pre prepare message
               if (prePrepareMsg != nullptr) {
                 sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
               }
@@ -1999,7 +2002,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         SeqNum beginRange =
             std::max(lastStableSeqNum + 1,
                      msg->getLastExecutedSeqNum() + 1);  // Notice that after a view change, we don't have to pass the
-                                                         // PrePrepare messages from the previous view. TODO(GG): verify
+        // PrePrepare messages from the previous view. TODO(GG): verify
         SeqNum endRange = std::min(lastStableSeqNum + kWorkWindowSize, msgLastStable + kWorkWindowSize);
 
         for (SeqNum i = beginRange; i <= endRange; i++) {
@@ -3113,7 +3116,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         seqNumInfo.partialProofs().addSelfMsgAndPPDigest(
             p,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
-                         // examples below)
+        // examples below)
       }
       std::shared_ptr<ISecureStore> secStore(
           new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
@@ -3186,7 +3189,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       if (e.isFullCommitProofMsgSet()) {
         PartialProofsSet &pps = seqNumInfo.partialProofs();
         bool added = pps.addMsg(e.getFullCommitProofMsg());  // TODO(GG): consider using a method that directly adds
-                                                             // the message (as in the examples below)
+        // the message (as in the examples below)
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
           KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
@@ -3212,7 +3215,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                   s > ld.lastStableSeqNum ||                                        // not stable
                   e.isCheckpointMsgSet() ||                                         // if stable need to be set
                   ld.lastStableSeqNum == ld.lastExecutedSeqNum - kWorkWindowSize);  // after ST last executed may be on
-                                                                                    // the upper working window boundary
+    // the upper working window boundary
 
     if (!e.isCheckpointMsgSet()) continue;
 
@@ -3698,7 +3701,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     } else {
       LOG_DEBUG(CNSUS, "Consensus reached");
     }
-
+    SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;

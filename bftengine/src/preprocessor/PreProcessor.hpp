@@ -193,7 +193,7 @@ class PreProcessor {
                                           {"sendPreProcessRequestToAllReplicas", sendPreProcessRequestToAllReplicas},
                                           {"finalizePreProcessing", finalizePreProcessing}});
       } catch (std::invalid_argument &e) {
-        // if component already exist lets keep record on the same histograms
+        // if component already exists lets keep record on the same histograms
       }
     }
 
