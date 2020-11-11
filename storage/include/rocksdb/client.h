@@ -115,6 +115,8 @@ class Client : public concord::storage::IDBClient {
 
   // Metrics
   mutable RocksDbStorageMetrics storage_metrics_;
+
+  friend class NativeClient;
 };
 
 ::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);

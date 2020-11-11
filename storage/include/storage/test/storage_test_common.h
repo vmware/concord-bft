@@ -1,15 +1,24 @@
-// Copyright 2020 VMware, all rights reserved
+// Concord
+//
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
 
 #pragma once
 
 #include "gtest/gtest.h"
 
-#include "block_digest.h"
-#include "kv_types.hpp"
 #include "memorydb/client.h"
 #include "rocksdb/client.h"
+#include "rocksdb/native_client.h"
 #include "sliver.hpp"
-#include "sparse_merkle/base_types.h"
 #include "storage/db_interface.h"
 
 #include <unistd.h>
@@ -33,7 +42,7 @@ namespace fs = std::experimental::filesystem;
 inline constexpr auto defaultDbId = std::size_t{0};
 
 #ifdef USE_ROCKSDB
-inline const auto rocksDbPathPrefix = std::string{"/tmp/sparse_merkle_storage_test_rocksdb"};
+inline const auto rocksDbPathPrefix = std::string{"/tmp/storage_test_rocksdb"};
 
 // Support multithreaded runs by appending the thread ID to the RocksDB path.
 inline std::string rocksDbPath(std::size_t dbId) {
@@ -46,10 +55,6 @@ inline void cleanup(std::size_t dbId = defaultDbId) { fs::remove_all(rocksDbPath
 #else
 inline void cleanup(std::size_t = defaultDbId) {}
 #endif
-
-inline ::concord::kvbc::BlockDigest blockDigest(concord::kvbc::BlockId blockId, const concordUtils::Sliver &block) {
-  return ::bftEngine::bcst::computeBlockDigest(blockId, block.data(), block.length());
-}
 
 struct TestMemoryDb {
   static std::shared_ptr<concord::storage::IDBClient> create(std::size_t dbId = defaultDbId) {
@@ -72,6 +77,11 @@ struct TestRocksDb {
     return db;
   }
 
+  static std::shared_ptr<::concord::storage::rocksdb::NativeClient> createNative(std::size_t dbId = defaultDbId) {
+    const auto readOnly = false;
+    return ::concord::storage::rocksdb::NativeClient::newClient(rocksDbPath(dbId), readOnly);
+  }
+
   static void cleanup(std::size_t dbId = defaultDbId) { ::cleanup(dbId); }
 
   static std::string type() { return "RocksDB"; }
@@ -92,20 +102,7 @@ struct TypePrinter {
   }
 };
 
-inline auto getHash(const std::string &str) {
-  auto hasher = ::concord::kvbc::sparse_merkle::Hasher{};
-  return hasher.hash(str.data(), str.size());
-}
-
-inline auto getHash(const concordUtils::Sliver &sliver) {
-  auto hasher = ::concord::kvbc::sparse_merkle::Hasher{};
-  return hasher.hash(sliver.data(), sliver.length());
-}
-
-inline auto getBlockDigest(const std::string &data) { return getHash(data).dataArray(); }
 inline concordUtils::Sliver getSliverOfSize(std::size_t size, char content = 'a') { return std::string(size, content); }
 
-inline const auto defaultBlockId = ::concord::kvbc::BlockId{42};
 inline const auto defaultData = std::string{"defaultData"};
 inline const auto defaultSliver = concordUtils::Sliver::copy(defaultData.c_str(), defaultData.size());
-inline const auto maxNumKeys = 16u;

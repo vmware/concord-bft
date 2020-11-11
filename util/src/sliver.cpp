@@ -114,6 +114,8 @@ bool Sliver::empty() const { return (length_ == 0); }
 
 size_t Sliver::length() const { return length_; }
 
+size_t Sliver::size() const { return length(); }
+
 std::string_view Sliver::string_view() const { return std::string_view(data(), length_); }
 
 std::ostream& Sliver::operator<<(std::ostream& s) const { return hexPrint(s, data(), length()); }
