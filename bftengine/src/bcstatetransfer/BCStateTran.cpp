@@ -1845,6 +1845,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     ConcordAssertEQ(msg->totalNumberOfChunksInBlock, totalNumberOfChunks);
     ConcordAssertEQ(currentChunk + 1, msg->chunkNumber);
     ConcordAssertLE(currentPos + msg->dataSize, maxSize);
+    ConcordAssertGE(totalSizeOfPendingItemDataMsgs, (*it)->dataSize);
 
     memcpy(outBlock + currentPos, msg->data, msg->dataSize);
     currentChunk = msg->chunkNumber;
