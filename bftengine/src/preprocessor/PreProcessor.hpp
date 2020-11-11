@@ -184,13 +184,17 @@ class PreProcessor {
   struct Recorders {
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("pre-execution",
-                                       {{"onMessage", onMessage},
-                                        {"launchReqPreProcessing", launchReqPreProcessing},
-                                        {"handlePreProcessedReqByNonPrimary", handlePreProcessedReqByNonPrimary},
-                                        {"handlePreProcessedReqByPrimary", handlePreProcessedReqByPrimary},
-                                        {"sendPreProcessRequestToAllReplicas", sendPreProcessRequestToAllReplicas},
-                                        {"finalizePreProcessing", finalizePreProcessing}});
+      try {
+        registrar.perf.registerComponent("pre-execution",
+                                         {{"onMessage", onMessage},
+                                          {"launchReqPreProcessing", launchReqPreProcessing},
+                                          {"handlePreProcessedReqByNonPrimary", handlePreProcessedReqByNonPrimary},
+                                          {"handlePreProcessedReqByPrimary", handlePreProcessedReqByPrimary},
+                                          {"sendPreProcessRequestToAllReplicas", sendPreProcessRequestToAllReplicas},
+                                          {"finalizePreProcessing", finalizePreProcessing}});
+      } catch (std::invalid_argument &e) {
+        // if component already exist lets keep record on the same histograms
+      }
     }
 
     std::shared_ptr<Recorder> onMessage =
