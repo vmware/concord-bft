@@ -81,6 +81,8 @@ class PrePrepareMsg : public MessageBase {
 
   uint32_t remainingSizeForRequests() const;
 
+  uint32_t requestsSize() const;
+
   void addRequest(const char* pRequest, uint32_t requestSize);
 
   void finishAddingRequests();

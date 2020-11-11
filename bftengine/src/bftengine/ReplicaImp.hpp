@@ -267,6 +267,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }
   SeqNum getLastExecutedSeqNum() const override { return lastExecutedSeqNum; }
   PrePrepareMsg* buildPrePrepareMessage() override;
+  bool tryToSendPrePrepareMsg(bool batchingLogic = false) override;
+  bool tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
+  bool tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
 
  protected:
   ReplicaImp(bool firstTime,
@@ -310,6 +313,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onInternalMsg(FullCommitProofMsg* m);
   void onInternalMsg(GetStatus& msg) const;
 
+  PrePrepareMsg* finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,
+                                                     uint16_t maxSpaceForReqs,
+                                                     uint32_t requiredRequestsSize,
+                                                     uint32_t requiredRequestsNum);
+
   bool handledByRetransmissionsManager(const ReplicaId sourceReplica,
                                        const ReplicaId destReplica,
                                        const ReplicaId primaryReplica,
@@ -324,9 +332,19 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool checkSendPrePrepareMsgPrerequisites();
 
-  void tryToSendPrePrepareMsg(bool batchingLogic = false);
-
   void sendPartialProof(SeqNumInfo&);
+
+  ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg*& nextRequest,
+                                                  PrePrepareMsg& prePrepareMsg,
+                                                  uint16_t maxStorageForRequests);
+
+  PrePrepareMsg* createPrePrepareMessage();
+
+  PrePrepareMsg* buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum);
+
+  PrePrepareMsg* buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
+
+  void removeDuplicatedRequestsFromRequestsQueue();
 
   void tryToStartSlowPaths();
 

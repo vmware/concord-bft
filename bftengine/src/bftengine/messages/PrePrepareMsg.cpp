@@ -72,13 +72,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              size_t size)
-    : PrePrepareMsg::PrePrepareMsg(sender,
-                    v,
-                    s,
-                    firstPath,
-                    spanContext,
-                    std::to_string(s),
-                    size){}
+    : PrePrepareMsg::PrePrepareMsg(sender, v, s, firstPath, spanContext, std::to_string(s), size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
@@ -92,8 +86,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                   spanContext.data().size(),
                   (((size + sizeof(Header) + batchCid.size()) < maxMessageSize<PrePrepareMsg>())
                        ? (size + sizeof(Header) + batchCid.size())
-                       : maxMessageSize<PrePrepareMsg>() - spanContext.data().size()))
-{
+                       : maxMessageSize<PrePrepareMsg>() - spanContext.data().size())) {
   bool ready = size == 0;  // if null, then message is ready
   if (!ready) {
     b()->digestOfRequests.makeZero();
@@ -120,6 +113,8 @@ uint32_t PrePrepareMsg::remainingSizeForRequests() const {
 
   return (internalStorageSize() - b()->endLocationOfLastRequest);
 }
+
+uint32_t PrePrepareMsg::requestsSize() const { return (b()->endLocationOfLastRequest - prePrepareHeaderPrefix); }
 
 void PrePrepareMsg::addRequest(const char* pRequest, uint32_t requestSize) {
   ConcordAssert(getRequestSizeTemp(pRequest) == requestSize);

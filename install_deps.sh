@@ -9,7 +9,7 @@
 set -e
 
 APT_GET_FLAGS="-y --no-install-recommends"
-WGET_FLAGS="--no-check-certificate -q"
+WGET_FLAGS="--https-only -q"
 
 # Install tools
 apt-get update && apt-get ${APT_GET_FLAGS} install \
@@ -25,15 +25,15 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     gdbserver \
     git \
     iptables \
+    net-tools \
     parallel \
     pkg-config \
+    psmisc \
     python3-pip \
     python3-setuptools \
     sudo \
     vim \
-    wget \
-    net-tools \
-    psmisc
+    wget
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff

@@ -82,6 +82,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "min(thread::hardware_concurrency(), numOfClients) is used ");
 
   CONFIG_PARAM(batchingPolicy, uint32_t, BATCH_SELF_ADJUSTED, "BFT consensus batching policy for requests");
+  CONFIG_PARAM(batchFlushPeriod, uint32_t, 1000, "BFT consensus batching flush period");
+  CONFIG_PARAM(maxNumOfRequestsInBatch, uint32_t, 100, "Maximum number of requests in BFT consensus batch");
+  CONFIG_PARAM(maxBatchSizeInBytes, uint32_t, 33554432, "Maximum size of all requests in BFT consensus batch");
   CONFIG_PARAM(maxInitialBatchSize,
                uint32_t,
                350,
@@ -163,6 +166,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, preExecReqStatusCheckTimerMillisec);
     serialize(outStream, preExecConcurrencyLevel);
     serialize(outStream, batchingPolicy);
+    serialize(outStream, batchFlushPeriod);
+    serialize(outStream, maxNumOfRequestsInBatch);
+    serialize(outStream, maxBatchSizeInBytes);
     serialize(outStream, maxInitialBatchSize);
     serialize(outStream, batchingFactorCoefficient);
 
@@ -207,6 +213,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, preExecReqStatusCheckTimerMillisec);
     deserialize(inStream, preExecConcurrencyLevel);
     deserialize(inStream, batchingPolicy);
+    deserialize(inStream, batchFlushPeriod);
+    deserialize(inStream, maxNumOfRequestsInBatch);
+    deserialize(inStream, maxBatchSizeInBytes);
     deserialize(inStream, maxInitialBatchSize);
     deserialize(inStream, batchingFactorCoefficient);
 
@@ -265,6 +274,9 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.preExecReqStatusCheckTimerMillisec);
   os << KVLOG(rc.preExecConcurrencyLevel,
               rc.batchingPolicy,
+              rc.batchFlushPeriod,
+              rc.maxNumOfRequestsInBatch,
+              rc.maxBatchSizeInBytes,
               rc.maxInitialBatchSize,
               rc.batchingFactorCoefficient,
               rc.debugPersistentStorageEnabled,
@@ -275,8 +287,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.debugStatisticsEnabled,
               rc.metricsDumpIntervalSeconds,
               rc.keyExchangeOnStart,
-              rc.blockAccumulation,
-              rc.keyViewFilePath);
+              rc.blockAccumulation);
+  os << KVLOG(rc.keyViewFilePath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 

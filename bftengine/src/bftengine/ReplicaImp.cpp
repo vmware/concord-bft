@@ -383,7 +383,6 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
                            firstPath,
                            requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
                            primaryCombinedReqSize);
-  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 }
 
 ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
@@ -430,6 +429,7 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -442,6 +442,7 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -454,6 +455,7 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t required
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
+  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -669,7 +671,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       }
 
       if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
-        // before PrePrepareMsg
+                         // before PrePrepareMsg
       {
         sendPartialProof(seqNumInfo);
       } else {
@@ -1841,7 +1843,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
       } break;
 
       default:
-      ConcordAssert(false);
+        ConcordAssert(false);
     }
   }
 }
@@ -1916,9 +1918,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
   }
 
-    /////////////////////////////////////////////////////////////////////////
-    // msgSenderId needes information to enter view curView
-    /////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////
+  // msgSenderId needes information to enter view curView
+  /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == curView) && (!msg->currentViewIsActive())) {
     auto sendViewChangeMsg = [&msg, &msgSenderId, this]() {
@@ -1990,9 +1992,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     }
   }
 
-    /////////////////////////////////////////////////////////////////////////
-    // msgSenderId is also in view curView
-    /////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////
+  // msgSenderId is also in view curView
+  /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == curView) && msg->currentViewIsActive()) {
     if (isCurrentPrimary()) {
@@ -2019,9 +2021,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     }
   }
 
-    /////////////////////////////////////////////////////////////////////////
-    // msgSenderId is in a newer view curView
-    /////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////
+  // msgSenderId is in a newer view curView
+  /////////////////////////////////////////////////////////////////////////
   else {
     ConcordAssertGT(msgViewNum, curView);
     tryToSendStatusReport();
@@ -3261,7 +3263,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers)
     : ReplicaImp(
-    true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
+          true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3419,10 +3421,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   mainLog.reset(new WindowOfSeqNumInfo(1, (InternalReplicaApi *)this));
 
   checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
-      checkpointWindowSize,
-      SeqNum,
-      CheckpointInfo,
-      CheckpointInfo>(0, (InternalReplicaApi *)this);
+                                                checkpointWindowSize,
+                                                SeqNum,
+                                                CheckpointInfo,
+                                                CheckpointInfo>(0, (InternalReplicaApi *)this);
 
   // create controller . TODO(GG): do we want to pass the controller as a parameter ?
   controller = new ControllerWithSimpleHistory(
@@ -3699,7 +3701,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     } else {
       LOG_DEBUG(CNSUS, "Consensus reached");
     }
-
+    SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
