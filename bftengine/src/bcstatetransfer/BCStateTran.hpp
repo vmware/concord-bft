@@ -22,6 +22,7 @@
 #include <string>
 #include <array>
 #include <cstdint>
+#include <optional>
 
 #include "Logger.hpp"
 #include "SimpleBCStateTransfer.hpp"
@@ -34,6 +35,8 @@
 #include "SourceSelector.hpp"
 #include "callback_registry.hpp"
 #include "Handoff.hpp"
+#include "SysConsts.hpp"
+#include "throughput.hpp"
 
 using std::set;
 using std::map;
@@ -41,6 +44,7 @@ using std::string;
 using concordMetrics::StatusHandle;
 using concordMetrics::GaugeHandle;
 using concordMetrics::CounterHandle;
+using concord::util::Throughput;
 
 namespace bftEngine::bcst::impl {
 
@@ -348,7 +352,6 @@ class BCStateTran : public IStateTransfer {
   concordMetrics::Component metrics_component_;
   struct Metrics {
     StatusHandle fetching_state_;
-    StatusHandle pedantic_checks_enabled_;
     StatusHandle preferred_replicas_;
 
     GaugeHandle current_source_replica_;
@@ -403,11 +406,34 @@ class BCStateTran : public IStateTransfer {
     CounterHandle on_timer_;
 
     CounterHandle on_transferring_complete_;
+
+    GaugeHandle overall_blocks_collected_;
+    GaugeHandle overall_blocks_throughtput_;
+    GaugeHandle overall_bytes_collected_;
+    GaugeHandle overall_bytes_throughtput_;
+    GaugeHandle prev_win_blocks_collected_;
+    GaugeHandle prev_win_blocks_throughtput_;
+    GaugeHandle prev_win_bytes_collected_;
+    GaugeHandle prev_win_bytes_throughtput_;
   };
 
   mutable Metrics metrics_;
 
   concord::util::CallbackRegistry<uint64_t> on_transferring_complete_cb_registry_;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Internal Statistics
+  ///////////////////////////////////////////////////////////////////////////
+ protected:
+  static constexpr uint32_t get_missing_blocks_summary_window_size = checkpointWindowSize;
+  Throughput blocks_collected_;
+  Throughput bytes_collected_;
+  std::optional<uint64_t> first_collected_block_num_;
+
+  // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
+  void logCollectingStatus(const uint64_t firstRequiredBlock);
+  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize);
+  void startCollectingStats();
 };
 
 }  // namespace bftEngine::bcst::impl
