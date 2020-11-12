@@ -58,7 +58,8 @@ class DBAdapter : public IDbAdapter {
   // mechanism. The constructor throws if an error occurs.
   // Note1: The passed DB client must be initialized beforehand.
   // Note2: The 'linkTempSTChain' parameter turns of chain linking and is used for testing/tooling purposes.
-  // Note3: The key provided via 'non_provable_key_set' parameter will be stored outside of the Merkle Tree.
+  // Note3: The key provided via 'nonProvableKeySet' parameter will be stored outside of the Merkle Tree,
+  // the keys must have the same size!
   // Note4: Non-provable keys cannot be deleted for now.
   DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db,
             bool linkTempSTChain = true,
@@ -182,9 +183,11 @@ class DBAdapter : public IDbAdapter {
 
   block::detail::Node getBlockNode(BlockId blockId) const;
 
-  KeysVector staleIndexKeysForVersion(const sparse_merkle::Version &version) const;
+  KeysVector staleIndexNonProvableKeysForBlock(BlockId blockId) const;
 
-  KeysVector internalKeysForVersion(const sparse_merkle::Version &version) const;
+  KeysVector staleIndexProvableKeysForVersion(const sparse_merkle::Version &version) const;
+
+  KeysVector internalProvableKeysForVersion(const sparse_merkle::Version &version) const;
 
   KeysVector lastReachableBlockKeyDeletes(BlockId blockId) const;
 
@@ -203,6 +206,8 @@ class DBAdapter : public IDbAdapter {
 
   // Return std::nullopt if no temporary ST blocks are present.
   std::optional<BlockId> loadLatestTempSTBlockId() const;
+
+  std::optional<std::pair<Value, BlockId>> getValueForNonProvableKey(const Key &key, const BlockId &blockVersion) const;
 
   class Reader : public sparse_merkle::IDBReader {
    public:

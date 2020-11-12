@@ -25,6 +25,8 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <utility>
 
 namespace concord::kvbc::v2MerkleTree {
@@ -93,12 +95,12 @@ auto hash(const Sliver &buf) {
   return hasher.hash(buf.data(), buf.length());
 }
 
-template <typename VersionExtractor>
+template <typename VersionT, typename VersionExtractorT>
 KeysVector keysForVersion(const std::shared_ptr<IDBClient> &db,
                           const Key &firstKey,
-                          const Version &version,
+                          const VersionT &version,
                           EKeySubtype keySubtype,
-                          const VersionExtractor &extractVersion) {
+                          const VersionExtractorT &extractVersion) {
   TimeRecorder scoped(*histograms.dba_keys_for_version);
   auto keys = KeysVector{};
   auto iter = db->getIteratorGuard();
@@ -114,6 +116,20 @@ KeysVector keysForVersion(const std::shared_ptr<IDBClient> &db,
 
 void add(KeysVector &to, const KeysVector &src) { to.insert(std::end(to), std::cbegin(src), std::cend(src)); }
 
+template <typename ContainerT>
+std::pair<ContainerT, ContainerT> splitToProvableAndNonProvable(const ContainerT &updates,
+                                                                const DBAdapter::NonProvableKeySet &nonProvableKeySet) {
+  ContainerT provableKvPairs = updates;
+  ContainerT nonProvableKvPairs;
+  for (const auto &k : nonProvableKeySet) {
+    auto iter = provableKvPairs.find(k);
+    if (iter != std::cend(provableKvPairs)) {
+      nonProvableKvPairs.emplace(iter->first, iter->second);
+      provableKvPairs.erase(iter);
+    }
+  }
+  return {provableKvPairs, nonProvableKvPairs};
+}
 }  // namespace
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db,
@@ -130,6 +146,14 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db,
       commitSizeSummary_{concordMetrics::StatisticsFactory::get().createSummary(
           "merkleTreeCommitSizeSummary", {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}})},
       nonProvableKeySet_{nonProvableKeySet} {
+  if (!nonProvableKeySet_.empty()) {
+    const auto length = nonProvableKeySet_.begin()->length();
+    for (const auto &k : nonProvableKeySet_) {
+      if (length != k.length()) {
+        throw std::runtime_error{"Non-provable keys must have the same length"};
+      }
+    }
+  }
   if (linkTempSTChain) {
     // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
     // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
@@ -140,16 +164,26 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db,
   }
 }
 
+std::optional<std::pair<Value, BlockId>> DBAdapter::getValueForNonProvableKey(const Key &key,
+                                                                              const BlockId &blockVersion) const {
+  const auto &blockKey = DBKeyManipulator::genNonProvableDbKey(blockVersion, key);
+  auto iter = db_->getIteratorGuard();
+  const auto [foundBlockKey, foundBlockValue] = iter->seekAtMost(blockKey);
+  if (!foundBlockKey.empty() && DBKeyManipulator::getDBKeyType(foundBlockKey) == EDBKeyType::Key &&
+      DBKeyManipulator::getKeySubtype(foundBlockKey) == EKeySubtype::NonProvable &&
+      DBKeyManipulator::extractKeyFromNonProvableKey(foundBlockKey) == key) {
+    return {{foundBlockValue, DBKeyManipulator::extractBlockIdFromNonProvableKey(foundBlockKey)}};
+  }
+  return std::nullopt;
+}
+
 std::pair<Value, BlockId> DBAdapter::getValue(const Key &key, const BlockId &blockVersion) const {
   TimeRecorder scoped_timer(*histograms.dba_get_value);
   auto stateRootVersion = Version{};
   if (nonProvableKeySet_.find(key) != std::cend(nonProvableKeySet_)) {
-    const auto &blockKey = DBKeyManipulator::genNonProvableBlockDbKey(blockVersion, key);
-    auto iter = db_->getIteratorGuard();
-    const auto [foundBlockKey, foundBlockValue] = iter->seekAtMost(blockKey);
-    if (!foundBlockKey.empty() && DBKeyManipulator::getDBKeyType(foundBlockKey) == EDBKeyType::Key &&
-        DBKeyManipulator::getKeySubtype(foundBlockKey) == EKeySubtype::NonProvable) {
-      return {foundBlockValue, DBKeyManipulator::extractBlockIdFromNonProvableKey(foundBlockKey)};
+    auto ret = getValueForNonProvableKey(key, blockVersion);
+    if (ret) {
+      return std::move(ret.value());
     }
   }
   // Find a block with an ID that is less than or equal to the requested block version and extract the state root
@@ -277,20 +311,31 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   auto keyValues = SetOfKeyValuePairs{};
   auto deletedKeys = OrderedKeysSet{};
   for (const auto &[key, keyData] : blockNode.keys) {
-    if (!keyData.deleted) {
+    if (nonProvableKeySet_.find(key) != std::cend(nonProvableKeySet_)) {
       Sliver value;
-      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion), value);
-          !status.isOK()) {
+      if (const auto status = db_->get(DBKeyManipulator::genNonProvableDbKey(blockId, key), value); !status.isOK()) {
         // If the key is not found, treat as corrupted storage and abort.
         ConcordAssert(!status.isNotFound());
-        throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
+        throw std::runtime_error{"Failed to get value by non-provable key from DB, block node ID = " +
+                                 std::to_string(blockId)};
       }
-      TimeRecorder scoped(*histograms.dba_deserialize_leaf);
-      const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
-      ConcordAssert(dbLeafVal.addedInBlockId == blockId);
-      keyValues[key] = dbLeafVal.leafNode.value;
+      keyValues[key] = value;
     } else {
-      deletedKeys.insert(key);
+      if (!keyData.deleted) {
+        Sliver value;
+        if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion), value);
+            !status.isOK()) {
+          // If the key is not found, treat as corrupted storage and abort.
+          ConcordAssert(!status.isNotFound());
+          throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
+        }
+        TimeRecorder scoped(*histograms.dba_deserialize_leaf);
+        const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
+        ConcordAssert(dbLeafVal.addedInBlockId == blockId);
+        keyValues[key] = dbLeafVal.leafNode.value;
+      } else {
+        deletedKeys.insert(key);
+      }
     }
   }
 
@@ -325,10 +370,14 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
 
   // Find keys that are deleted only and not updated. We need that list, because updates take precedence over deletes
   // and we should only try to update deleted keys.
+  // Make sure the deletes do not contain non-provable keys.
   auto deletesOnly = KeysVector{};
   for (const auto &key : deletes) {
     if (updates.find(key) == std::cend(updates)) {
       deletesOnly.push_back(key);
+    }
+    if (nonProvableKeySet_.find(key) != std::cend(nonProvableKeySet_)) {
+      throw std::runtime_error{"The deletes key set contains a non-provable key: " + key.toString()};
     }
   }
 
@@ -357,35 +406,32 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
     }
   }
 
-  // Split the keys: NonProvable and Provable Keys
-  SetOfKeyValuePairs non_provable_kvs;
-  SetOfKeyValuePairs provable_kvs = updates;
-  for (const auto &k : nonProvableKeySet_) {
-    if (deletes.find(k) != std::cend(deletes)) {
-      throw std::runtime_error{"The deletes key set contains a non-provable key: " + k.toString()};
-    }
-    auto iter = provable_kvs.find(k);
-    if (iter != std::cend(provable_kvs)) {
-      non_provable_kvs.emplace(iter->first, iter->second);
-      provable_kvs.erase(iter);
-    }
-  }
+  const auto [provableKvPairs, nonProvableKvPairs] = splitToProvableAndNonProvable(updates, nonProvableKeySet_);
 
   // If there are no updates and no actual deletes, do not update the tree and do create an empty block.
-  if (!provable_kvs.empty() || !actuallyDeleted.empty()) {
+  if (!provableKvPairs.empty() || !actuallyDeleted.empty()) {
     // Key updates.
     const auto updateBatch =
-        smTree_.update(provable_kvs, KeysVector{std::cbegin(actuallyDeleted), std::cend(actuallyDeleted)});
+        smTree_.update(provableKvPairs, KeysVector{std::cbegin(actuallyDeleted), std::cend(actuallyDeleted)});
     const auto batchDbUpdates = batchToDbUpdates(updateBatch, blockId);
     dbUpdates.insert(std::cbegin(batchDbUpdates), std::cend(batchDbUpdates));
   }
 
   // Block node with updates and actually deleted keys.
   dbUpdates[DBKeyManipulator::genBlockDbKey(blockId)] =
-      createBlockNode(provable_kvs, actuallyDeleted, blockId, parentBlockDigestFuture.get());
+      createBlockNode(updates, actuallyDeleted, blockId, parentBlockDigestFuture.get());
 
-  for (const auto &[k, v] : non_provable_kvs) {
-    dbUpdates[DBKeyManipulator::genNonProvableBlockDbKey(blockId, k)] = v;
+  for (const auto &[k, v] : nonProvableKvPairs) {
+    dbUpdates[DBKeyManipulator::genNonProvableDbKey(blockId, k)] = v;
+    if (blockId > INITIAL_GENESIS_BLOCK_ID) {
+      const auto &staleKv = getValueForNonProvableKey(k, blockId - 1);
+      // Marking non-provable keys as stale
+      if (staleKv) {
+        const auto &nonProvableKey = DBKeyManipulator::genNonProvableDbKey(staleKv.value().second, k);
+        const auto &nonProvableStaleKey = DBKeyManipulator::genNonProvableStaleDbKey(nonProvableKey, blockId);
+        dbUpdates[nonProvableStaleKey] = Value{};
+      }
+    }
   }
 
   // update metrics
@@ -639,18 +685,25 @@ block::detail::Node DBAdapter::getBlockNode(BlockId blockId) const {
   return block::detail::parseNode(blockNodeSliver);
 }
 
-// TODO(DD): change to support BlockId
-KeysVector DBAdapter::staleIndexKeysForVersion(const Version &version) const {
+KeysVector DBAdapter::staleIndexNonProvableKeysForBlock(BlockId blockId) const {
+  return keysForVersion(db_,
+                        DBKeyManipulator::genNonProvableStaleDbKey(Key{}, blockId),
+                        blockId,
+                        EKeySubtype::NonProvableStale,
+                        [](const Key &key) { return DBKeyManipulator::extractBlockIdFromNonProvableStaleKey(key); });
+}
+
+KeysVector DBAdapter::staleIndexProvableKeysForVersion(const Version &version) const {
   // Rely on the fact that stale keys are ordered lexicographically by version and keys with a version only precede any
   // real ones (as they are longer). Note that version-only keys don't exist in the DB and we just use them as a
   // placeholder for the search. See stale key generation code.
   return keysForVersion(
       db_, DBKeyManipulator::genStaleDbKey(version), version, EKeySubtype::ProvableStale, [](const Key &key) {
-        return DBKeyManipulator::extractVersionFromStaleKey(key);
+        return DBKeyManipulator::extractVersionFromProvableStaleKey(key);
       });
 }
 
-KeysVector DBAdapter::internalKeysForVersion(const Version &version) const {
+KeysVector DBAdapter::internalProvableKeysForVersion(const Version &version) const {
   // Rely on the fact that root internal keys always precede non-root ones - due to lexicographical ordering and root
   // internal keys having empty nibble paths. See InternalNodeKey serialization code.
   return keysForVersion(db_,
@@ -664,22 +717,28 @@ KeysVector DBAdapter::lastReachableBlockKeyDeletes(BlockId blockId) const {
   const auto blockNode = getBlockNode(blockId);
   auto keysToDelete = KeysVector{};
 
+  const auto [provableKeys, nonProvableKeys] = splitToProvableAndNonProvable(blockNode.keys, nonProvableKeySet_);
   // Delete leaf keys at the last version.
-  for (const auto &key : blockNode.keys) {
+  for (const auto &key : provableKeys) {
     keysToDelete.push_back(DBKeyManipulator::genDataDbKey(key.first, blockNode.stateRootVersion));
   }
 
+  // Delete non-provable keys.
+  for (const auto &key : nonProvableKeys) {
+    keysToDelete.push_back(DBKeyManipulator::genNonProvableDbKey(blockId, key.first));
+  }
+
   // Delete internal keys at the last version.
-  add(keysToDelete, internalKeysForVersion(blockNode.stateRootVersion));
+  add(keysToDelete, internalProvableKeysForVersion(blockNode.stateRootVersion));
 
   // Delete the block node key.
   keysToDelete.push_back(DBKeyManipulator::genBlockDbKey(blockId));
 
-  // Clear the stale index for the last version.
-  add(keysToDelete, staleIndexKeysForVersion(blockNode.stateRootVersion));
+  // Clear the tree stale index for the last version.
+  add(keysToDelete, staleIndexProvableKeysForVersion(blockNode.stateRootVersion));
 
-  // TODO(DD): Add to keysToDelete the NonProvable keys and NonProvableStale(if any).
-  // key_type|NonProvableStale|stale_since_version|
+  // Clear the non-provable stale index for the last block
+  add(keysToDelete, staleIndexNonProvableKeysForBlock(blockId));
 
   return keysToDelete;
 }
@@ -692,15 +751,22 @@ KeysVector DBAdapter::genesisBlockKeyDeletes(BlockId blockId) const {
   keysToDelete.push_back(DBKeyManipulator::genBlockDbKey(blockId));
 
   // Delete stale keys.
-  const auto staleKeys = staleIndexKeysForVersion(blockNode.stateRootVersion);
+  const auto staleKeys = staleIndexProvableKeysForVersion(blockNode.stateRootVersion);
   for (const auto &staleKey : staleKeys) {
-    keysToDelete.push_back(DBKeyManipulator::extractKeyFromStaleKey(staleKey));
+    keysToDelete.push_back(DBKeyManipulator::extractKeyFromProvableStaleKey(staleKey));
   }
-
-  // TODO(DD): Iterate over the NonProvableStale keys and add them to keysToDelete.
 
   // Clear the stale index for the last version.
   add(keysToDelete, staleKeys);
+
+  // Clear the non-provable stale index for the last version.
+  const auto nonProvableStaleKeys = staleIndexNonProvableKeysForBlock(blockId);
+  add(keysToDelete, nonProvableStaleKeys);
+
+  // Delete stale keys.
+  for (const auto &key : nonProvableStaleKeys) {
+    keysToDelete.push_back(DBKeyManipulator::extractKeyFromNonProvableStaleKey(key));
+  }
 
   return keysToDelete;
 }
