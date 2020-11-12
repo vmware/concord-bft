@@ -95,29 +95,59 @@ TEST(key_manipulator, block_key) {
 }
 
 // Expected key structure with respective bit sizes:
-// [EDBKeyType::Key: 8, EKeySubtype::NonProvableKey: 8, blockId: 64, key: user-defined]
+// [EDBKeyType::Key: 8, EKeySubtype::NonProvableKey: 8, key: user-defined, blockId: 64]
 TEST(key_manipulator, non_provable_key) {
-  const auto non_prov_key = Sliver{"non-provable"};
-  const auto key = DBKeyManipulator::genNonProvableBlockDbKey(defaultBlockId, non_prov_key);
+  const auto nonProvKey = Sliver{"non-provable"};
+  const auto key = DBKeyManipulator::genNonProvableDbKey(defaultBlockId, nonProvKey);
   const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::NonProvable) +
-                                 serializeIntegral(defaultBlockId) + non_prov_key.toString());
+                                 nonProvKey.toString() + serializeIntegral(defaultBlockId));
   ASSERT_EQ(key.length(),
-            sizeof(EDBKeyType::Key) + sizeof(EKeySubtype::NonProvable) + sizeof(BlockId) + non_prov_key.length());
+            sizeof(EDBKeyType::Key) + sizeof(EKeySubtype::NonProvable) + nonProvKey.length() + sizeof(BlockId));
   ASSERT_TRUE(key == expected);
 }
 
 TEST(key_manipulator, extract_block_id_from_non_provable_key) {
-  const auto non_prov_key = Sliver{"non-provable"};
-  const auto key = DBKeyManipulator::genNonProvableBlockDbKey(defaultBlockId, non_prov_key);
+  const auto nonProvKey = Sliver{"non-provable"};
+  const auto key = DBKeyManipulator::genNonProvableDbKey(defaultBlockId, nonProvKey);
   const auto expected_block_id = DBKeyManipulator::extractBlockIdFromNonProvableKey(key);
   ASSERT_EQ(expected_block_id, defaultBlockId);
 }
 
 TEST(key_manipulator, extract_key_from_non_provable_key) {
-  const auto non_prov_key = Sliver{"non-provable"};
-  const auto key = DBKeyManipulator::genNonProvableBlockDbKey(defaultBlockId, non_prov_key);
+  const auto nonProvKey = Sliver{"non-provable"};
+  const auto key = DBKeyManipulator::genNonProvableDbKey(defaultBlockId, nonProvKey);
   const auto expected_key = DBKeyManipulator::extractKeyFromNonProvableKey(key);
-  ASSERT_EQ(expected_key, non_prov_key);
+  ASSERT_EQ(expected_key, nonProvKey);
+}
+
+TEST(key_manipulator, non_provable_stale_key) {
+  const auto nonProvKey = Sliver{"non-provable"};
+  const auto nonProvableKey = DBKeyManipulator::genNonProvableDbKey(defaultBlockId, nonProvKey);
+  const auto key = DBKeyManipulator::genNonProvableStaleDbKey(nonProvableKey, defaultBlockId + 1);
+  const auto expected = toSliver(serializeEnum(EDBKeyType::Key) + serializeEnum(EKeySubtype::NonProvableStale) +
+                                 serializeIntegral(defaultBlockId + 1) + nonProvableKey.toString());
+  ASSERT_EQ(
+      key.length(),
+      sizeof(EDBKeyType::Key) + sizeof(EKeySubtype::NonProvableStale) + sizeof(BlockId) + nonProvableKey.length());
+  ASSERT_EQ(expected, key);
+}
+
+TEST(key_manipulator, extract_block_id_from_non_provable_stale_key) {
+  const auto nonProvKey = Sliver{"non-provable"};
+  const auto staleSince = defaultBlockId + 1;
+  const auto nonProvableKey = DBKeyManipulator::genNonProvableDbKey(defaultBlockId, nonProvKey);
+  const auto key = DBKeyManipulator::genNonProvableStaleDbKey(nonProvableKey, staleSince);
+  const auto actualBlockId = DBKeyManipulator::extractBlockIdFromNonProvableStaleKey(key);
+  ASSERT_EQ(actualBlockId, staleSince);
+}
+
+TEST(key_manipulator, extract_key_from_non_provable_stale_key) {
+  const auto nonProvKey = Sliver{"non-provable"};
+  const auto staleSince = defaultBlockId + 1;
+  const auto nonProvableKey = DBKeyManipulator::genNonProvableDbKey(defaultBlockId, nonProvKey);
+  const auto key = DBKeyManipulator::genNonProvableStaleDbKey(nonProvableKey, staleSince);
+  const auto actualStaleKey = DBKeyManipulator::extractKeyFromNonProvableStaleKey(key);
+  ASSERT_EQ(actualStaleKey, nonProvableKey);
 }
 
 // Expected key structure with respective bit sizes:

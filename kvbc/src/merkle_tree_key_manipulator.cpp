@@ -38,8 +38,8 @@ using sparse_merkle::InternalNodeKey;
 using sparse_merkle::LeafKey;
 using sparse_merkle::Version;
 
-Key DBKeyManipulator::genNonProvableBlockDbKey(BlockId block_id, const Key &key) {
-  return serialize(EKeySubtype::NonProvable, block_id) + key.toString();
+Key DBKeyManipulator::genNonProvableDbKey(BlockId block_id, const Key &key) {
+  return serialize(EKeySubtype::NonProvable) + key.toString() + serializeImp(block_id);
 }
 
 Key DBKeyManipulator::genBlockDbKey(BlockId version) { return serialize(EDBKeyType::Block, version); }
@@ -65,22 +65,25 @@ Key DBKeyManipulator::genStaleDbKey(const Version &staleSinceVersion) {
   return serialize(EKeySubtype::ProvableStale, staleSinceVersion.value());
 }
 
+Key DBKeyManipulator::genNonProvableStaleDbKey(const Key &key, BlockId staleSinceBlock) {
+  return serialize(EKeySubtype::NonProvableStale, staleSinceBlock) + key.toString();
+}
+
 Key DBKeyManipulator::generateSTTempBlockKey(BlockId blockId) { return serialize(EBFTSubtype::STTempBlock, blockId); }
 
 BlockId DBKeyManipulator::extractBlockIdFromNonProvableKey(const Key &key) {
-  constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
-  ConcordAssert(key.length() >= keyTypeOffset + sizeof(BlockId));
+  ConcordAssert(key.length() >= sizeof(EDBKeyType::Key) + sizeof(EKeySubtype::NonProvable) + sizeof(BlockId));
   ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
   ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::NonProvable);
-  return fromBigEndianBuffer<BlockId>(key.data() + keyTypeOffset);
+  return fromBigEndianBuffer<BlockId>(key.data() + key.length() - sizeof(BlockId));
 }
 
 Key DBKeyManipulator::extractKeyFromNonProvableKey(const Key &key) {
-  constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype) + sizeof(BlockId);
-  ConcordAssert(key.length() > keyOffset);
+  constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
+  ConcordAssert(key.length() >= keyOffset + sizeof(BlockId));
   ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
   ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::NonProvable);
-  return Key{key, keyOffset, key.length() - keyOffset};
+  return Key{key, keyOffset, key.length() - keyOffset - sizeof(BlockId)};
 }
 
 BlockId DBKeyManipulator::extractBlockIdFromKey(const Key &key) {
@@ -103,7 +106,7 @@ Hash DBKeyManipulator::extractHashFromLeafKey(const Key &key) {
   return Hash{reinterpret_cast<const uint8_t *>(key.data() + keyTypeOffset)};
 }
 
-Version DBKeyManipulator::extractVersionFromStaleKey(const Key &key) {
+Version DBKeyManipulator::extractVersionFromProvableStaleKey(const Key &key) {
   constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
   ConcordAssert(key.length() >= keyTypeOffset + Version::SIZE_IN_BYTES);
   ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
@@ -111,11 +114,27 @@ Version DBKeyManipulator::extractVersionFromStaleKey(const Key &key) {
   return fromBigEndianBuffer<Version::Type>(key.data() + keyTypeOffset);
 }
 
-Key DBKeyManipulator::extractKeyFromStaleKey(const Key &key) {
+BlockId DBKeyManipulator::extractBlockIdFromNonProvableStaleKey(const Key &key) {
+  constexpr auto keyTypeOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype);
+  ConcordAssert(key.length() >= keyTypeOffset + sizeof(BlockId));
+  ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::NonProvableStale);
+  return fromBigEndianBuffer<BlockId>(key.data() + keyTypeOffset);
+}
+
+Key DBKeyManipulator::extractKeyFromProvableStaleKey(const Key &key) {
   constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype) + Version::SIZE_IN_BYTES;
   ConcordAssert(key.length() > keyOffset);
   ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
   ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::ProvableStale);
+  return Key{key, keyOffset, key.length() - keyOffset};
+}
+
+Key DBKeyManipulator::extractKeyFromNonProvableStaleKey(const Key &key) {
+  constexpr auto keyOffset = sizeof(EDBKeyType) + sizeof(EKeySubtype) + sizeof(BlockId);
+  ConcordAssert(key.length() > keyOffset);
+  ConcordAssert(DBKeyManipulator::getDBKeyType(key) == EDBKeyType::Key);
+  ConcordAssert(DBKeyManipulator::getKeySubtype(key) == EKeySubtype::NonProvableStale);
   return Key{key, keyOffset, key.length() - keyOffset};
 }
 

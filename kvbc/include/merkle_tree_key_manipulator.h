@@ -26,12 +26,13 @@ namespace concord::kvbc::v2MerkleTree::detail {
 class DBKeyManipulator {
  public:
   static Key genBlockDbKey(BlockId version);
-  static Key genNonProvableBlockDbKey(BlockId block_id, const Key &key);
+  static Key genNonProvableDbKey(BlockId block_id, const Key &key);
   static Key genDataDbKey(const sparse_merkle::LeafKey &key);
   static Key genDataDbKey(const Key &key, const sparse_merkle::Version &version);
   static Key genInternalDbKey(const sparse_merkle::InternalNodeKey &key);
   static Key genStaleDbKey(const sparse_merkle::InternalNodeKey &key, const sparse_merkle::Version &staleSinceVersion);
   static Key genStaleDbKey(const sparse_merkle::LeafKey &key, const sparse_merkle::Version &staleSinceVersion);
+  static Key genNonProvableStaleDbKey(const Key &key, BlockId staleSinceBlock);
   // Version-only stale keys do not exist in the DB. They are used as a placeholder for searching through the stale
   // index. Rationale is that they are a lower bound of all stale keys for a specific version due to lexicographical
   // ordering, the fact that the version comes first and that real stale keys are longer and always follow version-only
@@ -53,10 +54,16 @@ class DBKeyManipulator {
   static sparse_merkle::Hash extractHashFromLeafKey(const Key &key);
 
   // Extract the stale since version from a stale node index key.
-  static sparse_merkle::Version extractVersionFromStaleKey(const Key &key);
+  static sparse_merkle::Version extractVersionFromProvableStaleKey(const Key &key);
+
+  // Extract the stale since block id from a stale node index key.
+  static BlockId extractBlockIdFromNonProvableStaleKey(const Key &key);
 
   // Extract the actual key from the stale node index key.
-  static Key extractKeyFromStaleKey(const Key &key);
+  static Key extractKeyFromProvableStaleKey(const Key &key);
+
+  // Extract the actual key from the non-provable stale key.
+  static Key extractKeyFromNonProvableStaleKey(const Key &key);
 
   // Extract the version of an internal key.
   static sparse_merkle::Version extractVersionFromInternalKey(const Key &key);
