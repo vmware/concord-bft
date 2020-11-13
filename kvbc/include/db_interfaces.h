@@ -20,6 +20,7 @@ class ILocalKeyValueStorageReadOnly {
   // Throws on errors.
   virtual BlockId getGenesisBlock() const = 0;
   virtual BlockId getLastBlock() const = 0;
+  virtual BlockId getLastReachableBlock() const { return getLastBlock(); }
   virtual concordUtils::Status getBlockData(BlockId blockId, SetOfKeyValuePairs& outBlockData) const = 0;
   // TODO(GG): explain motivation
   virtual concordUtils::Status mayHaveConflictBetween(const Key& key,
