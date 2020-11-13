@@ -22,7 +22,7 @@ class ReplicasAskedToLeaveViewInfo {
  public:
   ReplicasAskedToLeaveViewInfo(const ReplicaConfig& config) : config_(config) {}
 
-  bool hasQurumToLeaveView() const { return msgs.size() >= config_.fVal + 1U; }
+  bool hasQuorumToLeaveView() const { return msgs.size() >= config_.fVal + 1U; }
 
   void store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& msg) {
     msgs.emplace(msg->idOfGeneratedReplica(), std::move(msg));

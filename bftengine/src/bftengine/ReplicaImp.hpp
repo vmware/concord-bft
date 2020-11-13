@@ -387,7 +387,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void sendCheckpointIfNeeded();
 
-  void TryToGotoNextView();
+  void tryToGotoNextView();
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override;
 

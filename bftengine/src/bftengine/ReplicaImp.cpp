@@ -266,11 +266,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
   if (currentViewIsActive() && m->viewNumber() == getCurrentView()) {
-    LOG_INFO(GL,
+    LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
     complainedReplicas.store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
-    TryToGotoNextView();
+    tryToGotoNextView();
   } else {
+    LOG_WARN(VC_LOG,
+             "Ignoring ReplicaAsksToLeaveViewMsg " << KVLOG(
+                 getCurrentView(), currentViewIsActive(), m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
     delete m;
   }
 }
@@ -2921,7 +2924,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       sendToAllOtherReplicas(askToLeaveView.get());
       complainedReplicas.store(std::move(askToLeaveView));
 
-      TryToGotoNextView();
+      tryToGotoNextView();
       return;
     }
   } else  // not currentViewIsActive()
@@ -3891,9 +3894,11 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 
-void ReplicaImp::TryToGotoNextView() {
-  if (complainedReplicas.hasQurumToLeaveView()) {
+void ReplicaImp::tryToGotoNextView() {
+  if (complainedReplicas.hasQuorumToLeaveView()) {
     GotoNextView();
+  } else {
+    LOG_INFO(VC_LOG, "Insufficient quorum for moving to next view " << KVLOG(getCurrentView()));
   }
 }
 
