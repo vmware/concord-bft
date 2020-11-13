@@ -93,6 +93,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcessRequestTimedout"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
+                           metricsComponent_.RegisterCounter("preProcReqForwardedByNonPrimaryNotIgnored"),
                            metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers} {
@@ -132,10 +133,14 @@ void PreProcessor::addTimers() {
     requestsStatusCheckTimer_ = timers_.add(chrono::milliseconds(preExecReqStatusCheckPeriodMilli_),
                                             Timers::Timer::RECURRING,
                                             [this](Timers::Handle h) { onRequestsStatusCheckTimer(); });
+
+  metricsTimer_ =
+      timers_.add(100ms, Timers::Timer::RECURRING, [this](Timers::Handle h) { updateAggregatorAndDumpMetrics(); });
 }
 
 void PreProcessor::cancelTimers() {
   try {
+    timers_.cancel(metricsTimer_);
     if (preExecReqStatusCheckPeriodMilli_ != 0) timers_.cancel(requestsStatusCheckTimer_);
   } catch (std::invalid_argument &e) {
   }
@@ -173,6 +178,7 @@ void PreProcessor::onRequestsStatusCheckTimer() {
         const auto &reqSeqNum = clientReqStatePtr->getReqSeqNum();
         SCOPED_MDC_CID(clientReqStatePtr->getReqCid());
         LOG_INFO(logger(), "Let replica to handle request" << KVLOG(reqSeqNum, clientId));
+        preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
         incomingMsgsStorage_->pushExternalMsg(clientReqStatePtr->buildClientRequestMsg(true));
         releaseClientPreProcessRequest(clientEntry.second, clientId, CANCEL);
       } else if (myReplica_.isCurrentPrimary() && clientReqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
@@ -211,14 +217,11 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
 }
 
 void PreProcessor::updateAggregatorAndDumpMetrics() {
-  if (preProcessorMetrics_.preProcReqReceived.Get().Get() % 10 == 0) {
-    metricsComponent_.UpdateAggregator();
-    auto currTime =
-        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
-    if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
-      metricsLastDumpTime_ = currTime;
-      LOG_INFO(logger(), "--preProcessor metrics dump--" + metricsComponent_.ToJson());
-    }
+  metricsComponent_.UpdateAggregator();
+  auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+  if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
+    metricsLastDumpTime_ = currTime;
+    LOG_INFO(logger(), "--preProcessor metrics dump--" + metricsComponent_.ToJson());
   }
 }
 
@@ -242,7 +245,6 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onMessage);
-  updateAggregatorAndDumpMetrics();
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
 
@@ -271,6 +273,10 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
       preProcessorMetrics_.preProcReqIgnored.Get().Inc();
       return;
     }
+    // Count requests arrived through non-primary replicas and accepted in spite of the
+    // same request has been processing by the primary replica
+    if (clientId != senderId && myReplica_.isClientRequestInProcess(clientId, reqSeqNum))
+      preProcessorMetrics_.preProcReqForwardedByNonPrimaryNotIgnored.Get().Inc();
     // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
     // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
     // request messages from the primary.
@@ -285,6 +291,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
       LOG_INFO(logger(),
                "Request has already been executed - let replica to decide how to proceed further"
                    << KVLOG(reqSeqNum, clientId));
+      preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
     }
     if (seqNumberOfLastReply < reqSeqNum)

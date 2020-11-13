@@ -171,9 +171,11 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcessRequestTimedout;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
+    concordMetrics::CounterHandle preProcReqForwardedByNonPrimaryNotIgnored;
     concordMetrics::GaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
+  concordUtil::Timers::Handle metricsTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
 

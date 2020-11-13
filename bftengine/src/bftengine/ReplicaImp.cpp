@@ -3352,6 +3352,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
+      metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
@@ -3741,6 +3742,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         const auto requestSeqNum = req.requestSeqNum();
         LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(clientId, requestSeqNum));
       } else {
+        if (req.flags() & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
         ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
             clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
         replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);

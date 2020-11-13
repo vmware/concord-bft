@@ -108,6 +108,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             client = bft_network.random_client()
             await tracker.send_tracked_write(client, 2)
 
+        await bft_network.assert_successful_pre_executions_count(0, NUM_OF_SEQ_WRITES)
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -121,6 +123,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         num_of_requests = NUM_OF_PARALLEL_WRITES
         rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=0.9)
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
+
+        await bft_network.assert_successful_pre_executions_count(0, rw[1])
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -143,6 +147,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         last_block = await tracker.get_last_block_id(client)
         self.assertEqual(last_block, 1)
+
+        await bft_network.assert_successful_pre_executions_count(0, 1)
 
         with trio.move_on_after(seconds=1):
             await tracker.send_indefinite_tracked_ops(write_weight=1)
@@ -257,6 +263,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         # Wait for some background "constant load" requests to execute
         await trio.sleep(seconds=5)
 
+        await bft_network.assert_successful_pre_executions_count(0, 1)
+
         # Let's just check no view change occurred in the meantime
         initial_primary = 0
         await bft_network.wait_for_view(replica_id=initial_primary,
@@ -279,6 +287,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         await tracker.send_tracked_write(client, 2)
 
+        await bft_network.assert_successful_pre_executions_count(0, 1)
+
         initial_primary = 0
         await bft_network.wait_for_view(replica_id=initial_primary,
                                         expected=lambda v: v == initial_primary,
@@ -298,6 +308,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
+            await tracker.send_tracked_write(client, 2)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -327,6 +338,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         log.log_message(message_type=f"Finished at block {final_block_count}.")
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
+        await bft_network.assert_successful_pre_executions_count(0, rw[1])
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     @with_constant_load
@@ -353,6 +366,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         self.assertTrue(current_block > num_preexecution_requests,
                         "Make sure all pre-execution requests were processed, in"
                         "addition to the constant load in the background.")
+
+        await bft_network.assert_successful_pre_executions_count(0, num_preexecution_requests)
 
     from os import environ
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
