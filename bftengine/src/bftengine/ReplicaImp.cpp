@@ -2919,7 +2919,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   }
 
   if (currentViewIsActive()) {
-    if (isCurrentPrimary()) return;
+    if (isCurrentPrimary() || complainedReplicas.getComplaintFromReplica(config_.replicaId) != nullptr) return;
 
     const Time timeOfEarliestPendingRequest = clientsManager->timeOfEarliestPendingRequest();
 
