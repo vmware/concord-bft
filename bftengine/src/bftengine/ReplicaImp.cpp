@@ -265,9 +265,17 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
-  LOG_INFO(GL,
-           "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
-  delete m;
+  if (currentViewIsActive() && m->viewNumber() == getCurrentView()) {
+    LOG_INFO(VC_LOG,
+             "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
+    complainedReplicas.store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
+    tryToGotoNextView();
+  } else {
+    LOG_WARN(VC_LOG,
+             "Ignoring ReplicaAsksToLeaveViewMsg " << KVLOG(
+                 getCurrentView(), currentViewIsActive(), m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
+    delete m;
+  }
 }
 
 bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
@@ -2415,6 +2423,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(curView);
+  complainedReplicas.clear();
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
@@ -2913,8 +2922,9 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
           config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
       sendToAllOtherReplicas(askToLeaveView.get());
+      complainedReplicas.store(std::move(askToLeaveView));
 
-      GotoNextView();
+      tryToGotoNextView();
       return;
     }
   } else  // not currentViewIsActive()
@@ -3292,6 +3302,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
+      complainedReplicas(config),
       metric_view_{metrics_.RegisterGauge("view", curView)},
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
@@ -3881,6 +3892,14 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     stopAtNextCheckpoint_ = true;
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+}
+
+void ReplicaImp::tryToGotoNextView() {
+  if (complainedReplicas.hasQuorumToLeaveView()) {
+    GotoNextView();
+  } else {
+    LOG_INFO(VC_LOG, "Insufficient quorum for moving to next view " << KVLOG(getCurrentView()));
+  }
 }
 
 IncomingMsgsStorage &ReplicaImp::getIncomingMsgsStorage() { return *msgsCommunicator_->getIncomingMsgsStorage(); }

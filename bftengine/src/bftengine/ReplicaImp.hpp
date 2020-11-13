@@ -36,6 +36,7 @@
 #include "performance_handler.h"
 #include "RequestsBatchingLogic.hpp"
 #include "ReplicaStatusHandlers.hpp"
+#include "ReplicasAskedToLeaveViewInfo.hpp"
 
 namespace bftEngine::impl {
 
@@ -163,6 +164,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
   SeqNum seqNumToStopAt_ = 0;
+
+  ReplicasAskedToLeaveViewInfo complainedReplicas;
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -383,6 +386,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   void sendCheckpointIfNeeded();
+
+  void tryToGotoNextView();
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override;
 
