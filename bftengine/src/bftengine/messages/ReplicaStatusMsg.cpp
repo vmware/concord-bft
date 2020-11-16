@@ -16,7 +16,7 @@
 namespace bftEngine {
 namespace impl {
 namespace {
-static uint8_t powersOf2[] = {
+constexpr uint8_t powersOf2[] = {
     0x1,
     0x2,
     0x4,
@@ -27,8 +27,8 @@ static uint8_t powersOf2[] = {
     0x80,
 };
 
-static const int kWorkWindowBitMaskSize = (kWorkWindowSize + 7) / 8;
-static const int maxNumberOfReplicasBitMaskSize = (MaxNumberOfReplicas + 7) / 8;
+constexpr int kWorkWindowBitMaskSize = (kWorkWindowSize + 7) / 8;
+constexpr int maxNumberOfReplicasBitMaskSize = (MaxNumberOfReplicas + 7) / 8;
 
 }  // namespace
 
