@@ -52,7 +52,6 @@ class ReplicaImp : public IReplica,
   Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override;
   BlockId getGenesisBlock() const override { return m_bcDbAdapter->getGenesisBlockId(); }
   BlockId getLastBlock() const override { return getLastBlockNum(); }
-  BlockId getLastReachableBlock() const override { return getLastReachableBlockNum(); }
   Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override;
   Status mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
