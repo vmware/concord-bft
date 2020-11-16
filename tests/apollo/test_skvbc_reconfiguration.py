@@ -229,7 +229,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
-        checkpoint_to_stop_at = 300
+        checkpoint_to_stop_at = 30
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, checkpoint_to_stop_at)
@@ -280,14 +280,14 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        for i in range(100):
+        for i in range(10):
             await skvbc.write_known_kv()
         # choose two replicas to crash and crash them
         crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
         bft_network.stop_replicas(crashed_replicas)
 
         # All next request should be go through the slow path
-        for i in range(100):
+        for i in range(10):
             await skvbc.write_known_kv()
 
         key, val = await skvbc.write_known_kv()
@@ -308,7 +308,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         done = False
                         break
 
-        checkpoint_to_stop_at = 300
+        checkpoint_to_stop_at = 30
         for r in live_replicas:
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertGreaterEqual(last_stable_checkpoint, checkpoint_to_stop_at)

@@ -175,7 +175,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         except KeyError:
                             continue
                         else:
-                            if lastStableSeqNum >= 150:
+                            if lastStableSeqNum >= 15:
                                 #enough requests
                                 log.log_message(message_type="Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
                                 nursery.cancel_scope.cancel()
@@ -192,7 +192,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         continue
                     else:
                         # success!
-                        if lastExecutedSeqNum >= 150:
+                        if lastExecutedSeqNum >= 15:
                             log.log_message(message_type="Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
 
@@ -226,7 +226,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             continue
                         else:
                             # success!
-                            if lastExecutedSeqNum >= 150:
+                            if lastExecutedSeqNum >= 15:
                                 log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
 

@@ -988,7 +988,7 @@ class SkvbcTracker:
 
     async def tracked_prime_for_state_transfer(
             self, stale_nodes,
-            num_of_checkpoints_to_add=2,
+            num_of_checkpoints_to_add=20,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         [ self.bft_network.start_replica(i) for i in initial_nodes]
@@ -1003,7 +1003,7 @@ class SkvbcTracker:
         # there.
         client1 = self.bft_network.random_client()
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range(1 + num_of_checkpoints_to_add * 150):
+        for i in range(1 + num_of_checkpoints_to_add * 15):
             key = self.skvbc.random_key()
             val = self.skvbc.random_value()
             kv = [(key, val)]
@@ -1159,7 +1159,7 @@ class PassThroughSkvbcTracker:
 
     async def tracked_prime_for_state_transfer(
             self, stale_nodes,
-            num_of_checkpoints_to_add=2,
+            num_of_checkpoints_to_add=20,
             persistency_enabled=True):
         initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
         [ self.bft_network.start_replica(i) for i in initial_nodes ]
@@ -1174,7 +1174,7 @@ class PassThroughSkvbcTracker:
         # there.
         client1 = self.bft_network.random_client()
         # Write enough data to checkpoint and create a need for state transfer
-        for i in range(1 + num_of_checkpoints_to_add * 150):
+        for i in range(1 + num_of_checkpoints_to_add * 15):
             key = self.skvbc.random_key()
             val = self.skvbc.random_value()
             kv = [(key, val)]

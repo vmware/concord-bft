@@ -65,7 +65,7 @@ class SkvbcTest(unittest.TestCase):
 
         await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
-            checkpoints_num=3, # key-exchange channges the last executed seqnum
+            checkpoints_num=30, # key-exchange channges the last executed seqnum
             persistency_enabled=False
         )
         bft_network.start_replica(stale_node)
@@ -95,9 +95,9 @@ class SkvbcTest(unittest.TestCase):
 
         stale_nodes = bft_network.random_set_of_replicas(bft_network.config.f, without={0})
 
-        for i in range(151):
+        for i in range(16):
             await skvbc.write_known_kv()
-            if i == 149:
+            if i == 14:
                 bft_network.stop_replicas(stale_nodes)
 
         with trio.fail_after(seconds=30):
@@ -105,7 +105,7 @@ class SkvbcTest(unittest.TestCase):
             while all_in_checkpoint is False:
                 all_in_checkpoint = True
                 for r in bft_network.all_replicas(without=stale_nodes):
-                    if await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum") != 150:
+                    if await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum") != 15:
                         all_in_checkpoint = False
                         break
 
@@ -119,7 +119,7 @@ class SkvbcTest(unittest.TestCase):
             while all_in_checkpoint is False:
                 all_in_checkpoint = True
                 for r in stale_nodes:
-                    if await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum") != 150:
+                    if await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum") != 15:
                         all_in_checkpoint = False
                         break
 

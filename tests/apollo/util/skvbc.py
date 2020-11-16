@@ -256,7 +256,7 @@ class SimpleKVBCProtocol:
             checkpoint_before = await self.bft_network.wait_for_checkpoint(
                 replica_id=random.choice(initial_nodes))
             # Write enough data to checkpoint and create a need for state transfer
-            for i in range(1 + num_of_checkpoints_to_add * 150):
+            for i in range(1 + num_of_checkpoints_to_add * 15):
                 key = self.random_key()
                 val = self.random_value()
                 reply = await client.write([], [(key, val)])
