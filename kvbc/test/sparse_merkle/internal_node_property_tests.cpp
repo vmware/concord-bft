@@ -13,8 +13,8 @@
 #include <algorithm>
 
 #include "gtest/gtest.h"
-#include "rapidcheck/rapidcheck.h"
-#include "rapidcheck/extras/gtest.h"
+#include <rapidcheck.h>
+#include <rapidcheck/gtest.h>
 
 #include "sparse_merkle/internal_node.h"
 #include "sliver.hpp"
@@ -70,12 +70,13 @@ rc::Gen<std::vector<Nibble>> genUniqueNibbles() {
 // Return a generator for the depth of a BatchedInternalNode in a tree
 rc::Gen<size_t> genDepth() { return rc::gen::inRange<size_t>(0ul, Hash::MAX_NIBBLES); }
 
-rc::Gen<std::vector<LeafChild>> genLeafChildrenWithSameVersion(rc::Gen<std::vector<LeafChild>> childGen) {
+rc::Gen<std::vector<LeafChild>> genLeafChildrenWithSameVersion(const rc::Gen<std::vector<LeafChild>>& childGen) {
   return rc::gen::apply(
-      [](Version version, std::vector<LeafChild> children) {
+      [](Version version, const std::vector<LeafChild>& children) {
         std::vector<LeafChild> output;
+        output.reserve(children.size());
         for (const auto& child : children) {
-          output.emplace_back(LeafChild(child.hash, LeafKey(child.key.hash(), version)));
+          output.push_back(LeafChild(child.hash, LeafKey(child.key.hash(), version)));
         }
         return output;
       },
@@ -101,7 +102,7 @@ rc::Gen<std::tuple<std::vector<Hash>, size_t>> genHashesWithUniqueNibblesAtGener
 }
 
 rc::Gen<std::tuple<std::vector<LeafChild>, size_t>> genKeysWithMatchingPrefixesUpToDepth(
-    rc::Gen<std::vector<LeafChild>> childGen) {
+    const rc::Gen<std::vector<LeafChild>>& childGen) {
   return rc::gen::apply(
       [](auto children, size_t depth) {
         for (auto& child : children) {
