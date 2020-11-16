@@ -13,16 +13,20 @@
 #pragma once
 
 #include "storage_factory_interface.h"
+#include "kv_types.hpp"
 
 #include <optional>
 #include <string>
+#include <unordered_set>
 
 namespace concord::kvbc::v2MerkleTree {
 
 #ifdef USE_ROCKSDB
 class RocksDBStorageFactory : public IStorageFactory {
  public:
-  RocksDBStorageFactory(const std::string &dbPath);
+  RocksDBStorageFactory(
+      const std::string& dbPath,
+      const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet = std::unordered_set<concord::kvbc::Key>{});
 
  public:
   DatabaseSet newDatabaseSet() const override;
@@ -31,6 +35,7 @@ class RocksDBStorageFactory : public IStorageFactory {
 
  private:
   const std::string dbPath_;
+  const std::unordered_set<concord::kvbc::Key> nonProvableKeySet_;
 };
 #endif
 
