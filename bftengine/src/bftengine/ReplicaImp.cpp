@@ -2037,6 +2037,18 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     tryToSendStatusReport();
   }
 
+  /////////////////////////////////////////////////////////////////////////
+  // msgSenderId's View is active and we have complaints for this View
+  /////////////////////////////////////////////////////////////////////////
+
+  if (msg->currentViewIsActive()) {
+    for (const auto &i : complainedReplicas.getAllMsgs()) {
+      if (!msg->hasComplaintFromReplica(i.first) && msg->getViewNumber() == i.second->viewNumber()) {
+        sendAndIncrementMetric(i.second.get(), msgSenderId, metric_sent_replica_asks_to_leave_view_msg_due_to_status_);
+      }
+    }
+  }
+
   delete msg;
 }
 
@@ -2077,6 +2089,11 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
                        listOfMissingVCMsg,
                        listOfMissingPPMsg);
 
+  if (viewIsActive) {
+    for (const auto &i : complainedReplicas.getAllMsgs()) {
+      msg.setComplaintFromReplica(i.first);
+    }
+  }
   if (listOfPPInActiveWindow) {
     const SeqNum start = lastStableSeqNum + 1;
     const SeqNum end = lastStableSeqNum + kWorkWindowSize;
@@ -2902,7 +2919,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   }
 
   if (currentViewIsActive()) {
-    if (isCurrentPrimary()) return;
+    if (isCurrentPrimary() || complainedReplicas.getComplaintFromReplica(config_.replicaId) != nullptr) return;
 
     const Time timeOfEarliestPendingRequest = clientsManager->timeOfEarliestPendingRequest();
 
@@ -3342,6 +3359,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_sent_viewchange_msg_due_to_status_{metrics_.RegisterCounter("sentViewChangeMsgDueToTimer")},
       metric_sent_newview_msg_due_to_status_{metrics_.RegisterCounter("sentNewviewMsgDueToCounter")},
       metric_sent_preprepare_msg_due_to_status_{metrics_.RegisterCounter("sentPreprepareMsgDueToStatus")},
+      metric_sent_replica_asks_to_leave_view_msg_due_to_status_{
+          metrics_.RegisterCounter("sentReplicaAsksToLeaveViewMsgDueToStatus")},
       metric_sent_preprepare_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentPreprepareMsgDueToReqMissingData")},
       metric_sent_startSlowPath_msg_due_to_reqMissingData_{

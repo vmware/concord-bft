@@ -59,6 +59,15 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   EXPECT_EQ(msg.hasListOfMissingViewChangeMsgForViewChange(), listOfMissingViewChangeMsgForViewChange);
   EXPECT_EQ(msg.hasListOfMissingPrePrepareMsgForViewChange(), listOfMissingPrePrepareMsgForViewChange);
 
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_FALSE(msg.hasComplaintFromReplica(id));
+    msg.setComplaintFromReplica(id);
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   /* the next methods crash the app with an assert ¯\_(ツ)_/¯
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(151));
@@ -101,6 +110,15 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   EXPECT_EQ(msg.hasListOfMissingViewChangeMsgForViewChange(), listOfMissingViewChangeMsgForViewChange);
   EXPECT_EQ(msg.hasListOfMissingPrePrepareMsgForViewChange(), listOfMissingPrePrepareMsgForViewChange);
 
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_FALSE(msg.hasComplaintFromReplica(id));
+    msg.setComplaintFromReplica(id);
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(151));
   msg.setPrePrepareInActiveWindow(151);
@@ -109,6 +127,10 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(152));
   msg.setPrePrepareInActiveWindow(152);
   EXPECT_TRUE(msg.isPrePrepareInActiveWindow(152));
+
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
 
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   /* the next methods crash the app with an assert ¯\_(ツ)_/¯
