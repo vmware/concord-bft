@@ -24,15 +24,20 @@
 #include "Statistics.hpp"
 
 namespace concordMetrics {
+template <class T>
+class basic_gauge;
+template <class T>
+class basic_counter;
+
+using Gauge = basic_gauge<uint64_t>;
+using Counter = basic_counter<uint64_t>;
+using AtomicGauge = basic_gauge<std::atomic_uint64_t>;
+using AtomicCounter = basic_counter<std::atomic_uint64_t>;
 
 // Forward declarations since Aggregator requires these types.
 class Component;
 class Values;
-class Gauge;
 class Status;
-class Counter;
-class AtomicCounter;
-class AtomicGauge;
 typedef struct metric_ Metric;
 
 // An aggregator maintains metrics for multiple components. Components
@@ -68,17 +73,41 @@ class Aggregator {
 
 // A Gauge is a an integer value that shows the current value of something. It
 // can only be varied by directly setting and getting it.
-class Gauge {
+template <class T>
+class basic_gauge {
  public:
-  explicit Gauge(const uint64_t val) : val_(val) {}
-
+  explicit basic_gauge(const uint64_t val) : val_(val) {}
+  basic_gauge(const basic_gauge& gauge) { val_ = (unsigned long)gauge.val_; }
+  basic_gauge& operator=(const basic_gauge& gauge) {
+    val_ = (unsigned long)gauge.val_;
+    return *this;
+  }
   void Inc() { ++val_; }
   void Dec() { --val_; }
   void Set(const uint64_t val) { val_ = val; }
   uint64_t Get() { return val_; }
 
  private:
-  uint64_t val_;
+  T val_;
+};
+
+template <class T>
+class basic_counter {
+ public:
+  explicit basic_counter(const uint64_t val) : val_(val) {}
+  basic_counter(const basic_counter& counter) { val_ = (unsigned long)counter.val_; }
+  basic_counter& operator=(const basic_counter& counter) {
+    val_ = (unsigned long)counter.val_;
+    return *this;
+  }
+  uint64_t Inc(uint64_t val = 1) {
+    val_ += val;
+    return val_;
+  }
+  uint64_t Get() { return val_; }
+
+ private:
+  T val_;
 };
 
 // Status is a text based representation of a value. It's used for things that
@@ -93,52 +122,6 @@ class Status {
 
  private:
   std::string val_;
-};
-
-class Counter {
- public:
-  explicit Counter(const uint64_t val) : val_(val) {}
-
-  // Increment the counter and return the value after incrementing.
-  uint64_t Inc(uint64_t val = 1) { return val_ += val; }
-  uint64_t Get() { return val_; }
-
- private:
-  uint64_t val_;
-};
-
-class AtomicCounter {
- public:
-  explicit AtomicCounter(const uint64_t val) : val_(val) {}
-  AtomicCounter(const AtomicCounter& counter) { val_.store((unsigned long)counter.val_); }
-  AtomicCounter& operator=(const AtomicCounter& counter) {
-    val_.store((unsigned long)counter.val_);
-    return *this;
-  }
-  // Increment the counter and return the value after incrementing.
-  uint64_t Inc(uint64_t val = 1) { return val_ += val; }
-  uint64_t Get() { return (unsigned long)val_; }
-
- private:
-  std::atomic_uint64_t val_;
-};
-
-class AtomicGauge {
- public:
-  explicit AtomicGauge(const uint64_t val) : val_(val) {}
-  AtomicGauge(const AtomicGauge& gauge) { val_.store((unsigned long)gauge.val_); }
-  AtomicGauge& operator=(const AtomicGauge& gauge) {
-    val_.store((unsigned long)gauge.val_);
-    return *this;
-  }
-  // Increment the counter and return the value after incrementing.
-  void Inc() { ++val_; }
-  void Dec() { --val_; }
-  void Set(const uint64_t val) { val_ = val; }
-  uint64_t Get() { return (unsigned long)val_; }
-
- private:
-  std::atomic_uint64_t val_;
 };
 
 // A generic struct that may represent a counter or a gauge
