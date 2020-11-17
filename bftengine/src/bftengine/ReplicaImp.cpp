@@ -3539,7 +3539,9 @@ void ReplicaImp::start() {
 
   // requires the init of state transfer
   std::shared_ptr<ISecureStore> sec(
-      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
+      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
+  std::shared_ptr<ISecureStore> backupsec(
+      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
   KeyManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.getreplicaId();
@@ -3549,6 +3551,7 @@ void ReplicaImp::start() {
   id.kg = &CryptoManager::instance();
   id.ke = &CryptoManager::instance();
   id.sec = sec;
+  id.backupSec = backupsec;
   id.timers = &timers_;
   id.a = aggregator_;
   id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
