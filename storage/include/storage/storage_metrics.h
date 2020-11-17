@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Metrics.hpp"
-
+#include <mutex>
 #ifdef USE_ROCKSDB
 #include <rocksdb/statistics.h>
 #include <unordered_map>
@@ -23,6 +23,7 @@ namespace storage {
 class InMemoryStorageMetrics {
   std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
   std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
+  std::mutex lock_;
 
  public:
   concordMetrics::Component metrics_;
@@ -43,6 +44,7 @@ class InMemoryStorageMetrics {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
 
   void tryToUpdateMetrics() {
+    std::lock_guard<std::mutex> lock(lock_);
     if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
         metrics_update_interval_) {
       metrics_.UpdateAggregator();
@@ -72,6 +74,7 @@ class RocksDbStorageMetrics {
 
   std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
   std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
+  std::mutex lock_;
 
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
@@ -112,6 +115,7 @@ class RocksDbStorageMetrics {
   }
 
   void tryToUpdateMetrics() {
+    std::lock_guard<std::mutex> lock(lock_);
     if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
         metrics_update_interval_) {
       for (auto& pair : active_tickers_) {
