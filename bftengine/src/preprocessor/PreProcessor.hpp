@@ -24,6 +24,7 @@
 #include "Metrics.hpp"
 #include "Timers.hpp"
 #include "InternalReplicaApi.hpp"
+#include "PreProcessorRecorder.hpp"
 #include "diagnostics.h"
 
 #include <mutex>
@@ -178,42 +179,7 @@ class PreProcessor {
   concordUtil::Timers::Handle metricsTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
-
-  // 5 Minutes , 300 seconds
-  static constexpr int64_t MAX_VALUE_MICROSECONDS = 300000000;
-
-  using Recorder = concord::diagnostics::Recorder;
-  struct Recorders {
-    Recorders() {
-      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      try {
-        registrar.perf.registerComponent("pre-execution",
-                                         {{"onMessage", onMessage},
-                                          {"launchReqPreProcessing", launchReqPreProcessing},
-                                          {"handlePreProcessedReqByNonPrimary", handlePreProcessedReqByNonPrimary},
-                                          {"handlePreProcessedReqByPrimary", handlePreProcessedReqByPrimary},
-                                          {"sendPreProcessRequestToAllReplicas", sendPreProcessRequestToAllReplicas},
-                                          {"finalizePreProcessing", finalizePreProcessing}});
-      } catch (std::invalid_argument &e) {
-        // if component already exists lets keep record on the same histograms
-      }
-    }
-
-    std::shared_ptr<Recorder> onMessage =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> launchReqPreProcessing =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> handlePreProcessedReqByNonPrimary =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> handlePreProcessedReqByPrimary =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> sendPreProcessRequestToAllReplicas =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> finalizePreProcessing =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  };
-
-  Recorders histograms_;
+  PreProcessorRecorder histograms_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

@@ -18,15 +18,17 @@ using namespace chrono;
 using namespace concord::util;
 
 uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
+PreProcessorRecorder *RequestProcessingState::preProcessorHistograms_ = nullptr;
 
 uint64_t RequestProcessingState::getMonotonicTimeMilli() {
   steady_clock::time_point curTimePoint = steady_clock::now();
   return duration_cast<milliseconds>(curTimePoint.time_since_epoch()).count();
 }
 
-void RequestProcessingState::init(uint16_t numOfRequiredReplies) {
+void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRecorder *histograms) {
   LOG_INFO(logger(), KVLOG(numOfRequiredReplies));
   numOfRequiredEqualReplies_ = numOfRequiredReplies;
+  preProcessorHistograms_ = histograms;
 }
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
@@ -93,6 +95,7 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
   const auto &senderId = preProcessReplyMsg->senderId();
   if (preProcessReplyMsg->status() == STATUS_GOOD) {
     numOfReceivedReplies_++;
+    concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->convertAndCompareHashes);
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
     preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
