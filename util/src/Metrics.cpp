@@ -14,6 +14,7 @@
 #include "Metrics.hpp"
 #include <stdexcept>
 #include <sstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -53,10 +54,25 @@ Component::Handle<Counter> Component::RegisterCounter(const string& name, const 
   return Component::Handle<Counter>(values_.counters_, values_.counters_.size() - 1);
 }
 
+Component::Handle<AtomicCounter> Component::RegisterAtomicCounter(const std::string& name, const uint64_t val) {
+  names_.atomic_counter_names_.emplace_back(name);
+  values_.atomic_counters_.emplace_back(AtomicCounter(val));
+  return Component::Handle<AtomicCounter>(values_.atomic_counters_, values_.atomic_counters_.size() - 1);
+}
+
+Component::Handle<AtomicGauge> Component::RegisterAtomicGauge(const std::string& name, uint64_t val) {
+  names_.atomic_gauge_names_.emplace_back(name);
+  values_.atomic_gauges_.emplace_back(AtomicGauge(val));
+  return Component::Handle<AtomicGauge>(values_.atomic_gauges_, values_.atomic_gauges_.size() - 1);
+}
+
 std::list<Metric> Component::CollectGauges() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.gauge_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
+  }
+  for (std::size_t i = 0; i < names_.atomic_gauge_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.atomic_gauge_names_[i], Counter(values_.atomic_gauges_[i].Get())});
   }
   return ret;
 }
@@ -65,6 +81,9 @@ std::list<Metric> Component::CollectCounters() {
   std::list<Metric> ret;
   for (size_t i = 0; i < names_.counter_names_.size(); i++) {
     ret.emplace_back(Metric{name_, names_.counter_names_[i], values_.counters_[i]});
+  }
+  for (std::size_t i = 0; i < names_.atomic_counter_names_.size(); i++) {
+    ret.emplace_back(Metric{name_, names_.atomic_counter_names_[i], Counter(values_.atomic_counters_[i].Get())});
   }
   return ret;
 }
@@ -93,7 +112,13 @@ void Aggregator::UpdateValues(const string& name, Values&& values) {
 Gauge Aggregator::GetGauge(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
-  return FindValue(kGaugeName, val_name, component.names_.gauge_names_, component.values_.gauges_);
+  auto& gauges = component.names_.gauge_names_;
+  if (std::find(gauges.begin(), gauges.end(), val_name) != gauges.end()) {
+    return FindValue(kGaugeName, val_name, component.names_.gauge_names_, component.values_.gauges_);
+  }
+  auto atomic_gauge =
+      FindValue(kCounterName, val_name, component.names_.atomic_gauge_names_, component.values_.atomic_gauges_);
+  return Gauge(atomic_gauge.Get());
 }
 
 Status Aggregator::GetStatus(const string& component_name, const string& val_name) {
@@ -105,7 +130,13 @@ Status Aggregator::GetStatus(const string& component_name, const string& val_nam
 Counter Aggregator::GetCounter(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
   auto& component = components_.at(component_name);
-  return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);
+  auto& counters = component.names_.counter_names_;
+  if (std::find(counters.begin(), counters.end(), val_name) != counters.end()) {
+    return FindValue(kCounterName, val_name, component.names_.counter_names_, component.values_.counters_);
+  }
+  auto atomic_counter =
+      FindValue(kCounterName, val_name, component.names_.atomic_counter_names_, component.values_.atomic_counters_);
+  return Counter(atomic_counter.Get());
 }
 
 // Generate a JSON string of all aggregated components. To save space we don't
@@ -203,6 +234,13 @@ std::string Component::ToJson() {
       oss << ",";
     }
     oss << "\"" << names_.counter_names_[i] << "\":" << values_.counters_[i].Get() << "";
+  }
+
+  for (size_t i = 0; i < names_.atomic_counter_names_.size(); i++) {
+    if (i != 0 || names_.counter_names_.size() > 0) {
+      oss << ",";
+    }
+    oss << "\"" << names_.atomic_counter_names_[i] << "\":" << values_.atomic_counters_[i].Get() << "";
   }
 
   // End counters
