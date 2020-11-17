@@ -44,31 +44,29 @@ target_link_libraries(sparse_merkle_storage_serialization_unit_test PUBLIC
     kvbc
 )
 
-if(RAPIDCHECK_FOUND)
+if(rapidcheck_FOUND)
 add_executable(sparse_merkle_storage_db_adapter_property_test
     sparse_merkle_storage/db_adapter_property_test.cpp )
 add_test(sparse_merkle_storage_db_adapter_property_test sparse_merkle_storage_db_adapter_property_test)
 # Decrease both the input size and test count from the default value of 100 to 50 in order to speed up this test.
 set_property(TEST sparse_merkle_storage_db_adapter_property_test PROPERTY ENVIRONMENT RC_PARAMS=max_size=50\ max_success=50)
-target_include_directories(sparse_merkle_storage_db_adapter_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
 target_link_libraries(sparse_merkle_storage_db_adapter_property_test PUBLIC
     GTest::Main
     GTest::GTest
-    ${RAPIDCHECK_LIBRARIES}
-        util
-        corebft
-        kvbc
-        stdc++fs
-    )
+    rapidcheck
+    util
+    corebft
+    kvbc
+    stdc++fs
+)
 
 add_executable(sparse_merkle_internal_node_property_test sparse_merkle/internal_node_property_tests.cpp
 )
 add_test(sparse_merkle_internal_node_property_test sparse_merkle_internal_node_property_test)
-target_include_directories(sparse_merkle_internal_node_property_test PRIVATE ${RAPIDCHECK_INCLUDE_DIRS})
 target_link_libraries(sparse_merkle_internal_node_property_test PUBLIC
     GTest::Main
     GTest::GTest
-    ${RAPIDCHECK_LIBRARIES}
+    rapidcheck
     util
     kvbc
     OpenSSL::Crypto
