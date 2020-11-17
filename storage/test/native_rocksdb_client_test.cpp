@@ -54,10 +54,10 @@ TEST_F(native_rocksdb_test, create_families) {
               ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(), "cf1", "cf2", "cf3"}));
 }
 
-TEST_F(native_rocksdb_test, creating_a_family_twice_is_not_an_error) {
+TEST_F(native_rocksdb_test, creating_a_family_twice_is_an_error) {
   const auto cf = "cf"s;
   db->createColumnFamily(cf);
-  ASSERT_NO_THROW(db->createColumnFamily(cf));
+  ASSERT_THROW(db->createColumnFamily(cf), RocksDBException);
   ASSERT_THAT(db->columnFamilies(), ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(), "cf"}));
 }
 
@@ -74,6 +74,86 @@ TEST_F(native_rocksdb_test, dropping_a_family_twice_is_not_an_error) {
   db->dropColumnFamily(cf);
   ASSERT_NO_THROW(db->dropColumnFamily(cf));
   ASSERT_THAT(db->columnFamilies(), ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily()}));
+}
+
+TEST_F(native_rocksdb_test, creating_a_family_with_options) {
+  const auto cf = "cf"s;
+  auto optsIn = ::rocksdb::ColumnFamilyOptions{};
+  const auto originalBufferSize = optsIn.write_buffer_size;
+  // Change a random option and verify it is reflected.
+  ++optsIn.write_buffer_size;
+  db->createColumnFamily(cf, optsIn);
+  const auto optsOut = db->columnFamilyOptions(cf);
+  ASSERT_EQ(optsOut.write_buffer_size, originalBufferSize + 1);
+}
+
+TEST_F(native_rocksdb_test, family_options_are_persisted) {
+  const auto cf = "cf"s;
+  auto optsIn = ::rocksdb::ColumnFamilyOptions{};
+  const auto originalBufferSize = optsIn.write_buffer_size;
+  // Change a random option and verify it is reflected.
+  ++optsIn.write_buffer_size;
+  db->createColumnFamily(cf, optsIn);
+  const auto path = db->path();
+
+  // Open the DB again and verify options are persisted.
+  {
+    db.reset();
+    const auto readOnly = false;
+    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto optsOut = db2->columnFamilyOptions(cf);
+    ASSERT_EQ(optsOut.write_buffer_size, originalBufferSize + 1);
+  }
+}
+
+TEST_F(native_rocksdb_test, default_family_data_is_persisted) {
+  db->put(key, value);
+  const auto path = db->path();
+
+  // Open the DB again in RW mode and verify data
+  {
+    db.reset();
+    const auto readOnly = false;
+    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto dbValue = db2->get(key);
+    ASSERT_TRUE(dbValue.has_value());
+    ASSERT_EQ(*dbValue, value);
+  }
+
+  // Open the DB again in RO mode and verify data
+  {
+    const auto readOnly = true;
+    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto dbValue = db2->get(key);
+    ASSERT_TRUE(dbValue.has_value());
+    ASSERT_EQ(*dbValue, value);
+  }
+}
+
+TEST_F(native_rocksdb_test, family_data_is_persisted) {
+  const auto cf = "cf"s;
+  db->createColumnFamily(cf);
+  db->put(cf, key, value);
+  const auto path = db->path();
+
+  // Open the DB again in RW mode and verify data
+  {
+    db.reset();
+    const auto readOnly = false;
+    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto dbValue = db2->get(cf, key);
+    ASSERT_TRUE(dbValue.has_value());
+    ASSERT_EQ(*dbValue, value);
+  }
+
+  // Open the DB again in RO mode and verify data
+  {
+    const auto readOnly = true;
+    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto dbValue = db2->get(cf, key);
+    ASSERT_TRUE(dbValue.has_value());
+    ASSERT_EQ(*dbValue, value);
+  }
 }
 
 TEST_F(native_rocksdb_test, single_key_api_throws_on_non_existent_family) {
@@ -176,10 +256,10 @@ TEST_F(native_rocksdb_test, put_in_batch_in_2_families) {
   db->createColumnFamily(cf1);
   db->createColumnFamily(cf2);
   auto batch = db->getBatch();
-  db->put(cf1, key1, value1);
-  db->put(cf1, key2, value2);
-  db->put(cf2, key2, value2);
-  db->put(cf2, key3, value3);
+  batch.put(cf1, key1, value1);
+  batch.put(cf1, key2, value2);
+  batch.put(cf2, key2, value2);
+  batch.put(cf2, key3, value3);
   db->write(std::move(batch));
 
   // cf1

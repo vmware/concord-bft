@@ -13,13 +13,17 @@
 
 #pragma once
 
+#include "assertUtils.hpp"
 #include "client.h"
 #include "storage/db_interface.h"
 
+#include <rocksdb/env.h>
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>
+#include <rocksdb/utilities/options_util.h>
 #include <rocksdb/write_batch.h>
 
+#include <algorithm>
 #include <exception>
 #include <map>
 #include <memory>
@@ -38,7 +42,7 @@
 //
 // The Span template parameters to methods allow conversion from any type that has data() and size()
 // members. The data() member should return a char pointer. That includes std::string, std::string_view,
-// std::vector<char>, std::span<char>, Sliver, etc. Raw pointers without size are not supported.
+// std::vector<char>, std::span<char>, Sliver, ::rocksdb::Slice, etc. Raw pointers without size are not supported.
 //
 // Note1: All methods on all classes throw on errors.
 // Note2: All methods without a column family parameter work with the default column family.
@@ -55,7 +59,7 @@ class NativeClient;
 
 class WriteBatch {
  public:
-  WriteBatch(const std::shared_ptr<const NativeClient> &);
+  WriteBatch(const std::shared_ptr<const NativeClient> &) noexcept;
 
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
@@ -125,7 +129,7 @@ class Iterator {
   std::string_view valueView() const;
 
  private:
-  Iterator(std::unique_ptr<::rocksdb::Iterator> iter);
+  Iterator(std::unique_ptr<::rocksdb::Iterator> iter) noexcept;
   static std::string sliceToString(const ::rocksdb::Slice &);
   static std::string_view sliceToStringView(const ::rocksdb::Slice &);
 
@@ -181,10 +185,16 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   static std::string defaultColumnFamily();
   static std::unordered_set<std::string> columnFamilies(const std::string &path);
   std::unordered_set<std::string> columnFamilies() const;
-  // If is not an error if it already exists.
-  void createColumnFamily(const std::string &cFamily);
+  // Throws if the column family already exists.
+  void createColumnFamily(const std::string &cFamily,
+                          const ::rocksdb::ColumnFamilyOptions &options = ::rocksdb::ColumnFamilyOptions{});
+  // Return the column family options for an existing column family.
+  ::rocksdb::ColumnFamilyOptions columnFamilyOptions(const std::string &cFamily) const;
   // Drops a column family and its data. It is not an error if the column family doesn't exist.
   void dropColumnFamily(const std::string &cFamily);
+
+  // Return the DB path.
+  const std::string &path() const { return path_; }
 
  private:
   NativeClient(const std::string &path, bool readOnly);
@@ -220,7 +230,7 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
 
   ::rocksdb::ColumnFamilyHandle *defaultColumnFamilyHandle() const;
   ::rocksdb::ColumnFamilyHandle *columnFamilyHandle(const std::string &cFamily) const;
-  CfUniquePtr createColumnFamilyHandle(const std::string &cFamily);
+  CfUniquePtr createColumnFamilyHandle(const std::string &cFamily, const ::rocksdb::ColumnFamilyOptions &options);
 
  private:
   std::string path_;
@@ -232,7 +242,7 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   friend class Iterator;
 };
 
-inline WriteBatch::WriteBatch(const std::shared_ptr<const NativeClient> &client) : client_{client} {}
+inline WriteBatch::WriteBatch(const std::shared_ptr<const NativeClient> &client) noexcept : client_{client} {}
 
 template <typename KeySpan, typename ValueSpan>
 void WriteBatch::put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value) {
@@ -242,7 +252,7 @@ void WriteBatch::put(const std::string &cFamily, const KeySpan &key, const Value
 
 template <typename KeySpan, typename ValueSpan>
 void WriteBatch::put(const KeySpan &key, const ValueSpan &value) {
-  return put(NativeClient::defaultColumnFamily(), key, value);
+  put(NativeClient::defaultColumnFamily(), key, value);
 }
 
 template <typename KeySpan>
@@ -253,7 +263,7 @@ void WriteBatch::del(const std::string &cFamily, const KeySpan &key) {
 
 template <typename KeySpan>
 void WriteBatch::del(const KeySpan &key) {
-  return del(NativeClient::defaultColumnFamily(), key);
+  del(NativeClient::defaultColumnFamily(), key);
 }
 
 template <typename BeginSpan, typename EndSpan>
@@ -265,34 +275,34 @@ void WriteBatch::delRange(const std::string &cFamily, const BeginSpan &beginKey,
 
 template <typename BeginSpan, typename EndSpan>
 void WriteBatch::delRange(const BeginSpan &beginKey, const EndSpan &endKey) {
-  return delRange(client_->defaultColumnFamily(), beginKey, endKey);
+  delRange(client_->defaultColumnFamily(), beginKey, endKey);
 }
 
 template <typename Container>
 void putInBatch(WriteBatch &batch, const std::string &cFamily, const Container &cont) {
-  for (auto &[key, value] : cont) {
+  for (const auto &[key, value] : cont) {
     batch.put(cFamily, key, value);
   }
 }
 
 template <typename Container>
 void putInBatch(WriteBatch &batch, const Container &cont) {
-  return putInBatch(batch, NativeClient::defaultColumnFamily(), cont);
+  putInBatch(batch, NativeClient::defaultColumnFamily(), cont);
 }
 
 template <typename Container>
 void delInBatch(WriteBatch &batch, const std::string &cFamily, const Container &cont) {
-  for (auto &key : cont) {
+  for (const auto &key : cont) {
     batch.del(cFamily, key);
   }
 }
 
 template <typename Container>
 void delInBatch(WriteBatch &batch, const Container &cont) {
-  return delInBatch(batch, NativeClient::defaultColumnFamily(), cont);
+  delInBatch(batch, NativeClient::defaultColumnFamily(), cont);
 }
 
-inline Iterator::Iterator(std::unique_ptr<::rocksdb::Iterator> iter) : iter_{std::move(iter)} {}
+inline Iterator::Iterator(std::unique_ptr<::rocksdb::Iterator> iter) noexcept : iter_{std::move(iter)} {}
 
 inline std::string Iterator::sliceToString(const ::rocksdb::Slice &s) { return std::string{s.data(), s.size()}; }
 
@@ -376,13 +386,16 @@ inline std::shared_ptr<NativeClient> NativeClient::newClient(const std::string &
 
 inline NativeClient::NativeClient(const std::string &path, bool readOnly)
     : path_{path}, client_{std::make_shared<Client>(path)} {
-  client_->init(readOnly);
-
-  const auto families = NativeClient::columnFamilies(path);
-  for (auto &f : families) {
-    if (defaultColumnFamily() != f) {
-      cf_handles_.emplace(f, createColumnFamilyHandle(f));
-    }
+  const auto initCFamilies = true;
+  const auto cfHandles = client_->initDB(readOnly, initCFamilies);
+  ConcordAssert(cfHandles.has_value());
+  ConcordAssertNE(
+      std::find_if(cfHandles->cbegin(),
+                   cfHandles->cend(),
+                   [](const ::rocksdb::ColumnFamilyHandle *h) { return h->GetName() == defaultColumnFamily(); }),
+      cfHandles->cend());
+  for (auto cfHandle : *cfHandles) {
+    cf_handles_[cfHandle->GetName()] = CfUniquePtr{cfHandle, CfDeleter{client_.get()}};
   }
 }
 
@@ -417,7 +430,7 @@ void NativeClient::del(const std::string &cFamily, const KeySpan &key) {
 
 template <typename KeySpan, typename ValueSpan>
 void NativeClient::put(const KeySpan &key, const ValueSpan &value) {
-  return put(defaultColumnFamily(), key, value);
+  put(defaultColumnFamily(), key, value);
 }
 
 template <typename KeySpan>
@@ -427,7 +440,7 @@ std::optional<std::string> NativeClient::get(const KeySpan &key) const {
 
 template <typename KeySpan>
 void NativeClient::del(const KeySpan &key) {
-  return del(defaultColumnFamily(), key);
+  del(defaultColumnFamily(), key);
 }
 
 inline WriteBatch NativeClient::getBatch() const { return WriteBatch{shared_from_this()}; }
@@ -443,21 +456,22 @@ inline Iterator NativeClient::getIterator(const std::string &cFamily) const {
 
 inline std::vector<Iterator> NativeClient::getIterators(const std::vector<std::string> &cFamilies) const {
   auto cfHandles = std::vector<::rocksdb::ColumnFamilyHandle *>{};
-  for (auto &cf : cFamilies) {
+  for (const auto &cf : cFamilies) {
     cfHandles.push_back(columnFamilyHandle(cf));
   }
+
   auto rawPtrIterators = std::vector<::rocksdb::Iterator *>{};
-  auto uniquePtrIterators = std::vector<std::unique_ptr<::rocksdb::Iterator>>{};
   auto status = client_->dbInstance_->NewIterators(::rocksdb::ReadOptions{}, cfHandles, &rawPtrIterators);
-  // Are we supposed to delete the iterators if error is returned...
+
+  // Wrap RocksDB iterators in unique pointers so that they are freed, irrespective of the returned status.
+  // Note: NewIterators()'s interface is bad and the caller doesn't have enough info by just looking at it. One has to
+  // look into the RocksDB implementation to see that no iterators will be returned if the status is not OK. That,
+  // however, might change, but the interface will stay the same...
+  auto ret = std::vector<Iterator>{};
   for (auto iter : rawPtrIterators) {
-    uniquePtrIterators.push_back(std::unique_ptr<::rocksdb::Iterator>{iter});
+    ret.push_back(std::unique_ptr<::rocksdb::Iterator>{iter});
   }
   throwOnError("get multiple iterators failed"sv, std::move(status));
-  auto ret = std::vector<Iterator>{};
-  for (auto &iter : uniquePtrIterators) {
-    ret.push_back(std::move(iter));
-  }
   return ret;
 }
 
@@ -482,11 +496,18 @@ inline std::string NativeClient::defaultColumnFamily() { return ::rocksdb::kDefa
 
 inline std::unordered_set<std::string> NativeClient::columnFamilies() const { return columnFamilies(path_); }
 
-inline void NativeClient::createColumnFamily(const std::string &cFamily) {
-  if (cf_handles_.find(cFamily) != cf_handles_.cend()) {
-    return;
-  }
-  cf_handles_.emplace(cFamily, createColumnFamilyHandle(cFamily));
+inline void NativeClient::createColumnFamily(const std::string &cFamily,
+                                             const ::rocksdb::ColumnFamilyOptions &options) {
+  auto handle = createColumnFamilyHandle(cFamily, options);
+  cf_handles_[cFamily] = std::move(handle);
+}
+
+inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const std::string &cFamily) const {
+  auto family = columnFamilyHandle(cFamily);
+  auto descriptor = ::rocksdb::ColumnFamilyDescriptor{};
+  auto s = family->GetDescriptor(&descriptor);
+  throwOnError("getting column family options failed"sv, std::move(s));
+  return descriptor.options;
 }
 
 inline void NativeClient::dropColumnFamily(const std::string &cFamily) {
@@ -504,8 +525,10 @@ inline void NativeClient::throwOnError(std::string_view msg1, std::string_view m
   if (!s.ok()) {
     auto rocksdbMsg = std::string{"RocksDB: "};
     rocksdbMsg.append(msg1);
-    rocksdbMsg.append(": ");
-    rocksdbMsg.append(msg2);
+    if (!msg2.empty()) {
+      rocksdbMsg.append(": ");
+      rocksdbMsg.append(msg2);
+    }
     LOG_ERROR(Client::logger(), rocksdbMsg << ", status = " << s.ToString());
     throw RocksDBException{rocksdbMsg, std::move(s)};
   }
@@ -520,9 +543,6 @@ inline ::rocksdb::ColumnFamilyHandle *NativeClient::defaultColumnFamilyHandle() 
 }
 
 inline ::rocksdb::ColumnFamilyHandle *NativeClient::columnFamilyHandle(const std::string &cFamily) const {
-  if (defaultColumnFamily() == cFamily) {
-    return defaultColumnFamilyHandle();
-  }
   auto it = cf_handles_.find(cFamily);
   if (it == cf_handles_.cend()) {
     throwOnError("no such column family"sv, cFamily, ::rocksdb::Status::ColumnFamilyDropped());
@@ -530,10 +550,14 @@ inline ::rocksdb::ColumnFamilyHandle *NativeClient::columnFamilyHandle(const std
   return it->second.get();
 }
 
-inline NativeClient::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::string &cFamily) {
+inline NativeClient::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::string &cFamily,
+                                                                        const ::rocksdb::ColumnFamilyOptions &options) {
   ::rocksdb::ColumnFamilyHandle *cf{nullptr};
-  auto s = client_->dbInstance_->CreateColumnFamily(::rocksdb::ColumnFamilyOptions{}, cFamily, &cf);
-  // Are we supposed to delete the handle if error is returned...
+  auto s = client_->dbInstance_->CreateColumnFamily(options, cFamily, &cf);
+  // Make sure we delete any returned column family handle, irrespective of the returned status.
+  // Note: CreateColumnFamily()'s interface is bad and the caller doesn't have enough info by just looking at it. One
+  // has to look into the RocksDB implementation to see that a nullptr handle will be returned if the status is not OK.
+  // That, however, might change, but the interface will stay the same...
   auto ret = CfUniquePtr{cf, CfDeleter{client_.get()}};
   throwOnError("cannot create column family handle"sv, cFamily, std::move(s));
   return ret;
