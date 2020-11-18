@@ -117,7 +117,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   threadPool_.start(numOfThreads);
   LOG_INFO(logger(),
            KVLOG(firstClientId, numOfClients_, maxPreExecResultSize_, preExecReqStatusCheckPeriodMilli_, numOfThreads));
-  RequestProcessingState::init(numOfRequiredReplies());
+  RequestProcessingState::init(numOfRequiredReplies(), &histograms_);
   addTimers();
 }
 
@@ -232,7 +232,8 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                 uint64_t reqRetryId,
                                                 const string &cid,
                                                 const string &ongoingCid) {
-  auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum, reqRetryId);
+  auto replyMsg =
+      make_shared<PreProcessReplyMsg>(sigManager_, &histograms_, myReplicaId_, clientId, reqSeqNum, reqRetryId);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), 0, cid, STATUS_REJECT);
   LOG_DEBUG(
       logger(),
@@ -411,6 +412,7 @@ template <>
 void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
   PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
   trueTypeObj->setSigManager(sigManager_);
+  trueTypeObj->setPreProcessorHistograms(&histograms_);
   delete msg;
   if (validateMessage(trueTypeObj)) {
     onMessage(trueTypeObj);
@@ -747,7 +749,8 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(
     uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t resBufLen, const std::string &cid) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   setPreprocessingRightNow(clientId, false);
-  auto replyMsg = make_shared<PreProcessReplyMsg>(sigManager_, myReplicaId_, clientId, reqSeqNum, reqRetryId);
+  auto replyMsg =
+      make_shared<PreProcessReplyMsg>(sigManager_, &histograms_, myReplicaId_, clientId, reqSeqNum, reqRetryId);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId), resBufLen, cid, STATUS_GOOD);
   // Release the request before sending a reply to the primary to be able accepting new messages
   releaseClientPreProcessRequestSafe(clientId, COMPLETE);
