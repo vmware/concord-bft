@@ -25,14 +25,14 @@
 
 namespace concordMetrics {
 template <class T>
-class basic_gauge;
+class BasicGauge;
 template <class T>
-class basic_counter;
+class BasicCounter;
 
-using Gauge = basic_gauge<uint64_t>;
-using Counter = basic_counter<uint64_t>;
-using AtomicGauge = basic_gauge<std::atomic_uint64_t>;
-using AtomicCounter = basic_counter<std::atomic_uint64_t>;
+using Gauge = BasicGauge<uint64_t>;
+using Counter = BasicCounter<uint64_t>;
+using AtomicGauge = BasicGauge<std::atomic_uint64_t>;
+using AtomicCounter = BasicCounter<std::atomic_uint64_t>;
 
 // Forward declarations since Aggregator requires these types.
 class Component;
@@ -74,11 +74,11 @@ class Aggregator {
 // A Gauge is a an integer value that shows the current value of something. It
 // can only be varied by directly setting and getting it.
 template <class T>
-class basic_gauge {
+class BasicGauge {
  public:
-  explicit basic_gauge(const uint64_t val) : val_(val) {}
-  basic_gauge(const basic_gauge& gauge) { val_ = (unsigned long)gauge.val_; }
-  basic_gauge& operator=(const basic_gauge& gauge) {
+  explicit BasicGauge(const uint64_t val) : val_(val) {}
+  BasicGauge(const BasicGauge& gauge) { val_ = (unsigned long)gauge.val_; }
+  BasicGauge& operator=(const BasicGauge& gauge) {
     val_ = (unsigned long)gauge.val_;
     return *this;
   }
@@ -92,11 +92,11 @@ class basic_gauge {
 };
 
 template <class T>
-class basic_counter {
+class BasicCounter {
  public:
-  explicit basic_counter(const uint64_t val) : val_(val) {}
-  basic_counter(const basic_counter& counter) { val_ = (unsigned long)counter.val_; }
-  basic_counter& operator=(const basic_counter& counter) {
+  explicit BasicCounter(const uint64_t val) : val_(val) {}
+  BasicCounter(const BasicCounter& counter) { val_ = (unsigned long)counter.val_; }
+  BasicCounter& operator=(const BasicCounter& counter) {
     val_ = (unsigned long)counter.val_;
     return *this;
   }
