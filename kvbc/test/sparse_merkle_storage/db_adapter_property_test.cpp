@@ -4,7 +4,7 @@
 #include <rapidcheck.h>
 #include <rapidcheck/gtest.h>
 
-#include "storage_test_common.h"
+#include "kvbc_storage_test_common.h"
 
 #include "kv_types.hpp"
 #include "merkle_tree_block.h"

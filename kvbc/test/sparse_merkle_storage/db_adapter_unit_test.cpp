@@ -4,7 +4,7 @@
 
 #include "gtest/gtest.h"
 
-#include "storage_test_common.h"
+#include "kvbc_storage_test_common.h"
 
 #include "block_digest.h"
 #include "merkle_tree_block.h"

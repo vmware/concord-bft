@@ -16,12 +16,12 @@
 
 #include "db_adapter_interface.h"
 #include "endianness.hpp"
+#include "kvbc_storage_test_common.h"
 #include "kv_types.hpp"
 #include "merkle_tree_db_adapter.h"
 #include "PersistentStorageImp.hpp"
 #include "sliver.hpp"
 #include "sparse_merkle_db_editor.hpp"
-#include "storage_test_common.h"
 #include "storage/db_types.h"
 #include "storage/merkle_tree_key_manipulator.h"
 

@@ -19,10 +19,14 @@
 
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
+#include <rocksdb/db.h>
 #include <rocksdb/utilities/transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
 #include "storage/db_interface.h"
 #include "storage/storage_metrics.h"
+
+#include <optional>
+#include <vector>
 
 namespace concord {
 namespace storage {
@@ -97,6 +101,10 @@ class Client : public concord::storage::IDBClient {
   }
 
  private:
+  // If initCFamilies is true, return a vector of column family handles. A default column family handle is always
+  // returned. If initCFamilies is set to false, no column family initialization is attempted and std::nullopt is
+  // returned. It is up to callers to destroy the returned handles. Throws on errors.
+  std::optional<std::vector<::rocksdb::ColumnFamilyHandle*>> initDB(bool readOnly, bool initCFamilies);
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
@@ -115,6 +123,8 @@ class Client : public concord::storage::IDBClient {
 
   // Metrics
   mutable RocksDbStorageMetrics storage_metrics_;
+
+  friend class NativeClient;
 };
 
 ::rocksdb::Slice toRocksdbSlice(const concordUtils::Sliver& _s);
