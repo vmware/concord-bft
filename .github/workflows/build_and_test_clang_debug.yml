@@ -1,4 +1,4 @@
-name: Build clang debug
+name: Debug build (clang)
 on: [push, pull_request]
 
 jobs:

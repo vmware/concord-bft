@@ -1,4 +1,4 @@
-name: Build gcc debug
+name: Debug build (gcc)
 on: [push, pull_request]
 
 jobs:
