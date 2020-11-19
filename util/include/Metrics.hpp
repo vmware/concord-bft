@@ -95,9 +95,9 @@ template <class T>
 class BasicCounter {
  public:
   explicit BasicCounter(const uint64_t val) : val_(val) {}
-  BasicCounter(const BasicCounter& counter) { val_ = (unsigned long)counter.val_; }
+  BasicCounter(const BasicCounter& counter) { val_ = (uint64_t)counter.val_; }
   BasicCounter& operator=(const BasicCounter& counter) {
-    val_ = (unsigned long)counter.val_;
+    val_ = (uint64_t)counter.val_;
     return *this;
   }
   uint64_t Inc(uint64_t val = 1) {
