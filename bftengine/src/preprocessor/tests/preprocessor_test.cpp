@@ -71,6 +71,15 @@ class DummyRequestsHandler : public IRequestsHandler {
     return 0;
   }
 
+  void execute(std::deque<ExecutionRequest>& requestList,
+               const std::string& batchCid,
+               concordUtils::SpanWrapper& parent_span) override {
+    for (auto it = requestList.begin(); it != requestList.end(); ++it) {
+      it->outActualReplySize = 256;
+      it->outExecutionStatus = 0;
+    }
+  }
+
   std::shared_ptr<ControlHandlers> getControlHandlers() override { return nullptr; }
 };
 

@@ -71,17 +71,19 @@ class IRequestsHandler {
 
   struct ExecutionRequest {
     uint16_t clientId;
-    uint64_t sequenceNum;
+    uint64_t executionSequenceNum = 0;
     uint8_t flags;
-    uint32_t requestSize;
-    const char *request;
-    uint32_t maxReplySize;
-    char *outReply;
-    uint32_t &outActualReplySize;
-    uint32_t &outReplicaSpecificInfoSize;
-    int &outExecutionStatus;
-    concordUtils::SpanWrapper &parent_span;
+    std::string request;
+    std::string outReply;
+    uint32_t outActualReplySize;
+    uint32_t outReplicaSpecificInfoSize;
+    int outExecutionStatus;
+    uint64_t requestSequenceNum = executionSequenceNum;
   };
+
+  virtual void execute(std::deque<ExecutionRequest> &requestList,
+                       const std::string &batchCid,
+                       concordUtils::SpanWrapper &parent_span) = 0;
 
   virtual void onFinishExecutingReadWriteRequests() {}
   virtual ~IRequestsHandler() {}

@@ -17,6 +17,11 @@ class RequestHandler : public IRequestsHandler {
                       uint32_t &outActualReplySize,
                       uint32_t &outReplicaSpecificInfoSize,
                       concordUtils::SpanWrapper &parent_span) override;
+
+  virtual void execute(std::deque<ExecutionRequest> &requestList,
+                       const std::string &batchCid,
+                       concordUtils::SpanWrapper &parent_span) override;
+
   virtual void onFinishExecutingReadWriteRequests() override;
 
   virtual std::shared_ptr<ControlHandlers> getControlHandlers() override;
