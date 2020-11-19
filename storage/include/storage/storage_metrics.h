@@ -21,9 +21,8 @@ namespace storage {
  * Recall that the in memory db is quite simple and therefor it has only few relevant metrics to collect.
  */
 class InMemoryStorageMetrics {
-  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
-  std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
-  std::mutex lock_;
+  std::atomic<uint32_t> last_metrics_update_ = 0;
+  uint32_t metrics_update_interval_ = 100;  // We update the metrics once in 100 operations.
 
  public:
   concordMetrics::Component metrics_;
@@ -44,11 +43,9 @@ class InMemoryStorageMetrics {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
 
   void tryToUpdateMetrics() {
-    std::lock_guard<std::mutex> lock(lock_);
-    if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
-        metrics_update_interval_) {
+    if (last_metrics_update_++ > metrics_update_interval_) {
       metrics_.UpdateAggregator();
-      last_metrics_update_ = std::chrono::steady_clock::now();
+      last_metrics_update_ = 0;
     }
   }
 };
@@ -72,9 +69,8 @@ class RocksDbStorageMetrics {
   std::shared_ptr<::rocksdb::SstFileManager> sstFm;
   std::shared_ptr<::rocksdb::Statistics> statistics;
 
-  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
-  std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
-  std::mutex lock_;
+  std::atomic<uint32_t> last_metrics_update_ = 0;
+  uint32_t metrics_update_interval_ = 100;  // We update the metrics once in 100 operations.
 
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
@@ -115,15 +111,13 @@ class RocksDbStorageMetrics {
   }
 
   void tryToUpdateMetrics() {
-    std::lock_guard<std::mutex> lock(lock_);
-    if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
-        metrics_update_interval_) {
+    if (last_metrics_update_++ > metrics_update_interval_) {
       for (auto& pair : active_tickers_) {
         pair.second.Get().Set(statistics->getTickerCount(pair.first));
       }
       total_db_disk_size_.Get().Set(sstFm->GetTotalSize());
       rocksdb_comp_.UpdateAggregator();
-      last_metrics_update_ = std::chrono::steady_clock::now();
+      last_metrics_update_ = 0;
     }
   }
 };
