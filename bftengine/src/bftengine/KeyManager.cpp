@@ -25,7 +25,7 @@ KeyManager::KeyManager(InitData* id)
       client_(id->cl),
       keyStore_{id->clusterSize, *id->reservedPages, id->sizeOfReservedPage},
       multiSigKeyHdlr_(id->kg),
-      keysView_(id->sec, id->clusterSize),
+      keysView_(id->sec, id->backupSec, id->clusterSize),
       timers_(*(id->timers)) {
   registryToExchange_.push_back(id->ke);
   if (keyStore_.exchangedReplicas.size() == 0) {
@@ -39,7 +39,7 @@ KeyManager::KeyManager(InitData* id)
   // If all keys were exchange on start
   if (keyStore_.exchangedReplicas.size() == clusterSize_) {
     LOG_INFO(KEY_EX_LOG, "building crypto system ");
-    notifyRegistry();
+    notifyRegistry(false);
     keysExchanged = true;
     LOG_INFO(KEY_EX_LOG, "All replicas keys loaded from reserved pages, can start accepting msgs");
   }
@@ -122,12 +122,13 @@ void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
   LOG_INFO(KEY_EX_LOG, "building crypto system ");
   keysView_.rotate(keysView_.keys().privateKey, keysView_.keys().outstandingPrivateKey);
   keyStore_.push(kemsg, sn);
-  notifyRegistry();
+  notifyRegistry(true);
+  keysView_.backup();
   keysExchanged = true;
   LOG_INFO(KEY_EX_LOG, "All replicas exchanged keys, can start accepting msgs");
 }
 
-void KeyManager::notifyRegistry() {
+void KeyManager::notifyRegistry(bool save) {
   for (uint32_t i = 0; i < clusterSize_; i++) {
     keysView_.keys().publicKeys[i] = keyStore_.getReplicaPublicKey(i).key;
     if (i == repID_) {
@@ -140,13 +141,17 @@ void KeyManager::notifyRegistry() {
       e->onPublicKeyExchange(keyStore_.getReplicaPublicKey(i).key, i);
     });
   }
-  keysView_.save();
+  if (save) {
+    keysView_.save();
+  } else {
+    LOG_DEBUG(KEY_EX_LOG, "Not saving keyfile after updating crypto system");
+  }
 }
 
 void KeyManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
                                        const uint16_t repID,
                                        const uint16_t numReplicas) {
-  KeysView kv(sec, numReplicas);
+  KeysView kv(sec, nullptr, numReplicas);
   if (!kv.load()) {
     LOG_ERROR(KEY_EX_LOG, "Couldn't load keys");
     return;
@@ -173,7 +178,7 @@ void KeyManager::onCheckpoint(const int& num) {
   }
   LOG_INFO(KEY_EX_LOG, "Check point  " << num << " trigerred rotation ");
   LOG_INFO(KEY_EX_LOG, "building crypto system ");
-  notifyRegistry();
+  notifyRegistry(true);
 }
 
 void KeyManager::registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
@@ -184,6 +189,12 @@ KeyExchangeMsg KeyManager::getReplicaPublicKey(const uint16_t& repID) const {
 
 // Called at the end of a state transfer.
 void KeyManager::loadKeysFromReservedPages() {
+  // Until Key-rotation is implemented, state transfer after the key-exchange has been performed has no side effect.
+  // in order to mitigate BC-5530, we'll not do a redundent work
+  if (keysExchanged) {  // TODO remove when implementing key-rotation!
+    LOG_INFO(KEY_EX_LOG, "After state transfer, return due to already updated crypto system");
+    return;
+  }
   // If we reached state transfer, all keys should have beed exchanged in the source replica
   // TODO might be changed when full rotation is imp
   ConcordAssert(keyStore_.loadAllReplicasKeyStoresFromReservedPages());
@@ -198,7 +209,7 @@ void KeyManager::loadKeysFromReservedPages() {
   }
   keysExchanged = true;
   LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
-  notifyRegistry();
+  notifyRegistry(true);
 }
 
 void KeyManager::sendKeyExchange() {
@@ -266,7 +277,10 @@ void KeyManager::KeysViewData::deserializeDataMembers(std::istream& inStream) {
   deserialize(inStream, publicKeys);
 }
 
-KeyManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec, uint32_t clusterSize) : secStore(sec) {
+KeyManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec,
+                               std::shared_ptr<ISecureStore> backSec,
+                               uint32_t clusterSize)
+    : secStore(sec), backupSecStore(backSec) {
   data.publicKeys.resize(clusterSize);
 }
 
@@ -281,9 +295,21 @@ void KeyManager::KeysView::save() {
     LOG_DEBUG(KEY_EX_LOG, "Saver is not set");
     return;
   }
+  save(secStore);
+}
+
+void KeyManager::KeysView::backup() {
+  if (!backupSecStore) {
+    LOG_DEBUG(KEY_EX_LOG, "Backup is not set");
+    return;
+  }
+  save(backupSecStore);
+}
+
+void KeyManager::KeysView::save(std::shared_ptr<ISecureStore>& secureStore) {
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, data);
-  secStore->save(ss.str());
+  secureStore->save(ss.str());
 }
 
 bool KeyManager::KeysView::load() {
