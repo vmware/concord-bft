@@ -1,4 +1,4 @@
-name: Build gcc release
+name: Release build (gcc)
 on: [push, pull_request]
 
 jobs:
