@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Metrics.hpp"
-#include <mutex>
 #ifdef USE_ROCKSDB
 #include <rocksdb/statistics.h>
 #include <unordered_map>
@@ -22,7 +21,7 @@ namespace storage {
  */
 class InMemoryStorageMetrics {
   std::atomic<uint32_t> last_metrics_update_ = 0;
-  uint32_t metrics_update_interval_ = 100;  // We update the metrics once in 100 operations.
+  uint32_t metrics_update_interval_ = 1000;  // We update the metrics once in 1000 operations.
 
  public:
   concordMetrics::Component metrics_;
@@ -43,9 +42,8 @@ class InMemoryStorageMetrics {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
 
   void tryToUpdateMetrics() {
-    if (last_metrics_update_++ > metrics_update_interval_) {
+    if ((last_metrics_update_++) % metrics_update_interval_ == 0) {
       metrics_.UpdateAggregator();
-      last_metrics_update_ = 0;
     }
   }
 };
@@ -70,7 +68,7 @@ class RocksDbStorageMetrics {
   std::shared_ptr<::rocksdb::Statistics> statistics;
 
   std::atomic<uint32_t> last_metrics_update_ = 0;
-  uint32_t metrics_update_interval_ = 100;  // We update the metrics once in 100 operations.
+  uint32_t metrics_update_interval_ = 1000;  // We update the metrics once in 1000 operations.
 
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
@@ -111,13 +109,12 @@ class RocksDbStorageMetrics {
   }
 
   void tryToUpdateMetrics() {
-    if (last_metrics_update_++ > metrics_update_interval_) {
+    if ((last_metrics_update_++) % metrics_update_interval_ == 0) {
       for (auto& pair : active_tickers_) {
         pair.second.Get().Set(statistics->getTickerCount(pair.first));
       }
       total_db_disk_size_.Get().Set(sstFm->GetTotalSize());
       rocksdb_comp_.UpdateAggregator();
-      last_metrics_update_ = 0;
     }
   }
 };
