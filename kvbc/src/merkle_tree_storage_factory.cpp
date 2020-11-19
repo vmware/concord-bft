@@ -20,14 +20,16 @@
 namespace concord::kvbc::v2MerkleTree {
 
 #ifdef USE_ROCKSDB
-RocksDBStorageFactory::RocksDBStorageFactory(const std::string &dbPath) : dbPath_{dbPath} {}
+RocksDBStorageFactory::RocksDBStorageFactory(const std::string& dbPath,
+                                             const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet)
+    : dbPath_{dbPath}, nonProvableKeySet_{nonProvableKeySet} {}
 
 IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
   auto ret = IStorageFactory::DatabaseSet{};
   ret.dataDBClient = std::make_shared<storage::rocksdb::Client>(dbPath_);
   ret.dataDBClient->init();
   ret.metadataDBClient = ret.dataDBClient;
-  ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient);
+  ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient, true, nonProvableKeySet_);
   return ret;
 }
 

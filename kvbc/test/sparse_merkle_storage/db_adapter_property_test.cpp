@@ -1,10 +1,10 @@
 // Copyright 2020 VMware, all rights reserved
 
 #include "gtest/gtest.h"
-#include "rapidcheck/rapidcheck.h"
-#include "rapidcheck/extras/gtest.h"
+#include <rapidcheck.h>
+#include <rapidcheck/gtest.h>
 
-#include "storage_test_common.h"
+#include "kvbc_storage_test_common.h"
 
 #include "kv_types.hpp"
 #include "merkle_tree_block.h"
@@ -93,7 +93,10 @@ struct IDbAdapterTest {
 
 template <typename Database, bool multiVersionedKeys = false>
 struct DbAdapterTest : public IDbAdapterTest {
-  std::shared_ptr<IDBClient> db() const override { return Database::create(); }
+  std::shared_ptr<IDBClient> db() const override {
+    Database::cleanup();
+    return Database::create();
+  }
   std::string type() const override {
     return Database::type() + (enforceMultiVersionedKeys() ? "_enforcedMultiVerKey" : "_noMultiVerKeyEnforced");
   }

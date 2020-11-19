@@ -265,9 +265,17 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
-  LOG_INFO(GL,
-           "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
-  delete m;
+  if (currentViewIsActive() && m->viewNumber() == getCurrentView()) {
+    LOG_INFO(VC_LOG,
+             "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
+    complainedReplicas.store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
+    tryToGotoNextView();
+  } else {
+    LOG_WARN(VC_LOG,
+             "Ignoring ReplicaAsksToLeaveViewMsg " << KVLOG(
+                 getCurrentView(), currentViewIsActive(), m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
+    delete m;
+  }
 }
 
 bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
@@ -2029,6 +2037,18 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     tryToSendStatusReport();
   }
 
+  /////////////////////////////////////////////////////////////////////////
+  // msgSenderId's View is active and we have complaints for this View
+  /////////////////////////////////////////////////////////////////////////
+
+  if (msg->currentViewIsActive()) {
+    for (const auto &i : complainedReplicas.getAllMsgs()) {
+      if (!msg->hasComplaintFromReplica(i.first) && msg->getViewNumber() == i.second->viewNumber()) {
+        sendAndIncrementMetric(i.second.get(), msgSenderId, metric_sent_replica_asks_to_leave_view_msg_due_to_status_);
+      }
+    }
+  }
+
   delete msg;
 }
 
@@ -2069,6 +2089,11 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
                        listOfMissingVCMsg,
                        listOfMissingPPMsg);
 
+  if (viewIsActive) {
+    for (const auto &i : complainedReplicas.getAllMsgs()) {
+      msg.setComplaintFromReplica(i.first);
+    }
+  }
   if (listOfPPInActiveWindow) {
     const SeqNum start = lastStableSeqNum + 1;
     const SeqNum end = lastStableSeqNum + kWorkWindowSize;
@@ -2415,6 +2440,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(curView);
+  complainedReplicas.clear();
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
@@ -2893,7 +2919,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   }
 
   if (currentViewIsActive()) {
-    if (isCurrentPrimary()) return;
+    if (isCurrentPrimary() || complainedReplicas.getComplaintFromReplica(config_.replicaId) != nullptr) return;
 
     const Time timeOfEarliestPendingRequest = clientsManager->timeOfEarliestPendingRequest();
 
@@ -2913,8 +2939,9 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
           config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
       sendToAllOtherReplicas(askToLeaveView.get());
+      complainedReplicas.store(std::move(askToLeaveView));
 
-      GotoNextView();
+      tryToGotoNextView();
       return;
     }
   } else  // not currentViewIsActive()
@@ -3292,6 +3319,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
+      complainedReplicas(config),
       metric_view_{metrics_.RegisterGauge("view", curView)},
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
@@ -3331,6 +3359,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_sent_viewchange_msg_due_to_status_{metrics_.RegisterCounter("sentViewChangeMsgDueToTimer")},
       metric_sent_newview_msg_due_to_status_{metrics_.RegisterCounter("sentNewviewMsgDueToCounter")},
       metric_sent_preprepare_msg_due_to_status_{metrics_.RegisterCounter("sentPreprepareMsgDueToStatus")},
+      metric_sent_replica_asks_to_leave_view_msg_due_to_status_{
+          metrics_.RegisterCounter("sentReplicaAsksToLeaveViewMsgDueToStatus")},
       metric_sent_preprepare_msg_due_to_reqMissingData_{
           metrics_.RegisterCounter("sentPreprepareMsgDueToReqMissingData")},
       metric_sent_startSlowPath_msg_due_to_reqMissingData_{
@@ -3352,6 +3382,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_{metrics_.RegisterCounter("totalFastPaths")},
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
+      metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
@@ -3741,6 +3772,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         const auto requestSeqNum = req.requestSeqNum();
         LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(clientId, requestSeqNum));
       } else {
+        if (req.flags() & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
         ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
             clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
         replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
@@ -3879,6 +3911,14 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     stopAtNextCheckpoint_ = true;
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
+}
+
+void ReplicaImp::tryToGotoNextView() {
+  if (complainedReplicas.hasQuorumToLeaveView()) {
+    GotoNextView();
+  } else {
+    LOG_INFO(VC_LOG, "Insufficient quorum for moving to next view " << KVLOG(getCurrentView()));
+  }
 }
 
 IncomingMsgsStorage &ReplicaImp::getIncomingMsgsStorage() { return *msgsCommunicator_->getIncomingMsgsStorage(); }

@@ -1118,3 +1118,21 @@ class BftTestNetwork:
                 lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
             self.stop_all_replicas()
             return lastExecutedVal
+
+    async def assert_successful_pre_executions_count(self, replica_id, num_requests):
+        try:
+            pre_proc_req = 0
+            total_pre_exec_requests_executed = 0
+            with trio.fail_after(5):
+                while pre_proc_req < num_requests or \
+                        total_pre_exec_requests_executed != num_requests:
+                    key1 = ["preProcessor", "Counters", "preProcReqSentForFurtherProcessing"]
+                    pre_proc_req = await self.metrics.get(replica_id, *key1)
+                    key2 = ["replica", "Counters", "totalPreExecRequestsExecuted"]
+                    total_pre_exec_requests_executed = await self.metrics.get(replica_id, *key2)
+                    await trio.sleep(0.1)
+        except trio.TooSlowError:
+            assert False, "Preprocessor requests " + \
+                      f'(expected={num_requests} ' \
+                      f'executed={total_pre_exec_requests_executed} ' \
+                      f'preexecsent={pre_proc_req})'

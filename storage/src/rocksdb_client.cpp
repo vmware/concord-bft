@@ -91,7 +91,7 @@ bool Client::isNew() {
  *
  *  @throw GeneralError in case of error in connection, else OK.
  */
-void Client::init(bool readOnly) {
+std::optional<std::vector<::rocksdb::ColumnFamilyHandle *>> Client::initDB(bool readOnly, bool initCFamilies) {
   ::rocksdb::DB *db;
   ::rocksdb::Options options;
   ::rocksdb::TransactionDBOptions txn_options;
@@ -113,7 +113,6 @@ void Client::init(bool readOnly) {
   options.level0_slowdown_writes_trigger = 48;
   options.level0_stop_writes_trigger = 56;
   options.bytes_per_sync = 1024 * 2048;
-  options.max_open_files = 50;
 
   table_options.block_size = 4 * 4096;
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
@@ -144,17 +143,38 @@ void Client::init(bool readOnly) {
 
   options.write_buffer_size = 512 << 20;  // set default memtable size to 512mb to improve perf
 
+  auto ret = std::optional<std::vector<::rocksdb::ColumnFamilyHandle *>>{std::nullopt};
+
   // If a comparator is passed, use it. If not, use the default one.
   if (comparator_) {
     options.comparator = comparator_.get();
   }
   ::rocksdb::Status s;
-  if (readOnly) {
+  if (readOnly && !initCFamilies) {
     s = ::rocksdb::DB::OpenForReadOnly(options, m_dbPath, &db);
     if (!s.ok())
       throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
                                s.ToString());
     dbInstance_.reset(db);
+  } else if (initCFamilies) {
+    auto cf_handles = std::vector<::rocksdb::ColumnFamilyHandle *>{};
+    if (cf_descs.empty()) {
+      cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{});
+    }
+    if (readOnly) {
+      s = ::rocksdb::DB::OpenForReadOnly(options, m_dbPath, cf_descs, &cf_handles, &db);
+      if (!s.ok())
+        throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
+                                 s.ToString());
+      dbInstance_.reset(db);
+    } else {
+      s = ::rocksdb::TransactionDB::Open(options, txn_options, m_dbPath, cf_descs, &cf_handles, &txn_db_);
+      if (!s.ok())
+        throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
+                                 s.ToString());
+      dbInstance_.reset(txn_db_->GetBaseDB());
+    }
+    ret = std::move(cf_handles);
   } else {
     s = ::rocksdb::TransactionDB::Open(options, txn_options, m_dbPath, &txn_db_);
     if (!s.ok())
@@ -163,6 +183,12 @@ void Client::init(bool readOnly) {
     dbInstance_.reset(txn_db_->GetBaseDB());
   }
   storage_metrics_.setMetricsDataSources(options.sst_file_manager, options.statistics);
+  return ret;
+}  // namespace rocksdb
+
+void Client::init(bool readOnly) {
+  const auto initCFamilies = false;
+  initDB(readOnly, initCFamilies);
 }
 
 Status Client::get(const Sliver &_key, OUT std::string &_value) const {

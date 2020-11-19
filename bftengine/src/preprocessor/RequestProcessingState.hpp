@@ -15,6 +15,7 @@
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/PreProcessRequestMsg.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
+#include "PreProcessorRecorder.hpp"
 #include <vector>
 #include <map>
 
@@ -57,7 +58,7 @@ class RequestProcessingState {
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
   void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
 
-  static void init(uint16_t numOfRequiredReplies);
+  static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
@@ -74,6 +75,7 @@ class RequestProcessingState {
 
  private:
   static uint16_t numOfRequiredEqualReplies_;
+  static preprocessor::PreProcessorRecorder* preProcessorHistograms_;
 
   // The use of the class data members is thread-safe. The PreProcessor class uses a per-instance mutex lock for
   // the RequestProcessingState objects.

@@ -12,6 +12,7 @@
 #pragma once
 
 #include "messages/MessageBase.hpp"
+#include "../PreProcessorRecorder.hpp"
 #include "sha_hash.hpp"
 #include <memory>
 
@@ -22,6 +23,7 @@ typedef enum { STATUS_GOOD, STATUS_REJECT } ReplyStatus;
 class PreProcessReplyMsg : public MessageBase {
  public:
   PreProcessReplyMsg(bftEngine::impl::SigManagerSharedPtr sigManager,
+                     preprocessor::PreProcessorRecorder* histograms,
                      NodeIdType senderId,
                      uint16_t clientId,
                      uint64_t reqSeqNum,
@@ -29,7 +31,10 @@ class PreProcessReplyMsg : public MessageBase {
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
 
-  void setupMsgBody(const char* buf, uint32_t bufLen, const std::string& cid, ReplyStatus status);
+  void setupMsgBody(const char* preProcessResultBuf,
+                    uint32_t preProcessResultBufLen,
+                    const std::string& cid,
+                    ReplyStatus status);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   const uint16_t clientId() const { return msgBody()->clientId; }
@@ -40,6 +45,9 @@ class PreProcessReplyMsg : public MessageBase {
   const uint8_t status() const { return msgBody()->status; }
   std::string getCid() const;
   void setSigManager(bftEngine::impl::SigManagerSharedPtr sigManager) { sigManager_ = sigManager; }
+  void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {
+    preProcessorHistograms_ = histograms;
+  }
 
  protected:
 #pragma pack(push, 1)
@@ -69,6 +77,7 @@ class PreProcessReplyMsg : public MessageBase {
   static uint16_t maxReplyMsgSize_;
 
   bftEngine::impl::SigManagerSharedPtr sigManager_;
+  preprocessor::PreProcessorRecorder* preProcessorHistograms_ = nullptr;
 };
 
 typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;

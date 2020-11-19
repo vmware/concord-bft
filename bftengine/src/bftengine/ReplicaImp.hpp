@@ -36,6 +36,7 @@
 #include "performance_handler.h"
 #include "RequestsBatchingLogic.hpp"
 #include "ReplicaStatusHandlers.hpp"
+#include "ReplicasAskedToLeaveViewInfo.hpp"
 
 namespace bftEngine::impl {
 
@@ -163,6 +164,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
   SeqNum seqNumToStopAt_ = 0;
+
+  ReplicasAskedToLeaveViewInfo complainedReplicas;
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -205,6 +208,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_sent_viewchange_msg_due_to_status_;
   CounterHandle metric_sent_newview_msg_due_to_status_;
   CounterHandle metric_sent_preprepare_msg_due_to_status_;
+  CounterHandle metric_sent_replica_asks_to_leave_view_msg_due_to_status_;
   CounterHandle metric_sent_preprepare_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_startSlowPath_msg_due_to_reqMissingData_;
   CounterHandle metric_sent_partialCommitProof_msg_due_to_reqMissingData_;
@@ -218,6 +222,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_fastPath_;
   CounterHandle metric_total_slowPath_requests_;
   CounterHandle metric_total_fastPath_requests_;
+  CounterHandle metric_total_preexec_requests_executed_;
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,
@@ -382,6 +387,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   void sendCheckpointIfNeeded();
+
+  void tryToGotoNextView();
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override;
 

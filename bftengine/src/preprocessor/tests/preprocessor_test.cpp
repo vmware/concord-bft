@@ -49,6 +49,7 @@ const NodeIdType replica_1 = 1;
 const NodeIdType replica_2 = 2;
 const NodeIdType replica_3 = 3;
 const NodeIdType replica_4 = 4;
+PreProcessorRecorder preProcessorRecorder;
 
 uint64_t reqRetryId = 20;
 
@@ -330,8 +331,8 @@ void setUpCommunication() {
 }
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
-  auto preProcessReplyMsg =
-      make_shared<PreProcessReplyMsg>(sigManager_[replicaId], replicaId, clientId, reqSeqNum, reqRetryId);
+  auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(
+      sigManager_[replicaId], &preProcessorRecorder, replicaId, clientId, reqSeqNum, reqRetryId);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
@@ -497,7 +498,7 @@ int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   logging::initLogger("logging.properties");
   setUpConfiguration_4();
-  RequestProcessingState::init(numOfRequiredReplies);
+  RequestProcessingState::init(numOfRequiredReplies, &preProcessorRecorder);
   const chrono::milliseconds msgTimeOut(20000);
   msgsStorage = make_shared<IncomingMsgsStorageImp>(msgHandlersRegPtr, msgTimeOut, replicaConfig.replicaId);
   setUpCommunication();
