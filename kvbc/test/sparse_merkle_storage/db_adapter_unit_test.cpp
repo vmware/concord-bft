@@ -235,27 +235,6 @@ TEST_P(db_adapter_custom_blockchain, add_block_only_with_non_provable_keys) {
   ASSERT_THROW(adapter.getValue(defaultSliver, numBlocks), NotFoundException);
 }
 
-TEST_P(db_adapter_custom_blockchain, raw_block_with_non_provable_keys) {
-  std::string key1{"key1"};
-  std::string key2{"key2"};
-  std::string key3{"key3"};
-  const Sliver skey1{std::move(key1)};
-  const Sliver skey2{std::move(key2)};
-  const Sliver skey3{std::move(key3)};
-  concord::kvbc::v2MerkleTree::DBAdapter::NonProvableKeySet non_provable_key_set = {skey1, skey2, skey3};
-  auto adapter = DBAdapter{GetParam()->newEmptyDb(), true, non_provable_key_set};
-
-  const auto updates = SetOfKeyValuePairs{{skey1, defaultSliver}, {skey2, defaultSliver}, {skey3, defaultSliver}};
-  const auto numBlocks = 4u;
-  for (auto i = 0u; i < numBlocks; ++i) {
-    ASSERT_EQ(adapter.addBlock(updates), i + 1);
-  }
-
-  for (auto i = 0u; i < numBlocks; ++i) {
-    ASSERT_EQ(block::detail::getData(adapter.getRawBlock(i + 1)), updates);
-  }
-}
-
 TEST_P(db_adapter_custom_blockchain, add_block_throws_if_deletes_contain_non_provable_keys) {
   std::string key1{"key1"};
   std::string key2{"key2"};
@@ -705,6 +684,7 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
     const auto &referenceBlock = referenceBlockchain[i - 1];
     ASSERT_NO_THROW(
         adapter.addBlock(block::detail::getData(referenceBlock), block::detail::getDeletedKeys(referenceBlock)));
+    ASSERT_EQ(adapter.getGenesisBlockId(), 1);
     ASSERT_EQ(adapter.getLatestBlockId(), i);
     ASSERT_EQ(adapter.getLastReachableBlockId(), i);
   }
@@ -713,9 +693,11 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_reverse_order_with_blockchain_b
   for (auto i = numTotalBlocks; i > numBlockchainBlocks; --i) {
     ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[i - 1], i));
     ASSERT_EQ(adapter.getLatestBlockId(), numTotalBlocks);
+    ASSERT_EQ(adapter.getGenesisBlockId(), 1);
     if (i == numBlockchainBlocks + 1) {
       // We link the blockchain and state transfer chains at that point.
       ASSERT_EQ(adapter.getLastReachableBlockId(), numTotalBlocks);
+      ASSERT_EQ(adapter.getLatestBlockId(), numTotalBlocks);
     } else {
       ASSERT_EQ(adapter.getLastReachableBlockId(), numBlockchainBlocks);
     }
@@ -852,6 +834,57 @@ TEST_P(db_adapter_ref_blockchain, state_transfer_unordered_with_blockchain_block
   }
 }
 
+TEST_P(db_adapter_ref_blockchain, partial_unordered_state_transfer) {
+  const auto numBlockchainBlocks = 5;
+  const auto numStBlocks = 3;
+  const auto numTotalBlocks = numBlockchainBlocks + numStBlocks;
+  const auto referenceBlockchain = GetParam()->referenceBlockchain(GetParam()->newEmptyDb(), numTotalBlocks);
+
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
+
+  // Add blocks to the blockchain and verify both block pointers.
+  for (auto i = 1; i <= numBlockchainBlocks; ++i) {
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_NO_THROW(
+        adapter.addBlock(block::detail::getData(referenceBlock), block::detail::getDeletedKeys(referenceBlock)));
+    ASSERT_EQ(adapter.getGenesisBlockId(), 1);
+    ASSERT_EQ(adapter.getLatestBlockId(), i);
+    ASSERT_EQ(adapter.getLastReachableBlockId(), i);
+  }
+
+  // Add block 8.
+  {
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[7], 8));
+    ASSERT_EQ(adapter.getGenesisBlockId(), 1);
+    ASSERT_EQ(adapter.getLastReachableBlockId(), numBlockchainBlocks);
+    ASSERT_EQ(adapter.getLatestBlockId(), 8);
+  }
+
+  // Add block 6.
+  {
+    ASSERT_NO_THROW(adapter.addRawBlock(referenceBlockchain[5], 6));
+    ASSERT_EQ(adapter.getGenesisBlockId(), 1);
+    ASSERT_EQ(adapter.getLastReachableBlockId(), 6);
+    ASSERT_EQ(adapter.getLatestBlockId(), 8);
+  }
+
+  // Verify that all blocks are accessible at the end.
+  for (auto i = 1; i <= 6; ++i) {
+    const auto rawBlock = adapter.getRawBlock(i);
+    const auto &referenceBlock = referenceBlockchain[i - 1];
+    ASSERT_TRUE(rawBlock == referenceBlock);
+    ASSERT_TRUE(block::detail::getData(rawBlock) == block::detail::getData(referenceBlock));
+    ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock) == block::detail::getDeletedKeys(referenceBlock));
+    ASSERT_TRUE(block::detail::getStateHash(rawBlock) == block::detail::getStateHash(referenceBlock));
+  }
+  const auto rawBlock8 = adapter.getRawBlock(8);
+  const auto &referenceBlock8 = referenceBlockchain[8 - 1];
+  ASSERT_TRUE(rawBlock8 == referenceBlock8);
+  ASSERT_TRUE(block::detail::getData(rawBlock8) == block::detail::getData(referenceBlock8));
+  ASSERT_TRUE(block::detail::getDeletedKeys(rawBlock8) == block::detail::getDeletedKeys(referenceBlock8));
+  ASSERT_TRUE(block::detail::getStateHash(rawBlock8) == block::detail::getStateHash(referenceBlock8));
+}
+
 TEST_P(db_adapter_custom_blockchain, delete_last_reachable_block) {
   const auto numBlocks = 10;
   auto adapter = DBAdapter{GetParam()->newEmptyDb()};
@@ -969,6 +1002,15 @@ TEST_P(db_adapter_custom_blockchain, delete_on_an_empty_blockchain) {
   ASSERT_NO_THROW(adapter.deleteBlock(1));
 }
 
+TEST_P(db_adapter_custom_blockchain, delete_block_0_on_non_empty_chain_is_not_an_error) {
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
+  const auto key = Sliver{"k"};
+
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(key, Sliver{"v1"})}), 1);
+
+  ASSERT_NO_THROW(adapter.deleteBlock(0));
+}
+
 TEST_P(db_adapter_custom_blockchain, delete_single_st_block) {
   auto adapter = DBAdapter{GetParam()->newEmptyDb()};
 
@@ -1027,6 +1069,46 @@ TEST_P(db_adapter_custom_blockchain, delete_genesis_block) {
   const auto value = adapter.getValue(key, 2);
   ASSERT_EQ(value.second, 1);
   ASSERT_EQ(value.first, Sliver{"v1"});
+}
+
+TEST_P(db_adapter_custom_blockchain, block_ids_are_persisted_after_deletes) {
+  auto db = GetParam()->newEmptyDb();
+  auto adapter = std::make_unique<DBAdapter>(db);
+
+  const auto key = Sliver{"k"};
+
+  // Add blockchain blocks.
+  ASSERT_EQ(adapter->addBlock(SetOfKeyValuePairs{std::make_pair(key, Sliver{"v1"})}), 1);
+  ASSERT_EQ(adapter->addBlock(SetOfKeyValuePairs{}), 2);
+  ASSERT_EQ(adapter->addBlock(SetOfKeyValuePairs{std::make_pair(key, Sliver{"v3"})}), 3);
+
+  // Add ST temporary blocks.
+  ASSERT_NO_THROW(adapter->addRawBlock(
+      block::detail::create(SetOfKeyValuePairs{std::make_pair(key, Sliver{"v8"})}, BlockDigest{}, Hash{}), 8));
+  ASSERT_NO_THROW(adapter->addRawBlock(
+      block::detail::create(SetOfKeyValuePairs{std::make_pair(key, Sliver{"v9"})}, BlockDigest{}, Hash{}), 9));
+
+  // Verify before deletion.
+  ASSERT_EQ(adapter->getGenesisBlockId(), 1);
+  ASSERT_EQ(adapter->getLastReachableBlockId(), 3);
+  ASSERT_EQ(adapter->getLatestBlockId(), 9);
+
+  // Delete genesis, last reachable and a ST temporary blocks.
+  adapter->deleteBlock(1);  // genesis
+  adapter->deleteBlock(3);  // last reachable
+  adapter->deleteBlock(9);  // ST temp
+
+  // Verify after deletion.
+  ASSERT_EQ(adapter->getGenesisBlockId(), 2);
+  ASSERT_EQ(adapter->getLastReachableBlockId(), 2);
+  ASSERT_EQ(adapter->getLatestBlockId(), 8);
+
+  // Create a new adapter instance, simulating a system restart, and verify.
+  adapter.reset();
+  adapter = std::make_unique<DBAdapter>(db);
+  ASSERT_EQ(adapter->getGenesisBlockId(), 2);
+  ASSERT_EQ(adapter->getLastReachableBlockId(), 2);
+  ASSERT_EQ(adapter->getLatestBlockId(), 8);
 }
 
 TEST_P(db_adapter_custom_blockchain, get_value_from_deleted_block) {

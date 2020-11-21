@@ -3537,7 +3537,9 @@ void ReplicaImp::start() {
 
   // requires the init of state transfer
   std::shared_ptr<ISecureStore> sec(
-      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
+      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
+  std::shared_ptr<ISecureStore> backupsec(
+      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
   KeyManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.getreplicaId();
@@ -3547,6 +3549,7 @@ void ReplicaImp::start() {
   id.kg = &CryptoManager::instance();
   id.ke = &CryptoManager::instance();
   id.sec = sec;
+  id.backupSec = backupsec;
   id.timers = &timers_;
   id.a = aggregator_;
   id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
@@ -3772,6 +3775,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           const auto requestSeqNum = request.requestSequenceNum;
           LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(request.clientId, requestSeqNum));
         } else {
+          if (request.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
           std::unique_ptr<ClientReplyMsg> replyMsg{
               clientsManager->allocateNewReplyMsgAndWriteToStorage(request.clientId,
                                                                    request.requestSequenceNum,
@@ -3799,6 +3803,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           const auto requestSeqNum = it->requestSequenceNum;
           LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(it->clientId, requestSeqNum));
         } else {
+          if (it->flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
           std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
               it->clientId, it->requestSequenceNum, currentPrimary(), it->outReply.data(), it->outActualReplySize)};
           replyMsg->setReplicaSpecificInfoLength(it->outReplicaSpecificInfoSize);

@@ -46,8 +46,8 @@ class KeyManager {
   std::atomic_bool keysExchanged{false};
 
   struct FileSecureStore : public ISecureStore {
-    FileSecureStore(const std::string& path, uint16_t id) {
-      fileName = path + "/" + fileName + "_" + std::to_string(id);
+    FileSecureStore(const std::string& path, uint16_t id, const std::string& postfix = "") {
+      fileName = path + "/" + fileName + "_" + std::to_string(id) + postfix;
       LOG_INFO(KEY_EX_LOG, "Key view file is " << fileName);
     }
     std::string fileName{"genSec"};
@@ -77,8 +77,9 @@ class KeyManager {
 
   struct KeysView {
    public:
-    KeysView(std::shared_ptr<ISecureStore> sec, uint32_t clusterSize);
+    KeysView(std::shared_ptr<ISecureStore> sec, std::shared_ptr<ISecureStore> backSec, uint32_t clusterSize);
     void save();
+    void backup();
     bool load();
     void rotate(std::string& dst, std::string& src);
     KeysViewData& keys() { return data; }
@@ -88,6 +89,10 @@ class KeyManager {
     }
     KeysViewData data;
     std::shared_ptr<ISecureStore> secStore{nullptr};
+    std::shared_ptr<ISecureStore> backupSecStore{nullptr};
+
+   private:
+    void save(std::shared_ptr<ISecureStore>& secureStore);
   };
 
   std::future<void> futureRet;
@@ -101,6 +106,7 @@ class KeyManager {
     IMultiSigKeyGenerator* kg{nullptr};
     IKeyExchanger* ke{nullptr};
     std::shared_ptr<ISecureStore> sec;
+    std::shared_ptr<ISecureStore> backupSec;
     concordUtil::Timers* timers{nullptr};
     std::shared_ptr<concordMetrics::Aggregator> a;
     std::chrono::seconds interval;
@@ -132,7 +138,7 @@ class KeyManager {
   KeysView keysView_;
 
   void onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn);
-  void notifyRegistry();
+  void notifyRegistry(bool save);
 
   // Samples periodically how many connections the replica has with other replicas.
   // returns when num of connections is (clusterSize - 1) i.e. full communication.
