@@ -250,10 +250,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     LOG_DEBUG(
         GL,
         "ClientRequestMsg has already been executed: retransmitting reply to client. " << KVLOG(reqSeqNum, clientId));
-
-    ClientReplyMsg *repMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-    send(repMsg, clientId);
-    delete repMsg;
+    std::unique_ptr<ClientReplyMsg> repMsg{clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary())};
+    send(repMsg.get(), clientId);
   } else {
     LOG_INFO(GL,
              "ClientRequestMsg is ignored because request sequence number is not monotonically increasing. "
@@ -3693,9 +3691,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         }
 
         if (seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
-          ClientReplyMsg *replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-          send(replyMsg, clientId);
-          delete replyMsg;
+          std::unique_ptr<ClientReplyMsg> replyMsg{
+              clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary())};
+          send(replyMsg.get(), clientId);
           continue;
         }
 
@@ -3733,57 +3731,84 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       LOG_DEBUG(CNSUS, "Consensus reached");
     }
     SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
+    std::deque<IRequestsHandler::ExecutionRequest> accumulatedRequests;
     while (reqIter.getAndGoToNext(requestBody)) {
       size_t tmp = reqIdx;
       reqIdx++;
       if (!requestSet.get(tmp)) {
         continue;
       }
-
       ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
       if (req.flags() & EMPTY_CLIENT_FLAG) {
         continue;
       }
       SCOPED_MDC_CID(req.getCid());
       NodeIdType clientId = req.clientProxyId();
-
       uint32_t actualReplyLength = 0;
       uint32_t actualReplicaSpecificInfoLength = 0;
-      int status;
+      int preExecutedResponse = 1;
+      accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
+          clientId,
+          static_cast<uint64_t>(lastExecutedSeqNum + 1),
+          req.flags(),
+          std::string(req.requestBuf(), req.requestLength()),
+          std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
+          actualReplyLength,
+          actualReplicaSpecificInfoLength,
+          preExecutedResponse,
+          req.requestSeqNum()});
+
+      if (!ReplicaConfig::instance().blockAccumulation) {
+        LOG_DEBUG(GL, "Without accumulation");
+        {
+          TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+          bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
+        }
+        auto request = accumulatedRequests.back();
+        ConcordAssertGT(request.outActualReplySize,
+                        0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+        auto status = request.outExecutionStatus;
+        if (status != 0) {
+          const auto requestSeqNum = request.requestSequenceNum;
+          LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(request.clientId, requestSeqNum));
+        } else {
+          std::unique_ptr<ClientReplyMsg> replyMsg{
+              clientsManager->allocateNewReplyMsgAndWriteToStorage(request.clientId,
+                                                                   request.requestSequenceNum,
+                                                                   currentPrimary(),
+                                                                   request.outReply.data(),
+                                                                   request.outActualReplySize)};
+          replyMsg->setReplicaSpecificInfoLength(request.outReplicaSpecificInfoSize);
+          send(replyMsg.get(), request.clientId);
+        }
+        clientsManager->removePendingRequestOfClient(request.clientId);
+        accumulatedRequests.clear();
+      }
+    }
+    if (ReplicaConfig::instance().blockAccumulation) {
+      LOG_DEBUG(GL, "With accumulation");
       {
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-        status = bftRequestsHandler_.execute(
-            clientId,
-            lastExecutedSeqNum + 1,
-            req.flags(),
-            req.requestLength(),
-            req.requestBuf(),
-            ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader),
-            replyBuffer,
-            actualReplyLength,
-            actualReplicaSpecificInfoLength,
-            span);
+        bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
       }
-
-      ConcordAssertGT(actualReplyLength,
-                      0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-
-      if (status != 0) {
-        const auto requestSeqNum = req.requestSeqNum();
-        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(clientId, requestSeqNum));
-      } else {
-        if (req.flags() & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
-        ClientReplyMsg *replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
-            clientId, req.requestSeqNum(), currentPrimary(), replyBuffer, actualReplyLength);
-        replyMsg->setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
-        send(replyMsg, clientId);
-        delete replyMsg;
+      for (auto it = accumulatedRequests.begin(); it != accumulatedRequests.end(); ++it) {
+        ConcordAssertGT(it->outActualReplySize,
+                        0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+        auto status = it->outExecutionStatus;
+        if (status != 0) {
+          const auto requestSeqNum = it->requestSequenceNum;
+          LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(it->clientId, requestSeqNum));
+        } else {
+          std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
+              it->clientId, it->requestSequenceNum, currentPrimary(), it->outReply.data(), it->outActualReplySize)};
+          replyMsg->setReplicaSpecificInfoLength(it->outReplicaSpecificInfoSize);
+          send(replyMsg.get(), it->clientId);
+        }
+        clientsManager->removePendingRequestOfClient(it->clientId);
       }
-
-      clientsManager->removePendingRequestOfClient(clientId);
+      accumulatedRequests.clear();
     }
   }
-
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
