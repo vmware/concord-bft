@@ -24,21 +24,18 @@ class StorageMetricsUpdator {
   StorageMetrics& storage_metrics_;
   std::thread t;
   std::chrono::milliseconds metrics_update_interval_ = std::chrono::milliseconds(100);  // TODO: read from configuration
-  std::atomic_bool active = true;
+  std::atomic_bool active = false;
 
  public:
   StorageMetricsUpdator(StorageMetrics& storage_metrics) : storage_metrics_(storage_metrics) {}
 
-  ~StorageMetricsUpdator() {
-    active = false;
-    t.join();
-  }
-
   void close() {
+    if (!active) return;
     active = false;
     t.join();
   }
   void start() {
+    active = true;
     t = std::thread([&] {
       while (active) {
         storage_metrics_.updateMetrics();
