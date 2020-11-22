@@ -33,6 +33,11 @@ class StorageMetricsUpdator {
     active = false;
     t.join();
   }
+
+  void close() {
+    active = false;
+    t.join();
+  }
   void start() {
     t = std::thread([&] {
       while (active) {
@@ -50,8 +55,6 @@ class StorageMetricsUpdator {
  * Recall that the in memory db is quite simple and therefor it has only few relevant metrics to collect.
  */
 class InMemoryStorageMetrics : public StorageMetrics {
-  StorageMetricsUpdator metrics_updator_;
-
  public:
   concordMetrics::Component metrics_;
   concordMetrics::AtomicCounterHandle keys_reads_;
@@ -59,18 +62,21 @@ class InMemoryStorageMetrics : public StorageMetrics {
   concordMetrics::AtomicCounterHandle keys_writes_;
   concordMetrics::AtomicCounterHandle total_written_bytes_;
 
+ private:
+  StorageMetricsUpdator metrics_updator_;
+
  public:
   InMemoryStorageMetrics()
-      : metrics_updator_(*this),
-        metrics_("storage_inmemory", std::make_shared<concordMetrics::Aggregator>()),
+      : metrics_("storage_inmemory", std::make_shared<concordMetrics::Aggregator>()),
         keys_reads_(metrics_.RegisterAtomicCounter("storage_inmemory_total_read_keys")),
         total_read_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_read_bytes")),
         keys_writes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_keys")),
-        total_written_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_bytes")) {
+        total_written_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_bytes")),
+        metrics_updator_(*this) {
     metrics_.Register();
     metrics_updator_.start();
   }
-
+  ~InMemoryStorageMetrics() { metrics_updator_.close(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
   void updateMetrics() override { metrics_.UpdateAggregator(); }
 };
@@ -87,19 +93,19 @@ class InMemoryStorageMetrics : public StorageMetrics {
  * operation) the overhead of that approach is negligible.
  */
 class RocksDbStorageMetrics : public StorageMetrics {
-  StorageMetricsUpdator metrics_updator_;
   concordMetrics::Component rocksdb_comp_;
   std::unordered_map<::rocksdb::Tickers, concordMetrics::AtomicGaugeHandle> active_tickers_;
   concordMetrics::AtomicGaugeHandle total_db_disk_size_;
 
   std::shared_ptr<::rocksdb::SstFileManager> sstFm;
   std::shared_ptr<::rocksdb::Statistics> statistics;
+  StorageMetricsUpdator metrics_updator_;
 
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
-      : metrics_updator_(*this),
-        rocksdb_comp_("storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()),
-        total_db_disk_size_(rocksdb_comp_.RegisterAtomicGauge("storage_rocksdb_total_db_disk_size", 0)) {
+      : rocksdb_comp_("storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()),
+        total_db_disk_size_(rocksdb_comp_.RegisterAtomicGauge("storage_rocksdb_total_db_disk_size", 0)),
+        metrics_updator_(*this) {
     for (const auto& pair : ::rocksdb::TickersNameMap) {
       if (std::find(tickers.begin(), tickers.end(), pair.first) != tickers.end()) {
         auto metric_suffix = pair.second;
@@ -110,6 +116,8 @@ class RocksDbStorageMetrics : public StorageMetrics {
     rocksdb_comp_.Register();
     metrics_updator_.start();
   }
+
+  ~RocksDbStorageMetrics() { metrics_updator_.close(); }
 
   /*
    * For now, we have a hardcoded default metrics configuration list.
