@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <thread>
+#include <chrono>
 #include "Metrics.hpp"
 #ifdef USE_ROCKSDB
 #include <rocksdb/statistics.h>
@@ -13,15 +15,42 @@
 namespace concord {
 namespace storage {
 
+class StorageMetrics {
+ public:
+  virtual void updateMetrics() = 0;
+};
+
+class StorageMetricsUpdator {
+  StorageMetrics& storage_metrics_;
+  std::thread t;
+  std::chrono::milliseconds metrics_update_interval_ = std::chrono::milliseconds(100);  // TODO: read from configuration
+  std::atomic_bool active = true;
+
+ public:
+  StorageMetricsUpdator(StorageMetrics& storage_metrics) : storage_metrics_(storage_metrics) {}
+
+  ~StorageMetricsUpdator() {
+    active = false;
+    t.join();
+  }
+  void start() {
+    t = std::thread([&] {
+      while (active) {
+        storage_metrics_.updateMetrics();
+        std::this_thread::sleep_for(std::chrono::milliseconds(metrics_update_interval_));
+      }
+    });
+  }
+};
+
 /*
  * A metrics class for the in memory storage type.
  * We collect the metrics in the same way we do in the whole project; Once an operation has been executed we count it
  * in a local metric variable and once in a while we update the aggregator.
  * Recall that the in memory db is quite simple and therefor it has only few relevant metrics to collect.
  */
-class InMemoryStorageMetrics {
-  std::atomic<uint32_t> last_metrics_update_ = 0;
-  uint32_t metrics_update_interval_ = 1000;  // We update the metrics once in 1000 operations.
+class InMemoryStorageMetrics : public StorageMetrics {
+  StorageMetricsUpdator metrics_updator_;
 
  public:
   concordMetrics::Component metrics_;
@@ -30,22 +59,20 @@ class InMemoryStorageMetrics {
   concordMetrics::AtomicCounterHandle keys_writes_;
   concordMetrics::AtomicCounterHandle total_written_bytes_;
 
+ public:
   InMemoryStorageMetrics()
-      : metrics_("storage_inmemory", std::make_shared<concordMetrics::Aggregator>()),
+      : metrics_updator_(*this),
+        metrics_("storage_inmemory", std::make_shared<concordMetrics::Aggregator>()),
         keys_reads_(metrics_.RegisterAtomicCounter("storage_inmemory_total_read_keys")),
         total_read_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_read_bytes")),
         keys_writes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_keys")),
         total_written_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_bytes")) {
     metrics_.Register();
+    metrics_updator_.start();
   }
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
-
-  void tryToUpdateMetrics() {
-    if ((last_metrics_update_++) % metrics_update_interval_ == 0) {
-      metrics_.UpdateAggregator();
-    }
-  }
+  void updateMetrics() override { metrics_.UpdateAggregator(); }
 };
 #ifdef USE_ROCKSDB
 /*
@@ -59,7 +86,8 @@ class InMemoryStorageMetrics {
  * metrics w.r.t rocksdb configuration list. Even so, as we collect the metrics once in a while (and not on each single
  * operation) the overhead of that approach is negligible.
  */
-class RocksDbStorageMetrics {
+class RocksDbStorageMetrics : public StorageMetrics {
+  StorageMetricsUpdator metrics_updator_;
   concordMetrics::Component rocksdb_comp_;
   std::unordered_map<::rocksdb::Tickers, concordMetrics::AtomicGaugeHandle> active_tickers_;
   concordMetrics::AtomicGaugeHandle total_db_disk_size_;
@@ -67,12 +95,10 @@ class RocksDbStorageMetrics {
   std::shared_ptr<::rocksdb::SstFileManager> sstFm;
   std::shared_ptr<::rocksdb::Statistics> statistics;
 
-  std::atomic<uint32_t> last_metrics_update_ = 0;
-  uint32_t metrics_update_interval_ = 1000;  // We update the metrics once in 1000 operations.
-
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
-      : rocksdb_comp_("storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()),
+      : metrics_updator_(*this),
+        rocksdb_comp_("storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()),
         total_db_disk_size_(rocksdb_comp_.RegisterAtomicGauge("storage_rocksdb_total_db_disk_size", 0)) {
     for (const auto& pair : ::rocksdb::TickersNameMap) {
       if (std::find(tickers.begin(), tickers.end(), pair.first) != tickers.end()) {
@@ -82,6 +108,7 @@ class RocksDbStorageMetrics {
       }
     }
     rocksdb_comp_.Register();
+    metrics_updator_.start();
   }
 
   /*
@@ -108,14 +135,12 @@ class RocksDbStorageMetrics {
     statistics = sourceStatistics;
   }
 
-  void tryToUpdateMetrics() {
-    if ((last_metrics_update_++) % metrics_update_interval_ == 0) {
-      for (auto& pair : active_tickers_) {
-        pair.second.Get().Set(statistics->getTickerCount(pair.first));
-      }
-      total_db_disk_size_.Get().Set(sstFm->GetTotalSize());
-      rocksdb_comp_.UpdateAggregator();
+  void updateMetrics() override {
+    for (auto& pair : active_tickers_) {
+      pair.second.Get().Set(statistics->getTickerCount(pair.first));
     }
+    total_db_disk_size_.Get().Set(sstFm->GetTotalSize());
+    rocksdb_comp_.UpdateAggregator();
   }
 };
 #endif
