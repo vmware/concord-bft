@@ -136,6 +136,7 @@ class RocksDbStorageMetrics : public StorageMetrics {
   }
 
   void updateMetrics() override {
+    if (!sstFm || !statistics) return;
     for (auto& pair : active_tickers_) {
       pair.second.Get().Set(statistics->getTickerCount(pair.first));
     }
