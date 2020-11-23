@@ -3760,7 +3760,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       NodeIdType clientId = req.clientProxyId();
       uint32_t actualReplyLength = 0;
       uint32_t actualReplicaSpecificInfoLength = 0;
-      int preExecutedResponse = 1;
+      int executionStatus = 1;
       accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
           clientId,
           static_cast<uint64_t>(lastExecutedSeqNum + 1),
@@ -3769,36 +3769,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
           actualReplyLength,
           actualReplicaSpecificInfoLength,
-          preExecutedResponse,
+          executionStatus,
           req.requestSeqNum()});
-
-      if (!ReplicaConfig::instance().blockAccumulation) {
-        LOG_DEBUG(GL, "Without accumulation");
-        {
-          TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-          bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
-        }
-        auto request = accumulatedRequests.back();
-        ConcordAssertGT(request.outActualReplySize,
-                        0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-        auto status = request.outExecutionStatus;
-        if (status != 0) {
-          const auto requestSeqNum = request.requestSequenceNum;
-          LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(request.clientId, requestSeqNum));
-        } else {
-          if (request.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
-          std::unique_ptr<ClientReplyMsg> replyMsg{
-              clientsManager->allocateNewReplyMsgAndWriteToStorage(request.clientId,
-                                                                   request.requestSequenceNum,
-                                                                   currentPrimary(),
-                                                                   request.outReply.data(),
-                                                                   request.outActualReplySize)};
-          replyMsg->setReplicaSpecificInfoLength(request.outReplicaSpecificInfoSize);
-          send(replyMsg.get(), request.clientId);
-        }
-        clientsManager->removePendingRequestOfClient(request.clientId);
-        accumulatedRequests.clear();
-      }
     }
     if (ReplicaConfig::instance().blockAccumulation) {
       LOG_DEBUG(GL, "With accumulation");
@@ -3806,24 +3778,36 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
         bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
       }
-      for (auto it = accumulatedRequests.begin(); it != accumulatedRequests.end(); ++it) {
-        ConcordAssertGT(it->outActualReplySize,
-                        0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-        auto status = it->outExecutionStatus;
-        if (status != 0) {
-          const auto requestSeqNum = it->requestSequenceNum;
-          LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(it->clientId, requestSeqNum));
-        } else {
-          if (it->flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
-          std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
-              it->clientId, it->requestSequenceNum, currentPrimary(), it->outReply.data(), it->outActualReplySize)};
-          replyMsg->setReplicaSpecificInfoLength(it->outReplicaSpecificInfoSize);
-          send(replyMsg.get(), it->clientId);
+    } else {
+      LOG_DEBUG(GL, "Without accumulation");
+      std::deque<IRequestsHandler::ExecutionRequest> singletonRequest;
+      for (size_t i = 0; i < accumulatedRequests.size(); i++) {
+        singletonRequest.push_back(accumulatedRequests.at(i));
+        {
+          TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+          bftRequestsHandler_.execute(singletonRequest, ppMsg->getCid(), span);
         }
-        clientsManager->removePendingRequestOfClient(it->clientId);
+        accumulatedRequests.at(i) = singletonRequest.at(0);
+        singletonRequest.clear();
       }
-      accumulatedRequests.clear();
     }
+    for (auto it = accumulatedRequests.begin(); it != accumulatedRequests.end(); ++it) {
+      ConcordAssertGT(it->outActualReplySize,
+                      0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+      auto status = it->outExecutionStatus;
+      if (status != 0) {
+        const auto requestSeqNum = it->requestSequenceNum;
+        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(it->clientId, requestSeqNum));
+      } else {
+        if (it->flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
+        std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
+            it->clientId, it->requestSequenceNum, currentPrimary(), it->outReply.data(), it->outActualReplySize)};
+        replyMsg->setReplicaSpecificInfoLength(it->outReplicaSpecificInfoSize);
+        send(replyMsg.get(), it->clientId);
+      }
+      clientsManager->removePendingRequestOfClient(it->clientId);
+    }
+    accumulatedRequests.clear();
   }
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {

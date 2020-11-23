@@ -61,7 +61,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                       uint32_t &outActualReplicaSpecificInfoSize,
                       concordUtils::SpanWrapper &span) override;
 
-  virtual void execute(std::deque<ExecutionRequest> &requestList,
+  virtual void execute(std::deque<ExecutionRequest> &requests,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) override;
 

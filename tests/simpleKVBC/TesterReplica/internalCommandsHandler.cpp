@@ -61,10 +61,10 @@ int InternalCommandsHandler::execute(uint16_t clientId,
   return res ? 0 : -1;
 }
 
-void InternalCommandsHandler::execute(std::deque<InternalCommandsHandler::ExecutionRequest> &requestList,
+void InternalCommandsHandler::execute(std::deque<InternalCommandsHandler::ExecutionRequest> &requests,
                                       const std::string &batchCid,
                                       concordUtils::SpanWrapper &parent_span) {
-  for (auto it = requestList.begin(); it != requestList.end(); ++it) {
+  for (auto it = requests.begin(); it != requests.end(); ++it) {
     // ReplicaSpecificInfo is not currently used in the TesterReplica
     if (it->outExecutionStatus != 1) continue;
     it->outReplicaSpecificInfoSize = 0;

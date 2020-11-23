@@ -43,10 +43,10 @@ int RequestHandler::execute(uint16_t clientId,
                                        parent_span);
 }
 
-void RequestHandler::execute(std::deque<IRequestsHandler::ExecutionRequest> &requestList,
+void RequestHandler::execute(std::deque<IRequestsHandler::ExecutionRequest> &requests,
                              const std::string &batchCid,
                              concordUtils::SpanWrapper &parent_span) {
-  for (auto it = requestList.begin(); it != requestList.end(); ++it) {
+  for (auto it = requests.begin(); it != requests.end(); ++it) {
     if (it->flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(it->request.c_str(), it->request.size());
       LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
@@ -64,7 +64,7 @@ void RequestHandler::execute(std::deque<IRequestsHandler::ExecutionRequest> &req
       it->flags = READ_ONLY_FLAG;
     }
   }
-  return userRequestsHandler_->execute(requestList, batchCid, parent_span);
+  return userRequestsHandler_->execute(requests, batchCid, parent_span);
 }
 
 void RequestHandler::onFinishExecutingReadWriteRequests() {

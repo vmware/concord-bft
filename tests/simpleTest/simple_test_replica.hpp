@@ -129,10 +129,10 @@ class SimpleAppState : public IRequestsHandler {
     }
     return 0;
   }
-  void execute(std::deque<ExecutionRequest> &requestList,
+  void execute(std::deque<ExecutionRequest> &requests,
                const std::string &batchCid,
                concordUtils::SpanWrapper &parent_span) override {
-    for (auto it = requestList.begin(); it != requestList.end(); ++it) {
+    for (auto it = requests.begin(); it != requests.end(); ++it) {
       // Not currently used
       it->outReplicaSpecificInfoSize = 0;
 
