@@ -21,14 +21,15 @@ namespace storage {
  * Recall that the in memory db is quite simple and therefor it has only few relevant metrics to collect.
  */
 class InMemoryStorageMetrics {
-  std::unique_ptr<concord::util::PeriodicCall> update_metrics_;
-
  public:
   concordMetrics::Component metrics_;
   concordMetrics::AtomicCounterHandle keys_reads_;
   concordMetrics::AtomicCounterHandle total_read_bytes_;
   concordMetrics::AtomicCounterHandle keys_writes_;
   concordMetrics::AtomicCounterHandle total_written_bytes_;
+
+ private:
+  std::unique_ptr<concord::util::PeriodicCall> update_metrics_ = nullptr;
 
  public:
   InMemoryStorageMetrics()
@@ -56,13 +57,13 @@ class InMemoryStorageMetrics {
  * operation) the overhead of that approach is negligible.
  */
 class RocksDbStorageMetrics {
-  std::unique_ptr<concord::util::PeriodicCall> update_metrics_;
   concordMetrics::Component rocksdb_comp_;
   std::unordered_map<::rocksdb::Tickers, concordMetrics::AtomicGaugeHandle> active_tickers_;
   concordMetrics::AtomicGaugeHandle total_db_disk_size_;
 
   std::shared_ptr<::rocksdb::SstFileManager> sstFm;
   std::shared_ptr<::rocksdb::Statistics> statistics;
+  std::unique_ptr<concord::util::PeriodicCall> update_metrics_ = nullptr;
 
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
