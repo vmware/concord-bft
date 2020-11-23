@@ -68,7 +68,7 @@ Chosen option: "Concord Message Format (CMF)", because
 * Canonical serialization is implicit, rather than explicit
 * Not portable
   - No support for different endianness
-  - Mesages must be reimplemented for each language by looking at the C-structs
+  - Messages must be reimplemented for each language by looking at the C-structs
 * Easy to make mistakes
   - Using non-portable types like bool or int
   - Hard to visually inspect the struct since it's mixed with construction, destruction, copy, validation code in C++
