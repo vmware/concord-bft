@@ -39,7 +39,7 @@ class InMemoryStorageMetrics {
         keys_writes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_keys")),
         total_written_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_bytes")) {
     metrics_.Register();
-    update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 1000);
+    update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 100);
   }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
   void updateMetrics() { metrics_.UpdateAggregator(); }
@@ -101,7 +101,7 @@ class RocksDbStorageMetrics {
                              std::shared_ptr<::rocksdb::Statistics> sourceStatistics) {
     sstFm = sourceSstFm;
     statistics = sourceStatistics;
-    update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 1000);
+    update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 100);
   }
 
   void updateMetrics() {
