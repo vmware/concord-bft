@@ -41,7 +41,7 @@ class InMemoryStorageMetrics {
     metrics_.Register();
     update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 100);
   }
-  ~InMemoryStorageMetrics() { update_metrics_.release(); }
+  ~InMemoryStorageMetrics() { update_metrics_.reset(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
   void updateMetrics() { metrics_.UpdateAggregator(); }
 };
@@ -93,7 +93,7 @@ class RocksDbStorageMetrics {
                                ::rocksdb::Tickers::COMPACT_WRITE_BYTES,
                                ::rocksdb::Tickers::FLUSH_WRITE_BYTES,
                                ::rocksdb::Tickers::STALL_MICROS}) {}
-  ~RocksDbStorageMetrics() { update_metrics_.release(); }
+  ~RocksDbStorageMetrics() { update_metrics_.reset();}
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     rocksdb_comp_.SetAggregator(aggregator);
   }
