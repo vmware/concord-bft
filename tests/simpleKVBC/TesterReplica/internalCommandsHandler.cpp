@@ -61,39 +61,39 @@ int InternalCommandsHandler::execute(uint16_t clientId,
   return res ? 0 : -1;
 }
 
-void InternalCommandsHandler::execute(std::deque<InternalCommandsHandler::ExecutionRequest> &requests,
+void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
                                       const std::string &batchCid,
                                       concordUtils::SpanWrapper &parent_span) {
-  for (auto it = requests.begin(); it != requests.end(); ++it) {
+  for (auto &req : requests) {
     // ReplicaSpecificInfo is not currently used in the TesterReplica
-    if (it->outExecutionStatus != 1) continue;
-    it->outReplicaSpecificInfoSize = 0;
+    if (req.outExecutionStatus != 1) continue;
+    req.outReplicaSpecificInfoSize = 0;
     int res;
-    if (it->request.size() < sizeof(SimpleRequest)) {
+    if (req.request.size() < sizeof(SimpleRequest)) {
       LOG_ERROR(m_logger,
-                "The message is too small: requestSize is " << it->request.size() << ", required size is "
+                "The message is too small: requestSize is " << req.request.size() << ", required size is "
                                                             << sizeof(SimpleRequest));
-      it->outExecutionStatus = -1;
+      req.outExecutionStatus = -1;
     }
-    bool readOnly = it->flags & MsgFlag::READ_ONLY_FLAG;
+    bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
     if (readOnly) {
-      res = executeReadOnlyCommand(it->request.size(),
-                                   it->request.c_str(),
-                                   it->outReply.size(),
-                                   it->outReply.data(),
-                                   it->outActualReplySize,
-                                   it->outReplicaSpecificInfoSize);
+      res = executeReadOnlyCommand(req.request.size(),
+                                   req.request.c_str(),
+                                   req.outReply.size(),
+                                   req.outReply.data(),
+                                   req.outActualReplySize,
+                                   req.outReplicaSpecificInfoSize);
     } else {
-      res = executeWriteCommand(it->request.size(),
-                                it->request.c_str(),
-                                it->executionSequenceNum,
-                                it->flags,
-                                it->outReply.size(),
-                                it->outReply.data(),
-                                it->outActualReplySize);
+      res = executeWriteCommand(req.request.size(),
+                                req.request.c_str(),
+                                req.executionSequenceNum,
+                                req.flags,
+                                req.outReply.size(),
+                                req.outReply.data(),
+                                req.outActualReplySize);
     }
     if (!res) LOG_ERROR(m_logger, "Command execution failed!");
-    it->outExecutionStatus = res ? 0 : -1;
+    req.outExecutionStatus = res ? 0 : -1;
   }
 }
 

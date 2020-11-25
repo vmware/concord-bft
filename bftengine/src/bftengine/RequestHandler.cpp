@@ -43,25 +43,25 @@ int RequestHandler::execute(uint16_t clientId,
                                        parent_span);
 }
 
-void RequestHandler::execute(std::deque<IRequestsHandler::ExecutionRequest> &requests,
+void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue &requests,
                              const std::string &batchCid,
                              concordUtils::SpanWrapper &parent_span) {
-  for (auto it = requests.begin(); it != requests.end(); ++it) {
-    if (it->flags & KEY_EXCHANGE_FLAG) {
-      KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(it->request.c_str(), it->request.size());
+  for (auto &req : requests) {
+    if (req.flags & KEY_EXCHANGE_FLAG) {
+      KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request.c_str(), req.request.size());
       LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
-      auto resp = KeyManager::get().onKeyExchange(ke, it->executionSequenceNum);
-      if (resp.size() <= it->outReply.size()) {
-        std::copy(resp.begin(), resp.end(), it->outReply.data());
-        it->outActualReplySize = resp.size();
+      auto resp = KeyManager::get().onKeyExchange(ke, req.executionSequenceNum);
+      if (resp.size() <= req.outReply.size()) {
+        std::copy(resp.begin(), resp.end(), req.outReply.data());
+        req.outActualReplySize = resp.size();
       } else {
         LOG_ERROR(GL, "KEY_EXCHANGE response is too large, response " << resp);
-        it->outActualReplySize = 0;
+        req.outActualReplySize = 0;
       }
-      it->outExecutionStatus = 0;
-    } else if (it->flags & READ_ONLY_FLAG) {
+      req.outExecutionStatus = 0;
+    } else if (req.flags & READ_ONLY_FLAG) {
       // Backward compatible with read only flag prior BC-5126
-      it->flags = READ_ONLY_FLAG;
+      req.flags = READ_ONLY_FLAG;
     }
   }
   return userRequestsHandler_->execute(requests, batchCid, parent_span);

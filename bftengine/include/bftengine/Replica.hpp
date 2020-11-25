@@ -70,18 +70,20 @@ class IRequestsHandler {
                       concordUtils::SpanWrapper &parent_span) = 0;
 
   struct ExecutionRequest {
-    uint16_t clientId;
+    uint16_t clientId = 0;
     uint64_t executionSequenceNum = 0;
-    uint8_t flags;
+    uint8_t flags = 0;
     std::string request;
     std::string outReply;
-    uint32_t outActualReplySize;
-    uint32_t outReplicaSpecificInfoSize;
-    int outExecutionStatus;
     uint64_t requestSequenceNum = executionSequenceNum;
+    uint32_t outActualReplySize = 0;
+    uint32_t outReplicaSpecificInfoSize = 0;
+    int outExecutionStatus = 1;
   };
 
-  virtual void execute(std::deque<ExecutionRequest> &requests,
+  typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
+
+  virtual void execute(ExecutionRequestsQueue &requests,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) = 0;
 

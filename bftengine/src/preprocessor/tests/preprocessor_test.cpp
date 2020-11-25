@@ -72,12 +72,12 @@ class DummyRequestsHandler : public IRequestsHandler {
     return 0;
   }
 
-  void execute(std::deque<ExecutionRequest>& requests,
+  void execute(ExecutionRequestsQueue& requests,
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override {
-    for (auto it = requests.begin(); it != requests.end(); ++it) {
-      it->outActualReplySize = 256;
-      it->outExecutionStatus = 0;
+    for (auto& req : requests) {
+      req.outActualReplySize = 256;
+      req.outExecutionStatus = 0;
     }
   }
 

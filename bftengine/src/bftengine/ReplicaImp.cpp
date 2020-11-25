@@ -250,8 +250,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     LOG_DEBUG(
         GL,
         "ClientRequestMsg has already been executed: retransmitting reply to client. " << KVLOG(reqSeqNum, clientId));
-    std::unique_ptr<ClientReplyMsg> repMsg{clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary())};
-    send(repMsg.get(), clientId);
+    ClientReplyMsg *repMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
+    send(repMsg, clientId);
+    delete repMsg;
   } else {
     LOG_INFO(GL,
              "ClientRequestMsg is ignored because request sequence number is not monotonically increasing. "
@@ -3705,9 +3706,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         }
 
         if (seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
-          std::unique_ptr<ClientReplyMsg> replyMsg{
-              clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary())};
-          send(replyMsg.get(), clientId);
+          ClientReplyMsg *replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
+          send(replyMsg, clientId);
+          delete replyMsg;
           continue;
         }
 
@@ -3758,54 +3759,51 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       }
       SCOPED_MDC_CID(req.getCid());
       NodeIdType clientId = req.clientProxyId();
-      uint32_t actualReplyLength = 0;
-      uint32_t actualReplicaSpecificInfoLength = 0;
-      int executionStatus = 1;
       accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
           clientId,
           static_cast<uint64_t>(lastExecutedSeqNum + 1),
           req.flags(),
           std::string(req.requestBuf(), req.requestLength()),
           std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
-          actualReplyLength,
-          actualReplicaSpecificInfoLength,
-          executionStatus,
           req.requestSeqNum()});
     }
     if (ReplicaConfig::instance().blockAccumulation) {
-      LOG_DEBUG(GL, "With accumulation");
+      LOG_DEBUG(
+          GL, "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " With accumulation");
       {
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
         bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
       }
     } else {
-      LOG_DEBUG(GL, "Without accumulation");
-      std::deque<IRequestsHandler::ExecutionRequest> singletonRequest;
-      for (size_t i = 0; i < accumulatedRequests.size(); i++) {
-        singletonRequest.push_back(accumulatedRequests.at(i));
+      LOG_DEBUG(
+          GL,
+          "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " Without accumulation");
+      std::deque<IRequestsHandler::ExecutionRequest> singleRequest;
+      for (auto &req : accumulatedRequests) {
+        singleRequest.push_back(req);
         {
           TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-          bftRequestsHandler_.execute(singletonRequest, ppMsg->getCid(), span);
+          bftRequestsHandler_.execute(singleRequest, ppMsg->getCid(), span);
         }
-        accumulatedRequests.at(i) = singletonRequest.at(0);
-        singletonRequest.clear();
+        req = singleRequest.at(0);
+        singleRequest.clear();
       }
     }
-    for (auto it = accumulatedRequests.begin(); it != accumulatedRequests.end(); ++it) {
-      ConcordAssertGT(it->outActualReplySize,
+    for (auto &req : accumulatedRequests) {
+      ConcordAssertGT(req.outActualReplySize,
                       0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-      auto status = it->outExecutionStatus;
+      auto status = req.outExecutionStatus;
       if (status != 0) {
-        const auto requestSeqNum = it->requestSequenceNum;
-        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(it->clientId, requestSeqNum));
+        const auto requestSeqNum = req.requestSequenceNum;
+        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum));
       } else {
-        if (it->flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
+        if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
         std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
-            it->clientId, it->requestSequenceNum, currentPrimary(), it->outReply.data(), it->outActualReplySize)};
-        replyMsg->setReplicaSpecificInfoLength(it->outReplicaSpecificInfoSize);
-        send(replyMsg.get(), it->clientId);
+            req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply.data(), req.outActualReplySize)};
+        replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+        send(replyMsg.get(), req.clientId);
       }
-      clientsManager->removePendingRequestOfClient(it->clientId);
+      clientsManager->removePendingRequestOfClient(req.clientId);
     }
     accumulatedRequests.clear();
   }
