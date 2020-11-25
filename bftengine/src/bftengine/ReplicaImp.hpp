@@ -367,6 +367,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                       PrePrepareMsg* pp,
                                       bool recoverFromErrorInRequestsExecution = false);
 
+  void executeRequestsAndSendResponses(IRequestsHandler::ExecutionRequestsQueue& accumulatedRequests,
+                                       const std::string& batchCid,
+                                       concordUtils::SpanWrapper& span);
+
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
       bool hasStateInformation = true,  // true IFF we have checkpoint Or digest in the state transfer

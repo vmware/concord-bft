@@ -3767,45 +3767,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
           req.requestSeqNum()});
     }
-    if (ReplicaConfig::instance().blockAccumulation) {
-      LOG_DEBUG(
-          GL, "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " With accumulation");
-      {
-        TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-        bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
-      }
-    } else {
-      LOG_DEBUG(
-          GL,
-          "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " Without accumulation");
-      std::deque<IRequestsHandler::ExecutionRequest> singleRequest;
-      for (auto &req : accumulatedRequests) {
-        singleRequest.push_back(req);
-        {
-          TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-          bftRequestsHandler_.execute(singleRequest, ppMsg->getCid(), span);
-        }
-        req = singleRequest.at(0);
-        singleRequest.clear();
-      }
-    }
-    for (auto &req : accumulatedRequests) {
-      ConcordAssertGT(req.outActualReplySize,
-                      0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-      auto status = req.outExecutionStatus;
-      if (status != 0) {
-        const auto requestSeqNum = req.requestSequenceNum;
-        LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum));
-      } else {
-        if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
-        std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
-            req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply.data(), req.outActualReplySize)};
-        replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
-        send(replyMsg.get(), req.clientId);
-      }
-      clientsManager->removePendingRequestOfClient(req.clientId);
-    }
-    accumulatedRequests.clear();
+    executeRequestsAndSendResponses(accumulatedRequests, ppMsg->getCid(), span);
   }
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
@@ -3884,6 +3846,47 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onRequestCompleted(false);
   }
+}
+
+void ReplicaImp::executeRequestsAndSendResponses(IRequestsHandler::ExecutionRequestsQueue &accumulatedRequests,
+                                                 const std::string &batchCid,
+                                                 concordUtils::SpanWrapper &span) {
+  if (ReplicaConfig::instance().blockAccumulation) {
+    LOG_DEBUG(GL, "Executing all the requests of preprepare message with cid: " << batchCid << " With accumulation");
+    {
+      TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+      bftRequestsHandler_.execute(accumulatedRequests, batchCid, span);
+    }
+  } else {
+    LOG_DEBUG(GL, "Executing all the requests of preprepare message with cid: " << batchCid << " Without accumulation");
+    std::deque<IRequestsHandler::ExecutionRequest> singleRequest;
+    for (auto &req : accumulatedRequests) {
+      singleRequest.push_back(req);
+      {
+        TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+        bftRequestsHandler_.execute(singleRequest, batchCid, span);
+      }
+      req = singleRequest.at(0);
+      singleRequest.clear();
+    }
+  }
+  for (auto &req : accumulatedRequests) {
+    ConcordAssertGT(req.outActualReplySize,
+                    0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+    auto status = req.outExecutionStatus;
+    if (status != 0) {
+      const auto requestSeqNum = req.requestSequenceNum;
+      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum));
+    } else {
+      if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
+      std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
+          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply.data(), req.outActualReplySize)};
+      replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+      send(replyMsg.get(), req.clientId);
+    }
+    clientsManager->removePendingRequestOfClient(req.clientId);
+  }
+  accumulatedRequests.clear();
 }
 
 void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span, const bool requestMissingInfo) {
