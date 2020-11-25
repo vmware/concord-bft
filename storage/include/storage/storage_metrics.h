@@ -29,8 +29,6 @@ class InMemoryStorageMetrics {
   concordMetrics::AtomicCounterHandle total_written_bytes_;
 
  private:
-  // update_metrics_ has to be the last declared member due to some synchronization issue. If you have to put something
-  // after it, then explicit release it on the destructor
   std::unique_ptr<concord::util::PeriodicCall> update_metrics_ = nullptr;
 
  public:
@@ -43,6 +41,7 @@ class InMemoryStorageMetrics {
     metrics_.Register();
     update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 100);
   }
+  ~InMemoryStorageMetrics() { update_metrics_.release(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
   void updateMetrics() { metrics_.UpdateAggregator(); }
 };
@@ -65,8 +64,6 @@ class RocksDbStorageMetrics {
 
   std::shared_ptr<::rocksdb::SstFileManager> sstFm;
   std::shared_ptr<::rocksdb::Statistics> statistics;
-  // update_metrics_ has to be the last declared member due to some synchronization issue. If you have to put something
-  // after it, then explicit release it on the destructor
   std::unique_ptr<concord::util::PeriodicCall> update_metrics_ = nullptr;
 
  public:
@@ -96,6 +93,7 @@ class RocksDbStorageMetrics {
                                ::rocksdb::Tickers::COMPACT_WRITE_BYTES,
                                ::rocksdb::Tickers::FLUSH_WRITE_BYTES,
                                ::rocksdb::Tickers::STALL_MICROS}) {}
+  ~RocksDbStorageMetrics() { update_metrics_.release(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     rocksdb_comp_.SetAggregator(aggregator);
   }

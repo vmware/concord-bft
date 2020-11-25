@@ -28,8 +28,9 @@ class PeriodicCall {
       : intervalMilli_(intervalMilli), active_(true), fun_(fun) {
     t_ = std::thread([this] {
       while (active_) {
-        fun_();
         std::this_thread::sleep_for(std::chrono::milliseconds(intervalMilli_));
+        if (!active_) break;
+        fun_();
       }
     });
   }
