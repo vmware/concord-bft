@@ -21,15 +21,15 @@ class PeriodicCall {
   std::thread t_;
   uint32_t intervalMilli_;
   std::atomic_bool active_ = false;
+  std::function<void()> fun_;
 
  public:
-  PeriodicCall(std::function<void()> fun, uint32_t intervalMilli = 100) {
-    intervalMilli_ = intervalMilli;
-    active_ = true;
-    t_ = std::thread([&] {
+  PeriodicCall(const std::function<void()>& fun, uint32_t intervalMilli = 100)
+      : intervalMilli_(intervalMilli), active_(true), fun_(fun) {
+    t_ = std::thread([this] {
       while (active_) {
+        fun_();
         std::this_thread::sleep_for(std::chrono::milliseconds(intervalMilli_));
-        fun();
       }
     });
   }
