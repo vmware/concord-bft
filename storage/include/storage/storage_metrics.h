@@ -93,7 +93,7 @@ class RocksDbStorageMetrics {
                                ::rocksdb::Tickers::COMPACT_WRITE_BYTES,
                                ::rocksdb::Tickers::FLUSH_WRITE_BYTES,
                                ::rocksdb::Tickers::STALL_MICROS}) {}
-  ~RocksDbStorageMetrics() { update_metrics_.reset();}
+  ~RocksDbStorageMetrics() { update_metrics_.reset(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     rocksdb_comp_.SetAggregator(aggregator);
   }
