@@ -3734,9 +3734,6 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     // state transfer module.
     //////////////////////////////////////////////////////////////////////
 
-    reqIdx = 0;
-    requestBody = nullptr;
-
     auto dur = controller->durationSincePrePrepare(lastExecutedSeqNum + 1);
     if (dur > 0) {
       // Primary
@@ -3745,29 +3742,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     } else {
       LOG_DEBUG(CNSUS, "Consensus reached");
     }
-    SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
-    std::deque<IRequestsHandler::ExecutionRequest> accumulatedRequests;
-    while (reqIter.getAndGoToNext(requestBody)) {
-      size_t tmp = reqIdx;
-      reqIdx++;
-      if (!requestSet.get(tmp)) {
-        continue;
-      }
-      ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-      if (req.flags() & EMPTY_CLIENT_FLAG) {
-        continue;
-      }
-      SCOPED_MDC_CID(req.getCid());
-      NodeIdType clientId = req.clientProxyId();
-      accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
-          clientId,
-          static_cast<uint64_t>(lastExecutedSeqNum + 1),
-          req.flags(),
-          std::string(req.requestBuf(), req.requestLength()),
-          std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
-          req.requestSeqNum()});
-    }
-    executeRequestsAndSendResponses(accumulatedRequests, ppMsg->getCid(), span);
+    executeRequestsAndSendResponses(ppMsg, requestSet, span);
   }
   uint64_t checkpointNum{};
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
@@ -3848,23 +3823,51 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
 }
 
-void ReplicaImp::executeRequestsAndSendResponses(IRequestsHandler::ExecutionRequestsQueue &accumulatedRequests,
-                                                 const std::string &batchCid,
+void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
+                                                 Bitmap &requestSet,
                                                  concordUtils::SpanWrapper &span) {
+  SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
+  IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
+  size_t reqIdx = 0;
+  RequestsIterator reqIter(ppMsg);
+  char *requestBody = nullptr;
+  while (reqIter.getAndGoToNext(requestBody)) {
+    size_t tmp = reqIdx;
+    reqIdx++;
+    if (!requestSet.get(tmp)) {
+      continue;
+    }
+    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    if (req.flags() & EMPTY_CLIENT_FLAG) {
+      continue;
+    }
+    SCOPED_MDC_CID(req.getCid());
+    NodeIdType clientId = req.clientProxyId();
+    accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
+        clientId,
+        static_cast<uint64_t>(lastExecutedSeqNum + 1),
+        req.flags(),
+        std::string(req.requestBuf(), req.requestLength()),
+        std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
+        req.requestSeqNum()});
+  }
   if (ReplicaConfig::instance().blockAccumulation) {
-    LOG_DEBUG(GL, "Executing all the requests of preprepare message with cid: " << batchCid << " With accumulation");
+    LOG_DEBUG(GL,
+              "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
       TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-      bftRequestsHandler_.execute(accumulatedRequests, batchCid, span);
+      bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
     }
   } else {
-    LOG_DEBUG(GL, "Executing all the requests of preprepare message with cid: " << batchCid << " Without accumulation");
-    std::deque<IRequestsHandler::ExecutionRequest> singleRequest;
+    LOG_DEBUG(
+        GL,
+        "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " without accumulation");
+    IRequestsHandler::ExecutionRequestsQueue singleRequest;
     for (auto &req : accumulatedRequests) {
       singleRequest.push_back(req);
       {
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-        bftRequestsHandler_.execute(singleRequest, batchCid, span);
+        bftRequestsHandler_.execute(singleRequest, ppMsg->getCid(), span);
       }
       req = singleRequest.at(0);
       singleRequest.clear();
@@ -3876,7 +3879,7 @@ void ReplicaImp::executeRequestsAndSendResponses(IRequestsHandler::ExecutionRequ
     auto status = req.outExecutionStatus;
     if (status != 0) {
       const auto requestSeqNum = req.requestSequenceNum;
-      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum));
+      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
       std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
@@ -3886,7 +3889,6 @@ void ReplicaImp::executeRequestsAndSendResponses(IRequestsHandler::ExecutionRequ
     }
     clientsManager->removePendingRequestOfClient(req.clientId);
   }
-  accumulatedRequests.clear();
 }
 
 void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span, const bool requestMissingInfo) {

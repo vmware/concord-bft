@@ -367,9 +367,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                       PrePrepareMsg* pp,
                                       bool recoverFromErrorInRequestsExecution = false);
 
-  void executeRequestsAndSendResponses(IRequestsHandler::ExecutionRequestsQueue& accumulatedRequests,
-                                       const std::string& batchCid,
-                                       concordUtils::SpanWrapper& span);
+  void executeRequestsAndSendResponses(PrePrepareMsg* pp, Bitmap& requestSet, concordUtils::SpanWrapper& span);
 
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
