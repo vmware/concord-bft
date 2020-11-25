@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "periodic_call.hpp"
 #include "Metrics.hpp"
-
 #ifdef USE_ROCKSDB
 #include <rocksdb/statistics.h>
 #include <unordered_map>
@@ -21,34 +21,29 @@ namespace storage {
  * Recall that the in memory db is quite simple and therefor it has only few relevant metrics to collect.
  */
 class InMemoryStorageMetrics {
-  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
-  std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
-
  public:
   concordMetrics::Component metrics_;
-  concordMetrics::CounterHandle keys_reads_;
-  concordMetrics::CounterHandle total_read_bytes_;
-  concordMetrics::CounterHandle keys_writes_;
-  concordMetrics::CounterHandle total_written_bytes_;
+  concordMetrics::AtomicCounterHandle keys_reads_;
+  concordMetrics::AtomicCounterHandle total_read_bytes_;
+  concordMetrics::AtomicCounterHandle keys_writes_;
+  concordMetrics::AtomicCounterHandle total_written_bytes_;
 
+ private:
+  std::unique_ptr<concord::util::PeriodicCall> update_metrics_ = nullptr;
+
+ public:
   InMemoryStorageMetrics()
       : metrics_("storage_inmemory", std::make_shared<concordMetrics::Aggregator>()),
-        keys_reads_(metrics_.RegisterCounter("storage_inmemory_total_read_keys")),
-        total_read_bytes_(metrics_.RegisterCounter("storage_inmemory_total_read_bytes")),
-        keys_writes_(metrics_.RegisterCounter("storage_inmemory_total_written_keys")),
-        total_written_bytes_(metrics_.RegisterCounter("storage_inmemory_total_written_bytes")) {
+        keys_reads_(metrics_.RegisterAtomicCounter("storage_inmemory_total_read_keys")),
+        total_read_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_read_bytes")),
+        keys_writes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_keys")),
+        total_written_bytes_(metrics_.RegisterAtomicCounter("storage_inmemory_total_written_bytes")) {
     metrics_.Register();
+    update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 100);
   }
-
+  ~InMemoryStorageMetrics() { update_metrics_.reset(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
-
-  void tryToUpdateMetrics() {
-    if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
-        metrics_update_interval_) {
-      metrics_.UpdateAggregator();
-      last_metrics_update_ = std::chrono::steady_clock::now();
-    }
-  }
+  void updateMetrics() { metrics_.UpdateAggregator(); }
 };
 #ifdef USE_ROCKSDB
 /*
@@ -64,24 +59,22 @@ class InMemoryStorageMetrics {
  */
 class RocksDbStorageMetrics {
   concordMetrics::Component rocksdb_comp_;
-  std::unordered_map<::rocksdb::Tickers, concordMetrics::GaugeHandle> active_tickers_;
-  concordMetrics::GaugeHandle total_db_disk_size_;
+  std::unordered_map<::rocksdb::Tickers, concordMetrics::AtomicGaugeHandle> active_tickers_;
+  concordMetrics::AtomicGaugeHandle total_db_disk_size_;
 
   std::shared_ptr<::rocksdb::SstFileManager> sstFm;
   std::shared_ptr<::rocksdb::Statistics> statistics;
-
-  std::chrono::seconds metrics_update_interval_ = std::chrono::seconds(5);  // TODO: move to configuration
-  std::chrono::steady_clock::time_point last_metrics_update_ = std::chrono::steady_clock::now();
+  std::unique_ptr<concord::util::PeriodicCall> update_metrics_ = nullptr;
 
  public:
   RocksDbStorageMetrics(const std::vector<::rocksdb::Tickers>& tickers)
       : rocksdb_comp_("storage_rocksdb", std::make_shared<concordMetrics::Aggregator>()),
-        total_db_disk_size_(rocksdb_comp_.RegisterGauge("storage_rocksdb_total_db_disk_size", 0)) {
+        total_db_disk_size_(rocksdb_comp_.RegisterAtomicGauge("storage_rocksdb_total_db_disk_size", 0)) {
     for (const auto& pair : ::rocksdb::TickersNameMap) {
       if (std::find(tickers.begin(), tickers.end(), pair.first) != tickers.end()) {
         auto metric_suffix = pair.second;
         std::replace(metric_suffix.begin(), metric_suffix.end(), '.', '_');
-        active_tickers_.emplace(pair.first, rocksdb_comp_.RegisterGauge("storage_" + metric_suffix, 0));
+        active_tickers_.emplace(pair.first, rocksdb_comp_.RegisterAtomicGauge("storage_" + metric_suffix, 0));
       }
     }
     rocksdb_comp_.Register();
@@ -100,7 +93,7 @@ class RocksDbStorageMetrics {
                                ::rocksdb::Tickers::COMPACT_WRITE_BYTES,
                                ::rocksdb::Tickers::FLUSH_WRITE_BYTES,
                                ::rocksdb::Tickers::STALL_MICROS}) {}
-
+  ~RocksDbStorageMetrics() { update_metrics_.reset(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     rocksdb_comp_.SetAggregator(aggregator);
   }
@@ -109,18 +102,16 @@ class RocksDbStorageMetrics {
                              std::shared_ptr<::rocksdb::Statistics> sourceStatistics) {
     sstFm = sourceSstFm;
     statistics = sourceStatistics;
+    update_metrics_ = std::make_unique<concord::util::PeriodicCall>([this]() { updateMetrics(); }, 100);
   }
 
-  void tryToUpdateMetrics() {
-    if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - last_metrics_update_) >
-        metrics_update_interval_) {
-      for (auto& pair : active_tickers_) {
-        pair.second.Get().Set(statistics->getTickerCount(pair.first));
-      }
-      total_db_disk_size_.Get().Set(sstFm->GetTotalSize());
-      rocksdb_comp_.UpdateAggregator();
-      last_metrics_update_ = std::chrono::steady_clock::now();
+  void updateMetrics() {
+    if (!sstFm || !statistics) return;
+    for (auto& pair : active_tickers_) {
+      pair.second.Get().Set(statistics->getTickerCount(pair.first));
     }
+    total_db_disk_size_.Get().Set(sstFm->GetTotalSize());
+    rocksdb_comp_.UpdateAggregator();
   }
 };
 #endif

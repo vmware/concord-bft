@@ -406,7 +406,6 @@ void NativeClient::put(const std::string &cFamily, const KeySpan &key, const Val
   auto s =
       client_->dbInstance_->Put(::rocksdb::WriteOptions{}, columnFamilyHandle(cFamily), toSlice(key), toSlice(value));
   throwOnError("put() failed"sv, std::move(s));
-  client_->storage_metrics_.tryToUpdateMetrics();
 }
 
 template <typename KeySpan>
@@ -417,7 +416,6 @@ std::optional<std::string> NativeClient::get(const std::string &cFamily, const K
     return std::nullopt;
   }
   throwOnError("get() failed"sv, std::move(s));
-  client_->storage_metrics_.tryToUpdateMetrics();
   return value;
 }
 
@@ -425,7 +423,6 @@ template <typename KeySpan>
 void NativeClient::del(const std::string &cFamily, const KeySpan &key) {
   auto s = client_->dbInstance_->Delete(::rocksdb::WriteOptions{}, columnFamilyHandle(cFamily), toSlice(key));
   throwOnError("del() failed"sv, std::move(s));
-  client_->storage_metrics_.tryToUpdateMetrics();
 }
 
 template <typename KeySpan, typename ValueSpan>
@@ -478,7 +475,6 @@ inline std::vector<Iterator> NativeClient::getIterators(const std::vector<std::s
 inline void NativeClient::write(WriteBatch &&b) {
   auto s = client_->dbInstance_->Write(::rocksdb::WriteOptions{}, &b.batch_);
   throwOnError("write(batch) failed"sv, std::move(s));
-  client_->storage_metrics_.tryToUpdateMetrics();
 }
 
 inline std::unordered_set<std::string> NativeClient::columnFamilies(const std::string &path) {

@@ -206,7 +206,6 @@ Status Client::get(const Sliver &_key, OUT std::string &_value) const {
     LOG_DEBUG(logger(), "Failed to get key " << _key << " due to " << s.ToString());
     return Status::GeneralError("Failed to read key");
   }
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -325,7 +324,6 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
     LOG_ERROR(logger(), "Failed to put key " << _key << ", value " << _value);
     return Status::GeneralError("Failed to put key");
   }
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -348,7 +346,6 @@ Status Client::del(const Sliver &_key) {
     LOG_ERROR(logger(), "Failed to delete key " << _key);
     return Status::GeneralError("Failed to delete key");
   }
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -367,7 +364,6 @@ Status Client::multiGet(const KeysVector &_keysVec, OUT ValuesVector &_valuesVec
     }
     _valuesVec.push_back(Sliver(std::move(values[i])));
   }
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -396,7 +392,6 @@ Status Client::multiPut(const SetOfKeyValuePairs &keyValueMap) {
   }
   Status status = launchBatchJob(batch);
   if (status.isOK()) LOG_DEBUG(logger(), "Successfully put all entries to the database");
-  storage_metrics_.tryToUpdateMetrics();
   return status;
 }
 
@@ -408,7 +403,6 @@ Status Client::multiDel(const KeysVector &_keysVec) {
   }
   Status status = launchBatchJob(batch);
   if (status.isOK()) LOG_DEBUG(logger(), "Successfully deleted entries");
-  storage_metrics_.tryToUpdateMetrics();
   return status;
 }
 
@@ -427,7 +421,6 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
     return Status::GeneralError("Failed to delete range");
   }
   LOG_TRACE(logger(), "RocksDB successful range delete, begin=" << _beginKey << ", end=" << _endKey);
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 

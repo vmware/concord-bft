@@ -43,7 +43,6 @@ Status Client::get(const Sliver &_key, OUT Sliver &_outValue) const {
   }
   storage_metrics_.keys_reads_.Get().Inc();
   storage_metrics_.total_read_bytes_.Get().Inc(_outValue.length());
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
@@ -104,7 +103,6 @@ Status Client::put(const Sliver &_key, const Sliver &_value) {
   map_.insert_or_assign(_key, _value.clone());
   storage_metrics_.keys_writes_.Get().Inc();
   storage_metrics_.total_written_bytes_.Get().Inc(_key.length() + _value.length());
-  storage_metrics_.tryToUpdateMetrics();
   return Status::OK();
 }
 
