@@ -144,6 +144,7 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.checkpointSummariesRetransmissionTimeoutMs,
               c.maxAcceptableMsgDelayMs,
               c.sourceReplicaReplacementTimeoutMs);
+  os << ",";
   os << KVLOG(c.fetchRetransmissionTimeoutMs, c.metricsDumpIntervalSec, c.runInSeparateThread);
   return os;
 }

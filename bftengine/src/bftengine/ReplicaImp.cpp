@@ -1658,15 +1658,17 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
           LOG_INFO(GL, "Number of stable checkpoints above window: " << numRelevantAboveWindow);
           askForStateTransfer = true;
         } else if (numRelevant >= config_.getfVal() + 1) {
-          Time timeOfLastCommit = MinTime;
+          static uint32_t maxTimeSinceLastExecutionInMainWindowMs =
+              config_.get<uint32_t>("concord.bft.st.maxTimeSinceLastExecutionInMainWindowMs", 5000);
+
+          Time timeOfLastEcecution = MinTime;
           if (mainLog->insideActiveWindow(lastExecutedSeqNum))
-            timeOfLastCommit = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
-          if ((getMonotonicTime() - timeOfLastCommit) >
-              (milliseconds(timeToWaitBeforeStartingStateTransferInMainWindowMilli))) {
+            timeOfLastEcecution = mainLog->get(lastExecutedSeqNum).lastUpdateTimeOfCommitMsgs();
+          if ((getMonotonicTime() - timeOfLastEcecution) > (milliseconds(maxTimeSinceLastExecutionInMainWindowMs))) {
             LOG_INFO(GL,
                      "Number of stable checkpoints in current window: "
-                         << numRelevant
-                         << " time since last execution: " << (getMonotonicTime() - timeOfLastCommit).count() << " ms");
+                         << numRelevant << " time since last execution: "
+                         << (getMonotonicTime() - timeOfLastEcecution).count() << " ms");
             askForStateTransfer = true;
           }
         }

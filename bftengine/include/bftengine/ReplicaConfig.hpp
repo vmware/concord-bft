@@ -272,6 +272,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.autoPrimaryRotationTimerMillisec,
               rc.preExecutionFeatureEnabled,
               rc.preExecReqStatusCheckTimerMillisec);
+  os << ", ";
   os << KVLOG(rc.preExecConcurrencyLevel,
               rc.batchingPolicy,
               rc.batchFlushPeriod,
@@ -288,6 +289,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.metricsDumpIntervalSeconds,
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
+  os << ", ";
   os << KVLOG(rc.keyViewFilePath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";

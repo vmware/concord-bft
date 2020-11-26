@@ -210,27 +210,27 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     replicaConfig_.fVal,
     replicaConfig_.cVal,
     (uint16_t)(replicaConfig_.numReplicas + replicaConfig_.numRoReplicas),
-    replicaConfig_.get("st.pedanticChecks", false),
+    replicaConfig_.get("concord.bft.st.pedanticChecks", false),
     replicaConfig_.isReadOnly,
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
-    replicaConfig_.get<uint32_t>("st.maxChunkSize", 30 * 1024 * 1024),
-    replicaConfig_.get<uint16_t>("st.maxNumberOfChunksInBatch", 64),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 30 * 1024 * 1024),
+    replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 64),
 #else
-    replicaConfig_.get<uint32_t>("st.maxChunkSize", 2048),
-    replicaConfig_.get<uint16_t>("st.maxNumberOfChunksInBatch", 32),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 2048),
+    replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 32),
 #endif
-    replicaConfig_.get<uint32_t>("st.maxBlockSize", 30 * 1024 * 1024),
-    replicaConfig_.get<uint32_t>("st.maxPendingDataFromSourceReplica", 256 * 1024 * 1024),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxBlockSize", 30 * 1024 * 1024),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxPendingDataFromSourceReplica", 256 * 1024 * 1024),
     replicaConfig_.getmaxNumOfReservedPages(),
     replicaConfig_.getsizeOfReservedPage(),
-    replicaConfig_.get<uint32_t>("st.refreshTimerMs", 300),
-    replicaConfig_.get<uint32_t>("st.checkpointSummariesRetransmissionTimeoutMs", 2500),
-    replicaConfig_.get<uint32_t>("st.maxAcceptableMsgDelayMs", 60000),
-    replicaConfig_.get<uint32_t>("st.sourceReplicaReplacementTimeoutMs", 15000),
-    replicaConfig_.get<uint32_t>("st.fetchRetransmissionTimeoutMs", 250),
-    replicaConfig_.get<uint32_t>("st.metricsDumpIntervalSec", 5),
-    replicaConfig_.get("st.runInSeparateThread", replicaConfig_.isReadOnly)
+    replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
+    replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
+    replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
+    replicaConfig_.get<uint32_t>("concord.bft.st.sourceReplicaReplacementTimeoutMs", 15000),
+    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 250),
+    replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
+    replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly)
   };
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
