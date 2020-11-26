@@ -51,9 +51,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    @unittest.skip("Unstable because of BC-5164")
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_vc_timeout("6500"), selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
     async def test_delayed_replicas_start_up(self, bft_network, skvbc, nursery):
         """
