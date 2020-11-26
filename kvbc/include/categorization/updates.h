@@ -28,17 +28,17 @@
 // Note2: Using the same category ID for different category types is an error.
 namespace concord::kvbc::categorization {
 
-// Updates for multiple categories.
+// Shared updates across multiple categories.
 // Persists key-values directly in the underlying key-value store. All key-values are marked stale during the update
 // itself. Explicit deletes are not supported.
-struct CategorizedKeyValueUpdate {
-  struct CategorizedValue {
+struct SharedKeyValueUpdates {
+  struct SharedValue {
     Value value;
 
     // Persist the key-value into this set of categories.
     std::set<std::string> category_ids;
   };
-  std::map<Key, CategorizedValue> updates;
+  std::map<Key, SharedValue> updates;
 
   // Controls whether a hash of the key-values is calculated per category for this update.
   bool calculate_hash{true};
@@ -46,7 +46,7 @@ struct CategorizedKeyValueUpdate {
   // All key-values are marked stale during the update itself. Cannot be turned off for this category.
   static constexpr bool stale_on_update{true};
 
-  bool operator<(const CategorizedKeyValueUpdate &) const {
+  bool operator<(const SharedKeyValueUpdates &) const {
     // Implies that a single categorized update per block is supported.
     return false;
   }
@@ -61,8 +61,8 @@ struct CategorizedKeyValueUpdate {
 
 // Updates for a key-value category.
 // Persists key-values directly in the underlying key-value store.
-struct KeyValueUpdate {
-  KeyValueUpdate(const std::string &category_id) : category_id{category_id} { ConcordAssert(!category_id.empty()); }
+struct KeyValueUpdates {
+  KeyValueUpdates(const std::string &category_id) : category_id{category_id} { ConcordAssert(!category_id.empty()); }
 
   struct ValueData {
     Value value;
@@ -83,7 +83,7 @@ struct KeyValueUpdate {
   // Controls whether a hash of the updated key-values is calculated for this update.
   bool calculate_hash{false};
 
-  bool operator<(const CategorizedKeyValueUpdate &) const { return false; }
+  bool operator<(const SharedKeyValueUpdates &) const { return false; }
 
   template <typename T>
   bool operator<(const T &other) const {
@@ -93,15 +93,15 @@ struct KeyValueUpdate {
 
 // Updates for a merkle tree category.
 // Persists key-values in a merkle tree that is constructed on top of the underlying key-value store.
-struct MerkleUpdate {
-  MerkleUpdate(const std::string &category_id) : category_id{category_id} { ConcordAssert(!category_id.empty()); }
+struct MerkleUpdates {
+  MerkleUpdates(const std::string &category_id) : category_id{category_id} { ConcordAssert(!category_id.empty()); }
 
   OrderedSetOfKeyValuePairs updates;
   OrderedKeysSet deletes;
 
   const std::string category_id;
 
-  bool operator<(const CategorizedKeyValueUpdate &) const { return false; }
+  bool operator<(const SharedKeyValueUpdates &) const { return false; }
 
   template <typename T>
   bool operator<(const T &other) const {
@@ -110,7 +110,7 @@ struct MerkleUpdate {
 };
 
 // A block update is a list of updates for different categories.
-// Note: Only a single `CategorizedKeyValueUpdate` is supported per block.
-using CategorizedUpdates = std::set<std::variant<MerkleUpdate, KeyValueUpdate, CategorizedKeyValueUpdate>>;
+// Note: Only a single `SharedKeyValueUpdates` is supported per block.
+using CategorizedUpdates = std::set<std::variant<MerkleUpdates, KeyValueUpdates, SharedKeyValueUpdates>>;
 
 }  // namespace concord::kvbc::categorization

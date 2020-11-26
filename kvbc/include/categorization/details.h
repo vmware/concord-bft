@@ -23,7 +23,7 @@
 
 namespace concord::kvbc::categorization::detail {
 
-struct MerkleUpdateInfo {
+struct MerkleUpdatesInfo {
   struct KeyFlags {
     bool deleted{false};
   };
@@ -39,7 +39,7 @@ struct MerkleUpdateInfo {
   }
 };
 
-struct KeyValueUpdateInfo {
+struct KeyValueUpdatesInfo {
   struct KeyFlags {
     bool deleted{false};
 
@@ -57,7 +57,7 @@ struct KeyValueUpdateInfo {
   }
 };
 
-struct CategorizedKeyValueUpdateInfo {
+struct ShareddKeyValueUpdatesInfo {
   std::set<Key> keys;
   std::optional<std::array<std::uint8_t, 32>> hash;
   std::string category_id;
@@ -69,6 +69,6 @@ struct CategorizedKeyValueUpdateInfo {
 };
 
 // Represents updates returned by categories and consumbed by the blockchain (for use in blocks).
-using CategoryUpdateInfos = std::set<std::variant<MerkleUpdateInfo, KeyValueUpdateInfo, CategorizedKeyValueUpdateInfo>>;
+using CategoryUpdatesInfo = std::set<std::variant<MerkleUpdateInfos, KeyValueUpdateInfos, ShareddKeyValueUpdatesInfo>>;
 
 }  // namespace concord::kvbc::categorization::detail
