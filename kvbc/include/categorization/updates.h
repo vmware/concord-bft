@@ -30,7 +30,7 @@ namespace concord::kvbc::categorization {
 
 // Updates for multiple categories.
 // Persists key-values directly in the underlying key-value store. All key-values are marked stale during the update
-// itself. Explicit removals are not supported.
+// itself. Explicit deletes are not supported.
 struct CategorizedKeyValueUpdate {
   struct CategorizedValue {
     Value value;
@@ -59,24 +59,6 @@ struct CategorizedKeyValueUpdate {
   }
 };
 
-// Updates for a merkle tree category.
-// Persists key-values in a merkle tree that is constructed on top of the underlying key-value store.
-struct MerkleUpdate {
-  MerkleUpdate(const std::string &category_id) : category_id{category_id} { ConcordAssert(!category_id.empty()); }
-
-  OrderedSetOfKeyValuePairs updates;
-  OrderedKeysSet removals;
-
-  const std::string category_id;
-
-  bool operator<(const CategorizedKeyValueUpdate &) const { return false; }
-
-  template <typename T>
-  bool operator<(const T &other) const {
-    return category_id < other.category_id;
-  }
-};
-
 // Updates for a key-value category.
 // Persists key-values directly in the underlying key-value store.
 struct KeyValueUpdate {
@@ -94,12 +76,30 @@ struct KeyValueUpdate {
     bool stale_on_update{false};
   };
   std::map<Key, ValueData> updates;
-  OrderedKeysSet removals;
+  OrderedKeysSet deletes;
 
   const std::string category_id;
 
   // Controls whether a hash of the updated key-values is calculated for this update.
   bool calculate_hash{false};
+
+  bool operator<(const CategorizedKeyValueUpdate &) const { return false; }
+
+  template <typename T>
+  bool operator<(const T &other) const {
+    return category_id < other.category_id;
+  }
+};
+
+// Updates for a merkle tree category.
+// Persists key-values in a merkle tree that is constructed on top of the underlying key-value store.
+struct MerkleUpdate {
+  MerkleUpdate(const std::string &category_id) : category_id{category_id} { ConcordAssert(!category_id.empty()); }
+
+  OrderedSetOfKeyValuePairs updates;
+  OrderedKeysSet deletes;
+
+  const std::string category_id;
 
   bool operator<(const CategorizedKeyValueUpdate &) const { return false; }
 
