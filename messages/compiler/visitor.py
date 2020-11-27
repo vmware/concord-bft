@@ -168,6 +168,18 @@ class Visitor(metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def fixedlist_start(self):
+        pass
+
+    @abstractmethod
+    def fixedlist_type_end(self):
+        pass
+
+    @abstractmethod
+    def fixedlist_end(self, size):
+        pass
+
+    @abstractmethod
     def map_start(self):
         pass
 

@@ -9,9 +9,10 @@ msgname = name:name;
 msgid = id:number;
 field = type:(compound | primitive | msgname_ref) name:name ;
 
-compound = kvpair:kvpair | list:list | map:map | optional:optional | oneof:oneof;
+compound = kvpair:kvpair | list:list | fixedlist:fixedlist | map:map | optional:optional | oneof:oneof;
 kvpair = 'kvpair' key:primitive value:(primitive | compound | msgname_ref) ;
 list = 'list' type:(primitive | compound | msgname_ref) ;
+fixedlist = 'fixedlist' type:(primitive | compound | msgname_ref) size:number ;
 map = 'map' key:primitive value:(primitive | compound | msgname_ref) ;
 optional = 'optional' type:(primitive | compound | msgname_ref) ;
 oneof = 'oneof' '{' msg_names:{msgname_ref}+ '}' ;

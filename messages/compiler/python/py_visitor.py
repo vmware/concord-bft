@@ -46,15 +46,15 @@ def eq_start():
 '''
 
 
-def serialize_field(field_name, serializers):
+def serialize_field(field_name, serializers, fixed_size):
     return f'''\
-        serializer.serialize(self.{field_name}, {serializers})
+        serializer.serialize(self.{field_name}, {serializers}, {fixed_size})
 '''
 
 
-def deserialize_field(field_name, serializers):
+def deserialize_field(field_name, serializers, fixed_size):
     return f'''\
-        obj.{field_name} = deserializer.deserialize({serializers})
+        obj.{field_name} = deserializer.deserialize({serializers}, {fixed_size})
 '''
 
 
@@ -93,6 +93,9 @@ class PyVisitor(Visitor):
         # The `__eq__` method for the current message
         self.eq = ''
 
+        # Number of elements of the current field. Applies to fixed-sized types only.
+        self.field_fixed_size = None
+
     def _reset(self):
         # output accumulates across messages
         output = self.output
@@ -101,6 +104,7 @@ class PyVisitor(Visitor):
 
     def _reset_field(self):
         self.field_name = ''
+        self.field_fixed_size = None
         self.serializers = []
 
     def msg_start(self, name, id):
@@ -123,9 +127,11 @@ class PyVisitor(Visitor):
         self.msg_class += f'         self.{name} = None\n'
 
     def field_end(self):
-        self.serialize += serialize_field(self.field_name, self.serializers)
+        self.serialize += serialize_field(self.field_name,
+                                          self.serializers, self.field_fixed_size)
         self.deserialize += deserialize_field(self.field_name,
-                                              self.serializers)
+                                              self.serializers,
+                                              self.field_fixed_size)
         self.eq += eq_field(self.field_name)
         self._reset_field()
 
@@ -179,6 +185,15 @@ class PyVisitor(Visitor):
 
     def list_end(self):
         pass
+
+    def fixedlist_start(self):
+        self.serializers.append('fixedlist')
+
+    def fixedlist_type_end(self):
+        pass
+
+    def fixedlist_end(self, size):
+        self.field_fixed_size = size
 
     def map_start(self):
         self.serializers.append('map')

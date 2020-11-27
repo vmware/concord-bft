@@ -290,6 +290,15 @@ class CppVisitor(Visitor):
     def list_end(self):
         self.struct += ">"
 
+    def fixedlist_start(self):
+        self.struct += "std::array<"
+
+    def fixedlist_type_end(self):
+        self.struct += ", "
+
+    def fixedlist_end(self, size):
+        self.struct += f"{size}>"
+
     def map_start(self):
         self.struct += "std::map<"
 

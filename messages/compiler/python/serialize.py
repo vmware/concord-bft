@@ -62,13 +62,15 @@ class CMFSerializer():
             raise CmfSerializeError(
                 f'Expected integer value less than {max}, got {val}')
 
-    def serialize(self, val, serializers):
+    def serialize(self, val, serializers, fixed_size=None):
         '''
         Serialize any nested types in by applying the methods in `serializers` at each level.
         This method interacts with those below in a mutually recursive manner for nested types.
         '''
         s = serializers[0]
-        if s in ['list', 'optional'] and len(serializers) > 1:
+        if s in ['fixedlist'] and len(serializers) > 1:
+            getattr(self, s)(val, serializers[1:], fixed_size)
+        elif s in ['list', 'optional'] and len(serializers) > 1:
             getattr(self, s)(val, serializers[1:])
         elif s in ['kvpair', 'map'] and len(serializers) > 2:
             getattr(self, s)(val, serializers[1:])
@@ -100,15 +102,15 @@ class CMFSerializer():
 
     def uint16(self, val):
         self.validate_int(val, 0, 65536)
-        self.buf.extend(struct.pack('<H', val))
+        self.buf.extend(struct.pack('>H', val))
 
     def uint32(self, val):
         self.validate_int(val, 0, 4294967296)
-        self.buf.extend(struct.pack('<I', val))
+        self.buf.extend(struct.pack('>I', val))
 
     def uint64(self, val):
         self.validate_int(val, 0, 18446744073709551616)
-        self.buf.extend(struct.pack('<Q', val))
+        self.buf.extend(struct.pack('>Q', val))
 
     def int8(self, val):
         self.validate_int(val, -128, 127)
@@ -116,15 +118,15 @@ class CMFSerializer():
 
     def int16(self, val):
         self.validate_int(val, -32768, 32767)
-        self.buf.extend(struct.pack('<h', val))
+        self.buf.extend(struct.pack('>h', val))
 
     def int32(self, val):
         self.validate_int(val, -2147483648, 2147483647)
-        self.buf.extend(struct.pack('<i', val))
+        self.buf.extend(struct.pack('>i', val))
 
     def int64(self, val):
         self.validate_int(val, -9223372036854775808, 9223372036854775807)
-        self.buf.extend(struct.pack('<q', val))
+        self.buf.extend(struct.pack('>q', val))
 
     def string(self, val):
         if not type(val) is str:
@@ -157,6 +159,14 @@ class CMFSerializer():
         for val in items:
             self.serialize(val, serializers)
 
+    def fixedlist(self, items, serializers, fixed_size):
+        if not type(items) is list:
+            raise CmfSerializeError(f'Expected list, got {type(items)}')
+        if len(items) != fixed_size:
+            raise CmfSerializeError(f'Expected list size of {fixed_size}, got {len(items)}')
+        for val in items:
+            self.serialize(val, serializers)
+
     def map(self, dictionary, serializers):
         if not type(dictionary) is dict:
             raise CmfSerializeError(f'Expected dict, got {type(dictionary)}')
@@ -186,12 +196,14 @@ class CMFDeserializer():
         self.buf = buf
         self.pos = 0
 
-    def deserialize(self, serializers):
+    def deserialize(self, serializers, fixed_size=None):
         '''
         Recursively deserialize `self.buf` using `serializers`
         '''
         s = serializers[0]
-        if s in ['list', 'optional'] and len(serializers) > 1:
+        if s in ['fixedlist'] and len(serializers) > 1:
+            return getattr(self, s)(serializers[1:], fixed_size)
+        elif s in ['list', 'optional'] and len(serializers) > 1:
             return getattr(self, s)(serializers[1:])
         elif s in ['kvpair', 'map'] and len(serializers) > 2:
             return getattr(self, s)(serializers[1:])
@@ -228,21 +240,21 @@ class CMFDeserializer():
     def uint16(self):
         if self.pos + 2 > len(self.buf):
             raise NoDataLeftError()
-        val = struct.unpack_from('<H', self.buf, self.pos)
+        val = struct.unpack_from('>H', self.buf, self.pos)
         self.pos += 2
         return val[0]
 
     def uint32(self):
         if self.pos + 4 > len(self.buf):
             raise NoDataLeftError()
-        val = struct.unpack_from('<I', self.buf, self.pos)
+        val = struct.unpack_from('>I', self.buf, self.pos)
         self.pos += 4
         return val[0]
 
     def uint64(self):
         if self.pos + 8 > len(self.buf):
             raise NoDataLeftError()
-        val = struct.unpack_from('<Q', self.buf, self.pos)
+        val = struct.unpack_from('>Q', self.buf, self.pos)
         self.pos += 8
         return val[0]
 
@@ -256,21 +268,21 @@ class CMFDeserializer():
     def int16(self):
         if self.pos + 2 > len(self.buf):
             raise NoDataLeftError()
-        val = struct.unpack_from('<h', self.buf, self.pos)
+        val = struct.unpack_from('>h', self.buf, self.pos)
         self.pos += 2
         return val[0]
 
     def int32(self):
         if self.pos + 4 > len(self.buf):
             raise NoDataLeftError()
-        val = struct.unpack_from('<i', self.buf, self.pos)
+        val = struct.unpack_from('>i', self.buf, self.pos)
         self.pos += 4
         return val[0]
 
     def int64(self):
         if self.pos + 8 > len(self.buf):
             raise NoDataLeftError()
-        val = struct.unpack_from('<q', self.buf, self.pos)
+        val = struct.unpack_from('>q', self.buf, self.pos)
         self.pos += 8
         return val[0]
 
@@ -303,14 +315,13 @@ class CMFDeserializer():
 
     def list(self, serializers):
         size = self.uint32()
-        if self.pos + size > len(self.buf):
-            raise NoDataLeftError()
         return [self.deserialize(serializers) for _ in range(0, size)]
+
+    def fixedlist(self, serializers, fixed_size):
+        return [self.deserialize(serializers) for _ in range(0, fixed_size)]
 
     def map(self, serializers):
         size = self.uint32()
-        if self.pos + size > len(self.buf):
-            raise NoDataLeftError()
         # We can't use a dict comprehension here unless we rely on python 3.8, since order of
         # evaluation of dict comprehensions constructs values first.
         # See: https://stackoverflow.com/questions/42201932/order-of-operations-in-a-dictionary-comprehension

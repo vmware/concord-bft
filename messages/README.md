@@ -61,6 +61,7 @@ Compound data types may include primitive types and other compound types. We ens
 
  * kvpair - Keys must be primitive types. Values can be any type
  * list - A homogeneous list of any type
+ * fixedlist - A homogeneous fixed-size list of any type. Maps to `std::array` in C++. Note that `std::array` types are stored on the stack.
  * map - A lexicographically sorted list of key-value pairs
  * oneof - A sum type (tagged union) containing exactly one of the given messages. oneof types cannot contain primitives or compound types, they can only refer to messages. This is useful for deserializing a set of related messages into a given wrapper type. A oneof maps to a `std::variant` in c++.
  * optional - An optional value of any type. An optional maps to a `std::optional` in C++.
@@ -73,20 +74,23 @@ Comments must be on their own line and start with the `#` character. Leading whi
 
 * `bool` - `0x00` = False, `0x01` = True
 * `uint8` - The value itself
-* `uint16` - The value itself in little endian
-* `uint32` - The value itself in little endian
-* `uint64` - The value itself in little endian
-* `sint8` - The value itself in little endian
-* `sint16` - The value itself in little endian
-* `sint32` - The value itself in little endian
-* `sint64` - The value itself in little endian
+* `uint16` - The value itself
+* `uint32` - The value itself
+* `uint64` - The value itself
+* `sint8` - The value itself
+* `sint16` - The value itself
+* `sint32` - The value itself
+* `sint64` - The value itself
 * `string` - uint32 length followed by UTF-8 encoded data
 * `bytes` - uint32 length followed by arbitrary bytes
 * `kvpair` - primitive key followed by primitive or compound value
 * `list` - uint32 length of list followed by N homogeneous primitive or compound elements
+* `fixedlist` - N homogeneous primitive or compound elements
 * `map` - serialized as a list of lexicographically sorted key-value pairs
 * `oneof` - uint32 message id of the contained message followed by the message
 * `optional` - bool followed by the value
+
+Integer values are serialized in `big-endian` byte order.
 
 # Schema Format
 
@@ -123,10 +127,19 @@ kvpair uint64 list string user_tags
 ```
 
 * `list <type> name`
+
 Lists are homogeneous, but be made up of any type. Therefore, it's permissible to have field definitions like the following:
 
 ```
 list kvpair int string users
+```
+
+* `fixedlist <type> <size> name`
+
+Fixedlists are very similar to lists, but are of a fixed size:
+
+```
+fixedlist uint8 32 hash
 ```
 
 * `map <primitive_key_type> <val_type> name`
