@@ -52,7 +52,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_vc_timeout("6500"), selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
     async def test_delayed_replicas_start_up(self, bft_network, skvbc, constant_load):
         """
@@ -71,18 +71,13 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         replicas_starting_order = bft_network.all_replicas()
         random.shuffle(replicas_starting_order)
 
-        initial_view = 0
         try:
             # Delayed replica start-up...
             for r in replicas_starting_order:
                 bft_network.start_replica(r)
                 await trio.sleep(seconds=10)
 
-            current_view = await bft_network.wait_for_view(
-                replica_id=0,
-                expected=lambda v: v > initial_view,
-                err_msg="Make sure view change has occurred during the delayed replica start-up."
-            )
+            current_view = await bft_network.get_current_view()
 
             client = bft_network.random_client()
             current_block = skvbc.parse_reply(
@@ -113,7 +108,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             await trio.sleep(seconds=5)
             bft_network.start_replica(restarted_replica)
 
-            await trio.sleep(seconds=20)
+            await trio.sleep(seconds=5)
 
             # Stop sending requests, and make sure the restarted replica
             # is up-and-running and participates in consensus
