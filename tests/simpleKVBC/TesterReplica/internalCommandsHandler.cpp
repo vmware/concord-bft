@@ -61,6 +61,42 @@ int InternalCommandsHandler::execute(uint16_t clientId,
   return res ? 0 : -1;
 }
 
+void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
+                                      const std::string &batchCid,
+                                      concordUtils::SpanWrapper &parent_span) {
+  for (auto &req : requests) {
+    // ReplicaSpecificInfo is not currently used in the TesterReplica
+    if (req.outExecutionStatus != 1) continue;
+    req.outReplicaSpecificInfoSize = 0;
+    int res;
+    if (req.request.size() < sizeof(SimpleRequest)) {
+      LOG_ERROR(m_logger,
+                "The message is too small: requestSize is " << req.request.size() << ", required size is "
+                                                            << sizeof(SimpleRequest));
+      req.outExecutionStatus = -1;
+    }
+    bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
+    if (readOnly) {
+      res = executeReadOnlyCommand(req.request.size(),
+                                   req.request.c_str(),
+                                   req.outReply.size(),
+                                   req.outReply.data(),
+                                   req.outActualReplySize,
+                                   req.outReplicaSpecificInfoSize);
+    } else {
+      res = executeWriteCommand(req.request.size(),
+                                req.request.c_str(),
+                                req.executionSequenceNum,
+                                req.flags,
+                                req.outReply.size(),
+                                req.outReply.data(),
+                                req.outActualReplySize);
+    }
+    if (!res) LOG_ERROR(m_logger, "Command execution failed!");
+    req.outExecutionStatus = res ? 0 : -1;
+  }
+}
+
 void InternalCommandsHandler::addMetadataKeyValue(SetOfKeyValuePairs &updates, uint64_t sequenceNum) const {
   Sliver metadataKey = m_blockMetadata->getKey();
   Sliver metadataValue = m_blockMetadata->serialize(sequenceNum);

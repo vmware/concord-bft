@@ -367,6 +367,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                       PrePrepareMsg* pp,
                                       bool recoverFromErrorInRequestsExecution = false);
 
+  void executeRequestsAndSendResponses(PrePrepareMsg* pp, Bitmap& requestSet, concordUtils::SpanWrapper& span);
+
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
       bool hasStateInformation = true,  // true IFF we have checkpoint Or digest in the state transfer

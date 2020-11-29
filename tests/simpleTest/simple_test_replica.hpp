@@ -129,6 +129,57 @@ class SimpleAppState : public IRequestsHandler {
     }
     return 0;
   }
+  void execute(ExecutionRequestsQueue &requests,
+               const std::string &batchCid,
+               concordUtils::SpanWrapper &parent_span) override {
+    for (auto &req : requests) {
+      // Not currently used
+      req.outReplicaSpecificInfoSize = 0;
+
+      bool readOnly = req.flags & READ_ONLY_FLAG;
+      if (readOnly) {
+        // Our read-only request includes only a type, no argument.
+        test_assert_replica(req.request.size() == sizeof(uint64_t), "requestSize =! " << sizeof(uint64_t));
+
+        // We only support the READ operation in read-only mode.
+        test_assert_replica(*reinterpret_cast<const uint64_t *>(req.request.c_str()) == READ_VAL_REQ,
+                            "request is NOT " << READ_VAL_REQ);
+
+        // Copy the latest register value to the reply buffer.
+        test_assert_replica(req.outReply.size() >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
+        uint64_t *pRet = const_cast<uint64_t *>(reinterpret_cast<const uint64_t *>(req.outReply.c_str()));
+        auto lastValue = get_last_state_value(req.clientId);
+        *pRet = lastValue;
+        req.outActualReplySize = sizeof(uint64_t);
+      } else {
+        // Our read-write request includes one eight-byte argument, in addition to
+        // the request type.
+        test_assert_replica(req.request.size() == 2 * sizeof(uint64_t), "requestSize != " << 2 * sizeof(uint64_t));
+
+        // We only support the WRITE operation in read-write mode.
+        const uint64_t *pReqId = reinterpret_cast<const uint64_t *>(req.request.c_str());
+        test_assert_replica(*pReqId == SET_VAL_REQ, "*preqId != " << SET_VAL_REQ);
+
+        // The value to write is the second eight bytes of the request.
+        const uint64_t *pReqVal = (pReqId + 1);
+
+        // Modify the register state.
+        set_last_state_value(req.clientId, *pReqVal);
+        // Count the number of times we've modified it.
+        auto stateNum = get_last_state_num(req.clientId);
+        set_last_state_num(req.clientId, stateNum + 1);
+
+        // Reply with the number of times we've modified the register.
+        test_assert_replica(req.outReply.size() >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
+        uint64_t *pRet = const_cast<uint64_t *>(reinterpret_cast<const uint64_t *>(req.outReply.c_str()));
+        *pRet = stateNum;
+        req.outActualReplySize = sizeof(uint64_t);
+
+        st->markUpdate(statePtr, sizeof(State) * numOfClients);
+      }
+      req.outExecutionStatus = 0;
+    }
+  }
 
   struct State {
     // Number of modifications made.
