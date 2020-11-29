@@ -2010,7 +2010,7 @@ void BCStateTran::logCollectingStatus(const uint64_t firstRequiredBlock) {
       << "Collect range: (" << firstRequiredBlock << ", " << first_collected_block_num_.value() << ")"
       << " ,Last collected block: " << nextRequiredBlock_
       << " ,Blocks left: " << (nextRequiredBlock_ - firstRequiredBlock)
-      << " ,Elapsed time: " << blocks_overall_r.elapsed_time_ms_ << " ms"
+      << " ,Elapsed time: " << blocks_overall_r.elapsed_time_us_ << " us"
       << " ,Collected: (" << blocks_overall_r.num_processed_items_ << " blk, " << bytes_overall_r.num_processed_items_
       << " B)"
       << " ,Throughput: (" << blocks_overall_r.throughput_ << " blk/s, " << bytes_overall_r.throughput_ << " B/s)"
@@ -2022,7 +2022,7 @@ void BCStateTran::logCollectingStatus(const uint64_t firstRequiredBlock) {
     auto prev_win_index = blocks_collected_.getPrevWinIndex();
 
     oss << "Last window:["
-        << "Index: " << prev_win_index << " ,Elapsed time: " << blocks_win_r.elapsed_time_ms_ << " ms"
+        << "Index: " << prev_win_index << " ,Elapsed time: " << blocks_win_r.elapsed_time_us_ << " us"
         << " ,Collected: (" << blocks_win_r.num_processed_items_ << " blk, " << bytes_win_r.num_processed_items_
         << " B)"
         << " ,Throughput: (" << blocks_win_r.throughput_ << " blk/s, " << bytes_win_r.throughput_ << " B/s)"
