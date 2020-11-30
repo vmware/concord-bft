@@ -332,10 +332,10 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
             assert_state_transfer_not_started=False
         )
 
-        await self._wait_for_st(bft_network, ro_replica_id, 150)
+        await self._wait_for_st(bft_network, ro_replica_id, 15)
 
 
-    async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=150):
+    async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=15):
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
         # initial_nodes=bft_network.all_replicas(),
