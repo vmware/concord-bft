@@ -112,7 +112,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
-    async def test_checkpoint_propagation_after_restarting_all_replicas_under_load(self, bft_network, skvbc, nursery):
+    async def test_checkpoint_propagation_after_restarting_all_replicas_under_load(self, bft_network, skvbc, constant_load):
         """
         Here we trigger a checkpoint, restart all replicas in a random order with 10s delay in-between,
         both while stopping and starting. We verify checkpoint persisted upon restart and then trigger
@@ -192,7 +192,7 @@ class SkvbcBackupRestoreTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"), selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
     async def test_checkpoint_propagation_after_restarting_majority_replicas_under_load(self, bft_network, skvbc,
-                                                                                        nursery):
+                                                                                        constant_load):
         """
         Here we trigger a checkpoint, restart all replicas in a random order with a delay in-between,
         both while stopping and starting. We verify checkpoint persisted upon restart and then trigger

@@ -51,11 +51,10 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    @unittest.skip("Unstable because of BC-5164")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
-    async def test_delayed_replicas_start_up(self, bft_network, skvbc, nursery):
+    async def test_delayed_replicas_start_up(self, bft_network, skvbc, constant_load):
         """
         The goal is to make sure that if replicas are started in a random
         order, with delays in-between, and with constant load (request sent every 1s),
@@ -72,18 +71,13 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         replicas_starting_order = bft_network.all_replicas()
         random.shuffle(replicas_starting_order)
 
-        initial_view = 0
         try:
             # Delayed replica start-up...
             for r in replicas_starting_order:
                 bft_network.start_replica(r)
                 await trio.sleep(seconds=10)
 
-            current_view = await bft_network.wait_for_view(
-                replica_id=0,
-                expected=lambda v: v > initial_view,
-                err_msg="Make sure view change has occurred during the delayed replica start-up."
-            )
+            current_view = await bft_network.get_current_view()
 
             client = bft_network.random_client()
             current_block = skvbc.parse_reply(
@@ -114,11 +108,11 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             await trio.sleep(seconds=5)
             bft_network.start_replica(restarted_replica)
 
-            await trio.sleep(seconds=20)
+            await trio.sleep(seconds=5)
 
             # Stop sending requests, and make sure the restarted replica
             # is up-and-running and participates in consensus
-            nursery.cancel_scope.cancel()
+            constant_load.cancel()
 
             key = ['replica', 'Gauges', 'lastExecutedSeqNum']
             last_executed_seq_num = await bft_network.metrics.get(current_primary, *key)
@@ -141,7 +135,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: f >= 2)
     @with_constant_load
-    async def test_f_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery):
+    async def test_f_staggered_replicas_requesting_vc(self, bft_network, skvbc, constant_load):
         """
         The goal of this test is to verify correct behaviour in the situation where
         a subset of F replicas not big enough to reach quorum for execution starts early,
@@ -229,7 +223,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: f >= 2)
     @with_constant_load
-    async def test_f_minus_one_staggered_replicas_requesting_vc(self, bft_network, skvbc, nursery):
+    async def test_f_minus_one_staggered_replicas_requesting_vc(self, bft_network, skvbc, constant_load):
         """
         In this test we check that if f-1 replicas have started to run and initiated viewchange, then the system is
         still able to make progress. To make sure the system still have 2f+1 active replicas, we wait for the early
@@ -311,7 +305,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
-    async def stuck_view_change_bug_recreation(self, bft_network, skvbc, nursery):
+    async def stuck_view_change_bug_recreation(self, bft_network, skvbc, constant_load):
         """
         Test inspired by failure of a subset of replicas to enter a New View after View Change
         due to insufficient ViewChange messages and previous no resend of ViewChange messages

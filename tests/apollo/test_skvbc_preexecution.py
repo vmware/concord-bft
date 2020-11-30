@@ -240,7 +240,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
-    async def test_long_request_with_constant_load(self, bft_network, skvbc, nursery):
+    async def test_long_request_with_constant_load(self, bft_network, skvbc, constant_load):
         """
         In this test we make sure a long-running request executes
         concurrently with a constant system load in the background.
@@ -343,7 +343,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd)
     @with_constant_load
-    async def test_pre_execution_with_added_constant_load(self, bft_network, skvbc, nursery):
+    async def test_pre_execution_with_added_constant_load(self, bft_network, skvbc, constant_load):
         """
         Run a batch of concurrent pre-execution requests, while
         sending a constant "time service like" load on the normal execution path.

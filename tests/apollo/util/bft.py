@@ -118,9 +118,15 @@ def with_constant_load(async_fn):
             bft_network = kwargs.pop("bft_network")
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             client = bft_network.new_reserved_client()
+
+            async def background_sender(arg1, arg2, *, task_status=trio.TASK_STATUS_IGNORED):
+                with trio.CancelScope() as scope:
+                    task_status.started(scope)
+                    await skvbc.send_indefinite_write_requests(arg1, arg2)
+
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(skvbc.send_indefinite_write_requests, client, 1)  # send a request every second
-                await async_fn(*args, **kwargs, bft_network=bft_network, skvbc=skvbc, nursery=nursery)
+                constant_load = await nursery.start(background_sender, client, 1)  # send a request every second
+                await async_fn(*args, **kwargs, bft_network=bft_network, skvbc=skvbc, constant_load=constant_load)
                 nursery.cancel_scope.cancel()
     return wrapper
 
