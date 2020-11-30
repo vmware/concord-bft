@@ -2442,6 +2442,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   controller->onNewView(curView, primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(curView);
   complainedReplicas.clear();
+  metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
@@ -2952,6 +2953,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
           config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
       sendToAllOtherReplicas(askToLeaveView.get());
       complainedReplicas.store(std::move(askToLeaveView));
+      metric_sent_replica_asks_to_leave_view_msg_.Get().Inc();
 
       tryToGotoNextView();
       return;
@@ -3346,6 +3348,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_concurrency_level_{metrics_.RegisterGauge("concurrencyLevel", config_.getconcurrencyLevel())},
       metric_primary_last_used_seq_num_{metrics_.RegisterGauge("primaryLastUsedSeqNum", primaryLastUsedSeqNum)},
       metric_on_call_back_of_super_stable_cp_{metrics_.RegisterGauge("OnCallBackOfSuperStableCP", 0)},
+      metric_sent_replica_asks_to_leave_view_msg_{metrics_.RegisterGauge("sentReplicaAsksToLeaveViewMsg", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},

@@ -23,8 +23,6 @@ from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
 
-viewChangeTimeoutMilli = "10000"
-
 def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
@@ -32,6 +30,7 @@ def start_replica_cmd(builddir, replica_id):
     Note each arguments is an element in a list.
     """
     statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
@@ -421,6 +420,11 @@ class SkvbcViewChangeTest(unittest.TestCase):
             bft_network.all_replicas(without={initial_primary}))
         isolated_replicas = set([isolated_node])
 
+        ask_to_leave_msg_count = await bft_network.get_metric(
+            isolated_node, bft_network, "Gauges", "sentReplicaAsksToLeaveViewMsg")
+        self.assertEqual(ask_to_leave_msg_count, 0,
+                         "Make sure the replica is ok before isolating it.")
+
         with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
             try:
@@ -433,18 +437,11 @@ class SkvbcViewChangeTest(unittest.TestCase):
             except:
                 pass
 
-            # wait for 1.5 times the view change timeout to ensure the replica asks for a view change
-            await trio.sleep(1.5 * int(viewChangeTimeoutMilli) / 1000)
+            await bft_network.wait_for_replica_to_ask_for_view_change(replica_id=isolated_node)
 
-        # ensure the isolated replica has sent AsksToLeaveView requests
-        with trio.fail_after(seconds=30):
-            while True:
-                ask_to_leave_msg_count = await bft_network.get_metric(
-                    isolated_node, bft_network, "Counters", "sentReplicaAsksToLeaveViewMsgDueToStatus")
-                if ask_to_leave_msg_count > 0:
-                    break
-                else:
-                    await trio.sleep(.5)
+        # ensure the isolated replica has sent AsksToLeaveView requests after ending it's isolation
+        await self._wait_for_replica_to_ask_to_leave_view_due_to_status(
+            bft_network=bft_network, node=isolated_node)
 
         num_fast_req = 10
         async def write_req():
@@ -530,3 +527,13 @@ class SkvbcViewChangeTest(unittest.TestCase):
             crashed_replicas.add(crash_candidates[i])
 
         return crashed_replicas
+
+    async def _wait_for_replica_to_ask_to_leave_view_due_to_status(self, bft_network, node):
+        with trio.fail_after(seconds=30):
+            while True:
+                ask_to_leave_msg_count = await bft_network.get_metric(
+                    node, bft_network, "Counters", "sentReplicaAsksToLeaveViewMsgDueToStatus")
+                if ask_to_leave_msg_count > 0:
+                    break
+                else:
+                    await trio.sleep(.5)
