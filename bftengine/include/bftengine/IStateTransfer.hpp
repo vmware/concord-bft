@@ -77,7 +77,7 @@ class IStateTransfer : public IReservedPages {
 // (methods can be invoked by any thread)
 class IReplicaForStateTransfer {
  public:
-  virtual void onTransferringComplete(int64_t checkpointNumberOfNewState) = 0;
+  virtual void onTransferringComplete(uint64_t checkpointNumberOfNewState) = 0;
 
   // The following methods can be used to simplify the state transfer
   // implementations. (A state transfer module may not need to use them).

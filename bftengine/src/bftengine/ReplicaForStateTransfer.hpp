@@ -33,7 +33,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   // IReplicaForStateTransfer
   void freeStateTransferMsg(char* m) override;
   void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override;
-  void onTransferringComplete(int64_t checkpointNumberOfNewState) override;
+  void onTransferringComplete(uint64_t checkpointNumberOfNewState) override;
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
 
   bool isCollectingState() const { return stateTransfer->isCollectingState(); }
@@ -42,7 +42,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   void stop() override;
 
  protected:
-  virtual void onTransferringCompleteImp(int64_t checkpointNumberOfNewState) = 0;
+  virtual void onTransferringCompleteImp(uint64_t checkpointNumberOfNewState) = 0;
 
   template <typename T>
   void messageHandler(MessageBase* msg) {

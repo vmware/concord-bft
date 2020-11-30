@@ -108,10 +108,7 @@ class IReplica {
                                       MetadataStorage *,
                                       bool &erasedMetadata);
 
-  static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
-                                        IStateTransfer *,
-                                        bft::communication::ICommunication *,
-                                        MetadataStorage *);
+  static IReplicaPtr createNewRoReplica(const ReplicaConfig &, IStateTransfer *, bft::communication::ICommunication *);
 
   virtual ~IReplica() = default;
 

@@ -123,7 +123,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     // IReplicaForStateTransfer methods
     ////////////////////////////////////////////////////////////////////////
 
-    void onTransferringComplete(int64_t checkpointNumberOfNewState) override {
+    void onTransferringComplete(uint64_t checkpointNumberOfNewState) override {
       stObject->onComplete(checkpointNumberOfNewState);
 
       realInterface_->onTransferringComplete(checkpointNumberOfNewState);

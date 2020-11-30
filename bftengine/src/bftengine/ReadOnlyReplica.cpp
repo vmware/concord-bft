@@ -15,6 +15,7 @@
 #include "messages/AskForCheckpointMsg.hpp"
 #include "CheckpointInfo.hpp"
 #include "Logger.hpp"
+#include "kvstream.h"
 #include "PersistentStorage.hpp"
 #include "ClientsManager.hpp"
 #include "MsgsCommunicator.hpp"
@@ -27,11 +28,9 @@ namespace bftEngine::impl {
 ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
-                                 std::shared_ptr<PersistentStorage> persistentStorage,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
                                  concordUtil::Timers &timers)
     : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true, timers),
-      ps_(persistentStorage),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
@@ -49,7 +48,6 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
 
 void ReadOnlyReplica::start() {
   ReplicaForStateTransfer::start();
-  lastExecutedSeqNum = ps_->getLastExecutedSeqNum();
   askForCheckpointMsgTimer_ = timers_.add(std::chrono::seconds(5),  // TODO [TK] config
                                           Timers::Timer::RECURRING,
                                           [this](Timers::Handle) {
@@ -63,11 +61,9 @@ void ReadOnlyReplica::stop() {
   ReplicaForStateTransfer::stop();
 }
 
-void ReadOnlyReplica::onTransferringCompleteImp(int64_t newStateCheckpoint) {
-  lastExecutedSeqNum = newStateCheckpoint;
-  ps_->beginWriteTran();
-  ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
-  ps_->endWriteTran();
+void ReadOnlyReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
+  lastExecutedSeqNum = newStateCheckpoint * checkpointWindowSize;
+
   ro_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
 }
 
@@ -92,10 +88,7 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
 
-  LOG_INFO(GL,
-           "Node " << config_.replicaId << " received Checkpoint message from node " << msgSenderId << " for seqNumber "
-                   << msgSeqNum << " (size=" << msg->size() << ", stable=" << (msgIsStable ? "true" : "false")
-                   << ", digestPrefix=" << *((int *)(&msgDigest)) << ")");
+  LOG_INFO(GL, KVLOG(msgSenderId, msgSeqNum, msg->size(), msgIsStable) << ", digest: " << msgDigest.toString());
 
   // not relevant
   if (!msgIsStable || msgSeqNum <= lastExecutedSeqNum) return;
@@ -107,9 +100,8 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
   tableOfStableCheckpoints[msgSenderId] = x;
   LOG_INFO(GL,
-           "Node " << config_.replicaId
-                   << " added stable Checkpoint message to tableOfStableCheckpoints (message from node " << msgSenderId
-                   << " for seqNumber " << msgSeqNum << ")");
+           "Added stable Checkpoint message to tableOfStableCheckpoints (message from node "
+               << msgSenderId << " for seqNumber " << msgSeqNum << ")");
 
   // not enough CheckpointMsg's
   if ((uint16_t)tableOfStableCheckpoints.size() < config_.fVal + 1) return;

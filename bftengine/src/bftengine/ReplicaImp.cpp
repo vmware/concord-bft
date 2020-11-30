@@ -2495,23 +2495,22 @@ void ReplicaImp::sendCheckpointIfNeeded() {
   sendToAllOtherReplicas(checkpointMessage, true);
 }
 
-void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
+void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
-  ConcordAssertEQ(newStateCheckpoint % checkpointWindowSize, 0);
 
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
 
   if (ps_) {
     ps_->beginWriteTran();
   }
-
-  if (newStateCheckpoint <= lastExecutedSeqNum) {
+  SeqNum newCheckpointSeqNum = newStateCheckpoint * checkpointWindowSize;
+  if (newCheckpointSeqNum <= lastExecutedSeqNum) {
     LOG_DEBUG(GL,
               "Executing onTransferringCompleteImp(newStateCheckpoint) where newStateCheckpoint <= lastExecutedSeqNum");
     if (ps_) ps_->endWriteTran();
     return;
   }
-  lastExecutedSeqNum = newStateCheckpoint;
+  lastExecutedSeqNum = newCheckpointSeqNum;
   if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
@@ -2526,34 +2525,33 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     KeyManager::get().loadKeysFromReservedPages();
   }
 
-  if (newStateCheckpoint > lastStableSeqNum + kWorkWindowSize) {
-    const SeqNum refPoint = newStateCheckpoint - kWorkWindowSize;
+  if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
+    const SeqNum refPoint = newCheckpointSeqNum - kWorkWindowSize;
     const bool withRefCheckpoint = (checkpointsLog->insideActiveWindow(refPoint) &&
                                     (checkpointsLog->get(refPoint).selfCheckpointMsg() != nullptr));
 
     onSeqNumIsStable(refPoint, withRefCheckpoint, true);
   }
 
-  // newStateCheckpoint should be in the active window
-  ConcordAssert(checkpointsLog->insideActiveWindow(newStateCheckpoint));
+  ConcordAssert(checkpointsLog->insideActiveWindow(newCheckpointSeqNum));
 
   // create and send my checkpoint
   Digest digestOfNewState;
-  const uint64_t checkpointNum = newStateCheckpoint / checkpointWindowSize;
-  stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfNewState);
-  CheckpointMsg *checkpointMsg = new CheckpointMsg(config_.getreplicaId(), newStateCheckpoint, digestOfNewState, false);
-  CheckpointInfo &checkpointInfo = checkpointsLog->get(newStateCheckpoint);
+  stateTransfer->getDigestOfCheckpoint(newStateCheckpoint, sizeof(Digest), (char *)&digestOfNewState);
+  CheckpointMsg *checkpointMsg =
+      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, digestOfNewState, false);
+  CheckpointInfo &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
   checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
   checkpointInfo.setCheckpointSentAllOrApproved();
 
-  if (newStateCheckpoint > primaryLastUsedSeqNum) primaryLastUsedSeqNum = newStateCheckpoint;
+  if (newCheckpointSeqNum > primaryLastUsedSeqNum) primaryLastUsedSeqNum = newCheckpointSeqNum;
 
   if (checkpointInfo.isCheckpointSuperStable()) {
-    onSeqNumIsSuperStable(newStateCheckpoint);
+    onSeqNumIsSuperStable(newCheckpointSeqNum);
   }
   if (ps_) {
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
-    ps_->setCheckpointMsgInCheckWindow(newStateCheckpoint, checkpointMsg);
+    ps_->setCheckpointMsgInCheckWindow(newCheckpointSeqNum, checkpointMsg);
     ps_->endWriteTran();
   }
   metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
@@ -2564,7 +2562,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
     uint16_t numOfStableCheckpoints = 0;
     auto tableItrator = tableOfStableCheckpoints.begin();
     while (tableItrator != tableOfStableCheckpoints.end()) {
-      if (tableItrator->second->seqNumber() >= newStateCheckpoint) numOfStableCheckpoints++;
+      if (tableItrator->second->seqNumber() >= newCheckpointSeqNum) numOfStableCheckpoints++;
 
       if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
         delete tableItrator->second;
@@ -2573,7 +2571,7 @@ void ReplicaImp::onTransferringCompleteImp(SeqNum newStateCheckpoint) {
         tableItrator++;
       }
     }
-    if (numOfStableCheckpoints >= config_.getfVal() + 1) onSeqNumIsStable(newStateCheckpoint);
+    if (numOfStableCheckpoints >= config_.getfVal() + 1) onSeqNumIsStable(newCheckpointSeqNum);
 
     if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) askAnotherStateTransfer = true;
   }
