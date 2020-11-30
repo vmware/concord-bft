@@ -203,8 +203,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
 }
 IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaConfig,
                                                    IStateTransfer *stateTransfer,
-                                                   bft::communication::ICommunication *communication,
-                                                   MetadataStorage *metadataStorage) {
+                                                   bft::communication::ICommunication *communication) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -222,21 +221,8 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
 
-  std::shared_ptr<PersistentStorage> persistentStorage;
-  if (metadataStorage) {
-    uint16_t numOfObjects = 0;
-    persistentStorage.reset(new impl::PersistentStorageImp(replicaConfig.fVal, replicaConfig.cVal));
-    auto objectDescriptors = std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
-                                 ->getDefaultMetadataObjectDescriptors(numOfObjects);
-    metadataStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-    std::static_pointer_cast<impl::PersistentStorageImp>(persistentStorage)
-        ->init(std::unique_ptr<MetadataStorage>(metadataStorage));
-  } else if (replicaConfig.debugPersistentStorageEnabled) {
-    persistentStorage.reset(new impl::DebugPersistentStorage(replicaConfig.fVal, replicaConfig.cVal));
-  }
-
-  replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
-      replicaConfig, stateTransfer, msgsCommunicator, persistentStorage, msgHandlers, timers);
+  replicaInternal->replica_ =
+      std::make_unique<ReadOnlyReplica>(replicaConfig, stateTransfer, msgsCommunicator, msgHandlers, timers);
   return replicaInternal;
 }
 

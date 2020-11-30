@@ -108,7 +108,6 @@ class ReplicaBase {
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
 
-  // TODO [TK] move to ReplicaImpl
   // last SeqNum executed  by this replica (or its affect was transferred to this replica)
   SeqNum lastExecutedSeqNum = 0;
 

@@ -376,7 +376,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   );
 
   void onSeqNumIsSuperStable(SeqNum superStableSeqNum);
-  void onTransferringCompleteImp(SeqNum) override;
+  void onTransferringCompleteImp(uint64_t) override;
 
   template <typename T>
   bool relevantMsgForActiveView(const T* msg);

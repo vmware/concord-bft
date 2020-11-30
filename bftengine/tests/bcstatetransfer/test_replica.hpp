@@ -36,7 +36,7 @@ class TestReplica : public IReplicaForStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   // IReplicaForStateTransfer methods
   ///////////////////////////////////////////////////////////////////////////
-  void onTransferringComplete(int64_t checkpointNumberOfNewState) override{};
+  void onTransferringComplete(uint64_t checkpointNumberOfNewState) override{};
 
   void freeStateTransferMsg(char* m) override {
     char* p = (m - sizeof(bftEngine::impl::MessageBase::Header));

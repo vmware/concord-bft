@@ -25,7 +25,6 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   ReadOnlyReplica(const ReplicaConfig&,
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
-                  std::shared_ptr<PersistentStorage>,
                   std::shared_ptr<MsgHandlersRegistrator>,
                   concordUtil::Timers& timers);
 
@@ -36,7 +35,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
  protected:
   void sendAskForCheckpointMsg();
 
-  void onTransferringCompleteImp(int64_t newStateCheckpoint) override;
+  void onTransferringCompleteImp(uint64_t newStateCheckpoint) override;
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   template <typename T>
@@ -51,7 +50,6 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   void onMessage(T*);
 
  protected:
-  std::shared_ptr<PersistentStorage> ps_;
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum
   std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
