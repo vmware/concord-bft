@@ -72,7 +72,7 @@ std::list<Metric> Component::CollectGauges() {
     ret.emplace_back(Metric{name_, names_.gauge_names_[i], values_.gauges_[i]});
   }
   for (std::size_t i = 0; i < names_.atomic_gauge_names_.size(); i++) {
-    ret.emplace_back(Metric{name_, names_.atomic_gauge_names_[i], Counter(values_.atomic_gauges_[i].Get())});
+    ret.emplace_back(Metric{name_, names_.atomic_gauge_names_[i], Gauge(values_.atomic_gauges_[i].Get())});
   }
   return ret;
 }
