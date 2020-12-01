@@ -183,3 +183,51 @@ def test_WithMsgRefs(codegen):
     s = s[0:len(s) - 1]
     with pytest.raises(example.CmfDeserializeError):
         msg.deserialize(s)
+
+
+def test_FixedBuffer(codegen):
+    import example
+
+    msg = example.FixedBuffer()
+    msg.bytes8 = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+    msg.bytes4 = [0x0a, 0x0b, 0x0c, 0x0d]
+
+    assert_roundtrip(msg)
+
+    msg.bytes8 = [0x01, 0x02, 0x03, 0x04]
+    with pytest.raises(example.CmfSerializeError):
+        s = msg.serialize()
+
+    msg.bytes4 = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+    with pytest.raises(example.CmfSerializeError):
+        s = msg.serialize()
+
+
+def test_FixedTransactionList(codegen):
+    import example
+
+    t1 = example.Transaction()
+    t1.name = "transaction1"
+    t1.actions = []
+
+    t2 = example.Transaction()
+    t2.name = "transaction2"
+    t2.actions = []
+
+    t3 = example.Transaction()
+    t3.name = "transaction3"
+    t3.actions = []
+
+    msg = example.FixedTransactionList()
+    msg.transactions1 = [t1]
+    msg.transactions2 = [t2, t3]
+
+    assert_roundtrip(msg)
+
+    msg.transactions1 = [t2, t3]
+    with pytest.raises(example.CmfSerializeError):
+        s = msg.serialize()
+
+    msg.transactions2 = [t1]
+    with pytest.raises(example.CmfSerializeError):
+        s = msg.serialize()

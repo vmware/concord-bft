@@ -27,7 +27,7 @@ def field_type(type):
         if is_primitive(type):
             return type
         return "msg"
-    for compound in ["list", "kvpair", "map", "optional", "oneof"]:
+    for compound in ["list", "fixedlist", "kvpair", "map", "optional", "oneof"]:
         if compound in type:
             return compound
     raise CmfParseError(type.parseinfo, f"Invalid field type: {type}")
@@ -64,6 +64,11 @@ class Walker:
             self.visitor.list_start()
             self.walk_type(type.list.type)
             self.visitor.list_end()
+        elif "fixedlist" in type:
+            self.visitor.fixedlist_start()
+            self.walk_type(type.fixedlist.type)
+            self.visitor.fixedlist_type_end()
+            self.visitor.fixedlist_end(type.fixedlist.size)
         elif "kvpair" in type:
             self.visitor.kvpair_start()
             self.walk_type(type.kvpair.key)

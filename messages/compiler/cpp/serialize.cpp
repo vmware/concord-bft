@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <map>
@@ -37,15 +38,15 @@ class BadDataError : public DeserializeError {
 /******************************************************************************
  * Integers
  *
- * All integers are encoded in little endian
+ * All integers are encoded in big-endian
  ******************************************************************************/
 template <typename T, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
 void serialize(std::vector<uint8_t>& output, const T& t) {
   if constexpr (std::is_same_v<T, bool>) {
     output.push_back(t ? 1 : 0);
   } else {
-    for (auto i = 0u; i < sizeof(T); i++) {
-      output.push_back(255 & t >> (i * 8));
+    for (auto i = sizeof(T); i > 0; i--) {
+      output.push_back(255 & (t >> ((i - 1) * 8)));
     }
   }
 }
@@ -70,7 +71,7 @@ void deserialize(uint8_t*& start, const uint8_t* end, T& t) {
     }
     t = 0;
     for (auto i = 0u; i < sizeof(T); i++) {
-      t |= ((*(start + i)) << (i * 8));
+      t |= (static_cast<std::make_unsigned_t<T>>(*(start + sizeof(T) - 1 - i)) << (i * 8));
     }
     start += sizeof(T);
   }
@@ -81,14 +82,14 @@ void deserialize(uint8_t*& start, const uint8_t* end, T& t) {
  *
  * Strings are preceded by a uint32_t length
  ******************************************************************************/
-void serialize(std::vector<uint8_t>& output, const std::string& s) {
+static inline void serialize(std::vector<uint8_t>& output, const std::string& s) {
   assert(s.size() <= 0xFFFFFFFF);
   uint32_t length = s.size() & 0xFFFFFFFF;
   serialize(output, length);
   std::copy(s.begin(), s.end(), std::back_inserter(output));
 }
 
-void deserialize(uint8_t*& start, const uint8_t* end, std::string& s) {
+static inline void deserialize(uint8_t*& start, const uint8_t* end, std::string& s) {
   uint32_t length;
   deserialize(start, end, length);
   if (start + length > end) {
@@ -156,6 +157,29 @@ void deserialize(uint8_t*& start, const uint8_t* end, std::vector<T>& v) {
       T t;
       deserialize(start, end, t);
       v.push_back(t);
+    }
+  }
+}
+
+template <typename T, std::size_t N>
+void serialize(std::vector<uint8_t>& output, const std::array<T, N>& a) {
+  for (auto& it : a) {
+    serialize(output, it);
+  }
+}
+
+template <typename T, std::size_t N>
+void deserialize(uint8_t*& start, const uint8_t* end, std::array<T, N>& a) {
+  if constexpr (std::is_integral_v<T> && sizeof(T) == 1) {
+    // Optimized for bytes
+    if (start + a.size() > end) {
+      throw NoDataLeftError();
+    }
+    std::copy_n(start, a.size(), a.begin());
+    start += a.size();
+  } else {
+    for (auto& t : a) {
+      deserialize(start, end, t);
     }
   }
 }

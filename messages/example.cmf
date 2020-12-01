@@ -27,6 +27,47 @@ Msg WithMsgRefs 5 {
     map string Envelope map_of_envelope
 }
 
+Msg Uint8 6 {
+    uint8 val
+}
+
+Msg Uint16 7 {
+    uint16 val
+}
+
+Msg Uint32 8 {
+    uint32 val
+}
+
+Msg Uint64 9 {
+    uint64 val
+}
+
+Msg Int8 10 {
+    int8 val
+}
+
+Msg Int16 11 {
+    int16 val
+}
+
+Msg Int32 12 {
+    int32 val
+}
+
+Msg Int64 13 {
+    int64 val
+}
+
+Msg FixedBuffer 14 {
+    fixedlist uint8 8 bytes8
+    fixedlist uint8 4 bytes4
+}
+
+Msg FixedTransactionList 15 {
+    fixedlist Transaction 1 transactions1
+    fixedlist Transaction 2 transactions2
+}
 
 ######
 # Uncomment each message to induce various parse errors
