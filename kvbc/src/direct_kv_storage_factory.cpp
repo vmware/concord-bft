@@ -83,7 +83,8 @@ IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
   ret.dataDBClient->init();
 
   auto dataKeyGenerator = std::make_unique<S3KeyGenerator>(s3Conf_.pathPrefix);
-  ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient, std::move(dataKeyGenerator), true);
+  ret.dbAdapter = std::make_unique<DBAdapter>(
+      ret.dataDBClient, std::move(dataKeyGenerator), true /* use_mdt */, false /* save_kv_pairs_separately */);
 
   return ret;
 }
