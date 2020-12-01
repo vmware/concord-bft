@@ -1142,3 +1142,23 @@ class BftTestNetwork:
                       f'(expected={num_requests} ' \
                       f'executed={total_pre_exec_requests_executed} ' \
                       f'preexecsent={pre_proc_req})'
+
+    async def wait_for_replica_to_ask_for_view_change(self, replica_id, previous_asks_to_leave_view_msg_count=0):
+        """
+        Wait for a single replica to send a ReplicaAsksToLeaveViewMsg.
+        """
+        with log.start_action(action_type="wait_for_replica_asks_to_leave_view_msg", replica=replica_id,
+                              previous_asks_to_leave_view_msg_count=previous_asks_to_leave_view_msg_count) as action:
+            key = ['replica', 'Gauges', 'sentReplicaAsksToLeaveViewMsg']
+            with trio.fail_after(60):
+                while True:
+                    with trio.move_on_after(.5): # seconds
+                        try:
+                            replica_asks_to_leave_view_msg_count = await self.metrics.get(replica_id, *key)
+                        except KeyError:
+                            await trio.sleep(0.1)
+                        else:
+                            if replica_asks_to_leave_view_msg_count > previous_asks_to_leave_view_msg_count:
+                                action.add_success_fields(
+                                    replica_asks_to_leave_view_msg_count=replica_asks_to_leave_view_msg_count)
+                                return replica_asks_to_leave_view_msg_count

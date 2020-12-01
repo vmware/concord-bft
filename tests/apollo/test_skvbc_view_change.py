@@ -394,6 +394,67 @@ class SkvbcViewChangeTest(unittest.TestCase):
             num_consecutive_failing_primaries = 2
         )
 
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @with_trio
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
+    async def test_replica_asks_to_leave_view(self, bft_network):
+        """
+        This test makes sure that a single isolated replica will ask for a view change, but it doesn't occur:
+        1) Start all replicas
+        2) Isolate a single replica for long enough to trigger a ReplicaAsksToLeaveViewMsg
+        3) Let the replica rejoin the consensus
+        4) Make sure a view change does not happen and the isolated replica
+        rejoins the fast path in the existing view
+        """
+        
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        n = bft_network.config.n
+
+        self.assertEqual(len(bft_network.procs), n,
+                         "Make sure all replicas are up initially.")
+
+        initial_primary = await bft_network.get_current_primary()
+
+        isolated_node = random.choice(
+            bft_network.all_replicas(without={initial_primary}))
+        isolated_replicas = set([isolated_node])
+
+        ask_to_leave_msg_count = await bft_network.get_metric(
+            isolated_node, bft_network, "Gauges", "sentReplicaAsksToLeaveViewMsg")
+        self.assertEqual(ask_to_leave_msg_count, 0,
+                         "Make sure the replica is ok before isolating it.")
+
+        with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, isolated_replicas) as adversary:
+            adversary.interfere()
+            try:
+                client = bft_network.random_client()
+                client.primary = None
+                for _ in range(5):
+                    msg = skvbc.write_req(
+                        [], [(skvbc.random_key(), skvbc.random_value())], 0)
+                    await client.write(msg)
+            except:
+                pass
+
+            await bft_network.wait_for_replica_to_ask_for_view_change(replica_id=isolated_node)
+
+        # ensure the isolated replica has sent AsksToLeaveView requests after ending it's isolation
+        await self._wait_for_replica_to_ask_to_leave_view_due_to_status(
+            bft_network=bft_network, node=isolated_node)
+
+        num_fast_req = 10
+        async def write_req():
+            for _ in range(num_fast_req):
+                await skvbc.write_known_kv()
+
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: write_req(), threshold=num_fast_req)
+
+        current_primary = await bft_network.get_current_primary()
+        self.assertEqual(initial_primary, current_primary,
+                         "Make sure we are still on the initial view.")
+
     async def _single_vc_with_consecutive_failed_replicas(
             self,
             bft_network,
@@ -466,3 +527,13 @@ class SkvbcViewChangeTest(unittest.TestCase):
             crashed_replicas.add(crash_candidates[i])
 
         return crashed_replicas
+
+    async def _wait_for_replica_to_ask_to_leave_view_due_to_status(self, bft_network, node):
+        with trio.fail_after(seconds=30):
+            while True:
+                ask_to_leave_msg_count = await bft_network.get_metric(
+                    node, bft_network, "Counters", "sentReplicaAsksToLeaveViewMsgDueToStatus")
+                if ask_to_leave_msg_count > 0:
+                    break
+                else:
+                    await trio.sleep(.5)
