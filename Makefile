@@ -6,6 +6,7 @@ CONCORD_BFT_DOCKER_CONTAINER:=concord-bft
 CONCORD_BFT_DOCKERFILE:=Dockerfile
 CONCORD_BFT_BUILD_DIR:=build
 CONCORD_BFT_TARGET_SOURCE_PATH:=/concord-bft
+CONCORD_BFT_CMF_PATHS:=/concord-bft/build/*/cmf
 CONCORD_BFT_CONTAINER_SHELL:=/bin/bash
 CONCORD_BFT_CONTAINER_CC:=clang
 CONCORD_BFT_CONTAINER_CXX:=clang++
@@ -111,6 +112,7 @@ tidy-check: ## Run clang-tidy
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
 		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		make -C ${CONCORD_BFT_CMF_PATHS} &> /dev/null && \
 		run-clang-tidy-10 &> clang-tidy-report.txt && \
 		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \

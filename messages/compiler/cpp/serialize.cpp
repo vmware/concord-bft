@@ -13,6 +13,12 @@
 
 namespace cmf {
 
+inline void cmfAssert(bool expr) {
+  if (expr != true) {
+    std::terminate();
+  }
+}
+
 class DeserializeError : public std::runtime_error {
  public:
   DeserializeError(const std::string& error) : std::runtime_error(("DeserializeError: " + error).c_str()) {}
@@ -83,7 +89,7 @@ void deserialize(uint8_t*& start, const uint8_t* end, T& t) {
  * Strings are preceded by a uint32_t length
  ******************************************************************************/
 static inline void serialize(std::vector<uint8_t>& output, const std::string& s) {
-  assert(s.size() <= 0xFFFFFFFF);
+  cmfAssert(s.size() <= 0xFFFFFFFF);
   uint32_t length = s.size() & 0xFFFFFFFF;
   serialize(output, length);
   std::copy(s.begin(), s.end(), std::back_inserter(output));
@@ -133,7 +139,7 @@ void deserialize(uint8_t*& start, const uint8_t* end, std::optional<T>& t);
  ******************************************************************************/
 template <typename T>
 void serialize(std::vector<uint8_t>& output, const std::vector<T>& v) {
-  assert(v.size() <= 0xFFFFFFFF);
+  cmfAssert(v.size() <= 0xFFFFFFFF);
   uint32_t length = v.size() & 0xFFFFFFFF;
   serialize(output, length);
   for (auto& it : v) {
@@ -206,7 +212,7 @@ void deserialize(uint8_t*& start, const uint8_t* end, std::pair<K, V>& kvpair) {
  ******************************************************************************/
 template <typename K, typename V>
 void serialize(std::vector<uint8_t>& output, const std::map<K, V>& m) {
-  assert(m.size() <= 0xFFFFFFFF);
+  cmfAssert(m.size() <= 0xFFFFFFFF);
   uint32_t size = m.size() & 0xFFFFFFFF;
   serialize(output, size);
   for (auto& it : m) {

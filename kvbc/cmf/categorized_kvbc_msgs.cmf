@@ -1,0 +1,60 @@
+# Updates
+
+Msg MerkleUpdatesData 1 {
+    map string string kv
+    list string deletes
+}
+
+Msg ValueWithExpirationData 2{
+    string value
+    optional int64 expire_at
+    bool stale_on_update
+}
+
+Msg KeyValueUpdatesData 3{
+    map string ValueWithExpirationData kv
+    list string deletes
+    bool calculate_hash
+}
+
+Msg SharedValueData 4{
+    string value
+    list string categories_ids
+}
+
+Msg SharedUpdatesData 5{
+    map string SharedValueData kv
+    bool calculate_hash
+}
+
+
+# Updates info
+
+Msg MerkleKeyFlag 6{
+    bool deleted
+}
+
+Msg MerkleUpdatesInfo 7{
+    map string MerkleKeyFlag keys
+    fixedlist uint8 32 hash
+    uint64 version
+}
+
+Msg KVKeyFlag 8{
+    bool deleted
+    bool stale_on_update
+}
+
+Msg KeyValueUpdatesInfo 9{
+    map string KVKeyFlag keys
+    optional fixedlist uint8 32 hash
+}
+
+Msg SharedKeyData 10 {
+    list string categories
+}
+
+Msg SharedKeyValueUpdatesInfo 11{
+    map string SharedKeyData keys
+    optional fixedlist uint8 32 hash
+}
