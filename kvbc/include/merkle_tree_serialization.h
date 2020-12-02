@@ -168,7 +168,7 @@ inline std::string serializeImp(const sparse_merkle::BatchedInternalNode &intNod
 
   auto mask = BatchedInternalMaskType{0};
 
-  // We assume the largest batched internal node contains with 15 internal and 16 leaf children. We then factor in the
+  // We assume the largest batched internal node contains 15 internal and 16 leaf children. We then factor in the
   // mask that indicates which child is set and the single-byte child type bytes serialized for every child.
   auto out = std::string{};
   out.reserve((sparse_merkle::InternalChild::SIZE_IN_BYTES * 15) + (sparse_merkle::LeafChild::SIZE_IN_BYTES * 16) +
