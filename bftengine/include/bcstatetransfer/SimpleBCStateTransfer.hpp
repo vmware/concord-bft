@@ -125,6 +125,7 @@ struct Config {
 
   // misc
   bool runInSeparateThread = false;
+  bool enableReservedPages = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {

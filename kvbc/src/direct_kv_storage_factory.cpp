@@ -20,7 +20,8 @@
 #include "rocksdb/key_comparator.h"
 
 #ifdef USE_S3_OBJECT_STORE
-#include "object_store/object_store_client.hpp"
+#include "s3/key_manipulator.h"
+#include "s3/client.hpp"
 #endif
 
 #include <chrono>
@@ -73,13 +74,12 @@ std::unique_ptr<storage::ISTKeyManipulator> MemoryDBStorageFactory::newSTKeyMani
   return std::make_unique<storage::v1DirectKeyValue::STKeyManipulator>();
 }
 
-#if defined(USE_S3_OBJECT_STORE) && defined(USE_ROCKSDB)
+#if defined(USE_S3_OBJECT_STORE)
 IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
   auto ret = IStorageFactory::DatabaseSet{};
 
-  ret.metadataDBClient = createRocksDBClient(metadataDBPath_);
-  ret.metadataDBClient->init();
-  ret.dataDBClient = std::make_shared<storage::ObjectStoreClient>(new storage::s3::Client{s3Conf_});
+  ret.metadataDBClient = std::make_shared<storage::s3::Client>(s3Conf_);
+  ret.dataDBClient = ret.metadataDBClient;
   ret.dataDBClient->init();
 
   auto dataKeyGenerator = std::make_unique<S3KeyGenerator>(s3Conf_.pathPrefix);
@@ -93,7 +93,7 @@ std::unique_ptr<storage::IMetadataKeyManipulator> S3StorageFactory::newMetadataK
 }
 
 std::unique_ptr<storage::ISTKeyManipulator> S3StorageFactory::newSTKeyManipulator() const {
-  return std::make_unique<storage::v1DirectKeyValue::STKeyManipulator>();
+  return std::make_unique<storage::s3::STKeyManipulator>(s3Conf_.pathPrefix);
 }
 #endif
 

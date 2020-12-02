@@ -44,9 +44,10 @@ class DBDataStore : public DataStore {
    */
   DBDataStore(concord::storage::IDBClient::ptr dbc,
               uint32_t sizeOfReservedPage,
-              std::shared_ptr<concord::storage::ISTKeyManipulator> keyManip)
+              std::shared_ptr<concord::storage::ISTKeyManipulator> keyManip,
+              bool loadResPages)
       : inmem_(new InMemoryDataStore(sizeOfReservedPage)), dbc_(dbc), keymanip_{keyManip} {
-    load();
+    load(loadResPages);
   }
 
   DataStoreTransaction* beginTransaction() override {
@@ -137,7 +138,7 @@ class DBDataStore : public DataStore {
     EraseDataOnStartup,
   };
 
-  void load();
+  void load(bool loadResPages);
   void loadResPages();
   void loadPendingPages();
 
@@ -163,10 +164,10 @@ class DBDataStore : public DataStore {
   void put(const GeneralIds& objId, const Sliver& val) { put(genKey(objId), val); }
   void put(const Sliver& key, const Sliver& val) {
     if (txn_) {
-      LOG_TRACE(logger(), "put objId:" << key << " val: " << val << " txn: " + txn_->getIdStr());
+      LOG_TRACE(logger(), "put objId:" << key.toString() << " val: " << val << " txn: " + txn_->getIdStr());
       txn_->put(key, val);
     } else {
-      LOG_TRACE(logger(), "put objId:" << key << " val: " << val);
+      LOG_TRACE(logger(), "put objId:" << key.toString() << " val: " << val);
       dbc_->put(key, val);
     }
   }
@@ -181,10 +182,10 @@ class DBDataStore : public DataStore {
     if (!(s.isOK() || s.isNotFound()))
       throw std::runtime_error("error get objId: " + key.toString() + std::string(", reason: ") + s.toString());
     if (s.isNotFound()) {
-      LOG_TRACE(logger(), "not found: key: " << key);
+      LOG_TRACE(logger(), "not found: key: " << key.toString());
       return false;
     }
-    LOG_TRACE(logger(), "get objId:" << key << " val: " << val);
+    LOG_TRACE(logger(), "get objId:" << key.toString() << " val: " << val);
     return true;
   }
   /**
@@ -193,12 +194,12 @@ class DBDataStore : public DataStore {
    */
   bool del(GeneralIds objId) { return del(genKey(objId)); }
   bool del(const Sliver& key) {
-    LOG_TRACE(logger(), "delete k.ey:" << key);
+    LOG_TRACE(logger(), "delete k.ey:" << key.toString());
     Status s = dbc_->del(key);
     if (!(s.isOK() || s.isNotFound()))
       throw std::runtime_error("error del key: " + key.toString() + std::string(", reason: ") + s.toString());
     if (s.isNotFound()) {
-      LOG_ERROR(logger(), "not found: key: " << key);
+      LOG_ERROR(logger(), "not found: key: " << key.toString());
       return false;
     }
     return true;
