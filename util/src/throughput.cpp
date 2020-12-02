@@ -82,6 +82,7 @@ void Throughput::Stats::reset() {
 void Throughput::Stats::calcThroughput() {
   auto duration = std::chrono::steady_clock::now() - start_time_;
   results_.elapsed_time_us_ = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+  ConcordAssert(results_.elapsed_time_us_ != 0);
   results_.throughput_ = static_cast<uint64_t>((1000000 * results_.num_processed_items_) / results_.elapsed_time_us_);
 }
 
