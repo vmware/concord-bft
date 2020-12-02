@@ -124,7 +124,8 @@ class DBAdapter : public IDbAdapter {
  public:
   DBAdapter(std::shared_ptr<storage::IDBClient> dataStore,
             std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<RocksKeyGenerator>(),
-            bool use_mdt = false);
+            bool use_mdt = false,
+            bool save_kv_pairs_separately = true);
 
   // Adds a block from a set of key/value pairs and a block ID. Includes:
   // - adding the key/value pairs in separate keys
@@ -182,6 +183,7 @@ class DBAdapter : public IDbAdapter {
   bool mdt_ = false;  // whether we explicitly store blockchain metadata
   BlockId lastBlockId_ = 0;
   BlockId lastReachableBlockId_ = 0;
+  bool saveKvPairsSeparately_;
 };
 
 }  // namespace concord::kvbc::v1DirectKeyValue

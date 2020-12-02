@@ -364,13 +364,17 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
   return KeyValuePair(key, _p.second);
 }
 
-DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db, std::unique_ptr<IDataKeyGenerator> keyGen, bool use_mdt)
+DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db,
+                     std::unique_ptr<IDataKeyGenerator> keyGen,
+                     bool use_mdt,
+                     bool save_kv_pairs_separately)
     : logger_{logging::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
       db_(db),
       keyGen_{std::move(keyGen)},
       mdt_{use_mdt},
       lastBlockId_{fetchLatestBlockId()},
-      lastReachableBlockId_{fetchLastReachableBlockId()} {}
+      lastReachableBlockId_{fetchLastReachableBlockId()},
+      saveKvPairsSeparately_{save_kv_pairs_separately} {}
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
@@ -415,11 +419,13 @@ Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
                                             const BlockId &_block,
                                             const Sliver &_blockRaw) {
   SetOfKeyValuePairs updatedKVMap;
-  for (auto &it : _kvMap) {
-    Sliver composedKey = keyGen_->dataKey(it.first, _block);
-    LOG_TRACE(logger_,
-              "Updating composed key " << composedKey << " with value " << it.second << " in block " << _block);
-    updatedKVMap[composedKey] = it.second;
+  if (saveKvPairsSeparately_) {
+    for (auto &it : _kvMap) {
+      Sliver composedKey = keyGen_->dataKey(it.first, _block);
+      LOG_TRACE(logger_,
+                "Updating composed key " << composedKey << " with value " << it.second << " in block " << _block);
+      updatedKVMap[composedKey] = it.second;
+    }
   }
   updatedKVMap[keyGen_->blockKey(_block)] = _blockRaw;
   return db_->multiPut(updatedKVMap);
@@ -440,9 +446,10 @@ void DBAdapter::deleteBlock(const BlockId &blockId) {
     KeysVector keysVec;
     const auto numOfElements = ((block::detail::Header *)blockRaw.data())->numberOfElements;
     auto *entries = (block::detail::Entry *)(blockRaw.data() + sizeof(block::detail::Header));
-    for (size_t i = 0u; i < numOfElements; i++)
-      keysVec.push_back(keyGen_->dataKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
-
+    if (saveKvPairsSeparately_) {
+      for (size_t i = 0u; i < numOfElements; i++)
+        keysVec.push_back(keyGen_->dataKey(Key(blockRaw, entries[i].keyOffset, entries[i].keySize), blockId));
+    }
     keysVec.push_back(keyGen_->blockKey(blockId));
 
     if (Status s = db_->multiDel(keysVec); !s.isOK())
