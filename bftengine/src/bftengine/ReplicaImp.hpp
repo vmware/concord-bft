@@ -166,6 +166,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SeqNum seqNumToStopAt_ = 0;
 
   ReplicasAskedToLeaveViewInfo complainedReplicas;
+
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -362,7 +363,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
 
-  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, const bool requestMissingInfo = false);
+  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span,
+                                    SeqNum seqNumber,
+                                    const bool requestMissingInfo = false);
 
   void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
                                       PrePrepareMsg* pp,
@@ -454,7 +457,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         {"numRequestsInPrePrepareMsg", numRequestsInPrePrepareMsg},
                                         {"requestsQueueOfPrimarySize", requestsQueueOfPrimarySize},
                                         {"onSeqNumIsStable", onSeqNumIsStable},
-                                        {"onTransferringCompleteImp", onTransferringCompleteImp}});
+                                        {"onTransferringCompleteImp", onTransferringCompleteImp},
+                                        {"consensus", consensus}});
     }
 
     std::shared_ptr<Recorder> send =
@@ -474,9 +478,18 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
         std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
     std::shared_ptr<Recorder> onTransferringCompleteImp =
         std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+
+    // Only updated by the primary
+    std::shared_ptr<Recorder> consensus =
+        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
 
   Recorders histograms_;
+
+  // Used to measure the time for each consensus slot to go from pre-prepare to commit at the primary.
+  // Time is recorded in histograms_.consensus
+  concord::diagnostics::AsyncTimeRecorderMap<SeqNum> consensus_times_;
+
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
 };

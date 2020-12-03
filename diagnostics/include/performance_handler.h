@@ -90,7 +90,12 @@ template <bool IsAtomic = false>
 class TimeRecorder {
  public:
   TimeRecorder(Recorder& recorder) : start_(std::chrono::steady_clock::now()), recorder_(recorder) {}
+
+  // In some cases we don't want to record on destruction.
+  void doNotRecord() { record_ = false; }
+
   ~TimeRecorder() {
+    if (!record_) return;
     switch (recorder_.unit) {
       case Unit::NANOSECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start_);
@@ -144,6 +149,51 @@ class TimeRecorder {
  private:
   std::chrono::steady_clock::time_point start_;
   Recorder& recorder_;
+  bool record_ = true;
+};
+
+// This is a wrapper around an unordered_map that records the durations of asynchronous actions.
+// It's useful when the timing being recorded can't tracked in a single scope, and there are
+// multiple outstanding requests that need timing, such as consensus slots.
+template <typename Key, bool IsAtomic = false>
+class AsyncTimeRecorderMap {
+ public:
+  AsyncTimeRecorderMap(const std::shared_ptr<Recorder>& recorder) : recorder_(recorder) {}
+
+  void start(Key key) { timers_.emplace(key, *recorder_); }
+  void end(Key key) { timers_.erase(key); }
+  void clear() {
+    for (auto& t : timers_) {
+      t.second.doNotRecord();
+    }
+    timers_.clear();
+  }
+
+ private:
+  std::shared_ptr<Recorder> recorder_;
+  std::unordered_map<Key, TimeRecorder<IsAtomic>> timers_;
+};
+
+// This allows starting and stopping a timer manually rather than using the destructor. It's useful
+// for async operations without a linear control-flow.
+template <bool IsAtomic = false>
+class AsyncTimeRecorder {
+ public:
+  AsyncTimeRecorder(const std::shared_ptr<Recorder>& recorder) : recorder_(recorder) {}
+  void start() {
+    // If a timer was already started, it will record if start is called again before end.
+    // This behavior can be prevented by explicitly calling clear().
+    timer_.reset(new TimeRecorder<IsAtomic>(*recorder_));
+  }
+  void end() { timer_.reset(); }
+  void clear() {
+    timer_->doNotRecord();
+    timer_.reset();
+  }
+
+ private:
+  std::shared_ptr<Recorder> recorder_;
+  std::unique_ptr<TimeRecorder<IsAtomic>> timer_;
 };
 
 struct Histogram {

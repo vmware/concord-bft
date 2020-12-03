@@ -495,6 +495,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
     LOG_INFO(CNSUS,
              "Sending PrePrepare with the following payload of the following correlation ids ["
                  << pp->getBatchCorrelationIdAsString() << "]");
+    consensus_times_.start(primaryLastUsedSeqNum);
   }
 
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
@@ -1047,7 +1048,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
           (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel());  // TODO(GG): check/improve this logic
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
-      executeNextCommittedRequests(execution_span, askForMissingInfoAboutCommittedItems);
+      executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
       return;
     } else if (pps.hasFullProof()) {
       const auto fullProofCollectorId = pps.getFullProof()->senderId();
@@ -1537,7 +1538,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
-  executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
+  executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
 }
 
 void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {
@@ -1581,7 +1582,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
-  executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
+  executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
 }
 
 template <>
@@ -2299,6 +2300,8 @@ bool ReplicaImp::tryToEnterView() {
 void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNewView) {
   SeqNum firstPPSeq = 0;
   SeqNum lastPPSeq = 0;
+
+  consensus_times_.clear();
 
   if (!prePreparesForNewView.empty()) {
     firstPPSeq = prePreparesForNewView.front()->seqNumber();
@@ -3396,6 +3399,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
+      consensus_times_(histograms_.consensus),
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
@@ -3894,11 +3898,13 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   }
 }
 
-void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span, const bool requestMissingInfo) {
+void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span,
+                                              SeqNum seqNumber,
+                                              const bool requestMissingInfo) {
   ConcordAssertAND(!isCollectingState(), currentViewIsActive());
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
-
+  consensus_times_.end(seqNumber);
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SCOPED_MDC_SEQ_NUM(std::to_string(nextExecutedSeqNum));
