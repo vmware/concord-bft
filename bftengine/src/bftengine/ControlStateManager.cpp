@@ -13,6 +13,7 @@
 
 #include "ControlStateManager.hpp"
 #include "Logger.hpp"
+#include "../../include/bftengine/ControlStateManager.hpp"
 namespace bftEngine {
 
 /*
@@ -85,4 +86,13 @@ std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
   return page_.erase_metadata_at_seq_num_;
 }
 
+void bftEngine::ControlStateManager::clearControlStateManagerData() {
+  if (!enabled_) return;
+  page_.seq_num_to_stop_at_ = 0;
+  page_.erase_metadata_at_seq_num_ = 0;
+  std::ostringstream outStream;
+  concord::serialize::Serializable::serialize(outStream, page_);
+  auto data = outStream.str();
+  state_transfer_->saveReservedPage(resPageOffset(), data.size(), data.data());
+}
 }  // namespace bftEngine
