@@ -22,7 +22,7 @@ namespace bftEngine {
 
 class ControlStatePage : public concord::serialize::SerializableFactory<ControlStatePage> {
  public:
-  int64_t seq_num_to_stop_at_ = -1;
+  int64_t seq_num_to_stop_at_ = 0;
   int64_t erase_metadata_at_seq_num_ = 0;
   ControlStatePage() {
     static_assert(sizeof(ControlStatePage) < 4096, "The page exceeds the maximal size of reserved page");
