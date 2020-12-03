@@ -51,7 +51,9 @@ void ReplicaBase::start() {
   });
   // On startup we clean the controlStateManagerData. If the replica has been wedged before, we want to clean the
   // wedge point such that the replica will be able to continue running.
-  controlStateManager_->clearControlStateManagerData();
+  if (controlStateManager_) {
+    controlStateManager_->clearControlStateManagerData();
+  }
   msgsCommunicator_->startCommunication(config_.replicaId);
 }
 
