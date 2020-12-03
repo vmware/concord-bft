@@ -21,6 +21,8 @@ add_library(kvbc  src/ClientImp.cpp
 )
 
 target_link_libraries(kvbc PUBLIC corebft )
+target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs)
+
 
 target_include_directories(kvbc PUBLIC include util)
 
@@ -33,3 +35,6 @@ endif()
 
 add_subdirectory(benchmark)
 add_subdirectory(tools)
+find_package(CMFC REQUIRED)
+add_subdirectory(cmf)
+

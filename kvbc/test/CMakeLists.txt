@@ -34,6 +34,18 @@ target_link_libraries(sparse_merkle_storage_db_adapter_unit_test PUBLIC
     stdc++fs
 )
 
+add_executable(categorized_updates_unit_test
+    categorization/updates_test.cpp )
+add_test(categorized_updates_unit_test categorized_updates_unit_test)
+target_link_libraries(categorized_updates_unit_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    util
+    corebft
+    kvbc
+    stdc++fs
+)
+
 add_executable(sparse_merkle_storage_serialization_unit_test
     sparse_merkle_storage/serialization_unit_test.cpp )
 add_test(sparse_merkle_storage_serialization_unit_test sparse_merkle_storage_serialization_unit_test)
