@@ -88,6 +88,7 @@ std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
 
 void bftEngine::ControlStateManager::clearControlStateManagerData() {
   if (!enabled_) return;
+  if (state_transfer_->isCollectingState()) return;
   page_.seq_num_to_stop_at_ = 0;
   page_.erase_metadata_at_seq_num_ = 0;
   std::ostringstream outStream;
