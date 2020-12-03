@@ -31,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <typeinfo>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -140,7 +141,26 @@ class Iterator {
 
 class NativeClient : public std::enable_shared_from_this<NativeClient> {
  public:
-  static std::shared_ptr<NativeClient> newClient(const std::string &path, bool readOnly);
+  // User-supplied options.
+  struct UserOptions {
+    ::rocksdb::Options dbOptions;
+    ::rocksdb::TransactionDBOptions txnOptions;
+  };
+
+  // Default RocksDB options.
+  struct DefaultOptions {};
+
+  // Existing options either in rocksdb_client.cpp or in the OPTIONS file.
+  struct ExistingOptions {};
+
+  // All methods create the DB if it is missing, irrespective of the `create_if_missing` option supplied.
+  static std::shared_ptr<NativeClient> newClient(const std::string &path, bool readOnly, const DefaultOptions &);
+  static std::shared_ptr<NativeClient> newClient(const std::string &path, bool readOnly, const ExistingOptions &);
+  static std::shared_ptr<NativeClient> newClient(const std::string &path, bool readOnly, const UserOptions &);
+
+  // Convert from an IDBClient that points to a RocksDB instance into a NativeClient.
+  // Throws std::bad_cast if the IDBClient doesn't point to a RocksDB instance.
+  static std::shared_ptr<NativeClient> fromIDBClient(const std::shared_ptr<IDBClient> &);
 
   // Use this native client through the IDBClient interface.
   std::shared_ptr<IDBClient> asIDBClient() const;
@@ -193,11 +213,16 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Drops a column family and its data. It is not an error if the column family doesn't exist.
   void dropColumnFamily(const std::string &cFamily);
 
+  ::rocksdb::Options options() const;
+
   // Return the DB path.
-  const std::string &path() const { return path_; }
+  const std::string &path() const { return client_->m_dbPath; }
 
  private:
-  NativeClient(const std::string &path, bool readOnly);
+  NativeClient(const std::string &path, bool readOnly, const DefaultOptions &);
+  NativeClient(const std::string &path, bool readOnly, const ExistingOptions &);
+  NativeClient(const std::string &path, bool readOnly, const UserOptions &);
+  NativeClient(const std::shared_ptr<Client> &);
 
   // Make sure we only allow types that have data() and size() members. That excludes raw pointers without corresponding
   // size.
@@ -215,29 +240,14 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   static void throwOnError(std::string_view msg1, std::string_view msg2, ::rocksdb::Status &&);
   static void throwOnError(std::string_view msg, ::rocksdb::Status &&);
 
-  // For use in column family unique pointers that are managed solely by NativeClient. This allows us to use a raw
-  // pointer in CfDeleter as we know the column family unique pointer will not be moved out of NativeClient.
-  struct CfDeleter {
-    void operator()(::rocksdb::ColumnFamilyHandle *h) const noexcept {
-      if (!client_->dbInstance_->DestroyColumnFamilyHandle(h).ok()) {
-        std::terminate();
-      }
-    }
-    Client *client_{nullptr};
-  };
-
-  using CfUniquePtr = std::unique_ptr<::rocksdb::ColumnFamilyHandle, CfDeleter>;
-
   ::rocksdb::ColumnFamilyHandle *defaultColumnFamilyHandle() const;
   ::rocksdb::ColumnFamilyHandle *columnFamilyHandle(const std::string &cFamily) const;
-  CfUniquePtr createColumnFamilyHandle(const std::string &cFamily, const ::rocksdb::ColumnFamilyOptions &options);
+  Client::CfUniquePtr createColumnFamilyHandle(const std::string &cFamily,
+                                               const ::rocksdb::ColumnFamilyOptions &options);
 
  private:
-  std::string path_;
-  // Keep cf_handles_ after the client_ as column family handles need to be deleted before deleting the client. See
-  // CfDeleter.
   std::shared_ptr<Client> client_;
-  std::map<std::string, CfUniquePtr> cf_handles_;
+  static const bool applyOptimizationsOnDefaultOpts_ = false;
   friend class WriteBatch;
   friend class Iterator;
 };
@@ -380,24 +390,52 @@ inline std::string_view Iterator::valueView() const {
   return sliceToStringView(iter_->value());
 }
 
-inline std::shared_ptr<NativeClient> NativeClient::newClient(const std::string &path, bool readOnly) {
-  return std::shared_ptr<NativeClient>{new NativeClient{path, readOnly}};
+inline std::shared_ptr<NativeClient> NativeClient::newClient(const std::string &path,
+                                                             bool readOnly,
+                                                             const DefaultOptions &opts) {
+  return std::shared_ptr<NativeClient>{new NativeClient{path, readOnly, opts}};
 }
 
-inline NativeClient::NativeClient(const std::string &path, bool readOnly)
-    : path_{path}, client_{std::make_shared<Client>(path)} {
-  const auto initCFamilies = true;
-  const auto cfHandles = client_->initDB(readOnly, initCFamilies);
-  ConcordAssert(cfHandles.has_value());
-  ConcordAssertNE(
-      std::find_if(cfHandles->cbegin(),
-                   cfHandles->cend(),
-                   [](const ::rocksdb::ColumnFamilyHandle *h) { return h->GetName() == defaultColumnFamily(); }),
-      cfHandles->cend());
-  for (auto cfHandle : *cfHandles) {
-    cf_handles_[cfHandle->GetName()] = CfUniquePtr{cfHandle, CfDeleter{client_.get()}};
-  }
+inline std::shared_ptr<NativeClient> NativeClient::newClient(const std::string &path,
+                                                             bool readOnly,
+                                                             const ExistingOptions &opts) {
+  return std::shared_ptr<NativeClient>{new NativeClient{path, readOnly, opts}};
 }
+
+inline std::shared_ptr<NativeClient> NativeClient::newClient(const std::string &path,
+                                                             bool readOnly,
+                                                             const UserOptions &opts) {
+  return std::shared_ptr<NativeClient>{new NativeClient{path, readOnly, opts}};
+}
+
+std::shared_ptr<NativeClient> NativeClient::fromIDBClient(const std::shared_ptr<IDBClient> &idb) {
+  auto rocksDbClient = std::dynamic_pointer_cast<Client>(idb);
+  if (!rocksDbClient) {
+    throw std::bad_cast{};
+  }
+  return std::shared_ptr<NativeClient>(new NativeClient{rocksDbClient});
+}
+
+inline NativeClient::NativeClient(const std::string &path, bool readOnly, const DefaultOptions &)
+    : client_{std::make_shared<Client>(path)} {
+  auto options = Client::Options{};
+  options.db_options.create_if_missing = true;
+  client_->initDB(readOnly, options, applyOptimizationsOnDefaultOpts_);
+}
+
+inline NativeClient::NativeClient(const std::string &path, bool readOnly, const ExistingOptions &)
+    : client_{std::make_shared<Client>(path)} {
+  client_->initDB(readOnly, std::nullopt, applyOptimizationsOnDefaultOpts_);
+}
+
+inline NativeClient::NativeClient(const std::string &path, bool readOnly, const UserOptions &userOpts)
+    : client_{std::make_shared<Client>(path)} {
+  auto options = Client::Options{userOpts.dbOptions, userOpts.txnOptions};
+  options.db_options.create_if_missing = true;
+  client_->initDB(readOnly, options, applyOptimizationsOnDefaultOpts_);
+}
+
+NativeClient::NativeClient(const std::shared_ptr<Client> &client) : client_{client} {}
 
 inline std::shared_ptr<IDBClient> NativeClient::asIDBClient() const { return client_; }
 
@@ -490,12 +528,14 @@ inline std::unordered_set<std::string> NativeClient::columnFamilies(const std::s
 
 inline std::string NativeClient::defaultColumnFamily() { return ::rocksdb::kDefaultColumnFamilyName; }
 
-inline std::unordered_set<std::string> NativeClient::columnFamilies() const { return columnFamilies(path_); }
+inline std::unordered_set<std::string> NativeClient::columnFamilies() const {
+  return columnFamilies(client_->m_dbPath);
+}
 
 inline void NativeClient::createColumnFamily(const std::string &cFamily,
                                              const ::rocksdb::ColumnFamilyOptions &options) {
   auto handle = createColumnFamilyHandle(cFamily, options);
-  cf_handles_[cFamily] = std::move(handle);
+  client_->cf_handles_[cFamily] = std::move(handle);
 }
 
 inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const std::string &cFamily) const {
@@ -507,15 +547,17 @@ inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const st
 }
 
 inline void NativeClient::dropColumnFamily(const std::string &cFamily) {
-  auto it = cf_handles_.find(cFamily);
-  if (it == cf_handles_.cend()) {
+  auto it = client_->cf_handles_.find(cFamily);
+  if (it == client_->cf_handles_.cend()) {
     return;
   }
   auto s = client_->dbInstance_->DropColumnFamily(it->second.get());
   throwOnError("failed to drop column family"sv, cFamily, std::move(s));
   // std::map::erase(iterator) cannot throw.
-  cf_handles_.erase(it);
+  client_->cf_handles_.erase(it);
 }
+
+inline ::rocksdb::Options NativeClient::options() const { return client_->dbInstance_->GetOptions(); }
 
 inline void NativeClient::throwOnError(std::string_view msg1, std::string_view msg2, ::rocksdb::Status &&s) {
   if (!s.ok()) {
@@ -539,22 +581,22 @@ inline ::rocksdb::ColumnFamilyHandle *NativeClient::defaultColumnFamilyHandle() 
 }
 
 inline ::rocksdb::ColumnFamilyHandle *NativeClient::columnFamilyHandle(const std::string &cFamily) const {
-  auto it = cf_handles_.find(cFamily);
-  if (it == cf_handles_.cend()) {
+  auto it = client_->cf_handles_.find(cFamily);
+  if (it == client_->cf_handles_.cend()) {
     throwOnError("no such column family"sv, cFamily, ::rocksdb::Status::ColumnFamilyDropped());
   }
   return it->second.get();
 }
 
-inline NativeClient::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::string &cFamily,
-                                                                        const ::rocksdb::ColumnFamilyOptions &options) {
+inline Client::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::string &cFamily,
+                                                                  const ::rocksdb::ColumnFamilyOptions &options) {
   ::rocksdb::ColumnFamilyHandle *cf{nullptr};
   auto s = client_->dbInstance_->CreateColumnFamily(options, cFamily, &cf);
   // Make sure we delete any returned column family handle, irrespective of the returned status.
   // Note: CreateColumnFamily()'s interface is bad and the caller doesn't have enough info by just looking at it. One
   // has to look into the RocksDB implementation to see that a nullptr handle will be returned if the status is not OK.
   // That, however, might change, but the interface will stay the same...
-  auto ret = CfUniquePtr{cf, CfDeleter{client_.get()}};
+  auto ret = Client::CfUniquePtr{cf, Client::CfDeleter{client_.get()}};
   throwOnError("cannot create column family handle"sv, cFamily, std::move(s));
   return ret;
 }
