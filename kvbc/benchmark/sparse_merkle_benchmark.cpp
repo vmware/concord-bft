@@ -93,6 +93,9 @@ BatchedInternalNode createBatchedInternalNode() {
 
 const auto batchedInternalNode = createBatchedInternalNode();
 
+const auto internalNodeKey =
+    InternalNodeKey{42, NibblePath{32, {1, 2, 3, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}}};
+
 std::vector<std::uint8_t> randomBuffer(std::size_t size) {
   auto rd = std::random_device{};
   auto gen = std::mt19937{rd()};
@@ -217,12 +220,33 @@ void deserializeLeafKey(benchmark::State &state) {
   }
 }
 
+void serializeBatchedInternalNode(benchmark::State &state) {
+  for (auto _ : state) {
+    const auto ser = serialize(batchedInternalNode);
+    benchmark::DoNotOptimize(ser);
+  }
+}
+
 void deserializeBatchedInternalNode(benchmark::State &state) {
   const auto ser = Sliver{serialize(batchedInternalNode)};
 
   for (auto _ : state) {
     const auto deser = deserialize<BatchedInternalNode>(ser);
     benchmark::DoNotOptimize(deser);
+  }
+}
+
+void serializeInternalKey(benchmark::State &state) {
+  for (auto _ : state) {
+    const auto ser = serialize(internalNodeKey);
+    benchmark::DoNotOptimize(ser);
+  }
+}
+
+void serializeInternalKeyPlusOp(benchmark::State &state) {
+  for (auto _ : state) {
+    const auto ser = serializeImp(internalNodeKey.version().value()) + serializeImp(internalNodeKey.path());
+    benchmark::DoNotOptimize(ser);
   }
 }
 
@@ -300,7 +324,7 @@ struct Blockchain : benchmark::Fixture {
 
   std::uint64_t currentKeyValue{0};
   std::unique_ptr<DBAdapter> adapter;
-  const std::uint64_t blockCount{32};
+  const std::uint64_t blockCount{256};
   std::int64_t keyCount{0};
   std::int64_t keySize{0};
   std::int64_t valueSize{0};
@@ -381,8 +405,7 @@ BENCHMARK_DEFINE_F(Blockchain, getRawBlock)(benchmark::State &state) {
 //  - key count
 //  - key size
 //  - value size
-const auto blockchainRanges =
-    std::vector<std::pair<std::int64_t, std::int64_t>>{{128, 2048}, {4, 32}, {1024, 4 * 1024}};
+const auto blockchainRanges = std::vector<std::pair<std::int64_t, std::int64_t>>{{16, 256}, {4, 512}, {1024, 4 * 1024}};
 constexpr auto blockchainRangeMultiplier = 2;
 
 constexpr auto shaRangeStart = 8;
@@ -403,7 +426,10 @@ BENCHMARK(deserializeInternalChild);
 BENCHMARK(deserializeLeafChild);
 BENCHMARK(deserializeHash);
 BENCHMARK(deserializeLeafKey);
+BENCHMARK(serializeBatchedInternalNode);
 BENCHMARK(deserializeBatchedInternalNode);
+BENCHMARK(serializeInternalKey);
+BENCHMARK(serializeInternalKeyPlusOp);
 BENCHMARK(calculateSha2)->RangeMultiplier(blockchainRangeMultiplier)->Range(shaRangeStart, shaRangeEnd);
 BENCHMARK(calculateSha3)->RangeMultiplier(blockchainRangeMultiplier)->Range(shaRangeStart, shaRangeEnd);
 BENCHMARK(stdAsync);
