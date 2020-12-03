@@ -53,8 +53,8 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   return page_.seq_num_to_stop_at_;
 }
 
-ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages)
-    : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages} {
+ControlStateManager::ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages, bool disabled)
+    : state_transfer_{state_transfer}, sizeOfReservedPage_{sizeOfReservedPages}, enabled_{!disabled} {
   scratchPage_.resize(sizeOfReservedPage_);
 }
 

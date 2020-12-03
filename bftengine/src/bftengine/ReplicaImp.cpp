@@ -3549,7 +3549,6 @@ void ReplicaImp::addTimers() {
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
   ReplicaForStateTransfer::start();
-
   // requires the init of state transfer
   std::shared_ptr<ISecureStore> sec(
       new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
