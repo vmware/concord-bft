@@ -108,7 +108,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             await trio.sleep(seconds=5)
             bft_network.start_replica(restarted_replica)
 
-            await trio.sleep(seconds=5)
+            await trio.sleep(seconds=20)
 
             # Stop sending requests, and make sure the restarted replica
             # is up-and-running and participates in consensus
