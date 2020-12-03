@@ -3568,6 +3568,7 @@ void ReplicaImp::start() {
   id.timers = &timers_;
   id.a = aggregator_;
   id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
+  id.keyExchangeOnStart = ReplicaConfig::instance().getkeyExchangeOnStart();
 
   KeyManager::start(&id);
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();

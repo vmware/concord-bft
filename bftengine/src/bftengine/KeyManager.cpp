@@ -26,6 +26,7 @@ KeyManager::KeyManager(InitData* id)
       keyStore_{id->clusterSize, *id->reservedPages, id->sizeOfReservedPage},
       multiSigKeyHdlr_(id->kg),
       keysView_(id->sec, id->backupSec, id->clusterSize),
+      keyExchangeOnStart_(id->keyExchangeOnStart),
       timers_(*(id->timers)) {
   registryToExchange_.push_back(id->ke);
   if (keyStore_.exchangedReplicas.size() == 0) {
@@ -76,7 +77,7 @@ std::string KeyManager::generateCid() {
 std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
   if (kemsg.op == KeyExchangeMsg::HAS_KEYS) {
     LOG_INFO(KEY_EX_LOG, "Has key query arrived, returning " << std::boolalpha << keysExchanged << std::noboolalpha);
-    if (!keysExchanged) return std::string(KeyExchangeMsg::hasKeysFalseReply);
+    if (!keysExchanged && keyExchangeOnStart_) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
 
