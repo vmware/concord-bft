@@ -25,7 +25,7 @@ std::string toString(const DataStore::CheckpointDesc& desc) {
 }
 
 /** ******************************************************************************************************************/
-void DBDataStore::load() {
+void DBDataStore::load(bool loadResPages_) {
   LOG_DEBUG(logger(), "");
   if (get<bool>(EraseDataOnStartup)) {
     try {
@@ -65,9 +65,11 @@ void DBDataStore::load() {
     inmem_->setCheckpointBeingFetched(cpd);
   }
 
-  if (inmem_->getLastStoredCheckpoint() > 0) loadResPages();
+  if (loadResPages_) {
+    if (inmem_->getLastStoredCheckpoint() > 0) loadResPages();
 
-  loadPendingPages();
+    loadPendingPages();
+  }
 
   LOG_DEBUG(logger(), "MyReplicaId: " << inmem_->getMyReplicaId());
   LOG_DEBUG(logger(), "MaxNumOfStoredCheckpoints: " << inmem_->getMaxNumOfStoredCheckpoints());

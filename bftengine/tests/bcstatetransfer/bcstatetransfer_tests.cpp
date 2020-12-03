@@ -56,7 +56,8 @@ Config TestConfig() {
       15000,              // sourceReplicaReplacementTimeoutMs
       250,                // fetchRetransmissionTimeoutMs
       5,                  // metricsDumpIntervalSec
-      false               // runInSeparateThread
+      false,              // runInSeparateThread
+      true                // enableReservedPages
   };
 }
 
@@ -78,8 +79,10 @@ class BcStTest : public ::testing::Test {
     concord::storage::IDBClient::ptr dbc(
         new concord::storage::rocksdb::Client(BCST_DB, std::make_unique<KeyComparator>(db_key_comparator)));
     dbc->init();
-    auto* datastore = new DBDataStore(
-        dbc, config_.sizeOfReservedPage, std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>());
+    auto* datastore = new DBDataStore(dbc,
+                                      config_.sizeOfReservedPage,
+                                      std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>(),
+                                      config_.enableReservedPages);
 #else
     auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
     concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));

@@ -51,19 +51,27 @@ class Client : public concord::storage::IDBClient {
    public:
     Transaction(Client* client) : ITransaction(nextId()), client_{client} {}
     void commit() override {
-      for (auto&& pair : multiput_)
+      for (auto& pair : multiput_)
         if (concordUtils::Status s = client_->put(pair.first, pair.second); !s.isOK())
-          throw std::runtime_error("S3 client error: commit failed txn id[" + getIdStr() + std::string("], reason: ") +
-                                   s.toString());
+          throw std::runtime_error("S3 commit failed while putting a value for key: " + pair.first.toString() +
+                                   std::string(" txn id[") + getIdStr() + std::string("], reason: ") + s.toString());
+      for (auto& key : keys_to_delete_)
+        if (concordUtils::Status s = client_->del(key); !s.isOK())
+          throw std::runtime_error("S3 commit failed while deleting a vallue for key: " + key.toString() +
+                                   std::string(" txn id[") + getIdStr() + std::string("], reason: ") + s.toString());
     }
     void rollback() override { multiput_.clear(); }
     void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override { multiput_[key] = value; }
     std::string get(const concordUtils::Sliver& key) override { return multiput_[key].toString(); }
-    void del(const concordUtils::Sliver& key) override { multiput_.erase(key); }
+    void del(const concordUtils::Sliver& key) override {
+      multiput_.erase(key);
+      keys_to_delete_.insert(key);
+    }
 
    protected:
     Client* client_;
     SetOfKeyValuePairs multiput_;
+    std::set<concordUtils::Sliver> keys_to_delete_;
     ID nextId() {
       static ID id_ = 0;
       return ++id_;

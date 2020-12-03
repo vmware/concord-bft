@@ -70,7 +70,7 @@ IStateTransfer *create(const Config &config,
   if (dynamic_cast<concord::storage::memorydb::Client *>(dbc.get()))
     ds = new impl::InMemoryDataStore(config.sizeOfReservedPage);
   else
-    ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage, stKeyManipulator);
+    ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage, stKeyManipulator, config.enableReservedPages);
   return new impl::BCStateTran(config, stateApi, ds);
 }
 
@@ -2127,7 +2127,11 @@ void BCStateTran::processData() {
       badDataFromCurrentSourceReplica = !newBlockIsValid;
     } else if (newBlock && !isGettingBlocks) {
       ConcordAssert(!badDataFromCurrentSourceReplica);
-      newBlockIsValid = checkVirtualBlockOfResPages(digestOfNextRequiredBlock, buffer_, actualBlockSize);
+      if (!config_.enableReservedPages)
+        newBlockIsValid = true;
+      else
+        newBlockIsValid = checkVirtualBlockOfResPages(digestOfNextRequiredBlock, buffer_, actualBlockSize);
+
       badDataFromCurrentSourceReplica = !newBlockIsValid;
     } else {
       ConcordAssertAND(!newBlock, actualBlockSize == 0);
@@ -2179,16 +2183,17 @@ void BCStateTran::processData() {
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       sourceSelector_.setSourceSelectionTime(currTime);
 
-      // set the updated pages
-      uint32_t numOfUpdates = getNumberOfElements(buffer_);
-      LOG_DEBUG(getLogger(), "numOfUpdates in vblock: " << numOfUpdates);
-      for (uint32_t i = 0; i < numOfUpdates; i++) {
-        ElementOfVirtualBlock *e = getVirtualElement(i, config_.sizeOfReservedPage, buffer_);
-        g.txn()->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
-        LOG_DEBUG(getLogger(), "Update page " << e->pageId);
+      if (config_.enableReservedPages) {
+        // set the updated pages
+        uint32_t numOfUpdates = getNumberOfElements(buffer_);
+        LOG_DEBUG(getLogger(), "numOfUpdates in vblock: " << numOfUpdates);
+        for (uint32_t i = 0; i < numOfUpdates; i++) {
+          ElementOfVirtualBlock *e = getVirtualElement(i, config_.sizeOfReservedPage, buffer_);
+          g.txn()->setResPage(e->pageId, e->checkpointNumber, e->pageDigest, e->page);
+          LOG_DEBUG(getLogger(), "Update page " << e->pageId);
+        }
+        memset(buffer_, 0, actualBlockSize);
       }
-      memset(buffer_, 0, actualBlockSize);
-
       ConcordAssert(g.txn()->hasCheckpointBeingFetched());
 
       DataStore::CheckpointDesc cp = g.txn()->getCheckpointBeingFetched();
@@ -2388,31 +2393,33 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
           ConcordAssertEQ(computedBlockDigest, desc.digestOfLastBlock);
         }
       }
-      // check all pages descriptor
-      DataStore::ResPagesDescriptor *allPagesDesc = psd_->getResPagesDescriptor(chkp);
-      ConcordAssertEQ(allPagesDesc->numOfPages, numberOfReservedPages_);
-      {
-        STDigest computedDigestOfResPagesDescriptor;
-        computeDigestOfPagesDescriptor(allPagesDesc, computedDigestOfResPagesDescriptor);
-        LOG_INFO(getLogger(), allPagesDesc->toString(computedDigestOfResPagesDescriptor.toString()));
-        ConcordAssertEQ(computedDigestOfResPagesDescriptor, desc.digestOfResPagesDescriptor);
-      }
-      // check all pages descriptors
-      for (uint32_t pageId = 0; pageId < numberOfReservedPages_; pageId++) {
-        uint64_t actualCheckpoint = 0;
-        if (!psd_->getResPage(pageId, chkp, &actualCheckpoint, buffer_, config_.sizeOfReservedPage)) continue;
+      if (config_.enableReservedPages) {
+        // check all pages descriptor
+        DataStore::ResPagesDescriptor *allPagesDesc = psd_->getResPagesDescriptor(chkp);
+        ConcordAssertEQ(allPagesDesc->numOfPages, numberOfReservedPages_);
+        {
+          STDigest computedDigestOfResPagesDescriptor;
+          computeDigestOfPagesDescriptor(allPagesDesc, computedDigestOfResPagesDescriptor);
+          LOG_INFO(getLogger(), allPagesDesc->toString(computedDigestOfResPagesDescriptor.toString()));
+          ConcordAssertEQ(computedDigestOfResPagesDescriptor, desc.digestOfResPagesDescriptor);
+        }
+        // check all pages descriptors
+        for (uint32_t pageId = 0; pageId < numberOfReservedPages_; pageId++) {
+          uint64_t actualCheckpoint = 0;
+          if (!psd_->getResPage(pageId, chkp, &actualCheckpoint, buffer_, config_.sizeOfReservedPage)) continue;
 
-        ConcordAssertEQ(allPagesDesc->d[pageId].pageId, pageId);
-        ConcordAssertLE(allPagesDesc->d[pageId].relevantCheckpoint, chkp);
-        ConcordAssertGT(allPagesDesc->d[pageId].relevantCheckpoint, 0);
-        ConcordAssertEQ(allPagesDesc->d[pageId].relevantCheckpoint, actualCheckpoint);
+          ConcordAssertEQ(allPagesDesc->d[pageId].pageId, pageId);
+          ConcordAssertLE(allPagesDesc->d[pageId].relevantCheckpoint, chkp);
+          ConcordAssertGT(allPagesDesc->d[pageId].relevantCheckpoint, 0);
+          ConcordAssertEQ(allPagesDesc->d[pageId].relevantCheckpoint, actualCheckpoint);
 
-        STDigest computedDigestOfPage;
-        computeDigestOfPage(pageId, actualCheckpoint, buffer_, config_.sizeOfReservedPage, computedDigestOfPage);
-        ConcordAssertEQ(computedDigestOfPage, allPagesDesc->d[pageId].pageDigest);
+          STDigest computedDigestOfPage;
+          computeDigestOfPage(pageId, actualCheckpoint, buffer_, config_.sizeOfReservedPage, computedDigestOfPage);
+          ConcordAssertEQ(computedDigestOfPage, allPagesDesc->d[pageId].pageDigest);
+        }
+        memset(buffer_, 0, config_.sizeOfReservedPage);
+        psd_->free(allPagesDesc);
       }
-      memset(buffer_, 0, config_.sizeOfReservedPage);
-      psd_->free(allPagesDesc);
     }
   }
 }
