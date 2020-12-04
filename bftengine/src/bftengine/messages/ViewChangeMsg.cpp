@@ -32,6 +32,8 @@ ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;
+  b()->numberOfComplaints = 0;
+  b()->sizeOfAllComplaints = 0;
   b()->numberOfElements = 0;
   b()->locationAfterLast = 0;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
@@ -45,6 +47,7 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
   uint32_t bodySize = b()->locationAfterLast;
   if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
+  bodySize += b()->sizeOfAllComplaints;
   DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
 }
 
@@ -59,6 +62,8 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
   ConcordAssert(b()->numberOfElements > 0 || b()->locationAfterLast == 0);
   ConcordAssert(seqNum > b()->lastStable);
   ConcordAssert(seqNum <= b()->lastStable + kWorkWindowSize);
+  ConcordAssert(b()->numberOfComplaints == 0);   // We first add the elements for each seqNum
+  ConcordAssert(b()->sizeOfAllComplaints == 0);  // and only after that we add the complaints
 
   if (b()->locationAfterLast == 0)  // if this is the first element
   {
@@ -93,18 +98,49 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
   b()->numberOfElements++;
 }
 
+void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complaint) {
+  // We store complaints in a size/value list
+  // Visual representation for List Of Complaints:
+  // +--------------------+-------------------------+--------------------+-------------------------+---
+  // |Size of next element|ReplicaAsksToLeaveViewMsg|Size of next element|ReplicaAsksToLeaveViewMsg|...
+  // +--------------------+-------------------------+--------------------+-------------------------+---
+
+  ConcordAssert(b()->numberOfComplaints > 0 || b()->sizeOfAllComplaints == 0);
+  size_t bodySize = b()->locationAfterLast;
+  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
+  uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
+  bodySize += sigSize + b()->sizeOfAllComplaints;
+
+  auto sizeOfComplaint = complaint->size();
+
+  ConcordAssertLE((size_t)bodySize + sizeof(sizeOfComplaint) + (size_t)sizeOfComplaint, (size_t)internalStorageSize());
+
+  memcpy(body() + bodySize, &sizeOfComplaint, sizeof(sizeOfComplaint));
+  memcpy(body() + bodySize + sizeof(sizeOfComplaint), complaint->body(), complaint->size());
+
+  b()->sizeOfAllComplaints += sizeof(sizeOfComplaint) + complaint->size();
+  b()->numberOfComplaints++;
+}
+
 void ViewChangeMsg::finalizeMessage() {
   size_t bodySize = b()->locationAfterLast;
   if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
 
   uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
 
-  setMsgSize(bodySize + sigSize);
+  setMsgSize(bodySize + sigSize + b()->sizeOfAllComplaints);
   shrinkToFit();
+
+  // We only sign the part that is concerned with View Change safety,
+  // the complaints carry signatures from the issuers.
+  // Visual representation:
+  // +------------+----------------+-------------------------------+------------------+
+  // |VCMsg header|List of Elements|Signature for previous 2 fields|List Of Complaints|
+  // +------------+----------------+-------------------------------+------------------+
 
   ViewsManager::sigManager_->sign(body(), bodySize, body() + bodySize, sigSize);
 
-  bool b = checkElements((uint16_t)sigSize);
+  bool b = checkElements((uint16_t)sigSize) && checkComplaints((uint16_t)sigSize);
 
   ConcordAssert(b);
 }
@@ -123,6 +159,8 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   if (!checkElements(sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
+  if (!checkComplaints(sigLen))  // check list of complaints
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check complaints in message"));
 }
 
 bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
@@ -174,6 +212,32 @@ bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
   } else {
     if (this->b()->locationAfterLast != 0) return false;
   }
+
+  return true;
+}
+
+bool ViewChangeMsg::checkComplaints(uint16_t sigSize) const {
+  uint16_t numOfActualComplaints = 0;
+  uint32_t remainingBytes = size() - sigSize - b()->locationAfterLast;
+  char* currLoc = body() + b()->locationAfterLast + sigSize;
+
+  while (remainingBytes > sizeof(MessageBase::Header) && (numOfActualComplaints < numberOfComplaints())) {
+    MsgSize* complaintSize = (MsgSize*)currLoc;
+    remainingBytes -= sizeof(MsgSize);
+    currLoc += sizeof(MsgSize);
+
+    if (*complaintSize <= sizeof(MessageBase::Header)) {
+      return false;
+    }
+
+    numOfActualComplaints++;
+    remainingBytes -= *complaintSize;
+    currLoc += *complaintSize;
+  }
+
+  if (numOfActualComplaints != numberOfComplaints()) return false;
+
+  if (remainingBytes != 0) return false;
 
   return true;
 }
@@ -267,6 +331,64 @@ bool ViewChangeMsg::ElementsIterator::goToAtLeast(SeqNum lowerBound) {
   }
 
   return validElement;
+}
+
+ViewChangeMsg::ComplaintsIterator::ComplaintsIterator(const ViewChangeMsg* const m) : msg{m} {
+  if (m == nullptr || m->numberOfComplaints() == 0) {
+    endLoc = 0;
+    currLoc = 0;
+    nextComplaintNum = 1;
+  } else {
+    endLoc = m->size();
+    currLoc = m->b()->locationAfterLast + ViewsManager::sigManager_->getMySigLength();
+    ConcordAssert(endLoc > currLoc);
+    nextComplaintNum = 1;
+  }
+}
+
+bool ViewChangeMsg::ComplaintsIterator::end() {
+  if (currLoc >= endLoc) {
+    ConcordAssert(msg == nullptr || ((nextComplaintNum - 1) == msg->numberOfComplaints()));
+    return true;
+  }
+
+  return false;
+}
+
+bool ViewChangeMsg::ComplaintsIterator::getCurrent(char*& pComplaint, MsgSize& size) {
+  if (end()) return false;
+
+  size = *(MsgSize*)(msg->body() + currLoc);
+
+  const uint32_t remainingbytes = (endLoc - currLoc) - sizeof(MsgSize);
+
+  ConcordAssert(remainingbytes >= size);  // Validate method must make sure we never accept such message
+
+  pComplaint = (char*)malloc(size);
+
+  memcpy(pComplaint, msg->body() + currLoc + sizeof(MsgSize), size);
+
+  return true;
+}
+
+void ViewChangeMsg::ComplaintsIterator::gotoNext() {
+  if (end()) return;
+
+  const uint32_t size = *(MsgSize*)(msg->body() + currLoc);
+
+  const uint32_t remainingbytes = (endLoc - currLoc) - sizeof(MsgSize);
+
+  ConcordAssert(remainingbytes >= size);  // Validate method must make sure we never accept such message
+
+  currLoc += sizeof(MsgSize) + size;
+
+  nextComplaintNum++;
+}
+
+bool ViewChangeMsg::ComplaintsIterator::getAndGoToNext(char*& pComplaint, MsgSize& size) {
+  bool retVal = getCurrent(pComplaint, size);
+  gotoNext();
+  return retVal;
 }
 
 }  // namespace impl
