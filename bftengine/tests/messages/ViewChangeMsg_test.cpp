@@ -69,9 +69,52 @@ TEST(ViewChangeMsg, base_methods) {
   EXPECT_EQ(msg.numberOfElements(), 2);
 
   msg.setNewViewNumber(++viewNum);
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+  uint32_t totalSizeOfComplaints = 0;
+  uint32_t numberOfComplaints = 0;
+  for (ReplicaId sender = 1; sender < 4; sender++) {
+    std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg_complaint(
+        ReplicaAsksToLeaveViewMsg::create(sender,
+                                          viewNum,
+                                          ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout,
+                                          concordUtils::SpanContext{spanContext}));
+    EXPECT_EQ(msg_complaint->idOfGeneratedReplica(), sender);
+    EXPECT_EQ(msg_complaint->viewNumber(), viewNum);
+    EXPECT_EQ(msg_complaint->reason(), ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout);
+
+    testMessageBaseMethods(*msg_complaint.get(), MsgCode::ReplicaAsksToLeaveView, sender, spanContext);
+
+    EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
+
+    msg.addComplaint(msg_complaint.get());
+
+    totalSizeOfComplaints += sizeof(decltype(msg_complaint->size()));
+    totalSizeOfComplaints += msg_complaint->size();
+    numberOfComplaints++;
+  }
+  EXPECT_EQ(msg.numberOfComplaints(), numberOfComplaints);
+  EXPECT_EQ(msg.sizeOfAllComplaints(), totalSizeOfComplaints);
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+
   msg.finalizeMessage();
   EXPECT_EQ(msg.numberOfElements(), 2);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
+
+  {
+    uint32_t packedComplaints = 0;
+    ViewChangeMsg::ComplaintsIterator iter(&msg);
+    char* complaint = nullptr;
+    MsgSize size = 0;
+    while (iter.getAndGoToNext(complaint, size)) {
+      auto Msg = MessageBase(msg.senderId(), (MessageBase::Header*)complaint, size, false);
+      auto msg_complaint = std::make_unique<ReplicaAsksToLeaveViewMsg>(&Msg);
+      EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
+      packedComplaints++;
+    }
+    EXPECT_EQ(packedComplaints, numberOfComplaints);
+  }
+
   testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
 
   {
