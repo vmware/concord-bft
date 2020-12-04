@@ -14,26 +14,24 @@ Msg ValueWithExpirationData 2 {
 Msg KeyValueUpdatesData 3 {
     map string ValueWithExpirationData kv
     list string deletes
-    bool calculate_hash
+    bool calculate_root_hash
 }
 
 Msg SharedValueData 4 {
     string value
-    list string categories_ids
+    list string category_ids
 }
 
 Msg SharedKeyValueUpdatesData 5 {
     map string SharedValueData kv
-    bool calculate_hash
+    bool calculate_root_hash
 }
-
 
 # Updates info
 
 Msg MerkleKeyFlag 1000 {
     bool deleted
 }
-
 
 Msg MerkleUpdatesInfo 1001 {
     map string MerkleKeyFlag keys
@@ -42,6 +40,7 @@ Msg MerkleUpdatesInfo 1001 {
 }
 
 Msg KVKeyFlag 1002 {
+
     bool deleted
     bool stale_on_update
 }
@@ -57,7 +56,7 @@ Msg SharedKeyData 1004 {
 
 Msg SharedKeyValueUpdatesInfo 1005 {
     map string SharedKeyData keys
-    optional fixedlist uint8 32 root_hash
+    optional map string fixedlist uint8 32 category_root_hashes
 }
 
 # Blocks
@@ -101,10 +100,40 @@ Msg RawBlockData 2005 {
     optional RawBlockSharedUpdates shared_update
 }
 
+# Misc
 
-# keys
+Msg Version 3000 {
+    uint64 value
+}
 
-Msg DbKey 3000 {
-    fixedlist uint8 32 hashed_key
+Msg BenchmarkMessage 3001 {
+    string str
+    fixedlist uint8 32 hash
+    map string string map
+}
+
+# DB Key-Values
+
+Msg KeyHash 4000 {
+    fixedlist uint8 32 value
+}
+
+Msg VersionedKey 4001 {
+    KeyHash key_hash
     uint64 version
+}
+
+Msg SharedDbValuePointer 4002 {
+    string category_id
+}
+
+Msg SharedDbValueData 4003 {
+    string data
+}
+
+Msg SharedDbValue 4004 {
+    oneof {
+        SharedDbValueData
+        SharedDbValuePointer
+    } data
 }

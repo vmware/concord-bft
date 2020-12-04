@@ -45,7 +45,10 @@ struct SharedKeyValueUpdates {
     SharedValue(std::string&& val, std::set<std::string>&& cat_ids) {
       data_.value = std::move(val);
       for (auto it = cat_ids.begin(); it != cat_ids.end();) {
-        data_.categories_ids.emplace_back(cat_ids.extract(it++).value());
+        // Save the iterator as extract() invalidates it.
+        auto extracted_it = it;
+        ++it;
+        data_.category_ids.emplace_back(cat_ids.extract(extracted_it).value());
       }
     }
 
@@ -102,7 +105,7 @@ struct KeyValueUpdates {
     data_.deletes.emplace_back(std::move(key));
   }
 
-  void calculateHash(const bool hash) { data_.calculate_hash = hash; }
+  void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
 
  private:
   KeyValueUpdatesData data_;

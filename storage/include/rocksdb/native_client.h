@@ -13,6 +13,8 @@
 
 #pragma once
 
+#ifdef USE_ROCKSDB
+
 #include "assertUtils.hpp"
 #include "client.h"
 #include "storage/db_interface.h"
@@ -21,9 +23,11 @@
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>
 #include <rocksdb/utilities/options_util.h>
+#include <rocksdb/utilities/transaction_db.h>
 #include <rocksdb/write_batch.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <exception>
 #include <map>
 #include <memory>
@@ -42,8 +46,9 @@
 //  * error reporting - done via exceptions instead of status codes
 //
 // The Span template parameters to methods allow conversion from any type that has data() and size()
-// members. The data() member should return a char pointer. That includes std::string, std::string_view,
-// std::vector<char>, std::span<char>, Sliver, ::rocksdb::Slice, etc. Raw pointers without size are not supported.
+// members. The data() member should return `const char *` or `const std::uint8_t*`. That includes std::string,
+// std::string_view, std::vector<char/std::uint8_t>, std::span<char/std::uint8_t>, Sliver, ::rocksdb::Slice, etc. Raw
+// pointers without size are not supported.
 //
 // Note1: All methods on all classes throw on errors.
 // Note2: All methods without a column family parameter work with the default column family.
@@ -201,28 +206,40 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // match the families input.
   std::vector<Iterator> getIterators(const std::vector<std::string> &cFamilies) const;
 
-  // Column family management.
-  static std::string defaultColumnFamily();
-  static std::unordered_set<std::string> columnFamilies(const std::string &path);
-  std::unordered_set<std::string> columnFamilies() const;
-  // Throws if the column family already exists.
-  void createColumnFamily(const std::string &cFamily,
-                          const ::rocksdb::ColumnFamilyOptions &options = ::rocksdb::ColumnFamilyOptions{});
-  // Return the column family options for an existing column family.
-  ::rocksdb::ColumnFamilyOptions columnFamilyOptions(const std::string &cFamily) const;
-  // Drops a column family and its data. It is not an error if the column family doesn't exist.
-  void dropColumnFamily(const std::string &cFamily);
-
   ::rocksdb::Options options() const;
 
   // Return the DB path.
   const std::string &path() const { return client_->m_dbPath; }
+
+  // On-disk column family management.
+  static std::string defaultColumnFamily();
+  // Return the column families in the DB pointed to by `path`.
+  static std::unordered_set<std::string> columnFamilies(const std::string &path);
+
+  // Client instance column management. Methods below only operate on column families this client is ware of. The actual
+  // column families on-disk can be different if this client is in read-only mode as another read-write client might
+  // have modified them. Return the column families this client is aware of.
+  std::unordered_set<std::string> columnFamilies() const;
+  // Checks if the client has a column family.
+  bool hasColumnFamily(const std::string cFamily) const;
+  // Throws if the column family already exists.
+  void createColumnFamily(const std::string &cFamily,
+                          const ::rocksdb::ColumnFamilyOptions &options = ::rocksdb::ColumnFamilyOptions{});
+  // Return the column family options for an existing column family in this client.
+  ::rocksdb::ColumnFamilyOptions columnFamilyOptions(const std::string &cFamily) const;
+  // Drops a column family and its data. It is not an error if the column family doesn't exist or if the client is not
+  // aware of it.
+  void dropColumnFamily(const std::string &cFamily);
 
  private:
   NativeClient(const std::string &path, bool readOnly, const DefaultOptions &);
   NativeClient(const std::string &path, bool readOnly, const ExistingOptions &);
   NativeClient(const std::string &path, bool readOnly, const UserOptions &);
   NativeClient(const std::shared_ptr<Client> &);
+  NativeClient(const NativeClient &) = delete;
+  NativeClient(NativeClient &&) = delete;
+  NativeClient &operator=(const NativeClient &) = delete;
+  NativeClient &operator=(NativeClient &&) = delete;
 
   // Make sure we only allow types that have data() and size() members. That excludes raw pointers without corresponding
   // size.
@@ -242,7 +259,7 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
       std::enable_if_t<std::is_convertible_v<decltype(std::declval<Span>().size()), std::size_t> &&
                            std::is_pointer_v<decltype(std::declval<Span>().data())> &&
                            std::is_convertible_v<std::remove_pointer_t<decltype(std::declval<Span>().data())> (*)[],
-                                                 const uint8_t (*)[]>,
+                                                 const std::uint8_t (*)[]>,
                        int> = 0>
   static ::rocksdb::Slice toSlice(const Span &span) noexcept {
     return ::rocksdb::Slice{reinterpret_cast<const char *>(span.data()), span.size()};
@@ -419,7 +436,7 @@ inline std::shared_ptr<NativeClient> NativeClient::newClient(const std::string &
   return std::shared_ptr<NativeClient>{new NativeClient{path, readOnly, opts}};
 }
 
-std::shared_ptr<NativeClient> NativeClient::fromIDBClient(const std::shared_ptr<IDBClient> &idb) {
+inline std::shared_ptr<NativeClient> NativeClient::fromIDBClient(const std::shared_ptr<IDBClient> &idb) {
   auto rocksDbClient = std::dynamic_pointer_cast<Client>(idb);
   if (!rocksDbClient) {
     throw std::bad_cast{};
@@ -446,7 +463,7 @@ inline NativeClient::NativeClient(const std::string &path, bool readOnly, const 
   client_->initDB(readOnly, options, applyOptimizationsOnDefaultOpts_);
 }
 
-NativeClient::NativeClient(const std::shared_ptr<Client> &client) : client_{client} {}
+inline NativeClient::NativeClient(const std::shared_ptr<Client> &client) : client_{client} {}
 
 inline std::shared_ptr<IDBClient> NativeClient::asIDBClient() const { return client_; }
 
@@ -540,7 +557,15 @@ inline std::unordered_set<std::string> NativeClient::columnFamilies(const std::s
 inline std::string NativeClient::defaultColumnFamily() { return ::rocksdb::kDefaultColumnFamilyName; }
 
 inline std::unordered_set<std::string> NativeClient::columnFamilies() const {
-  return columnFamilies(client_->m_dbPath);
+  auto ret = std::unordered_set<std::string>{};
+  for (const auto &cFamilyToHandle : client_->cf_handles_) {
+    ret.insert(cFamilyToHandle.first);
+  }
+  return ret;
+}
+
+inline bool NativeClient::hasColumnFamily(const std::string cFamily) const {
+  return (client_->cf_handles_.find(cFamily) != client_->cf_handles_.cend());
 }
 
 inline void NativeClient::createColumnFamily(const std::string &cFamily,
@@ -613,3 +638,5 @@ inline Client::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::str
 }
 
 }  // namespace concord::storage::rocksdb
+
+#endif

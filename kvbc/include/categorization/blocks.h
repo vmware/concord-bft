@@ -4,6 +4,7 @@
 #include "details.h"
 #include "merkle_tree_serialization.h"
 #include "merkle_tree_key_manipulator.h"
+#include "merkle_tree_db_adapter.h"
 #include "sliver.hpp"
 
 namespace concord::kvbc::categorization {
@@ -40,14 +41,14 @@ struct Block {
   }
   inline BlockId id() const { return data.block_id; }
 
-  static const serialization::buffer& serialize(const Block& block) {
-    static thread_local serialization::buffer output;
+  static const detail::Buffer& serialize(const Block& block) {
+    static thread_local detail::Buffer output;
     output.clear();
     concord::kvbc::categorization::serialize(output, block.data);
     return output;
   }
 
-  static Block deserialize(const serialization::buffer& input) {
+  static Block deserialize(const detail::Buffer& input) {
     Block output;
     concord::kvbc::categorization::deserialize(input, output.data);
     return output;
@@ -55,8 +56,8 @@ struct Block {
 
   // Generate block key from block ID
   // Using CMF for big endian
-  static const serialization::buffer& generateKey(const BlockId block_id) {
-    static thread_local serialization::buffer output;
+  static const detail::Buffer& generateKey(const BlockId block_id) {
+    static thread_local detail::Buffer output;
     output.clear();
     BlockKey key{block_id};
     // think about optimization
@@ -101,8 +102,8 @@ RawBlockMerkleUpdates getRawUpdates(const std::string& category_id,
       throw std::logic_error("Couldn't find value for key");
     }
     // E.L serializtion of the Merkle to CMF will be in later phase
-    auto dbLeafVal =
-        v2MerkleTree::detail::deserialize<detail::DatabaseLeafValue>(concordUtils::Sliver{std::move(val.value())});
+    auto dbLeafVal = v2MerkleTree::detail::deserialize<v2MerkleTree::detail::DatabaseLeafValue>(
+        concordUtils::Sliver{std::move(val.value())});
     ConcordAssert(dbLeafVal.addedInBlockId == block_id);
 
     data.updates.kv[key] = dbLeafVal.leafNode.value.toString();
@@ -151,8 +152,8 @@ struct RawBlock {
     }
   }
 
-  static const serialization::buffer& serialize(const RawBlockData& data) {
-    static thread_local serialization::buffer out;
+  static const detail::Buffer& serialize(const RawBlockData& data) {
+    static thread_local detail::Buffer out;
     out.clear();
     concord::kvbc::categorization::serialize(out, data);
     return out;

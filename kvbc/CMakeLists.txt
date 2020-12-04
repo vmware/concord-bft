@@ -20,6 +20,10 @@ add_library(kvbc  src/ClientImp.cpp
                   src/sparse_merkle/walker.cpp
 )
 
+if (BUILD_ROCKSDB_STORAGE)
+    target_sources(kvbc PRIVATE src/categorization/shared_kv_category.cpp)
+endif (BUILD_ROCKSDB_STORAGE)
+
 target_link_libraries(kvbc PUBLIC corebft )
 target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs)
 

@@ -42,13 +42,14 @@ class KeyValueBlockchain {
       // https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
       std::visit(
           [&new_block, category_id = category_id, &write_batch, this](auto& update) {
-            auto block_updates = handleCategoryUpdates(category_id, std::move(update), write_batch);
+            auto block_updates = handleCategoryUpdates(new_block.id(), category_id, std::move(update), write_batch);
             new_block.add(category_id, std::move(block_updates));
           },
           update);
     }
     if (updates.shared_update_.has_value()) {
-      auto block_updates = handleCategoryUpdates(std::move(updates.shared_update_.value()), write_batch);
+      auto block_updates =
+          handleCategoryUpdates(new_block.id(), std::move(updates.shared_update_.value()), write_batch);
       new_block.add(std::move(block_updates));
     }
     // newBlock.parentDigest = parentBlockDigestFuture.get();
@@ -59,7 +60,8 @@ class KeyValueBlockchain {
   }
 
  private:
-  MerkleUpdatesInfo handleCategoryUpdates(const std::string& category_id,
+  MerkleUpdatesInfo handleCategoryUpdates(BlockId block_id,
+                                          const std::string& category_id,
                                           MerkleUpdatesData&& updates,
                                           WriteBatch& write_batch) {
     MerkleUpdatesInfo mui;
@@ -73,7 +75,8 @@ class KeyValueBlockchain {
     return mui;
   }
 
-  KeyValueUpdatesInfo handleCategoryUpdates(const std::string& category_id,
+  KeyValueUpdatesInfo handleCategoryUpdates(BlockId block_id,
+                                            const std::string& category_id,
                                             KeyValueUpdatesData&& updates,
                                             WriteBatch& write_batch) {
     KeyValueUpdatesInfo kvui;
@@ -87,11 +90,13 @@ class KeyValueBlockchain {
     return kvui;
   }
 
-  SharedKeyValueUpdatesInfo handleCategoryUpdates(SharedKeyValueUpdatesData&& updates, WriteBatch& write_batch) {
+  SharedKeyValueUpdatesInfo handleCategoryUpdates(BlockId block_id,
+                                                  SharedKeyValueUpdatesData&& updates,
+                                                  WriteBatch& write_batch) {
     SharedKeyValueUpdatesInfo skvui;
     for (auto& [k, v] : updates.kv) {
       (void)v;
-      skvui.keys[k] = SharedKeyData{v.categories_ids};
+      skvui.keys[k] = SharedKeyData{v.category_ids};
     }
     return skvui;
   }
