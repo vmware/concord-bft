@@ -441,6 +441,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath = CommitPath::SLOW);
   bool isSeqNumToStopAt(SeqNum seq_num);
 
+  // 5 years
+  static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
   // 5 Minutes
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5l;
   // 60 seconds
@@ -458,7 +460,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         {"requestsQueueOfPrimarySize", requestsQueueOfPrimarySize},
                                         {"onSeqNumIsStable", onSeqNumIsStable},
                                         {"onTransferringCompleteImp", onTransferringCompleteImp},
-                                        {"consensus", consensus}});
+                                        {"consensus", consensus},
+                                        {"timeInActiveView", timeInActiveView}});
     }
 
     std::shared_ptr<Recorder> send =
@@ -482,6 +485,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     // Only updated by the primary
     std::shared_ptr<Recorder> consensus =
         std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+
+    std::shared_ptr<Recorder> timeInActiveView =
+        std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
   };
 
   Recorders histograms_;
@@ -489,6 +495,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // Used to measure the time for each consensus slot to go from pre-prepare to commit at the primary.
   // Time is recorded in histograms_.consensus
   concord::diagnostics::AsyncTimeRecorderMap<SeqNum> consensus_times_;
+
+  concord::diagnostics::AsyncTimeRecorder<false> time_in_active_view_;
 
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;

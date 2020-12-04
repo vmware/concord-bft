@@ -183,17 +183,19 @@ class AsyncTimeRecorder {
   void start() {
     // If a timer was already started, it will record if start is called again before end.
     // This behavior can be prevented by explicitly calling clear().
-    timer_.reset(new TimeRecorder<IsAtomic>(*recorder_));
+    timer_.emplace(*recorder_);
   }
   void end() { timer_.reset(); }
   void clear() {
-    timer_->doNotRecord();
-    timer_.reset();
+    if (timer_) {
+      timer_->doNotRecord();
+      timer_.reset();
+    }
   }
 
  private:
   std::shared_ptr<Recorder> recorder_;
-  std::unique_ptr<TimeRecorder<IsAtomic>> timer_;
+  std::optional<TimeRecorder<IsAtomic>> timer_;
 };
 
 struct Histogram {
