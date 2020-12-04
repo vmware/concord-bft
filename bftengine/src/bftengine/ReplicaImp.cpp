@@ -2216,6 +2216,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
     pVC = viewsManager->getMyLatestViewChangeMsg();
     ConcordAssertNE(pVC, nullptr);
     pVC->setNewViewNumber(nextView);
+    time_in_active_view_.end();
   } else {
     std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
@@ -2301,6 +2302,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   SeqNum firstPPSeq = 0;
   SeqNum lastPPSeq = 0;
 
+  time_in_active_view_.start();
   consensus_times_.clear();
 
   if (!prePreparesForNewView.empty()) {
@@ -3400,6 +3402,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       consensus_times_(histograms_.consensus),
+      time_in_active_view_(histograms_.timeInActiveView),
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
@@ -3483,6 +3486,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
         new RetransmissionsManager(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
   else
     retransmissionsManager = nullptr;
+
+  if (currentViewIsActive()) {
+    time_in_active_view_.start();
+  }
 
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
 }
