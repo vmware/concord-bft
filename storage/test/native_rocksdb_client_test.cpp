@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
+#include "memorydb/client.h"
 #include "storage/db_interface.h"
 #include "rocksdb/native_client.h"
 #include "sliver.hpp"
@@ -87,6 +88,24 @@ TEST_F(native_rocksdb_test, creating_a_family_with_options) {
   ASSERT_EQ(optsOut.write_buffer_size, originalBufferSize + 1);
 }
 
+TEST_F(native_rocksdb_test, db_options_are_persisted) {
+  db.reset();
+
+  const auto maxOpenFiles = 42;
+  auto optionsIn = NativeClient::UserOptions{};
+  optionsIn.dbOptions.max_open_files = maxOpenFiles;
+  db = TestRocksDb::createNative(optionsIn);
+
+  // Make sure it is correctly set.
+  ASSERT_EQ(db->options().max_open_files, maxOpenFiles);
+
+  db.reset();
+  db = TestRocksDb::createNative(NativeClient::ExistingOptions{});
+
+  // Make sure it is persisted after reopening the DB.
+  ASSERT_EQ(db->options().max_open_files, maxOpenFiles);
+}
+
 TEST_F(native_rocksdb_test, family_options_are_persisted) {
   const auto cf = "cf"s;
   auto optsIn = ::rocksdb::ColumnFamilyOptions{};
@@ -94,13 +113,11 @@ TEST_F(native_rocksdb_test, family_options_are_persisted) {
   // Change a random option and verify it is reflected.
   ++optsIn.write_buffer_size;
   db->createColumnFamily(cf, optsIn);
-  const auto path = db->path();
 
   // Open the DB again and verify options are persisted.
   {
     db.reset();
-    const auto readOnly = false;
-    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto db2 = TestRocksDb::createNative(NativeClient::ExistingOptions{});
     const auto optsOut = db2->columnFamilyOptions(cf);
     ASSERT_EQ(optsOut.write_buffer_size, originalBufferSize + 1);
   }
@@ -108,13 +125,11 @@ TEST_F(native_rocksdb_test, family_options_are_persisted) {
 
 TEST_F(native_rocksdb_test, default_family_data_is_persisted) {
   db->put(key, value);
-  const auto path = db->path();
 
   // Open the DB again in RW mode and verify data
   {
     db.reset();
-    const auto readOnly = false;
-    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto db2 = TestRocksDb::createNative();
     const auto dbValue = db2->get(key);
     ASSERT_TRUE(dbValue.has_value());
     ASSERT_EQ(*dbValue, value);
@@ -122,8 +137,7 @@ TEST_F(native_rocksdb_test, default_family_data_is_persisted) {
 
   // Open the DB again in RO mode and verify data
   {
-    const auto readOnly = true;
-    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto db2 = TestRocksDb::createNative();
     const auto dbValue = db2->get(key);
     ASSERT_TRUE(dbValue.has_value());
     ASSERT_EQ(*dbValue, value);
@@ -134,13 +148,11 @@ TEST_F(native_rocksdb_test, family_data_is_persisted) {
   const auto cf = "cf"s;
   db->createColumnFamily(cf);
   db->put(cf, key, value);
-  const auto path = db->path();
 
   // Open the DB again in RW mode and verify data
   {
     db.reset();
-    const auto readOnly = false;
-    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto db2 = TestRocksDb::createNative();
     const auto dbValue = db2->get(cf, key);
     ASSERT_TRUE(dbValue.has_value());
     ASSERT_EQ(*dbValue, value);
@@ -148,8 +160,7 @@ TEST_F(native_rocksdb_test, family_data_is_persisted) {
 
   // Open the DB again in RO mode and verify data
   {
-    const auto readOnly = true;
-    const auto db2 = NativeClient::newClient(path, readOnly);
+    const auto db2 = TestRocksDb::createNative();
     const auto dbValue = db2->get(cf, key);
     ASSERT_TRUE(dbValue.has_value());
     ASSERT_EQ(*dbValue, value);
@@ -691,6 +702,56 @@ TEST_F(native_rocksdb_test, get_iterators) {
   ASSERT_TRUE(iters[1]);
   ASSERT_EQ(iters[1].key(), key2);
   ASSERT_EQ(iters[1].value(), value2);
+}
+
+TEST_F(native_rocksdb_test, from_rocksdb_idbclient) {
+  db.reset();
+  auto idb = TestRocksDb::create();
+  auto native = NativeClient::fromIDBClient(idb);
+
+  const auto key1Sliver = Sliver::copy(key1.data(), key1.size());
+  const auto key2Sliver = Sliver::copy(key2.data(), key2.size());
+  const auto value1Sliver = Sliver::copy(value1.data(), value1.size());
+  const auto value2Sliver = Sliver::copy(value2.data(), value2.size());
+  idb->put(key1Sliver, value1Sliver);
+  native->put(key2, value2);
+
+  ASSERT_EQ(native->get(key1), value1);
+  ASSERT_EQ(native->get(key2), value2);
+
+  {
+    auto out = Sliver{};
+    ASSERT_TRUE(idb->get(key1Sliver, out).isOK());
+    ASSERT_EQ(out, value1Sliver);
+  }
+
+  {
+    auto out = Sliver{};
+    ASSERT_TRUE(idb->get(key2Sliver, out).isOK());
+    ASSERT_EQ(out, value2Sliver);
+  }
+}
+
+TEST_F(native_rocksdb_test, from_memorydb_idbclient) {
+  auto idb = std::make_shared<memorydb::Client>();
+  ASSERT_THROW(NativeClient::fromIDBClient(idb), std::bad_cast);
+}
+
+TEST_F(native_rocksdb_test, rocksdb_idbclient_can_open_db_with_families) {
+  db.reset();
+  auto idb = TestRocksDb::create();
+  auto native = NativeClient::fromIDBClient(idb);
+  native->createColumnFamily("cf1");
+  native->createColumnFamily("cf2");
+
+  idb.reset();
+  native.reset();
+
+  idb = TestRocksDb::create();
+  native = NativeClient::fromIDBClient(idb);
+
+  ASSERT_THAT(native->columnFamilies(),
+              ContainerEq(std::unordered_set<std::string>{native->defaultColumnFamily(), "cf1", "cf2"}));
 }
 
 }  // namespace

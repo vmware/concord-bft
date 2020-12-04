@@ -29,7 +29,7 @@ struct Block {
 };
 class KeyValueBlockchain {
  public:
-  KeyValueBlockchain() : native_client_(NativeClient::newClient("/tmp", false)) {}
+  KeyValueBlockchain() : native_client_(NativeClient::newClient("/tmp", false, NativeClient::DefaultOptions{})) {}
   // 1) Defines a new block
   // 2) calls per cateogry with its updates
   // 3) inserts the updates KV to the DB updates set per column family

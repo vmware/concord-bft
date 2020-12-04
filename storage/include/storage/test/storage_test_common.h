@@ -79,7 +79,26 @@ struct TestRocksDb {
 
   static std::shared_ptr<::concord::storage::rocksdb::NativeClient> createNative(std::size_t dbId = defaultDbId) {
     const auto readOnly = false;
-    return ::concord::storage::rocksdb::NativeClient::newClient(rocksDbPath(dbId), readOnly);
+    return ::concord::storage::rocksdb::NativeClient::newClient(
+        rocksDbPath(dbId), readOnly, ::concord::storage::rocksdb::NativeClient::DefaultOptions{});
+  }
+
+  static std::shared_ptr<::concord::storage::rocksdb::NativeClient> createNative(
+      const ::concord::storage::rocksdb::NativeClient::DefaultOptions &opts, std::size_t dbId = defaultDbId) {
+    const auto readOnly = false;
+    return ::concord::storage::rocksdb::NativeClient::newClient(rocksDbPath(dbId), readOnly, opts);
+  }
+
+  static std::shared_ptr<::concord::storage::rocksdb::NativeClient> createNative(
+      const ::concord::storage::rocksdb::NativeClient::ExistingOptions &opts, std::size_t dbId = defaultDbId) {
+    const auto readOnly = false;
+    return ::concord::storage::rocksdb::NativeClient::newClient(rocksDbPath(dbId), readOnly, opts);
+  }
+
+  static std::shared_ptr<::concord::storage::rocksdb::NativeClient> createNative(
+      const ::concord::storage::rocksdb::NativeClient::UserOptions &opts, std::size_t dbId = defaultDbId) {
+    const auto readOnly = false;
+    return ::concord::storage::rocksdb::NativeClient::newClient(rocksDbPath(dbId), readOnly, opts);
   }
 
   static void cleanup(std::size_t dbId = defaultDbId) { ::cleanup(dbId); }
