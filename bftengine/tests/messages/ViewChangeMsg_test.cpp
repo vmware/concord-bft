@@ -28,7 +28,7 @@ using namespace bftEngine::impl;
 ReplicaConfig& config = createReplicaConfig();
 const char rawSpanContext[] = {"span_\0context"};
 
-void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::string spanContext = "") {
+void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::string& spanContext = "") {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
