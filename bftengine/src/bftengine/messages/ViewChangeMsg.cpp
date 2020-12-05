@@ -45,10 +45,15 @@ void ViewChangeMsg::setNewViewNumber(ViewNum newView) {
 }
 
 void ViewChangeMsg::getMsgDigest(Digest& outDigest) const {
-  uint32_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
+  auto bodySize = getBodySize();
   bodySize += b()->sizeOfAllComplaints;
   DigestUtil::compute(body(), bodySize, (char*)outDigest.content(), sizeof(Digest));
+}
+
+uint32_t ViewChangeMsg::getBodySize() const {
+  uint32_t bodySize = b()->locationAfterLast;
+  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
+  return bodySize;
 }
 
 void ViewChangeMsg::addElement(SeqNum seqNum,
@@ -106,9 +111,8 @@ void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complain
   // +--------------------+-------------------------+--------------------+-------------------------+---
 
   ConcordAssert(b()->numberOfComplaints > 0 || b()->sizeOfAllComplaints == 0);
-  size_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
-  uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
+  auto bodySize = getBodySize();
+  auto sigSize = ViewsManager::sigManager_->getMySigLength();
   bodySize += sigSize + b()->sizeOfAllComplaints;
 
   auto sizeOfComplaint = complaint->size();
@@ -123,10 +127,9 @@ void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complain
 }
 
 void ViewChangeMsg::finalizeMessage() {
-  size_t bodySize = b()->locationAfterLast;
-  if (bodySize == 0) bodySize = sizeof(Header) + spanContextSize();
+  auto bodySize = getBodySize();
 
-  uint16_t sigSize = ViewsManager::sigManager_->getMySigLength();
+  auto sigSize = ViewsManager::sigManager_->getMySigLength();
 
   setMsgSize(bodySize + sigSize + b()->sizeOfAllComplaints);
   shrinkToFit();
@@ -134,9 +137,11 @@ void ViewChangeMsg::finalizeMessage() {
   // We only sign the part that is concerned with View Change safety,
   // the complaints carry signatures from the issuers.
   // Visual representation:
-  // +------------+----------------+-------------------------------+------------------+
-  // |VCMsg header|List of Elements|Signature for previous 2 fields|List Of Complaints|
-  // +------------+----------------+-------------------------------+------------------+
+  // +------------+------------+----------------+-----------------------------+------------------+
+  // |VCMsg header|Span Context|List of Elements|Signature for previous fields|List Of Complaints|
+  // +------------+------------+----------------+-----------------------------+------------------+
+  // |               Message Body               |
+  // +------------------------------------------+
 
   ViewsManager::sigManager_->sign(body(), bodySize, body() + bodySize, sigSize);
 
@@ -150,8 +155,7 @@ void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  uint32_t dataLength = b()->locationAfterLast;
-  if (dataLength < sizeof(Header)) dataLength = sizeof(Header);
+  auto dataLength = getBodySize();
   uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
 
   if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
@@ -218,10 +222,11 @@ bool ViewChangeMsg::checkElements(uint16_t sigSize) const {
 
 bool ViewChangeMsg::checkComplaints(uint16_t sigSize) const {
   uint16_t numOfActualComplaints = 0;
-  uint32_t remainingBytes = size() - sigSize - b()->locationAfterLast;
-  char* currLoc = body() + b()->locationAfterLast + sigSize;
+  auto bodySize = getBodySize();
+  uint32_t remainingBytes = size() - sigSize - bodySize;
+  char* currLoc = body() + bodySize + sigSize;
 
-  while (remainingBytes > sizeof(MessageBase::Header) && (numOfActualComplaints < numberOfComplaints())) {
+  while (remainingBytes > sizeOfHeader<ReplicaAsksToLeaveViewMsg>() && (numOfActualComplaints < numberOfComplaints())) {
     MsgSize* complaintSize = (MsgSize*)currLoc;
     remainingBytes -= sizeof(MsgSize);
     currLoc += sizeof(MsgSize);
@@ -340,7 +345,8 @@ ViewChangeMsg::ComplaintsIterator::ComplaintsIterator(const ViewChangeMsg* const
     nextComplaintNum = 1;
   } else {
     endLoc = m->size();
-    currLoc = m->b()->locationAfterLast + ViewsManager::sigManager_->getMySigLength();
+    auto bodySize = m->getBodySize();
+    currLoc = bodySize + ViewsManager::sigManager_->getMySigLength();
     ConcordAssert(endLoc > currLoc);
     nextComplaintNum = 1;
   }
