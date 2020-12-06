@@ -369,7 +369,6 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   else
     pp = buildPrePrepareMessage();
   if (!pp) return false;
-
   startConsensusProcess(pp);
   return true;
 }
@@ -484,6 +483,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
   }
+  metric_bft_batch_size_.Get().Set(pp->numberOfRequests());
   primaryLastUsedSeqNum++;
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
@@ -1048,6 +1048,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
           (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel());  // TODO(GG): check/improve this logic
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
+      metric_total_committed_sn_.Get().Inc();
       executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
       return;
     } else if (pps.hasFullProof()) {
@@ -1538,6 +1539,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
+  metric_total_committed_sn_.Get().Inc();
   executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
 }
 
@@ -1582,6 +1584,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
+  metric_total_committed_sn_.Get().Inc();
   executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
 }
 
@@ -2599,6 +2602,11 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
       // end of this method
       getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
     }
+    // Now, we know that the inmemory var in controlStateManager_ is set to the correct point.
+    // We want that when the replicas resume, they won't have the wedge point in their reserved pages (otherwise they
+    // will simply try to wedge again). Yet, as the reserved pages are transferred via ST we can cleat this data only in
+    // an n/n checkpoint that is about to be wedged because we know that there is no ST going on now.
+    controlStateManager_->clearCheckpointToStopAt();
   }
 }
 
@@ -3087,7 +3095,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
   lastViewThatTransferredSeqNumbersFullyExecuted = ld.lastViewThatTransferredSeqNumbersFullyExecuted;
-
+  metric_total_committed_sn_.Get().Inc(lastExecutedSeqNum);
   mainLog->resetAll(lastStableSeqNum + 1);
   checkpointsLog->resetAll(lastStableSeqNum);
 
@@ -3352,8 +3360,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_primary_last_used_seq_num_{metrics_.RegisterGauge("primaryLastUsedSeqNum", primaryLastUsedSeqNum)},
       metric_on_call_back_of_super_stable_cp_{metrics_.RegisterGauge("OnCallBackOfSuperStableCP", 0)},
       metric_sent_replica_asks_to_leave_view_msg_{metrics_.RegisterGauge("sentReplicaAsksToLeaveViewMsg", 0)},
+      metric_bft_batch_size_{metrics_.RegisterGauge("bft_batch_size", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
+      metric_total_committed_sn_{metrics_.RegisterCounter("total_committed_seqNum")},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
       metric_received_internal_msgs_{metrics_.RegisterCounter("receivedInternalMsgs")},
       metric_received_client_requests_{metrics_.RegisterCounter("receivedClientRequestMsgs")},

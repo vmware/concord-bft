@@ -183,10 +183,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_primary_last_used_seq_num_;
   GaugeHandle metric_on_call_back_of_super_stable_cp_;
   GaugeHandle metric_sent_replica_asks_to_leave_view_msg_;
+  GaugeHandle metric_bft_batch_size_;
 
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
+  CounterHandle metric_total_committed_sn_;
   CounterHandle metric_slow_path_count_;
   CounterHandle metric_received_internal_msgs_;
   CounterHandle metric_received_client_requests_;

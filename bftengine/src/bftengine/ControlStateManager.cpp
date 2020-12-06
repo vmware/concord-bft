@@ -84,5 +84,13 @@ std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
   }
   return page_.erase_metadata_at_seq_num_;
 }
+void ControlStateManager::clearCheckpointToStopAt() {
+  ControlStatePage tmpPage = page_;
+  tmpPage.seq_num_to_stop_at_ = 0;
+  std::ostringstream outStream;
+  concord::serialize::Serializable::serialize(outStream, tmpPage);
+  auto data = outStream.str();
+  state_transfer_->saveReservedPage(resPageOffset(), data.size(), data.data());
+}
 
 }  // namespace bftEngine
