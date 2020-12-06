@@ -935,7 +935,7 @@ void BCStateTran::sendAskForCheckpointSummariesMsg() {
   lastTimeSentAskForCheckpointSummariesMsg = getMonotonicTimeMilli();
   lastMsgSeqNum_ = uniqueMsgSeqNum();
   metrics_.last_msg_seq_num_.Get().Set(lastMsgSeqNum_);
-  SCOPED_MDC_SEQ_NUM(std::to_string(lastMsgSeqNum_));
+  SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, lastMsgSeqNum_));
 
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.minRelevantCheckpointNum = psd_->getLastStoredCheckpoint() + 1;
@@ -1007,7 +1007,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
 //////////////////////////////////////////////////////////////////////////////
 
 bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgLen, uint16_t replicaId) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(m->msgSeqNum));
+  SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(getLogger(), "");
 
   ConcordAssert(!psd_->getIsFetchingState());
@@ -1080,7 +1080,7 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
 }
 
 bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint16_t replicaId) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(uniqueMsgSeqNum()));
+  SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, uniqueMsgSeqNum()));
   LOG_DEBUG(getLogger(), "");
 
   FetchingState fs = getFetchingState();
@@ -1204,7 +1204,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
 }
 
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(m->msgSeqNum));
+  SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(getLogger(), "");
   metrics_.received_fetch_blocks_msg_.Get().Inc();
 
@@ -1269,8 +1269,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   // send chunks
   uint16_t numOfSentChunks = 0;
   while (true) {
-    SCOPED_MDC_SEQ_NUM(std::to_string(m->msgSeqNum) + "-" + std::to_string(nextChunk) + "-" +
-                       std::to_string(nextBlock));
+    SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum, nextChunk, nextBlock));
     uint32_t chunkSize = (nextChunk < numOfChunksInNextBlock) ? config_.maxChunkSize : sizeOfLastChunk;
 
     ConcordAssertGT(chunkSize, 0);
@@ -1335,7 +1334,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 }
 
 bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t replicaId) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(m->msgSeqNum));
+  SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(getLogger(), "");
   metrics_.received_fetch_res_pages_msg_.Get().Inc();
 
@@ -1419,8 +1418,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   // send chunks
   uint16_t numOfSentChunks = 0;
   while (true) {
-    SCOPED_MDC_SEQ_NUM(std::to_string(m->msgSeqNum) + "-" + std::to_string(nextChunk) + "-" +
-                       std::to_string(ID_OF_VBLOCK_RES_PAGES));
+    SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum, nextChunk, ID_OF_VBLOCK_RES_PAGES));
     uint32_t chunkSize = (nextChunk < numOfChunksInVBlock) ? config_.maxChunkSize : sizeOfLastChunk;
     ConcordAssertGT(chunkSize, 0);
 
@@ -1516,8 +1514,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 
 // Retrieve either a chunk of a block or a reserved page when fetching
 bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(lastMsgSeqNum_) + "-" + std::to_string(m->chunkNumber) + "-" +
-                     std::to_string(m->blockNumber));
+  SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, lastMsgSeqNum_, m->chunkNumber, m->blockNumber));
   LOG_DEBUG(getLogger(), "");
   metrics_.received_item_data_msg_.Get().Inc();
 
@@ -2500,6 +2497,14 @@ STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
 
 void BCStateTran::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
   metrics_component_.SetAggregator(aggregator);
+}
+
+inline std::string BCStateTran::getSequenceNumber(uint16_t replicaId,
+                                                  uint64_t seqNum,
+                                                  uint16_t blockNum,
+                                                  uint64_t chunkNum) {
+  return std::to_string(replicaId) + "-" + std::to_string(seqNum) + "-" + std::to_string(blockNum) + "-" +
+         std::to_string(chunkNum);
 }
 
 }  // namespace impl
