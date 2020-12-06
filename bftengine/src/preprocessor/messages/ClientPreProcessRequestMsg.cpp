@@ -11,7 +11,6 @@
 
 #include "ClientPreProcessRequestMsg.hpp"
 #include "SimpleClient.hpp"
-#include "assertUtils.hpp"
 
 namespace preprocessor {
 

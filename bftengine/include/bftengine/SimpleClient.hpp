@@ -14,7 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <set>
+#include <queue>
 #include <chrono>
 #include <memory>
 
@@ -44,7 +44,25 @@ enum ClientMsgFlag : uint8_t {
   EMPTY_CLIENT_REQ = 0x10
 };
 
-enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL };
+enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
+
+typedef struct ClientRequest {
+  uint8_t flags = 0;
+  const char* request = nullptr;
+  uint32_t lengthOfRequest = 0;
+  uint64_t reqSeqNum = 0;
+  uint64_t timeoutMilli = 0;
+  std::string cid;
+  std::string span_context;
+} ClientRequest;
+
+typedef struct ClientReply {
+  uint32_t lengthOfReplyBuffer = 0;
+  char* replyBuffer = nullptr;
+  uint32_t actualReplyLength = 0;
+  std::string cid;
+  std::string span_context;
+} ClientReply;
 
 class SimpleClient {
  public:
@@ -79,6 +97,10 @@ class SimpleClient {
                                       uint32_t& actualReplyLength,
                                       const std::string& cid = "",
                                       const std::string& span_context = "") = 0;
+
+  // To be used only for write requests
+  virtual OperationResult sendRequests(const std::deque<ClientRequest>& clientRequests,
+                                       std::deque<ClientReply>& clientReplies) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

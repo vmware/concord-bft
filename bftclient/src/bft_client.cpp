@@ -38,7 +38,7 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
   header->reqSeqNum = config.sequence_number;
   header->requestLength = request.size();
   header->timeoutMilli = config.timeout.count();
-  header->cid_length = config.correlation_id.size();
+  header->cidLength = config.correlation_id.size();
 
   auto* position = msg.data() + header_size;
 
