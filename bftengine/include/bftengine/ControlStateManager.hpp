@@ -53,6 +53,8 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   void setEraseMetadataFlag(int64_t currentSeqNum);
   std::optional<int64_t> getEraseMetadataFlag();
 
+  void clearCheckpointToStopAt();
+
   ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages);
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
