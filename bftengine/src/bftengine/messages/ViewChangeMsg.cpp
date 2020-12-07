@@ -231,7 +231,7 @@ bool ViewChangeMsg::checkComplaints(uint16_t sigSize) const {
     remainingBytes -= sizeof(MsgSize);
     currLoc += sizeof(MsgSize);
 
-    if (*complaintSize <= sizeof(MessageBase::Header)) {
+    if (*complaintSize <= sizeOfHeader<ReplicaAsksToLeaveViewMsg>()) {
       return false;
     }
 
