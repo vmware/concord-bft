@@ -4,7 +4,6 @@
 #include "direct_kv_db_adapter.h"
 
 using namespace concord::kvbc;
-// using namespace concord::storage;
 
 namespace {
 
