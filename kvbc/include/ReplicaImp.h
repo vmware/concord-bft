@@ -126,22 +126,26 @@ class ReplicaImp : public IReplica,
     }
   };
 
- private:
+  /**
+   * (Byzantine replica work) The following attributes shouldn't be "relaxed" from private to protected, if there was a
+   * small refactoring to expose them to potential subclasses.
+   */
+ protected:
   logging::Logger logger;
   RepStatus m_currentRepStatus;
-
-  std::unique_ptr<IDbAdapter> m_bcDbAdapter;
-  std::shared_ptr<storage::IDBClient> m_metadataDBClient;
   bft::communication::ICommunication *m_ptrComm = nullptr;
   const bftEngine::ReplicaConfig &replicaConfig_;
   bftEngine::IReplica::IReplicaPtr m_replicaPtr = nullptr;
-  ICommandsHandler *m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
-  concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
-  std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
+  ICommandsHandler *m_cmdHandler = nullptr;
+  concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
+  std::unique_ptr<IDbAdapter> m_bcDbAdapter;
+  std::shared_ptr<storage::IDBClient> m_metadataDBClient;
+  std::unique_ptr<ReplicaStateSync> replicaStateSync_;
 
+ private:
   // 5 Minutes
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
   // 1 second
