@@ -16,6 +16,7 @@
 #include "OpenTracing.hpp"
 #include "ReplicasInfo.hpp"
 #include "ReplicaConfig.hpp"
+#include "ReplicaAsksToLeaveViewMsg.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -59,6 +60,10 @@ class ViewChangeMsg : public MessageBase {
 
   uint16_t numberOfElements() const { return b()->numberOfElements; }
 
+  uint16_t numberOfComplaints() const { return b()->numberOfComplaints; }
+
+  uint32_t sizeOfAllComplaints() const { return b()->sizeOfAllComplaints; }
+
   void getMsgDigest(Digest& outDigest) const;
 
   void addElement(SeqNum seqNum,
@@ -68,6 +73,8 @@ class ViewChangeMsg : public MessageBase {
                   ViewNum certificateView,
                   uint16_t certificateSigLength,
                   const char* certificateSig);
+
+  void addComplaint(const ReplicaAsksToLeaveViewMsg* const complaint);
 
   void finalizeMessage();
 
@@ -95,6 +102,26 @@ class ViewChangeMsg : public MessageBase {
     uint16_t nextElementNum;  // used for debug
   };
 
+  class ComplaintsIterator {
+   public:
+    // this ctor assumes that m is a legal ViewChangeMsg message (as defined by checkComplaints() )
+    ComplaintsIterator(const ViewChangeMsg* const m);
+
+    bool getCurrent(char*& pComplaint, MsgSize& size);
+
+    bool end();
+
+    void gotoNext();
+
+    bool getAndGoToNext(char*& pComplaint, MsgSize& size);
+
+   protected:
+    const ViewChangeMsg* const msg;
+    uint32_t endLoc;
+    uint32_t currLoc;
+    uint16_t nextComplaintNum;  // used for debug
+  };
+
  protected:
   template <typename MessageT>
   friend size_t sizeOfHeader();
@@ -105,17 +132,24 @@ class ViewChangeMsg : public MessageBase {
     ReplicaId genReplicaId;  // the replica that originally generated this message
     ViewNum newView;         // the new view
     SeqNum lastStable;
+    uint16_t numberOfComplaints;
+    uint32_t sizeOfAllComplaints;
     uint16_t numberOfElements;
     uint32_t locationAfterLast;  // if(numberOfElements > 0) then it holds the location after the last element
                                  // followed by a sequence of Element
                                  // followed by a signature (by genReplicaId)
+                                 // followed by quorum of complaints from different Replicas
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 4), "Header is 30B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 4 + 2 + 4), "Header is 36B");
 
   Header* b() const { return ((Header*)msgBody_); }
 
+  uint32_t getBodySize() const;
+
   bool checkElements(uint16_t sigSize) const;
+
+  bool checkComplaints(uint16_t sigSize) const;
 };
 
 template <>
