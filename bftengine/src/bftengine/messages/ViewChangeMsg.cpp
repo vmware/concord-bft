@@ -365,13 +365,9 @@ bool ViewChangeMsg::ComplaintsIterator::getCurrent(char*& pComplaint, MsgSize& s
   if (end()) return false;
 
   size = *(MsgSize*)(msg->body() + currLoc);
-
   const uint32_t remainingbytes = (endLoc - currLoc) - sizeof(MsgSize);
-
   ConcordAssert(remainingbytes >= size);  // Validate method must make sure we never accept such message
-
   pComplaint = (char*)malloc(size);
-
   memcpy(pComplaint, msg->body() + currLoc + sizeof(MsgSize), size);
 
   return true;
@@ -381,11 +377,8 @@ void ViewChangeMsg::ComplaintsIterator::gotoNext() {
   if (end()) return;
 
   const uint32_t size = *(MsgSize*)(msg->body() + currLoc);
-
   const uint32_t remainingbytes = (endLoc - currLoc) - sizeof(MsgSize);
-
   ConcordAssert(remainingbytes >= size);  // Validate method must make sure we never accept such message
-
   currLoc += sizeof(MsgSize) + size;
 
   nextComplaintNum++;
