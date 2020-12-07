@@ -57,7 +57,7 @@ struct SharedKeyValueUpdates {
   void addUpdate(std::string&& key, SharedValue&& val) { data_.kv.emplace(std::move(key), std::move(val.data_)); }
 
  private:
-  SharedUpdatesData data_;
+  SharedKeyValueUpdatesData data_;
   friend struct Updates;
 };
 
@@ -143,38 +143,35 @@ struct MerkleUpdates {
 // Updates contains a list of updates for different categories.
 // Note: Only a single `SharedKeyValueUpdates` is supported per block.
 struct Updates {
-  void addMerkleUpdate(std::string category_id, MerkleUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.insert({category_id, std::move(updates.data_)}); inserted) {
-      *itr;  // disable unused variable
+  void add(std::string&& category_id, MerkleUpdates&& updates) {
+    if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
+        !inserted) {
+      (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: Merkle, category: ") +
                              category_id};
     }
   }
 
-  void addKeyValueUpdates(std::string category_id, KeyValueUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.insert({category_id, std::move(updates.data_)}); inserted) {
-      *itr;  // disable unused variable
+  void add(std::string&& category_id, KeyValueUpdates&& updates) {
+    if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
+        !inserted) {
+      (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: KVHash, category: ") +
                              category_id};
     }
   }
 
-  void addSharedKeyValueUpdates(std::string category_id, SharedKeyValueUpdates&& updates) {
+  void add(SharedKeyValueUpdates&& updates) {
     if (shared_update_.has_value()) {
-      throw std::logic_error{std::string("Only one update for category is allowed. type: Shared KV, category: ") +
-                             category_id};
+      throw std::logic_error{std::string("Only one update for category is allowed for shared category")};
     }
     shared_update_.emplace(std::move(updates.data_));
   }
 
-  std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData>>& getCategoryUpdate() {
-    return category_updates_;
-  }
-
-  std::optional<SharedUpdatesData>& getSharedUpdates() { return shared_update_; }
-
  private:
-  std::optional<SharedUpdatesData> shared_update_;
+  friend class KeyValueBlockchain;
+  std::optional<SharedKeyValueUpdatesData> shared_update_;
   std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData>> category_updates_;
 };
+
 }  // namespace concord::kvbc::categorization
