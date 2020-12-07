@@ -21,6 +21,7 @@
 #include "Logger.hpp"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
+#include "metrics.hpp"
 
 #pragma once
 
@@ -205,7 +206,8 @@ class Client : public concord::storage::IDBClient {
   }
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
-    // TODO
+    metrics_.metrics_component_.SetAggregator(aggregator);
+    metrics_.metrics_component_.UpdateAggregator();
   }
 
   ///////////////////////// protected /////////////////////////////
@@ -307,6 +309,8 @@ class Client : public concord::storage::IDBClient {
 
   uint16_t initialDelay_ = 100;
   const double delayFactor_ = 1.5;
+
+  Metrics metrics_;
 };
 
 }  // namespace concord::storage::s3
