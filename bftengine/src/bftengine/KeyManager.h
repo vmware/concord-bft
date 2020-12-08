@@ -110,6 +110,7 @@ class KeyManager {
     concordUtil::Timers* timers{nullptr};
     std::shared_ptr<concordMetrics::Aggregator> a;
     std::chrono::seconds interval;
+    bool keyExchangeOnStart{false};
   };
 
   static KeyManager& get(InitData* id = nullptr) {
@@ -136,6 +137,7 @@ class KeyManager {
 
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
   KeysView keysView_;
+  bool keyExchangeOnStart_{};
 
   void onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn);
   void notifyRegistry(bool save);
