@@ -237,6 +237,17 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
     return ::rocksdb::Slice{span.data(), span.size()};
   }
 
+  template <
+      typename Span,
+      std::enable_if_t<std::is_convertible_v<decltype(std::declval<Span>().size()), std::size_t> &&
+                           std::is_pointer_v<decltype(std::declval<Span>().data())> &&
+                           std::is_convertible_v<std::remove_pointer_t<decltype(std::declval<Span>().data())> (*)[],
+                                                 const uint8_t (*)[]>,
+                       int> = 0>
+  static ::rocksdb::Slice toSlice(const Span &span) noexcept {
+    return ::rocksdb::Slice{reinterpret_cast<const char *>(span.data()), span.size()};
+  }
+
   static void throwOnError(std::string_view msg1, std::string_view msg2, ::rocksdb::Status &&);
   static void throwOnError(std::string_view msg, ::rocksdb::Status &&);
 

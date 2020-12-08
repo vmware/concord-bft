@@ -5,24 +5,24 @@ Msg MerkleUpdatesData 1 {
     list string deletes
 }
 
-Msg ValueWithExpirationData 2{
+Msg ValueWithExpirationData 2 {
     string value
     optional int64 expire_at
     bool stale_on_update
 }
 
-Msg KeyValueUpdatesData 3{
+Msg KeyValueUpdatesData 3 {
     map string ValueWithExpirationData kv
     list string deletes
     bool calculate_hash
 }
 
-Msg SharedValueData 4{
+Msg SharedValueData 4 {
     string value
     list string categories_ids
 }
 
-Msg SharedUpdatesData 5{
+Msg SharedKeyValueUpdatesData 5 {
     map string SharedValueData kv
     bool calculate_hash
 }
@@ -30,31 +30,81 @@ Msg SharedUpdatesData 5{
 
 # Updates info
 
-Msg MerkleKeyFlag 6{
+Msg MerkleKeyFlag 1000 {
     bool deleted
 }
 
-Msg MerkleUpdatesInfo 7{
+
+Msg MerkleUpdatesInfo 1001 {
     map string MerkleKeyFlag keys
-    fixedlist uint8 32 hash
-    uint64 version
+    fixedlist uint8 32 root_hash
+    uint64 state_root_version
 }
 
-Msg KVKeyFlag 8{
+Msg KVKeyFlag 1002 {
     bool deleted
     bool stale_on_update
 }
 
-Msg KeyValueUpdatesInfo 9{
+Msg KeyValueUpdatesInfo 1003 {
     map string KVKeyFlag keys
-    optional fixedlist uint8 32 hash
+    optional fixedlist uint8 32 root_hash
 }
 
-Msg SharedKeyData 10 {
+Msg SharedKeyData 1004 {
     list string categories
 }
 
-Msg SharedKeyValueUpdatesInfo 11{
+Msg SharedKeyValueUpdatesInfo 1005 {
     map string SharedKeyData keys
-    optional fixedlist uint8 32 hash
+    optional fixedlist uint8 32 root_hash
+}
+
+# Blocks
+
+Msg BlockKey 2000 {
+    uint64 block_id
+}
+
+Msg BlockData 2001 {
+    uint64 block_id
+    fixedlist uint8 32 parent_digest
+    optional SharedKeyValueUpdatesInfo shared_updates_info
+    map string oneof{
+        MerkleUpdatesInfo
+        KeyValueUpdatesInfo
+    } categories_updates_info
+}
+
+Msg RawBlockMerkleUpdates 2002 {
+    MerkleUpdatesData updates
+    fixedlist uint8 32 root_hash
+}
+
+Msg RawBlockKeyValueUpdates 2003 {
+    KeyValueUpdatesData updates
+    optional fixedlist uint8 32 root_hash
+}
+
+Msg RawBlockSharedUpdates 2004 {
+    SharedKeyValueUpdatesData updates
+    optional fixedlist uint8 32 root_hash
+}
+
+Msg RawBlockData 2005 {
+    fixedlist uint8 32 parent_digest
+    map string oneof{
+        RawBlockMerkleUpdates
+        RawBlockKeyValueUpdates
+    } category_updates
+
+    optional RawBlockSharedUpdates shared_update
+}
+
+
+# keys
+
+Msg DbKey 3000 {
+    fixedlist uint8 32 hashed_key
+    uint64 version
 }

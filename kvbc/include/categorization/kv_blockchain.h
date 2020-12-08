@@ -16,6 +16,7 @@
 #include "updates.h"
 #include "rocksdb/native_client.h"
 #include <memory>
+#include "blocks.h"
 
 #include "kv_types.hpp"
 
@@ -23,57 +24,82 @@ using namespace concord::storage::rocksdb;
 
 namespace concord::kvbc::categorization {
 
-struct Block {
-  void add(const std::string& category_id, std::variant<MerkleUpdatesInfo, KeyValueUpdatesInfo> updates_info) {}
-  void add(SharedKeyValueUpdatesInfo updates_info) {}
-};
 class KeyValueBlockchain {
  public:
   KeyValueBlockchain() : native_client_(NativeClient::newClient("/tmp", false, NativeClient::DefaultOptions{})) {}
+  KeyValueBlockchain(const std::shared_ptr<NativeClient>& native_client) : native_client_(native_client) {}
   // 1) Defines a new block
   // 2) calls per cateogry with its updates
   // 3) inserts the updates KV to the DB updates set per column family
   // 4) add the category block data into the new block
-  BlockId addBlock(Updates& updates) {
+  BlockId addBlock(Updates&& updates) {
     // Use new client batch and column families
     auto write_batch = native_client_->getBatch();
-    // const auto addedBlockId = getLastReachableBlockId() + 1;
-    // auto parentBlockDigestFuture = computeParentBlockDigest(blockId);
-    Block new_block;
+    Block new_block{getLastReachableBlockId() + 1};
+    // auto parentBlockDigestFuture = computeParentBlockDigest(new_block.ID( ));
     // Per category updates
-    for (auto& [category_id, update] : updates.getCategoryUpdate()) {
+    for (auto&& [category_id, update] : updates.category_updates_) {
       // https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
       std::visit(
-          [&new_block, category_id = category_id, write_batch, this](auto& update) {
-            auto block_updates = handleCategoryUpdates(category_id, update, write_batch);
-            new_block.add(category_id, block_updates);
+          [&new_block, category_id = category_id, &write_batch, this](auto& update) {
+            auto block_updates = handleCategoryUpdates(category_id, std::move(update), write_batch);
+            new_block.add(category_id, std::move(block_updates));
           },
           update);
     }
-    if (updates.getSharedUpdates().has_value()) {
-      auto block_updates = handleCategoryUpdates(updates.getSharedUpdates().value(), write_batch);
-      new_block.add(block_updates);
+    if (updates.shared_update_.has_value()) {
+      auto block_updates = handleCategoryUpdates(std::move(updates.shared_update_.value()), write_batch);
+      new_block.add(std::move(block_updates));
     }
-    return BlockId{8};
     // newBlock.parentDigest = parentBlockDigestFuture.get();
     // // E.L blocks in new column Family
-    // write_batch.put("blocks",DBKeyManipulator::genBlockDbKey(blockId),serizilize(newBlock));
-    // native_client_->write(write_batch);
+    write_batch.put(Block::CATEGORY_ID, Block::generateKey(new_block.id()), Block::serialize(new_block));
+    native_client_->write(std::move(write_batch));
+    return lastReachableBlockId_ = new_block.id();
   }
 
  private:
-  std::variant<MerkleUpdatesInfo, KeyValueUpdatesInfo> handleCategoryUpdates(
-      const std::string& category_id,
-      std::variant<MerkleUpdatesData, KeyValueUpdatesData> updates_info,
-      const WriteBatch& write_batch) {
-    return MerkleUpdatesInfo{};
+  MerkleUpdatesInfo handleCategoryUpdates(const std::string& category_id,
+                                          MerkleUpdatesData&& updates,
+                                          WriteBatch& write_batch) {
+    MerkleUpdatesInfo mui;
+    for (auto& [k, v] : updates.kv) {
+      (void)v;
+      mui.keys[k] = MerkleKeyFlag{false};
+    }
+    for (auto& k : updates.deletes) {
+      mui.keys[k] = MerkleKeyFlag{true};
+    }
+    return mui;
   }
 
-  SharedKeyValueUpdatesInfo handleCategoryUpdates(SharedUpdatesData& updates_info, const WriteBatch& write_batch) {
-    return SharedKeyValueUpdatesInfo{};
+  KeyValueUpdatesInfo handleCategoryUpdates(const std::string& category_id,
+                                            KeyValueUpdatesData&& updates,
+                                            WriteBatch& write_batch) {
+    KeyValueUpdatesInfo kvui;
+    for (auto& [k, v] : updates.kv) {
+      (void)v;
+      kvui.keys[k] = KVKeyFlag{false, v.stale_on_update};
+    }
+    for (auto& k : updates.deletes) {
+      kvui.keys[k] = KVKeyFlag{true, false};
+    }
+    return kvui;
   }
 
+  SharedKeyValueUpdatesInfo handleCategoryUpdates(SharedKeyValueUpdatesData&& updates, WriteBatch& write_batch) {
+    SharedKeyValueUpdatesInfo skvui;
+    for (auto& [k, v] : updates.kv) {
+      (void)v;
+      skvui.keys[k] = SharedKeyData{v.categories_ids};
+    }
+    return skvui;
+  }
+
+  BlockId getLastReachableBlockId() { return lastReachableBlockId_; }
+  // Members
   std::shared_ptr<NativeClient> native_client_;
+  BlockId lastReachableBlockId_{0};
 };
 
 }  // namespace concord::kvbc::categorization
