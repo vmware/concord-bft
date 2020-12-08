@@ -220,7 +220,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                metrics_component_.RegisterGauge("prev_win_bytes_throughtput", 0)},
       blocks_collected_(get_missing_blocks_summary_window_size),
       bytes_collected_(get_missing_blocks_summary_window_size),
-      first_collected_block_num_({}) {
+      first_collected_block_num_({}),
+      fetch_block_msg_latency_rec_(histograms_.fetch_blocks_msg_latency) {
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
   ConcordAssertEQ(replicas_.count(config_.myReplicaId), 1);
@@ -617,6 +618,8 @@ void BCStateTran::startCollectingStats() {
   metrics_.prev_win_blocks_throughtput_.Get().Set(0ull);
   metrics_.prev_win_bytes_collected_.Get().Set(0ull);
   metrics_.prev_win_bytes_throughtput_.Get().Set(0ull);
+
+  fetch_block_msg_latency_rec_.clear();
 }
 
 void BCStateTran::startCollectingState() {
@@ -965,6 +968,7 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                   msg.lastKnownChunkInLastRequiredBlock));
 
   sourceSelector_.setSendTime(getMonotonicTimeMilli());
+  fetch_block_msg_latency_rec_.start(lastMsgSeqNum_);
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchBlocksMsg), sourceSelector_.currentReplica());
 }
@@ -1545,6 +1549,10 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     metrics_.invalid_item_data_msg_.Get().Inc();
     return false;
   }
+
+  if (getFetchingState() != FetchingState::GettingMissingResPages)
+    // record latencies for FetchResPagesMsg <-> ItemDataMsg
+    fetch_block_msg_latency_rec_.end(m->requestMsgSeqNum);
 
   //  const DataStore::CheckpointDesc fcp = psd_->getCheckpointBeingFetched();
   const uint64_t firstRequiredBlock = psd_->getFirstRequiredBlock();
@@ -2225,6 +2233,11 @@ void BCStateTran::processData() {
       metrics_.checkpoint_being_fetched_.Get().Set(0);
 
       checkConsistency(config_.pedanticChecks);
+
+      // Log latencies
+      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.snapshot("state_transfer");
+      LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer")));
 
       // Completion
       LOG_INFO(getLogger(),
