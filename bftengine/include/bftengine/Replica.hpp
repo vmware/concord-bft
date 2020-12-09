@@ -53,6 +53,7 @@ class ControlHandlers {
  public:
   virtual void onSuperStableCheckpoint() = 0;
   virtual void onStableCheckpoint() = 0;
+  virtual void onPruningProcess() = 0;
   virtual ~ControlHandlers() {}
 };
 
