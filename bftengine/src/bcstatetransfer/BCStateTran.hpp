@@ -37,6 +37,8 @@
 #include "Handoff.hpp"
 #include "SysConsts.hpp"
 #include "throughput.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 using std::set;
 using std::map;
@@ -434,6 +436,27 @@ class BCStateTran : public IStateTransfer {
   void logCollectingStatus(const uint64_t firstRequiredBlock);
   void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize);
   void startCollectingStats();
-};
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Latency Historgrams
+  ///////////////////////////////////////////////////////////////////////////
+ private:
+  static constexpr int64_t MAX_VALUE_MILLISECONDS = 1000 * 60;  // 60 Seconds
+  using Recorder = concord::diagnostics::Recorder;
+
+  struct Recorders {
+    Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("state_transfer", {{"fetch_blocks_msg_latency", fetch_blocks_msg_latency}});
+    }
+    std::shared_ptr<Recorder> fetch_blocks_msg_latency =
+        std::make_shared<Recorder>(1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
+  };
+  Recorders histograms_;
+
+  // Record latency for FetchBlockMsg <-> ItemDataMsg. These messages are sent multiple times between dest and src
+  concord::diagnostics::AsyncTimeRecorderMap<SeqNum, true> fetch_block_msg_latency_rec_;
+
+};  // namespace bftEngine::bcst::impl
 
 }  // namespace bftEngine::bcst::impl
