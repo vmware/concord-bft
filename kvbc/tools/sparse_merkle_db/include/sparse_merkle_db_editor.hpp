@@ -96,6 +96,7 @@ inline v2MerkleTree::DBAdapter getAdapter(const std::string &path, bool read_onl
 }
 
 struct GetGenesisBlockID {
+  bool read_only = true;
   std::string description() const {
     return "getGenesisBlockID\n"
            "  Returns the genesis block ID.";
@@ -106,6 +107,7 @@ struct GetGenesisBlockID {
 };
 
 struct GetLastReachableBlockID {
+  bool read_only = true;
   std::string description() const {
     return "getLastReachableBlockID\n"
            "  Returns the last reachable block ID";
@@ -117,6 +119,7 @@ struct GetLastReachableBlockID {
 };
 
 struct GetLastBlockID {
+  bool read_only = true;
   std::string description() const {
     return "getLastBlockID\n"
            " Returns the last block ID";
@@ -128,6 +131,7 @@ struct GetLastBlockID {
 };
 
 struct GetRawBlock {
+  bool read_only = true;
   std::string description() const {
     return "getRawBlock BLOCK-ID\n"
            "  Returns a serialized raw block (encoded in hex).";
@@ -143,6 +147,7 @@ struct GetRawBlock {
 };
 
 struct GetRawBlockRange {
+  bool read_only = true;
   std::string description() const {
     return "getRawBlockRange BLOCK-ID-START BLOCK-ID-END\n"
            "  Returns a list of serialized raw blocks (encoded in hex) in the [BLOCK-ID-START, BLOCK-ID-END) range.";
@@ -171,6 +176,7 @@ struct GetRawBlockRange {
 };
 
 struct GetBlockInfo {
+  bool read_only = true;
   std::string description() const {
     return "getBlockInfo BLOCK-ID\n"
            "  Returns information about the requested block (excluding its key-values).";
@@ -192,6 +198,7 @@ struct GetBlockInfo {
 };
 
 struct GetBlockKeyValues {
+  bool read_only = true;
   std::string description() const {
     return "getBlockKeyValues BLOCK-ID\n"
            "  Returns the block's key-values.";
@@ -207,6 +214,7 @@ struct GetBlockKeyValues {
 };
 
 struct GetValue {
+  bool read_only = true;
   std::string description() const {
     return "getValue HEX-KEY [BLOCK-VERSION]\n"
            "  Gets a value by a hex-encoded key and (optionally) a block version.\n"
@@ -231,6 +239,7 @@ struct GetValue {
 };
 
 struct CompareTo {
+  bool read_only = true;
   std::string description() const {
     return "compareTo PATH-TO-OTHER-DB\n"
            "  Compares the passed DB at PATH-TO-DB to the one in PATH-TO-OTHER-DB.\n"
@@ -307,6 +316,7 @@ struct CompareTo {
 };
 
 struct RemoveMetadata {
+  bool read_only = false;
   std::string description() const {
     return "removeMetadata\n"
            "  Removes metadata and state transfer data from RocksDB.";
@@ -401,7 +411,8 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
   }
 
   try {
-    auto adapter = getAdapter(cmd_line_args.values[1]);
+    auto read_only = std::visit([](const auto &command) { return command.read_only; }, cmd_it->second);
+    auto adapter = getAdapter(cmd_line_args.values[1], read_only);
     const auto output =
         std::visit([&](const auto &command) { return command.execute(adapter, command_arguments(cmd_line_args)); },
                    cmd_it->second);
