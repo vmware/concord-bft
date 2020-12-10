@@ -56,15 +56,11 @@ class SkvbcCheckpointTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
             num_of_checkpoints_to_add=1,
             verify_checkpoint_persistency=False
         )
-        checkpoint_after = await bft_network.wait_for_checkpoint(replica_id=0)
-
-        self.assertEqual(checkpoint_after, 1 + checkpoint_before)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
