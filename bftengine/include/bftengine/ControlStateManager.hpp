@@ -56,7 +56,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   void clearCheckpointToStopAt();
 
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
-  bool getPruningProcessStatus() { return onPruningProcess_; }
+  bool getPruningProcessStatus() const { return onPruningProcess_; }
   ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages);
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;

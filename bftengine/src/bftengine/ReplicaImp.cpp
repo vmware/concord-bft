@@ -195,6 +195,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     LOG_INFO(GL,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
+    delete m;
     return;
   }
 
@@ -224,6 +225,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         requestsQueueOfPrimary.push(m);
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
+        delete m;
         return;
       } else {
         LOG_INFO(GL,
