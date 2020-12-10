@@ -54,7 +54,7 @@ class KeyValueBlockchain {
     }
     // newBlock.parentDigest = parentBlockDigestFuture.get();
     // // E.L blocks in new column Family
-    write_batch.put(Block::CATEGORY_ID, Block::generateKey(new_block.id()), Block::serialize(new_block));
+    write_batch.put(detail::BLOCKS_CF, Block::generateKey(new_block.id()), Block::serialize(new_block));
     native_client_->write(std::move(write_batch));
     return lastReachableBlockId_ = new_block.id();
   }

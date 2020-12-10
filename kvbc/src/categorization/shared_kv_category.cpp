@@ -131,7 +131,7 @@ SharedKeyValueUpdatesInfo SharedKeyValueCategory::add(BlockId block_id,
     update_info.category_root_hashes = std::move(category_hashes);
   }
   return update_info;
-}  // namespace concord::kvbc::categorization::detail
+}
 
 void SharedKeyValueCategory::createColumnFamilyIfNotExisting(const std::string &cf) const {
   if (!db_->hasColumnFamily(cf)) {

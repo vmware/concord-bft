@@ -1,3 +1,18 @@
+// Concord
+//
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
+#pragma once
+
 #include "updates.h"
 #include <utility>
 #include <block_digest.h>
@@ -15,7 +30,6 @@ namespace concord::kvbc::categorization {
 // - Categories' updates_info where update info is essentially a list of keys, metadata on the keys and a hash of the
 // category state.
 struct Block {
-  static const std::string CATEGORY_ID;
   Block() {
     data.block_id = 0;
     data.parent_digest.fill(0);
@@ -67,8 +81,6 @@ struct Block {
 
   BlockData data;
 };
-
-const std::string Block::CATEGORY_ID{"__blocks__"};
 
 //////////////////////////////////// RAW BLOCKS//////////////////////////////////////
 

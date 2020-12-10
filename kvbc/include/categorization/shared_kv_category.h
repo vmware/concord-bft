@@ -27,7 +27,10 @@ namespace concord::kvbc::categorization::detail {
 // The shared key-value category persists key-values across multiple categories. A category is implemented as a pair of
 // RocksDB column families:
 //  * `data` column family - contains versioned key-values for the given category
-//  * `latest version` column family - contains the latest version of a key for the given category
+//  * `latest version` column family - contains the latest version of a key for the given category. The rationale behind
+//    storing the latest version of a key is to support latest version key lookup without using RocksdDB iterators.
+//    Instead, we can use two point lookups - one to get the latest version and one to get the actual value. This is
+//    done for performance reasons.
 //
 // If a key-value is part of multiple categories in a single block update, the value will be physically stored once only
 // in one of the categories and other categories will contain a key with a `pointer` to the value.

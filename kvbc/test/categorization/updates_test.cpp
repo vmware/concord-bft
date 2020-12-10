@@ -16,6 +16,7 @@
  */
 
 #include "gtest/gtest.h"
+#include "categorization/column_families.h"
 #include "categorization/updates.h"
 #include "categorization/kv_blockchain.h"
 #include <iostream>
@@ -26,6 +27,7 @@
 #include "storage/test/storage_test_common.h"
 
 using namespace concord::kvbc::categorization;
+using namespace concord::kvbc::categorization::detail;
 using namespace concord::kvbc;
 
 namespace {
@@ -50,7 +52,7 @@ TEST_F(categorized_kvbc, merkle_update) {
 }
 
 TEST_F(categorized_kvbc, add_blocks) {
-  db->createColumnFamily(Block::CATEGORY_ID);
+  db->createColumnFamily(BLOCKS_CF);
   KeyValueBlockchain block_chain{db};
   // Add block1
   {
@@ -87,7 +89,7 @@ TEST_F(categorized_kvbc, add_blocks) {
   // get block 1 from DB and test it
   {
     const detail::Buffer& block_db_key = Block::generateKey(1);
-    auto block1_db_val = db->get(Block::CATEGORY_ID, block_db_key);
+    auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
     ASSERT_TRUE(block1_db_val.has_value());
     // E.L need to add support for strings in cmf
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
@@ -103,7 +105,7 @@ TEST_F(categorized_kvbc, add_blocks) {
   // get block 2 from DB and test it
   {
     const detail::Buffer& block_db_key = Block::generateKey(2);
-    auto block2_db_val = db->get(Block::CATEGORY_ID, block_db_key);
+    auto block2_db_val = db->get(BLOCKS_CF, block_db_key);
     ASSERT_TRUE(block2_db_val.has_value());
     // E.L need to add support for strings in cmf
     detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
