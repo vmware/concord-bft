@@ -225,7 +225,6 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         requestsQueueOfPrimary.push(m);
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
-        delete m;
         return;
       } else {
         LOG_INFO(GL,
