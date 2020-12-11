@@ -150,7 +150,7 @@ class ReplicaImp : public IReplica,
   struct Recorders {
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("kvbc-ReplicaImp",
+      registrar.perf.registerComponent("kvbc",
                                        {{"get_value", get_value},
                                         {"get_block", get_block},
                                         {"get_block_data", get_block_data},

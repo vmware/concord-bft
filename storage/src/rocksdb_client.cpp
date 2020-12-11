@@ -18,10 +18,13 @@
 #include <rocksdb/env.h>
 #include <rocksdb/utilities/options_util.h>
 #include <rocksdb/table.h>
-#include "assertUtils.hpp"
-#include "Logger.hpp"
+#include <rocksdb/filter_policy.h>
+
 #include <atomic>
 #include <utility>
+
+#include "assertUtils.hpp"
+#include "Logger.hpp"
 
 using concordUtils::Sliver;
 using concordUtils::Status;
@@ -104,9 +107,10 @@ void Client::Options::applyOptimizations() {
   ::rocksdb::BlockBasedTableOptions table_options;
 
   table_options.block_size = 4 * 4096;
-  db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  table_options.block_cache = ::rocksdb::NewLRUCache(1024 * 1024 * 1024 * 2ul);  // 2GB
+  table_options.filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
 
-  db_options.write_buffer_size = 512 << 20;  // set default memtable size to 512mb to improve perf
+  db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 }
 
 /**
@@ -158,7 +162,7 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
     }
     options.db_options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
     options.db_options.statistics = ::rocksdb::CreateDBStatistics();
-    options.db_options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptHistogramOrTimers);
+    options.db_options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptTimeForMutex);
 
     // If a comparator is passed, use it. If not, use the default one.
     if (comparator_) {
