@@ -116,9 +116,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Return the column families in the DB pointed to by `path`.
   static std::unordered_set<std::string> columnFamilies(const std::string &path);
 
-  // Client instance column management. Methods below only operate on column families this client is ware of. The actual
-  // column families on-disk can be different if this client is in read-only mode as another read-write client might
-  // have modified them. Return the column families this client is aware of.
+  // Client instance column management. Methods below only operate on column families this client is aware of. The
+  // actual column families on-disk can be different if this client is in read-only mode as another read-write client
+  // might have modified them. Return the column families this client is aware of.
   std::unordered_set<std::string> columnFamilies() const;
   // Checks if the client has a column family.
   bool hasColumnFamily(const std::string cFamily) const;

@@ -22,6 +22,8 @@
 #include "storage/test/storage_test_common.h"
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -42,41 +44,30 @@ class shared_kv_category_test : public Test {
   void TearDown() override { cleanup(); }
 
  protected:
-  void assertKvData(const std::string &category_id,
-                    const std::string &key,
-                    const std::string &value,
-                    BlockId block_id) {
-    const auto db_value = db->get(category_id + SHARED_KV_DATA_CF_SUFFIX, serialize(versionedKey(key, block_id)));
-    ASSERT_TRUE(db_value);
-    auto shared_db_value = SharedDbValue{};
-    deserialize(*db_value, shared_db_value);
-    ASSERT_TRUE(std::holds_alternative<SharedDbValueData>(shared_db_value.data));
-    ASSERT_EQ(std::get<SharedDbValueData>(shared_db_value.data).data, value);
+  std::optional<std::string> value(const std::string &key, BlockId block_id) const {
+    return db->get(SHARED_KV_DATA_CF, serialize(versionedKey(key, block_id)));
   }
 
-  void assertKvPointer(const std::string &category_id,
-                       const std::string &key,
-                       const std::string &pointed_category_id,
-                       BlockId block_id) {
-    const auto db_value = db->get(category_id + SHARED_KV_DATA_CF_SUFFIX, serialize(versionedKey(key, block_id)));
-    ASSERT_TRUE(db_value);
-    auto shared_db_value = SharedDbValue{};
-    deserialize(*db_value, shared_db_value);
-    ASSERT_TRUE(std::holds_alternative<SharedDbValuePointer>(shared_db_value.data));
-    ASSERT_EQ(std::get<SharedDbValuePointer>(shared_db_value.data).category_id, pointed_category_id);
-  }
-
-  void assertLatestKeyVersion(const std::string &category_id, const std::string &key, BlockId block_id) {
-    const auto db_value = db->get(category_id + SHARED_KV_LATEST_KEY_VER_CF_SUFFIX, serialize(KeyHash{hash(key)}));
-    ASSERT_TRUE(db_value);
-    auto block_version = Version{};
-    deserialize(*db_value, block_version);
-    ASSERT_EQ(block_version.value, block_id);
+  std::optional<KeyVersionsPerCategory> keyVersions(const std::string &key) const {
+    const auto db_value = db->get(SHARED_KV_KEY_VERSIONS_CF, hash(key));
+    if (!db_value) {
+      return std::nullopt;
+    }
+    auto versions = KeyVersionsPerCategory{};
+    deserialize(*db_value, versions);
+    return versions;
   }
 
  protected:
   std::shared_ptr<NativeClient> db;
 };
+
+TEST_F(shared_kv_category_test, create_column_families_on_construction) {
+  auto cat = SharedKeyValueCategory{db};
+  ASSERT_THAT(db->columnFamilies(),
+              ContainerEq(std::unordered_set<std::string>{
+                  db->defaultColumnFamily(), SHARED_KV_DATA_CF, SHARED_KV_KEY_VERSIONS_CF}));
+}
 
 TEST_F(shared_kv_category_test, empty_updates) {
   auto update = SharedKeyValueUpdatesData{};
@@ -94,31 +85,6 @@ TEST_F(shared_kv_category_test, key_without_categories) {
   auto batch = db->getBatch();
   auto cat = SharedKeyValueCategory{db};
   ASSERT_THROW(cat.add(1, std::move(update), batch), std::invalid_argument);
-}
-
-TEST_F(shared_kv_category_test, create_column_families_on_add) {
-  auto update = SharedKeyValueUpdatesData{};
-  update.calculate_root_hash = true;
-  update.kv["k1"] = SharedValueData{"v1", {"c1"}};
-  update.kv["k2"] = SharedValueData{"v2", {"c2"}};
-  update.kv["k3"] = SharedValueData{"v3", {"c3", "c4"}};
-
-  const auto block_id = 1;
-  auto batch = db->getBatch();
-  auto cat = SharedKeyValueCategory{db};
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
-
-  ASSERT_THAT(db->columnFamilies(),
-              ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(),
-                                                          "c1" + SHARED_KV_DATA_CF_SUFFIX,
-                                                          "c2" + SHARED_KV_DATA_CF_SUFFIX,
-                                                          "c3" + SHARED_KV_DATA_CF_SUFFIX,
-                                                          "c4" + SHARED_KV_DATA_CF_SUFFIX,
-                                                          "c1" + SHARED_KV_LATEST_KEY_VER_CF_SUFFIX,
-                                                          "c2" + SHARED_KV_LATEST_KEY_VER_CF_SUFFIX,
-                                                          "c3" + SHARED_KV_LATEST_KEY_VER_CF_SUFFIX,
-                                                          "c4" + SHARED_KV_LATEST_KEY_VER_CF_SUFFIX}));
 }
 
 TEST_F(shared_kv_category_test, calculate_root_hash_toggle) {
@@ -181,10 +147,33 @@ TEST_F(shared_kv_category_test, add_one_key_per_category) {
                                              0x86, 0x39, 0xfa, 0x11, 0x36, 0x90, 0x6b, 0x69, 0xaf, 0x02}));
   }
 
-  assertKvData("c1", "k1", "v1", block_id);
-  assertKvData("c2", "k2", "v2", block_id);
-  assertLatestKeyVersion("c1", "k1", block_id);
-  assertLatestKeyVersion("c2", "k2", block_id);
+  // Make sure we've persisted the key-values in the data column family.
+  {
+    const auto v1 = value("k1", block_id);
+    ASSERT_TRUE(v1);
+    ASSERT_EQ(*v1, "v1");
+  }
+  {
+    const auto v2 = value("k2", block_id);
+    ASSERT_TRUE(v2);
+    ASSERT_EQ(*v2, "v2");
+  }
+
+  // Make sure we've persisted versions in the key versions column family.
+  {
+    const auto versions = keyVersions("k1");
+    ASSERT_TRUE(versions);
+    ASSERT_THAT(versions->data,
+                ContainerEq(std::map<std::string, std::vector<std::uint64_t>>{
+                    std::make_pair("c1"s, std::vector<std::uint64_t>{block_id})}));
+  }
+  {
+    const auto versions = keyVersions("k2");
+    ASSERT_TRUE(versions);
+    ASSERT_THAT(versions->data,
+                ContainerEq(std::map<std::string, std::vector<std::uint64_t>>{
+                    std::make_pair("c2"s, std::vector<std::uint64_t>{block_id})}));
+  }
 }
 
 TEST_F(shared_kv_category_test, add_key_in_two_categories) {
@@ -222,10 +211,22 @@ TEST_F(shared_kv_category_test, add_key_in_two_categories) {
                                              0x38, 0xda, 0x8a, 0x62, 0x52, 0x0a, 0xa5, 0x9d, 0x9d, 0xdb}));
   }
 
-  assertKvData("c1", "k1", "v1", block_id);
-  assertKvPointer("c2", "k1", "c1", block_id);
-  assertLatestKeyVersion("c1", "k1", block_id);
-  assertLatestKeyVersion("c2", "k1", block_id);
+  // Make sure we've persisted the key-value in the data column family.
+  {
+    const auto v1 = value("k1", block_id);
+    ASSERT_TRUE(v1);
+    ASSERT_EQ(*v1, "v1");
+  }
+
+  // Make sure we've persisted versions in the key versions column family.
+  {
+    const auto versions = keyVersions("k1");
+    ASSERT_TRUE(versions);
+    ASSERT_THAT(versions->data,
+                ContainerEq(std::map<std::string, std::vector<std::uint64_t>>{
+                    std::make_pair("c1"s, std::vector<std::uint64_t>{block_id}),
+                    std::make_pair("c2"s, std::vector<std::uint64_t>{block_id})}));
+  }
 }
 
 TEST_F(shared_kv_category_test, add_two_keys_in_one_category) {
@@ -260,10 +261,80 @@ TEST_F(shared_kv_category_test, add_two_keys_in_one_category) {
                                              0xd1, 0xf6, 0xa1, 0xf1, 0x29, 0xcf, 0x1a, 0xcf, 0xdb, 0x86}));
   }
 
-  assertKvData("c1", "k1", "v1", block_id);
-  assertKvData("c1", "k2", "v2", block_id);
-  assertLatestKeyVersion("c1", "k1", block_id);
-  assertLatestKeyVersion("c1", "k2", block_id);
+  // Make sure we've persisted the key-values in the data column family.
+  {
+    const auto v1 = value("k1", block_id);
+    ASSERT_TRUE(v1);
+    ASSERT_EQ(*v1, "v1");
+  }
+  {
+    const auto v2 = value("k2", block_id);
+    ASSERT_TRUE(v2);
+    ASSERT_EQ(*v2, "v2");
+  }
+
+  // Make sure we've persisted versions in the key versions column family.
+  {
+    const auto versions = keyVersions("k1");
+    ASSERT_TRUE(versions);
+    ASSERT_THAT(versions->data,
+                ContainerEq(std::map<std::string, std::vector<std::uint64_t>>{
+                    std::make_pair("c1"s, std::vector<std::uint64_t>{block_id})}));
+  }
+  {
+    const auto versions = keyVersions("k2");
+    ASSERT_TRUE(versions);
+    ASSERT_THAT(versions->data,
+                ContainerEq(std::map<std::string, std::vector<std::uint64_t>>{
+                    std::make_pair("c1"s, std::vector<std::uint64_t>{block_id})}));
+  }
+}
+
+TEST_F(shared_kv_category_test, multi_versioned_key_in_one_category) {
+  auto cat = SharedKeyValueCategory{db};
+
+  // Block 1.
+  {
+    auto update1 = SharedKeyValueUpdatesData{};
+    update1.calculate_root_hash = true;
+    update1.kv["k"] = SharedValueData{"v1", {"c"}};
+
+    auto batch1 = db->getBatch();
+    cat.add(1, std::move(update1), batch1);
+    db->write(std::move(batch1));
+  }
+
+  // Block 2.
+  {
+    auto update2 = SharedKeyValueUpdatesData{};
+    update2.calculate_root_hash = true;
+    update2.kv["k"] = SharedValueData{"v2", {"c"}};
+
+    auto batch2 = db->getBatch();
+    cat.add(2, std::move(update2), batch2);
+    db->write(std::move(batch2));
+  }
+
+  // Make sure we've persisted the key-values in the data column family.
+  {
+    const auto v1 = value("k", 1);
+    ASSERT_TRUE(v1);
+    ASSERT_EQ(*v1, "v1");
+  }
+  {
+    const auto v2 = value("k", 2);
+    ASSERT_TRUE(v2);
+    ASSERT_EQ(*v2, "v2");
+  }
+
+  // Make sure we've persisted versions in the key versions column family.
+  {
+    const auto versions = keyVersions("k");
+    ASSERT_TRUE(versions);
+    ASSERT_THAT(versions->data,
+                ContainerEq(std::map<std::string, std::vector<std::uint64_t>>{
+                    std::make_pair("c"s, std::vector<std::uint64_t>{1, 2})}));
+  }
 }
 
 }  // namespace

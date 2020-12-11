@@ -18,22 +18,25 @@
 
 #include "base_types.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
+#include "details.h"
 
 #include <memory>
 #include <string>
 
 namespace concord::kvbc::categorization::detail {
 
-// The shared key-value category persists key-values across multiple categories. A category is implemented as a pair of
+// The shared key-value category persists key-values across multiple categories. It is implemented as a pair of
 // RocksDB column families:
-//  * `data` column family - contains versioned key-values for the given category
-//  * `latest version` column family - contains the latest version of a key for the given category. The rationale behind
-//    storing the latest version of a key is to support latest version key lookup without using RocksdDB iterators.
-//    Instead, we can use two point lookups - one to get the latest version and one to get the actual value. This is
-//    done for performance reasons.
+//  * `data` column family - contains versioned key-values for the given category. Keys are hashed and serialized as
+//     `VersionedKey` CMF messages.
+//  * `key versions` column family - contains mapping from a key to a per category list of versions for that key. The
+//     rationale behind storing the versions of a key is to support key lookup without using RocksdDB iterators.
+//     Instead, we can use two point lookups - one to get the versions and one to get the actual value. This is done for
+//     performance reasons. Finally, keys in the `key versions` column family are persisted directly as their hash.
 //
 // If a key-value is part of multiple categories in a single block update, the value will be physically stored once only
-// in one of the categories and other categories will contain a key with a `pointer` to the value.
+// in the `data` column family. Information about which categories a key-value is part of is kept in the `key versions`
+// column family.
 //
 // Key-values in the shared category are automatically made stale on addition.
 //
@@ -85,7 +88,7 @@ class SharedKeyValueCategory {
                                                     const SharedKeyValueUpdatesInfo &updates_info) const;
 
  private:
-  void createColumnFamilyIfNotExisting(const std::string &category_id) const;
+  KeyVersionsPerCategory versionsForKey(const Hash &key_hash) const;
 
  private:
   const std::shared_ptr<storage::rocksdb::NativeClient> db_;

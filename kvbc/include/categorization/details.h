@@ -15,9 +15,11 @@
 
 #include "base_types.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
+#include "rocksdb/native_client.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <type_traits>
 #include <vector>
 
@@ -64,6 +66,12 @@ template <typename Span,
 void deserialize(const Span &in, T &out) {
   auto begin = in.data();
   deserialize(begin, begin + in.size(), out);
+}
+
+inline void createColumnFamilyIfNotExisting(const std::string &cf, storage::rocksdb::NativeClient &db) {
+  if (!db.hasColumnFamily(cf)) {
+    db.createColumnFamily(cf);
+  }
 }
 
 }  // namespace concord::kvbc::categorization::detail

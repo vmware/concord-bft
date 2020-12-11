@@ -17,6 +17,7 @@
 
 #include <rocksdb/write_batch.h>
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -45,6 +46,8 @@ class NativeWriteBatch {
   void delRange(const std::string &cFamily, const BeginSpan &beginKey, const EndSpan &endKey);
   template <typename BeginSpan, typename EndSpan>
   void delRange(const BeginSpan &beginKey, const EndSpan &endKey);
+
+  std::size_t size() const;
 
  private:
   std::shared_ptr<const NativeClient> client_;

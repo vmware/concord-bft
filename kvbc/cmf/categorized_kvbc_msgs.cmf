@@ -102,11 +102,7 @@ Msg RawBlockData 2005 {
 
 # Misc
 
-Msg Version 3000 {
-    uint64 value
-}
-
-Msg BenchmarkMessage 3001 {
+Msg BenchmarkMessage 3000 {
     string str
     fixedlist uint8 32 hash
     map string string map
@@ -123,17 +119,9 @@ Msg VersionedKey 4001 {
     uint64 version
 }
 
-Msg SharedDbValuePointer 4002 {
-    string category_id
+# Persisted as a value in for keys in the index column family.
+# Contains a per category sorted list of versions for the key.
+Msg KeyVersionsPerCategory 4002 {
+    map string list uint64 data
 }
 
-Msg SharedDbValueData 4003 {
-    string data
-}
-
-Msg SharedDbValue 4004 {
-    oneof {
-        SharedDbValueData
-        SharedDbValuePointer
-    } data
-}
