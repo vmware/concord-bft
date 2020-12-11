@@ -1,18 +1,34 @@
-// Copyright 2018 VMware, all rights reserved
+// Concord
+//
+// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the
+// "License").  You may not use this product except in compliance with the
+// Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
 /**
  * The following test suite tests ordering of KeyValuePairs
  */
 
 #include "gtest/gtest.h"
+#include "categorization/column_families.h"
 #include "categorization/updates.h"
 #include "categorization/kv_blockchain.h"
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 #include <random>
 #include "storage/test/storage_test_common.h"
 
+using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc::categorization;
+using namespace concord::kvbc::categorization::detail;
 using namespace concord::kvbc;
 
 namespace {
@@ -37,7 +53,7 @@ TEST_F(categorized_kvbc, merkle_update) {
 }
 
 TEST_F(categorized_kvbc, add_blocks) {
-  db->createColumnFamily(Block::CATEGORY_ID);
+  db->createColumnFamily(BLOCKS_CF);
   KeyValueBlockchain block_chain{db};
   // Add block1
   {
@@ -73,11 +89,11 @@ TEST_F(categorized_kvbc, add_blocks) {
   }
   // get block 1 from DB and test it
   {
-    const serialization::buffer& block_db_key = Block::generateKey(1);
-    auto block1_db_val = db->get(Block::CATEGORY_ID, block_db_key);
+    const detail::Buffer& block_db_key = Block::generateKey(1);
+    auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
     ASSERT_TRUE(block1_db_val.has_value());
     // E.L need to add support for strings in cmf
-    serialization::buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
+    detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
     auto merkle_variant = block1_from_db.data.categories_updates_info["merkle"];
     auto merkle_update_info1 = std::get<MerkleUpdatesInfo>(merkle_variant);
@@ -89,11 +105,11 @@ TEST_F(categorized_kvbc, add_blocks) {
   }
   // get block 2 from DB and test it
   {
-    const serialization::buffer& block_db_key = Block::generateKey(2);
-    auto block2_db_val = db->get(Block::CATEGORY_ID, block_db_key);
+    const detail::Buffer& block_db_key = Block::generateKey(2);
+    auto block2_db_val = db->get(BLOCKS_CF, block_db_key);
     ASSERT_TRUE(block2_db_val.has_value());
     // E.L need to add support for strings in cmf
-    serialization::buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
+    detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
     auto block2_from_db = Block::deserialize(in);
     ASSERT_TRUE(block2_from_db.data.shared_updates_info.has_value());
     std::vector<std::string> v{"1", "2"};

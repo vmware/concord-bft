@@ -32,7 +32,7 @@ def serialize_start(name):
     return serialize_fn.format(name=name) + " {\n"
 
 
-deserialize_fn = "void deserialize(uint8_t*& input, const uint8_t* end, {name}& t)"
+deserialize_fn = "void deserialize(const uint8_t*& input, const uint8_t* end, {name}& t)"
 
 
 def deserialize_declaration(name):
@@ -52,7 +52,7 @@ def deserialize_byte_buffer_declaration(name):
 
 def deserialize_byte_buffer(name):
     return deserialize_byte_buffer_fn.format(name=name) + f""" {{
-    auto* begin = const_cast<uint8_t*>(input.data());
+    auto begin = input.data();
     deserialize(begin, begin + input.size(), t);
 }}
 """
@@ -90,7 +90,7 @@ def variant_serialize(variant):
 }"""
 
 
-variant_deserialize_fn = "void deserialize(uint8_t*& start, const uint8_t* end, {variant}& val)"
+variant_deserialize_fn = "void deserialize(const uint8_t*& start, const uint8_t* end, {variant}& val)"
 
 
 def variant_deserialize_declaration(variant):

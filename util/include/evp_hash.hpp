@@ -14,6 +14,7 @@
 #pragma once
 
 #include <array>
+#include <utility>
 
 #include <openssl/evp.h>
 
@@ -32,11 +33,22 @@ class EVPHash {
 
   EVPHash() noexcept : ctx_(EVP_MD_CTX_new()) { ConcordAssert(ctx_ != nullptr); }
 
-  ~EVPHash() noexcept { EVP_MD_CTX_destroy(ctx_); }
+  ~EVPHash() noexcept {
+    if (ctx_) {
+      EVP_MD_CTX_destroy(ctx_);
+    }
+  }
 
-  // Be explicit about move ops being noexcept.
-  EVPHash(EVPHash&&) noexcept = default;
-  EVPHash& operator=(EVPHash&&) noexcept = default;
+  EVPHash(EVPHash&& other) noexcept {
+    ctx_ = other.ctx_;
+    updating_ = other.updating_;
+    other.ctx_ = nullptr;
+  };
+
+  EVPHash& operator=(EVPHash&& other) noexcept {
+    *this = EVPHash{std::move(other)};
+    return *this;
+  }
 
   // Don't allow copying.
   EVPHash(const EVPHash&) = delete;

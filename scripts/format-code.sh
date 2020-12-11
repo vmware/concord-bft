@@ -27,6 +27,7 @@ FILES_TO_FORMAT=$(find ${ABS_CONCORD_PATH} \
     -iname "*.cc" -o \
     -iname "*.cpp" -o \
     -iname "*.h" -o \
+    -iname "*.ipp" -o \
     -iname "*.hpp" \) \
   -a -not -path "${ABS_CONCORD_PATH}/deps/*" \
   -a -not -path "${ABS_CONCORD_PATH}/build/*")

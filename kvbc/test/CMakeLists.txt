@@ -34,18 +34,6 @@ target_link_libraries(sparse_merkle_storage_db_adapter_unit_test PUBLIC
     stdc++fs
 )
 
-add_executable(categorized_updates_unit_test
-    categorization/updates_test.cpp )
-add_test(categorized_updates_unit_test categorized_updates_unit_test)
-target_link_libraries(categorized_updates_unit_test PUBLIC
-    GTest::Main
-    GTest::GTest
-    util
-    corebft
-    kvbc
-    stdc++fs
-)
-
 add_executable(sparse_merkle_storage_serialization_unit_test
     sparse_merkle_storage/serialization_unit_test.cpp )
 add_test(sparse_merkle_storage_serialization_unit_test sparse_merkle_storage_serialization_unit_test)
@@ -155,3 +143,28 @@ target_link_libraries(s3_storage_factory_test PUBLIC
     kvbc
 )
 endif(USE_S3_OBJECT_STORE)
+
+if (BUILD_ROCKSDB_STORAGE)
+    add_executable(categorized_updates_unit_test
+        categorization/updates_test.cpp )
+    add_test(categorized_updates_unit_test categorized_updates_unit_test)
+    target_link_libraries(categorized_updates_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(shared_kv_category_unit_test categorization/shared_kv_category_unit_test.cpp )
+    add_test(shared_kv_category_unit_test shared_kv_category_unit_test)
+    target_link_libraries(shared_kv_category_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+endif (BUILD_ROCKSDB_STORAGE)

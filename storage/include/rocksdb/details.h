@@ -13,65 +13,61 @@
 
 #pragma once
 
-#include "base_types.h"
-#include "categorized_kvbc_msgs.cmf.hpp"
-#include "rocksdb/native_client.h"
+#ifdef USE_ROCKSDB
+
+#include "client.h"
+#include "rocksdb_exception.h"
+
+#include <rocksdb/slice.h>
+#include <rocksdb/status.h>
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
+#include <string_view>
 #include <type_traits>
-#include <vector>
+#include <utility>
 
-namespace concord::kvbc::categorization::detail {
+namespace concord::storage::rocksdb::detail {
 
-using Buffer = std::vector<std::uint8_t>;
+using namespace std::string_view_literals;
 
-template <typename Span>
-Hash hash(const Span &span) {
-  return Hasher{}.digest(span.data(), span.size());
-}
-
-inline VersionedKey versionedKey(const std::string &key, BlockId block_id) {
-  return VersionedKey{KeyHash{detail::hash(key)}, block_id};
-}
-
-template <typename T>
-const Buffer &serialize(const T &value) {
-  static thread_local auto buf = Buffer{};
-  buf.clear();
-  serialize(buf, value);
-  return buf;
-}
-
+// Make sure we only allow types that have data() and size() members. That excludes raw pointers without corresponding
+// size.
 template <typename Span,
-          typename T,
           std::enable_if_t<std::is_convertible_v<decltype(std::declval<Span>().size()), std::size_t> &&
                                std::is_pointer_v<decltype(std::declval<Span>().data())> &&
                                std::is_convertible_v<std::remove_pointer_t<decltype(std::declval<Span>().data())> (*)[],
                                                      const char (*)[]>,
                            int> = 0>
-void deserialize(const Span &in, T &out) {
-  auto begin = reinterpret_cast<const std::uint8_t *>(in.data());
-  deserialize(begin, begin + in.size(), out);
+::rocksdb::Slice toSlice(const Span &span) noexcept {
+  return ::rocksdb::Slice{span.data(), span.size()};
 }
 
 template <typename Span,
-          typename T,
           std::enable_if_t<std::is_convertible_v<decltype(std::declval<Span>().size()), std::size_t> &&
                                std::is_pointer_v<decltype(std::declval<Span>().data())> &&
                                std::is_convertible_v<std::remove_pointer_t<decltype(std::declval<Span>().data())> (*)[],
                                                      const std::uint8_t (*)[]>,
                            int> = 0>
-void deserialize(const Span &in, T &out) {
-  auto begin = in.data();
-  deserialize(begin, begin + in.size(), out);
+::rocksdb::Slice toSlice(const Span &span) noexcept {
+  return ::rocksdb::Slice{reinterpret_cast<const char *>(span.data()), span.size()};
 }
 
-inline void createColumnFamilyIfNotExisting(const std::string &cf, storage::rocksdb::NativeClient &db) {
-  if (!db.hasColumnFamily(cf)) {
-    db.createColumnFamily(cf);
+inline void throwOnError(std::string_view msg1, std::string_view msg2, ::rocksdb::Status &&s) {
+  if (!s.ok()) {
+    auto rocksdbMsg = std::string{"RocksDB: "};
+    rocksdbMsg.append(msg1);
+    if (!msg2.empty()) {
+      rocksdbMsg.append(": ");
+      rocksdbMsg.append(msg2);
+    }
+    LOG_ERROR(Client::logger(), rocksdbMsg << ", status = " << s.ToString());
+    throw RocksDBException{rocksdbMsg, std::move(s)};
   }
 }
 
-}  // namespace concord::kvbc::categorization::detail
+inline void throwOnError(std::string_view msg, ::rocksdb::Status &&s) { return throwOnError(msg, ""sv, std::move(s)); }
+
+}  // namespace concord::storage::rocksdb::detail
+
+#endif  // USE_ROCKSDB

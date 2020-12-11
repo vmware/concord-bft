@@ -19,7 +19,7 @@ function(CMF_GENERATE_CPP CPP_HEADER CPP_IMPL CPP_NAMESPACE)
            --output ${FIL}
            --language cpp
            --namespace ${CPP_NAMESPACE}
-      DEPENDS ${CMF_COMPILER}
+      DEPENDS ${FIL} ${CMF_COMPILER} ${CMAKE_SOURCE_DIR}/messages/compiler/cpp/serialize.cpp
       COMMENT "CMFC: Generate C++ code for ${FIL}"
       VERBATIM
     )
