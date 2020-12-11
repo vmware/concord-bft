@@ -20,14 +20,15 @@
 
 #include "kv_types.hpp"
 
-using namespace concord::storage::rocksdb;
-
 namespace concord::kvbc::categorization {
 
 class KeyValueBlockchain {
  public:
-  KeyValueBlockchain() : native_client_(NativeClient::newClient("/tmp", false, NativeClient::DefaultOptions{})) {}
-  KeyValueBlockchain(const std::shared_ptr<NativeClient>& native_client) : native_client_(native_client) {}
+  KeyValueBlockchain()
+      : native_client_(concord::storage::rocksdb::NativeClient::newClient(
+            "/tmp", false, concord::storage::rocksdb::NativeClient::DefaultOptions{})) {}
+  KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client)
+      : native_client_(native_client) {}
   // 1) Defines a new block
   // 2) calls per cateogry with its updates
   // 3) inserts the updates KV to the DB updates set per column family
@@ -63,7 +64,7 @@ class KeyValueBlockchain {
   MerkleUpdatesInfo handleCategoryUpdates(BlockId block_id,
                                           const std::string& category_id,
                                           MerkleUpdatesData&& updates,
-                                          WriteBatch& write_batch) {
+                                          concord::storage::rocksdb::NativeWriteBatch& write_batch) {
     MerkleUpdatesInfo mui;
     for (auto& [k, v] : updates.kv) {
       (void)v;
@@ -78,7 +79,7 @@ class KeyValueBlockchain {
   KeyValueUpdatesInfo handleCategoryUpdates(BlockId block_id,
                                             const std::string& category_id,
                                             KeyValueUpdatesData&& updates,
-                                            WriteBatch& write_batch) {
+                                            concord::storage::rocksdb::NativeWriteBatch& write_batch) {
     KeyValueUpdatesInfo kvui;
     for (auto& [k, v] : updates.kv) {
       (void)v;
@@ -92,7 +93,7 @@ class KeyValueBlockchain {
 
   SharedKeyValueUpdatesInfo handleCategoryUpdates(BlockId block_id,
                                                   SharedKeyValueUpdatesData&& updates,
-                                                  WriteBatch& write_batch) {
+                                                  concord::storage::rocksdb::NativeWriteBatch& write_batch) {
     SharedKeyValueUpdatesInfo skvui;
     for (auto& [k, v] : updates.kv) {
       (void)v;
@@ -103,7 +104,7 @@ class KeyValueBlockchain {
 
   BlockId getLastReachableBlockId() { return lastReachableBlockId_; }
   // Members
-  std::shared_ptr<NativeClient> native_client_;
+  std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   BlockId lastReachableBlockId_{0};
 };
 

@@ -104,6 +104,11 @@ class Client : public concord::storage::IDBClient {
     storage_metrics_.setAggregator(aggregator);
   }
 
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
+    return logger_;
+  }
+
  private:
   struct Options {
     ::rocksdb::Options db_options;
@@ -120,10 +125,6 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
-  static logging::Logger& logger() {
-    static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
-    return logger_;
-  }
 
   // Column family unique pointers that are managed solely by Client. This allows us to use a raw
   // pointer in CfDeleter as we know the column family unique pointer will not be moved out of Client.

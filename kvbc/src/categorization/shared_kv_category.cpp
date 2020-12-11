@@ -68,7 +68,7 @@ SharedKeyValueCategory::SharedKeyValueCategory(const std::shared_ptr<storage::ro
 
 SharedKeyValueUpdatesInfo SharedKeyValueCategory::add(BlockId block_id,
                                                       SharedKeyValueUpdatesData &&update,
-                                                      storage::rocksdb::WriteBatch &batch) {
+                                                      storage::rocksdb::NativeWriteBatch &batch) {
   if (update.kv.empty()) {
     throw std::invalid_argument{"Empty shared key-value updates"};
   }

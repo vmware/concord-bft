@@ -26,6 +26,7 @@
 #include <random>
 #include "storage/test/storage_test_common.h"
 
+using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::categorization::detail;
 using namespace concord::kvbc;

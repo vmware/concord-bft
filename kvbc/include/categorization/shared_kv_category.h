@@ -44,21 +44,23 @@ class SharedKeyValueCategory {
   SharedKeyValueCategory(const std::shared_ptr<storage::rocksdb::NativeClient> &);
 
   // Add the given block updates and return the information that needs to be persisted in the block.
-  SharedKeyValueUpdatesInfo add(BlockId block_id, SharedKeyValueUpdatesData &&update, storage::rocksdb::WriteBatch &);
+  SharedKeyValueUpdatesInfo add(BlockId block_id,
+                                SharedKeyValueUpdatesData &&update,
+                                storage::rocksdb::NativeWriteBatch &);
 
   // Delete the genesis block.
   // `updates_info` must be the updates for `block_id`.
   // Precondition: `block_id` is the current genesis block ID.
   void deleteGenesisBlock(BlockId block_id,
                           const SharedKeyValueUpdatesInfo &updates_info,
-                          storage::rocksdb::WriteBatch &);
+                          storage::rocksdb::NativeWriteBatch &);
 
   // Delete the last reachable block.
   // `updates_info` must be the updates for `block_id`.
   // Precondition: `block_id` is the current last reachable block ID.
   void deleteLastReachableBlock(BlockId block_id,
                                 const SharedKeyValueUpdatesInfo &updates_info,
-                                storage::rocksdb::WriteBatch &);
+                                storage::rocksdb::NativeWriteBatch &);
 
   // Get the value of a key in `category_id` with a block version up to `max_block_id`.
   // Return std::nullopt if the key doesn't exist in any earlier blocks than `max_block_id`.
