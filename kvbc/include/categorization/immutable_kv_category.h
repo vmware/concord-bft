@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -47,16 +47,16 @@ class ImmutableKeyValueCategory {
 
   // Add the given block updates and return the information that needs to be persisted in the block.
   // Adding keys that already exist in this category is undefined behavior.
-  ImmutableUpdatesInfo add(BlockId, ImmutableUpdatesData &&, storage::rocksdb::NativeWriteBatch &);
+  ImmutableOutput add(BlockId, ImmutableInput &&, storage::rocksdb::NativeWriteBatch &);
 
   // Delete the genesis block. Implemented by directly calling deleteBlock().
-  void deleteGenesisBlock(BlockId, const ImmutableUpdatesInfo &, storage::rocksdb::NativeWriteBatch &);
+  void deleteGenesisBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
 
   // Delete the last reachable block. Implemented by directly calling deleteBlock().
-  void deleteLastReachableBlock(BlockId, const ImmutableUpdatesInfo &, storage::rocksdb::NativeWriteBatch &);
+  void deleteLastReachableBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
 
   // Deletes the keys for the passed updates info.
-  void deleteBlock(const ImmutableUpdatesInfo &, storage::rocksdb::NativeWriteBatch &);
+  void deleteBlock(const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
 
   // Get the value of an immutable key in `block_id`.
   // Return std::nullopt if `key` doesn't exist in `block_id`.
@@ -89,7 +89,7 @@ class ImmutableKeyValueCategory {
   // Return std::nullopt if the key doesn't exist.
   std::optional<KeyValueProof> getProof(const std::string &tag,
                                         const std::string &key,
-                                        const ImmutableUpdatesInfo &updates_info) const;
+                                        const ImmutableOutput &updates_info) const;
 
  private:
   std::string cf_;

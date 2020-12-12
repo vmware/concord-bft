@@ -329,6 +329,9 @@ class NibblePath {
   // Return the internal representation of the path.
   const std::vector<uint8_t>& data() const { return path_; }
 
+  // Allow moving the data out of the path.
+  std::vector<uint8_t> move_data() { return path_; }
+
  private:
   size_t num_nibbles_;
   std::vector<uint8_t> path_;

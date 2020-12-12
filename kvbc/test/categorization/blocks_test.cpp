@@ -53,18 +53,18 @@ TEST_F(categorized_kvbc, serialization_and_desirialization_of_block) {
     pHash[i] = (uint8_t)(rd() % 255);
   }
   Block block{8};
-  KeyValueUpdatesInfo kvui;
+  KeyValueOutput kvui;
   kvui.keys["key1"] = {false, false};
   kvui.keys["key2"] = {true, false};
-  block.add("KeyValueUpdatesInfo", std::move(kvui));
+  block.add("KeyValueOutput", std::move(kvui));
   block.setParentHash(pHash);
   auto ser = Block::serialize(block);
   auto des_block = Block::deserialize(ser);
 
   // Test the deserialized Block
   ASSERT_TRUE(des_block.id() == 8);
-  auto variant = des_block.data.categories_updates_info["KeyValueUpdatesInfo"];
-  KeyValueUpdatesInfo kv_updates_info = std::get<KeyValueUpdatesInfo>(variant);
+  auto variant = des_block.data.categories_updates_info["KeyValueOutput"];
+  KeyValueOutput kv_updates_info = std::get<KeyValueOutput>(variant);
   ASSERT_TRUE(kv_updates_info.keys.size() == 2);
   ASSERT_TRUE(kv_updates_info.keys["key2"].deleted == true);
   ASSERT_EQ(des_block.data.parent_digest, block.data.parent_digest);
@@ -82,7 +82,7 @@ TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
   auto value = std::string("val");
 
   uint64_t state_root_version = 886;
-  MerkleUpdatesInfo mui;
+  BlockMerkleOutput mui;
   mui.keys[key] = MerkleKeyFlag{false};
   mui.root_hash = pHash;
   mui.state_root_version = state_root_version;
@@ -102,7 +102,7 @@ TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
   categorization::RawBlock rw(block, db);
   ASSERT_EQ(rw.data.parent_digest, block.data.parent_digest);
   auto variant = rw.data.updates.kv[cf];
-  auto merkle_updates = std::get<MerkleUpdatesData>(variant);
+  auto merkle_updates = std::get<BlockMerkleInput>(variant);
   // check reconstruction of original kv
   ASSERT_EQ(merkle_updates.kv[key], value);
 }
@@ -119,7 +119,7 @@ TEST_F(categorized_kvbc, fail_reconstruct_merkle_updates) {
   auto value = std::string("val");
 
   uint64_t state_root_version = 886;
-  MerkleUpdatesInfo mui;
+  BlockMerkleOutput mui;
   mui.keys[key] = MerkleKeyFlag{false};
   mui.root_hash = pHash;
   mui.state_root_version = state_root_version;

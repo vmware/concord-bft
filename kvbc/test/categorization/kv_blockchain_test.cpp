@@ -43,7 +43,7 @@ class categorized_kvbc : public ::testing::Test {
 TEST_F(categorized_kvbc, merkle_update) {
   std::string key{"key"};
   std::string val{"val"};
-  MerkleUpdates mu;
+  BlockMerkleUpdates mu;
   mu.addUpdate(std::move(key), std::move(val));
   ASSERT_TRUE(mu.getData().kv.size() == 1);
 }
@@ -53,7 +53,7 @@ TEST_F(categorized_kvbc, add_blocks) {
   // Add block1
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -67,7 +67,7 @@ TEST_F(categorized_kvbc, add_blocks) {
   // Add block2
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -91,10 +91,10 @@ TEST_F(categorized_kvbc, add_blocks) {
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
     auto merkle_variant = block1_from_db.data.categories_updates_info["merkle"];
-    auto merkle_update_info1 = std::get<MerkleUpdatesInfo>(merkle_variant);
+    auto merkle_update_info1 = std::get<BlockMerkleOutput>(merkle_variant);
     ASSERT_EQ(merkle_update_info1.keys["merkle_deleted"].deleted, true);
     auto kv_hash_variant = block1_from_db.data.categories_updates_info["kv_hash"];
-    auto kv_hash_update_info1 = std::get<KeyValueUpdatesInfo>(kv_hash_variant);
+    auto kv_hash_update_info1 = std::get<KeyValueOutput>(kv_hash_variant);
     ASSERT_EQ(kv_hash_update_info1.keys["kv_deleted"].deleted, true);
   }
   // get block 2 from DB and test it
@@ -107,7 +107,7 @@ TEST_F(categorized_kvbc, add_blocks) {
     auto block2_from_db = Block::deserialize(in);
     const auto expected_tags = std::vector<std::string>{"1", "2"};
     auto immutable_variant = block2_from_db.data.categories_updates_info["immutable"];
-    auto immutable_update_info2 = std::get<ImmutableUpdatesInfo>(immutable_variant);
+    auto immutable_update_info2 = std::get<ImmutableOutput>(immutable_variant);
     ASSERT_EQ(immutable_update_info2.tagged_keys["immutable_key2"], expected_tags);
   }
 }
@@ -117,7 +117,7 @@ TEST_F(categorized_kvbc, delete_block) {
   // Add block1
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -134,7 +134,7 @@ TEST_F(categorized_kvbc, delete_block) {
   // Add block2
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -153,7 +153,7 @@ TEST_F(categorized_kvbc, delete_block) {
   // Add block3
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key3", "merkle_value3");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -185,7 +185,7 @@ TEST_F(categorized_kvbc, delete_block) {
   // Add block4
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key4", "merkle_value4");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -233,7 +233,7 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
   // Add block1
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -247,7 +247,7 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
   // Add block2
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -271,7 +271,7 @@ TEST_F(categorized_kvbc, add_raw_block) {
   // Add block1
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -286,7 +286,7 @@ TEST_F(categorized_kvbc, add_raw_block) {
   // Add block2
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -346,7 +346,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
   // Add block1
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -361,7 +361,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
 
   {
     categorization::RawBlock rb;
-    MerkleUpdatesData merkle_updates;
+    BlockMerkleInput merkle_updates;
     merkle_updates.kv["merkle_key3"] = "merkle_value3";
     merkle_updates.deletes.push_back("merkle_deleted3");
     rb.data.updates.kv["merkle"] = merkle_updates;
@@ -375,13 +375,14 @@ TEST_F(categorized_kvbc, get_raw_block) {
 
   {
     auto rb = block_chain.getRawBlock(5);
-    ASSERT_EQ(std::get<MerkleUpdatesData>(rb.data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
+    ASSERT_EQ(std::get<BlockMerkleInput>(rb.data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
   }
 
   // E.L not yet possible
   // {
   //   auto rb = block_chain.getRawBlock(1);
-  //   ASSERT_EQ(std::get<MerkleUpdatesData>(rb.data.category_updates["merkle"]).kv["merkle_key1"], "merkle_value1");
+  //   ASSERT_EQ(std::get<BlockMerkleInput>(rb.data.category_updates["merkle"]).kv["merkle_key1"],
+  //   "merkle_value1");
   // }
 
   { ASSERT_THROW(block_chain.getRawBlock(0), std::runtime_error); }
@@ -396,7 +397,7 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
   // Add block1
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -411,7 +412,7 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
   // Add block2
   {
     Updates updates;
-    MerkleUpdates merkle_updates;
+    BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
@@ -464,7 +465,7 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
   // Link the chains
   {
     categorization::RawBlock rb;
-    MerkleUpdatesData merkle_updates;
+    BlockMerkleInput merkle_updates;
     merkle_updates.kv["merkle_key3"] = "merkle_value3";
     merkle_updates.deletes.push_back("merkle_deleted3");
     rb.data.updates.kv["merkle"] = merkle_updates;
@@ -500,18 +501,18 @@ TEST_F(categorized_kvbc, instantiation_of_categories) {
   auto cats = tester.getCategories(block_chain);
   ASSERT_EQ(cats.count("merkle"), 1);
   ASSERT_THROW(std::get<KVHashCategory>(cats["merkle"]), std::bad_variant_access);
-  ASSERT_NO_THROW(std::get<MerkleCategory>(cats["merkle"]));
+  ASSERT_NO_THROW(std::get<BlockMerkleCategory>(cats["merkle"]));
 
   ASSERT_EQ(cats.count("merkle2"), 1);
   ASSERT_THROW(std::get<KVHashCategory>(cats["merkle2"]), std::bad_variant_access);
-  ASSERT_NO_THROW(std::get<MerkleCategory>(cats["merkle2"]));
+  ASSERT_NO_THROW(std::get<BlockMerkleCategory>(cats["merkle2"]));
 
   ASSERT_EQ(cats.count("imm"), 1);
   ASSERT_THROW(std::get<KVHashCategory>(cats["imm"]), std::bad_variant_access);
   ASSERT_NO_THROW(std::get<detail::ImmutableKeyValueCategory>(cats["imm"]));
 
   ASSERT_EQ(cats.count("kvhash"), 1);
-  ASSERT_THROW(std::get<MerkleCategory>(cats["kvhash"]), std::bad_variant_access);
+  ASSERT_THROW(std::get<BlockMerkleCategory>(cats["kvhash"]), std::bad_variant_access);
   ASSERT_NO_THROW(std::get<KVHashCategory>(cats["kvhash"]));
 }
 
@@ -541,7 +542,7 @@ TEST_F(categorized_kvbc, get_category) {
   db->write(std::move(wb));
   KeyValueBlockchain block_chain{db, true};
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
-  ASSERT_NO_THROW(std::get<MerkleCategory>(tester.getCategory("merkle", block_chain)));
+  ASSERT_NO_THROW(std::get<BlockMerkleCategory>(tester.getCategory("merkle", block_chain)));
 }
 
 // E.L temporary imp till categories are wired
@@ -561,7 +562,7 @@ TEST_F(categorized_kvbc, get_block_data) {
   auto value = std::string("val");
 
   uint64_t state_root_version = 886;
-  MerkleUpdatesInfo mui;
+  BlockMerkleOutput mui;
   mui.keys[key] = MerkleKeyFlag{false};
   mui.root_hash = pHash;
   mui.state_root_version = state_root_version;
@@ -592,7 +593,7 @@ TEST_F(categorized_kvbc, get_block_data) {
   ASSERT_THROW(block_chain.getBlockData(887), std::runtime_error);
   auto updates = block_chain.getBlockData(888);
   auto variant = updates.kv[cf];
-  auto merkle_updates = std::get<MerkleUpdatesData>(variant);
+  auto merkle_updates = std::get<BlockMerkleInput>(variant);
   // check reconstruction of original kv
   ASSERT_EQ(merkle_updates.kv[key], value);
 }
@@ -629,8 +630,8 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
   ASSERT_EQ(last_raw.first, 1);
   ASSERT_TRUE(last_raw.second.has_value());
   auto raw_from_api = block_chain.getRawBlock(1);
-  auto last_raw_imm_data = std::get<ImmutableUpdatesData>(last_raw.second.value().data.updates.kv["imm"]);
-  auto raw_from_api_imm_data = std::get<ImmutableUpdatesData>(raw_from_api.data.updates.kv["imm"]);
+  auto last_raw_imm_data = std::get<ImmutableInput>(last_raw.second.value().data.updates.kv["imm"]);
+  auto raw_from_api_imm_data = std::get<ImmutableInput>(raw_from_api.data.updates.kv["imm"]);
   std::vector<std::string> vec{"0", "1"};
   ASSERT_EQ(last_raw_imm_data.kv["key"].data, "val");
   ASSERT_EQ(last_raw_imm_data.kv["key"].tags, vec);

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -25,7 +25,7 @@
 namespace concord::kvbc::categorization {
 
 // Temp forward declearations
-struct MerkleCategory {};
+struct BlockMerkleCategory {};
 struct KVHashCategory {};
 
 class KeyValueBlockchain {
@@ -73,10 +73,10 @@ class KeyValueBlockchain {
                              const std::vector<std::string>& keys,
                              std::vector<std::optional<BlockId>>& versions) const;
 
-  CategoryUpdatesData getBlockData(BlockId block_id);
+  CategoryInput getBlockData(BlockId block_id);
 
  private:
-  BlockId addBlock(CategoryUpdatesData&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
+  BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   // tries to link the state transfer chain to the main blockchain
   void linkSTChainFrom(BlockId block_id);
@@ -94,7 +94,7 @@ class KeyValueBlockchain {
                              const detail::CATEGORY_TYPE type,
                              concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
-  const std::variant<detail::ImmutableKeyValueCategory, MerkleCategory, KVHashCategory>& getCategory(
+  const std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>& getCategory(
       const std::string& cat_id) const;
 
   /////////////////////// deletes ///////////////////////
@@ -105,58 +105,59 @@ class KeyValueBlockchain {
   // Delete per category
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
-                          const ImmutableUpdatesInfo& updates_info,
+                          const ImmutableOutput& updates_info,
                           storage::rocksdb::NativeWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
-                          const KeyValueUpdatesInfo& updates_info,
+                          const KeyValueOutput& updates_info,
                           storage::rocksdb::NativeWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
                           const std::string& category_id,
-                          const MerkleUpdatesInfo& updates_info,
+                          const BlockMerkleOutput& updates_info,
                           storage::rocksdb::NativeWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
                                 const std::string& category_id,
-                                const ImmutableUpdatesInfo& updates_info,
+                                const ImmutableOutput& updates_info,
                                 storage::rocksdb::NativeWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
                                 const std::string& category_id,
-                                const KeyValueUpdatesInfo& updates_info,
+                                const KeyValueOutput& updates_info,
                                 storage::rocksdb::NativeWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
                                 const std::string& category_id,
-                                const MerkleUpdatesInfo& updates_info,
+                                const BlockMerkleOutput& updates_info,
                                 storage::rocksdb::NativeWriteBatch&);
 
   /////////////////////// Updates ///////////////////////
 
   // Update per category
-  MerkleUpdatesInfo handleCategoryUpdates(BlockId block_id,
+  BlockMerkleOutput handleCategoryUpdates(BlockId block_id,
                                           const std::string& category_id,
-                                          MerkleUpdatesData&& updates,
+                                          BlockMerkleInput&& updates,
                                           concord::storage::rocksdb::NativeWriteBatch& write_batch,
                                           categorization::RawBlock& raw_block);
 
-  KeyValueUpdatesInfo handleCategoryUpdates(BlockId block_id,
-                                            const std::string& category_id,
-                                            KeyValueUpdatesData&& updates,
-                                            concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                            categorization::RawBlock& raw_block);
-  ImmutableUpdatesInfo handleCategoryUpdates(BlockId block_id,
-                                             const std::string& category_id,
-                                             ImmutableUpdatesData&& updates,
-                                             concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                             categorization::RawBlock& raw_block);
+  KeyValueOutput handleCategoryUpdates(BlockId block_id,
+                                       const std::string& category_id,
+                                       KeyValueInput&& updates,
+                                       concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                       categorization::RawBlock& raw_block);
+  ImmutableOutput handleCategoryUpdates(BlockId block_id,
+                                        const std::string& category_id,
+                                        ImmutableInput&& updates,
+                                        concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                        categorization::RawBlock& raw_block);
 
   /////////////////////// Members ///////////////////////
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
-  std::map<std::string, std::variant<detail::ImmutableKeyValueCategory, MerkleCategory, KVHashCategory>> categorires_;
+  std::map<std::string, std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>>
+      categorires_;
   std::map<std::string, detail::CATEGORY_TYPE> categorires_types_;
   detail::Blockchain block_chain_;
   detail::Blockchain::StateTransfer state_transfer_block_chain_;
@@ -169,11 +170,11 @@ class KeyValueBlockchain {
  public:
   struct KeyValueBlockchain_tester {
     void instantiateCategories(KeyValueBlockchain& kvbc) { kvbc.instantiateCategories(); }
-    const std::map<std::string, std::variant<detail::ImmutableKeyValueCategory, MerkleCategory, KVHashCategory>>&
+    const std::map<std::string, std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>>&
     getCategories(KeyValueBlockchain& kvbc) {
       return kvbc.categorires_;
     }
-    const std::variant<detail::ImmutableKeyValueCategory, MerkleCategory, KVHashCategory>& getCategory(
+    const std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>& getCategory(
         const std::string& cat_id, KeyValueBlockchain& kvbc) const {
       return kvbc.getCategory(cat_id);
     }

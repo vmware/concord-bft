@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -41,15 +41,15 @@ struct Block {
     data.parent_digest.fill(0);
   }
 
-  void add(const std::string& category_id, MerkleUpdatesInfo&& updates_info) {
+  void add(const std::string& category_id, BlockMerkleOutput&& updates_info) {
     data.categories_updates_info.emplace(category_id, std::move(updates_info));
   }
 
-  void add(const std::string& category_id, KeyValueUpdatesInfo&& updates_info) {
+  void add(const std::string& category_id, KeyValueOutput&& updates_info) {
     data.categories_updates_info.emplace(category_id, std::move(updates_info));
   }
 
-  void add(const std::string& category_id, ImmutableUpdatesInfo&& updates_info) {
+  void add(const std::string& category_id, ImmutableOutput&& updates_info) {
     data.categories_updates_info.emplace(category_id, std::move(updates_info));
   }
 
@@ -89,20 +89,20 @@ struct RawBlock {
   RawBlock() = default;
   RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
-  MerkleUpdatesData getUpdates(const std::string& category_id,
-                               const MerkleUpdatesInfo& update_info,
-                               const BlockId& block_id,
-                               const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+  BlockMerkleInput getUpdates(const std::string& category_id,
+                              const BlockMerkleOutput& update_info,
+                              const BlockId& block_id,
+                              const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
-  KeyValueUpdatesData getUpdates(const std::string& category_id,
-                                 const KeyValueUpdatesInfo& update_info,
-                                 const BlockId& block_id,
-                                 const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+  KeyValueInput getUpdates(const std::string& category_id,
+                           const KeyValueOutput& update_info,
+                           const BlockId& block_id,
+                           const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
-  ImmutableUpdatesData getUpdates(const std::string& category_id,
-                                  const ImmutableUpdatesInfo& update_info,
-                                  const BlockId& block_id,
-                                  const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+  ImmutableInput getUpdates(const std::string& category_id,
+                            const ImmutableOutput& update_info,
+                            const BlockId& block_id,
+                            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
   template <typename T>
   static RawBlock deserialize(const T& input) {
