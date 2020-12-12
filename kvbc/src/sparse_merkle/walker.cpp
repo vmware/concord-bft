@@ -9,10 +9,12 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
+#include "sparse_merkle/histograms.h"
 #include "sparse_merkle/walker.h"
 #include "assertUtils.hpp"
 
 using namespace concordUtils;
+using namespace concord::diagnostics;
 
 namespace concord::kvbc::sparse_merkle::detail {
 
@@ -30,6 +32,7 @@ void Walker::appendEmptyNodes(const Hash& key, size_t nodes_to_create) {
 }
 
 void Walker::descend(const Hash& key, Version next_version) {
+  TimeRecorder scoped_timer(*histograms.walker_descend);
   stack_.push(current_node_);
   Nibble next_nibble = key.getNibble(depth());
   nibble_path_.append(next_nibble);
@@ -52,6 +55,7 @@ void Walker::ascendToRoot(const std::optional<LeafKey>& key) {
 
 void Walker::ascend() {
   ConcordAssert(!stack_.empty());
+  TimeRecorder scoped_timer(*histograms.walker_ascend);
 
   markCurrentNodeStale();
   cacheCurrentNode();

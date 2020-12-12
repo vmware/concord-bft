@@ -19,6 +19,7 @@
 namespace concord::kvbc::sparse_merkle::detail {
 
 struct Recorders {
+  static constexpr int64_t MAX_US = 1000 * 1000 * 60;         // 60s
   static constexpr int64_t MAX_NS = 1000 * 1000 * 1000;       // 1s
   static constexpr int64_t MAX_VAL_SIZE = 1024 * 1024 * 100;  // 100MB
 
@@ -68,13 +69,17 @@ struct Recorders {
                                       {"dba_has_block", dba_has_block},
                                       {"dba_keys_for_version", dba_keys_for_version},
                                       {"dba_hash_parent_block", dba_hash_parent_block},
-                                      {"dba_hashed_parent_block_size", dba_hashed_parent_block_size}});
+                                      {"dba_hashed_parent_block_size", dba_hashed_parent_block_size},
+                                      {"dba_add_block_rocksdb_write", dba_add_block_rocksdb_write},
+
+                                      {"walker_ascend", walker_ascend},
+                                      {"walker_descend", walker_descend}});
   }
 
   // Used in tree.cpp
-  std::shared_ptr<Recorder> update = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> insert_key = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> remove_key = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+  std::shared_ptr<Recorder> update = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+  std::shared_ptr<Recorder> insert_key = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+  std::shared_ptr<Recorder> remove_key = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> num_updated_keys = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
   std::shared_ptr<Recorder> num_deleted_keys = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
   std::shared_ptr<Recorder> key_size = std::make_shared<Recorder>(1, 2048, 3, Unit::BYTES);
@@ -93,14 +98,14 @@ struct Recorders {
   std::shared_ptr<Recorder> internal_node_remove = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
 
   // Used in merkle_tree_db_adapter.cpp
-  std::shared_ptr<Recorder> dba_batch_to_db_updates = std::make_shared<Recorder>(1, MAX_NS * 5, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_get_value = std::make_shared<Recorder>(1, MAX_NS * 5, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_create_block_node = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_get_raw_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+  std::shared_ptr<Recorder> dba_batch_to_db_updates = std::make_shared<Recorder>(1, MAX_US * 5, 3, Unit::MICROSECONDS);
+  std::shared_ptr<Recorder> dba_get_value = std::make_shared<Recorder>(1, MAX_US * 5, 3, Unit::MICROSECONDS);
+  std::shared_ptr<Recorder> dba_create_block_node = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+  std::shared_ptr<Recorder> dba_get_raw_block = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_last_reachable_block_db_updates =
-      std::make_shared<Recorder>(1, MAX_NS * 5, 3, Unit::NANOSECONDS);
+      std::make_shared<Recorder>(1, MAX_US * 5, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_size_of_updates = std::make_shared<Recorder>(1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  std::shared_ptr<Recorder> dba_get_internal = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+  std::shared_ptr<Recorder> dba_get_internal = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_serialize_internal = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
   std::shared_ptr<Recorder> dba_serialize_leaf = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
   std::shared_ptr<Recorder> dba_deserialize_internal = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
@@ -108,15 +113,20 @@ struct Recorders {
   std::shared_ptr<Recorder> dba_deserialize_leaf = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
   std::shared_ptr<Recorder> dba_link_st_chain = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
   std::shared_ptr<Recorder> dba_num_blocks_for_st_link = std::make_shared<Recorder>(1, 1000000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> dba_add_raw_block = std::make_shared<Recorder>(1, MAX_NS * 10, 3, Unit::NANOSECONDS);
+  std::shared_ptr<Recorder> dba_add_raw_block = std::make_shared<Recorder>(1, MAX_US * 10, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_delete_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
   std::shared_ptr<Recorder> dba_get_leaf_key_val_at_most_version =
-      std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+      std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_delete_keys_for_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_has_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+  std::shared_ptr<Recorder> dba_has_block = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_keys_for_version = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_hash_parent_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+  std::shared_ptr<Recorder> dba_hash_parent_block = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
   std::shared_ptr<Recorder> dba_hashed_parent_block_size = std::make_shared<Recorder>(1, MAX_VAL_SIZE, 3, Unit::BYTES);
+  std::shared_ptr<Recorder> dba_add_block_rocksdb_write = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+
+  // Used in walker.cpp
+  std::shared_ptr<Recorder> walker_descend = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+  std::shared_ptr<Recorder> walker_ascend = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
 };
 
 inline const Recorders histograms;
