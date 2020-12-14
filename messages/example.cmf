@@ -69,6 +69,10 @@ Msg FixedTransactionList 15 {
     fixedlist Transaction 2 transactions2
 }
 
+Msg ComposedFixedList 16 {
+    list fixedlist uint8 32 hashes
+}
+
 ######
 # Uncomment each message to induce various parse errors
 ######
