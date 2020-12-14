@@ -143,9 +143,9 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
     keyval_updates.addDelete("kv_deleted");
     updates.add("kv_hash", std::move(keyval_updates));
 
-    SharedKeyValueUpdates shared_updates;
-    shared_updates.addUpdate("shared_key2", {"shared_Val2", {"1", "2"}});
-    updates.add(std::move(shared_updates));
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
   }
   ASSERT_TRUE(block_chain_imp.loadLastReachableBlockId().has_value());

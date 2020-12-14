@@ -29,44 +29,47 @@
 // Note2: Using the same category ID for different category types is an error.
 namespace concord::kvbc::categorization {
 
-// Shared updates across multiple categories.
-// Persists key-values directly in the underlying key-value store. All key-values are marked stale during the update
-// itself. Explicit deletes are not supported.
-struct SharedKeyValueUpdates {
-  SharedKeyValueUpdates() = default;
-  SharedKeyValueUpdates(SharedKeyValueUpdates&& other) = default;
-  SharedKeyValueUpdates& operator=(SharedKeyValueUpdates&& other) = default;
+// Keys in immutable categories have a single version only and can be tagged. Updating keys in immutable categories is
+// undefined behavior. Persists key-values directly in the underlying key-value store. All key-values become stale since
+// the block they are being added in and this cannot be turned off. Explicit deletes are not supported. Supports an
+// option to calculate a root hash per tag from the key-values in the update. The root hash can be used for key proofs
+// per tag.
+struct ImmutableUpdates {
+  ImmutableUpdates() = default;
+  ImmutableUpdates(ImmutableUpdates&& other) = default;
+  ImmutableUpdates& operator=(ImmutableUpdates&& other) = default;
 
   // Do not allow copy
-  SharedKeyValueUpdates(SharedKeyValueUpdates& other) = delete;
-  SharedKeyValueUpdates& operator=(SharedKeyValueUpdates& other) = delete;
+  ImmutableUpdates(ImmutableUpdates& other) = delete;
+  ImmutableUpdates& operator=(ImmutableUpdates& other) = delete;
 
-  struct SharedValue {
-    SharedValue(std::string&& val, std::set<std::string>&& cat_ids) {
-      data_.value = std::move(val);
-      for (auto it = cat_ids.begin(); it != cat_ids.end();) {
+  struct ImmutableValue {
+    ImmutableValue(std::string&& val, std::set<std::string>&& tags) {
+      update_.data = std::move(val);
+      for (auto it = tags.begin(); it != tags.end();) {
         // Save the iterator as extract() invalidates it.
         auto extracted_it = it;
         ++it;
-        data_.category_ids.emplace_back(cat_ids.extract(extracted_it).value());
+        update_.tags.emplace_back(tags.extract(extracted_it).value());
       }
     }
 
    private:
-    SharedValueData data_;
-    friend struct SharedKeyValueUpdates;
+    ImmutableValueUpdate update_;
+    friend struct ImmutableUpdates;
   };
 
-  void addUpdate(std::string&& key, SharedValue&& val) { data_.kv.emplace(std::move(key), std::move(val.data_)); }
+  void addUpdate(std::string&& key, ImmutableValue&& val) { data_.kv.emplace(std::move(key), std::move(val.update_)); }
 
  private:
-  SharedKeyValueUpdatesData data_;
+  ImmutableUpdatesData data_;
   friend struct Updates;
 };
 
 // Updates for a key-value category.
-// Persists key-values directly in the underlying key-value store.
-// Controls whether a hash of the updated key-values is calculated for this update
+// Persists versioned (by block ID) key-values directly in the underlying key-value store.
+// Supports an option to calculate a root hash from the key-values in the update. The root hash can be used for key
+// proofs.
 struct KeyValueUpdates {
   KeyValueUpdates() = default;
   KeyValueUpdates(KeyValueUpdates&& other) = default;
@@ -93,7 +96,7 @@ struct KeyValueUpdates {
 
   // Set a value with no expiration and that is not stale on update
   void addUpdate(std::string&& key, std::string&& val) {
-    data_.kv.emplace(std::move(key), ValueWithExpirationData{std::move(val), 0, false});
+    data_.kv.emplace(std::move(key), ValueWithExpirationData{std::move(val), std::nullopt, false});
   }
 
   void addDelete(std::string&& key) {
@@ -144,7 +147,6 @@ struct MerkleUpdates {
 };
 
 // Updates contains a list of updates for different categories.
-// Note: Only a single `SharedKeyValueUpdates` is supported per block.
 struct Updates {
   void add(std::string&& category_id, MerkleUpdates&& updates) {
     if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
@@ -164,17 +166,18 @@ struct Updates {
     }
   }
 
-  void add(SharedKeyValueUpdates&& updates) {
-    if (shared_update_.has_value()) {
-      throw std::logic_error{std::string("Only one update for category is allowed for shared category")};
+  void add(std::string&& category_id, ImmutableUpdates&& updates) {
+    if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
+        !inserted) {
+      (void)itr;  // disable unused variable
+      throw std::logic_error{std::string("Only one update for category is allowed. type: Immutable, category: ") +
+                             category_id};
     }
-    shared_update_.emplace(std::move(updates.data_));
   }
 
  private:
   friend class KeyValueBlockchain;
-  std::optional<SharedKeyValueUpdatesData> shared_update_;
-  std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData>> category_updates_;
+  std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData, ImmutableUpdatesData>> category_updates_;
 };
 
 }  // namespace concord::kvbc::categorization

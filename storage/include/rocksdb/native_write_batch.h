@@ -48,6 +48,7 @@ class NativeWriteBatch {
   void delRange(const BeginSpan &beginKey, const EndSpan &endKey);
 
   std::size_t size() const;
+  std::uint32_t count() const;
 
  private:
   std::shared_ptr<const NativeClient> client_;

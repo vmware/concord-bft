@@ -30,9 +30,6 @@ RawBlock::RawBlock(const Block& block, const storage::rocksdb::NativeClient& nat
         },
         update_info);
   }
-  if (block.data.shared_updates_info.has_value()) {
-    data.shared_update = getRawSharedUpdates(block.data.shared_updates_info.value(), block.id(), native_client);
-  }
 }
 
 // Reconstructs the updates data as recieved from the user
@@ -84,11 +81,12 @@ RawBlockKeyValueUpdates RawBlock::getRawUpdates(const std::string& category_id,
   return data;
 }
 
-// shared updates reconstruction
-RawBlockSharedUpdates RawBlock::getRawSharedUpdates(const SharedKeyValueUpdatesInfo& update_info,
-                                                    const BlockId& block_id,
-                                                    const storage::rocksdb::NativeClient& native_client) {
-  RawBlockSharedUpdates data;
+// immutable updates reconstruction
+RawBlockImmutableUpdates RawBlock::getRawUpdates(const std::string& category_id,
+                                                 const ImmutableUpdatesInfo& update_info,
+                                                 const BlockId& block_id,
+                                                 const storage::rocksdb::NativeClient& native_client) {
+  RawBlockImmutableUpdates data;
   return data;
 }
 

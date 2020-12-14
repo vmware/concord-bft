@@ -17,8 +17,7 @@
 
 namespace concord::kvbc::categorization::detail {
 
-inline const auto SHARED_KV_DATA_CF = std::string{"shared_kv_data"};
-inline const auto SHARED_KV_KEY_VERSIONS_CF = std::string{"shared_kv_key_versions"};
+inline const auto IMMUTABLE_KV_CF_SUFFIX = std::string{"_immutable"};
 
 inline const auto BLOCKS_CF = std::string{"blocks"};
 inline const auto ST_CHAIN_CF = std::string{"st_chain"};

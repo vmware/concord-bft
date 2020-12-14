@@ -47,7 +47,8 @@ class KeyValueBlockchain {
 
   // Delete per category
   void deleteGenesisBlock(BlockId block_id,
-                          const SharedKeyValueUpdatesInfo& updates_info,
+                          const std::string& category_id,
+                          const ImmutableUpdatesInfo& updates_info,
                           storage::rocksdb::NativeWriteBatch&);
 
   void deleteGenesisBlock(BlockId block_id,
@@ -61,7 +62,8 @@ class KeyValueBlockchain {
                           storage::rocksdb::NativeWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
-                                const SharedKeyValueUpdatesInfo& updates_info,
+                                const std::string& category_id,
+                                const ImmutableUpdatesInfo& updates_info,
                                 storage::rocksdb::NativeWriteBatch&);
 
   void deleteLastReachableBlock(BlockId block_id,
@@ -84,9 +86,10 @@ class KeyValueBlockchain {
                                             const std::string& category_id,
                                             KeyValueUpdatesData&& updates,
                                             concord::storage::rocksdb::NativeWriteBatch& write_batch);
-  SharedKeyValueUpdatesInfo handleCategoryUpdates(BlockId block_id,
-                                                  SharedKeyValueUpdatesData&& updates,
-                                                  concord::storage::rocksdb::NativeWriteBatch& write_batch);
+  ImmutableUpdatesInfo handleCategoryUpdates(BlockId block_id,
+                                             const std::string& category_id,
+                                             ImmutableUpdatesData&& updates,
+                                             concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   // Members
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;

@@ -34,10 +34,6 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
         },
         update);
   }
-  if (updates.shared_update_.has_value()) {
-    auto block_updates = handleCategoryUpdates(new_block.id(), std::move(updates.shared_update_.value()), write_batch);
-    new_block.add(std::move(block_updates));
-  }
   // newBlock.parentDigest = parentBlockDigestFuture.get();
   block_chain_.addBlock(new_block, write_batch);
   write_batch.put(detail::BLOCKS_CF, Block::generateKey(new_block.id()), Block::serialize(new_block));
@@ -120,9 +116,6 @@ void KeyValueBlockchain::deleteGenesisBlock() {
                    const auto& update_info) { deleteGenesisBlock(genesis_id, category_id, update_info, write_batch); },
                update_info);
   }
-  if ((*block).data.shared_updates_info.has_value()) {
-    deleteGenesisBlock(genesis_id, (*block).data.shared_updates_info.value(), write_batch);
-  }
 
   native_client_->write(std::move(write_batch));
   // Increment the genesis block ID cache.
@@ -156,9 +149,6 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
         },
         update_info);
   }
-  if ((*block).data.shared_updates_info.has_value()) {
-    deleteLastReachableBlock(last_id, (*block).data.shared_updates_info.value(), write_batch);
-  }
 
   native_client_->write(std::move(write_batch));
 
@@ -175,7 +165,8 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 
 // Deletes per category
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
-                                            const SharedKeyValueUpdatesInfo& updates_info,
+                                            const std::string& category_id,
+                                            const ImmutableUpdatesInfo& updates_info,
                                             storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
@@ -189,7 +180,8 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
-                                                  const SharedKeyValueUpdatesInfo& updates_info,
+                                                  const std::string& category_id,
+                                                  const ImmutableUpdatesInfo& updates_info,
                                                   storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
@@ -235,12 +227,15 @@ KeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(
   return kvui;
 }
 
-SharedKeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(
-    BlockId block_id, SharedKeyValueUpdatesData&& updates, concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  SharedKeyValueUpdatesInfo skvui;
+ImmutableUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(
+    BlockId block_id,
+    const std::string& category_id,
+    ImmutableUpdatesData&& updates,
+    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+  ImmutableUpdatesInfo skvui;
   for (auto& [k, v] : updates.kv) {
     (void)v;
-    skvui.keys[k] = SharedKeyData{v.category_ids};
+    skvui.tagged_keys[k] = std::move(v.tags);
   }
   return skvui;
 }

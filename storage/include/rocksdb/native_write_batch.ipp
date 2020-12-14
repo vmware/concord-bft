@@ -55,6 +55,8 @@ void NativeWriteBatch::delRange(const BeginSpan &beginKey, const EndSpan &endKey
 
 inline std::size_t NativeWriteBatch::size() const { return batch_.GetDataSize(); }
 
+inline std::uint32_t NativeWriteBatch::count() const { return batch_.Count(); }
+
 template <typename Container>
 void putInBatch(NativeWriteBatch &batch, const std::string &cFamily, const Container &cont) {
   for (const auto &[key, value] : cont) {

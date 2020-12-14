@@ -21,7 +21,7 @@ add_library(kvbc  src/ClientImp.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)
-    target_sources(kvbc PRIVATE src/categorization/shared_kv_category.cpp 
+    target_sources(kvbc PRIVATE src/categorization/immutable_kv_category.cpp 
                                 src/categorization/kv_blockchain.cpp 
                                 src/categorization/blocks.cpp
                                 src/categorization/blockchain.cpp)
