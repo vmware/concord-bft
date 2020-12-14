@@ -11,10 +11,6 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-/**
- * The following test suite tests ordering of KeyValuePairs
- */
-
 #include "gtest/gtest.h"
 #include "categorization/column_families.h"
 #include "categorization/updates.h"
@@ -37,6 +33,8 @@ class categorized_kvbc : public ::testing::Test {
   void SetUp() override {
     cleanup();
     db = TestRocksDb::createNative();
+    db->createColumnFamily(BLOCKS_CF);
+    db->createColumnFamily(ST_CHAIN_CF);
   }
   void TearDown() override { cleanup(); }
 
@@ -53,7 +51,6 @@ TEST_F(categorized_kvbc, merkle_update) {
 }
 
 TEST_F(categorized_kvbc, add_blocks) {
-  db->createColumnFamily(BLOCKS_CF);
   KeyValueBlockchain block_chain{db};
   // Add block1
   {
@@ -117,65 +114,119 @@ TEST_F(categorized_kvbc, add_blocks) {
   }
 }
 
-TEST_F(categorized_kvbc, serialization_and_desirialization_of_block) {
-  BlockDigest pHash;
-  std::random_device rd;
-  for (int i = 0; i < (int)pHash.size(); i++) {
-    pHash[i] = (uint8_t)(rd() % 255);
+TEST_F(categorized_kvbc, delete_block) {
+  KeyValueBlockchain block_chain{db};
+  // Add block1
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key1", "key_val1");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
-  Block block{8};
-  KeyValueUpdatesInfo kvui;
-  kvui.keys["key1"] = {false, false};
-  kvui.keys["key2"] = {true, false};
-  block.add("KeyValueUpdatesInfo", std::move(kvui));
-  block.setParentHash(pHash);
-  auto ser = Block::serialize(block);
-  auto des_block = Block::deserialize(ser);
+  // Can't delete only block
+  ASSERT_THROW(block_chain.deleteBlock(1), std::logic_error);
 
-  // Test the deserialized Block
-  ASSERT_TRUE(des_block.id() == 8);
-  auto variant = des_block.data.categories_updates_info["KeyValueUpdatesInfo"];
-  KeyValueUpdatesInfo kv_updates_info = std::get<KeyValueUpdatesInfo>(variant);
-  ASSERT_TRUE(kv_updates_info.keys.size() == 2);
-  ASSERT_TRUE(kv_updates_info.keys["key2"].deleted == true);
-  ASSERT_EQ(des_block.data.parent_digest, block.data.parent_digest);
-}
+  // Add block2
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
 
-TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
-  BlockDigest pHash;
-  std::random_device rd;
-  for (int i = 0; i < (int)pHash.size(); i++) {
-    pHash[i] = (uint8_t)(rd() % 255);
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key2", "key_val2");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+
+    SharedKeyValueUpdates shared_updates;
+    shared_updates.addUpdate("shared_key2", {"shared_Val2", {"1", "2"}});
+    updates.add(std::move(shared_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
   }
 
-  auto cf = std::string("merkle");
-  auto key = std::string("key");
-  auto value = std::string("val");
+  // Add block3
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
 
-  uint64_t state_root_version = 886;
-  MerkleUpdatesInfo mui;
-  mui.keys[key] = MerkleKeyFlag{false};
-  mui.root_hash = pHash;
-  mui.state_root_version = state_root_version;
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key3", "key_val3");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
 
-  Block block{888};
-  block.add(cf, std::move(mui));
-  block.setParentHash(pHash);
+    SharedKeyValueUpdates shared_updates;
+    shared_updates.addUpdate("shared_key3", {"shared_Val3", {"1", "2"}});
+    updates.add(std::move(shared_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)3);
+  }
 
-  db->createColumnFamily(cf);
-  auto db_key = v2MerkleTree::detail::DBKeyManipulator::genDataDbKey(std::string(key), state_root_version);
-  auto db_val = v2MerkleTree::detail::serialize(
-      v2MerkleTree::detail::DatabaseLeafValue{block.id(), sparse_merkle::LeafNode{std::string(value)}});
-  db->put(cf, db_key, db_val);
-  auto db_get_val = db->get(cf, db_key);
-  ASSERT_EQ(db_get_val.value(), db_val);
+  // can't delete block in middle
+  ASSERT_THROW(block_chain.deleteBlock(2), std::invalid_argument);
 
-  concord::kvbc::categorization::RawBlock rw(block, db.get());
-  ASSERT_EQ(rw.data.parent_digest, block.data.parent_digest);
-  auto variant = rw.data.category_updates[cf];
-  auto raw_merkle_updates = std::get<RawBlockMerkleUpdates>(variant);
-  // check reconstruction of original kv
-  ASSERT_EQ(raw_merkle_updates.updates.kv[key], value);
+  // delete genesis
+  ASSERT_TRUE(block_chain.deleteBlock(1));
+  ASSERT_FALSE(block_chain.deleteBlock(1));
+  ASSERT_EQ(block_chain.getGenesisBlockId(), 2);
+  ASSERT_EQ(block_chain.getLastReachableBlockId(), 3);
+
+  const detail::Buffer& block_db_key = Block::generateKey(1);
+  auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
+  ASSERT_FALSE(block1_db_val.has_value());
+
+  // Add block4
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key4", "merkle_value4");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key4", "key_val4");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+
+    SharedKeyValueUpdates shared_updates;
+    shared_updates.addUpdate("shared_key4", {"shared_Val4", {"1", "2"}});
+    updates.add(std::move(shared_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)4);
+  }
+  ASSERT_EQ(block_chain.getLastReachableBlockId(), 4);
+
+  // delete last block
+  {
+    ASSERT_TRUE(block_chain.deleteBlock(4));
+    const detail::Buffer& block4_db_key = Block::generateKey(4);
+    auto block4_db_val = db->get(BLOCKS_CF, block4_db_key);
+    ASSERT_FALSE(block4_db_val.has_value());
+
+    // delete last block
+    ASSERT_TRUE(block_chain.deleteBlock(3));
+    const detail::Buffer& block3_db_key = Block::generateKey(3);
+    auto block3_db_val = db->get(BLOCKS_CF, block3_db_key);
+    ASSERT_FALSE(block3_db_val.has_value());
+
+    // only block 2 left
+    ASSERT_THROW(block_chain.deleteBlock(2), std::logic_error);
+  }
+
+  // call delete last block directly
+  block_chain.deleteLastReachableBlock();
+  ASSERT_EQ(block_chain.getLastReachableBlockId(), 1);
+  ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
+  // Block chain is empty
+  ASSERT_THROW(block_chain.deleteLastReachableBlock(), std::runtime_error);
 }
 
 }  // end namespace
