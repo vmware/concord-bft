@@ -150,16 +150,17 @@ class InstanceVisitor(Visitor):
     def list_end(self):
         self.instance += "}"
 
-    # Initialize all std::array elements with the same value, i.e. `instance{value,}`. See `map`
-    # for more information about the limitations.
+    # Initialize the first std::array element with a random value only, i.e. `instance{value}`.
+    # Other values are default-initialized to 0. See `map` for more information about the
+    # limitations.
     def fixedlist_start(self):
-        pass
+        self.instance += "{"
 
     def fixedlist_type_end(self):
         pass
 
     def fixedlist_end(self, size):
-        pass
+        self.instance += "}"
 
     # Map instances are tricky to generate. Uniform initialization of maps is done by lists of
     # std::pairs, which themselves are represented as initializer lists. For this reason, we

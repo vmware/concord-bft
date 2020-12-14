@@ -114,6 +114,12 @@ void serialize(std::vector<uint8_t>& output, const std::vector<T>& v);
 template <typename T>
 void deserialize(const uint8_t*& start, const uint8_t* end, std::vector<T>& v);
 
+// Fixed Lists
+template <typename T, std::size_t N>
+void serialize(std::vector<uint8_t>& output, const std::array<T, N>& v);
+template <typename T, std::size_t N>
+void deserialize(const uint8_t*& start, const uint8_t* end, std::array<T, N>& v);
+
 // KVPairs
 template <typename K, typename V>
 void serialize(std::vector<uint8_t>& output, const std::pair<K, V>& kvpair);
