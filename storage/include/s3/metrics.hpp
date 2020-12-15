@@ -2,11 +2,12 @@
 
 #include "Metrics.hpp"
 #include "sliver.hpp"
+#include "kv_types.hpp"
 #include "Logger.hpp"
 namespace concord::storage::s3 {
 
 class Metrics {
-  public:
+ public:
   Metrics()
       : metrics_component{concordMetrics::Component("s3", std::make_shared<concordMetrics::Aggregator>())},
         num_keys_transferred{metrics_component.RegisterCounter("keys_transferred")},
@@ -39,20 +40,23 @@ class Metrics {
     uint64_t lastSavedBlockVal = 0;
     try {
       lastSavedBlockVal = stoull(elems[elems.size() - 2]);
-    } catch(std::invalid_argument& e) {
+    } catch (std::invalid_argument& e) {
       LOG_ERROR(logger_, "Can't convert lastSavedBlockId (" << elems[elems.size() - 2] << ") to numeric value.");
       return;
-    } catch(std::out_of_range& e) {
-      LOG_ERROR(logger_, "lastSavedBlockId value (" << elems[elems.size() - 2] << ") doesn't fit in unsigned 64bit integer.");
+    } catch (std::out_of_range& e) {
+      LOG_ERROR(logger_,
+                "lastSavedBlockId value (" << elems[elems.size() - 2] << ") doesn't fit in unsigned 64bit integer.");
       return;
-    } catch(std::exception& e) {
-      LOG_ERROR(logger_, "Unexpected error occured while converting lastSavedBlockId (" << elems[elems.size() - 2] << ") to numeric value.");
+    } catch (std::exception& e) {
+      LOG_ERROR(logger_,
+                "Unexpected error occured while converting lastSavedBlockId (" << elems[elems.size() - 2]
+                                                                               << ") to numeric value.");
       return;
     }
     last_saved_block_id_.Get().Set(lastSavedBlockVal);
   }
 
-  uint64_t getLastSavedBlockId() { return last_saved_block_id_.Get().Get(); }
+  kvbc::BlockId getLastSavedBlockId() { return last_saved_block_id_.Get().Get(); }
 
   concordMetrics::Component metrics_component;
 
