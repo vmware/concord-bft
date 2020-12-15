@@ -478,7 +478,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
   {
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
-      auto cid = clientEntry->reqProcessingStatePtr->getReqCid();
+      const auto &cid = clientEntry->reqProcessingStatePtr->getReqCid();
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
       SCOPED_MDC_CID(clientEntry->reqProcessingStatePtr->getReqCid());
       releaseClientPreProcessRequest(clientEntry, clientId, CANCEL);

@@ -164,7 +164,7 @@ class PreProcessor {
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
   std::chrono::steady_clock::time_point lastCleanHistTime_;
-  int64_t clean_hist_interval_ = 3600;  // One hour
+  const int64_t clean_hist_interval_ = 3600;  // One hour
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
     concordMetrics::CounterHandle preProcReqReceived;
