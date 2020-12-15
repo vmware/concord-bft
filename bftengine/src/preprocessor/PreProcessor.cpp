@@ -96,7 +96,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcReqForwardedByNonPrimaryNotIgnored"),
                            metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
-      timers_{timers} {
+      timers_{timers},
+      lastViewNum(myReplica.getCurrentView()) {
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
@@ -217,6 +218,10 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
 }
 
 void PreProcessor::updateAggregatorAndDumpMetrics() {
+  if (myReplica_.getCurrentView() != lastViewNum) {
+    lastViewNum = myReplica_.getCurrentView();
+    histograms_.preExecuteDuration->clear();
+  }
   metricsComponent_.UpdateAggregator();
   auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
   if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
@@ -472,6 +477,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
       LOG_WARN(logger(), "Pre-processing consensus not reached - cancel request" << KVLOG(reqSeqNum, clientId));
     }
   }
+  if (myReplica_.isCurrentPrimary()) histograms_.preExecuteDuration->end(reqSeqNum);
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
@@ -498,6 +504,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
       LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(cid, reqSeqNum, clientId));
+      if (myReplica_.isCurrentPrimary()) histograms_.preExecuteDuration->end(reqSeqNum);
     }
   }
 }
@@ -614,6 +621,7 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   const auto &reqSeqNum = preProcessRequestMsg->reqSeqNum();
   const auto &clientId = preProcessRequestMsg->clientId();
   const auto &senderId = preProcessRequestMsg->senderId();
+  histograms_.preExecuteDuration->start(reqSeqNum);
   LOG_INFO(logger(),
            "Start request processing by a primary replica"
                << KVLOG(reqSeqNum, preProcessRequestMsg->getCid(), clientId, senderId));
