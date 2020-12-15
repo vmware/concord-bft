@@ -32,6 +32,7 @@ class InternalControlHandlers : public bftEngine::ControlHandlers {
  public:
   void onSuperStableCheckpoint() override { stoppedOnSuperStableCheckpoint = true; }
   void onStableCheckpoint() override { stoppedOnStableCheckpoint = true; }
+  bool onPruningProcess() override { return false; }
 
   virtual ~InternalControlHandlers(){};
   bool haveYouStopped(uint64_t n_of_n) {

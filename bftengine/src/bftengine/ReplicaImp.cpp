@@ -195,6 +195,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     LOG_INFO(GL,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
+    delete m;
     return;
   }
 
@@ -550,6 +551,7 @@ bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
   // There might be a race condition between the time the replica starts to the time the controlStateManager is
   // initiated.
   if (!controlStateManager_) return false;
+  if (controlStateManager_->getPruningProcessStatus()) return true;
   if (seqNumToStopAt_ > 0 && seq_num == seqNumToStopAt_) return true;
   if (seqNumToStopAt_ > 0 && seq_num > seqNumToStopAt_) return false;
   auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
