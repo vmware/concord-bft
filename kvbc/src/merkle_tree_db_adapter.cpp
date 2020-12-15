@@ -313,29 +313,27 @@ RawBlock DBAdapter::getRawBlock(const BlockId &blockId) const {
   for (const auto &[key, keyData] : blockNode.keys) {
     if (nonProvableKeySet_.find(key) != std::cend(nonProvableKeySet_)) {
       Sliver value;
-      if (const auto status = db_->get(DBKeyManipulator::genNonProvableDbKey(blockId, key), value); !status.isOK()) {
+      if (db_->get(DBKeyManipulator::genNonProvableDbKey(blockId, key), value).isOK()) {
+        keyValues[key] = value;
+        // Key found, no need to look in the Tree Keys
+        continue;
+      }
+    }
+    // Look for the Tree keys or Non-Provable keys from old DBs
+    if (!keyData.deleted) {
+      Sliver value;
+      if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion), value);
+          !status.isOK()) {
         // If the key is not found, treat as corrupted storage and abort.
         ConcordAssert(!status.isNotFound());
-        throw std::runtime_error{"Failed to get value by non-provable key from DB, block node ID = " +
-                                 std::to_string(blockId)};
+        throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
       }
-      keyValues[key] = value;
+      TimeRecorder scoped(*histograms.dba_deserialize_leaf);
+      const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
+      ConcordAssert(dbLeafVal.addedInBlockId == blockId);
+      keyValues[key] = dbLeafVal.leafNode.value;
     } else {
-      if (!keyData.deleted) {
-        Sliver value;
-        if (const auto status = db_->get(DBKeyManipulator::genDataDbKey(key, blockNode.stateRootVersion), value);
-            !status.isOK()) {
-          // If the key is not found, treat as corrupted storage and abort.
-          ConcordAssert(!status.isNotFound());
-          throw std::runtime_error{"Failed to get value by key from DB, block node ID = " + std::to_string(blockId)};
-        }
-        TimeRecorder scoped(*histograms.dba_deserialize_leaf);
-        const auto dbLeafVal = detail::deserialize<detail::DatabaseLeafValue>(value);
-        ConcordAssert(dbLeafVal.addedInBlockId == blockId);
-        keyValues[key] = dbLeafVal.leafNode.value;
-      } else {
-        deletedKeys.insert(key);
-      }
+      deletedKeys.insert(key);
     }
   }
 

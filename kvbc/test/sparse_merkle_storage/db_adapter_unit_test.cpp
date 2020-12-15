@@ -275,6 +275,31 @@ TEST_P(db_adapter_custom_blockchain, add_block_only_with_non_provable_keys) {
   ASSERT_NE(initialHash, adapter.getStateHash());
 }
 
+TEST_P(db_adapter_custom_blockchain, raw_block_from_db_before_non_provable_keys) {
+  const Sliver skey1{"skey1"};
+  const Sliver skey2{"skey2"};
+
+  const Sliver svalue1{"svalue1"};
+  const Sliver svalue2{"svalue2"};
+
+  const Sliver key1{"key1"};
+  const Sliver key2{"key2"};
+
+  const Sliver value1{"value1"};
+  const Sliver value2{"value2"};
+
+  const auto updates = SetOfKeyValuePairs{{skey1, svalue1}, {skey2, svalue2}, {key1, value1}, {key2, value2}};
+  auto db = GetParam()->newEmptyDb();
+  {
+    auto adapter = DBAdapter{db, true};
+    adapter.addBlock(updates);
+  }
+  {
+    auto adapter = DBAdapter{db, true, {skey1, skey2}};
+    ASSERT_EQ(block::detail::getData(adapter.getRawBlock(1)), updates);
+  }
+}
+
 TEST_P(db_adapter_custom_blockchain, raw_block_with_non_provable_and_provable_keys) {
   const Sliver skey1{"skey1"};
   const Sliver skey2{"skey2"};
