@@ -8,17 +8,17 @@ namespace concord::storage::s3 {
 class Metrics {
   public:
   Metrics()
-      : metrics_component_{concordMetrics::Component("s3", std::make_shared<concordMetrics::Aggregator>())},
-        numKeysTransferred{metrics_component_.RegisterCounter("keys_transferred")},
-        bytesTransferred{
-            metrics_component_.RegisterCounter("bytes_transferred"),
+      : metrics_component{concordMetrics::Component("s3", std::make_shared<concordMetrics::Aggregator>())},
+        num_keys_transferred{metrics_component.RegisterCounter("keys_transferred")},
+        bytes_transferred{
+            metrics_component.RegisterCounter("bytes_transferred"),
         },
-        lastSavedBlockId_{
-            metrics_component_.RegisterGauge("last_saved_block_id", 0),
+        last_saved_block_id_{
+            metrics_component.RegisterGauge("last_saved_block_id", 0),
         }
 
   {
-    metrics_component_.Register();
+    metrics_component.Register();
   }
 
   void updateLastSavedBlockId(const concordUtils::Sliver& key) {
@@ -49,22 +49,22 @@ class Metrics {
       LOG_ERROR(logger_, "Unexpected error occured while converting lastSavedBlockId (" << elems[elems.size() - 2] << ") to numeric value.");
       return;
     }
-    lastSavedBlockId_.Get().Set(lastSavedBlockVal);
+    last_saved_block_id_.Get().Set(lastSavedBlockVal);
   }
 
-  uint64_t getLastSavedBlockId() { return lastSavedBlockId_.Get().Get(); }
+  uint64_t getLastSavedBlockId() { return last_saved_block_id_.Get().Get(); }
 
-  concordMetrics::Component metrics_component_;
+  concordMetrics::Component metrics_component;
 
-  concordMetrics::CounterHandle numKeysTransferred;
-  concordMetrics::CounterHandle bytesTransferred;
+  concordMetrics::CounterHandle num_keys_transferred;
+  concordMetrics::CounterHandle bytes_transferred;
 
  private:
   // This function "guesses" if metadata or block is being updated.
   // In the latter case it updates the metric
   bool isBlockKey(std::string_view key) { return key.find("metadata") == std::string_view::npos; }
 
-  concordMetrics::GaugeHandle lastSavedBlockId_;
+  concordMetrics::GaugeHandle last_saved_block_id_;
 
   logging::Logger logger_ = logging::getLogger("concord.storage.s3.metrics");
 };
