@@ -16,18 +16,18 @@ TEST(metrics_test, updateLastSavedBlockId) {
   // Create a data key - it should increase the metric
   auto dataKey = keygen->dataKey(concord::kvbc::Key{keyName}, blockId);
   m.updateLastSavedBlockId(dataKey.toString());
-  ASSERT_EQ(m.getLastSavedBlockId(), "1");
+  ASSERT_EQ(m.getLastSavedBlockId(), 1);
 
   // Create metadata key - it should NOT increase the metric
   auto mdtKey = keygen->mdtKey(Key{keyName});
   m.updateLastSavedBlockId(mdtKey.toString());
-  ASSERT_EQ(m.getLastSavedBlockId(), "1");
+  ASSERT_EQ(m.getLastSavedBlockId(), 1);
 
   // Create block key - it should increase the metric
   blockId++;
   auto blockKey = keygen->blockKey(blockId);
   m.updateLastSavedBlockId(blockKey.toString());
-  ASSERT_EQ(m.getLastSavedBlockId(), "2");
+  ASSERT_EQ(m.getLastSavedBlockId(), 2);
 }
 
 }  // namespace
