@@ -145,10 +145,22 @@ target_link_libraries(s3_storage_factory_test PUBLIC
 endif(USE_S3_OBJECT_STORE)
 
 if (BUILD_ROCKSDB_STORAGE)
-    add_executable(categorized_updates_unit_test
-        categorization/updates_test.cpp )
-    add_test(categorized_updates_unit_test categorized_updates_unit_test)
-    target_link_libraries(categorized_updates_unit_test PUBLIC
+    add_executable(categorized_kv_blockchain_unit_test
+        categorization/kv_blockchain_test.cpp )
+    add_test(categorized_kv_blockchain_unit_test categorized_kv_blockchain_unit_test)
+    target_link_libraries(categorized_kv_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
+
+    add_executable(categorized_blocks_unit_test
+        categorization/blocks_test.cpp )
+    add_test(categorized_blocks_unit_test categorized_blocks_unit_test)
+    target_link_libraries(categorized_blocks_unit_test PUBLIC
         GTest::Main
         GTest::GTest
         util
