@@ -65,6 +65,9 @@ struct CommandArgumentsTag {};
 using CommandArguments = Arguments<CommandArgumentsTag>;
 using CommandLineArguments = Arguments<CommandArgumentsTag>;
 
+static const auto NON_PROVABLE_KEYS = std::unordered_set<concordUtils::Sliver>{
+    concordUtils::Sliver(new char[1]{0x20}, sizeof(char)), concordUtils::Sliver(new char[1]{0x22}, sizeof(char))};
+
 inline auto toBlockId(const std::string &s) {
   if (s.find_first_not_of("0123456789") != std::string::npos) {
     throw std::invalid_argument{"Invalid BLOCK-ID: " + s};
@@ -72,7 +75,10 @@ inline auto toBlockId(const std::string &s) {
   return kvbc::BlockId{std::stoull(s, nullptr)};
 }
 
-inline v2MerkleTree::DBAdapter getAdapter(const std::string &path, bool read_only = false) {
+inline v2MerkleTree::DBAdapter getAdapter(
+    const std::string &path,
+    bool read_only = false,
+    const std::unordered_set<Key> &non_provable_keys = std::unordered_set<Key>{}) {
   if (!fs::exists(path) || !fs::is_directory(path)) {
     throw std::invalid_argument{"RocksDB directory path doesn't exist at " + path};
   }
@@ -92,7 +98,7 @@ inline v2MerkleTree::DBAdapter getAdapter(const std::string &path, bool read_onl
 
   // Make sure we don't link the temporary ST chain as we don't want to change the DB in any way.
   const auto link_temp_st_chain = false;
-  return v2MerkleTree::DBAdapter{db, link_temp_st_chain};
+  return v2MerkleTree::DBAdapter{db, link_temp_st_chain, non_provable_keys};
 }
 
 struct GetGenesisBlockID {
@@ -254,7 +260,7 @@ struct CompareTo {
     }
 
     const auto read_only = true;
-    const auto other_adapter = getAdapter(args.values.front(), read_only);
+    const auto other_adapter = getAdapter(args.values.front(), read_only, NON_PROVABLE_KEYS);
 
     const auto main_genesis = main_adapter.getGenesisBlockId();
     const auto other_genesis = other_adapter.getGenesisBlockId();
@@ -371,6 +377,10 @@ inline std::string usage() {
     ret += "\n\n";
   }
 
+  ret += "Note:\n";
+  ret += "The DB Editor is configured to use the following non-provable keys:\n";
+  ret += "0x20, 0x22\n\n";
+
   ret += "Examples:\n";
   ret += "  " + kToolName + " /rocksdb-path getGenesisBlockID\n";
   ret += "  " + kToolName + " /rocksdb-path getRawBlock 42\n";
@@ -412,7 +422,7 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
 
   try {
     auto read_only = std::visit([](const auto &command) { return command.read_only; }, cmd_it->second);
-    auto adapter = getAdapter(cmd_line_args.values[1], read_only);
+    auto adapter = getAdapter(cmd_line_args.values[1], read_only, NON_PROVABLE_KEYS);
     const auto output =
         std::visit([&](const auto &command) { return command.execute(adapter, command_arguments(cmd_line_args)); },
                    cmd_it->second);
