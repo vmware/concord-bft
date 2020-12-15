@@ -2,7 +2,6 @@
 
 #include "Metrics.hpp"
 #include "sliver.hpp"
-#include "kv_types.hpp"
 #include "Logger.hpp"
 namespace concord::storage::s3 {
 
@@ -56,7 +55,7 @@ class Metrics {
     last_saved_block_id_.Get().Set(lastSavedBlockVal);
   }
 
-  kvbc::BlockId getLastSavedBlockId() { return last_saved_block_id_.Get().Get(); }
+  uint64_t getLastSavedBlockId() { return last_saved_block_id_.Get().Get(); }
 
   concordMetrics::Component metrics_component;
 
