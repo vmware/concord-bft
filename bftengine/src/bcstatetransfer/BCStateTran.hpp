@@ -180,6 +180,8 @@ class BCStateTran : public IStateTransfer {
   FetchingState getFetchingState() const;
   bool isFetching() const;
 
+  inline std::string getSequenceNumber(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
+
   ///////////////////////////////////////////////////////////////////////////
   // Send messages
   ///////////////////////////////////////////////////////////////////////////
