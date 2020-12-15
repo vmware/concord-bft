@@ -31,7 +31,6 @@ class PreProcessorRecorder {
                                         {"signHash", signHash},
                                         {"convertAndCompareHashes", convertAndCompareHashes},
                                         {"totalPreExecutionDuration", preExecutionTotal}});
-      preExecuteDuration.reset(new concord::diagnostics::AsyncTimeRecorderMap<SeqNum>(preExecutionTotal));
     } catch (std::invalid_argument &e) {
       // if component already exists lets keep record on the same histograms
     }
@@ -62,7 +61,6 @@ class PreProcessorRecorder {
       1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   RecorderSharedPtr preExecutionTotal = std::make_shared<concord::diagnostics::Recorder>(
       1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  std::unique_ptr<concord::diagnostics::AsyncTimeRecorderMap<SeqNum>> preExecuteDuration;
 };
 
 }  // namespace preprocessor
