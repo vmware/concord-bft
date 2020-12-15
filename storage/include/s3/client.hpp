@@ -206,8 +206,8 @@ class Client : public concord::storage::IDBClient {
   }
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
-    metrics_.metrics_component_.SetAggregator(aggregator);
-    metrics_.metrics_component_.UpdateAggregator();
+    metrics_.metrics_component.SetAggregator(aggregator);
+    metrics_.metrics_component.UpdateAggregator();
   }
 
   ///////////////////////// protected /////////////////////////////
