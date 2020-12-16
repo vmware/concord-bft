@@ -478,12 +478,10 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId) {
   {
     lock_guard<mutex> lock(clientEntry->mutex);
     if (clientEntry->reqProcessingStatePtr) {
-      const auto &cid = clientEntry->reqProcessingStatePtr->getReqCid();
       reqSeqNum = clientEntry->reqProcessingStatePtr->getReqSeqNum();
       SCOPED_MDC_CID(clientEntry->reqProcessingStatePtr->getReqCid());
       releaseClientPreProcessRequest(clientEntry, clientId, CANCEL);
       LOG_WARN(logger(), "Pre-processing consensus not reached - cancel request" << KVLOG(reqSeqNum, clientId));
-      if (myReplica_.isCurrentPrimary()) preExecuteDuration_.end(cid);
     }
   }
 }
