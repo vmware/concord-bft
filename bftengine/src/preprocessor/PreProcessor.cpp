@@ -85,6 +85,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                     myReplica_.getReplicaConfig().numOfClientProxies),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
+      lastCleanHistTime_(std::chrono::steady_clock::now()),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
       preProcessorMetrics_{metricsComponent_.RegisterCounter("preProcReqReceived"),
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
@@ -96,7 +97,9 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcReqForwardedByNonPrimaryNotIgnored"),
                            metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
-      timers_{timers} {
+      timers_{timers},
+      preExecuteDuration_{histograms_.preExecutionTotal},
+      lastViewNum_(myReplica.getCurrentView()) {
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
@@ -217,6 +220,15 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
 }
 
 void PreProcessor::updateAggregatorAndDumpMetrics() {
+  if (myReplica_.getCurrentView() != lastViewNum_) {
+    lastViewNum_ = myReplica_.getCurrentView();
+    preExecuteDuration_.clear();
+  }
+  if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - lastCleanHistTime_).count() >
+      clean_hist_interval_) {
+    lastCleanHistTime_ = std::chrono::steady_clock::now();
+    preExecuteDuration_.clear();
+  }
   metricsComponent_.UpdateAggregator();
   auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
   if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
@@ -498,6 +510,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId) {
       preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(clientEntry, clientId, COMPLETE);
       LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(cid, reqSeqNum, clientId));
+      if (myReplica_.isCurrentPrimary()) preExecuteDuration_.end(cid);
     }
   }
 }
@@ -614,6 +627,7 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   const auto &reqSeqNum = preProcessRequestMsg->reqSeqNum();
   const auto &clientId = preProcessRequestMsg->clientId();
   const auto &senderId = preProcessRequestMsg->senderId();
+  preExecuteDuration_.start(preProcessRequestMsg->getCid());
   LOG_INFO(logger(),
            "Start request processing by a primary replica"
                << KVLOG(reqSeqNum, preProcessRequestMsg->getCid(), clientId, senderId));

@@ -14,7 +14,6 @@
 #include "diagnostics.h"
 
 namespace preprocessor {
-
 class PreProcessorRecorder {
  public:
   PreProcessorRecorder() {
@@ -30,7 +29,8 @@ class PreProcessorRecorder {
                                         {"validateMessage", validateMessage},
                                         {"calculateHash", calculateHash},
                                         {"signHash", signHash},
-                                        {"convertAndCompareHashes", convertAndCompareHashes}});
+                                        {"convertAndCompareHashes", convertAndCompareHashes},
+                                        {"totalPreExecutionDuration", preExecutionTotal}});
     } catch (std::invalid_argument &e) {
       // if component already exists lets keep record on the same histograms
     }
@@ -39,7 +39,6 @@ class PreProcessorRecorder {
   // 5 Minutes, 300 seconds
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 300000000;
   typedef std::shared_ptr<concord::diagnostics::Recorder> RecorderSharedPtr;
-
   RecorderSharedPtr onMessage = std::make_shared<concord::diagnostics::Recorder>(
       1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   RecorderSharedPtr launchReqPreProcessing = std::make_shared<concord::diagnostics::Recorder>(
@@ -59,6 +58,8 @@ class PreProcessorRecorder {
   RecorderSharedPtr signHash = std::make_shared<concord::diagnostics::Recorder>(
       1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   RecorderSharedPtr convertAndCompareHashes = std::make_shared<concord::diagnostics::Recorder>(
+      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+  RecorderSharedPtr preExecutionTotal = std::make_shared<concord::diagnostics::Recorder>(
       1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
 };
 
