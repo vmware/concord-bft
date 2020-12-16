@@ -58,20 +58,6 @@ char buf[bufLen];
 SigManagerSharedPtr sigManager_[numOfReplicas_4];
 
 class DummyRequestsHandler : public IRequestsHandler {
-  int execute(uint16_t,
-              uint64_t,
-              uint8_t,
-              uint32_t,
-              const char*,
-              uint32_t,
-              char*,
-              uint32_t& outActualReplySize,
-              uint32_t&,
-              concordUtils::SpanWrapper&) override {
-    outActualReplySize = 256;
-    return 0;
-  }
-
   void execute(ExecutionRequestsQueue& requests,
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override {

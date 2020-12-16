@@ -3676,21 +3676,19 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   uint16_t clientId = request->clientProxyId();
 
   int error = 0;
-  uint32_t actualReplyLength = 0;
-  uint32_t actualReplicaSpecificInfoLength = 0;
-
+  IRequestsHandler::ExecutionRequest single_request;
+  bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
+  accumulatedRequests.push_back(
+      bftEngine::IRequestsHandler::ExecutionRequest{clientId,
+                                                    static_cast<uint64_t>(lastExecutedSeqNum),
+                                                    request->flags(),
+                                                    std::string(request->requestBuf(), request->requestLength()),
+                                                    std::string(reply.maxReplyLength(), 0)});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
-    error = bftRequestsHandler_.execute(clientId,
-                                        lastExecutedSeqNum,
-                                        request->flags(),
-                                        request->requestLength(),
-                                        request->requestBuf(),
-                                        reply.maxReplyLength(),
-                                        reply.replyBuf(),
-                                        actualReplyLength,
-                                        actualReplicaSpecificInfoLength,
-                                        span);
+    bftRequestsHandler_.execute(accumulatedRequests, request->getCid(), span);
+    single_request = accumulatedRequests.back();
+    error = single_request.outExecutionStatus;
   }
 
   LOG_DEBUG(GL,
@@ -3698,15 +3696,15 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                     lastExecutedSeqNum,
                                                     request->requestLength(),
                                                     reply.maxReplyLength(),
-                                                    actualReplyLength,
-                                                    actualReplicaSpecificInfoLength,
+                                                    single_request.outActualReplySize,
+                                                    single_request.outReplicaSpecificInfoSize,
                                                     error));
-
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
   if (!error) {
-    if (actualReplyLength > 0) {
-      reply.setReplyLength(actualReplyLength);
-      reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
+    if (single_request.outActualReplySize > 0) {
+      memcpy(reply.replyBuf(), single_request.outReply.c_str(), single_request.outActualReplySize);
+      reply.setReplyLength(single_request.outActualReplySize);
+      reply.setReplicaSpecificInfoLength(single_request.outReplicaSpecificInfoSize);
       send(&reply, clientId);
     } else {
       LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
