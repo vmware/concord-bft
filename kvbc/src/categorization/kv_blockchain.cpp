@@ -362,7 +362,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
-                                            const KeyValueOutput& updates_info,
+                                            const VersionedOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
@@ -377,7 +377,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
-                                                  const KeyValueOutput& updates_info,
+                                                  const VersionedOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
@@ -429,20 +429,20 @@ BlockMerkleOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   return mui;
 }
 
-KeyValueOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
-                                                         const std::string& category_id,
-                                                         KeyValueInput&& updates,
-                                                         concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                                         categorization::RawBlock& raw_block) {
-  KeyValueOutput kvui;
+VersionedOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
+                                                          const std::string& category_id,
+                                                          VersionedInput&& updates,
+                                                          concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                                          categorization::RawBlock& raw_block) {
+  VersionedOutput out;
   for (auto& [k, v] : updates.kv) {
     (void)v;
-    kvui.keys[k] = KVKeyFlag{false, v.stale_on_update};
+    out.keys[k] = VersionedKeyFlags{false, v.stale_on_update};
   }
   for (auto& k : updates.deletes) {
-    kvui.keys[k] = KVKeyFlag{true, false};
+    out.keys[k] = VersionedKeyFlags{true, false};
   }
-  return kvui;
+  return out;
 }
 
 ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,

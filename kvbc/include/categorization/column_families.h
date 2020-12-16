@@ -19,6 +19,9 @@ namespace concord::kvbc::categorization::detail {
 
 inline const auto IMMUTABLE_KV_CF_SUFFIX = std::string{"_immutable"};
 
+inline const auto VERSIONED_KV_VALUES_CF_SUFFIX = std::string{"_ver_values"};
+inline const auto VERSIONED_KV_LATEST_VER_CF_SUFFIX = std::string{"_ver_latest"};
+
 inline const auto BLOCKS_CF = std::string{"blocks"};
 inline const auto ST_CHAIN_CF = std::string{"st_chain"};
 

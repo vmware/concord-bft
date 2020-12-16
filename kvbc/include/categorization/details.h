@@ -38,6 +38,10 @@ inline VersionedKey versionedKey(const std::string &key, BlockId block_id) {
   return VersionedKey{KeyHash{detail::hash(key)}, block_id};
 }
 
+inline VersionedKey versionedKey(const Hash &key_hash, BlockId block_id) {
+  return VersionedKey{KeyHash{key_hash}, block_id};
+}
+
 template <typename T>
 const Buffer &serialize(const T &value) {
   static thread_local auto buf = Buffer{};

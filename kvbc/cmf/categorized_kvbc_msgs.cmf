@@ -5,14 +5,13 @@ Msg BlockMerkleInput 1 {
     list string deletes
 }
 
-Msg ValueWithExpirationData 2 {
-    string value
-    optional int64 expire_at
+Msg ValueWithFlags 2 {
+    string data
     bool stale_on_update
 }
 
-Msg KeyValueInput 3 {
-    map string ValueWithExpirationData kv
+Msg VersionedInput 3 {
+    map string ValueWithFlags kv
     list string deletes
     bool calculate_root_hash
 }
@@ -31,7 +30,7 @@ Msg ImmutableInput 5 {
 Msg CategoryInput 6 {
     map string oneof{
         BlockMerkleInput
-        KeyValueInput
+        VersionedInput
         ImmutableInput
     } kv
 }
@@ -48,14 +47,13 @@ Msg BlockMerkleOutput 1001 {
     uint64 state_root_version
 }
 
-Msg KVKeyFlag 1002 {
-
+Msg VersionedKeyFlags 1002 {
     bool deleted
     bool stale_on_update
 }
 
-Msg KeyValueOutput 1003 {
-    map string KVKeyFlag keys
+Msg VersionedOutput 1003 {
+    map string VersionedKeyFlags keys
     optional fixedlist uint8 32 root_hash
 }
 
@@ -76,11 +74,10 @@ Msg BlockData 2001 {
     fixedlist uint8 32 parent_digest
     map string oneof{
         BlockMerkleOutput
-        KeyValueOutput
+        VersionedOutput
         ImmutableOutput
     } categories_updates_info
 }
-
 
 Msg RawBlockData 2005 {
     fixedlist uint8 32 parent_digest
@@ -98,22 +95,37 @@ Msg BenchmarkMessage 3000 {
 
 # DB Key-Values
 
-Msg KeyHash 4000 {
+# An index to the latest version of a key.
+# The high-bit being set indicates whether or not the last update was a delete, i.e. a tombstone.
+Msg LatestKeyVersion 4000 {
+    uint64 block_id
+}
+
+Msg KeyHash 4001 {
     fixedlist uint8 32 value
 }
 
-Msg VersionedKey 4001 {
+Msg VersionedKey 4002 {
+    # Exploit big-endian integer serialization to order different versions
+    # of the key by version.
     KeyHash key_hash
     uint64 version
 }
 
-Msg ImmutableDbValue 4002 {
+Msg VersionedRawKey 4003 {
+    # Exploit CMF string and big-endian integer serialization to order keys
+    # by size, key and version.
+    string value
+    uint64 version
+}
+
+Msg ImmutableDbValue 4004 {
     uint64 block_id
     string data
 }
 
 # Used to deserialize the version only from an ImmutableDbValue.
-Msg ImmutableDbVersion 4003 {
+Msg ImmutableDbVersion 4005 {
     uint64 block_id
 }
 
@@ -159,9 +171,19 @@ Msg BatchedInternalNode 5006 {
     list BatchedInternalNodeChild children
 }
 
-# An index to the latest version of a key.
-#
-# The high-bit being set indicates whether or not the last update was a delete, i.e. a tombstone.
-Msg LatestKeyVersion 5009 {
-    uint64 block_id
+# Versioned category
+
+Msg Tombstone 6000 {
+    bool dummy
+}
+
+Msg DbValue 6001 {
+    string data
+}
+
+Msg VersionedDbValue 6002 {
+    oneof {
+        Tombstone
+        DbValue
+    } data
 }

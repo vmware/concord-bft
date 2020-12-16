@@ -45,7 +45,7 @@ struct Block {
     data.categories_updates_info.emplace(category_id, std::move(updates_info));
   }
 
-  void add(const std::string& category_id, KeyValueOutput&& updates_info) {
+  void add(const std::string& category_id, VersionedOutput&& updates_info) {
     data.categories_updates_info.emplace(category_id, std::move(updates_info));
   }
 
@@ -94,10 +94,10 @@ struct RawBlock {
                               const BlockId& block_id,
                               const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
-  KeyValueInput getUpdates(const std::string& category_id,
-                           const KeyValueOutput& update_info,
-                           const BlockId& block_id,
-                           const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+  VersionedInput getUpdates(const std::string& category_id,
+                            const VersionedOutput& update_info,
+                            const BlockId& block_id,
+                            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
   ImmutableInput getUpdates(const std::string& category_id,
                             const ImmutableOutput& update_info,
