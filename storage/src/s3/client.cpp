@@ -38,8 +38,21 @@ void Client::init(bool readOnly) {
   std::lock_guard<std::mutex> g(initLock_);
   ConcordAssert(!init_);  // we may return here instead of firing assert failure, but
                           // probably we want to catch bugs?
+
+  // protocol is provided by the user and can be in any case
+  std::string s3_protocol;
+  for (auto& c : config_.protocol) s3_protocol.push_back(tolower(c));
+
   context_.hostName = config_.url.c_str();
-  context_.protocol = (config_.protocol == "HTTP" ? S3ProtocolHTTP : S3ProtocolHTTPS);
+  if (s3_protocol == "http") {
+    context_.protocol = S3ProtocolHTTP;
+  } else if (s3_protocol == "https") {
+    context_.protocol = S3ProtocolHTTPS;
+  } else {
+    LOG_FATAL(logger_, "Invalid protocol: " + s3_protocol + ". Supported values are http or https (case insensitive).");
+    ConcordAssert("Invalid S3 protocol" && false);
+  }
+
   context_.uriStyle = S3UriStylePath;
   /* In ECS terms, this is your object user */
   context_.accessKeyId = config_.accessKey.c_str();
