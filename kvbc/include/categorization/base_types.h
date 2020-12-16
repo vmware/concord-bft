@@ -49,18 +49,19 @@ struct KeyValueProof {
     if (ordered_complement_kv_hashes.empty()) {
       update(key_hash);
       update(value_hash);
-    } else {
-      for (auto i = 0ul; i < ordered_complement_kv_hashes.size(); ++i) {
-        if (i == key_value_index) {
-          update(key_hash);
-          update(value_hash);
-        }
-        update(ordered_complement_kv_hashes[i]);
-      }
-      if (key_value_index == ordered_complement_kv_hashes.size()) {
+      return hasher.finish();
+    }
+
+    for (auto i = 0ul; i < ordered_complement_kv_hashes.size(); ++i) {
+      if (i == key_value_index) {
         update(key_hash);
         update(value_hash);
       }
+      update(ordered_complement_kv_hashes[i]);
+    }
+    if (key_value_index == ordered_complement_kv_hashes.size()) {
+      update(key_hash);
+      update(value_hash);
     }
     return hasher.finish();
   }

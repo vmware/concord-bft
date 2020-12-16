@@ -133,8 +133,14 @@ std::optional<ImmutableValue> ImmutableKeyValueCategory::get(const std::string &
 std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::string &tag,
                                                                  const std::string &key,
                                                                  const ImmutableUpdatesInfo &updates_info) const {
-  auto it = updates_info.tagged_keys.find(key);
-  if (it == updates_info.tagged_keys.cend()) {
+  // If the key is not part of this block, return a null proof.
+  auto key_it = updates_info.tagged_keys.find(key);
+  if (key_it == updates_info.tagged_keys.cend()) {
+    return std::nullopt;
+  }
+
+  // If the key is not tagged with `tag`, return a null proof.
+  if (const auto &key_tags = key_it->second; std::find(key_tags.cbegin(), key_tags.cend(), tag) == key_tags.cend()) {
     return std::nullopt;
   }
 
@@ -163,6 +169,7 @@ std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::stri
     proof.ordered_complement_kv_hashes.push_back(hash(update_key));
     proof.ordered_complement_kv_hashes.push_back(hash(update_value->data));
 
+    // Increment by 2 as we push 2 hashes - one of the key and one of the value.
     i += 2;
   }
 

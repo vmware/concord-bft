@@ -521,7 +521,7 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
   }
 }
 
-TEST_F(immutable_kv_category, get_proof_single_keys) {
+TEST_F(immutable_kv_category, get_proof_single_key) {
   auto cat = ImmutableKeyValueCategory{category_id, db};
 
   auto update = ImmutableUpdatesData{};
@@ -549,6 +549,39 @@ TEST_F(immutable_kv_category, get_proof_single_keys) {
                                  0x02, 0xa2, 0x16, 0x9b, 0x64, 0xc4, 0xe9, 0x68, 0xf3, 0xea, 0x49,
                                  0x38, 0xda, 0x8a, 0x62, 0x52, 0x0a, 0xa5, 0x9d, 0x9d, 0xdb}));
   }
+}
+
+TEST_F(immutable_kv_category, get_proof_key_not_tagged) {
+  auto cat = ImmutableKeyValueCategory{category_id, db};
+
+  auto update = ImmutableUpdatesData{};
+  update.calculate_root_hash = true;
+  update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1"}};
+  update.kv["k2"] = ImmutableValueUpdate{"v2", {"t1"}};
+
+  const auto block_id = 42;
+  auto batch = db->getBatch();
+  const auto update_info = cat.add(block_id, std::move(update), batch);
+  db->write(std::move(batch));
+
+  // Keys are not tagged with "t2".
+  ASSERT_FALSE(cat.getProof("t2", "k1", update_info));
+  ASSERT_FALSE(cat.getProof("t2", "k1", update_info));
+}
+
+TEST_F(immutable_kv_category, get_proof_non_existent_key) {
+  auto cat = ImmutableKeyValueCategory{category_id, db};
+
+  auto update = ImmutableUpdatesData{};
+  update.calculate_root_hash = true;
+  update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
+
+  const auto block_id = 42;
+  auto batch = db->getBatch();
+  const auto update_info = cat.add(block_id, std::move(update), batch);
+  db->write(std::move(batch));
+
+  ASSERT_FALSE(cat.getProof("t", "non-existent", update_info));
 }
 
 TEST_F(immutable_kv_category, delete_block) {
