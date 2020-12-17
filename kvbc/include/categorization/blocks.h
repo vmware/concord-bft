@@ -86,29 +86,32 @@ struct Block {
 // - parent digest
 // - state hash per category (if exists) E.L check why do we pass it.
 struct RawBlock {
+  RawBlock() = default;
   RawBlock(const Block& block, const storage::rocksdb::NativeClient& native_client);
 
-  static const detail::Buffer& serialize(const RawBlockData& data) {
-    static thread_local detail::Buffer out;
-    out.clear();
-    concord::kvbc::categorization::serialize(out, data);
-    return out;
+  MerkleUpdatesData getUpdates(const std::string& category_id,
+                               const MerkleUpdatesInfo& update_info,
+                               const BlockId& block_id,
+                               const storage::rocksdb::NativeClient& native_client);
+
+  KeyValueUpdatesData getUpdates(const std::string& category_id,
+                                 const KeyValueUpdatesInfo& update_info,
+                                 const BlockId& block_id,
+                                 const storage::rocksdb::NativeClient& native_client);
+
+  ImmutableUpdatesData getUpdates(const std::string& category_id,
+                                  const ImmutableUpdatesInfo& update_info,
+                                  const BlockId& block_id,
+                                  const storage::rocksdb::NativeClient& native_client);
+
+  template <typename T>
+  static RawBlock deserialize(const T& input) {
+    RawBlock output;
+    detail::deserialize(input, output.data);
+    return output;
   }
 
-  RawBlockKeyValueUpdates getRawUpdates(const std::string& category_id,
-                                        const KeyValueUpdatesInfo& update_info,
-                                        const BlockId& block_id,
-                                        const storage::rocksdb::NativeClient& native_client);
-
-  RawBlockMerkleUpdates getRawUpdates(const std::string& category_id,
-                                      const MerkleUpdatesInfo& update_info,
-                                      const BlockId& block_id,
-                                      const storage::rocksdb::NativeClient& native_client);
-
-  RawBlockImmutableUpdates getRawUpdates(const std::string& category_id,
-                                         const ImmutableUpdatesInfo& update_info,
-                                         const BlockId& block_id,
-                                         const storage::rocksdb::NativeClient& native_client);
+  static const detail::Buffer& serialize(const RawBlock& raw) { return detail::serialize(raw.data); }
 
   RawBlockData data;
 };

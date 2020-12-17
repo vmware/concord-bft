@@ -229,6 +229,255 @@ TEST_F(categorized_kvbc, delete_block) {
   ASSERT_THROW(block_chain.deleteLastReachableBlock(), std::runtime_error);
 }
 
+TEST_F(categorized_kvbc, get_last_and_genesis_block) {
+  KeyValueBlockchain block_chain{db};
+  detail::Blockchain block_chain_imp{db};
+  // Add block1
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key1", "key_val1");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+  // Add block2
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key2", "key_val2");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+  ASSERT_TRUE(block_chain_imp.loadLastReachableBlockId().has_value());
+  ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);
+  ASSERT_TRUE(block_chain_imp.loadGenesisBlockId().has_value());
+  ASSERT_EQ(block_chain_imp.loadGenesisBlockId().value(), 1);
+}
+
+TEST_F(categorized_kvbc, add_raw_block) {
+  KeyValueBlockchain block_chain{db};
+  ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
+
+  // Add block1
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key1", "key_val1");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+    ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
+  }
+  // Add block2
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key2", "key_val2");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+  }
+
+  // Add raw block to an invalid id
+  {
+    categorization::RawBlock rb;
+    ASSERT_THROW(block_chain.addRawBlock(rb, 2), std::invalid_argument);
+  }
+
+  {
+    categorization::RawBlock rb;
+    ASSERT_THROW(block_chain.addRawBlock(rb, 1), std::invalid_argument);
+  }
+
+  {
+    categorization::RawBlock rb;
+    block_chain.addRawBlock(rb, 5);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+  }
+
+  {
+    categorization::RawBlock rb;
+    block_chain.addRawBlock(rb, 4);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+  }
+
+  {
+    categorization::RawBlock rb;
+    block_chain.addRawBlock(rb, 10);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 10);
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+  }
+}
+
+TEST_F(categorized_kvbc, get_raw_block) {
+  KeyValueBlockchain block_chain{db};
+
+  ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
+
+  // Add block1
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key1", "key_val1");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+    ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
+  }
+
+  {
+    categorization::RawBlock rb;
+    MerkleUpdatesData merkle_updates;
+    merkle_updates.kv["merkle_key3"] = "merkle_value3";
+    merkle_updates.deletes.push_back("merkle_deleted3");
+    rb.data.category_updates["merkle"] = merkle_updates;
+    block_chain.addRawBlock(rb, 5);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
+
+    ASSERT_THROW(block_chain.getRawBlock(3), std::runtime_error);
+    ASSERT_THROW(block_chain.getRawBlock(6), std::runtime_error);
+  }
+
+  {
+    auto rb = block_chain.getRawBlock(5);
+    ASSERT_EQ(std::get<MerkleUpdatesData>(rb.data.category_updates["merkle"]).kv["merkle_key3"], "merkle_value3");
+  }
+
+  // E.L not yet possible
+  // {
+  //   auto rb = block_chain.getRawBlock(1);
+  //   ASSERT_EQ(std::get<MerkleUpdatesData>(rb.data.category_updates["merkle"]).kv["merkle_key1"], "merkle_value1");
+  // }
+
+  { ASSERT_THROW(block_chain.getRawBlock(0), std::runtime_error); }
+}
+
+TEST_F(categorized_kvbc, link_state_transfer_chain) {
+  KeyValueBlockchain block_chain{db};
+  detail::Blockchain block_chain_imp{db};
+
+  ASSERT_FALSE(block_chain_imp.loadLastReachableBlockId().has_value());
+  ASSERT_EQ(block_chain.getLastReachableBlockId(), 0);
+  // Add block1
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key1", "key_val1");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+    ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
+  }
+  // Add block2
+  {
+    Updates updates;
+    MerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    merkle_updates.addDelete("merkle_deleted");
+    updates.add("merkle", std::move(merkle_updates));
+
+    KeyValueUpdates keyval_updates;
+    keyval_updates.addUpdate("kv_key2", "key_val2");
+    keyval_updates.addDelete("kv_deleted");
+    updates.add("kv_hash", std::move(keyval_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+    ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);
+  }
+
+  // Add raw block to an invalid id
+  {
+    categorization::RawBlock rb;
+    ASSERT_THROW(block_chain.addRawBlock(rb, 1), std::invalid_argument);
+  }
+
+  // Add raw block with a gap form the last reachable
+  {
+    categorization::RawBlock rb;
+    block_chain.addRawBlock(rb, 5);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+    ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);
+  }
+
+  {
+    categorization::RawBlock rb;
+    block_chain.addRawBlock(rb, 4);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+    ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);
+  }
+
+  {
+    categorization::RawBlock rb;
+    block_chain.addRawBlock(rb, 6);
+    ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 6);
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+    ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);
+  }
+  // Link the chains
+  {
+    categorization::RawBlock rb;
+    MerkleUpdatesData merkle_updates;
+    merkle_updates.kv["merkle_key3"] = "merkle_value3";
+    merkle_updates.deletes.push_back("merkle_deleted3");
+    rb.data.category_updates["merkle"] = merkle_updates;
+    block_chain.addRawBlock(rb, 3);
+    ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
+
+    ASSERT_EQ(block_chain.getLastReachableBlockId(), 6);
+    ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 6);
+  }
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

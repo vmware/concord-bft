@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "s3/metrics.hpp"
+#include "s3/s3_metrics.hpp"
 #include "direct_kv_storage_factory.h"
 #include "direct_kv_db_adapter.h"
 

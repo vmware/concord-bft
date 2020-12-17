@@ -169,6 +169,17 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
+    add_executable(categorized_blockchain_unit_test
+        categorization/blockchain_test.cpp )
+    add_test(categorized_blockchain_unit_test categorized_blockchain_unit_test)
+    target_link_libraries(categorized_blockchain_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
     add_executable(immutable_kv_category_unit_test categorization/immutable_kv_category_unit_test.cpp )
     add_test(immutable_kv_category_unit_test immutable_kv_category_unit_test)
     target_link_libraries(immutable_kv_category_unit_test PUBLIC

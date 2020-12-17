@@ -73,28 +73,18 @@ Msg BlockData 2001 {
     } categories_updates_info
 }
 
-Msg RawBlockMerkleUpdates 2002 {
-    MerkleUpdatesData updates
-    fixedlist uint8 32 root_hash
-}
-
-Msg RawBlockKeyValueUpdates 2003 {
-    KeyValueUpdatesData updates
-    optional fixedlist uint8 32 root_hash
-}
-
-Msg RawBlockImmutableUpdates 2004 {
-    ImmutableUpdatesData updates
-    optional fixedlist uint8 32 root_hash
-}
 
 Msg RawBlockData 2005 {
     fixedlist uint8 32 parent_digest
+    
     map string oneof{
-        RawBlockMerkleUpdates
-        RawBlockKeyValueUpdates
-        RawBlockImmutableUpdates
+        MerkleUpdatesData
+        KeyValueUpdatesData
+	    ImmutableUpdatesData
     } category_updates
+
+    map string optional fixedlist uint8 32 category_root_hash
+
 }
 
 # Misc

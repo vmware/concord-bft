@@ -73,6 +73,7 @@ struct ImmutableUpdates {
 struct KeyValueUpdates {
   KeyValueUpdates() = default;
   KeyValueUpdates(KeyValueUpdates&& other) = default;
+  KeyValueUpdates(KeyValueUpdatesData&& data) : data_{std::move(data)} {}
   KeyValueUpdates& operator=(KeyValueUpdates&& other) = default;
 
   // Do not allow copy
@@ -121,6 +122,7 @@ struct KeyValueUpdates {
 struct MerkleUpdates {
   MerkleUpdates() = default;
   MerkleUpdates(MerkleUpdates&& other) = default;
+  MerkleUpdates(MerkleUpdatesData&& data) : data_{std::move(data)} {}
   MerkleUpdates& operator=(MerkleUpdates&& other) = default;
 
   // Do not allow copy
