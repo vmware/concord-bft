@@ -12,8 +12,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue &requests,
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
       auto resp = KeyManager::get().onKeyExchange(ke, req.executionSequenceNum);
-      if (resp.size() <= req.outReply.size()) {
-        std::copy(resp.begin(), resp.end(), req.outReply.data());
+      if (resp.size() <= req.maxReplySize) {
+        std::copy(resp.begin(), resp.end(), req.outReply);
         req.outActualReplySize = resp.size();
       } else {
         LOG_ERROR(GL, "KEY_EXCHANGE response is too large, response " << resp);

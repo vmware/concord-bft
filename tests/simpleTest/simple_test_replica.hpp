@@ -91,8 +91,8 @@ class SimpleAppState : public IRequestsHandler {
                             "request is NOT " << READ_VAL_REQ);
 
         // Copy the latest register value to the reply buffer.
-        test_assert_replica(req.outReply.size() >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
-        uint64_t *pRet = const_cast<uint64_t *>(reinterpret_cast<const uint64_t *>(req.outReply.c_str()));
+        test_assert_replica(req.maxReplySize >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
+        uint64_t *pRet = const_cast<uint64_t *>(reinterpret_cast<const uint64_t *>(req.outReply));
         auto lastValue = get_last_state_value(req.clientId);
         *pRet = lastValue;
         req.outActualReplySize = sizeof(uint64_t);
@@ -115,8 +115,8 @@ class SimpleAppState : public IRequestsHandler {
         set_last_state_num(req.clientId, stateNum + 1);
 
         // Reply with the number of times we've modified the register.
-        test_assert_replica(req.outReply.size() >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
-        uint64_t *pRet = const_cast<uint64_t *>(reinterpret_cast<const uint64_t *>(req.outReply.c_str()));
+        test_assert_replica(req.maxReplySize >= sizeof(uint64_t), "maxReplySize < " << sizeof(uint64_t));
+        uint64_t *pRet = const_cast<uint64_t *>(reinterpret_cast<const uint64_t *>(req.outReply));
         *pRet = stateNum;
         req.outActualReplySize = sizeof(uint64_t);
 

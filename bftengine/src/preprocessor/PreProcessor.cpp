@@ -707,11 +707,16 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(reqSeqNum, clientId, reqSeqNum));
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
-  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
-      clientId, reqSeqNum, PRE_PROCESS_FLAG, reqLength, reqBuf, std::string(maxPreExecResultSize_, 0)});
+  accumulatedRequests.push_back(
+      bftEngine::IRequestsHandler::ExecutionRequest{clientId,
+                                                    reqSeqNum,
+                                                    PRE_PROCESS_FLAG,
+                                                    reqLength,
+                                                    reqBuf,
+                                                    maxPreExecResultSize_,
+                                                    (char *)getPreProcessResultBuffer(clientId)});
   requestsHandler_.execute(accumulatedRequests, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
-  memcpy((char *)getPreProcessResultBuffer(clientId), request.outReply.c_str(), request.outActualReplySize);
   auto status = request.outExecutionStatus;
   LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(reqSeqNum, clientId, reqSeqNum));
   if (status != 0 || !request.outActualReplySize) {

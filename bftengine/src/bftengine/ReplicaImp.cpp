@@ -3682,7 +3682,8 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               request->flags(),
                                                                               request->requestLength(),
                                                                               request->requestBuf(),
-                                                                              std::string(reply.maxReplyLength(), 0)});
+                                                                              reply.maxReplyLength(),
+                                                                              reply.replyBuf()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
     bftRequestsHandler_.execute(accumulatedRequests, request->getCid(), span);
@@ -3700,7 +3701,6 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
   if (!status) {
     if (single_request.outActualReplySize > 0) {
-      memcpy(reply.replyBuf(), single_request.outReply.c_str(), single_request.outActualReplySize);
       reply.setReplyLength(single_request.outActualReplySize);
       reply.setReplicaSpecificInfoLength(single_request.outReplicaSpecificInfoSize);
       send(&reply, clientId);
@@ -3898,13 +3898,15 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     }
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
+
     accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
         req.flags(),
         req.requestLength(),
         req.requestBuf(),
-        std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
+        static_cast<uint32_t>(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+        (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum()});
   }
   if (ReplicaConfig::instance().blockAccumulation) {
@@ -3939,7 +3941,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
       std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
-          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply.data(), req.outActualReplySize)};
+          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize)};
       replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
       send(replyMsg.get(), req.clientId);
     }

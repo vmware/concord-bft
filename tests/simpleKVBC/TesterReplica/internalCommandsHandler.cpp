@@ -50,8 +50,8 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
     if (readOnly) {
       res = executeReadOnlyCommand(req.requestSize,
                                    req.request,
-                                   req.outReply.size(),
-                                   req.outReply.data(),
+                                   req.maxReplySize,
+                                   req.outReply,
                                    req.outActualReplySize,
                                    req.outReplicaSpecificInfoSize);
     } else {
@@ -59,8 +59,8 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                 req.request,
                                 req.executionSequenceNum,
                                 req.flags,
-                                req.outReply.size(),
-                                req.outReply.data(),
+                                req.maxReplySize,
+                                req.outReply,
                                 req.outActualReplySize);
     }
     if (!res) LOG_ERROR(m_logger, "Command execution failed!");
