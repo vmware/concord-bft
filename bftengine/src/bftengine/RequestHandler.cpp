@@ -9,7 +9,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue &requests,
                              concordUtils::SpanWrapper &parent_span) {
   for (auto &req : requests) {
     if (req.flags & KEY_EXCHANGE_FLAG) {
-      KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request.c_str(), req.request.size());
+      KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
       auto resp = KeyManager::get().onKeyExchange(ke, req.executionSequenceNum);
       if (resp.size() <= req.outReply.size()) {

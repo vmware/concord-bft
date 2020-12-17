@@ -63,7 +63,8 @@ class IRequestsHandler {
     uint16_t clientId = 0;
     uint64_t executionSequenceNum = 0;
     uint8_t flags = 0;
-    std::string request;
+    uint32_t requestSize = 0;
+    const char *request;
     std::string outReply;
     uint64_t requestSequenceNum = executionSequenceNum;
     uint32_t outActualReplySize = 0;

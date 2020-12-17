@@ -3675,22 +3675,20 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
 
   uint16_t clientId = request->clientProxyId();
 
-  int error = 0;
-  IRequestsHandler::ExecutionRequest single_request;
+  int status = 0;
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
-  accumulatedRequests.push_back(
-      bftEngine::IRequestsHandler::ExecutionRequest{clientId,
-                                                    static_cast<uint64_t>(lastExecutedSeqNum),
-                                                    request->flags(),
-                                                    std::string(request->requestBuf(), request->requestLength()),
-                                                    std::string(reply.maxReplyLength(), 0)});
+  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
+                                                                              static_cast<uint64_t>(lastExecutedSeqNum),
+                                                                              request->flags(),
+                                                                              request->requestLength(),
+                                                                              request->requestBuf(),
+                                                                              std::string(reply.maxReplyLength(), 0)});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
     bftRequestsHandler_.execute(accumulatedRequests, request->getCid(), span);
-    single_request = accumulatedRequests.back();
-    error = single_request.outExecutionStatus;
   }
-
+  const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
+  status = single_request.outExecutionStatus;
   LOG_DEBUG(GL,
             "Executed read only request. " << KVLOG(clientId,
                                                     lastExecutedSeqNum,
@@ -3698,9 +3696,9 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                     reply.maxReplyLength(),
                                                     single_request.outActualReplySize,
                                                     single_request.outReplicaSpecificInfoSize,
-                                                    error));
+                                                    status));
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-  if (!error) {
+  if (!status) {
     if (single_request.outActualReplySize > 0) {
       memcpy(reply.replyBuf(), single_request.outReply.c_str(), single_request.outActualReplySize);
       reply.setReplyLength(single_request.outActualReplySize);
@@ -3711,7 +3709,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, error));
+    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
 
   if (config_.getdebugStatisticsEnabled()) {
@@ -3904,7 +3902,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
         req.flags(),
-        std::string(req.requestBuf(), req.requestLength()),
+        req.requestLength(),
+        req.requestBuf(),
         std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
         req.requestSeqNum()});
   }

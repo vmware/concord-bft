@@ -84,10 +84,10 @@ class SimpleAppState : public IRequestsHandler {
       bool readOnly = req.flags & READ_ONLY_FLAG;
       if (readOnly) {
         // Our read-only request includes only a type, no argument.
-        test_assert_replica(req.request.size() == sizeof(uint64_t), "requestSize =! " << sizeof(uint64_t));
+        test_assert_replica(req.requestSize == sizeof(uint64_t), "requestSize =! " << sizeof(uint64_t));
 
         // We only support the READ operation in read-only mode.
-        test_assert_replica(*reinterpret_cast<const uint64_t *>(req.request.c_str()) == READ_VAL_REQ,
+        test_assert_replica(*reinterpret_cast<const uint64_t *>(req.request) == READ_VAL_REQ,
                             "request is NOT " << READ_VAL_REQ);
 
         // Copy the latest register value to the reply buffer.
@@ -99,10 +99,10 @@ class SimpleAppState : public IRequestsHandler {
       } else {
         // Our read-write request includes one eight-byte argument, in addition to
         // the request type.
-        test_assert_replica(req.request.size() == 2 * sizeof(uint64_t), "requestSize != " << 2 * sizeof(uint64_t));
+        test_assert_replica(req.requestSize == 2 * sizeof(uint64_t), "requestSize != " << 2 * sizeof(uint64_t));
 
         // We only support the WRITE operation in read-write mode.
-        const uint64_t *pReqId = reinterpret_cast<const uint64_t *>(req.request.c_str());
+        const uint64_t *pReqId = reinterpret_cast<const uint64_t *>(req.request);
         test_assert_replica(*pReqId == SET_VAL_REQ, "*preqId != " << SET_VAL_REQ);
 
         // The value to write is the second eight bytes of the request.

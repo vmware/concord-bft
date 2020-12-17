@@ -39,24 +39,24 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
     if (req.outExecutionStatus != 1) continue;
     req.outReplicaSpecificInfoSize = 0;
     int res;
-    if (req.request.size() < sizeof(SimpleRequest)) {
+    if (req.requestSize < sizeof(SimpleRequest)) {
       LOG_ERROR(m_logger,
-                "The message is too small: requestSize is " << req.request.size() << ", required size is "
+                "The message is too small: requestSize is " << req.requestSize << ", required size is "
                                                             << sizeof(SimpleRequest));
       req.outExecutionStatus = -1;
       continue;
     }
     bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
     if (readOnly) {
-      res = executeReadOnlyCommand(req.request.size(),
-                                   req.request.c_str(),
+      res = executeReadOnlyCommand(req.requestSize,
+                                   req.request,
                                    req.outReply.size(),
                                    req.outReply.data(),
                                    req.outActualReplySize,
                                    req.outReplicaSpecificInfoSize);
     } else {
-      res = executeWriteCommand(req.request.size(),
-                                req.request.c_str(),
+      res = executeWriteCommand(req.requestSize,
+                                req.request,
                                 req.executionSequenceNum,
                                 req.flags,
                                 req.outReply.size(),
