@@ -49,7 +49,9 @@ struct Block {
     data.categories_updates_info.emplace(category_id, std::move(updates_info));
   }
 
-  void add(SharedKeyValueUpdatesInfo&& updates_info) { data.shared_updates_info = std::move(updates_info); }
+  void add(const std::string& category_id, ImmutableUpdatesInfo&& updates_info) {
+    data.categories_updates_info.emplace(category_id, std::move(updates_info));
+  }
 
   void setParentHash(const BlockDigest& parent_hash) {
     std::copy(parent_hash.begin(), parent_hash.end(), data.parent_digest.begin());
@@ -103,9 +105,10 @@ struct RawBlock {
                                       const BlockId& block_id,
                                       const storage::rocksdb::NativeClient& native_client);
 
-  RawBlockSharedUpdates getRawSharedUpdates(const SharedKeyValueUpdatesInfo& update_info,
-                                            const BlockId& block_id,
-                                            const storage::rocksdb::NativeClient& native_client);
+  RawBlockImmutableUpdates getRawUpdates(const std::string& category_id,
+                                         const ImmutableUpdatesInfo& update_info,
+                                         const BlockId& block_id,
+                                         const storage::rocksdb::NativeClient& native_client);
 
   RawBlockData data;
 };

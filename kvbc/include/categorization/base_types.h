@@ -23,18 +23,13 @@
 
 namespace concord::kvbc::categorization {
 
-struct Value {
-  std::string data;
-  BlockId block_id{0};
-  std::optional<std::time_t> expire_at;
-};
-
 using Hasher = concord::util::SHA3_256;
 using Hash = Hasher::Digest;
 
 struct KeyValueProof {
+  BlockId block_id{0};
   std::string key;
-  Value value;
+  std::string value;
 
   // The index at which the key-value hash is to be combined with the complement ones.
   std::size_t key_value_index{0};
@@ -43,24 +38,30 @@ struct KeyValueProof {
   std::vector<Hash> ordered_complement_kv_hashes;
 
   Hash calculateRootHash() const {
-    auto hasher = Hasher{};
-    const auto key_hash = hasher.digest(key.data(), key.size());
-    const auto value_hash = hasher.digest(value.data.data(), value.data.size());
+    const auto key_hash = Hasher{}.digest(key.data(), key.size());
+    const auto value_hash = Hasher{}.digest(value.data(), value.size());
 
-    // root_hash = h((h(k1) || h(v1)) || (h(k2) || h(v2)) || ... || (h(k3) || h(v3)))
+    // root_hash = h(h(k1) || h(v1) || h(k2) || h(v2) || ... || h(kn) || h(vn))
+    auto hasher = Hasher{};
     hasher.init();
+    const auto update = [&hasher](const auto &in) { hasher.update(in.data(), in.size()); };
+
     if (ordered_complement_kv_hashes.empty()) {
-      hasher.update(key_hash.data(), key_hash.size());
-      hasher.update(value_hash.data(), value_hash.size());
-    } else {
-      for (auto i = 0ul; i < ordered_complement_kv_hashes.size(); ++i) {
-        if (i == key_value_index) {
-          hasher.update(key_hash.data(), key_hash.size());
-          hasher.update(value_hash.data(), value_hash.size());
-        }
-        const auto &hash_i = ordered_complement_kv_hashes[i];
-        hasher.update(hash_i.data(), hash_i.size());
+      update(key_hash);
+      update(value_hash);
+      return hasher.finish();
+    }
+
+    for (auto i = 0ul; i < ordered_complement_kv_hashes.size(); ++i) {
+      if (i == key_value_index) {
+        update(key_hash);
+        update(value_hash);
       }
+      update(ordered_complement_kv_hashes[i]);
+    }
+    if (key_value_index == ordered_complement_kv_hashes.size()) {
+      update(key_hash);
+      update(value_hash);
     }
     return hasher.finish();
   }

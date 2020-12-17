@@ -17,13 +17,14 @@ Msg KeyValueUpdatesData 3 {
     bool calculate_root_hash
 }
 
-Msg SharedValueData 4 {
-    string value
-    list string category_ids
+Msg ImmutableValueUpdate 4 {
+    string data
+    list string tags
 }
 
-Msg SharedKeyValueUpdatesData 5 {
-    map string SharedValueData kv
+Msg ImmutableUpdatesData 5 {
+    # key -> value, [tag1, tag2...]
+    map string ImmutableValueUpdate kv
     bool calculate_root_hash
 }
 
@@ -50,13 +51,10 @@ Msg KeyValueUpdatesInfo 1003 {
     optional fixedlist uint8 32 root_hash
 }
 
-Msg SharedKeyData 1004 {
-    list string categories
-}
-
-Msg SharedKeyValueUpdatesInfo 1005 {
-    map string SharedKeyData keys
-    optional map string fixedlist uint8 32 category_root_hashes
+Msg ImmutableUpdatesInfo 1004 {
+    # key -> [tag1, tag2...]
+    map string list string tagged_keys
+    optional map string fixedlist uint8 32 tag_root_hashes
 }
 
 # Blocks
@@ -68,10 +66,10 @@ Msg BlockKey 2000 {
 Msg BlockData 2001 {
     uint64 block_id
     fixedlist uint8 32 parent_digest
-    optional SharedKeyValueUpdatesInfo shared_updates_info
     map string oneof{
         MerkleUpdatesInfo
         KeyValueUpdatesInfo
+        ImmutableUpdatesInfo
     } categories_updates_info
 }
 
@@ -85,8 +83,8 @@ Msg RawBlockKeyValueUpdates 2003 {
     optional fixedlist uint8 32 root_hash
 }
 
-Msg RawBlockSharedUpdates 2004 {
-    SharedKeyValueUpdatesData updates
+Msg RawBlockImmutableUpdates 2004 {
+    ImmutableUpdatesData updates
     optional fixedlist uint8 32 root_hash
 }
 
@@ -95,9 +93,8 @@ Msg RawBlockData 2005 {
     map string oneof{
         RawBlockMerkleUpdates
         RawBlockKeyValueUpdates
+        RawBlockImmutableUpdates
     } category_updates
-
-    optional RawBlockSharedUpdates shared_update
 }
 
 # Misc
@@ -119,9 +116,7 @@ Msg VersionedKey 4001 {
     uint64 version
 }
 
-# Persisted as a value in for keys in the index column family.
-# Contains a per category sorted list of versions for the key.
-Msg KeyVersionsPerCategory 4002 {
-    map string list uint64 data
+Msg ImmutableValue 4002 {
+    uint64 block_id
+    string data
 }
-

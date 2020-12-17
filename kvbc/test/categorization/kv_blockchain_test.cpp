@@ -79,9 +79,9 @@ TEST_F(categorized_kvbc, add_blocks) {
     keyval_updates.addDelete("kv_deleted");
     updates.add("kv_hash", std::move(keyval_updates));
 
-    SharedKeyValueUpdates shared_updates;
-    shared_updates.addUpdate("shared_key2", {"shared_Val2", {"1", "2"}});
-    updates.add(std::move(shared_updates));
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
   }
   // get block 1 from DB and test it
@@ -98,7 +98,6 @@ TEST_F(categorized_kvbc, add_blocks) {
     auto kv_hash_variant = block1_from_db.data.categories_updates_info["kv_hash"];
     auto kv_hash_update_info1 = std::get<KeyValueUpdatesInfo>(kv_hash_variant);
     ASSERT_EQ(kv_hash_update_info1.keys["kv_deleted"].deleted, true);
-    ASSERT_FALSE(block1_from_db.data.shared_updates_info.has_value());
   }
   // get block 2 from DB and test it
   {
@@ -108,9 +107,10 @@ TEST_F(categorized_kvbc, add_blocks) {
     // E.L need to add support for strings in cmf
     detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
     auto block2_from_db = Block::deserialize(in);
-    ASSERT_TRUE(block2_from_db.data.shared_updates_info.has_value());
-    std::vector<std::string> v{"1", "2"};
-    ASSERT_EQ(block2_from_db.data.shared_updates_info.value().keys["shared_key2"].categories, v);
+    const auto expected_tags = std::vector<std::string>{"1", "2"};
+    auto immutable_variant = block2_from_db.data.categories_updates_info["immutable"];
+    auto immutable_update_info2 = std::get<ImmutableUpdatesInfo>(immutable_variant);
+    ASSERT_EQ(immutable_update_info2.tagged_keys["immutable_key2"], expected_tags);
   }
 }
 
@@ -146,9 +146,9 @@ TEST_F(categorized_kvbc, delete_block) {
     keyval_updates.addDelete("kv_deleted");
     updates.add("kv_hash", std::move(keyval_updates));
 
-    SharedKeyValueUpdates shared_updates;
-    shared_updates.addUpdate("shared_key2", {"shared_Val2", {"1", "2"}});
-    updates.add(std::move(shared_updates));
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
   }
 
@@ -165,9 +165,9 @@ TEST_F(categorized_kvbc, delete_block) {
     keyval_updates.addDelete("kv_deleted");
     updates.add("kv_hash", std::move(keyval_updates));
 
-    SharedKeyValueUpdates shared_updates;
-    shared_updates.addUpdate("shared_key3", {"shared_Val3", {"1", "2"}});
-    updates.add(std::move(shared_updates));
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key3", {"immutable_val3", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)3);
   }
 
@@ -197,9 +197,9 @@ TEST_F(categorized_kvbc, delete_block) {
     keyval_updates.addDelete("kv_deleted");
     updates.add("kv_hash", std::move(keyval_updates));
 
-    SharedKeyValueUpdates shared_updates;
-    shared_updates.addUpdate("shared_key4", {"shared_Val4", {"1", "2"}});
-    updates.add(std::move(shared_updates));
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key4", {"immutable_val4", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)4);
   }
   ASSERT_EQ(block_chain.getLastReachableBlockId(), 4);

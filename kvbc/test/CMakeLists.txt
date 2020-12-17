@@ -169,9 +169,9 @@ if (BUILD_ROCKSDB_STORAGE)
         stdc++fs
     )
 
-    add_executable(shared_kv_category_unit_test categorization/shared_kv_category_unit_test.cpp )
-    add_test(shared_kv_category_unit_test shared_kv_category_unit_test)
-    target_link_libraries(shared_kv_category_unit_test PUBLIC
+    add_executable(immutable_kv_category_unit_test categorization/immutable_kv_category_unit_test.cpp )
+    add_test(immutable_kv_category_unit_test immutable_kv_category_unit_test)
+    target_link_libraries(immutable_kv_category_unit_test PUBLIC
         GTest::Main
         GTest::GTest
         util
