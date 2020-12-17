@@ -22,6 +22,7 @@
 
 #include "client.h"
 
+#include <rocksdb/slice.h>
 #include <rocksdb/utilities/options_util.h>
 #include <rocksdb/utilities/transaction_db.h>
 
@@ -76,6 +77,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<std::string> get(const std::string &cFamily, const KeySpan &key) const;
+  // Returns nullopt if the key is not found.
+  template <typename KeySpan>
+  std::optional<::rocksdb::PinnableSlice> getSlice(const std::string &cFamily, const KeySpan &key) const;
   // Deleting a key that doesn't exist is not an error.
   template <typename KeySpan>
   void del(const std::string &cFamily, const KeySpan &key);
@@ -86,6 +90,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Returns nullopt if the key is not found.
   template <typename KeySpan>
   std::optional<std::string> get(const KeySpan &key) const;
+  // Returns nullopt if the key is not found.
+  template <typename KeySpan>
+  std::optional<::rocksdb::PinnableSlice> getSlice(const KeySpan &key) const;
   // Deleting a key that doesn't exist is not an error.
   template <typename KeySpan>
   void del(const KeySpan &key);
