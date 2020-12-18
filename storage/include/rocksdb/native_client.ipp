@@ -109,7 +109,7 @@ std::optional<::rocksdb::PinnableSlice> NativeClient::getSlice(const std::string
     return std::nullopt;
   }
   detail::throwOnError("get() failed"sv, std::move(s));
-  return slice;
+  return std::move(slice);
 }
 
 template <typename KeySpan>

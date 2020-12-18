@@ -805,6 +805,28 @@ TEST_F(native_rocksdb_test, get_slice_twice_in_some_family) {
   ASSERT_EQ(*slice2, value);
 }
 
+TEST_F(native_rocksdb_test, get_while_holding_slice_in_default_family) {
+  db->put(key, value);
+  const auto slice = db->getSlice(key);
+  const auto str = db->get(key);
+  ASSERT_TRUE(slice);
+  ASSERT_EQ(*slice, value);
+  ASSERT_TRUE(str);
+  ASSERT_EQ(*str, value);
+}
+
+TEST_F(native_rocksdb_test, get_while_holding_slice_in_some_family) {
+  const auto cf = "cf"s;
+  db->createColumnFamily(cf);
+  db->put(cf, key, value);
+  const auto slice = db->getSlice(cf, key);
+  const auto str = db->get(cf, key);
+  ASSERT_TRUE(slice);
+  ASSERT_EQ(*slice, value);
+  ASSERT_TRUE(str);
+  ASSERT_EQ(*str, value);
+}
+
 TEST_F(native_rocksdb_test, get_non_existent_slice_in_default_family) { ASSERT_FALSE(db->getSlice(key)); }
 
 TEST_F(native_rocksdb_test, get_non_existent_slice_in_some_family) {
