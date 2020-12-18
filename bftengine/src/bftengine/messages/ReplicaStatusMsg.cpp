@@ -205,7 +205,6 @@ void ReplicaStatusMsg::setMissingPrePrepareMsgForViewChange(SeqNum seqNum) {
 }
 
 bool ReplicaStatusMsg::hasComplaintFromReplica(ReplicaId replicaId) const {
-  ConcordAssert(currentViewIsActive());
   ConcordAssert(replicaId < MaxNumberOfReplicas);
 
   auto shift = payloadShift();
@@ -221,7 +220,6 @@ bool ReplicaStatusMsg::hasComplaintFromReplica(ReplicaId replicaId) const {
 }
 
 void ReplicaStatusMsg::setComplaintFromReplica(ReplicaId replicaId) {
-  ConcordAssert(currentViewIsActive());
   ConcordAssert(replicaId < MaxNumberOfReplicas);
 
   auto shift = payloadShift();

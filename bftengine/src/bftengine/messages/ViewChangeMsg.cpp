@@ -126,6 +126,19 @@ void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complain
   b()->numberOfComplaints++;
 }
 
+bool ViewChangeMsg::clearAllComplaints() {
+  b()->sizeOfAllComplaints = 0;
+  b()->numberOfComplaints = 0;
+  if (reallocSize(ReplicaConfig::instance().getmaxExternalMessageSize())) {
+    auto bodySize = getBodySize();
+    auto sigSize = ViewsManager::sigManager_->getMySigLength();
+    memset(body() + bodySize + sigSize, 0, storageSize_ - (bodySize + sigSize));
+    return true;
+  } else {
+    return false;
+  }
+}
+
 void ViewChangeMsg::finalizeMessage() {
   auto bodySize = getBodySize();
 

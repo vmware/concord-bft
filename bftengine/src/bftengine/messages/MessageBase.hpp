@@ -82,6 +82,8 @@ class MessageBase {
   static MessageBase *createObjAndMsgFromLocalBuffer(char *buffer, size_t bufferLength, size_t *actualSize);
   void shrinkToFit();
 
+  bool reallocSize(uint32_t size);
+
   void setMsgSize(MsgSize size);
 
   MsgSize internalStorageSize() const { return storageSize_; }

@@ -76,6 +76,8 @@ class ViewChangeMsg : public MessageBase {
 
   void addComplaint(const ReplicaAsksToLeaveViewMsg* const complaint);
 
+  bool clearAllComplaints();
+
   void finalizeMessage();
 
   void validate(const ReplicasInfo&) const override;

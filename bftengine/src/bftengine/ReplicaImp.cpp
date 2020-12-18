@@ -265,7 +265,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
-  if (currentViewIsActive() && m->viewNumber() == getCurrentView()) {
+  if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
     complainedReplicas.store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
@@ -2048,9 +2048,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   // msgSenderId's View is active and we have complaints for this View
   /////////////////////////////////////////////////////////////////////////
 
-  if (msg->currentViewIsActive()) {
+  if (msg->getViewNumber() == getCurrentView()) {
     for (const auto &i : complainedReplicas.getAllMsgs()) {
-      if (!msg->hasComplaintFromReplica(i.first) && msg->getViewNumber() == i.second->viewNumber()) {
+      if (!msg->hasComplaintFromReplica(i.first)) {
         sendAndIncrementMetric(i.second.get(), msgSenderId, metric_sent_replica_asks_to_leave_view_msg_due_to_status_);
       }
     }
@@ -2096,10 +2096,8 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
                        listOfMissingVCMsg,
                        listOfMissingPPMsg);
 
-  if (viewIsActive) {
-    for (const auto &i : complainedReplicas.getAllMsgs()) {
-      msg.setComplaintFromReplica(i.first);
-    }
+  for (const auto &i : complainedReplicas.getAllMsgs()) {
+    msg.setComplaintFromReplica(i.first);
   }
   if (listOfPPInActiveWindow) {
     const SeqNum start = lastStableSeqNum + 1;
@@ -2145,6 +2143,28 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   if (!msgAdded) return;
 
   LOG_INFO(VC_LOG, KVLOG(generatedReplicaId, msg->newView(), msg->lastStable(), msg->numberOfElements(), msgAdded));
+
+  ViewChangeMsg::ComplaintsIterator iter(msg);
+  char *complaint = nullptr;
+  MsgSize size = 0;
+
+  while (iter.getAndGoToNext(complaint, size)) {
+    auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header *)complaint, size, true);
+    auto *complaintMsg = new ReplicaAsksToLeaveViewMsg(&baseMsg);
+    LOG_INFO(GL,
+             "Got complaint in ViewChangeMsg from " << KVLOG(msg->senderId(),
+                                                             msg->newView(),
+                                                             msg->idOfGeneratedReplica(),
+                                                             complaintMsg->senderId(),
+                                                             complaintMsg->viewNumber(),
+                                                             complaintMsg->idOfGeneratedReplica()));
+    if (validateMessage(complaintMsg) && msg->newView() == curView + 1 &&
+        complainedReplicas.getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) == nullptr) {
+      onMessage<ReplicaAsksToLeaveViewMsg>(complaintMsg);
+    } else {
+      delete complaintMsg;
+    }
+  }
 
   // if the current primary wants to leave view
   if (generatedReplicaId == currentPrimary() && msg->newView() > curView) {
@@ -2222,6 +2242,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
     ConcordAssertNE(pVC, nullptr);
     pVC->setNewViewNumber(nextView);
     time_in_active_view_.end();
+    pVC->clearAllComplaints();
   } else {
     std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
@@ -2262,6 +2283,11 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
     ConcordAssertNE(pVC, nullptr);
     pVC->setNewViewNumber(nextView);
   }
+
+  for (const auto &i : complainedReplicas.getAllMsgs()) {
+    pVC->addComplaint(i.second.get());
+  }
+  complainedReplicas.clear();
 
   curView = nextView;
   metric_view_.Get().Set(nextView);
@@ -2451,7 +2477,6 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(curView);
-  complainedReplicas.clear();
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
 }
 
@@ -2986,7 +3011,14 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
                "Unable to activate the last agreed view (despite receiving 2f+2c+1 view change msgs). "
                "State transfer hasn't kicked-in for a while either. Asking to leave the current view: "
                    << KVLOG(curView, timeSinceLastAgreedViewMilli, timeSinceLastStateTransferMilli));
-      GotoNextView();
+
+      std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
+          config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::PrimaryGetInChargeTimeout));
+      sendToAllOtherReplicas(askToLeaveView.get());
+      complainedReplicas.store(std::move(askToLeaveView));
+      metric_sent_replica_asks_to_leave_view_msg_.Get().Inc();
+
+      tryToGotoNextView();
       return;
     }
   }
