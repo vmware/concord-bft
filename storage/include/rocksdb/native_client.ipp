@@ -101,6 +101,18 @@ std::optional<std::string> NativeClient::get(const std::string &cFamily, const K
 }
 
 template <typename KeySpan>
+std::optional<::rocksdb::PinnableSlice> NativeClient::getSlice(const std::string &cFamily, const KeySpan &key) const {
+  auto slice = ::rocksdb::PinnableSlice{};
+  auto s =
+      client_->dbInstance_->Get(::rocksdb::ReadOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key), &slice);
+  if (s.IsNotFound()) {
+    return std::nullopt;
+  }
+  detail::throwOnError("get() failed"sv, std::move(s));
+  return std::move(slice);
+}
+
+template <typename KeySpan>
 void NativeClient::del(const std::string &cFamily, const KeySpan &key) {
   auto s = client_->dbInstance_->Delete(::rocksdb::WriteOptions{}, columnFamilyHandle(cFamily), detail::toSlice(key));
   detail::throwOnError("del() failed"sv, std::move(s));
@@ -114,6 +126,11 @@ void NativeClient::put(const KeySpan &key, const ValueSpan &value) {
 template <typename KeySpan>
 std::optional<std::string> NativeClient::get(const KeySpan &key) const {
   return get(defaultColumnFamily(), key);
+}
+
+template <typename KeySpan>
+std::optional<::rocksdb::PinnableSlice> NativeClient::getSlice(const KeySpan &key) const {
+  return getSlice(defaultColumnFamily(), key);
 }
 
 template <typename KeySpan>
