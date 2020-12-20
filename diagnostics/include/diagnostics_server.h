@@ -137,7 +137,7 @@ class Server {
         auto rv = select(listen_sock_ + 1, &read_fds, NULL, NULL, &tv);
         if (rv == 0) continue;  // timeout
         if (rv < 0 && errno == EINTR) {
-          LOG_WARN(logger, "While waiting for a client requests, and interruption has occurred");
+          LOG_WARN(logger, "While waiting for a client requests, an interruption has occurred");
           continue;
         }
         if (rv < 0) {
