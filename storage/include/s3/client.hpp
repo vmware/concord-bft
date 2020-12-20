@@ -21,7 +21,7 @@
 #include "Logger.hpp"
 #include "assertUtils.hpp"
 #include "storage/db_interface.h"
-#include "metrics.hpp"
+#include "s3_metrics.hpp"
 
 #pragma once
 

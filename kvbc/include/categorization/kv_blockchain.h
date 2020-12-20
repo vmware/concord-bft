@@ -37,11 +37,25 @@ class KeyValueBlockchain {
   bool deleteBlock(const BlockId& blockId);
   void deleteLastReachableBlock();
 
+  /////////////////////// Raw Blocks ///////////////////////
+
+  // Adds raw block and tries to link the state transfer blockchain to the main blockchain
+  void addRawBlock(RawBlock& block, const BlockId& block_id);
+  RawBlock getRawBlock(const BlockId& block_id) const;
+
   /////////////////////// Info ///////////////////////
-  inline BlockId getGenesisBlockId() { return block_chain_.getGenesisBlockId(); }
-  inline BlockId getLastReachableBlockId() { return block_chain_.getLastReachableBlockId(); }
+  BlockId getGenesisBlockId() { return block_chain_.getGenesisBlockId(); }
+  BlockId getLastReachableBlockId() const { return block_chain_.getLastReachableBlockId(); }
+  std::optional<BlockId> getLastStatetransferBlockId() const { return state_transfer_block_chain_.getLastBlockId(); }
 
  private:
+  BlockId addBlock(std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData, ImmutableUpdatesData>>&&
+                       category_updates,
+                   concord::storage::rocksdb::NativeWriteBatch& write_batch);
+
+  void linkSTChainFrom(BlockId block_id);
+  void writeSTLinkTransaction(const BlockId block_id, RawBlock& block);
+
   void deleteStateTransferBlock(const BlockId block_id);
   void deleteGenesisBlock();
 

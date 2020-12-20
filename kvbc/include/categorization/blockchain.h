@@ -56,12 +56,20 @@ class Blockchain {
     wb.del(detail::BLOCKS_CF, Block::generateKey(id));
   }
 
-  std::optional<Block> getBlock(const BlockId block_id) {
+  std::optional<Block> getBlock(const BlockId block_id) const {
     auto block_ser = native_client_->get(detail::BLOCKS_CF, Block::generateKey(block_id));
     if (!block_ser) {
       return std::optional<Block>{};
     }
-    return Block::deserialize(*block_ser);
+    return Block::deserialize(block_ser.value());
+  }
+
+  std::optional<RawBlock> getRawBlock(const BlockId block_id) const {
+    auto block = getBlock(block_id);
+    if (!block) {
+      return std::optional<RawBlock>{};
+    }
+    return RawBlock(block.value(), *native_client_.get());
   }
 
   /////////////////////// State transfer Block chain ///////////////////////
@@ -73,13 +81,15 @@ class Blockchain {
     }
 
     void deleteBlock(const BlockId id, storage::rocksdb::NativeWriteBatch& wb) {
-      auto db_key = Block::generateKey(id);
-      wb.del(detail::ST_CHAIN_CF, db_key);
-      // If we deleted the latest block reset it
-      if (*latestSTTempBlockId_ == id) {
-        // E.L log
-        latestSTTempBlockId_.reset();
+      wb.del(detail::ST_CHAIN_CF, Block::generateKey(id));
+    }
+
+    void updateLastIdAfterDeletion(const BlockId id) {
+      if (!last_block_id_.has_value() || last_block_id_.value() != id) {
+        return;
       }
+      last_block_id_.reset();
+      loadLastBlockId();
       return;
     }
 
@@ -88,18 +98,39 @@ class Blockchain {
       auto max_db_key = Block::generateKey(MAX_BLOCK_ID);
       itr.seekAtMost(max_db_key);
       if (!itr) {
-        latestSTTempBlockId_.reset();
+        last_block_id_.reset();
         return;
       }
       BlockKey key{};
       detail::deserialize(itr.keyView(), key);
-      latestSTTempBlockId_ = key.block_id;
+      last_block_id_ = key.block_id;
     }
 
-    std::optional<BlockId> getLastBlockId() const { return latestSTTempBlockId_; }
+    std::optional<BlockId> getLastBlockId() const { return last_block_id_; }
+
+    void addBlock(const BlockId id, const RawBlock& block, storage::rocksdb::NativeWriteBatch& wb) const {
+      wb.put(detail::ST_CHAIN_CF, Block::generateKey(id), RawBlock::serialize(block));
+    }
+
+    std::optional<RawBlock> getRawBlock(const BlockId block_id) const {
+      auto raw_block_ser = native_client_->get(detail::ST_CHAIN_CF, Block::generateKey(block_id));
+      if (!raw_block_ser.has_value()) {
+        return std::optional<RawBlock>{};
+      }
+      return RawBlock::deserialize(raw_block_ser.value());
+    }
+
+    void updateLastId(const BlockId id) {
+      if (last_block_id_.has_value() && last_block_id_.value() >= id) {
+        return;
+      }
+      last_block_id_ = id;
+    }
+
+    void resetChain() { last_block_id_.reset(); }
 
    private:
-    std::optional<BlockId> latestSTTempBlockId_;
+    std::optional<BlockId> last_block_id_;
     std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   };
 
