@@ -113,7 +113,7 @@ class FakeCommunication : public bft::communication::ICommunication {
   bool isRunning() const override { return true; }
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override { return ConnectionStatus{}; }
 
-  int sendAsyncMessage(const NodeNum dest, const char* const msg, const size_t len) override {
+  int sendAsyncMessage(NodeNum dest, const char* const msg, size_t len) override {
     runner_.send(MsgFromClient{ReplicaId{(uint16_t)dest}, Msg(msg, msg + len)});
     return 0;
   }
