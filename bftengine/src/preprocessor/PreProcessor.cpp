@@ -717,13 +717,14 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                                     (char *)getPreProcessResultBuffer(clientId)});
   requestsHandler_.execute(accumulatedRequests, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
-  auto status = request.outExecutionStatus;
+  const auto status = request.outExecutionStatus;
+  const auto resultLen = request.outActualReplySize;
   LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(reqSeqNum, clientId, reqSeqNum));
-  if (status != 0 || !request.outActualReplySize) {
-    LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, reqSeqNum, status, request.outActualReplySize));
+  if (status != 0 || !resultLen) {
+    LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, reqSeqNum, status, resultLen));
     ConcordAssert(false);
   }
-  return request.outActualReplySize;
+  return resultLen;
 }
 
 ReqId PreProcessor::getOngoingReqIdForClient(uint16_t clientId) {

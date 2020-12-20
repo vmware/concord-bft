@@ -3690,19 +3690,21 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   }
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
+  const uint32_t actualReplyLength = single_request.outActualReplySize;
+  const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
   LOG_DEBUG(GL,
             "Executed read only request. " << KVLOG(clientId,
                                                     lastExecutedSeqNum,
                                                     request->requestLength(),
                                                     reply.maxReplyLength(),
-                                                    single_request.outActualReplySize,
-                                                    single_request.outReplicaSpecificInfoSize,
+                                                    actualReplyLength,
+                                                    actualReplicaSpecificInfoLength,
                                                     status));
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
   if (!status) {
-    if (single_request.outActualReplySize > 0) {
-      reply.setReplyLength(single_request.outActualReplySize);
-      reply.setReplicaSpecificInfoLength(single_request.outReplicaSpecificInfoSize);
+    if (actualReplyLength > 0) {
+      reply.setReplyLength(actualReplyLength);
+      reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
       LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
@@ -3905,7 +3907,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         req.flags(),
         req.requestLength(),
         req.requestBuf(),
-        static_cast<uint32_t>(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+        static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum()});
   }
