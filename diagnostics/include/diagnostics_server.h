@@ -16,7 +16,6 @@
 #pragma once
 
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cstring>
 #include <future>
@@ -28,7 +27,6 @@
 #include <thread>
 #include <unistd.h>
 
-#include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "errnoString.hpp"
 #include "protocol.h"
@@ -123,7 +121,11 @@ class Server {
   void start(Registrar& registrar, in_addr_t host, uint16_t port) {
     shutdown_.store(false);
     listen_thread_ = std::thread([this, &registrar, host, port]() {
-      listen(host, port);
+      if (listen(host, port) == -1) {
+        LOG_ERROR(logger, "Failed to listen to incoming requests");
+        shutdown_.store(true);
+        return;
+      }
 
       while (!shutdown_.load()) {
         fd_set read_fds;
@@ -134,8 +136,16 @@ class Server {
         tv.tv_usec = 0;
         auto rv = select(listen_sock_ + 1, &read_fds, NULL, NULL, &tv);
         if (rv == 0) continue;  // timeout
-        if (rv < 0 && errno == EINTR) continue;
-        ConcordAssert(rv > 0);
+        if (rv < 0 && errno == EINTR) {
+          LOG_WARN(logger, "While waiting for a client requests, and interruption has occurred");
+          continue;
+        }
+        if (rv < 0) {
+          LOG_ERROR(logger,
+                    "Error while waiting for new client request, shutting down the server " << errnoString(errno));
+          shutdown_.store(true);
+          return;
+        }
         int sock = accept(listen_sock_, NULL, NULL);
         // We must bind the result future or else this call blocks.
         auto _ = std::async(std::launch::async, [&]() { handleRequest(registrar, sock); });
@@ -150,26 +160,30 @@ class Server {
   };
 
  private:
-  void listen(in_addr_t host, uint16_t port) {
+  int listen(in_addr_t host, uint16_t port) {
     listen_sock_ = socket(AF_INET, SOCK_STREAM, 0);
-    ConcordAssert(listen_sock_ >= 0);
+    if (listen_sock_ < 0) {
+      LOG_ERROR(logger, "couldn't retrieve a socket FD, shutting down the server");
+      return -1;
+    }
     bzero(&servaddr_, sizeof(servaddr_));
     servaddr_.sin_family = AF_INET;
     servaddr_.sin_addr.s_addr = htonl(host);
     servaddr_.sin_port = htons(port);
     int enable = 1;
     if (setsockopt(listen_sock_, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable))) {
-      LOG_FATAL(logger, "Failed to set listen socket options: " << errnoString(errno));
-      std::exit(-1);
+      LOG_ERROR(logger, "Failed to set listen socket options: " << errnoString(errno));
+      return -1;
     }
     if (bind(listen_sock_, (sockaddr*)&servaddr_, sizeof(servaddr_))) {
-      LOG_FATAL(logger, "Failed to bind listen socket: " << errnoString(errno));
-      std::exit(-1);
+      LOG_ERROR(logger, "Failed to bind listen socket: " << errnoString(errno));
+      return -1;
     }
     if (::listen(listen_sock_, BACKLOG)) {
-      LOG_FATAL(logger, "Failed to listen for connections: " << errnoString(errno));
-      std::exit(-1);
+      LOG_ERROR(logger, "Failed to listen for connections: " << errnoString(errno));
+      return -1;
     }
+    return 0;
   }
 
   int listen_sock_;
