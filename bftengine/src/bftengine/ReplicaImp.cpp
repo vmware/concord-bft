@@ -2045,7 +2045,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   }
 
   /////////////////////////////////////////////////////////////////////////
-  // msgSenderId's View is active and we have complaints for this View
+  // We are in the same View as msgSenderId, send complaints he is missing
   /////////////////////////////////////////////////////////////////////////
 
   if (msg->getViewNumber() == getCurrentView()) {
@@ -3013,7 +3013,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
                    << KVLOG(curView, timeSinceLastAgreedViewMilli, timeSinceLastStateTransferMilli));
 
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
-          config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::PrimaryGetInChargeTimeout));
+          config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::NewPrimaryGetInChargeTimeout));
       sendToAllOtherReplicas(askToLeaveView.get());
       complainedReplicas.store(std::move(askToLeaveView));
       metric_sent_replica_asks_to_leave_view_msg_.Get().Inc();
