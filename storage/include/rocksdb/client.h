@@ -66,8 +66,8 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath) : m_dbPath(_dbPath) {}
-  Client(std::string _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
+  Client(const std::string& _dbPath) : m_dbPath(_dbPath) {}
+  Client(const std::string& _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
       : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
 
   ~Client() {

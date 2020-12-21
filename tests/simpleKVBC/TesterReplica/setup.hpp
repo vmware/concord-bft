@@ -52,9 +52,9 @@ class TestSetup {
             logging::Logger logger,
             uint16_t metricsPort,
             bool usePersistentStorage,
-            std::string s3ConfigFile,
+            const std::string& s3ConfigFile,
             StorageType storageType,
-            std::string logPropsFile)
+            const std::string& logPropsFile)
       : replicaConfig_(config),
         communication_(std::move(comm)),
         logger_(logger),

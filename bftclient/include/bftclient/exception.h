@@ -38,7 +38,7 @@ class InvalidDestinationException : public BftClientException {
 
 class TimeoutException : public BftClientException {
  public:
-  TimeoutException(uint64_t seq_num, std::string cid)
+  TimeoutException(uint64_t seq_num, const std::string& cid)
       : BftClientException("Timeout for request sequence number: " + std::to_string(seq_num) +
                            ", and correlation id: " + cid) {}
 };

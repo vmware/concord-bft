@@ -244,7 +244,7 @@ inline std::string serializeImp(const block::detail::Node &node) {
   return buf;
 }
 
-inline std::string serializeImp(block::detail::RawBlockMerkleData data) {
+inline std::string serializeImp(const block::detail::RawBlockMerkleData &data) {
   auto dataSize = block::detail::RawBlockMerkleData::MIN_SIZE;
   for (const auto &key : data.deletedKeys) {
     dataSize += (sizeof(block::detail::KeyLengthType) + key.length());
@@ -300,6 +300,7 @@ inline sparse_merkle::Version deserialize<sparse_merkle::Version>(const concordU
 template <>
 inline std::vector<std::uint8_t> deserialize<std::vector<std::uint8_t>>(const concordUtils::Sliver &buf) {
   std::vector<std::uint8_t> vec;
+  vec.reserve(buf.length());
   for (auto i = 0u; i < buf.length(); ++i) {
     vec.push_back(buf[i]);
   }

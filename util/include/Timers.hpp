@@ -105,7 +105,7 @@ class Timers {
 
   std::vector<Timer>::iterator find(Handle handle) {
     std::unique_lock<std::recursive_mutex> mlock(lock_);
-    auto it = std::find_if(timers_.begin(), timers_.end(), [&handle](Timer t) { return t.id_ == handle.id_; });
+    auto it = std::find_if(timers_.begin(), timers_.end(), [&handle](const Timer& t) { return t.id_ == handle.id_; });
     if (it != timers_.end())
       return it;
     else

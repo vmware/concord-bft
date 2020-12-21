@@ -66,7 +66,7 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 // length of 'a', then 'a' is considered to precede 'b'.
 class Client : public IDBClient {
  public:
-  Client(KeyComparator comp = KeyComparator{})
+  Client(const KeyComparator &comp = KeyComparator{})
       : logger(logging::getLogger("concord.storage.memorydb")),
         comp_(comp),
         map_([this](const Sliver &a, const Sliver &b) { return comp_(a, b); }) {}

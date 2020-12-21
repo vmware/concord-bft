@@ -24,7 +24,7 @@ namespace sparse_merkle {
 // are part of the batch by pointing to their containing BatchedInternalNode.
 class InternalNodeKey {
  public:
-  InternalNodeKey(Version version, NibblePath path) : version_(version), path_(path) {}
+  InternalNodeKey(Version version, const NibblePath& path) : version_(version), path_(path) {}
 
   // Return the root of a sparse merkle tree at a given version.
   static InternalNodeKey root(Version version) { return InternalNodeKey(version, NibblePath()); }

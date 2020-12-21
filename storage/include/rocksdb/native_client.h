@@ -145,7 +145,7 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // might have modified them. Return the column families this client is aware of.
   std::unordered_set<std::string> columnFamilies() const;
   // Checks if the client has a column family.
-  bool hasColumnFamily(const std::string cFamily) const;
+  bool hasColumnFamily(const std::string &cFamily) const;
   // Throws if the column family already exists.
   void createColumnFamily(const std::string &cFamily,
                           const ::rocksdb::ColumnFamilyOptions &options = ::rocksdb::ColumnFamilyOptions{});

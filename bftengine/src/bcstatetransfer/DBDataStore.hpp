@@ -42,7 +42,7 @@ class DBDataStore : public DataStore {
   /**
    * C-r for DBDataStore first time initialization
    */
-  DBDataStore(concord::storage::IDBClient::ptr dbc,
+  DBDataStore(const concord::storage::IDBClient::ptr& dbc,
               uint32_t sizeOfReservedPage,
               std::shared_ptr<concord::storage::ISTKeyManipulator> keyManip,
               bool loadResPages)

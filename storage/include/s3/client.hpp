@@ -93,7 +93,7 @@ class Client : public concord::storage::IDBClient {
    *
    * @param name
    */
-  void set_bucket_name(std::string name) { config_.bucketName = name; }
+  void set_bucket_name(const std::string& name) { config_.bucketName = name; }
 
   /**
    * @brief Initializing underlying libs3. The S3_initialize function must be

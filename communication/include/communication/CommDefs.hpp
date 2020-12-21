@@ -59,7 +59,7 @@ struct BaseCommConfig {
         listenPort{port},
         bufferLength{bufLength},
         nodes{std::move(_nodes)},
-        statusCallback{_statusCallback},
+        statusCallback{std::move(_statusCallback)},
         selfId{_selfId} {}
 
   virtual ~BaseCommConfig() = default;
@@ -72,8 +72,13 @@ struct PlainUdpConfig : BaseCommConfig {
                  NodeMap _nodes,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(
-            CommType::PlainUdp, std::move(host), port, bufLength, std::move(_nodes), _selfId, _statusCallback) {}
+      : BaseCommConfig(CommType::PlainUdp,
+                       std::move(host),
+                       port,
+                       bufLength,
+                       std::move(_nodes),
+                       _selfId,
+                       std::move(_statusCallback)) {}
 };
 
 struct PlainTcpConfig : BaseCommConfig {
@@ -86,8 +91,13 @@ struct PlainTcpConfig : BaseCommConfig {
                  int32_t _maxServerId,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(
-            CommType::PlainTcp, std::move(host), port, bufLength, std::move(_nodes), _selfId, _statusCallback),
+      : BaseCommConfig(CommType::PlainTcp,
+                       std::move(host),
+                       port,
+                       bufLength,
+                       std::move(_nodes),
+                       _selfId,
+                       std::move(_statusCallback)),
         maxServerId{_maxServerId} {}
 };
 
@@ -107,7 +117,8 @@ struct TlsTcpConfig : PlainTcpConfig {
                std::string certRootPath,
                std::string ciphSuite,
                UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : PlainTcpConfig(move(host), port, bufLength, std::move(_nodes), _maxServerId, _selfId, _statusCallback),
+      : PlainTcpConfig(
+            move(host), port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
         certificatesRootPath{std::move(certRootPath)},
         cipherSuite{std::move(ciphSuite)} {
     commType = CommType::TlsTcp;
