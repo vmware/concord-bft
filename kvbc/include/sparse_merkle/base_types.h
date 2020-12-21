@@ -79,8 +79,10 @@ class Nibble {
   // Return the nibble as its lowercase hex character.
   char hexChar() const {
     if (data_ >= 0 && data_ <= 9) {
+      // NOLINTNEXTLINE(bugprone-narrowing-conversions)
       return '0' + data_;
     }
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
     return 'a' + (data_ - 10);
   }
 

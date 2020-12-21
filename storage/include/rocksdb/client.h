@@ -77,7 +77,7 @@ class Client : public concord::storage::IDBClient {
     if (txn_db_) {
       // If we're using a TransactionDB, it wraps the base DB, so release it
       // instead of releasing the base DB.
-      dbInstance_.release();
+      (void)dbInstance_.release();
       delete txn_db_;
     }
   }

@@ -54,6 +54,7 @@ struct AskForCheckpointSummariesMsg : public BCStateTranBaseMsg {
 
 struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   CheckpointSummaryMsg() {
+    // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
     memset(this, 0, sizeof(CheckpointSummaryMsg));
     type = MsgType::CheckpointsSummary;
   }

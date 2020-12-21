@@ -18,7 +18,6 @@
 #include "IncomingMsgsStorage.hpp"
 
 class IThresholdVerifier;
-class ReplicasInfo;
 namespace util {
 class SimpleThreadPool;
 }
@@ -27,6 +26,7 @@ namespace bftEngine {
 namespace impl {
 
 class PrePrepareMsg;
+class ReplicasInfo;
 
 class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
 {

@@ -21,7 +21,7 @@ namespace rocksdb {
 
 #define ROCKSDB_THROW(action, status)                                                                               \
   throw std::runtime_error("rocksdb error: action: " action ", txn id[" + getIdStr() + std::string("], reason: ") + \
-                           status.ToString())
+                           (status).ToString())
 
 class Transaction : public ITransaction {
  public:

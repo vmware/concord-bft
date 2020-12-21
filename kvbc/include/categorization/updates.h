@@ -150,27 +150,24 @@ struct MerkleUpdates {
 
 // Updates contains a list of updates for different categories.
 struct Updates {
-  void add(std::string&& category_id, MerkleUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
-        !inserted) {
+  void add(const std::string& category_id, MerkleUpdates&& updates) {
+    if (const auto [itr, inserted] = category_updates_.try_emplace(category_id, std::move(updates.data_)); !inserted) {
       (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: Merkle, category: ") +
                              category_id};
     }
   }
 
-  void add(std::string&& category_id, KeyValueUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
-        !inserted) {
+  void add(const std::string& category_id, KeyValueUpdates&& updates) {
+    if (const auto [itr, inserted] = category_updates_.try_emplace(category_id, std::move(updates.data_)); !inserted) {
       (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: KVHash, category: ") +
                              category_id};
     }
   }
 
-  void add(std::string&& category_id, ImmutableUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.try_emplace(std::move(category_id), std::move(updates.data_));
-        !inserted) {
+  void add(const std::string& category_id, ImmutableUpdates&& updates) {
+    if (const auto [itr, inserted] = category_updates_.try_emplace(category_id, std::move(updates.data_)); !inserted) {
       (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: Immutable, category: ") +
                              category_id};

@@ -32,12 +32,12 @@ using namespace std;
 
 logging::Logger replicaLogger = logging::getLogger("simpletest.replica");
 
-#define test_assert_replica(statement, message)                          \
-  {                                                                      \
-    if (!(statement)) {                                                  \
-      LOG_FATAL(replicaLogger, "assert fail with message: " << message); \
-      ConcordAssert(false);                                              \
-    }                                                                    \
+#define test_assert_replica(statement, message)                                                                   \
+  {                                                                                                               \
+    if (!(statement)) {                                                                                           \
+      LOG_FATAL(replicaLogger, "assert fail with message: " << message); /* NOLINT(bugprone-macro-parentheses) */ \
+      ConcordAssert(false);                                                                                       \
+    }                                                                                                             \
   }
 
 // The replica state machine.

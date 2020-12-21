@@ -23,7 +23,7 @@
 #include "Logger.hpp"
 #include "Metrics.hpp"
 
-#define MAX_MSG_SIZE 64 * 1024  // 64k
+#define MAX_MSG_SIZE (64 * 1024)  // 64k
 
 namespace concordMetrics {
 
