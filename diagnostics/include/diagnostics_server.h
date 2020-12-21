@@ -42,7 +42,7 @@ static logging::Logger logger = logging::getLogger("concord.diagnostics");
 
 // Returns a successfully read line as a string.
 // Throws a std::runtime_error on error.
-std::string readline(int sock) {
+inline std::string readline(int sock) {
   std::array<char, MAX_INPUT_SIZE> buf;
   buf.fill(0);
   int count = 0;
@@ -88,7 +88,7 @@ std::string readline(int sock) {
   }
 }
 
-void handleRequest(Registrar& registrar, int sock) {
+inline void handleRequest(Registrar& registrar, int sock) {
   try {
     std::stringstream ss(readline(sock));
     std::vector<std::string> tokens;

@@ -30,6 +30,7 @@ using namespace bftEngine;
 using namespace bft::communication;
 using namespace std;
 
+// NOLINTNEXTLINE(misc-definitions-in-headers)
 logging::Logger replicaLogger = logging::getLogger("simpletest.replica");
 
 #define test_assert_replica(statement, message)                                                                   \
