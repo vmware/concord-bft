@@ -14,6 +14,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
+#include "categorization/base_types.h"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
 #include "categorization/immutable_kv_category.h"
@@ -23,6 +24,7 @@
 
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 #include <variant>
@@ -40,13 +42,24 @@ class immutable_kv_category : public Test {
   void SetUp() override {
     cleanup();
     db = TestRocksDb::createNative();
+    cat = ImmutableKeyValueCategory{category_id, db};
   }
   void TearDown() override { cleanup(); }
+
+ protected:
+  auto add(BlockId block_id, ImmutableUpdatesData &&update) {
+    auto update_batch = db->getBatch();
+    auto update_info = cat.add(block_id, std::move(update), update_batch);
+    db->write(std::move(update_batch));
+    return update_info;
+  }
 
  protected:
   const std::string category_id{"cat"};
   const std::string column_family{category_id + IMMUTABLE_KV_CF_SUFFIX};
   std::shared_ptr<NativeClient> db;
+
+  ImmutableKeyValueCategory cat;
 };
 
 TEST_F(immutable_kv_category, create_column_family_on_construction) {
@@ -56,8 +69,6 @@ TEST_F(immutable_kv_category, create_column_family_on_construction) {
 }
 
 TEST_F(immutable_kv_category, empty_updates) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   // Calculate root hash = false.
   {
     auto update = ImmutableUpdatesData{};
@@ -82,7 +93,6 @@ TEST_F(immutable_kv_category, empty_updates) {
 }
 
 TEST_F(immutable_kv_category, calculate_root_hash_toggle) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
   auto batch = db->getBatch();
 
   {
@@ -102,30 +112,23 @@ TEST_F(immutable_kv_category, calculate_root_hash_toggle) {
   }
 }
 
-TEST_F(immutable_kv_category, non_existent_key) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-  ASSERT_FALSE(cat.get("non-existent"s));
-}
+TEST_F(immutable_kv_category, non_existent_key) { ASSERT_FALSE(cat.getLatest("non-existent"s)); }
 
 TEST_F(immutable_kv_category, key_without_tags) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   const auto block_id = 42;
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t2"}};
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   // Verify DB.
   {
     const auto ser = db->get(column_family, "k1"sv);
     ASSERT_TRUE(ser);
-    auto db_value = ImmutableValue{};
+    auto db_value = ImmutableDbValue{};
     deserialize(*ser, db_value);
-    const auto expected = ImmutableValue{block_id, "v1"};
+    const auto expected = ImmutableDbValue{block_id, "v1"};
     ASSERT_EQ(db_value, expected);
   }
 
@@ -138,27 +141,23 @@ TEST_F(immutable_kv_category, key_without_tags) {
     ASSERT_EQ(update_info.tag_root_hashes->size(), 1);
   }
 
-  // Verify get().
+  // Verify getLatest().
   {
-    const auto value = cat.get("k1"s);
+    const auto value = cat.getLatest("k1"s);
     ASSERT_TRUE(value);
-    ASSERT_EQ(value->block_id, block_id);
-    ASSERT_EQ(value->data, "v1");
+    ASSERT_EQ(asImmutable(value).block_id, block_id);
+    ASSERT_EQ(asImmutable(value).data, "v1");
   }
 }
 
 TEST_F(immutable_kv_category, one_tag_per_key) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t2"}};
 
   const auto block_id = 1;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   ASSERT_THAT(update_info.tagged_keys,
               ContainerEq(std::map<std::string, std::vector<std::string>>{
@@ -190,30 +189,26 @@ TEST_F(immutable_kv_category, one_tag_per_key) {
 
   // Make sure we've persisted the key-values.
   {
-    const auto v1 = cat.get("k1"s);
+    const auto v1 = cat.getLatest("k1"s);
     ASSERT_TRUE(v1);
-    ASSERT_EQ(v1->block_id, block_id);
-    ASSERT_EQ(v1->data, "v1");
+    ASSERT_EQ(asImmutable(v1).block_id, block_id);
+    ASSERT_EQ(asImmutable(v1).data, "v1");
   }
   {
-    const auto v2 = cat.get("k2"s);
+    const auto v2 = cat.getLatest("k2"s);
     ASSERT_TRUE(v2);
-    ASSERT_EQ(v2->block_id, block_id);
-    ASSERT_EQ(v2->data, "v2");
+    ASSERT_EQ(asImmutable(v2).block_id, block_id);
+    ASSERT_EQ(asImmutable(v2).data, "v2");
   }
 }
 
 TEST_F(immutable_kv_category, two_tags_per_key) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1", "t2"}};
 
   const auto block_id = 2;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   ASSERT_THAT(update_info.tagged_keys,
               ContainerEq(std::map<std::string, std::vector<std::string>>{
@@ -241,25 +236,21 @@ TEST_F(immutable_kv_category, two_tags_per_key) {
 
   // Make sure we've persisted the key-value.
   {
-    const auto v1 = cat.get("k1"s);
+    const auto v1 = cat.getLatest("k1"s);
     ASSERT_TRUE(v1);
-    ASSERT_EQ(v1->block_id, block_id);
-    ASSERT_EQ(v1->data, "v1");
+    ASSERT_EQ(asImmutable(v1).block_id, block_id);
+    ASSERT_EQ(asImmutable(v1).data, "v1");
   }
 }
 
 TEST_F(immutable_kv_category, one_and_two_keys_per_tag) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1", "t2"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t1"}};
 
   const auto block_id = 1;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   ASSERT_THAT(update_info.tagged_keys,
               ContainerEq(std::map<std::string, std::vector<std::string>>{
@@ -295,31 +286,27 @@ TEST_F(immutable_kv_category, one_and_two_keys_per_tag) {
 
   // Make sure we've persisted the key-values.
   {
-    const auto v1 = cat.get("k1"s);
+    const auto v1 = cat.getLatest("k1"s);
     ASSERT_TRUE(v1);
-    ASSERT_EQ(v1->block_id, block_id);
-    ASSERT_EQ(v1->data, "v1");
+    ASSERT_EQ(asImmutable(v1).block_id, block_id);
+    ASSERT_EQ(asImmutable(v1).data, "v1");
   }
   {
-    const auto v2 = cat.get("k2"s);
+    const auto v2 = cat.getLatest("k2"s);
     ASSERT_TRUE(v2);
-    ASSERT_EQ(v2->block_id, block_id);
-    ASSERT_EQ(v2->data, "v2");
+    ASSERT_EQ(asImmutable(v2).block_id, block_id);
+    ASSERT_EQ(asImmutable(v2).data, "v2");
   }
 }
 
 TEST_F(immutable_kv_category, two_keys_per_tag) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
 
   const auto block_id = 1;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   ASSERT_THAT(
       update_info.tagged_keys,
@@ -343,22 +330,20 @@ TEST_F(immutable_kv_category, two_keys_per_tag) {
 
   // Make sure we've persisted the key-values.
   {
-    const auto v1 = cat.get("k1"s);
+    const auto v1 = cat.getLatest("k1"s);
     ASSERT_TRUE(v1);
-    ASSERT_EQ(v1->block_id, block_id);
-    ASSERT_EQ(v1->data, "v1");
+    ASSERT_EQ(asImmutable(v1).block_id, block_id);
+    ASSERT_EQ(asImmutable(v1).data, "v1");
   }
   {
-    const auto v2 = cat.get("k2"s);
+    const auto v2 = cat.getLatest("k2"s);
     ASSERT_TRUE(v2);
-    ASSERT_EQ(v2->block_id, block_id);
-    ASSERT_EQ(v2->data, "v2");
+    ASSERT_EQ(asImmutable(v2).block_id, block_id);
+    ASSERT_EQ(asImmutable(v2).data, "v2");
   }
 }
 
 TEST_F(immutable_kv_category, get_proof_multiple_keys) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
@@ -366,9 +351,7 @@ TEST_F(immutable_kv_category, get_proof_multiple_keys) {
   update.kv["k3"] = ImmutableValueUpdate{"v3", {"t"}};
 
   const auto block_id = 42;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   // h("k1") = 89a6df64f1536985fcb7326c0e56f03762b581b2253cf9fadc695c8dbb740a96
   // h("v1") = 9c209c84e360d17dd267fc53a46db30009b9f39ce2b905fa29fbd5fd4c44ea17
@@ -423,8 +406,6 @@ TEST_F(immutable_kv_category, get_proof_multiple_keys) {
 }
 
 TEST_F(immutable_kv_category, get_proof_multiple_tags) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1", "t2"}};
@@ -432,9 +413,7 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
   update.kv["k3"] = ImmutableValueUpdate{"v3", {"t1"}};
 
   const auto block_id = 42;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   // Tag t1:
   // h("k1") = 89a6df64f1536985fcb7326c0e56f03762b581b2253cf9fadc695c8dbb740a96
@@ -522,16 +501,12 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
 }
 
 TEST_F(immutable_kv_category, get_proof_single_key) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
 
   const auto block_id = 42;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   // h("k1") = 89a6df64f1536985fcb7326c0e56f03762b581b2253cf9fadc695c8dbb740a96
   // h("v1") = 9c209c84e360d17dd267fc53a46db30009b9f39ce2b905fa29fbd5fd4c44ea17
@@ -552,17 +527,13 @@ TEST_F(immutable_kv_category, get_proof_single_key) {
 }
 
 TEST_F(immutable_kv_category, get_proof_key_not_tagged) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t1"}};
 
   const auto block_id = 42;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   // Keys are not tagged with "t2".
   ASSERT_FALSE(cat.getProof("t2", "k1", update_info));
@@ -570,32 +541,24 @@ TEST_F(immutable_kv_category, get_proof_key_not_tagged) {
 }
 
 TEST_F(immutable_kv_category, get_proof_non_existent_key) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
 
   const auto block_id = 42;
-  auto batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), batch);
-  db->write(std::move(batch));
+  const auto update_info = add(block_id, std::move(update));
 
   ASSERT_FALSE(cat.getProof("t", "non-existent", update_info));
 }
 
 TEST_F(immutable_kv_category, delete_block) {
-  auto cat = ImmutableKeyValueCategory{category_id, db};
-
   auto update = ImmutableUpdatesData{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
 
   const auto block_id = 42;
-  auto update_batch = db->getBatch();
-  const auto update_info = cat.add(block_id, std::move(update), update_batch);
-  db->write(std::move(update_batch));
+  const auto update_info = add(block_id, std::move(update));
 
   ASSERT_TRUE(db->get(column_family, "k1"sv));
   ASSERT_TRUE(db->get(column_family, "k2"sv));
@@ -607,6 +570,119 @@ TEST_F(immutable_kv_category, delete_block) {
 
   ASSERT_FALSE(db->get(column_family, "k1"sv));
   ASSERT_FALSE(db->get(column_family, "k2"sv));
+}
+
+TEST_F(immutable_kv_category, get_methods) {
+  auto update = ImmutableUpdatesData{};
+  update.calculate_root_hash = true;
+  update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
+
+  const auto block_id = 42;
+  add(block_id, std::move(update));
+
+  {
+    const auto value = cat.getLatest("k");
+    ASSERT_TRUE(value);
+    ASSERT_EQ(asImmutable(value).block_id, block_id);
+    ASSERT_EQ(asImmutable(value).data, "v");
+  }
+
+  {
+    const auto value = cat.get("k", block_id);
+    ASSERT_TRUE(value);
+    ASSERT_EQ(asImmutable(value).block_id, block_id);
+    ASSERT_EQ(asImmutable(value).data, "v");
+  }
+
+  {
+    const auto value = cat.get("k", block_id + 1);
+    ASSERT_FALSE(value);
+  }
+}
+TEST_F(immutable_kv_category, multi_get_latest) {
+  {
+    auto update = ImmutableUpdatesData{};
+    update.calculate_root_hash = true;
+    update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
+    add(1, std::move(update));
+  }
+
+  {
+    auto update = ImmutableUpdatesData{};
+    update.calculate_root_hash = true;
+    update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
+    add(2, std::move(update));
+  }
+
+  const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
+  auto values = std::vector<std::optional<categorization::Value>>{};
+  cat.multiGetLatest(keys, values);
+  const auto expected = std::vector<std::optional<categorization::Value>>{
+      ImmutableValue{{1, "v1"}}, ImmutableValue{{2, "v2"}}, std::nullopt};
+  ASSERT_EQ(values, expected);
+}
+
+TEST_F(immutable_kv_category, get_latest_version) {
+  auto update = ImmutableUpdatesData{};
+  update.calculate_root_hash = true;
+  update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
+
+  const auto block_id = 42;
+  add(block_id, std::move(update));
+
+  {
+    const auto version = cat.getLatestVersion("k");
+    ASSERT_TRUE(version);
+    ASSERT_EQ(*version, block_id);
+  }
+
+  ASSERT_FALSE(cat.getLatestVersion("non-existent"));
+}
+
+TEST_F(immutable_kv_category, multi_get_latest_version) {
+  {
+    auto update = ImmutableUpdatesData{};
+    update.calculate_root_hash = true;
+    update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
+    add(1, std::move(update));
+  }
+
+  {
+    auto update = ImmutableUpdatesData{};
+    update.calculate_root_hash = true;
+    update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
+    add(2, std::move(update));
+  }
+
+  const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
+  auto versions = std::vector<std::optional<BlockId>>{};
+  cat.multiGetLatestVersion(keys, versions);
+  const auto expected = std::vector<std::optional<BlockId>>{1, 2, std::nullopt};
+  ASSERT_EQ(versions, expected);
+}
+
+TEST_F(immutable_kv_category, multi_get) {
+  {
+    auto update = ImmutableUpdatesData{};
+    update.calculate_root_hash = true;
+    update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
+    add(1, std::move(update));
+  }
+
+  {
+    auto update = ImmutableUpdatesData{};
+    update.calculate_root_hash = true;
+    update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
+    add(2, std::move(update));
+  }
+
+  const auto keys = std::vector<std::string>{"k1", "k2", "k3", "k1"};
+  const auto versions = std::vector<BlockId>{1, 2, 1, 3};
+  auto values = std::vector<std::optional<categorization::Value>>{};
+  cat.multiGet(keys, versions, values);
+  const auto expected = std::vector<std::optional<categorization::Value>>{
+      ImmutableValue{{1, "v1"}}, ImmutableValue{{2, "v2"}}, std::nullopt, std::nullopt};
+  ASSERT_EQ(values, expected);
 }
 
 }  // namespace

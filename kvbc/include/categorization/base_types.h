@@ -20,11 +20,27 @@
 #include <ctime>
 #include <optional>
 #include <string>
+#include <variant>
 
 namespace concord::kvbc::categorization {
 
 using Hasher = concord::util::SHA3_256;
 using Hash = Hasher::Digest;
+
+struct BasicValue {
+  BlockId block_id{0};
+  std::string data;
+};
+
+inline bool operator==(const BasicValue &lhs, const BasicValue &rhs) {
+  return (lhs.block_id == rhs.block_id && lhs.data == rhs.data);
+}
+
+struct MerkleValue : BasicValue {};
+struct ImmutableValue : BasicValue {};
+struct VersionedValue : BasicValue {};
+
+using Value = std::variant<MerkleValue, ImmutableValue, VersionedValue>;
 
 struct KeyValueProof {
   BlockId block_id{0};

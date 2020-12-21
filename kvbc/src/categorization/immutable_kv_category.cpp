@@ -19,13 +19,9 @@
 
 #include <algorithm>
 #include <map>
-#include <set>
 #include <stdexcept>
 #include <string>
-#include <string_view>
 #include <utility>
-
-using namespace std::literals;
 
 namespace concord::kvbc::categorization::detail {
 
@@ -51,6 +47,21 @@ void finishTagHashes(std::map<std::string, Hasher> &tag_hashers, ImmutableUpdate
     tag_root_hashes[tag] = hasher.finish();
   }
   update_info.tag_root_hashes = std::move(tag_root_hashes);
+}
+
+template <typename Span>
+BlockId version(const Span &ser) {
+  // Exploit CMF's canonical format and deserialize the version only (as it is the first element).
+  auto version = ImmutableDbVersion{};
+  deserialize(ser, version);
+  return version.block_id;
+}
+
+template <typename Span>
+ImmutableValue value(const Span &ser) {
+  auto value = ImmutableDbValue{};
+  deserialize(ser, value);
+  return ImmutableValue{{value.block_id, std::move(value.data)}};
 }
 
 ImmutableKeyValueCategory::ImmutableKeyValueCategory(const std::string &category_id,
@@ -82,7 +93,7 @@ ImmutableUpdatesInfo ImmutableKeyValueCategory::add(BlockId block_id,
     }
 
     // Persist the key-value.
-    batch.put(cf_, key, serialize(ImmutableValue{block_id, std::move(value.data)}));
+    batch.put(cf_, key, serialize(ImmutableDbValue{block_id, std::move(value.data)}));
 
     // Move the key and the tags to the update info and (optionally) update hashes per tag.
     auto &key_tags = update_info.tagged_keys.emplace(std::move(key), std::vector<std::string>{}).first->second;
@@ -120,14 +131,100 @@ void ImmutableKeyValueCategory::deleteBlock(const ImmutableUpdatesInfo &updates_
   }
 }
 
-std::optional<ImmutableValue> ImmutableKeyValueCategory::get(const std::string &key) const {
-  const auto ser = db_->get(cf_, key);
+std::optional<Value> ImmutableKeyValueCategory::get(const std::string &key, BlockId block_id) const {
+  auto val = getLatest(key);
+  if (!val) {
+    return std::nullopt;
+  }
+  if (asImmutable(val).block_id != block_id) {
+    return std::nullopt;
+  }
+  return val;
+}
+
+std::optional<Value> ImmutableKeyValueCategory::getLatest(const std::string &key) const {
+  const auto ser = db_->getSlice(cf_, key);
   if (!ser) {
     return std::nullopt;
   }
-  auto value = ImmutableValue{};
-  deserialize(*ser, value);
-  return value;
+  return value(*ser);
+}
+
+void ImmutableKeyValueCategory::multiGet(const std::vector<std::string> &keys,
+                                         const std::vector<BlockId> &versions,
+                                         std::vector<std::optional<Value>> &values) const {
+  ConcordAssertEQ(keys.size(), versions.size());
+
+  auto slices = std::vector<::rocksdb::PinnableSlice>{};
+  auto statuses = std::vector<::rocksdb::Status>{};
+  db_->multiGet(cf_, keys, slices, statuses);
+
+  values.clear();
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto &status = statuses[i];
+    const auto &slice = slices[i];
+    const auto version = versions[i];
+    if (status.ok()) {
+      const auto v = value(slice);
+      if (v.block_id == version) {
+        values.push_back(v);
+      } else {
+        values.push_back(std::nullopt);
+      }
+    } else if (status.IsNotFound()) {
+      values.push_back(std::nullopt);
+    } else {
+      throw std::runtime_error{"ImmutableKeyValueCategory multiGet() failure: " + status.ToString()};
+    }
+  }
+}
+
+void ImmutableKeyValueCategory::multiGetLatest(const std::vector<std::string> &keys,
+                                               std::vector<std::optional<Value>> &values) const {
+  auto slices = std::vector<::rocksdb::PinnableSlice>{};
+  auto statuses = std::vector<::rocksdb::Status>{};
+  db_->multiGet(cf_, keys, slices, statuses);
+
+  values.clear();
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto &status = statuses[i];
+    const auto &slice = slices[i];
+    if (status.ok()) {
+      values.push_back(value(slice));
+    } else if (status.IsNotFound()) {
+      values.push_back(std::nullopt);
+    } else {
+      throw std::runtime_error{"ImmutableKeyValueCategory multiGetLatest() failure: " + status.ToString()};
+    }
+  }
+}
+
+std::optional<BlockId> ImmutableKeyValueCategory::getLatestVersion(const std::string &key) const {
+  const auto ser = db_->getSlice(cf_, key);
+  if (!ser) {
+    return std::nullopt;
+  }
+  return version(*ser);
+}
+
+void ImmutableKeyValueCategory::multiGetLatestVersion(const std::vector<std::string> &keys,
+                                                      std::vector<std::optional<BlockId>> &versions) const {
+  auto slices = std::vector<::rocksdb::PinnableSlice>{};
+  auto statuses = std::vector<::rocksdb::Status>{};
+  db_->multiGet(cf_, keys, slices, statuses);
+
+  versions.clear();
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto &status = statuses[i];
+    const auto &slice = slices[i];
+    if (status.ok()) {
+      versions.push_back(version(slice));
+    } else if (status.IsNotFound()) {
+      versions.push_back(std::nullopt);
+    } else {
+      throw std::runtime_error{"ImmutableKeyValueCategory multiGetLatestVersion() failure: " + status.ToString()};
+    }
+  }
 }
 
 std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::string &tag,
@@ -144,13 +241,14 @@ std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::stri
     return std::nullopt;
   }
 
-  auto value = get(key);
+  auto value = getLatest(key);
   ConcordAssert(value.has_value());
+  auto &immut_value = asImmutable(value);
 
   auto proof = KeyValueProof{};
-  proof.block_id = value->block_id;
+  proof.block_id = immut_value.block_id;
   proof.key = key;
-  proof.value = std::move(value->data);
+  proof.value = std::move(immut_value.data);
 
   auto i = std::size_t{0};
   for (const auto &[update_key, update_key_tags] : updates_info.tagged_keys) {
@@ -163,11 +261,11 @@ std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::stri
       continue;
     }
 
-    const auto update_value = get(update_key);
+    const auto update_value = getLatest(update_key);
     ConcordAssert(update_value.has_value());
 
     proof.ordered_complement_kv_hashes.push_back(hash(update_key));
-    proof.ordered_complement_kv_hashes.push_back(hash(update_value->data));
+    proof.ordered_complement_kv_hashes.push_back(hash(asImmutable(update_value).data));
 
     // Increment by 2 as we push 2 hashes - one of the key and one of the value.
     i += 2;
