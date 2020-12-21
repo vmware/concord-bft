@@ -230,6 +230,19 @@ void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int t
                 0);
     }
   };
+  auto checkComplaints = [&msg, &replicaInfo](int numberOfComplaints) {
+    uint32_t packedComplaints = 0;
+    ViewChangeMsg::ComplaintsIterator iter(&msg);
+    char* complaint = nullptr;
+    MsgSize size = 0;
+    while (iter.getAndGoToNext(complaint, size)) {
+      auto Msg = MessageBase(msg.senderId(), (MessageBase::Header*)complaint, size, false);
+      auto msg_complaint = std::make_unique<ReplicaAsksToLeaveViewMsg>(&Msg);
+      EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
+      packedComplaints++;
+    }
+    EXPECT_EQ(packedComplaints, numberOfComplaints);
+  };
   checkElements();
   for (int i = 0; i < 15; i++) {
     uint32_t totalSizeOfComplaints = 0;
@@ -267,6 +280,8 @@ void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int t
     EXPECT_EQ(msg.numberOfElements(), totalElements);
     EXPECT_NO_THROW(msg.validate(replicaInfo));
     testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
+
+    checkComplaints(numberOfComplaints);
 
     checkElements();
     msg.clearAllComplaints();
