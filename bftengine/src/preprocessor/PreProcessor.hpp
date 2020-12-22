@@ -156,6 +156,7 @@ class PreProcessor {
   const uint32_t maxPreExecResultSize_;
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
+  const uint16_t numOfRoReplicas_;
   const uint16_t numOfClients_;
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
