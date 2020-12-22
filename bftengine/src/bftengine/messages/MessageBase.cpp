@@ -65,6 +65,23 @@ void MessageBase::shrinkToFit() {
   storageSize_ = msgSize_;
 }
 
+bool MessageBase::reallocSize(uint32_t size) {
+  ConcordAssert(owner_);
+  ConcordAssert(size >= msgSize_);
+
+  void *p = (void *)msgBody_;
+  p = std::realloc(p, size);
+
+  if (p == nullptr) {
+    return false;
+  } else {
+    msgBody_ = (MessageBase::Header *)p;
+    storageSize_ = size;
+    msgSize_ = size;
+    return true;
+  }
+}
+
 MessageBase::MessageBase(NodeIdType sender) {
   storageSize_ = 0;
   msgBody_ = nullptr;

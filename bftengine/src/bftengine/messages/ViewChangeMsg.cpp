@@ -126,6 +126,19 @@ void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complain
   b()->numberOfComplaints++;
 }
 
+bool ViewChangeMsg::clearAllComplaints() {
+  b()->sizeOfAllComplaints = 0;
+  b()->numberOfComplaints = 0;
+  if (reallocSize(ReplicaConfig::instance().getmaxExternalMessageSize())) {
+    auto bodySize = getBodySize();
+    auto sigSize = ViewsManager::sigManager_->getMySigLength();
+    memset(body() + bodySize + sigSize, 0, storageSize_ - (bodySize + sigSize));
+    return true;
+  } else {
+    return false;
+  }
+}
+
 void ViewChangeMsg::finalizeMessage() {
   auto bodySize = getBodySize();
 
@@ -227,17 +240,18 @@ bool ViewChangeMsg::checkComplaints(uint16_t sigSize) const {
   char* currLoc = body() + bodySize + sigSize;
 
   while (remainingBytes > sizeOfHeader<ReplicaAsksToLeaveViewMsg>() && (numOfActualComplaints < numberOfComplaints())) {
-    MsgSize* complaintSize = (MsgSize*)currLoc;
+    MsgSize complaintSize = 0;
+    memcpy(&complaintSize, currLoc, sizeof(MsgSize));
     remainingBytes -= sizeof(MsgSize);
     currLoc += sizeof(MsgSize);
 
-    if (*complaintSize <= sizeOfHeader<ReplicaAsksToLeaveViewMsg>()) {
+    if (complaintSize <= sizeOfHeader<ReplicaAsksToLeaveViewMsg>()) {
       return false;
     }
 
     numOfActualComplaints++;
-    remainingBytes -= *complaintSize;
-    currLoc += *complaintSize;
+    remainingBytes -= complaintSize;
+    currLoc += complaintSize;
   }
 
   if (numOfActualComplaints != numberOfComplaints()) return false;
@@ -364,7 +378,7 @@ bool ViewChangeMsg::ComplaintsIterator::end() {
 bool ViewChangeMsg::ComplaintsIterator::getCurrent(char*& pComplaint, MsgSize& size) {
   if (end()) return false;
 
-  size = *(MsgSize*)(msg->body() + currLoc);
+  memcpy(&size, msg->body() + currLoc, sizeof(MsgSize));
   const uint32_t remainingbytes = (endLoc - currLoc) - sizeof(MsgSize);
   ConcordAssert(remainingbytes >= size);  // Validate method must make sure we never accept such message
   pComplaint = (char*)malloc(size);
@@ -376,7 +390,8 @@ bool ViewChangeMsg::ComplaintsIterator::getCurrent(char*& pComplaint, MsgSize& s
 void ViewChangeMsg::ComplaintsIterator::gotoNext() {
   if (end()) return;
 
-  const uint32_t size = *(MsgSize*)(msg->body() + currLoc);
+  MsgSize size = 0;
+  memcpy(&size, (msg->body() + currLoc), sizeof(MsgSize));
   const uint32_t remainingbytes = (endLoc - currLoc) - sizeof(MsgSize);
   ConcordAssert(remainingbytes >= size);  // Validate method must make sure we never accept such message
   currLoc += sizeof(MsgSize) + size;

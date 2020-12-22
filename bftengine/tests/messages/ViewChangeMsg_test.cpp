@@ -169,6 +169,126 @@ void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::strin
   }
 }
 
+void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int totalElements = 0) {
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  ReplicasInfo replicaInfo(config, true, true);
+  SigManager sigManager(config.replicaId,
+                        config.numReplicas + config.numOfClientProxies,
+                        config.replicaPrivateKey,
+                        config.publicKeysOfReplicas);
+  ViewsManager manager(&replicaInfo, &sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+  ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
+  EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
+  EXPECT_EQ(msg.newView(), viewNum);
+  auto lastStable = seqNum;
+  EXPECT_EQ(msg.lastStable(), lastStable);
+  testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
+
+  typedef std::tuple<SeqNum, Digest, ViewNum, bool, ViewNum, size_t, std::string> InputTuple;
+  std::vector<InputTuple> inputData;
+  for (int i = 0; i < totalElements; i++) {
+    Digest digest1(i);
+    auto originalViewNum1 = viewNum;
+    auto viewNum1 = ++viewNum;
+    char certificate1[DIGEST_SIZE] = {(char)(i + 1)};
+    auto seqNum1 = ++seqNum;
+    inputData.push_back(std::make_tuple(seqNum1,
+                                        digest1,
+                                        viewNum1,
+                                        true,
+                                        originalViewNum1,
+                                        sizeof(certificate1),
+                                        std::string(certificate1, DIGEST_SIZE)));
+    msg.addElement(seqNum1, digest1, viewNum1, true, originalViewNum1, sizeof(certificate1), certificate1);
+  }
+  msg.setNewViewNumber(++viewNum);
+  EXPECT_EQ(msg.numberOfElements(), totalElements);
+
+  auto checkElements = [&msg, &inputData]() {
+    ViewChangeMsg::ElementsIterator iter(&msg);
+    for (size_t i = 0; !iter.end(); ++i) {
+      ViewChangeMsg::Element* currentElement = nullptr;
+      iter.getCurrent(currentElement);
+      ViewChangeMsg::Element* element = nullptr;
+      EXPECT_TRUE(iter.getAndGoToNext(element));
+      EXPECT_EQ(element, currentElement);
+      EXPECT_EQ(element->hasPreparedCertificate, true);
+      EXPECT_EQ(element->originView, std::get<2>(inputData[i]));
+      EXPECT_EQ(element->hasPreparedCertificate, std::get<3>(inputData[i]));
+      EXPECT_EQ(element->prePrepareDigest, std::get<1>(inputData[i]));
+      EXPECT_EQ(element->seqNum, std::get<0>(inputData[i]));
+      ViewChangeMsg::PreparedCertificate* p =
+          (ViewChangeMsg::PreparedCertificate*)((char*)element + sizeof(ViewChangeMsg::Element));
+      EXPECT_EQ(p->certificateView, std::get<4>(inputData[i]));
+      EXPECT_EQ(p->certificateSigLength, DIGEST_SIZE);
+      EXPECT_EQ(p->certificateSigLength, std::get<5>(inputData[i]));
+      EXPECT_EQ(memcmp(((char*)element + sizeof(ViewChangeMsg::Element) + sizeof(ViewChangeMsg::PreparedCertificate)),
+                       std::get<6>(inputData[i]).c_str(),
+                       DIGEST_SIZE),
+                0);
+    }
+  };
+  auto checkComplaints = [&msg, &replicaInfo](int numberOfComplaints) {
+    uint32_t packedComplaints = 0;
+    ViewChangeMsg::ComplaintsIterator iter(&msg);
+    char* complaint = nullptr;
+    MsgSize size = 0;
+    while (iter.getAndGoToNext(complaint, size)) {
+      auto Msg = MessageBase(msg.senderId(), (MessageBase::Header*)complaint, size, false);
+      auto msg_complaint = std::make_unique<ReplicaAsksToLeaveViewMsg>(&Msg);
+      EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
+      packedComplaints++;
+    }
+    EXPECT_EQ(packedComplaints, numberOfComplaints);
+  };
+  checkElements();
+  for (int i = 0; i < 15; i++) {
+    uint32_t totalSizeOfComplaints = 0;
+    uint32_t numberOfComplaints = 0;
+
+    for (ReplicaId sender = 1; sender < 4; sender++) {
+      std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg_complaint(
+          ReplicaAsksToLeaveViewMsg::create(sender,
+                                            viewNum,
+                                            ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout,
+                                            concordUtils::SpanContext{spanContext}));
+      EXPECT_EQ(msg_complaint->idOfGeneratedReplica(), sender);
+      EXPECT_EQ(msg_complaint->viewNumber(), viewNum);
+      EXPECT_EQ(msg_complaint->reason(), ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout);
+
+      testMessageBaseMethods(*msg_complaint.get(), MsgCode::ReplicaAsksToLeaveView, sender, spanContext);
+
+      EXPECT_NO_THROW(msg_complaint->validate(replicaInfo));
+
+      msg.addComplaint(msg_complaint.get());
+
+      totalSizeOfComplaints += sizeof(decltype(msg_complaint->size()));
+      totalSizeOfComplaints += msg_complaint->size();
+      numberOfComplaints++;
+    }
+
+    msg.finalizeMessage();
+
+    EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
+    EXPECT_EQ(msg.newView(), viewNum);
+    EXPECT_EQ(msg.lastStable(), lastStable);
+    EXPECT_EQ(msg.numberOfElements(), totalElements);
+    EXPECT_EQ(msg.numberOfComplaints(), numberOfComplaints);
+    EXPECT_EQ(msg.sizeOfAllComplaints(), totalSizeOfComplaints);
+    EXPECT_EQ(msg.numberOfElements(), totalElements);
+    EXPECT_NO_THROW(msg.validate(replicaInfo));
+    testMessageBaseMethods(msg, MsgCode::ViewChange, senderId, spanContext);
+
+    checkComplaints(numberOfComplaints);
+
+    checkElements();
+    msg.clearAllComplaints();
+    checkElements();
+  }
+}
+
 TEST(ViewChangeMsg, base_methods_no_span) { ViewChangeMsgTests(false, false); }
 
 TEST(ViewChangeMsg, add_elements_no_span) { ViewChangeMsgTests(true, false); }
@@ -184,6 +304,16 @@ TEST(ViewChangeMsg, add_elements_with_span) { ViewChangeMsgTests(true, false, ra
 TEST(ViewChangeMsg, add_complaints_with_span) { ViewChangeMsgTests(false, true, rawSpanContext); }
 
 TEST(ViewChangeMsg, add_elements_and_complaints_with_span) { ViewChangeMsgTests(true, true, rawSpanContext); }
+
+TEST(ViewChangeMsg, add_remove_complaints_with_span_with_elements) {
+  ViewChangeMsgAddRemoveComplaints(rawSpanContext, 5);
+}
+
+TEST(ViewChangeMsg, add_remove_complaints_with_span_no_elements) { ViewChangeMsgAddRemoveComplaints(rawSpanContext); }
+
+TEST(ViewChangeMsg, add_remove_complaints_no_span_with_elements) { ViewChangeMsgAddRemoveComplaints("", 7); }
+
+TEST(ViewChangeMsg, add_remove_complaints_no_span_no_elements) { ViewChangeMsgAddRemoveComplaints(); }
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
