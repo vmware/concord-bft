@@ -101,6 +101,23 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   NativeWriteBatch getBatch() const;
   void write(NativeWriteBatch &&);
 
+  // MultiGet interface
+  //
+  // Return values in the same order of keys. All keys reside in the same column family. There
+  // aren't really any benefits to using multiget across column families, except consistency, which
+  // we do not require, since our keys are versioned or immutable in all cases.
+  //
+  // We don't use exceptions here, and stick to standard RocksDB status types because:
+  //   1. Each key has a distinct status.
+  //   2. Performance - We want to minimize allocation and copying.
+  //
+  // ContiguousStatusContainer must always contain type ::rocksdb::Status
+  template <typename KeySpan>
+  void multiGet(const std::string &cFamily,
+                const std::vector<KeySpan> &keys,
+                std::vector<::rocksdb::PinnableSlice> &values,
+                std::vector<::rocksdb::Status> &statuses) const;
+
   // Iterator interface.
   // Iterators initially don't point to a key value, i.e. they convert to false.
   // Important note - RocksDB requires that iterators are destroyed before the DB client that created them.
