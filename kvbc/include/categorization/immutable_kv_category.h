@@ -67,7 +67,7 @@ class ImmutableKeyValueCategory {
   std::optional<Value> getLatest(const std::string &key) const;
 
   // Get values for keys at specific versions.
-  // `keys` and `versions` must of the same size.
+  // `keys` and `versions` must be the same size.
   // If a key is missing at the specified version, std::nullopt is returned for it.
   void multiGet(const std::vector<std::string> &keys,
                 const std::vector<BlockId> &versions,
