@@ -81,6 +81,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
+      numOfRoReplicas_(myReplica.getReplicaConfig().numRoReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
                     myReplica_.getReplicaConfig().numOfClientProxies),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
@@ -103,10 +104,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
-                                        numOfReplicas_ + numOfClients_,
+                                        numOfReplicas_ + numOfRoReplicas_ + numOfClients_,
                                         myReplica.getReplicaConfig().replicaPrivateKey,
                                         myReplica.getReplicaConfig().publicKeysOfReplicas);
-  const uint16_t firstClientId = numOfReplicas_;
+  const uint16_t firstClientId = numOfReplicas_ + numOfRoReplicas_;
   for (auto i = 0; i < numOfClients_; i++) {
     // Placeholders for all clients
     ongoingRequests_[firstClientId + i] = make_shared<ClientRequestState>();
@@ -539,7 +540,7 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
   const auto &clientEntry = ongoingRequests_[clientId];
   if (!clientEntry->reqProcessingStatePtr)
     clientEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(
-        numOfReplicas_, clientId, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
+        numOfReplicas_ + numOfRoReplicas_, clientId, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
   else if (!clientEntry->reqProcessingStatePtr->getPreProcessRequest())
     // The request was registered before as arrived directly from the client
     clientEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
