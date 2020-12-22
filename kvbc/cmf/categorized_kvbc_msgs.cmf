@@ -106,7 +106,12 @@ Msg VersionedKey 4001 {
     uint64 version
 }
 
-Msg ImmutableValue 4002 {
+Msg ImmutableDbValue 4002 {
     uint64 block_id
     string data
+}
+
+# Used to deserialize the version only from an ImmutableDbValue.
+Msg ImmutableDbVersion 4003 {
+    uint64 block_id
 }

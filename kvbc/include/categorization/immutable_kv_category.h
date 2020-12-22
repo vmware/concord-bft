@@ -18,11 +18,16 @@
 
 #include "base_types.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
-#include "details.h"
+
+#include <rocksdb/slice.h>
+#include <rocksdb/status.h>
 
 #include <memory>
-#include <set>
+#include <optional>
 #include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace concord::kvbc::categorization::detail {
 
@@ -37,31 +42,50 @@ namespace concord::kvbc::categorization::detail {
 // A proof for some key per tag is just the hashes of all the other keys and values with the same tag.
 class ImmutableKeyValueCategory {
  public:
+  ImmutableKeyValueCategory() = default;  // for testing only
   ImmutableKeyValueCategory(const std::string &category_id, const std::shared_ptr<storage::rocksdb::NativeClient> &);
 
   // Add the given block updates and return the information that needs to be persisted in the block.
   // Adding keys that already exist in this category is undefined behavior.
-  ImmutableUpdatesInfo add(BlockId, ImmutableUpdatesData &&update, storage::rocksdb::NativeWriteBatch &);
+  ImmutableUpdatesInfo add(BlockId, ImmutableUpdatesData &&, storage::rocksdb::NativeWriteBatch &);
 
   // Delete the genesis block. Implemented by directly calling deleteBlock().
-  void deleteGenesisBlock(BlockId block_id,
-                          const ImmutableUpdatesInfo &updates_info,
-                          storage::rocksdb::NativeWriteBatch &batch);
+  void deleteGenesisBlock(BlockId, const ImmutableUpdatesInfo &, storage::rocksdb::NativeWriteBatch &);
 
   // Delete the last reachable block. Implemented by directly calling deleteBlock().
-  void deleteLastReachableBlock(BlockId block_id,
-                                const ImmutableUpdatesInfo &updates_info,
-                                storage::rocksdb::NativeWriteBatch &batch);
+  void deleteLastReachableBlock(BlockId, const ImmutableUpdatesInfo &, storage::rocksdb::NativeWriteBatch &);
 
   // Deletes the keys for the passed updates info.
-  void deleteBlock(const ImmutableUpdatesInfo &updates_info, storage::rocksdb::NativeWriteBatch &batch);
+  void deleteBlock(const ImmutableUpdatesInfo &, storage::rocksdb::NativeWriteBatch &);
+
+  // Get the value of an immutable key in `block_id`.
+  // Return std::nullopt if `key` doesn't exist in `block_id`.
+  std::optional<Value> get(const std::string &key, BlockId block_id) const;
 
   // Get the value of an immutable key.
   // Return std::nullopt if the key doesn't exist.
-  std::optional<ImmutableValue> get(const std::string &key) const;
+  std::optional<Value> getLatest(const std::string &key) const;
+
+  // Get values for keys at specific versions.
+  // `keys` and `versions` must be the same size.
+  // If a key is missing at the specified version, std::nullopt is returned for it.
+  void multiGet(const std::vector<std::string> &keys,
+                const std::vector<BlockId> &versions,
+                std::vector<std::optional<Value>> &values) const;
+
+  // Get the latest values of a list of keys.
+  // If a key is missing, std::nullopt is returned for it.
+  void multiGetLatest(const std::vector<std::string> &keys, std::vector<std::optional<Value>> &values) const;
+
+  // Get the version of an immutable key.
+  // Return std::nullopt if the key doesn't exist.
+  std::optional<BlockId> getLatestVersion(const std::string &key) const;
+
+  // Get the latest versions of the given keys.
+  // If a key is missing, std::nullopt is returned for its version.
+  void multiGetLatestVersion(const std::vector<std::string> &keys, std::vector<std::optional<BlockId>> &versions) const;
 
   // Get the value of a key and a proof for it in `tag`.
-  // `updates_info` must be the updates for `block_id`.
   // Return std::nullopt if the key doesn't exist.
   std::optional<KeyValueProof> getProof(const std::string &tag,
                                         const std::string &key,
@@ -69,7 +93,14 @@ class ImmutableKeyValueCategory {
 
  private:
   std::string cf_;
-  const std::shared_ptr<storage::rocksdb::NativeClient> db_;
+  std::shared_ptr<storage::rocksdb::NativeClient> db_;
 };
+
+inline const ImmutableValue &asImmutable(const Value &v) { return std::get<ImmutableValue>(v); }
+inline ImmutableValue &asImmutable(Value &v) { return std::get<ImmutableValue>(v); }
+
+// Optional overloads assume the optional contains a value.
+inline const ImmutableValue &asImmutable(const std::optional<Value> &v) { return asImmutable(*v); }
+inline ImmutableValue &asImmutable(std::optional<Value> &v) { return asImmutable(*v); }
 
 }  // namespace concord::kvbc::categorization::detail
