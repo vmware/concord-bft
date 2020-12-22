@@ -463,7 +463,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         {"onSeqNumIsStable", onSeqNumIsStable},
                                         {"onTransferringCompleteImp", onTransferringCompleteImp},
                                         {"consensus", consensus},
-                                        {"timeInActiveView", timeInActiveView}});
+                                        {"timeInActiveView", timeInActiveView},
+                                        {"checkpointFromCreationToStable", checkpoint_creation_to_stable}});
     }
 
     std::shared_ptr<Recorder> send =
@@ -490,6 +491,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
     std::shared_ptr<Recorder> timeInActiveView =
         std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
+
+    std::shared_ptr<Recorder> timeInStateTransfer =
+        std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
+
+    std::shared_ptr<Recorder> checkpoint_creation_to_stable =
+        std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
   };
 
   Recorders histograms_;
@@ -497,9 +504,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // Used to measure the time for each consensus slot to go from pre-prepare to commit at the primary.
   // Time is recorded in histograms_.consensus
   concord::diagnostics::AsyncTimeRecorderMap<SeqNum> consensus_times_;
+  concord::diagnostics::AsyncTimeRecorderMap<SeqNum> checkpoint_times_;
 
   concord::diagnostics::AsyncTimeRecorder<false> time_in_active_view_;
-
+  concord::diagnostics::AsyncTimeRecorder<false> time_in_state_transfer_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
 };
