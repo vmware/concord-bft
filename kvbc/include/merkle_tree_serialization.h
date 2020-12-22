@@ -78,6 +78,7 @@ inline std::string serializeImp(storage::v2MerkleTree::detail::EKeySubtype type)
 }
 
 inline std::string serializeImp(storage::v2MerkleTree::detail::EBFTSubtype type) {
+  // NOLINTNEXTLINE(bugprone-narrowing-conversions)
   return std::string{concord::util::toChar(storage::v2MerkleTree::detail::EDBKeyType::BFT),
                      concord::util::toChar(type)};
 }
@@ -244,7 +245,7 @@ inline std::string serializeImp(const block::detail::Node &node) {
   return buf;
 }
 
-inline std::string serializeImp(block::detail::RawBlockMerkleData data) {
+inline std::string serializeImp(const block::detail::RawBlockMerkleData &data) {
   auto dataSize = block::detail::RawBlockMerkleData::MIN_SIZE;
   for (const auto &key : data.deletedKeys) {
     dataSize += (sizeof(block::detail::KeyLengthType) + key.length());
@@ -300,6 +301,7 @@ inline sparse_merkle::Version deserialize<sparse_merkle::Version>(const concordU
 template <>
 inline std::vector<std::uint8_t> deserialize<std::vector<std::uint8_t>>(const concordUtils::Sliver &buf) {
   std::vector<std::uint8_t> vec;
+  vec.reserve(buf.length());
   for (auto i = 0u; i < buf.length(); ++i) {
     vec.push_back(buf[i]);
   }
@@ -309,6 +311,7 @@ inline std::vector<std::uint8_t> deserialize<std::vector<std::uint8_t>>(const co
 template <>
 inline sparse_merkle::NibblePath deserialize<sparse_merkle::NibblePath>(const concordUtils::Sliver &buf) {
   ConcordAssert(buf.length() >= sizeof(std::uint8_t));
+  // NOLINTNEXTLINE(bugprone-signed-char-misuse)
   const auto nibbleCount = static_cast<std::size_t>(buf[0]);
   const auto path = deserialize<std::vector<std::uint8_t>>(
       concordUtils::Sliver{buf, sizeof(std::uint8_t), buf.length() - sizeof(std::uint8_t)});

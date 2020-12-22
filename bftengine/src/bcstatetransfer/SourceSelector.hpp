@@ -32,7 +32,7 @@ class SourceSelector {
   SourceSelector(std::set<uint16_t> allOtherReplicas,
                  uint32_t retransmissionTimeoutMilli,
                  uint32_t sourceReplicaReplacementTimeoutMilli)
-      : allOtherReplicas_(allOtherReplicas),
+      : allOtherReplicas_(std::move(allOtherReplicas)),
         randomGen_(std::random_device()()),
         retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
         sourceReplacementTimeoutMilli_(sourceReplicaReplacementTimeoutMilli) {}

@@ -126,7 +126,7 @@ class FakeCommunication : public bft::communication::ICommunication {
   std::thread fakeCommThread_;
 };
 
-void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
+inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
   const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(msg.data.data());
   std::string reply_data = "reply";
   auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);

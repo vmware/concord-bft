@@ -25,7 +25,7 @@
 
 namespace concord::diagnostics {
 
-std::string usage() {
+inline std::string usage() {
   // TODO: Make the name of the program dynamic
   std::string usage = "Usage: concord-ctl <SUBJECT> <COMMAND> [ARGS]\n\n";
   usage += "  status <COMMAND> [ARGS]\n\n";
@@ -55,7 +55,7 @@ std::string accumulate(Iterator begin, Iterator end, Fun f) {
 }
 
 // Take protocol input as a split string, along with a registrar and return diagnostics or a usage string.
-std::string run(const std::vector<std::string>& tokens, Registrar& registrar) {
+inline std::string run(const std::vector<std::string>& tokens, Registrar& registrar) {
   if (tokens.size() < 2) return usage();
 
   auto& subject = tokens[0];

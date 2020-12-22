@@ -107,7 +107,7 @@ class ReplicaImp : public IReplica,
     const Sliver key;
     const BlockId blockId;
 
-    KeyIDPair(Sliver s, BlockId i) : key(s), blockId(i) {}
+    KeyIDPair(const Sliver &s, BlockId i) : key(s), blockId(i) {}
 
     bool operator<(const KeyIDPair &k) const {
       int c = this->key.compare(k.key);

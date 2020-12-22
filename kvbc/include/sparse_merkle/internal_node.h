@@ -229,7 +229,7 @@ class BatchedInternalNode {
   // to that node.
   struct RemoveBatchedInternalNode {
     RemoveBatchedInternalNode(Version removed_version) : removed_version(removed_version) {}
-    RemoveBatchedInternalNode(std::optional<LeafChild> promoted, Version removed_version)
+    RemoveBatchedInternalNode(const std::optional<LeafChild>& promoted, Version removed_version)
         : promoted(promoted), removed_version(removed_version) {}
 
     std::optional<LeafChild> promoted;

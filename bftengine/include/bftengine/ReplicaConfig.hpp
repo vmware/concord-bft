@@ -30,7 +30,7 @@ namespace bftEngine {
 
 #define CONFIG_PARAM(param, type, default_val, description) \
   CONFIG_PARAM_RO(param, type, default_val, description);   \
-  void set##param(const type& val) { param = val; }
+  void set##param(const type& val) { param = val; } /* NOLINT(bugprone-macro-parentheses) */
 
 enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM };
 

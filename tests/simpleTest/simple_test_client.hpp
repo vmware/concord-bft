@@ -26,12 +26,12 @@ using namespace bftEngine;
 using namespace bft::communication;
 using namespace std;
 
-#define test_assert(statement, message)                                 \
-  {                                                                     \
-    if (!(statement)) {                                                 \
-      LOG_FATAL(clientLogger, "assert fail with message: " << message); \
-      ConcordAssert(false);                                             \
-    }                                                                   \
+#define test_assert(statement, message)                                                                          \
+  {                                                                                                              \
+    if (!(statement)) {                                                                                          \
+      LOG_FATAL(clientLogger, "assert fail with message: " << message); /* NOLINT(bugprone-macro-parentheses) */ \
+      ConcordAssert(false);                                                                                      \
+    }                                                                                                            \
   }
 
 class SimpleTestClient {

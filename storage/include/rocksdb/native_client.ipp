@@ -222,7 +222,7 @@ inline std::unordered_set<std::string> NativeClient::columnFamilies() const {
   return ret;
 }
 
-inline bool NativeClient::hasColumnFamily(const std::string cFamily) const {
+inline bool NativeClient::hasColumnFamily(const std::string &cFamily) const {
   return (client_->cf_handles_.find(cFamily) != client_->cf_handles_.cend());
 }
 

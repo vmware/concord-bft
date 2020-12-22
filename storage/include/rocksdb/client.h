@@ -66,8 +66,8 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(std::string _dbPath) : m_dbPath(_dbPath) {}
-  Client(std::string _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
+  Client(const std::string& _dbPath) : m_dbPath(_dbPath) {}
+  Client(const std::string& _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
       : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
 
   ~Client() {
@@ -77,7 +77,7 @@ class Client : public concord::storage::IDBClient {
     if (txn_db_) {
       // If we're using a TransactionDB, it wraps the base DB, so release it
       // instead of releasing the base DB.
-      dbInstance_.release();
+      (void)dbInstance_.release();
       delete txn_db_;
     }
   }

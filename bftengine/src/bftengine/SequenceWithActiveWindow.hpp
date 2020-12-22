@@ -37,13 +37,13 @@ class InactiveStorage {
   }
 
   ~InactiveStorage() {
-    for (uint16_t i = 0; i < inactiveSavedSeqs.size(); i++) ItemFuncs::free(inactiveSavedSeqs[i]);
+    for (size_t i = 0; i < inactiveSavedSeqs.size(); i++) ItemFuncs::free(inactiveSavedSeqs[i]);
   }
 
   void clear(NumbersType newBeginningOfInactiveWindow) {
     beginningOfInactiveWindow = newBeginningOfInactiveWindow;
     readPosOfInactiveWindow = elementsInInactiveWindow = writePosOfInactiveWindow = 0;
-    for (uint16_t i = 0; i < inactiveSavedSeqs.size(); i++) {
+    for (size_t i = 0; i < inactiveSavedSeqs.size(); i++) {
       ItemFuncs::reset(inactiveSavedSeqs[i]);
     }
   }

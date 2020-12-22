@@ -30,7 +30,9 @@ WarningsAsErrors:   'bugprone-*,
 # -bugprone-not-null-terminated-result - many false positives when std::string is used for storing raw bytes
 # -misc-non-private-member-variables-in-classes - seems irrelevant
 # -misc-unused-parameters - too many errors, fix later
-HeaderFilterRegex: ''
+
+# Include all headers in the project
+HeaderFilterRegex: 'concord-bft'
 AnalyzeTemporaryDtors: false
 FormatStyle:     file
 CheckOptions:

@@ -59,7 +59,7 @@ class Handoff {
   void push(func_type f) {
     {
       guard g(queue_lock_);
-      task_queue_.push(f);
+      task_queue_.push(std::move(f));
     }
     queue_cond_.notify_one();
   }
