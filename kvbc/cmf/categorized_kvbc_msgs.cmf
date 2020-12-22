@@ -28,6 +28,14 @@ Msg ImmutableUpdatesData 5 {
     bool calculate_root_hash
 }
 
+Msg CategoryUpdatesData 6 {
+    map string oneof{
+        MerkleUpdatesData
+        KeyValueUpdatesData
+        ImmutableUpdatesData
+    } kv
+}
+
 # Updates info
 
 Msg MerkleKeyFlag 1000 {
@@ -76,15 +84,8 @@ Msg BlockData 2001 {
 
 Msg RawBlockData 2005 {
     fixedlist uint8 32 parent_digest
-    
-    map string oneof{
-        MerkleUpdatesData
-        KeyValueUpdatesData
-	    ImmutableUpdatesData
-    } category_updates
-
+    CategoryUpdatesData updates
     map string optional fixedlist uint8 32 category_root_hash
-
 }
 
 # Misc

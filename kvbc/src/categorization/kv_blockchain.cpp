@@ -12,8 +12,60 @@
 // file.
 
 #include "categorization/kv_blockchain.h"
+#include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 
 namespace concord::kvbc::categorization {
+
+using ::bftEngine::bcst::computeBlockDigest;
+
+KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
+                                       bool link_st_chain)
+    : native_client_{native_client}, block_chain_{native_client_}, state_transfer_block_chain_{native_client_} {
+  if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
+    LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
+  }
+  instantiateCategories();
+  if (!link_st_chain) return;
+  // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
+  // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
+  // interrupted, getLatestBlockId() should be equal to getLastReachableBlockId() on the next startup. Another example
+  // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
+  // transfer chain.
+  linkSTChainFrom(getLastReachableBlockId() + 1);
+}
+
+void KeyValueBlockchain::instantiateCategories() {
+  auto itr = native_client_->getIterator(detail::CAT_ID_TYPE_CF);
+  itr.first();
+  while (itr) {
+    if (itr.valueView().size() != 1) {
+      LOG_FATAL(CAT_BLOCK_LOG, "Category type value of [" << itr.key() << "] is invalid (bigger than one).");
+      ConcordAssertEQ(itr.valueView().size(), 1);
+    }
+    auto cat_type = static_cast<detail::CATEGORY_TYPE>(itr.valueView()[0]);
+    switch (cat_type) {
+      case detail::CATEGORY_TYPE::merkle:
+        categorires_.emplace(itr.key(), MerkleCategory{});
+        categorires_types_[itr.key()] = detail::CATEGORY_TYPE::merkle;
+        LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type merkle");
+        break;
+      case detail::CATEGORY_TYPE::immutable:
+        categorires_.emplace(itr.key(), detail::ImmutableKeyValueCategory{itr.key(), native_client_});
+        categorires_types_[itr.key()] = detail::CATEGORY_TYPE::immutable;
+        LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type ImmutableKeyValueCategory");
+        break;
+      case detail::CATEGORY_TYPE::kv_hash:
+        categorires_.emplace(itr.key(), KVHashCategory{});
+        categorires_types_[itr.key()] = detail::CATEGORY_TYPE::kv_hash;
+        LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type KVHashCategory");
+        break;
+      default:
+        throw std::runtime_error("couldn't find the type of " + itr.key());
+        break;
+    }
+    itr.next();
+  }
+}
 
 // 1) Defines a new block
 // 2) calls per cateogry with its updates
@@ -28,28 +80,160 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   return block_id;
 }
 
-BlockId KeyValueBlockchain::addBlock(
-    std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData, ImmutableUpdatesData>>&&
-        category_updates,
-    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+BlockId KeyValueBlockchain::addBlock(CategoryUpdatesData&& category_updates,
+                                     concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   // Use new client batch and column families
   Block new_block{block_chain_.getLastReachableBlockId() + 1};
-  // auto parentBlockDigestFuture = computeParentBlockDigest(new_block.ID( ));
+  auto parent_digest_future = computeParentBlockDigest(new_block.id(), std::move(last_raw_block_));
+  // initialize the raw block for the next call to computeParentBlockDigest
+  auto& last_raw_block = last_raw_block_.second.emplace();
+  last_raw_block_.first = new_block.id();
+  last_raw_block.data.updates = category_updates;
   // Per category updates
-  for (auto&& [category_id, update] : category_updates) {
+  for (auto&& [category_id, update] : category_updates.kv) {
     // https://stackoverflow.com/questions/46114214/lambda-implicit-capture-fails-with-variable-declared-from-structured-binding
     std::visit(
-        [&new_block, category_id = category_id, &write_batch, this](auto& update) {
-          auto block_updates = handleCategoryUpdates(new_block.id(), category_id, std::move(update), write_batch);
+        [&new_block, category_id = category_id, &write_batch, &last_raw_block, this](auto& update) {
+          auto block_updates =
+              handleCategoryUpdates(new_block.id(), category_id, std::move(update), write_batch, last_raw_block);
           new_block.add(category_id, std::move(block_updates));
         },
         update);
   }
-  // newBlock.parentDigest = parentBlockDigestFuture.get();
+  new_block.data.parent_digest = parent_digest_future.get();
+  last_raw_block.data.parent_digest = new_block.data.parent_digest;
   block_chain_.addBlock(new_block, write_batch);
   write_batch.put(detail::BLOCKS_CF, Block::generateKey(new_block.id()), Block::serialize(new_block));
   return new_block.id();
 }
+
+std::future<BlockDigest> KeyValueBlockchain::computeParentBlockDigest(const BlockId block_id,
+                                                                      VersionedRawBlock&& cached_raw_block) {
+  auto parent_block_id = block_id - 1;
+  if (cached_raw_block.second && cached_raw_block.first == parent_block_id) {
+    LOG_DEBUG(CAT_BLOCK_LOG, "Using cached raw block for computing parent digest");
+  } else if (block_id > INITIAL_GENESIS_BLOCK_ID) {
+    cached_raw_block.second = getRawBlock(parent_block_id);
+  } else {
+    cached_raw_block.second.reset();
+  }
+  return std::async(
+      std::launch::async,
+      [parent_block_id](VersionedRawBlock cached_raw_block) {
+        // Make sure the digest is zero-initialized by using {} initialization.
+        auto parent_block_digest = BlockDigest{};
+        if (cached_raw_block.second) {
+          // histograms.dba_hashed_parent_block_size->recordAtomic(parentBlock->length());
+          // static constexpr bool is_atomic = true;
+          // TimeRecorder<is_atomic> scoped(*histograms.dba_hash_parent_block);
+
+          // E.L do we want to digest the CMF or create a pure buffer with only the KV?
+          const auto& raw_buffer = detail::serialize(cached_raw_block.second.value().data);
+          parent_block_digest =
+              computeBlockDigest(parent_block_id, reinterpret_cast<const char*>(raw_buffer.data()), raw_buffer.size());
+        }
+        return parent_block_digest;
+      },
+      std::move(cached_raw_block));
+}
+
+/////////////////////// Readers ///////////////////////
+
+const std::variant<detail::ImmutableKeyValueCategory, MerkleCategory, KVHashCategory>& KeyValueBlockchain::getCategory(
+    const std::string& cat_id) const {
+  if (categorires_.count(cat_id) == 0) {
+    throw std::runtime_error{"Category does not exist = " + cat_id};
+  }
+  return categorires_.find(cat_id)->second;
+}
+
+std::optional<Value> KeyValueBlockchain::get(const std::string& cat_id,
+                                             const std::string& key,
+                                             BlockId block_id) const {
+  auto category = getCategory(cat_id);
+  std::visit(
+      [&key, &block_id](const auto& cat) {
+        (void)key;
+        (void)block_id;
+        // cat.get(key,block_id);
+        return;
+      },
+      category);
+
+  return std::optional<Value>{};
+}
+
+std::optional<Value> KeyValueBlockchain::getLatest(const std::string& cat_id, const std::string& key) const {
+  auto category = getCategory(cat_id);
+  std::visit(
+      [&key](const auto& cat) {
+        (void)key;
+        // cat.getLatest(key);
+        return;
+      },
+      category);
+
+  return std::optional<Value>{};
+}
+
+void KeyValueBlockchain::multiGet(const std::string& cat_id,
+                                  const std::vector<std::string>& keys,
+                                  const std::vector<BlockId>& versions,
+                                  std::vector<std::optional<Value>>& values) const {
+  auto category = getCategory(cat_id);
+  std::visit(
+      [&keys, &versions, &values](const auto& cat) {
+        (void)keys;
+        (void)versions;
+        (void)values;
+        // cat.multiGet(keys,versions,values);
+        return;
+      },
+      category);
+}
+
+void KeyValueBlockchain::multiGetLatest(const std::string& cat_id,
+                                        const std::vector<std::string>& keys,
+                                        std::vector<std::optional<Value>>& values) const {
+  auto category = getCategory(cat_id);
+  std::visit(
+      [&keys, &values](const auto& cat) {
+        (void)keys;
+        (void)values;
+        // cat.multiGetLatest(keys,values);
+        return;
+      },
+      category);
+}
+
+std::optional<BlockId> KeyValueBlockchain::getLatestVersion(const std::string& cat_id, const std::string& key) const {
+  auto category = getCategory(cat_id);
+  std::visit(
+      [&key](const auto& cat) {
+        (void)key;
+        // cat.getLatestVersion(key);
+        return;
+      },
+      category);
+
+  return std::optional<BlockId>{};
+}
+
+void KeyValueBlockchain::multiGetLatestVersion(const std::string& cat_id,
+                                               const std::vector<std::string>& keys,
+                                               std::vector<std::optional<BlockId>>& versions) const {
+  auto category = getCategory(cat_id);
+  std::visit(
+      [&keys, &versions](const auto& cat) {
+        (void)keys;
+        (void)versions;
+        // cat.multiGetLatestVersion(keys,values);
+        return;
+      },
+      category);
+}
+
+CategoryUpdatesData KeyValueBlockchain::getBlockData(BlockId block_id) { return getRawBlock(block_id).data.updates; }
 
 /////////////////////// Delete block ///////////////////////
 bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
@@ -149,7 +333,7 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 
   // Iterate over groups and call corresponding deleteGenesisBlock,
   // Each group is responsible to fill its deltetes to the batch
-  for (auto&& [category_id, update_info] : (*block).data.categories_updates_info) {
+  for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
     std::visit(
         [&last_id, category_id = category_id, &write_batch, this](const auto& update_info) {
           deleteLastReachableBlock(last_id, category_id, update_info, write_batch);
@@ -203,10 +387,36 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
 
 // Updates per category
 
+bool KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id,
+                                               const detail::CATEGORY_TYPE type,
+                                               concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+  // check if we know this category type already
+  if (categorires_types_.count(cat_id) == 1) {
+    return false;
+  }
+  // new category
+  // cache the type in mem and store it in db.
+  if (const auto [itr, inserted] = categorires_types_.try_emplace(cat_id, type); !inserted) {
+    (void)itr;
+    throw std::runtime_error{"Failed to insert new category"};
+  }
+  write_batch.put(detail::CAT_ID_TYPE_CF, cat_id, std::string(1, static_cast<char>(type)));
+  return true;
+}
+
 MerkleUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                             const std::string& category_id,
                                                             MerkleUpdatesData&& updates,
-                                                            concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+                                                            concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                                            categorization::RawBlock& raw_block) {
+  // if true means that category is new and we should create an instance of it.
+  if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::merkle, write_batch)) {
+    if (const auto [itr, inserted] = categorires_.try_emplace(category_id, MerkleCategory{}); !inserted) {
+      (void)itr;
+      throw std::runtime_error{"Category already exists = " + category_id};
+    }
+  }
+
   MerkleUpdatesInfo mui;
   for (auto& [k, v] : updates.kv) {
     (void)v;
@@ -215,14 +425,15 @@ MerkleUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   for (auto& k : updates.deletes) {
     mui.keys[k] = MerkleKeyFlag{true};
   }
+  raw_block.data.category_root_hash[category_id] = mui.root_hash;
   return mui;
 }
 
-KeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(
-    BlockId block_id,
-    const std::string& category_id,
-    KeyValueUpdatesData&& updates,
-    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+KeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
+                                                              const std::string& category_id,
+                                                              KeyValueUpdatesData&& updates,
+                                                              concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                                              categorization::RawBlock& raw_block) {
   KeyValueUpdatesInfo kvui;
   for (auto& [k, v] : updates.kv) {
     (void)v;
@@ -234,17 +445,25 @@ KeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(
   return kvui;
 }
 
-ImmutableUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(
-    BlockId block_id,
-    const std::string& category_id,
-    ImmutableUpdatesData&& updates,
-    concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  ImmutableUpdatesInfo skvui;
-  for (auto& [k, v] : updates.kv) {
-    (void)v;
-    skvui.tagged_keys[k] = std::move(v.tags);
+ImmutableUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
+                                                               const std::string& category_id,
+                                                               ImmutableUpdatesData&& updates,
+                                                               concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                                               categorization::RawBlock& raw_block) {
+  // if true means that category is new and we should create an instance of it.
+  if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::immutable, write_batch)) {
+    if (const auto [itr, inserted] =
+            categorires_.try_emplace(category_id, detail::ImmutableKeyValueCategory{category_id, native_client_});
+        !inserted) {
+      (void)itr;
+      throw std::runtime_error{"Category already exists = " + category_id};
+    }
   }
-  return skvui;
+  auto itr = categorires_.find(category_id);
+  if (itr == categorires_.end()) {
+    throw std::runtime_error{"Category is not present in memory = " + category_id};
+  }
+  return std::get<detail::ImmutableKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }
 
 /////////////////////// state transfer blockchain ///////////////////////
@@ -280,7 +499,7 @@ RawBlock KeyValueBlockchain::getRawBlock(const BlockId& block_id) const {
     auto raw_block = state_transfer_block_chain_.getRawBlock(block_id);
     if (!raw_block) {
       // E.L throw or optional?
-      throw std::runtime_error{"Failed to get block node ID = " + std::to_string(block_id)};
+      throw std::runtime_error{"Failed to get state transfer block ID = " + std::to_string(block_id)};
     }
     return raw_block.value();
   }
@@ -314,7 +533,7 @@ void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
 void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, RawBlock& block) {
   auto write_batch = native_client_->getBatch();
   state_transfer_block_chain_.deleteBlock(block_id, write_batch);
-  auto new_block_id = addBlock(std::move(block.data.category_updates), write_batch);
+  auto new_block_id = addBlock(std::move(block.data.updates), write_batch);
   native_client_->write(std::move(write_batch));
 
   block_chain_.setAddedBlockId(new_block_id);

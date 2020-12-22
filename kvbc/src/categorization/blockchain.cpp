@@ -12,18 +12,24 @@
 // file.
 
 #include "categorization/blockchain.h"
+#include "Logger.hpp"
 
 namespace concord::kvbc::categorization::detail {
 
 Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client)
     : native_client_{native_client} {
+  if (detail::createColumnFamilyIfNotExisting(detail::BLOCKS_CF, *native_client_.get())) {
+    LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::BLOCKS_CF << "] column family for the main blockchain");
+  }
   auto last_reachable_block_id = loadLastReachableBlockId();
   if (last_reachable_block_id) {
     last_reachable_block_id_ = last_reachable_block_id.value();
+    LOG_INFO(CAT_BLOCK_LOG, "Last reachable block as loaded from storage " << last_reachable_block_id_);
   }
   auto genesis_blockId = loadGenesisBlockId();
   if (genesis_blockId) {
     genesis_block_id_ = genesis_blockId.value();
+    LOG_INFO(CAT_BLOCK_LOG, "Genesis block as loaded from storage " << last_reachable_block_id_);
   }
 }
 

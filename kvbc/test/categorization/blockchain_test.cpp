@@ -33,14 +33,17 @@ class categorized_kvbc : public ::testing::Test {
   void SetUp() override {
     cleanup();
     db = TestRocksDb::createNative();
-    db->createColumnFamily(BLOCKS_CF);
-    db->createColumnFamily(ST_CHAIN_CF);
   }
   void TearDown() override { cleanup(); }
 
  protected:
   std::shared_ptr<NativeClient> db;
 };
+
+TEST_F(categorized_kvbc, creation_of_state_transfter_blockchain_cf) {
+  detail::Blockchain::StateTransfer st(db);
+  ASSERT_TRUE(db->hasColumnFamily(detail::ST_CHAIN_CF));
+}
 
 TEST_F(categorized_kvbc, last_reachable_block) {
   detail::Blockchain block_chain{db};

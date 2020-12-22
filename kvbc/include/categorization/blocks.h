@@ -87,22 +87,22 @@ struct Block {
 // - state hash per category (if exists) E.L check why do we pass it.
 struct RawBlock {
   RawBlock() = default;
-  RawBlock(const Block& block, const storage::rocksdb::NativeClient& native_client);
+  RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
   MerkleUpdatesData getUpdates(const std::string& category_id,
                                const MerkleUpdatesInfo& update_info,
                                const BlockId& block_id,
-                               const storage::rocksdb::NativeClient& native_client);
+                               const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
   KeyValueUpdatesData getUpdates(const std::string& category_id,
                                  const KeyValueUpdatesInfo& update_info,
                                  const BlockId& block_id,
-                                 const storage::rocksdb::NativeClient& native_client);
+                                 const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
   ImmutableUpdatesData getUpdates(const std::string& category_id,
                                   const ImmutableUpdatesInfo& update_info,
                                   const BlockId& block_id,
-                                  const storage::rocksdb::NativeClient& native_client);
+                                  const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
 
   template <typename T>
   static RawBlock deserialize(const T& input) {

@@ -12,13 +12,14 @@
 // file.
 
 #include "categorization/blocks.h"
+#include "categorization/immutable_kv_category.h"
 
 namespace concord::kvbc::categorization {
 
 //////////////////////////////////// RAW BLOCKS//////////////////////////////////////
 
 // the constructor converts the input block i.e. the update_infos into a raw block
-RawBlock::RawBlock(const Block& block, const storage::rocksdb::NativeClient& native_client) {
+RawBlock::RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
   // parent digest (std::copy?)
   data.parent_digest = block.data.parent_digest;
   // recontruct updates of categories
@@ -26,7 +27,7 @@ RawBlock::RawBlock(const Block& block, const storage::rocksdb::NativeClient& nat
     std::visit(
         [category_id = cat_id, &block, this, &native_client](const auto& update_info) {
           auto category_updates = getUpdates(category_id, update_info, block.id(), native_client);
-          data.category_updates.emplace(category_id, std::move(category_updates));
+          data.updates.kv.emplace(category_id, std::move(category_updates));
         },
         update_info);
   }
@@ -39,7 +40,7 @@ RawBlock::RawBlock(const Block& block, const storage::rocksdb::NativeClient& nat
 MerkleUpdatesData RawBlock::getUpdates(const std::string& category_id,
                                        const MerkleUpdatesInfo& update_info,
                                        const BlockId& block_id,
-                                       const storage::rocksdb::NativeClient& native_client) {
+                                       const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
   // For old serialization
   using namespace concord::kvbc::v2MerkleTree;
   MerkleUpdatesData data;
@@ -55,9 +56,9 @@ MerkleUpdatesData RawBlock::getUpdates(const std::string& category_id,
     // E.L see how we can optimize the sliver temporary allocation
     auto db_key =
         v2MerkleTree::detail::DBKeyManipulator::genDataDbKey(Key(std::string(key)), update_info.state_root_version);
-    auto val = native_client.get(category_id, db_key);
+    auto val = native_client->get(category_id, db_key);
     if (!val.has_value()) {
-      throw std::logic_error("Couldn't find value for key");
+      throw std::runtime_error("Couldn't find value for key");
     }
     // E.L serializtion of the Merkle to CMF will be in later phase
     auto dbLeafVal = v2MerkleTree::detail::deserialize<v2MerkleTree::detail::DatabaseLeafValue>(
@@ -74,17 +75,29 @@ MerkleUpdatesData RawBlock::getUpdates(const std::string& category_id,
 KeyValueUpdatesData RawBlock::getUpdates(const std::string& category_id,
                                          const KeyValueUpdatesInfo& update_info,
                                          const BlockId& block_id,
-                                         const storage::rocksdb::NativeClient& native_client) {
+                                         const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
   KeyValueUpdatesData data;
+
   return data;
 }
 
 // immutable updates reconstruction
+// Iterate over the keys from the update info.
+// get the value of a key from the DB by performing get on the category.
+// assemble a ImmutableValueUpdate from value and tags.
 ImmutableUpdatesData RawBlock::getUpdates(const std::string& category_id,
                                           const ImmutableUpdatesInfo& update_info,
                                           const BlockId& block_id,
-                                          const storage::rocksdb::NativeClient& native_client) {
+                                          const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
   ImmutableUpdatesData data;
+  detail::ImmutableKeyValueCategory imm{category_id, native_client};
+  for (const auto& [key, tags] : update_info.tagged_keys) {
+    auto val = imm.get(key, block_id);
+    if (!val.has_value()) {
+      throw std::runtime_error("Couldn't find value for key (immutable category)");
+    }
+    data.kv[key] = ImmutableValueUpdate{detail::asImmutable(*val).data, tags};
+  }
   return data;
 }
 
