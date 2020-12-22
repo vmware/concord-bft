@@ -138,6 +138,32 @@ void NativeClient::del(const KeySpan &key) {
   del(defaultColumnFamily(), key);
 }
 
+template <typename KeySpan>
+void NativeClient::multiGet(const std::string &cFamily,
+                            const std::vector<KeySpan> &keys,
+                            std::vector<::rocksdb::PinnableSlice> &values,
+                            std::vector<::rocksdb::Status> &statuses) const {
+  if (values.size() < keys.size()) {
+    values.resize(keys.size());
+  }
+  if (statuses.size() < keys.size()) {
+    statuses.resize(keys.size());
+  }
+  // TODO: We may be able to eliminate this allocation with a thread local pre-allocated vector or array.
+  // We don't want to force users to pass through ::RocksDB slices, so we are unlikely to get rid of this loop.
+  auto key_slices = std::vector<::rocksdb::Slice>();
+  key_slices.reserve(keys.size());
+  for (const auto &k : keys) {
+    key_slices.emplace_back(detail::toSlice(k));
+  }
+  client_->dbInstance_->MultiGet(::rocksdb::ReadOptions{},
+                                 columnFamilyHandle(cFamily),
+                                 key_slices.size(),
+                                 key_slices.data(),
+                                 values.data(),
+                                 statuses.data());
+}
+
 inline NativeWriteBatch NativeClient::getBatch() const { return NativeWriteBatch{shared_from_this()}; }
 
 inline NativeIterator NativeClient::getIterator() const {

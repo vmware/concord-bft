@@ -835,6 +835,70 @@ TEST_F(native_rocksdb_test, get_non_existent_slice_in_some_family) {
   ASSERT_FALSE(db->getSlice(cf, key));
 }
 
+TEST_F(native_rocksdb_test, multiget_all_keys_exist) {
+  const auto cf = "cf"s;
+  db->createColumnFamily(cf);
+  db->put(cf, key, value);
+  db->put(cf, key1, value1);
+  db->put(cf, key2, value2);
+
+  std::vector<std::string> keys = {key, key1, key2};
+  std::vector<::rocksdb::PinnableSlice> values(keys.size());
+  std::vector<::rocksdb::Status> statuses(keys.size());
+
+  db->multiGet(cf, keys, values, statuses);
+  ASSERT_EQ(3, statuses.size());
+  for (auto &s : statuses) {
+    ASSERT_TRUE(s.ok());
+  }
+  ASSERT_EQ(value, *values[0].GetSelf());
+  ASSERT_EQ(value1, *values[1].GetSelf());
+  ASSERT_EQ(value2, *values[2].GetSelf());
+}
+
+TEST_F(native_rocksdb_test, multiget_one_key_missing) {
+  const auto cf = "cf"s;
+  db->createColumnFamily(cf);
+  db->put(cf, key, value);
+  db->put(cf, key2, value2);
+
+  std::vector<std::string> keys = {key, key1, key2};
+  std::vector<::rocksdb::PinnableSlice> values(keys.size());
+  std::vector<::rocksdb::Status> statuses(keys.size());
+
+  db->multiGet(cf, keys, values, statuses);
+  ASSERT_EQ(3, statuses.size());
+  ASSERT_TRUE(statuses[0].ok());
+  ASSERT_TRUE(statuses[1].IsNotFound());
+  ASSERT_TRUE(statuses[2].ok());
+  ASSERT_EQ(value, *values[0].GetSelf());
+  ASSERT_EQ(value2, *values[2].GetSelf());
+}
+
+TEST_F(native_rocksdb_test, multiget_resize_values_and_statuses) {
+  const auto cf = "cf"s;
+  db->createColumnFamily(cf);
+  db->put(cf, key, value);
+  db->put(cf, key1, value1);
+  db->put(cf, key2, value2);
+
+  std::vector<std::string> keys = {key, key1, key2};
+  std::vector<::rocksdb::PinnableSlice> values;
+  std::vector<::rocksdb::Status> statuses;
+  ASSERT_EQ(0, values.size());
+  ASSERT_EQ(0, statuses.size());
+
+  db->multiGet(cf, keys, values, statuses);
+  ASSERT_EQ(3, values.size());
+  ASSERT_EQ(3, statuses.size());
+  for (auto &s : statuses) {
+    ASSERT_TRUE(s.ok());
+  }
+  ASSERT_EQ(value, *values[0].GetSelf());
+  ASSERT_EQ(value1, *values[1].GetSelf());
+  ASSERT_EQ(value2, *values[2].GetSelf());
+}
+
 }  // namespace
 
 int main(int argc, char *argv[]) {
