@@ -2151,7 +2151,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   while (iter.getAndGoToNext(complaint, size)) {
     auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header *)complaint, size, true);
     auto *complaintMsg = new ReplicaAsksToLeaveViewMsg(&baseMsg);
-    LOG_INFO(GL,
+    LOG_INFO(VC_LOG,
              "Got complaint in ViewChangeMsg from " << KVLOG(msg->senderId(),
                                                              msg->newView(),
                                                              msg->idOfGeneratedReplica(),
