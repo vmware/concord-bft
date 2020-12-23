@@ -3779,7 +3779,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(checkpointNum);
-    checkpoint_times_.start(checkpointNum);
+    checkpoint_times_.start(lastExecutedSeqNum);
   }
 
   //////////////////////////////////////////////////////////////////////

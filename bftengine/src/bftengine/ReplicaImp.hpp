@@ -464,6 +464,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         {"onTransferringCompleteImp", onTransferringCompleteImp},
                                         {"consensus", consensus},
                                         {"timeInActiveView", timeInActiveView},
+                                        {"timeInStateTransfer", timeInStateTransfer},
                                         {"checkpointFromCreationToStable", checkpoint_creation_to_stable}});
     }
 
