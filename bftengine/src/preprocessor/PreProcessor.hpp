@@ -107,7 +107,7 @@ class PreProcessor {
                                     uint64_t reqRetryId,
                                     const std::string &cid,
                                     const std::string &ongoingCid);
-  uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
+  uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_ - numOfRoReplicas_; }
   const char *getPreProcessResultBuffer(uint16_t clientId) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
