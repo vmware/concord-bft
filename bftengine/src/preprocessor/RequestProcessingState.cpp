@@ -33,12 +33,14 @@ void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRec
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                uint16_t clientId,
+                                               uint16_t reqOffsetInBatch,
                                                const string &cid,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg)
     : numOfReplicas_(numOfReplicas),
       clientId_(clientId),
+      reqOffsetInBatch_(reqOffsetInBatch),
       cid_(cid),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),

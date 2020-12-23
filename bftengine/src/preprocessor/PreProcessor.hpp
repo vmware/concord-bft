@@ -31,7 +31,7 @@
 
 namespace preprocessor {
 
-struct ClientRequestState {
+struct RequestState {
   std::mutex mutex;  // Define a mutex per client to avoid contentions between clients
   RequestProcessingStateUniquePtr reqProcessingStatePtr;
   // A list of requests passed a pre-processing consensus used for a non-determinism detection at later stage.
@@ -40,8 +40,9 @@ struct ClientRequestState {
   uint64_t reqRetryId = 1;
 };
 
-typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
-typedef std::unordered_map<uint16_t, ClientRequestStateSharedPtr> OngoingReqMap;  // clientId -> ClientRequestState map
+typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
+// clientId * batchSize + reqOffsetInBatch -> RequestStateSharedPtr
+typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
 
 //**************** Class PreProcessor ****************//
 
@@ -70,7 +71,7 @@ class PreProcessor {
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
-  ReqId getOngoingReqIdForClient(uint16_t clientId);
+  ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
 
  private:
   friend class AsyncPreProcessJob;
@@ -85,53 +86,62 @@ class PreProcessor {
 
   bool registerReplicaDependentRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                        PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
+                                       uint16_t reqOffsetInBatch,
                                        uint64_t reqRetryId);
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
-                       PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  void releaseClientPreProcessRequestSafe(uint16_t clientId, PreProcessingResult result);
-  void releaseClientPreProcessRequest(const ClientRequestStateSharedPtr &clientEntry,
-                                      uint16_t clientId,
-                                      PreProcessingResult result);
+                       PreProcessRequestMsgSharedPtr preProcessRequestMsg,
+                       uint16_t reqOffsetInBatch);
+  void releaseClientPreProcessRequestSafe(uint16_t clientId, uint16_t reqOffsetInBatch, PreProcessingResult result);
+  void releaseClientPreProcessRequest(const RequestStateSharedPtr &reqEntry, PreProcessingResult result);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
   bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg);
+  void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg, uint16_t reqOffsetInBatch);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
-  void resendPreProcessRequest(const RequestProcessingStateUniquePtr &clientReqStatePtr);
+  void resendPreProcessRequest(const RequestProcessingStateUniquePtr &reqStatePtr);
   void sendRejectPreProcessReplyMsg(NodeIdType clientId,
+                                    uint16_t reqOffsetInBatch,
                                     NodeIdType senderId,
                                     SeqNum reqSeqNum,
                                     SeqNum ongoingReqSeqNum,
                                     uint64_t reqRetryId,
                                     const std::string &cid,
                                     const std::string &ongoingCid);
-  uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_ - numOfRoReplicas_; }
-  const char *getPreProcessResultBuffer(uint16_t clientId) const;
+  const char *getPreProcessResultBuffer(uint16_t clientId, uint16_t reqOffsetInBatch) const;
+  const uint16_t getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
                                       bool isRetry);
   uint32_t launchReqPreProcessing(uint16_t clientId,
+                                  uint16_t reqOffsetInBatch,
                                   const std::string &cid,
                                   ReqId reqSeqNum,
                                   uint32_t reqLength,
                                   char *reqBuf,
                                   const concordUtils::SpanContext &span_context);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
-  void handlePreProcessedReqByNonPrimary(
-      uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t resBufLen, const std::string &cid);
+  void handlePreProcessedReqByNonPrimary(uint16_t clientId,
+                                         uint16_t reqOffsetInBatch,
+                                         ReqId reqSeqNum,
+                                         uint64_t reqRetryId,
+                                         uint32_t resBufLen,
+                                         const std::string &cid);
   void handlePreProcessedReqByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
-  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, uint32_t resultBufLen);
-  void finalizePreProcessing(NodeIdType clientId);
-  void cancelPreProcessing(NodeIdType clientId);
-  void setPreprocessingRightNow(uint16_t clientId, bool set);
-  PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId, uint32_t resultBufLen);
+  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, uint16_t reqOffsetInBatch, uint32_t resultBufLen);
+  void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch);
+  void cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch);
+  void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
+  PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
+                                                                          uint16_t reqOffsetInBatch,
+                                                                          uint32_t resultBufLen);
   void handlePreProcessReplyMsg(const std::string &cid,
                                 PreProcessingResult result,
                                 NodeIdType clientId,
+                                uint16_t reqOffsetInBatch,
                                 SeqNum reqSeqNum);
   void updateAggregatorAndDumpMetrics();
   void addTimers();
@@ -161,9 +171,10 @@ class PreProcessor {
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   std::vector<concordUtils::Sliver> preProcessResultBuffers_;
-  OngoingReqMap ongoingRequests_;  // clientId -> ClientRequestStateSharedPtr
+  OngoingReqMap ongoingRequests_;  // clientId + reqOffsetInBatch -> RequestStateSharedPtr
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
+  const uint16_t batchSize_ = 5;
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
     concordMetrics::CounterHandle preProcReqReceived;

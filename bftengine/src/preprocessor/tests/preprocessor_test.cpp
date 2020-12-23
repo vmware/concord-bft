@@ -318,7 +318,7 @@ void setUpCommunication() {
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
   auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(
-      sigManager_[replicaId], &preProcessorRecorder, replicaId, clientId, reqSeqNum, reqRetryId);
+      sigManager_[replicaId], &preProcessorRecorder, replicaId, clientId, 0, reqSeqNum, reqRetryId);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
@@ -333,6 +333,7 @@ void clearDiagnosticsHandlers() {
 TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  0,
                                   cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
@@ -350,6 +351,7 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  0,
                                   cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
@@ -368,6 +370,7 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
 TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  0,
                                   cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
@@ -386,6 +389,7 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
 TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  0,
                                   cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
@@ -408,6 +412,7 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
 TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
   RequestProcessingState reqState(replicaConfig.numReplicas,
                                   clientId,
+                                  0,
                                   cid,
                                   reqSeqNum,
                                   ClientPreProcessReqMsgUniquePtr(),
@@ -436,10 +441,10 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
-  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
   usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   timers.evaluate();
-  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
   clearDiagnosticsHandlers();
 }
 
@@ -456,11 +461,11 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
-  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
 
   usleep(reqWaitTimeoutMilli * 1000);
   timers.evaluate();
-  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
   clearDiagnosticsHandlers();
 }
 
@@ -479,14 +484,14 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
-  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == reqSeqNum);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
 
   auto* preProcessReqMsg =
-      new PreProcessRequestMsg(replica.currentPrimary(), clientId, reqSeqNum, reqRetryId, bufLen, buf, cid, span);
+      new PreProcessRequestMsg(replica.currentPrimary(), clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
-  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
   clearDiagnosticsHandlers();
 }
 

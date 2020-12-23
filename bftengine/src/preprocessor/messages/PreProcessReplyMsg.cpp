@@ -26,11 +26,12 @@ PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
                                        preprocessor::PreProcessorRecorder* histograms,
                                        NodeIdType senderId,
                                        uint16_t clientId,
+                                       uint16_t reqOffsetInBatch,
                                        uint64_t reqSeqNum,
                                        uint64_t reqRetryId)
     : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_), sigManager_(sigManager) {
   setPreProcessorHistograms(histograms);
-  setParams(senderId, clientId, reqSeqNum, reqRetryId);
+  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
 }
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
@@ -62,10 +63,12 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }  // namespace preprocessor
 
-void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId) {
+void PreProcessReplyMsg::setParams(
+    NodeIdType senderId, uint16_t clientId, uint16_t reqOffsetInBatch, ReqId reqSeqNum, uint64_t reqRetryId) {
   msgBody()->senderId = senderId;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->clientId = clientId;
+  msgBody()->reqOffsetInBatch = reqOffsetInBatch;
   msgBody()->reqRetryId = reqRetryId;
   LOG_DEBUG(logger(), KVLOG(senderId, clientId, reqSeqNum, reqRetryId));
 }
