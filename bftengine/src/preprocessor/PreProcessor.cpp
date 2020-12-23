@@ -80,8 +80,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       myReplicaId_(myReplica.getReplicaConfig().replicaId),
       maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
-      numOfReplicas_(myReplica.getReplicaConfig().numReplicas),
-      numOfRoReplicas_(myReplica.getReplicaConfig().numRoReplicas),
+      numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
                     myReplica_.getReplicaConfig().numOfClientProxies),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
@@ -103,11 +102,11 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
-                                        numOfReplicas_ + numOfRoReplicas_ + numOfClients_,
+                                        numOfReplicas_ + numOfClients_,
                                         myReplica.getReplicaConfig().replicaPrivateKey,
                                         myReplica.getReplicaConfig().publicKeysOfReplicas);
   const uint16_t numOfReqEntries = numOfClients_ * batchSize_;
-  const uint16_t firstClientId = numOfReplicas_ + numOfRoReplicas_;
+  const uint16_t firstClientId = numOfReplicas_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientId + i] = make_shared<RequestState>();
@@ -559,7 +558,7 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
   const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, reqOffsetInBatch)];
   if (!reqEntry->reqProcessingStatePtr)
     reqEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(
-        numOfReplicas_ + numOfRoReplicas_, clientId, reqOffsetInBatch, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
+        numOfReplicas_, clientId, reqOffsetInBatch, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
   else if (!reqEntry->reqProcessingStatePtr->getPreProcessRequest())
     // The request was registered before as arrived directly from the client
     reqEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
@@ -685,7 +684,7 @@ void PreProcessor::handleClientPreProcessRequestByNonPrimary(ClientPreProcessReq
 }
 
 const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, uint16_t reqOffsetInBatch) const {
-  const auto bufferOffset = clientId - numOfReplicas_ - numOfRoReplicas_ + reqOffsetInBatch;
+  const auto bufferOffset = clientId - numOfReplicas_ + reqOffsetInBatch;
   return preProcessResultBuffers_[bufferOffset].data();
 }
 

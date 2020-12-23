@@ -99,8 +99,8 @@ class SimpleClient {
                                       const std::string& span_context = "") = 0;
 
   // To be used only for write requests
-  virtual OperationResult sendRequests(const std::deque<ClientRequest>& clientRequests,
-                                       std::deque<ClientReply>& clientReplies) = 0;
+  virtual OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
+                                    std::deque<ClientReply>& clientReplies) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

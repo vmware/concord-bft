@@ -40,6 +40,8 @@ struct RequestState {
   uint64_t reqRetryId = 1;
 };
 
+// Pre-allocated (clientId * batchSize) buffers
+typedef std::vector<concordUtils::Sliver> PreProcessResultBuffers;
 typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
 // clientId * batchSize + reqOffsetInBatch -> RequestStateSharedPtr
 typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
@@ -166,11 +168,10 @@ class PreProcessor {
   const uint32_t maxPreExecResultSize_;
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
-  const uint16_t numOfRoReplicas_;
   const uint16_t numOfClients_;
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
-  std::vector<concordUtils::Sliver> preProcessResultBuffers_;
+  PreProcessResultBuffers preProcessResultBuffers_;
   OngoingReqMap ongoingRequests_;  // clientId + reqOffsetInBatch -> RequestStateSharedPtr
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;

@@ -25,7 +25,6 @@
 #include "messages/ClientReplyMsg.hpp"
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/ClientBatchRequestMsg.hpp"
-#include "messages/ClientPreProcessBatchRequestMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "Logger.hpp"
@@ -53,8 +52,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                               const std::string& cid,
                               const std::string& span_context) override;
 
-  OperationResult sendRequests(const std::deque<ClientRequest>& clientRequests,
-                               std::deque<ClientReply>& clientReplies) override;
+  OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
+                            std::deque<ClientReply>& clientReplies) override;
 
   // IReceiver methods
   void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) override;
@@ -80,6 +79,8 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   void reset();
   bool allRequiredRepliesReceived();
   void sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size);
+  OperationResult isBatchValid(uint64_t requestsSize, uint64_t repliesSize);
+  OperationResult isBatchRequestValid(const ClientRequest& req);
 
  protected:
   static const uint32_t maxLegalMsgSize_ = 64 * 1024;  // TODO(GG): ???
@@ -228,11 +229,14 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                                              const std::string& cid,
                                              const std::string& span_context) {
   bool isReadOnly = flags & READ_ONLY_REQ;
-  if (!isReadOnly) {
+  bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
+  if (isPreProcessRequired) {
+    LOG_ERROR(logger_,
+              "The 'batch send' to be used for requests intended for pre-processing"
+                  << KVLOG(reqSeqNum, clientId_, cid, timeoutMilli));
     reset();
     return INVALID_REQUEST;
   }
-  bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
   // TODO(GG): check params ...
   LOG_DEBUG(logger_,
@@ -263,11 +267,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
 
   ClientRequestMsg* reqMsg;
   concordUtils::SpanContext ctx{span_context};
-  if (isPreProcessRequired)
-    reqMsg = new preprocessor::ClientPreProcessRequestMsg(
-        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
-  else
-    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
+  reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
   pendingRequest_.push_back(reqMsg);
 
   sendPendingRequest();
@@ -352,31 +352,51 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
   return SUCCESS;
 }
 
-OperationResult SimpleClientImp::sendRequests(const std::deque<ClientRequest>& clientRequests,
-                                              std::deque<ClientReply>& clientReplies) {
-  if (clientRequests.size() != clientReplies.size()) {
-    reset();
-    return INVALID_REQUEST;
+OperationResult SimpleClientImp::isBatchRequestValid(const ClientRequest& req) {
+  OperationResult res = SUCCESS;
+  if (req.flags & READ_ONLY_REQ) {
+    LOG_ERROR(logger_, "Read-only requests could not be sent in a batch" << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    res = INVALID_REQUEST;
+  } else if (!(req.flags & PRE_PROCESS_REQ)) {
+    LOG_ERROR(logger_,
+              "Requests batching is supported only for requests intended for pre-processing"
+                  << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    res = INVALID_REQUEST;
+  } else if (!isSystemReady()) {
+    LOG_WARN(logger_,
+             "The system is not ready yet to handle requests => reject" << KVLOG(clientId_, req.reqSeqNum, req.cid));
+    res = NOT_READY;
   }
+  if (res != SUCCESS) reset();
+  return res;
+}
 
+OperationResult SimpleClientImp::isBatchValid(uint64_t requestsSize, uint64_t repliesSize) {
+  OperationResult res = SUCCESS;
+  if (!requestsSize) {
+    LOG_ERROR(logger_, "An empty requests list specified");
+    res = INVALID_REQUEST;
+  } else if (requestsSize != repliesSize) {
+    LOG_ERROR(logger_,
+              "The number of requests is not equal to the number of replies" << KVLOG(requestsSize, repliesSize));
+    res = INVALID_REQUEST;
+  }
+  if (res != SUCCESS) reset();
+  return res;
+}
+
+OperationResult SimpleClientImp::sendBatch(const std::deque<ClientRequest>& clientRequests,
+                                           std::deque<ClientReply>& clientReplies) {
+  OperationResult res = isBatchValid(clientRequests.size(), clientReplies.size());
+  if (res != SUCCESS) return res;
   if (!communication_->isRunning()) communication_->Start();
   bool isPreProcessRequired = false;
   string cid;
   uint64_t maxTimeToWait = 0;
   ClientRequestMsg* reqMsg = nullptr;
-  bool preProcessAll = false;
   for (auto& req : clientRequests) {
-    if (req.flags & READ_ONLY_REQ) {
-      reset();
-      return INVALID_REQUEST;
-    }
-    isPreProcessRequired = req.flags & PRE_PROCESS_REQ;
-    if (!preProcessAll && isPreProcessRequired)
-      preProcessAll = true;
-    else if (preProcessAll && !isPreProcessRequired) {  // Different request kinds could not be batched together
-      reset();
-      return INVALID_REQUEST;
-    }
+    res = isBatchRequestValid(req);
+    if (res != SUCCESS) return res;
     cid = req.cid.empty() ? to_string(req.reqSeqNum) + "-" + to_string(clientId_) : req.cid;
     if (maxTimeToWait != INFINITE_TIMEOUT) {
       if (req.timeoutMilli != INFINITE_TIMEOUT)
@@ -393,20 +413,9 @@ OperationResult SimpleClientImp::sendRequests(const std::deque<ClientRequest>& c
                     req.timeoutMilli,
                     limitOfExpectedOperationTime_.upperLimit(),
                     req.span_context.empty()));
-    if (!isSystemReady()) {
-      LOG_WARN(logger_,
-               "The system is not ready yet to handle requests => reject"
-                   << KVLOG(clientId_, req.reqSeqNum, req.cid, req.timeoutMilli));
-      reset();
-      return NOT_READY;
-    }
     concordUtils::SpanContext ctx{req.span_context};
-    if (isPreProcessRequired)
-      reqMsg = new preprocessor::ClientPreProcessRequestMsg(
-          clientId_, req.reqSeqNum, req.lengthOfRequest, req.request, req.timeoutMilli, cid, ctx);
-    else
-      reqMsg = new ClientRequestMsg(
-          clientId_, req.flags, req.reqSeqNum, req.lengthOfRequest, req.request, req.timeoutMilli, cid, ctx);
+    reqMsg = new ClientRequestMsg(
+        clientId_, req.flags, req.reqSeqNum, req.lengthOfRequest, req.request, req.timeoutMilli, cid, ctx);
     pendingRequest_.push_back(reqMsg);
   }
 
@@ -418,7 +427,6 @@ OperationResult SimpleClientImp::sendRequests(const std::deque<ClientRequest>& c
 
   static const std::chrono::milliseconds timersRes(timersResolutionMilli_);
   const Time beginTime = getMonotonicTime();
-
   sendPendingRequest();
 
   // collect metrics and update them
@@ -437,7 +445,6 @@ OperationResult SimpleClientImp::sendRequests(const std::deque<ClientRequest>& c
       hasData = condVar_.wait_for(mlock, timersRes, predicate);
       if (hasData) msgQueue_.swap(newMsgs);
     }
-
     if (hasData) {
       while (!newMsgs.empty()) {
         MessageBase* msg = newMsgs.front();
@@ -445,22 +452,19 @@ OperationResult SimpleClientImp::sendRequests(const std::deque<ClientRequest>& c
       }
       newMsgs.pop();
     }
-
     if (allRequiredRepliesReceived()) requestCommitted = true;
     const Time currTime = getMonotonicTime();
-    // If client defined timeout for the request expired?
+    // If client-defined timeout for the request expired?
     if (maxTimeToWait != INFINITE_TIMEOUT &&
         (uint64_t)duration_cast<milliseconds>(currTime - beginTime).count() > maxTimeToWait) {
       requestTimeout = true;
       break;
     }
-
     if ((uint64_t)duration_cast<milliseconds>(currTime - timeOfLastTransmission_).count() >
         limitOfExpectedOperationTime_.upperLimit()) {
       onRetransmission();
     }
   }
-
   if (requestCommitted) {
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
@@ -590,11 +594,7 @@ void SimpleClientImp::sendPendingRequest() {
 
   uint32_t batchBufSize = 0;
   for (auto const& msg : pendingRequest_) batchBufSize += msg->size();
-  ClientBatchRequestMsg* batchMsg = nullptr;
-  if (pendingRequest_[0]->flags() & PRE_PROCESS_REQ)
-    batchMsg = new ClientPreProcessBatchRequestMsg(clientId_, pendingRequest_, batchBufSize);
-  else
-    batchMsg = new ClientBatchRequestMsg(clientId_, pendingRequest_, batchBufSize);
+  ClientBatchRequestMsg* batchMsg = new ClientBatchRequestMsg(clientId_, pendingRequest_, batchBufSize);
   sendRequestToAllOrToPrimary(sendToAll, batchMsg->body(), batchMsg->size());
   delete batchMsg;
 }
