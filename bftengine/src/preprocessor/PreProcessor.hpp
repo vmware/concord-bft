@@ -107,7 +107,7 @@ class PreProcessor {
                                     uint64_t reqRetryId,
                                     const std::string &cid,
                                     const std::string &ongoingCid);
-  uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_; }
+  uint16_t getClientReplyBufferId(uint16_t clientId) const { return clientId - numOfReplicas_ - numOfRoReplicas_; }
   const char *getPreProcessResultBuffer(uint16_t clientId) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
@@ -156,6 +156,7 @@ class PreProcessor {
   const uint32_t maxPreExecResultSize_;
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
+  const uint16_t numOfRoReplicas_;
   const uint16_t numOfClients_;
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
