@@ -686,6 +686,7 @@ bool ViewsManager::tryToEnterView(ViewNum v,
   // enter to view v
   ///////////////////////////////////////////////////////////////////////////
 
+  LOG_INFO(VC_LOG, "View is activated " << v << "previous view was " << myLatestActiveView);
   myLatestActiveView = v;
   stat = Stat::IN_VIEW;
 
