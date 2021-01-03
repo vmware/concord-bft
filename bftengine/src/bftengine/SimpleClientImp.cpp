@@ -23,7 +23,6 @@
 #include "TimeUtils.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/ClientBatchRequestMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
@@ -32,6 +31,7 @@
 using namespace std;
 using namespace std::chrono;
 using namespace bft::communication;
+using namespace preprocessor;
 
 namespace bftEngine {
 namespace impl {
@@ -79,7 +79,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   void reset();
   bool allRequiredRepliesReceived();
   void sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size);
-  OperationResult isBatchValid(uint64_t requestsSize, uint64_t repliesSize);
+  OperationResult isBatchValid(uint64_t requestsNbr, uint64_t repliesNbr);
   OperationResult isBatchRequestValid(const ClientRequest& req);
 
  protected:
@@ -210,12 +210,10 @@ SimpleClientImp::SimpleClientImp(
 SimpleClientImp::~SimpleClientImp() {}
 
 bool SimpleClientImp::allRequiredRepliesReceived() {
-  bool completed = false;
   for (auto& elem : replysCertificate_) {
     if (!elem.second.isComplete()) return false;
-    completed = true;
   }
-  return completed;
+  return true;
 }
 
 OperationResult SimpleClientImp::sendRequest(uint8_t flags,
@@ -230,15 +228,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                                              const std::string& span_context) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
-  if (isPreProcessRequired) {
-    LOG_ERROR(logger_,
-              "The 'batch send' to be used for requests intended for pre-processing"
-                  << KVLOG(reqSeqNum, clientId_, cid, timeoutMilli));
-    reset();
-    return INVALID_REQUEST;
-  }
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
-  // TODO(GG): check params ...
   LOG_DEBUG(logger_,
             "Client " << clientId_ << " - sends request " << reqSeqNum << ", cid=" << msgCid << " (isRO=" << isReadOnly
                       << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
@@ -267,9 +257,11 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
 
   ClientRequestMsg* reqMsg;
   concordUtils::SpanContext ctx{span_context};
-  reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
+  if (isPreProcessRequired)
+    reqMsg = new ClientPreProcessRequestMsg(clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
+  else
+    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
   pendingRequest_.push_back(reqMsg);
-
   sendPendingRequest();
 
   // collect metrics and update them
@@ -371,14 +363,14 @@ OperationResult SimpleClientImp::isBatchRequestValid(const ClientRequest& req) {
   return res;
 }
 
-OperationResult SimpleClientImp::isBatchValid(uint64_t requestsSize, uint64_t repliesSize) {
+OperationResult SimpleClientImp::isBatchValid(uint64_t requestsNbr, uint64_t repliesNbr) {
   OperationResult res = SUCCESS;
-  if (!requestsSize) {
-    LOG_ERROR(logger_, "An empty requests list specified");
+  if (!requestsNbr) {
+    LOG_ERROR(logger_, "An empty request list specified");
     res = INVALID_REQUEST;
-  } else if (requestsSize != repliesSize) {
+  } else if (requestsNbr != repliesNbr) {
     LOG_ERROR(logger_,
-              "The number of requests is not equal to the number of replies" << KVLOG(requestsSize, repliesSize));
+              "The number of requests is not equal to the number of replies" << KVLOG(requestsNbr, repliesNbr));
     res = INVALID_REQUEST;
   }
   if (res != SUCCESS) reset();
@@ -433,7 +425,6 @@ OperationResult SimpleClientImp::sendBatch(const std::deque<ClientRequest>& clie
   client_metrics_.retransmissionTimer.Get().Set(limitOfExpectedOperationTime_.upperLimit());
   metrics_.UpdateAggregator();
 
-  // protect against spurious wake-ups
   auto predicate = [this] { return !msgQueue_.empty(); };
   bool requestTimeout = false;
   bool requestCommitted = false;

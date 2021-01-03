@@ -495,6 +495,72 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   clearDiagnosticsHandlers();
 }
 
+TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
+  setUpConfiguration_7();
+
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
+  DummyReplica replica(replicasInfo);
+  replica.setPrimary(false);
+  replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
+  replicaConfig.replicaId = replica_1;
+
+  concordUtil::Timers timers;
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
+
+  auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientBatchRequest);
+  deque<ClientRequestMsg*> batch;
+  uint batchSize = 0;
+  for (uint i = 0; i < 3; i++) {
+    auto* clientReqMsg = new ClientRequestMsg(clientId, 2, i + 5, bufLen, buf, reqTimeoutMilli, to_string(i + 5));
+    batch.push_back(clientReqMsg);
+    batchSize += clientReqMsg->size();
+  }
+  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize);
+  msgHandlerCallback(clientBatchReqMsg);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 5);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 6);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 7);
+
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
+  timers.evaluate();
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 0);
+}
+
+TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
+  setUpConfiguration_7();
+
+  bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
+  DummyReplica replica(replicasInfo);
+  replica.setPrimary(true);
+  replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
+  replicaConfig.replicaId = replica_1;
+
+  concordUtil::Timers timers;
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
+
+  auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientBatchRequest);
+  deque<ClientRequestMsg*> batch;
+  uint batchSize = 0;
+  for (uint i = 0; i < 3; i++) {
+    auto* clientReqMsg = new ClientRequestMsg(clientId, 2, i + 5, bufLen, buf, reqTimeoutMilli, to_string(i + 5));
+    batch.push_back(clientReqMsg);
+    batchSize += clientReqMsg->size();
+  }
+  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize);
+  msgHandlerCallback(clientBatchReqMsg);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 5);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 6);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 7);
+
+  usleep(reqTimeoutMilli * 1000 * 4);
+  timers.evaluate();
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 0);
+  ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 0);
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

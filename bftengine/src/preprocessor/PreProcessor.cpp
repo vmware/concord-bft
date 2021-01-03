@@ -342,7 +342,7 @@ void PreProcessor::handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqM
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   const auto &reqTimeoutMilli = clientMsg->requestTimeoutMilli();
   LOG_DEBUG(logger(),
-            "Received ClientBatchPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
+            "Start handling single message from the batch:" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
 
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
   bool registerSucceeded = false;
@@ -383,8 +383,8 @@ void PreProcessor::handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqM
       return;
     }
     if (seqNumberOfLastReply < reqSeqNum)
-      registerSucceeded =
-          registerReplicaDependentRequest(move(clientMsg), preProcessRequestMsg, 0, ++(reqEntry->reqRetryId));
+      registerSucceeded = registerReplicaDependentRequest(
+          move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, ++(reqEntry->reqRetryId));
   }
 
   if (myReplica_.isCurrentPrimary() && registerSucceeded)
@@ -399,6 +399,10 @@ void PreProcessor::handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqM
 template <>
 void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
   ClientBatchRequestMsgUniquePtr clientBatchReqMsg(msg);
+  LOG_DEBUG(
+      logger(),
+      "Received ClientBatchPreProcessRequestMsg" << KVLOG(
+          clientBatchReqMsg->clientId(), clientBatchReqMsg->numOfMessagesInBatch(), clientBatchReqMsg->batchSize()));
   if (!checkClientBatchMsgCorrectness(clientBatchReqMsg)) {
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
@@ -677,7 +681,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
   if (givenReq) {
     const auto &clientId = givenReq->getClientId();
     const auto &reqOffsetInBatch = givenReq->getReqOffsetInBatch();
-    SeqNum requestSeqNum = 0;
+    SeqNum requestSeqNum = givenReq->getReqSeqNum();
     if (result == COMPLETE) {
       if (reqEntry->reqProcessingHistory.size() >= reqEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = reqEntry->reqProcessingHistory.front();
@@ -688,7 +692,6 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
         reqEntry->reqProcessingHistory.pop_front();
       }
       SCOPED_MDC_CID(givenReq->getReqCid());
-      requestSeqNum = givenReq->getReqSeqNum();
       LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId, reqOffsetInBatch) << " released and moved to the history");
       // No need to keep whole messages in the memory => release them before archiving
       givenReq->releaseResources();
@@ -830,7 +833,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                                     reqLength,
                                                     reqBuf,
                                                     maxPreExecResultSize_,
-                                                    (char *)getPreProcessResultBuffer(clientId)});
+                                                    (char *)getPreProcessResultBuffer(clientId, reqOffsetInBatch)});
   requestsHandler_.execute(accumulatedRequests, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;

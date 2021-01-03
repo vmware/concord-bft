@@ -46,7 +46,7 @@ enum ClientMsgFlag : uint8_t {
 
 enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
 
-typedef struct ClientRequest {
+struct ClientRequest {
   uint8_t flags = 0;
   const char* request = nullptr;
   uint32_t lengthOfRequest = 0;
@@ -54,15 +54,15 @@ typedef struct ClientRequest {
   uint64_t timeoutMilli = 0;
   std::string cid;
   std::string span_context;
-} ClientRequest;
+};
 
-typedef struct ClientReply {
+struct ClientReply {
   uint32_t lengthOfReplyBuffer = 0;
   char* replyBuffer = nullptr;
   uint32_t actualReplyLength = 0;
   std::string cid;
   std::string span_context;
-} ClientReply;
+};
 
 class SimpleClient {
  public:
