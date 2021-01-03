@@ -198,22 +198,21 @@ void PreProcessor::onRequestsStatusCheckTimer() {
   }
 }
 
-bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
-                                             ReqId reqSeqNum) const {
-  SCOPED_MDC_CID(clientReqMsg->getCid());
+bool PreProcessor::checkClientMsgCorrectness(
+    uint64_t reqSeqNum, const string &cid, bool isReadOnly, uint16_t clientId, NodeIdType senderId) const {
+  SCOPED_MDC_CID(cid);
   if (myReplica_.isCollectingState()) {
     LOG_INFO(logger(),
              "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
                  << KVLOG(reqSeqNum));
     return false;
   }
-  if (clientReqMsg->isReadOnly()) {
+  if (isReadOnly) {
     LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as it is signed as read-only" << KVLOG(reqSeqNum));
     return false;
   }
-  const bool &invalidClient = !myReplica_.isValidClient(clientReqMsg->clientProxyId());
-  const bool &sentFromReplicaToNonPrimary =
-      myReplica_.isIdOfReplica(clientReqMsg->senderId()) && !myReplica_.isCurrentPrimary();
+  const bool &invalidClient = !myReplica_.isValidClient(clientId);
+  const bool &sentFromReplicaToNonPrimary = myReplica_.isIdOfReplica(senderId) && !myReplica_.isCurrentPrimary();
   if (invalidClient || sentFromReplicaToNonPrimary) {
     LOG_WARN(
         logger(),
@@ -223,6 +222,15 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
   if (!myReplica_.currentViewIsActive()) {
     LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as current view is inactive" << KVLOG(reqSeqNum));
     return false;
+  }
+  return true;
+}
+
+bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg) {
+  const auto &clientRequestMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
+  for (const auto &msg : clientRequestMsgs) {
+    if (!checkClientMsgCorrectness(msg->requestSeqNum(), msg->getCid(), false, msg->clientProxyId(), msg->senderId()))
+      return false;
   }
   return true;
 }
@@ -262,13 +270,14 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
 
-  SCOPED_MDC_CID(clientPreProcessReqMsg->getCid());
+  const string &cid = clientPreProcessReqMsg->getCid();
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
   const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
   const auto &reqTimeoutMilli = clientPreProcessReqMsg->requestTimeoutMilli();
+  SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
-  if (!checkClientMsgCorrectness(clientPreProcessReqMsg, reqSeqNum)) {
+  if (!checkClientMsgCorrectness(reqSeqNum, cid, clientPreProcessReqMsg->isReadOnly(), clientId, senderId)) {
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
@@ -294,6 +303,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
     // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
     // request messages from the primary.
+    // TBD: save senderId in the header and set it before re-sending
     if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
       LOG_DEBUG(logger(),
                 "Specified request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId, senderId));
@@ -322,7 +332,82 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
             "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
                                          << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-}  // namespace preprocessor
+}
+
+void PreProcessor::handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                                            uint16_t msgOffsetInBatch) {
+  SCOPED_MDC_CID(clientMsg->getCid());
+  const NodeIdType &senderId = clientMsg->senderId();
+  const NodeIdType &clientId = clientMsg->clientProxyId();
+  const ReqId &reqSeqNum = clientMsg->requestSeqNum();
+  const auto &reqTimeoutMilli = clientMsg->requestTimeoutMilli();
+  LOG_DEBUG(logger(),
+            "Received ClientBatchPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
+
+  PreProcessRequestMsgSharedPtr preProcessRequestMsg;
+  bool registerSucceeded = false;
+  ReqId seqNumberOfLastReply = 0;
+  {
+    const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, msgOffsetInBatch)];
+    lock_guard<mutex> lock(reqEntry->mutex);
+    if (reqEntry->reqProcessingStatePtr) {
+      const auto &ongoingReqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
+      const auto &ongoingCid = reqEntry->reqProcessingStatePtr->getReqCid();
+      LOG_DEBUG(logger(),
+                KVLOG(reqSeqNum, clientId, senderId)
+                    << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid) << " is in progress");
+      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+      return;
+    }
+    // Count requests arrived through non-primary replicas and accepted in spite of the
+    // same request has been processing by the primary replica
+    if (clientId != senderId && myReplica_.isClientRequestInProcess(clientId, reqSeqNum))
+      preProcessorMetrics_.preProcReqForwardedByNonPrimaryNotIgnored.Get().Inc();
+    // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
+    // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
+    // request messages from the primary.
+    // TBD: save senderId in the header and set it before re-sending
+    if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
+      LOG_DEBUG(logger(),
+                "Specified request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId, senderId));
+      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+      return;
+    }
+    seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
+    if (seqNumberOfLastReply == reqSeqNum) {
+      LOG_INFO(logger(),
+               "Request has already been executed - let replica to decide how to proceed further"
+                   << KVLOG(reqSeqNum, clientId));
+      preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
+      incomingMsgsStorage_->pushExternalMsg(move(clientMsg));
+      return;
+    }
+    if (seqNumberOfLastReply < reqSeqNum)
+      registerSucceeded =
+          registerReplicaDependentRequest(move(clientMsg), preProcessRequestMsg, 0, ++(reqEntry->reqRetryId));
+  }
+
+  if (myReplica_.isCurrentPrimary() && registerSucceeded)
+    return handleClientPreProcessRequestByPrimary(preProcessRequestMsg);
+
+  LOG_DEBUG(logger(),
+            "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
+                                         << " is ignored because request is old/duplicated");
+  preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+}
+
+template <>
+void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
+  ClientBatchRequestMsgUniquePtr clientBatchReqMsg(msg);
+  if (!checkClientBatchMsgCorrectness(clientBatchReqMsg)) {
+    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    return;
+  }
+
+  ClientMsgsList &clientMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
+  uint16_t offset = 0;
+  for (auto &clientMsg : clientMsgs) handleSingleMsgFromClientBatchRequestMsg(move(clientMsg), offset++);
+}
 
 // Non-primary replica request handling
 template <>
@@ -456,6 +541,8 @@ void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
 void PreProcessor::registerMsgHandlers() {
   msgHandlersRegistrator_->registerMsgHandler(
       MsgCode::ClientPreProcessRequest, bind(&PreProcessor::messageHandler<ClientPreProcessRequestMsg>, this, _1));
+  msgHandlersRegistrator_->registerMsgHandler(MsgCode::ClientBatchRequest,
+                                              bind(&PreProcessor::messageHandler<ClientBatchRequestMsg>, this, _1));
   msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessRequest,
                                               bind(&PreProcessor::messageHandler<PreProcessRequestMsg>, this, _1));
   msgHandlersRegistrator_->registerMsgHandler(MsgCode::PreProcessReply,
@@ -505,7 +592,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetIn
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch) {
-  unique_ptr<ClientRequestMsg> clientRequestMsg;
+  ClientRequestMsgUniquePtr clientRequestMsg;
   const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, reqOffsetInBatch)];
   {
     concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);

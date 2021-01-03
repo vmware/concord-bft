@@ -13,6 +13,7 @@ set(preprocessor_source_files
     ${bftengine_SOURCE_DIR}/src/bftengine/messages/MessageBase.cpp
     PreProcessor.cpp
     RequestProcessingState.cpp
+    messages/ClientBatchRequestMsg.cpp
     messages/ClientPreProcessRequestMsg.cpp
     messages/PreProcessRequestMsg.cpp
     messages/PreProcessReplyMsg.cpp)

@@ -71,11 +71,13 @@ class ClientRequestMsg : public MessageBase {
                  uint8_t flags,
                  uint64_t reqTimeoutMilli,
                  const std::string& cid);
-};  // namespace bftEngine::impl
+};
 
 template <>
 inline size_t sizeOfHeader<ClientRequestMsg>() {
   return sizeof(ClientRequestMsgHeader);
 }
+
+typedef std::unique_ptr<ClientRequestMsg> ClientRequestMsgUniquePtr;
 
 }  // namespace bftEngine::impl

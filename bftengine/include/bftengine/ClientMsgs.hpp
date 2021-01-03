@@ -21,10 +21,11 @@
 namespace bftEngine {
 
 #pragma pack(push, 1)
+
 struct ClientBatchRequestMsgHeader {
   uint16_t clientId;
   uint32_t numOfMessagesInBatch;
-  uint32_t batchSize;
+  uint32_t dataSize;
 };
 
 struct ClientRequestMsgHeader {

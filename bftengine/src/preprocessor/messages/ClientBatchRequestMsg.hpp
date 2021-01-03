@@ -11,18 +11,20 @@
 
 #pragma once
 
-#include "ClientRequestMsg.hpp"
+#include "ClientPreProcessRequestMsg.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
 #include <deque>
 
 namespace bftEngine::impl {
 
+typedef std::deque<preprocessor::ClientPreProcessReqMsgUniquePtr> ClientMsgsList;
+
 class ClientBatchRequestMsg : public MessageBase {
   static_assert((uint16_t)BATCH_REQUEST_MSG_TYPE == (uint16_t)MsgCode::ClientBatchRequest, "");
   static_assert(sizeof(ClientBatchRequestMsgHeader::clientId) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientBatchRequestMsgHeader::numOfMessagesInBatch) == sizeof(uint32_t), "");
-  static_assert(sizeof(ClientBatchRequestMsgHeader::batchSize) == sizeof(uint32_t), "");
+  static_assert(sizeof(ClientBatchRequestMsgHeader::dataSize) == sizeof(uint32_t), "");
   static_assert(sizeof(ClientBatchRequestMsgHeader) == 10, "ClientBatchRequestMsgHeader size is 10B");
 
  public:
@@ -32,17 +34,22 @@ class ClientBatchRequestMsg : public MessageBase {
 
   uint16_t clientId() const { return msgBody()->clientId; }
   uint32_t numOfMessagesInBatch() const { return msgBody()->numOfMessagesInBatch; }
-  uint32_t batchSize() const { return msgBody()->batchSize; }
-
+  uint32_t batchSize() const { return msgBody()->dataSize; }
+  ClientMsgsList& getClientPreProcessRequestMsgs();
   void validate(const ReplicasInfo&) const override;
 
  protected:
   ClientBatchRequestMsgHeader* msgBody() const { return ((ClientBatchRequestMsgHeader*)msgBody_); }
+
+ private:
+  ClientMsgsList clientMsgsList_;
 };
 
 template <>
 inline size_t sizeOfHeader<ClientBatchRequestMsgHeader>() {
   return sizeof(ClientBatchRequestMsgHeader);
 }
+
+typedef std::unique_ptr<ClientBatchRequestMsg> ClientBatchRequestMsgUniquePtr;
 
 }  // namespace bftEngine::impl

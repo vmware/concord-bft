@@ -12,8 +12,7 @@
 #pragma once
 
 #include "OpenTracing.hpp"
-#include "messages/PreProcessRequestMsg.hpp"
-#include "messages/ClientPreProcessRequestMsg.hpp"
+#include "messages/ClientBatchRequestMsg.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "SimpleThreadPool.hpp"
@@ -40,10 +39,10 @@ struct RequestState {
   uint64_t reqRetryId = 1;
 };
 
-// Pre-allocated (clientId * batchSize) buffers
+// Pre-allocated (clientId * dataSize) buffers
 typedef std::vector<concordUtils::Sliver> PreProcessResultBuffers;
 typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
-// clientId * batchSize + reqOffsetInBatch -> RequestStateSharedPtr
+// (clientId * dataSize + reqOffsetInBatch) -> RequestStateSharedPtr
 typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
 
 //**************** Class PreProcessor ****************//
@@ -97,7 +96,9 @@ class PreProcessor {
   void releaseClientPreProcessRequest(const RequestStateSharedPtr &reqEntry, PreProcessingResult result);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
-  bool checkClientMsgCorrectness(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, ReqId reqSeqNum) const;
+  bool checkClientMsgCorrectness(
+      uint64_t reqSeqNum, const std::string &cid, bool isReadOnly, uint16_t clientId, NodeIdType senderId) const;
+  bool checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg);
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg);
   void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg, uint16_t reqOffsetInBatch);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
@@ -149,6 +150,7 @@ class PreProcessor {
   void addTimers();
   void cancelTimers();
   void onRequestsStatusCheckTimer();
+  void handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqMsgUniquePtr clientMsg, uint16_t msgOffsetInBatch);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
