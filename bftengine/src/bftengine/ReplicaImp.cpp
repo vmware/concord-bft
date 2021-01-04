@@ -1684,6 +1684,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   if (askForStateTransfer && !stateTransfer->isCollectingState()) {
     LOG_INFO(GL, "Call to startCollectingState()");
+    time_in_state_transfer_.start();
     clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
     stateTransfer->startCollectingState();
   } else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -2537,7 +2538,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
-
+  time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
 
   if (ps_) {
@@ -2646,6 +2647,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
   if (newStableSeqNum <= lastStableSeqNum) return;
+  checkpoint_times_.end(newStableSeqNum);
   TimeRecorder scoped_timer(*histograms_.onSeqNumIsStable);
 
   LOG_INFO(GL,
@@ -3451,7 +3453,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       consensus_times_(histograms_.consensus),
+      checkpoint_times_(histograms_.checkpoint_creation_to_stable),
       time_in_active_view_(histograms_.timeInActiveView),
+      time_in_state_transfer_(histograms_.timeInStateTransfer),
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
@@ -3812,6 +3816,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   if ((lastExecutedSeqNum + 1) % checkpointWindowSize == 0) {
     checkpointNum = (lastExecutedSeqNum + 1) / checkpointWindowSize;
     stateTransfer->createCheckpointOfCurrentState(checkpointNum);
+    checkpoint_times_.start(lastExecutedSeqNum);
   }
 
   //////////////////////////////////////////////////////////////////////
