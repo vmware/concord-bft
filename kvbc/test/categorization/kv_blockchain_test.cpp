@@ -33,8 +33,6 @@ class categorized_kvbc : public ::testing::Test {
   void SetUp() override {
     cleanup();
     db = TestRocksDb::createNative();
-    db->createColumnFamily(BLOCKS_CF);
-    db->createColumnFamily(ST_CHAIN_CF);
   }
   void TearDown() override { cleanup(); }
 
@@ -51,7 +49,7 @@ TEST_F(categorized_kvbc, merkle_update) {
 }
 
 TEST_F(categorized_kvbc, add_blocks) {
-  KeyValueBlockchain block_chain{db};
+  KeyValueBlockchain block_chain{db, true};
   // Add block1
   {
     Updates updates;
@@ -115,7 +113,7 @@ TEST_F(categorized_kvbc, add_blocks) {
 }
 
 TEST_F(categorized_kvbc, delete_block) {
-  KeyValueBlockchain block_chain{db};
+  KeyValueBlockchain block_chain{db, true};
   // Add block1
   {
     Updates updates;
@@ -230,7 +228,7 @@ TEST_F(categorized_kvbc, delete_block) {
 }
 
 TEST_F(categorized_kvbc, get_last_and_genesis_block) {
-  KeyValueBlockchain block_chain{db};
+  KeyValueBlockchain block_chain{db, true};
   detail::Blockchain block_chain_imp{db};
   // Add block1
   {
@@ -267,7 +265,7 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
 }
 
 TEST_F(categorized_kvbc, add_raw_block) {
-  KeyValueBlockchain block_chain{db};
+  KeyValueBlockchain block_chain{db, true};
   ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
 
   // Add block1
@@ -341,7 +339,7 @@ TEST_F(categorized_kvbc, add_raw_block) {
 }
 
 TEST_F(categorized_kvbc, get_raw_block) {
-  KeyValueBlockchain block_chain{db};
+  KeyValueBlockchain block_chain{db, true};
 
   ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
 
@@ -366,7 +364,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
     MerkleUpdatesData merkle_updates;
     merkle_updates.kv["merkle_key3"] = "merkle_value3";
     merkle_updates.deletes.push_back("merkle_deleted3");
-    rb.data.category_updates["merkle"] = merkle_updates;
+    rb.data.updates.kv["merkle"] = merkle_updates;
     block_chain.addRawBlock(rb, 5);
     ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
     ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
@@ -377,7 +375,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
 
   {
     auto rb = block_chain.getRawBlock(5);
-    ASSERT_EQ(std::get<MerkleUpdatesData>(rb.data.category_updates["merkle"]).kv["merkle_key3"], "merkle_value3");
+    ASSERT_EQ(std::get<MerkleUpdatesData>(rb.data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
   }
 
   // E.L not yet possible
@@ -390,7 +388,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
 }
 
 TEST_F(categorized_kvbc, link_state_transfer_chain) {
-  KeyValueBlockchain block_chain{db};
+  KeyValueBlockchain block_chain{db, true};
   detail::Blockchain block_chain_imp{db};
 
   ASSERT_FALSE(block_chain_imp.loadLastReachableBlockId().has_value());
@@ -469,13 +467,177 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
     MerkleUpdatesData merkle_updates;
     merkle_updates.kv["merkle_key3"] = "merkle_value3";
     merkle_updates.deletes.push_back("merkle_deleted3");
-    rb.data.category_updates["merkle"] = merkle_updates;
+    rb.data.updates.kv["merkle"] = merkle_updates;
     block_chain.addRawBlock(rb, 3);
     ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
 
     ASSERT_EQ(block_chain.getLastReachableBlockId(), 6);
     ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 6);
   }
+}
+
+TEST_F(categorized_kvbc, creation_of_category_type_cf) {
+  KeyValueBlockchain block_chain{db, true};
+  ASSERT_TRUE(db->hasColumnFamily(detail::CAT_ID_TYPE_CF));
+}
+
+TEST_F(categorized_kvbc, instantiation_of_categories) {
+  auto wb = db->getBatch();
+  db->createColumnFamily(detail::CAT_ID_TYPE_CF);
+  wb.put(
+      detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::merkle)));
+  wb.put(
+      detail::CAT_ID_TYPE_CF, std::string("merkle2"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::merkle)));
+  wb.put(
+      detail::CAT_ID_TYPE_CF, std::string("imm"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::immutable)));
+  wb.put(
+      detail::CAT_ID_TYPE_CF, std::string("kvhash"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::kv_hash)));
+
+  db->write(std::move(wb));
+
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+  auto cats = tester.getCategories(block_chain);
+  ASSERT_EQ(cats.count("merkle"), 1);
+  ASSERT_THROW(std::get<KVHashCategory>(cats["merkle"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<MerkleCategory>(cats["merkle"]));
+
+  ASSERT_EQ(cats.count("merkle2"), 1);
+  ASSERT_THROW(std::get<KVHashCategory>(cats["merkle2"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<MerkleCategory>(cats["merkle2"]));
+
+  ASSERT_EQ(cats.count("imm"), 1);
+  ASSERT_THROW(std::get<KVHashCategory>(cats["imm"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<detail::ImmutableKeyValueCategory>(cats["imm"]));
+
+  ASSERT_EQ(cats.count("kvhash"), 1);
+  ASSERT_THROW(std::get<MerkleCategory>(cats["kvhash"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<KVHashCategory>(cats["kvhash"]));
+}
+
+TEST_F(categorized_kvbc, throw_on_non_exist_category_type) {
+  KeyValueBlockchain block_chain{db, true};
+  auto wb = db->getBatch();
+  wb.put(detail::CAT_ID_TYPE_CF,
+         std::string("merkle"),
+         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::end_of_types)));
+  db->write(std::move(wb));
+
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+  ASSERT_THROW(tester.instantiateCategories(block_chain), std::runtime_error);
+}
+
+TEST_F(categorized_kvbc, throw_on_non_exist_category) {
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+  ASSERT_THROW(tester.getCategory("merkle", block_chain), std::runtime_error);
+}
+
+TEST_F(categorized_kvbc, get_category) {
+  db->createColumnFamily(detail::CAT_ID_TYPE_CF);
+  auto wb = db->getBatch();
+  wb.put(
+      detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::merkle)));
+  db->write(std::move(wb));
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+  ASSERT_NO_THROW(std::get<MerkleCategory>(tester.getCategory("merkle", block_chain)));
+}
+
+// E.L temporary imp till categories are wired
+TEST_F(categorized_kvbc, get_block_data) {
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+
+  // create block
+  BlockDigest pHash;
+  std::random_device rd;
+  for (int i = 0; i < (int)pHash.size(); i++) {
+    pHash[i] = (uint8_t)(rd() % 255);
+  }
+
+  auto cf = std::string("merkle");
+  auto key = std::string("key");
+  auto value = std::string("val");
+
+  uint64_t state_root_version = 886;
+  MerkleUpdatesInfo mui;
+  mui.keys[key] = MerkleKeyFlag{false};
+  mui.root_hash = pHash;
+  mui.state_root_version = state_root_version;
+
+  Block block{888};
+  block.add(cf, std::move(mui));
+  block.setParentHash(pHash);
+
+  // Add it to the blockchain and load it
+  auto wb = db->getBatch();
+  tester.getBlockchain(block_chain).addBlock(block, wb);
+  db->write(std::move(wb));
+  auto last_block = tester.getBlockchain(block_chain).loadLastReachableBlockId();
+  ASSERT_EQ(*last_block, 888);
+  tester.getBlockchain(block_chain).setLastReachableBlockId(*last_block);
+
+  // write category kvs
+  db->createColumnFamily(cf);
+  auto db_key = v2MerkleTree::detail::DBKeyManipulator::genDataDbKey(std::string(key), state_root_version);
+  auto db_val = v2MerkleTree::detail::serialize(
+      v2MerkleTree::detail::DatabaseLeafValue{block.id(), sparse_merkle::LeafNode{std::string(value)}});
+  db->put(cf, db_key, db_val);
+  auto db_get_val = db->get(cf, db_key);
+  ASSERT_EQ(db_get_val.value(), db_val);
+
+  // try to get updates
+  ASSERT_THROW(block_chain.getBlockData(889), std::runtime_error);
+  ASSERT_THROW(block_chain.getBlockData(887), std::runtime_error);
+  auto updates = block_chain.getBlockData(888);
+  auto variant = updates.kv[cf];
+  auto merkle_updates = std::get<MerkleUpdatesData>(variant);
+  // check reconstruction of original kv
+  ASSERT_EQ(merkle_updates.kv[key], value);
+}
+
+TEST_F(categorized_kvbc, validate_category_creation_on_add) {
+  KeyValueBlockchain block_chain{db, true};
+  ImmutableUpdates imm_up;
+  imm_up.addUpdate("key", {"val", {"0", "1"}});
+  Updates up;
+  up.add("imm", std::move(imm_up));
+  block_chain.addBlock(std::move(up));
+
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+  auto cats = tester.getCategories(block_chain);
+  ASSERT_EQ(cats.count("imm"), 1);
+  ASSERT_THROW(std::get<KVHashCategory>(cats["imm"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<detail::ImmutableKeyValueCategory>(cats["imm"]));
+
+  auto type = db->get(detail::CAT_ID_TYPE_CF, std::string("imm"));
+  ASSERT_TRUE(type.has_value());
+  ASSERT_EQ(static_cast<detail::CATEGORY_TYPE>((*type)[0]), detail::CATEGORY_TYPE::immutable);
+}
+
+TEST_F(categorized_kvbc, compare_raw_blocks) {
+  KeyValueBlockchain block_chain{db, true};
+  ImmutableUpdates imm_up;
+  imm_up.addUpdate("key", {"val", {"0", "1"}});
+  Updates up;
+  up.add("imm", std::move(imm_up));
+  block_chain.addBlock(std::move(up));
+
+  KeyValueBlockchain::KeyValueBlockchain_tester tester;
+  auto last_raw = tester.getLastRawBlocked(block_chain);
+  ASSERT_EQ(last_raw.first, 1);
+  ASSERT_TRUE(last_raw.second.has_value());
+  auto raw_from_api = block_chain.getRawBlock(1);
+  auto last_raw_imm_data = std::get<ImmutableUpdatesData>(last_raw.second.value().data.updates.kv["imm"]);
+  auto raw_from_api_imm_data = std::get<ImmutableUpdatesData>(raw_from_api.data.updates.kv["imm"]);
+  std::vector<std::string> vec{"0", "1"};
+  ASSERT_EQ(last_raw_imm_data.kv["key"].data, "val");
+  ASSERT_EQ(last_raw_imm_data.kv["key"].tags, vec);
+  ASSERT_EQ(raw_from_api_imm_data.kv["key"].data, "val");
+  ASSERT_EQ(raw_from_api_imm_data.kv["key"].tags, vec);
+
+  // ASSERT_EQ(raw_from_api.data, last_raw.second.value().data);
 }
 
 }  // end namespace

@@ -22,4 +22,6 @@ inline const auto IMMUTABLE_KV_CF_SUFFIX = std::string{"_immutable"};
 inline const auto BLOCKS_CF = std::string{"blocks"};
 inline const auto ST_CHAIN_CF = std::string{"st_chain"};
 
+inline const auto CAT_ID_TYPE_CF = std::string{"cat_id_type"};
+
 }  // namespace concord::kvbc::categorization::detail

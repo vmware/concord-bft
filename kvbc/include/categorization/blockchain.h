@@ -69,7 +69,7 @@ class Blockchain {
     if (!block) {
       return std::optional<RawBlock>{};
     }
-    return RawBlock(block.value(), *native_client_.get());
+    return RawBlock(block.value(), native_client_);
   }
 
   /////////////////////// State transfer Block chain ///////////////////////
@@ -77,7 +77,14 @@ class Blockchain {
    public:
     StateTransfer(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client)
         : native_client_{native_client} {
+      if (detail::createColumnFamilyIfNotExisting(detail::ST_CHAIN_CF, *native_client_.get())) {
+        LOG_INFO(CAT_BLOCK_LOG,
+                 "Created [" << detail::ST_CHAIN_CF << "] column family for the state transfer blockchain");
+      }
       loadLastBlockId();
+      if (last_block_id_) {
+        LOG_INFO(CAT_BLOCK_LOG, "State transfer last block id: " << last_block_id_.value());
+      }
     }
 
     void deleteBlock(const BlockId id, storage::rocksdb::NativeWriteBatch& wb) {

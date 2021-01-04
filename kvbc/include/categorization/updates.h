@@ -150,8 +150,11 @@ struct MerkleUpdates {
 
 // Updates contains a list of updates for different categories.
 struct Updates {
+  Updates() = default;
+  Updates(CategoryUpdatesData&& updates) : category_updates_{std::move(updates)} {}
   void add(const std::string& category_id, MerkleUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.try_emplace(category_id, std::move(updates.data_)); !inserted) {
+    if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
+        !inserted) {
       (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: Merkle, category: ") +
                              category_id};
@@ -159,7 +162,8 @@ struct Updates {
   }
 
   void add(const std::string& category_id, KeyValueUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.try_emplace(category_id, std::move(updates.data_)); !inserted) {
+    if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
+        !inserted) {
       (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: KVHash, category: ") +
                              category_id};
@@ -167,7 +171,8 @@ struct Updates {
   }
 
   void add(const std::string& category_id, ImmutableUpdates&& updates) {
-    if (const auto [itr, inserted] = category_updates_.try_emplace(category_id, std::move(updates.data_)); !inserted) {
+    if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
+        !inserted) {
       (void)itr;  // disable unused variable
       throw std::logic_error{std::string("Only one update for category is allowed. type: Immutable, category: ") +
                              category_id};
@@ -176,7 +181,7 @@ struct Updates {
 
  private:
   friend class KeyValueBlockchain;
-  std::map<std::string, std::variant<MerkleUpdatesData, KeyValueUpdatesData, ImmutableUpdatesData>> category_updates_;
+  CategoryUpdatesData category_updates_;
 };
 
 }  // namespace concord::kvbc::categorization

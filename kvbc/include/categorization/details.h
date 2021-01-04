@@ -27,6 +27,8 @@ namespace concord::kvbc::categorization::detail {
 
 using Buffer = std::vector<std::uint8_t>;
 
+enum class CATEGORY_TYPE : char { merkle = 0, immutable = 1, kv_hash = 2, end_of_types };
+
 template <typename Span>
 Hash hash(const Span &span) {
   return Hasher{}.digest(span.data(), span.size());
@@ -68,10 +70,12 @@ void deserialize(const Span &in, T &out) {
   deserialize(begin, begin + in.size(), out);
 }
 
-inline void createColumnFamilyIfNotExisting(const std::string &cf, storage::rocksdb::NativeClient &db) {
+inline bool createColumnFamilyIfNotExisting(const std::string &cf, storage::rocksdb::NativeClient &db) {
   if (!db.hasColumnFamily(cf)) {
     db.createColumnFamily(cf);
+    return true;
   }
+  return false;
 }
 
 }  // namespace concord::kvbc::categorization::detail
