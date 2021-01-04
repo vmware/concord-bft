@@ -221,15 +221,6 @@ bool PreProcessor::checkClientMsgCorrectness(const ClientPreProcessReqMsgUniqueP
 }
 
 void PreProcessor::updateAggregatorAndDumpMetrics() {
-  if (myReplica_.getCurrentView() != lastViewNum_) {
-    lastViewNum_ = myReplica_.getCurrentView();
-    preExecuteDuration_.clear();
-  }
-  if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - lastCleanHistTime_).count() >
-      clean_hist_interval_) {
-    lastCleanHistTime_ = std::chrono::steady_clock::now();
-    preExecuteDuration_.clear();
-  }
   metricsComponent_.UpdateAggregator();
   auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
   if (currTime - metricsLastDumpTime_ >= metricsDumpIntervalInSec_) {
