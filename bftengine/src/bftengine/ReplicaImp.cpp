@@ -265,6 +265,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
@@ -2128,6 +2129,7 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
 
 template <>
 void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   if (!viewChangeProtocolEnabled) {
     delete msg;
     return;
@@ -2206,6 +2208,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   if (!viewChangeProtocolEnabled) {
     delete msg;
     return;
@@ -2330,6 +2333,7 @@ bool ReplicaImp::tryToEnterView() {
 }
 
 void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNewView) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   SeqNum firstPPSeq = 0;
   SeqNum lastPPSeq = 0;
 
@@ -2933,6 +2937,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
 
 void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/update logic
 {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   ConcordAssert(viewChangeProtocolEnabled);
 
   if (isCollectingState()) return;
