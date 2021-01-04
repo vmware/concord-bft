@@ -702,22 +702,23 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                               char *reqBuf,
                                               const concordUtils::SpanContext &span_context) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
-  uint32_t resultLen = 0;
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
-  uint32_t replicaSpecificInfoLen = 0;
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(reqSeqNum, clientId, reqSeqNum));
-  auto status = requestsHandler_.execute(clientId,
-                                         reqSeqNum,
-                                         PRE_PROCESS_FLAG,
-                                         reqLength,
-                                         reqBuf,
-                                         maxPreExecResultSize_,
-                                         (char *)getPreProcessResultBuffer(clientId),
-                                         resultLen,
-                                         replicaSpecificInfoLen,
-                                         span);
+  bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
+  accumulatedRequests.push_back(
+      bftEngine::IRequestsHandler::ExecutionRequest{clientId,
+                                                    reqSeqNum,
+                                                    PRE_PROCESS_FLAG,
+                                                    reqLength,
+                                                    reqBuf,
+                                                    maxPreExecResultSize_,
+                                                    (char *)getPreProcessResultBuffer(clientId)});
+  requestsHandler_.execute(accumulatedRequests, cid, span);
+  const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
+  const auto status = request.outExecutionStatus;
+  const auto resultLen = request.outActualReplySize;
   LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(reqSeqNum, clientId, reqSeqNum));
   if (status != 0 || !resultLen) {
     LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, reqSeqNum, status, resultLen));

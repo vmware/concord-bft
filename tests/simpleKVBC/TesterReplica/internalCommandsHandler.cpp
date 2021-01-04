@@ -31,36 +31,6 @@ using concord::storage::SetOfKeyValuePairs;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
 
-int InternalCommandsHandler::execute(uint16_t clientId,
-                                     uint64_t sequenceNum,
-                                     uint8_t flags,
-                                     uint32_t requestSize,
-                                     const char *request,
-                                     uint32_t maxReplySize,
-                                     char *outReply,
-                                     uint32_t &outActualReplySize,
-                                     uint32_t &outActualReplicaSpecificInfoSize,
-                                     concordUtils::SpanWrapper &span) {
-  // ReplicaSpecificInfo is not currently used in the TesterReplica
-  outActualReplicaSpecificInfoSize = 0;
-  int res;
-  if (requestSize < sizeof(SimpleRequest)) {
-    LOG_ERROR(
-        m_logger,
-        "The message is too small: requestSize is " << requestSize << ", required size is " << sizeof(SimpleRequest));
-    return -1;
-  }
-  bool readOnly = flags & MsgFlag::READ_ONLY_FLAG;
-  if (readOnly) {
-    res = executeReadOnlyCommand(
-        requestSize, request, maxReplySize, outReply, outActualReplySize, outActualReplicaSpecificInfoSize);
-  } else {
-    res = executeWriteCommand(requestSize, request, sequenceNum, flags, maxReplySize, outReply, outActualReplySize);
-  }
-  if (!res) LOG_ERROR(m_logger, "Command execution failed!");
-  return res ? 0 : -1;
-}
-
 void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
                                       const std::string &batchCid,
                                       concordUtils::SpanWrapper &parent_span) {
@@ -69,27 +39,28 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
     if (req.outExecutionStatus != 1) continue;
     req.outReplicaSpecificInfoSize = 0;
     int res;
-    if (req.request.size() < sizeof(SimpleRequest)) {
+    if (req.requestSize < sizeof(SimpleRequest)) {
       LOG_ERROR(m_logger,
-                "The message is too small: requestSize is " << req.request.size() << ", required size is "
+                "The message is too small: requestSize is " << req.requestSize << ", required size is "
                                                             << sizeof(SimpleRequest));
       req.outExecutionStatus = -1;
+      continue;
     }
     bool readOnly = req.flags & MsgFlag::READ_ONLY_FLAG;
     if (readOnly) {
-      res = executeReadOnlyCommand(req.request.size(),
-                                   req.request.c_str(),
-                                   req.outReply.size(),
-                                   req.outReply.data(),
+      res = executeReadOnlyCommand(req.requestSize,
+                                   req.request,
+                                   req.maxReplySize,
+                                   req.outReply,
                                    req.outActualReplySize,
                                    req.outReplicaSpecificInfoSize);
     } else {
-      res = executeWriteCommand(req.request.size(),
-                                req.request.c_str(),
+      res = executeWriteCommand(req.requestSize,
+                                req.request,
                                 req.executionSequenceNum,
                                 req.flags,
-                                req.outReply.size(),
-                                req.outReply.data(),
+                                req.maxReplySize,
+                                req.outReply,
                                 req.outActualReplySize);
     }
     if (!res) LOG_ERROR(m_logger, "Command execution failed!");

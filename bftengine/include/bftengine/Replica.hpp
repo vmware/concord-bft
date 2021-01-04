@@ -59,23 +59,14 @@ class ControlHandlers {
 
 class IRequestsHandler {
  public:
-  virtual int execute(uint16_t clientId,
-                      uint64_t sequenceNum,
-                      uint8_t flags,
-                      uint32_t requestSize,
-                      const char *request,
-                      uint32_t maxReplySize,
-                      char *outReply,
-                      uint32_t &outActualReplySize,
-                      uint32_t &outReplicaSpecificInfoSize,
-                      concordUtils::SpanWrapper &parent_span) = 0;
-
   struct ExecutionRequest {
     uint16_t clientId = 0;
     uint64_t executionSequenceNum = 0;
     uint8_t flags = 0;
-    std::string request;
-    std::string outReply;
+    uint32_t requestSize = 0;
+    const char *request;
+    uint32_t maxReplySize = 0;
+    char *outReply;
     uint64_t requestSequenceNum = executionSequenceNum;
     uint32_t outActualReplySize = 0;
     uint32_t outReplicaSpecificInfoSize = 0;

@@ -51,17 +51,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
         m_logger(logger),
         controlHandlers_(std::make_shared<InternalControlHandlers>()) {}
 
-  virtual int execute(uint16_t clientId,
-                      uint64_t sequenceNum,
-                      uint8_t flags,
-                      uint32_t requestSize,
-                      const char *request,
-                      uint32_t maxReplySize,
-                      char *outReply,
-                      uint32_t &outActualReplySize,
-                      uint32_t &outActualReplicaSpecificInfoSize,
-                      concordUtils::SpanWrapper &span) override;
-
   virtual void execute(ExecutionRequestsQueue &requests,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) override;

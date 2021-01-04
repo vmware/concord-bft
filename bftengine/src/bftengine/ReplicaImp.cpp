@@ -3684,24 +3684,23 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
 
   uint16_t clientId = request->clientProxyId();
 
-  int error = 0;
-  uint32_t actualReplyLength = 0;
-  uint32_t actualReplicaSpecificInfoLength = 0;
-
+  int status = 0;
+  bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
+  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
+                                                                              static_cast<uint64_t>(lastExecutedSeqNum),
+                                                                              request->flags(),
+                                                                              request->requestLength(),
+                                                                              request->requestBuf(),
+                                                                              reply.maxReplyLength(),
+                                                                              reply.replyBuf()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
-    error = bftRequestsHandler_.execute(clientId,
-                                        lastExecutedSeqNum,
-                                        request->flags(),
-                                        request->requestLength(),
-                                        request->requestBuf(),
-                                        reply.maxReplyLength(),
-                                        reply.replyBuf(),
-                                        actualReplyLength,
-                                        actualReplicaSpecificInfoLength,
-                                        span);
+    bftRequestsHandler_.execute(accumulatedRequests, request->getCid(), span);
   }
-
+  const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
+  status = single_request.outExecutionStatus;
+  const uint32_t actualReplyLength = single_request.outActualReplySize;
+  const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
   LOG_DEBUG(GL,
             "Executed read only request. " << KVLOG(clientId,
                                                     lastExecutedSeqNum,
@@ -3709,10 +3708,9 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                     reply.maxReplyLength(),
                                                     actualReplyLength,
                                                     actualReplicaSpecificInfoLength,
-                                                    error));
-
+                                                    status));
   // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
-  if (!error) {
+  if (!status) {
     if (actualReplyLength > 0) {
       reply.setReplyLength(actualReplyLength);
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
@@ -3722,7 +3720,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, error));
+    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
 
   if (config_.getdebugStatisticsEnabled()) {
@@ -3912,12 +3910,15 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     }
     SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
+
     accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
         req.flags(),
-        std::string(req.requestBuf(), req.requestLength()),
-        std::string(ReplicaConfig::instance().getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader), 0),
+        req.requestLength(),
+        req.requestBuf(),
+        static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
+        (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum()});
   }
   if (ReplicaConfig::instance().blockAccumulation) {
@@ -3952,7 +3953,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
       std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
-          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply.data(), req.outActualReplySize)};
+          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize)};
       replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
       send(replyMsg.get(), req.clientId);
     }

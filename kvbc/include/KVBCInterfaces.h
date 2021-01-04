@@ -118,16 +118,6 @@ class IReplica {
 
 class ICommandsHandler : public bftEngine::IRequestsHandler {
  public:
-  int execute(uint16_t clientId,
-              uint64_t sequenceNum,
-              uint8_t flags,
-              uint32_t requestSize,
-              const char* request,
-              uint32_t maxReplySize,
-              char* outReply,
-              uint32_t& outActualReplySize,
-              uint32_t& outActualReplicaSpecificInfoSize,
-              concordUtils::SpanWrapper& span) override = 0;
   void execute(ExecutionRequestsQueue& requestList,
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override = 0;
