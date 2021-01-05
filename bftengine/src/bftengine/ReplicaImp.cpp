@@ -2150,23 +2150,44 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   ViewChangeMsg::ComplaintsIterator iter(msg);
   char *complaint = nullptr;
   MsgSize size = 0;
+  ReplicasAskedToLeaveViewInfo complainedReplicasForHigherView(config_);
 
-  while (iter.getAndGoToNext(complaint, size)) {
+  while (msg->newView() > curView && !complainedReplicasForHigherView.hasQuorumToLeaveView() &&
+         iter.getAndGoToNext(complaint, size)) {
     auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header *)complaint, size, true);
-    auto *complaintMsg = new ReplicaAsksToLeaveViewMsg(&baseMsg);
+    auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
     LOG_INFO(VC_LOG,
-             "Got complaint in ViewChangeMsg from " << KVLOG(msg->senderId(),
-                                                             msg->newView(),
-                                                             msg->idOfGeneratedReplica(),
-                                                             complaintMsg->senderId(),
-                                                             complaintMsg->viewNumber(),
-                                                             complaintMsg->idOfGeneratedReplica()));
-    if (validateMessage(complaintMsg) && msg->newView() == curView + 1 &&
-        complainedReplicas.getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) == nullptr) {
-      onMessage<ReplicaAsksToLeaveViewMsg>(complaintMsg);
+             "Got complaint in ViewChangeMsg" << KVLOG(curView,
+                                                       msg->senderId(),
+                                                       msg->newView(),
+                                                       msg->idOfGeneratedReplica(),
+                                                       complaintMsg->senderId(),
+                                                       complaintMsg->viewNumber(),
+                                                       complaintMsg->idOfGeneratedReplica()));
+    if (msg->newView() == curView + 1) {
+      if (complainedReplicas.getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) != nullptr) {
+        LOG_INFO(VC_LOG,
+                 "Already have a valid complaint from Replica " << complaintMsg->idOfGeneratedReplica() << " for View "
+                                                                << complaintMsg->viewNumber());
+      } else if (complaintMsg->viewNumber() == curView && validateMessage(complaintMsg.get())) {
+        onMessage<ReplicaAsksToLeaveViewMsg>(complaintMsg.release());
+      } else {
+        LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for current View.");
+      }
     } else {
-      delete complaintMsg;
+      if (complaintMsg->viewNumber() + 1 == msg->newView() && validateMessage(complaintMsg.get())) {
+        complainedReplicasForHigherView.store(std::move(complaintMsg));
+      } else {
+        LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for a higher View.");
+      }
     }
+  }
+  if (complainedReplicasForHigherView.hasQuorumToLeaveView()) {
+    ConcordAssert(msg->newView() > curView + 1);
+    complainedReplicas = std::move(complainedReplicasForHigherView);
+    LOG_INFO(VC_LOG,
+             "Got quorum of Replicas complaining for a higher View in VCMsg: " << KVLOG(msg->newView(), curView));
+    MoveToHigherView(msg->newView());
   }
 
   // if the current primary wants to leave view
@@ -2290,6 +2311,10 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   for (const auto &i : complainedReplicas.getAllMsgs()) {
     pVC->addComplaint(i.second.get());
+    const auto &complaint = i.second;
+    LOG_DEBUG(VC_LOG,
+              "Putting complaint in VC msg: " << KVLOG(
+                  curView, nextView, complaint->idOfGeneratedReplica(), complaint->viewNumber()));
   }
   complainedReplicas.clear();
 
