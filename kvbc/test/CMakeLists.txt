@@ -190,4 +190,14 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+
+    add_executable(block_merkle_category_unit_test categorization/block_merkle_category_unit_test.cpp )
+    add_test(block_merkle_category_unit_test block_merkle_category_unit_test)
+    target_link_libraries(block_merkle_category_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        kvbc
+        stdc++fs
+    )
 endif (BUILD_ROCKSDB_STORAGE)

@@ -137,7 +137,7 @@ TEST_F(categorized_kvbc, get_block) {
     auto key = std::string("key");
 
     uint64_t state_root_version = 886;
-    MerkleUpdatesInfo mui;
+    BlockMerkleOutput mui;
     mui.keys[key] = MerkleKeyFlag{true};
     mui.root_hash = pHash;
     mui.state_root_version = state_root_version;
@@ -153,7 +153,7 @@ TEST_F(categorized_kvbc, get_block) {
     auto block_from_db = block_chain.getBlock(888);
     ASSERT_TRUE(block_from_db.has_value());
     auto merkle_variant = (*block_from_db).data.categories_updates_info["merkle"];
-    ASSERT_TRUE(std::get<MerkleUpdatesInfo>(merkle_variant).keys[key].deleted);
+    ASSERT_TRUE(std::get<BlockMerkleOutput>(merkle_variant).keys[key].deleted);
   }
 }
 

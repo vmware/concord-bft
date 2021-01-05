@@ -45,7 +45,7 @@ void KeyValueBlockchain::instantiateCategories() {
     auto cat_type = static_cast<detail::CATEGORY_TYPE>(itr.valueView()[0]);
     switch (cat_type) {
       case detail::CATEGORY_TYPE::merkle:
-        categorires_.emplace(itr.key(), MerkleCategory{});
+        categorires_.emplace(itr.key(), BlockMerkleCategory{});
         categorires_types_[itr.key()] = detail::CATEGORY_TYPE::merkle;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type merkle");
         break;
@@ -80,7 +80,7 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   return block_id;
 }
 
-BlockId KeyValueBlockchain::addBlock(CategoryUpdatesData&& category_updates,
+BlockId KeyValueBlockchain::addBlock(CategoryInput&& category_updates,
                                      concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   // Use new client batch and column families
   Block new_block{block_chain_.getLastReachableBlockId() + 1};
@@ -139,8 +139,8 @@ std::future<BlockDigest> KeyValueBlockchain::computeParentBlockDigest(const Bloc
 
 /////////////////////// Readers ///////////////////////
 
-const std::variant<detail::ImmutableKeyValueCategory, MerkleCategory, KVHashCategory>& KeyValueBlockchain::getCategory(
-    const std::string& cat_id) const {
+const std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>&
+KeyValueBlockchain::getCategory(const std::string& cat_id) const {
   if (categorires_.count(cat_id) == 0) {
     throw std::runtime_error{"Category does not exist = " + cat_id};
   }
@@ -233,7 +233,7 @@ void KeyValueBlockchain::multiGetLatestVersion(const std::string& cat_id,
       category);
 }
 
-CategoryUpdatesData KeyValueBlockchain::getBlockData(BlockId block_id) { return getRawBlock(block_id).data.updates; }
+CategoryInput KeyValueBlockchain::getBlockData(BlockId block_id) { return getRawBlock(block_id).data.updates; }
 
 /////////////////////// Delete block ///////////////////////
 bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
@@ -357,32 +357,32 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 // Deletes per category
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
-                                            const ImmutableUpdatesInfo& updates_info,
+                                            const ImmutableOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
-                                            const KeyValueUpdatesInfo& updates_info,
+                                            const KeyValueOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
-                                            const MerkleUpdatesInfo& updates_info,
+                                            const BlockMerkleOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
-                                                  const ImmutableUpdatesInfo& updates_info,
+                                                  const ImmutableOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
-                                                  const KeyValueUpdatesInfo& updates_info,
+                                                  const KeyValueOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch&) {}
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
-                                                  const MerkleUpdatesInfo& updates_info,
+                                                  const BlockMerkleOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch&) {}
 
 // Updates per category
@@ -404,20 +404,20 @@ bool KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id,
   return true;
 }
 
-MerkleUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
+BlockMerkleOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                             const std::string& category_id,
-                                                            MerkleUpdatesData&& updates,
+                                                            BlockMerkleInput&& updates,
                                                             concord::storage::rocksdb::NativeWriteBatch& write_batch,
                                                             categorization::RawBlock& raw_block) {
   // if true means that category is new and we should create an instance of it.
   if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::merkle, write_batch)) {
-    if (const auto [itr, inserted] = categorires_.try_emplace(category_id, MerkleCategory{}); !inserted) {
+    if (const auto [itr, inserted] = categorires_.try_emplace(category_id, BlockMerkleCategory{}); !inserted) {
       (void)itr;
       throw std::runtime_error{"Category already exists = " + category_id};
     }
   }
 
-  MerkleUpdatesInfo mui;
+  BlockMerkleOutput mui;
   for (auto& [k, v] : updates.kv) {
     (void)v;
     mui.keys[k] = MerkleKeyFlag{false};
@@ -429,12 +429,12 @@ MerkleUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   return mui;
 }
 
-KeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
-                                                              const std::string& category_id,
-                                                              KeyValueUpdatesData&& updates,
-                                                              concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                                              categorization::RawBlock& raw_block) {
-  KeyValueUpdatesInfo kvui;
+KeyValueOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
+                                                         const std::string& category_id,
+                                                         KeyValueInput&& updates,
+                                                         concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                                         categorization::RawBlock& raw_block) {
+  KeyValueOutput kvui;
   for (auto& [k, v] : updates.kv) {
     (void)v;
     kvui.keys[k] = KVKeyFlag{false, v.stale_on_update};
@@ -445,11 +445,11 @@ KeyValueUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   return kvui;
 }
 
-ImmutableUpdatesInfo KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
-                                                               const std::string& category_id,
-                                                               ImmutableUpdatesData&& updates,
-                                                               concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                                               categorization::RawBlock& raw_block) {
+ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
+                                                          const std::string& category_id,
+                                                          ImmutableInput&& updates,
+                                                          concord::storage::rocksdb::NativeWriteBatch& write_batch,
+                                                          categorization::RawBlock& raw_block) {
   // if true means that category is new and we should create an instance of it.
   if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::immutable, write_batch)) {
     if (const auto [itr, inserted] =

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -37,13 +37,13 @@ RawBlock::RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::N
 // This set methods are overloaded in order to construct the appropriate updates
 
 // Merkle updates reconstruction
-MerkleUpdatesData RawBlock::getUpdates(const std::string& category_id,
-                                       const MerkleUpdatesInfo& update_info,
-                                       const BlockId& block_id,
-                                       const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+BlockMerkleInput RawBlock::getUpdates(const std::string& category_id,
+                                      const BlockMerkleOutput& update_info,
+                                      const BlockId& block_id,
+                                      const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
   // For old serialization
   using namespace concord::kvbc::v2MerkleTree;
-  MerkleUpdatesData data;
+  BlockMerkleInput data;
   // Iterate over the keys:
   // if deleted, add to the deleted set.
   // else generate a db key, serialize it and
@@ -72,11 +72,11 @@ MerkleUpdatesData RawBlock::getUpdates(const std::string& category_id,
 }
 
 // KeyValueUpdatesData updates reconstruction
-KeyValueUpdatesData RawBlock::getUpdates(const std::string& category_id,
-                                         const KeyValueUpdatesInfo& update_info,
-                                         const BlockId& block_id,
-                                         const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
-  KeyValueUpdatesData data;
+KeyValueInput RawBlock::getUpdates(const std::string& category_id,
+                                   const KeyValueOutput& update_info,
+                                   const BlockId& block_id,
+                                   const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+  KeyValueInput data;
 
   return data;
 }
@@ -85,11 +85,11 @@ KeyValueUpdatesData RawBlock::getUpdates(const std::string& category_id,
 // Iterate over the keys from the update info.
 // get the value of a key from the DB by performing get on the category.
 // assemble a ImmutableValueUpdate from value and tags.
-ImmutableUpdatesData RawBlock::getUpdates(const std::string& category_id,
-                                          const ImmutableUpdatesInfo& update_info,
-                                          const BlockId& block_id,
-                                          const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
-  ImmutableUpdatesData data;
+ImmutableInput RawBlock::getUpdates(const std::string& category_id,
+                                    const ImmutableOutput& update_info,
+                                    const BlockId& block_id,
+                                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+  ImmutableInput data;
   detail::ImmutableKeyValueCategory imm{category_id, native_client};
   for (const auto& [key, tags] : update_info.tagged_keys) {
     auto val = imm.get(key, block_id);

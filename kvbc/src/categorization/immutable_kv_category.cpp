@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -38,7 +38,7 @@ void updateTagHash(const std::string &tag,
   it->second.update(value_hash.data(), value_hash.size());
 }
 
-void finishTagHashes(std::map<std::string, Hasher> &tag_hashers, ImmutableUpdatesInfo &update_info) {
+void finishTagHashes(std::map<std::string, Hasher> &tag_hashers, ImmutableOutput &update_info) {
   if (tag_hashers.empty()) {
     return;
   }
@@ -70,10 +70,10 @@ ImmutableKeyValueCategory::ImmutableKeyValueCategory(const std::string &category
   createColumnFamilyIfNotExisting(cf_, *db_);
 }
 
-ImmutableUpdatesInfo ImmutableKeyValueCategory::add(BlockId block_id,
-                                                    ImmutableUpdatesData &&update,
-                                                    storage::rocksdb::NativeWriteBatch &batch) {
-  auto update_info = ImmutableUpdatesInfo{};
+ImmutableOutput ImmutableKeyValueCategory::add(BlockId block_id,
+                                               ImmutableInput &&update,
+                                               storage::rocksdb::NativeWriteBatch &batch) {
+  auto update_info = ImmutableOutput{};
   auto tag_hashers = std::map<std::string, Hasher>{};
 
   for (auto it = update.kv.begin(); it != update.kv.end();) {
@@ -113,18 +113,18 @@ ImmutableUpdatesInfo ImmutableKeyValueCategory::add(BlockId block_id,
 }
 
 void ImmutableKeyValueCategory::deleteGenesisBlock(BlockId,
-                                                   const ImmutableUpdatesInfo &updates_info,
+                                                   const ImmutableOutput &updates_info,
                                                    storage::rocksdb::NativeWriteBatch &batch) {
   deleteBlock(updates_info, batch);
 }
 
 void ImmutableKeyValueCategory::deleteLastReachableBlock(BlockId,
-                                                         const ImmutableUpdatesInfo &updates_info,
+                                                         const ImmutableOutput &updates_info,
                                                          storage::rocksdb::NativeWriteBatch &batch) {
   deleteBlock(updates_info, batch);
 }
 
-void ImmutableKeyValueCategory::deleteBlock(const ImmutableUpdatesInfo &updates_info,
+void ImmutableKeyValueCategory::deleteBlock(const ImmutableOutput &updates_info,
                                             storage::rocksdb::NativeWriteBatch &batch) {
   for (const auto &kv : updates_info.tagged_keys) {
     batch.del(cf_, kv.first);
@@ -229,7 +229,7 @@ void ImmutableKeyValueCategory::multiGetLatestVersion(const std::vector<std::str
 
 std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::string &tag,
                                                                  const std::string &key,
-                                                                 const ImmutableUpdatesInfo &updates_info) const {
+                                                                 const ImmutableOutput &updates_info) const {
   // If the key is not part of this block, return a null proof.
   auto key_it = updates_info.tagged_keys.find(key);
   if (key_it == updates_info.tagged_keys.cend()) {

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -39,6 +39,10 @@ inline bool operator==(const BasicValue &lhs, const BasicValue &rhs) {
 struct MerkleValue : BasicValue {};
 struct ImmutableValue : BasicValue {};
 struct VersionedValue : BasicValue {};
+
+inline bool operator==(const MerkleValue &lhs, const MerkleValue &rhs) {
+  return (lhs.block_id == rhs.block_id && lhs.data == rhs.data);
+}
 
 using Value = std::variant<MerkleValue, ImmutableValue, VersionedValue>;
 

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -9,6 +9,8 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the sub-component's license, as noted in the
 // LICENSE file.
+
+#pragma once
 
 #include <vector>
 #include <cstddef>
@@ -40,6 +42,7 @@ namespace sparse_merkle {
 // can be written to the DB atomically.
 class Tree {
  public:
+  Tree() {}
   explicit Tree(std::shared_ptr<IDBReader> db_reader) : db_reader_(db_reader) { reset(); }
 
   const Hash& get_root_hash() const { return root_.hash(); }

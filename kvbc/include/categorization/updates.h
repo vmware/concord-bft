@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -62,7 +62,7 @@ struct ImmutableUpdates {
   void addUpdate(std::string&& key, ImmutableValue&& val) { data_.kv.emplace(std::move(key), std::move(val.update_)); }
 
  private:
-  ImmutableUpdatesData data_;
+  ImmutableInput data_;
   friend struct Updates;
 };
 
@@ -73,7 +73,7 @@ struct ImmutableUpdates {
 struct KeyValueUpdates {
   KeyValueUpdates() = default;
   KeyValueUpdates(KeyValueUpdates&& other) = default;
-  KeyValueUpdates(KeyValueUpdatesData&& data) : data_{std::move(data)} {}
+  KeyValueUpdates(KeyValueInput&& data) : data_{std::move(data)} {}
   KeyValueUpdates& operator=(KeyValueUpdates&& other) = default;
 
   // Do not allow copy
@@ -112,22 +112,22 @@ struct KeyValueUpdates {
   void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
 
  private:
-  KeyValueUpdatesData data_;
+  KeyValueInput data_;
   std::set<std::string> unique_deletes_;
   friend struct Updates;
 };
 
 // Updates for a merkle tree category.
 // Persists key-values in a merkle tree that is constructed on top of the underlying key-value store.
-struct MerkleUpdates {
-  MerkleUpdates() = default;
-  MerkleUpdates(MerkleUpdates&& other) = default;
-  MerkleUpdates(MerkleUpdatesData&& data) : data_{std::move(data)} {}
-  MerkleUpdates& operator=(MerkleUpdates&& other) = default;
+struct BlockMerkleUpdates {
+  BlockMerkleUpdates() = default;
+  BlockMerkleUpdates(BlockMerkleUpdates&& other) = default;
+  BlockMerkleUpdates(BlockMerkleInput&& data) : data_{std::move(data)} {}
+  BlockMerkleUpdates& operator=(BlockMerkleUpdates&& other) = default;
 
   // Do not allow copy
-  MerkleUpdates(MerkleUpdates& other) = delete;
-  MerkleUpdates& operator=(MerkleUpdates& other) = delete;
+  BlockMerkleUpdates(BlockMerkleUpdates& other) = delete;
+  BlockMerkleUpdates& operator=(BlockMerkleUpdates& other) = delete;
 
   void addUpdate(std::string&& key, std::string&& val) { data_.kv.emplace(std::move(key), std::move(val)); }
 
@@ -140,10 +140,10 @@ struct MerkleUpdates {
     data_.deletes.emplace_back(std::move(key));
   }
 
-  const MerkleUpdatesData& getData() { return data_; }
+  const BlockMerkleInput& getData() { return data_; }
 
  private:
-  MerkleUpdatesData data_;
+  BlockMerkleInput data_;
   std::set<std::string> unique_deletes_;
   friend struct Updates;
 };
@@ -151,12 +151,12 @@ struct MerkleUpdates {
 // Updates contains a list of updates for different categories.
 struct Updates {
   Updates() = default;
-  Updates(CategoryUpdatesData&& updates) : category_updates_{std::move(updates)} {}
-  void add(const std::string& category_id, MerkleUpdates&& updates) {
+  Updates(CategoryInput&& updates) : category_updates_{std::move(updates)} {}
+  void add(const std::string& category_id, BlockMerkleUpdates&& updates) {
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
-      throw std::logic_error{std::string("Only one update for category is allowed. type: Merkle, category: ") +
+      throw std::logic_error{std::string("Only one update for category is allowed. type: BlockMerkle, category: ") +
                              category_id};
     }
   }
@@ -181,7 +181,7 @@ struct Updates {
 
  private:
   friend class KeyValueBlockchain;
-  CategoryUpdatesData category_updates_;
+  CategoryInput category_updates_;
 };
 
 }  // namespace concord::kvbc::categorization

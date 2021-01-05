@@ -47,7 +47,7 @@ class immutable_kv_category : public Test {
   void TearDown() override { cleanup(); }
 
  protected:
-  auto add(BlockId block_id, ImmutableUpdatesData &&update) {
+  auto add(BlockId block_id, ImmutableInput &&update) {
     auto update_batch = db->getBatch();
     auto update_info = cat.add(block_id, std::move(update), update_batch);
     db->write(std::move(update_batch));
@@ -71,7 +71,7 @@ TEST_F(immutable_kv_category, create_column_family_on_construction) {
 TEST_F(immutable_kv_category, empty_updates) {
   // Calculate root hash = false.
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = false;
     auto batch = db->getBatch();
     const auto update_info = cat.add(1, std::move(update), batch);
@@ -82,7 +82,7 @@ TEST_F(immutable_kv_category, empty_updates) {
 
   // Calculate root hash = true.
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     auto batch = db->getBatch();
     const auto update_info = cat.add(1, std::move(update), batch);
@@ -96,7 +96,7 @@ TEST_F(immutable_kv_category, calculate_root_hash_toggle) {
   auto batch = db->getBatch();
 
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
     const auto update_info = cat.add(1, std::move(update), batch);
@@ -104,7 +104,7 @@ TEST_F(immutable_kv_category, calculate_root_hash_toggle) {
   }
 
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = false;
     update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
     const auto update_info = cat.add(1, std::move(update), batch);
@@ -116,7 +116,7 @@ TEST_F(immutable_kv_category, non_existent_key) { ASSERT_FALSE(cat.getLatest("no
 
 TEST_F(immutable_kv_category, key_without_tags) {
   const auto block_id = 42;
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t2"}};
@@ -151,7 +151,7 @@ TEST_F(immutable_kv_category, key_without_tags) {
 }
 
 TEST_F(immutable_kv_category, one_tag_per_key) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t2"}};
@@ -203,7 +203,7 @@ TEST_F(immutable_kv_category, one_tag_per_key) {
 }
 
 TEST_F(immutable_kv_category, two_tags_per_key) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1", "t2"}};
 
@@ -244,7 +244,7 @@ TEST_F(immutable_kv_category, two_tags_per_key) {
 }
 
 TEST_F(immutable_kv_category, one_and_two_keys_per_tag) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1", "t2"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t1"}};
@@ -300,7 +300,7 @@ TEST_F(immutable_kv_category, one_and_two_keys_per_tag) {
 }
 
 TEST_F(immutable_kv_category, two_keys_per_tag) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
@@ -344,7 +344,7 @@ TEST_F(immutable_kv_category, two_keys_per_tag) {
 }
 
 TEST_F(immutable_kv_category, get_proof_multiple_keys) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
@@ -406,7 +406,7 @@ TEST_F(immutable_kv_category, get_proof_multiple_keys) {
 }
 
 TEST_F(immutable_kv_category, get_proof_multiple_tags) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1", "t2"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t1", "t2"}};
@@ -501,7 +501,7 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
 }
 
 TEST_F(immutable_kv_category, get_proof_single_key) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
 
@@ -527,7 +527,7 @@ TEST_F(immutable_kv_category, get_proof_single_key) {
 }
 
 TEST_F(immutable_kv_category, get_proof_key_not_tagged) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t1"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t1"}};
@@ -541,7 +541,7 @@ TEST_F(immutable_kv_category, get_proof_key_not_tagged) {
 }
 
 TEST_F(immutable_kv_category, get_proof_non_existent_key) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
 
@@ -552,7 +552,7 @@ TEST_F(immutable_kv_category, get_proof_non_existent_key) {
 }
 
 TEST_F(immutable_kv_category, delete_block) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
   update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
@@ -573,7 +573,7 @@ TEST_F(immutable_kv_category, delete_block) {
 }
 
 TEST_F(immutable_kv_category, get_methods) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
 
@@ -601,14 +601,14 @@ TEST_F(immutable_kv_category, get_methods) {
 }
 TEST_F(immutable_kv_category, multi_get_latest) {
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
     add(1, std::move(update));
   }
 
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
     add(2, std::move(update));
@@ -623,7 +623,7 @@ TEST_F(immutable_kv_category, multi_get_latest) {
 }
 
 TEST_F(immutable_kv_category, get_latest_version) {
-  auto update = ImmutableUpdatesData{};
+  auto update = ImmutableInput{};
   update.calculate_root_hash = true;
   update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
 
@@ -641,14 +641,14 @@ TEST_F(immutable_kv_category, get_latest_version) {
 
 TEST_F(immutable_kv_category, multi_get_latest_version) {
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
     add(1, std::move(update));
   }
 
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
     add(2, std::move(update));
@@ -663,14 +663,14 @@ TEST_F(immutable_kv_category, multi_get_latest_version) {
 
 TEST_F(immutable_kv_category, multi_get) {
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k1"] = ImmutableValueUpdate{"v1", {"t"}};
     add(1, std::move(update));
   }
 
   {
-    auto update = ImmutableUpdatesData{};
+    auto update = ImmutableInput{};
     update.calculate_root_hash = true;
     update.kv["k2"] = ImmutableValueUpdate{"v2", {"t"}};
     add(2, std::move(update));

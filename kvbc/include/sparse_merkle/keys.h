@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -49,6 +49,7 @@ class InternalNodeKey {
   Version version() const { return version_; }
 
   const NibblePath& path() const { return path_; }
+  NibblePath& path() { return path_; }
 
  private:
   Version version_;
