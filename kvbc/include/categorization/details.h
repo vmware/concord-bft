@@ -27,6 +27,31 @@ namespace concord::kvbc::categorization::detail {
 
 using Buffer = std::vector<std::uint8_t>;
 
+struct TaggedVersion {
+  // The high bit contains a flag indicating whether the key was deleted or not.
+  TaggedVersion(uint64_t masked_version) {
+    deleted = 0x80000000 & masked_version;
+    version = 0x7FFFFFFF & masked_version;
+  }
+
+  TaggedVersion(bool deleted, BlockId version) : deleted(deleted), version(version) {}
+
+  // Return a BlockId that sets the high bit to 1 if the version is deleted
+  BlockId encode() const {
+    if (deleted) {
+      return version | 0x80000000;
+    }
+    return version;
+  }
+
+  bool deleted;
+  BlockId version;
+};
+
+inline bool operator==(const TaggedVersion &lhs, const TaggedVersion &rhs) {
+  return (lhs.deleted == rhs.deleted && lhs.version == rhs.version);
+}
+
 enum class CATEGORY_TYPE : char { merkle = 0, immutable = 1, kv_hash = 2, end_of_types };
 
 template <typename Span>
