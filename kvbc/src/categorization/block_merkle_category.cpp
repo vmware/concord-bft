@@ -308,7 +308,7 @@ void BlockMerkleCategory::multiGetLatest(const std::vector<std::string>& keys,
   // Merge any keys that didn't have latest versions along with the retrieved keys.
   auto value_index = 0u;
   for (auto& version : versions) {
-    if (version) {
+    if (version && !version->deleted) {
       values.push_back(retrieved_values[value_index]);
       ++value_index;
     } else {

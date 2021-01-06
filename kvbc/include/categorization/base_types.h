@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <ctime>
+#include <limits>
 #include <optional>
 #include <string>
 #include <variant>
@@ -86,5 +87,32 @@ struct KeyValueProof {
     return hasher.finish();
   }
 };
+
+struct TaggedVersion {
+  // The high bit contains a flag indicating whether the key was deleted or not.
+  TaggedVersion(uint64_t masked_version) {
+    static_assert(!std::numeric_limits<BlockId>::is_signed);
+    static_assert(std::numeric_limits<BlockId>::digits == 64);
+    deleted = 0x8000000000000000 & masked_version;
+    version = 0x7FFFFFFFFFFFFFFF & masked_version;
+  }
+
+  TaggedVersion(bool deleted, BlockId version) : deleted(deleted), version(version) {}
+
+  // Return a BlockId that sets the high bit to 1 if the version is deleted
+  BlockId encode() const {
+    if (deleted) {
+      return version | 0x8000000000000000;
+    }
+    return version;
+  }
+
+  bool deleted;
+  BlockId version;
+};
+
+inline bool operator==(const TaggedVersion &lhs, const TaggedVersion &rhs) {
+  return (lhs.deleted == rhs.deleted && lhs.version == rhs.version);
+}
 
 }  // namespace concord::kvbc::categorization
