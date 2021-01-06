@@ -42,7 +42,7 @@ namespace sparse_merkle {
 // can be written to the DB atomically.
 class Tree {
  public:
-  Tree() {}
+  Tree() = default;
   explicit Tree(std::shared_ptr<IDBReader> db_reader) : db_reader_(db_reader) { reset(); }
 
   const Hash& get_root_hash() const { return root_.hash(); }

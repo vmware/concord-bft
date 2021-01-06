@@ -330,7 +330,7 @@ class NibblePath {
   const std::vector<uint8_t>& data() const { return path_; }
 
   // Allow moving the data out of the path.
-  std::vector<uint8_t> move_data() { return path_; }
+  std::vector<uint8_t> move_data() { return std::move(path_); }
 
  private:
   size_t num_nibbles_;
