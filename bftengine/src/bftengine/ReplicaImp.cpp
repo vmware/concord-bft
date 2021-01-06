@@ -3955,6 +3955,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
           req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize)};
       replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+      free(req.outReply);
       send(replyMsg.get(), req.clientId);
     }
     clientsManager->removePendingRequestOfClient(req.clientId);
