@@ -3430,11 +3430,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
   metrics_.Register();
 
   if (firstTime) {
-    sigManager =
-        new SigManager(config_.getreplicaId(),
-                       config_.getnumReplicas() + config_.getnumOfClientProxies() + config_.getnumOfExternalClients(),
-                       config_.getreplicaPrivateKey(),
-                       config_.publicKeysOfReplicas);
+    sigManager = new SigManager(config_.getreplicaId(),
+                                config_.getnumReplicas() + config_.getnumRoReplicas() +
+                                    config_.getnumOfClientProxies() + config_.getnumOfExternalClients(),
+                                config_.getreplicaPrivateKey(),
+                                config_.publicKeysOfReplicas);
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
     viewsManager =
         new ViewsManager(repsInfo, sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
@@ -3447,9 +3447,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   std::set<NodeIdType> clientsSet;
-  const auto numOfEntities =
-      config_.getnumReplicas() + config_.getnumOfClientProxies() + config_.getnumOfExternalClients();
-  for (uint16_t i = config_.getnumReplicas(); i < numOfEntities; i++) clientsSet.insert(i);
+  const auto numOfEntities = config_.getnumReplicas() + config_.getnumRoReplicas() + config_.getnumOfClientProxies() +
+                             config_.getnumOfExternalClients();
+  for (uint16_t i = config_.getnumReplicas() + config_.getnumRoReplicas(); i < numOfEntities; i++) clientsSet.insert(i);
   clientsManager = new ClientsManager(config_.getreplicaId(),
                                       clientsSet,
                                       ReplicaConfig::instance().getsizeOfReservedPage(),
