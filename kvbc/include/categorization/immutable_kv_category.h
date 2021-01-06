@@ -78,11 +78,12 @@ class ImmutableKeyValueCategory {
 
   // Get the version of an immutable key.
   // Return std::nullopt if the key doesn't exist.
-  std::optional<BlockId> getLatestVersion(const std::string &key) const;
+  std::optional<TaggedVersion> getLatestVersion(const std::string &key) const;
 
   // Get the latest versions of the given keys.
   // If a key is missing, std::nullopt is returned for its version.
-  void multiGetLatestVersion(const std::vector<std::string> &keys, std::vector<std::optional<BlockId>> &versions) const;
+  void multiGetLatestVersion(const std::vector<std::string> &keys,
+                             std::vector<std::optional<TaggedVersion>> &versions) const;
 
   // Get the value of a key and a proof for it in `tag`.
   // Return std::nullopt if the key doesn't exist.
