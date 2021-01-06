@@ -150,15 +150,20 @@ void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
   for (const auto &[key, flags] : out.keys) {
     const auto latest_version = getLatestVersion(key);
     ConcordAssert(latest_version.has_value());
+    // Note: Deleted keys cannot be marked as stale on update.
     if (flags.stale_on_update) {
       // This key is marked stale-on-update and, therefore, we can remove its value at `block_id`.
       batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
-
-      // If there are no new versions of a key that was marked as stale-on-update at `block_id`, remove the versions
-      // index too.
+      // If there are no new versions of a key that was marked as stale-on-update at `block_id`, remove the latest
+      // version too.
       if (*latest_version == block_id) {
         batch.del(latest_ver_cf_, key);
       }
+    } else if (flags.deleted && *latest_version == block_id) {
+      // If the key was deleted at this block and there are no new versions, delete both the value and the latest
+      // version.
+      batch.del(latest_ver_cf_, key);
+      batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
     } else if (*latest_version > block_id) {
       // If this key is stale as of `block_id` (meaning it has a newer version), we can remove its value at `block_id`.
       batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));

@@ -460,7 +460,7 @@ TEST_F(versioned_kv_category, delete_genesis) {
   const auto mark_stale_on_update = true;
   const auto non_stale_on_update = false;
 
-  // Add keys "ka", "kb", "kc" and "kd" in block 1. Mark "kc" as stale-on-update.
+  // Add keys "ka", "kb", "kc" and "kd" in block 1. Mark "kc" and "kd" as stale on update.
   auto out1 = VersionedOutput{};
   {
     auto in = VersionedInput{};
@@ -548,6 +548,46 @@ TEST_F(versioned_kv_category, delete_genesis) {
     ASSERT_FALSE(cat.get("kc", 1));
     ASSERT_FALSE(cat.getLatest("kc"));
     ASSERT_FALSE(cat.getLatestVersion("kc"));
+  }
+}
+
+TEST_F(versioned_kv_category, delete_genesis_with_deleted_keys) {
+  auto out = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = false;
+    in.deletes.push_back("ka");
+    in.deletes.push_back("kb");
+    out = add(1, std::move(in));
+  }
+
+  // Make sure there are keys in the DB.
+  {
+    auto values_iter = db->getIterator(values_cf);
+    values_iter.first();
+    ASSERT_TRUE(values_iter);
+
+    auto latest_ver_iter = db->getIterator(latest_ver_cf);
+    latest_ver_iter.first();
+    ASSERT_TRUE(latest_ver_iter);
+  }
+
+  // Delete genesis block 1.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(1, out, batch);
+    db->write(std::move(batch));
+  }
+
+  // Make sure there are no keys left.
+  {
+    auto values_iter = db->getIterator(values_cf);
+    values_iter.first();
+    ASSERT_FALSE(values_iter);
+
+    auto latest_ver_iter = db->getIterator(latest_ver_cf);
+    latest_ver_iter.first();
+    ASSERT_FALSE(latest_ver_iter);
   }
 }
 
