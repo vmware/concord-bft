@@ -53,20 +53,20 @@ TEST_F(categorized_kvbc, serialization_and_desirialization_of_block) {
     pHash[i] = (uint8_t)(rd() % 255);
   }
   Block block{8};
-  KeyValueOutput kvui;
-  kvui.keys["key1"] = {false, false};
-  kvui.keys["key2"] = {true, false};
-  block.add("KeyValueOutput", std::move(kvui));
+  VersionedOutput out;
+  out.keys["key1"] = {false, false};
+  out.keys["key2"] = {true, false};
+  block.add("VersionedOutput", std::move(out));
   block.setParentHash(pHash);
   auto ser = Block::serialize(block);
   auto des_block = Block::deserialize(ser);
 
   // Test the deserialized Block
   ASSERT_TRUE(des_block.id() == 8);
-  auto variant = des_block.data.categories_updates_info["KeyValueOutput"];
-  KeyValueOutput kv_updates_info = std::get<KeyValueOutput>(variant);
-  ASSERT_TRUE(kv_updates_info.keys.size() == 2);
-  ASSERT_TRUE(kv_updates_info.keys["key2"].deleted == true);
+  auto variant = des_block.data.categories_updates_info["VersionedOutput"];
+  VersionedOutput ver_out = std::get<VersionedOutput>(variant);
+  ASSERT_TRUE(ver_out.keys.size() == 2);
+  ASSERT_TRUE(ver_out.keys["key2"].deleted == true);
   ASSERT_EQ(des_block.data.parent_digest, block.data.parent_digest);
 }
 

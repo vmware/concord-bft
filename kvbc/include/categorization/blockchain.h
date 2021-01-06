@@ -22,6 +22,7 @@ class Blockchain {
  public:
   static constexpr auto MAX_BLOCK_ID = std::numeric_limits<BlockId>::max();
   static constexpr auto INITIAL_GENESIS_BLOCK_ID = BlockId{1};
+  static constexpr auto INVALID_BLOCK_ID = BlockId{0};
 
   Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client);
 

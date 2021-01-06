@@ -58,10 +58,10 @@ TEST_F(categorized_kvbc, add_blocks) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key1", "key_val1");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("versioned", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
   // Add block2
@@ -72,10 +72,10 @@ TEST_F(categorized_kvbc, add_blocks) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key2", "key_val2");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key2", "ver_val2");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("versioned", std::move(ver_updates));
 
     ImmutableUpdates immutable_updates;
     immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
@@ -93,9 +93,9 @@ TEST_F(categorized_kvbc, add_blocks) {
     auto merkle_variant = block1_from_db.data.categories_updates_info["merkle"];
     auto merkle_update_info1 = std::get<BlockMerkleOutput>(merkle_variant);
     ASSERT_EQ(merkle_update_info1.keys["merkle_deleted"].deleted, true);
-    auto kv_hash_variant = block1_from_db.data.categories_updates_info["kv_hash"];
-    auto kv_hash_update_info1 = std::get<KeyValueOutput>(kv_hash_variant);
-    ASSERT_EQ(kv_hash_update_info1.keys["kv_deleted"].deleted, true);
+    auto ver_variant = block1_from_db.data.categories_updates_info["versioned"];
+    auto ver_out1 = std::get<VersionedOutput>(ver_variant);
+    ASSERT_EQ(ver_out1.keys["ver_deleted"].deleted, true);
   }
   // get block 2 from DB and test it
   {
@@ -122,10 +122,10 @@ TEST_F(categorized_kvbc, delete_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key1", "key_val1");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("kv_hash", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
   // Can't delete only block
@@ -139,10 +139,10 @@ TEST_F(categorized_kvbc, delete_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key2", "key_val2");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key2", "ver_val2");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("versioned", std::move(ver_updates));
 
     ImmutableUpdates immutable_updates;
     immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
@@ -158,10 +158,10 @@ TEST_F(categorized_kvbc, delete_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key3", "key_val3");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("versioned", std::move(ver_updates));
 
     ImmutableUpdates immutable_updates;
     immutable_updates.addUpdate("immutable_key3", {"immutable_val3", {"1", "2"}});
@@ -190,10 +190,10 @@ TEST_F(categorized_kvbc, delete_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key4", "key_val4");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key4", "ver_val4");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("versioned", std::move(ver_updates));
 
     ImmutableUpdates immutable_updates;
     immutable_updates.addUpdate("immutable_key4", {"immutable_val4", {"1", "2"}});
@@ -238,10 +238,10 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key1", "key_val1");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "key_val1");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("ver", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
   // Add block2
@@ -252,10 +252,10 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key2", "key_val2");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key2", "key_val2");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("ver", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
   }
   ASSERT_TRUE(block_chain_imp.loadLastReachableBlockId().has_value());
@@ -276,10 +276,10 @@ TEST_F(categorized_kvbc, add_raw_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key1", "key_val1");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "key_val1");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("kv_hash", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
   }
@@ -291,10 +291,10 @@ TEST_F(categorized_kvbc, add_raw_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key2", "key_val2");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key2", "key_val2");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("ver", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
     ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
   }
@@ -351,10 +351,10 @@ TEST_F(categorized_kvbc, get_raw_block) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key1", "key_val1");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "key_val1");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("kv_hash", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
   }
@@ -402,10 +402,10 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key1", "key_val1");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "key_val1");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("ver", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
   }
@@ -417,10 +417,10 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
     merkle_updates.addDelete("merkle_deleted");
     updates.add("merkle", std::move(merkle_updates));
 
-    KeyValueUpdates keyval_updates;
-    keyval_updates.addUpdate("kv_key2", "key_val2");
-    keyval_updates.addDelete("kv_deleted");
-    updates.add("kv_hash", std::move(keyval_updates));
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key2", "key_val2");
+    ver_updates.addDelete("ver_deleted");
+    updates.add("kv_hash", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
     ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
     ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);

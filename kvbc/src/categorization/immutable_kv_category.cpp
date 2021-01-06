@@ -17,6 +17,9 @@
 #include "categorization/column_families.h"
 #include "categorization/details.h"
 
+#include <rocksdb/slice.h>
+#include <rocksdb/status.h>
+
 #include <algorithm>
 #include <map>
 #include <stdexcept>

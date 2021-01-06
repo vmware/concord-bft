@@ -66,38 +66,32 @@ struct ImmutableUpdates {
   friend struct Updates;
 };
 
-// Updates for a key-value category.
+// Updates for a versioned key-value category.
 // Persists versioned (by block ID) key-values directly in the underlying key-value store.
 // Supports an option to calculate a root hash from the key-values in the update. The root hash can be used for key
 // proofs.
-struct KeyValueUpdates {
-  KeyValueUpdates() = default;
-  KeyValueUpdates(KeyValueUpdates&& other) = default;
-  KeyValueUpdates(KeyValueInput&& data) : data_{std::move(data)} {}
-  KeyValueUpdates& operator=(KeyValueUpdates&& other) = default;
+struct VersionedUpdates {
+  VersionedUpdates() = default;
+  VersionedUpdates(VersionedUpdates&& other) = default;
+  VersionedUpdates& operator=(VersionedUpdates&& other) = default;
 
   // Do not allow copy
-  KeyValueUpdates(KeyValueUpdates& other) = delete;
-  KeyValueUpdates& operator=(KeyValueUpdates& other) = delete;
+  VersionedUpdates(const VersionedUpdates& other) = delete;
+  VersionedUpdates& operator=(VersionedUpdates& other) = delete;
   struct Value {
     std::string data;
-
-    // If set, the expiry time will be persisted and available on lookups.
-    // An implementation might optionally choose to automatically mark the key-value stale at or after the `expire_at`
-    // time. If not done automatically, the application needs to manage the lifetime of the key.
-    std::optional<std::time_t> expire_at;
 
     // Mark the key-value stale during the update itself.
     bool stale_on_update{false};
   };
 
   void addUpdate(std::string&& key, Value&& val) {
-    data_.kv.emplace(std::move(key), ValueWithExpirationData{std::move(val.data), val.expire_at, val.stale_on_update});
+    data_.kv.emplace(std::move(key), ValueWithFlags{std::move(val.data), val.stale_on_update});
   }
 
-  // Set a value with no expiration and that is not stale on update
+  // Set a value with no flags set
   void addUpdate(std::string&& key, std::string&& val) {
-    data_.kv.emplace(std::move(key), ValueWithExpirationData{std::move(val), std::nullopt, false});
+    data_.kv.emplace(std::move(key), ValueWithFlags{std::move(val), false});
   }
 
   void addDelete(std::string&& key) {
@@ -112,7 +106,7 @@ struct KeyValueUpdates {
   void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
 
  private:
-  KeyValueInput data_;
+  VersionedInput data_;
   std::set<std::string> unique_deletes_;
   friend struct Updates;
 };
@@ -161,11 +155,11 @@ struct Updates {
     }
   }
 
-  void add(const std::string& category_id, KeyValueUpdates&& updates) {
+  void add(const std::string& category_id, VersionedUpdates&& updates) {
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
-      throw std::logic_error{std::string("Only one update for category is allowed. type: KVHash, category: ") +
+      throw std::logic_error{std::string("Only one update for category is allowed. type: Versioned, category: ") +
                              category_id};
     }
   }

@@ -71,12 +71,12 @@ BlockMerkleInput RawBlock::getUpdates(const std::string& category_id,
   return data;
 }
 
-// KeyValueUpdatesData updates reconstruction
-KeyValueInput RawBlock::getUpdates(const std::string& category_id,
-                                   const KeyValueOutput& update_info,
-                                   const BlockId& block_id,
-                                   const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
-  KeyValueInput data;
+// VersionedInput reconstruction
+VersionedInput RawBlock::getUpdates(const std::string& category_id,
+                                    const VersionedOutput& update_info,
+                                    const BlockId& block_id,
+                                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+  VersionedInput data;
 
   return data;
 }

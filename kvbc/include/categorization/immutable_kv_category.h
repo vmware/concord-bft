@@ -19,9 +19,6 @@
 #include "base_types.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 
-#include <rocksdb/slice.h>
-#include <rocksdb/status.h>
-
 #include <memory>
 #include <optional>
 #include <string>
@@ -40,6 +37,8 @@ namespace concord::kvbc::categorization::detail {
 // is defined as:
 //   root_hash = h(h(k1) || h(v1) || h(k2) || h(v2) || ... || h(kn) || h(vn))
 // A proof for some key per tag is just the hashes of all the other keys and values with the same tag.
+//
+// There is an option to turn off proofs (root hash calculation) per block.
 class ImmutableKeyValueCategory {
  public:
   ImmutableKeyValueCategory() = default;  // for testing only

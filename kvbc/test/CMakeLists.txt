@@ -200,4 +200,15 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+
+    add_executable(versioned_kv_category_unit_test categorization/versioned_kv_category_unit_test.cpp )
+    add_test(versioned_kv_category_unit_test versioned_kv_category_unit_test)
+    target_link_libraries(versioned_kv_category_unit_test PUBLIC
+        GTest::Main
+        GTest::GTest
+        util
+        corebft
+        kvbc
+        stdc++fs
+    )
 endif (BUILD_ROCKSDB_STORAGE)
