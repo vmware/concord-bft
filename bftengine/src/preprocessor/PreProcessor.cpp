@@ -83,6 +83,9 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
                     myReplica_.getReplicaConfig().numOfClientProxies),
+      batchSize_(myReplica.getReplicaConfig().clientMiniBatchingEnabled
+                     ? myReplica.getReplicaConfig().clientMiniBatchingMaxMsgsNbr
+                     : 1),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},

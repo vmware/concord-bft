@@ -171,13 +171,13 @@ class PreProcessor {
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
   const uint16_t numOfClients_;
+  const uint16_t batchSize_;
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   PreProcessResultBuffers preProcessResultBuffers_;
   OngoingReqMap ongoingRequests_;  // clientId + reqOffsetInBatch -> RequestStateSharedPtr
   concordMetrics::Component metricsComponent_;
   std::chrono::seconds metricsLastDumpTime_;
-  const uint16_t batchSize_ = 5;
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
     concordMetrics::CounterHandle preProcReqReceived;
