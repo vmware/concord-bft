@@ -55,6 +55,7 @@ class immutable_kv_category : public Test {
   }
 
  protected:
+  const bool key_deleted{false};
   const std::string category_id{"cat"};
   const std::string column_family{category_id + IMMUTABLE_KV_CF_SUFFIX};
   std::shared_ptr<NativeClient> db;
@@ -633,7 +634,8 @@ TEST_F(immutable_kv_category, get_latest_version) {
   {
     const auto version = cat.getLatestVersion("k");
     ASSERT_TRUE(version);
-    ASSERT_EQ(*version, block_id);
+    const auto expected = TaggedVersion{key_deleted, block_id};
+    ASSERT_EQ(*version, expected);
   }
 
   ASSERT_FALSE(cat.getLatestVersion("non-existent"));
@@ -655,9 +657,10 @@ TEST_F(immutable_kv_category, multi_get_latest_version) {
   }
 
   const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
-  auto versions = std::vector<std::optional<BlockId>>{};
+  auto versions = std::vector<std::optional<TaggedVersion>>{};
   cat.multiGetLatestVersion(keys, versions);
-  const auto expected = std::vector<std::optional<BlockId>>{1, 2, std::nullopt};
+  const auto expected = std::vector<std::optional<TaggedVersion>>{
+      TaggedVersion{key_deleted, 1}, TaggedVersion{key_deleted, 2}, std::nullopt};
   ASSERT_EQ(versions, expected);
 }
 

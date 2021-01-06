@@ -199,16 +199,18 @@ void ImmutableKeyValueCategory::multiGetLatest(const std::vector<std::string> &k
   }
 }
 
-std::optional<BlockId> ImmutableKeyValueCategory::getLatestVersion(const std::string &key) const {
+std::optional<TaggedVersion> ImmutableKeyValueCategory::getLatestVersion(const std::string &key) const {
   const auto ser = db_->getSlice(cf_, key);
   if (!ser) {
     return std::nullopt;
   }
-  return version(*ser);
+  const auto deleted = false;
+  return TaggedVersion{deleted, version(*ser)};
 }
 
 void ImmutableKeyValueCategory::multiGetLatestVersion(const std::vector<std::string> &keys,
-                                                      std::vector<std::optional<BlockId>> &versions) const {
+                                                      std::vector<std::optional<TaggedVersion>> &versions) const {
+  const auto deleted = false;
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
   db_->multiGet(cf_, keys, slices, statuses);
@@ -218,7 +220,7 @@ void ImmutableKeyValueCategory::multiGetLatestVersion(const std::vector<std::str
     const auto &status = statuses[i];
     const auto &slice = slices[i];
     if (status.ok()) {
-      versions.push_back(version(slice));
+      versions.push_back(TaggedVersion{deleted, version(slice)});
     } else if (status.IsNotFound()) {
       versions.push_back(std::nullopt);
     } else {
