@@ -212,7 +212,7 @@ TEST_F(versioned_kv_category, multi_get_and_multi_get_latest) {
     ASSERT_EQ(values, expected);
   }
 
-  // Get the latest values of keys.
+  // Get the latest values of keys with a non-existent key.
   {
     auto values = std::vector<std::optional<categorization::Value>>{};
     cat.multiGetLatest({"ka", "kb", "non-existent"}, values);
@@ -220,10 +220,20 @@ TEST_F(versioned_kv_category, multi_get_and_multi_get_latest) {
         VersionedValue{{3, "va3"}}, VersionedValue{{3, "vb3"}}, std::nullopt};
     ASSERT_EQ(values, expected);
   }
+
+  // Get the latest values of keys.
+  {
+    auto values = std::vector<std::optional<categorization::Value>>{};
+    cat.multiGetLatest({"ka", "kb"}, values);
+    const auto expected =
+        std::vector<std::optional<categorization::Value>>{VersionedValue{{3, "va3"}}, VersionedValue{{3, "vb3"}}};
+    ASSERT_EQ(values, expected);
+  }
 }
 
 TEST_F(versioned_kv_category, get_latest_ver_and_multi_get_latest_ver) {
   const auto stale_on_update = false;
+  const auto deleted = false;
 
   // Update keys "ka" and "kb" with "va1" and "vb1" at block 1.
   {
@@ -245,13 +255,15 @@ TEST_F(versioned_kv_category, get_latest_ver_and_multi_get_latest_ver) {
 
   // Get latest version of existing keys.
   {
-    const auto ka_ver = cat.getLatestVersion("ka");
-    ASSERT_TRUE(ka_ver);
-    ASSERT_EQ(*ka_ver, 3);
+    const auto ka = cat.getLatestVersion("ka");
+    ASSERT_TRUE(ka);
+    ASSERT_FALSE(ka->deleted);
+    ASSERT_EQ(ka->version, 3);
 
-    const auto kb_ver = cat.getLatestVersion("kb");
-    ASSERT_TRUE(kb_ver);
-    ASSERT_EQ(*kb_ver, 3);
+    const auto kb = cat.getLatestVersion("kb");
+    ASSERT_TRUE(kb);
+    ASSERT_FALSE(kb->deleted);
+    ASSERT_EQ(kb->version, 3);
   }
 
   // Get latest version of a non-existent key.
@@ -262,9 +274,10 @@ TEST_F(versioned_kv_category, get_latest_ver_and_multi_get_latest_ver) {
 
   // Get multiple latest versions.
   {
-    auto versions = std::vector<std::optional<BlockId>>{};
+    auto versions = std::vector<std::optional<TaggedVersion>>{};
     cat.multiGetLatestVersion({"ka", "non-existent", "kb"}, versions);
-    const auto expected = std::vector<std::optional<BlockId>>{3, std::nullopt, 3};
+    const auto expected =
+        std::vector<std::optional<TaggedVersion>>{TaggedVersion{deleted, 3}, std::nullopt, TaggedVersion{deleted, 3}};
     ASSERT_EQ(versions, expected);
   }
 }
@@ -420,17 +433,76 @@ TEST_F(versioned_kv_category, delete_key) {
 
   // Key "k" has a latest version of 2 via getLatestVersion() - the version it was deleted at.
   {
-    const auto latest_version = cat.getLatestVersion("k");
-    ASSERT_TRUE(latest_version);
-    ASSERT_EQ(*latest_version, 2);
+    const auto latest = cat.getLatestVersion("k");
+    ASSERT_TRUE(latest);
+    ASSERT_TRUE(latest->deleted);
+    ASSERT_EQ(latest->version, 2);
   }
 
   // Key "k" has a latest version of 2 via multiGetLatestVersion() - the version it was deleted at.
   {
-    auto latest_versions = std::vector<std::optional<BlockId>>{};
+    const auto deleted = true;
+    auto latest_versions = std::vector<std::optional<TaggedVersion>>{};
     cat.multiGetLatestVersion({"k"}, latest_versions);
-    const auto expected = std::vector<std::optional<BlockId>>{2};
+    const auto expected = std::vector<std::optional<TaggedVersion>>{TaggedVersion{deleted, 2}};
     ASSERT_EQ(latest_versions, expected);
+  }
+}
+
+TEST_F(versioned_kv_category, multi_get_latest_with_updates_and_deletes) {
+  const auto stale_on_update = false;
+
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["k1"] = ValueWithFlags{"v1", stale_on_update};
+    in.kv["k2"] = ValueWithFlags{"v2", stale_on_update};
+    in.kv["k3"] = ValueWithFlags{"v3", stale_on_update};
+    in.kv["k4"] = ValueWithFlags{"v4", stale_on_update};
+    in.kv["k5"] = ValueWithFlags{"v5", stale_on_update};
+    add(1, std::move(in));
+  }
+
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["k2"] = ValueWithFlags{"new_v2", stale_on_update};
+    in.deletes.push_back("k3");
+    in.deletes.push_back("k5");
+    add(2, std::move(in));
+  }
+
+  {
+    auto keys = std::vector<std::string>{"k1", "k2", "k3", "non-existent", "k4", "k5", "non-existent2"};
+    auto values = std::vector<std::optional<categorization::Value>>{};
+    cat.multiGetLatest(keys, values);
+
+    // "k1"'s value at version 1.
+    ASSERT_TRUE(values[0]);
+    const auto expected1 = categorization::Value{VersionedValue{{1, "v1"}}};
+    ASSERT_EQ(expected1, *values[0]);
+
+    // "k2"'s value at version 2.
+    const auto expected2 = categorization::Value{VersionedValue{{2, "new_v2"}}};
+    ASSERT_TRUE(values[1]);
+    ASSERT_EQ(expected2, *values[1]);
+
+    // "k3" has been deleted.
+    ASSERT_FALSE(values[2]);
+
+    // "non-existent".
+    ASSERT_FALSE(values[3]);
+
+    // "k4"'s value at version 1.
+    ASSERT_TRUE(values[4]);
+    const auto expected4 = categorization::Value{VersionedValue{{1, "v4"}}};
+    ASSERT_EQ(expected4, *values[4]);
+
+    // "k5" has been deleted.
+    ASSERT_FALSE(values[5]);
+
+    // "non-existent2".
+    ASSERT_FALSE(values[6]);
   }
 }
 
@@ -456,7 +528,7 @@ TEST_F(versioned_kv_category, propagate_stale_on_update) {
   }
 }
 
-TEST_F(versioned_kv_category, delete_genesis) {
+TEST_F(versioned_kv_category, delete_genesis_with_update) {
   const auto mark_stale_on_update = true;
   const auto non_stale_on_update = false;
 
@@ -503,17 +575,19 @@ TEST_F(versioned_kv_category, delete_genesis) {
 
   // Make sure we have a latest version for "ka".
   {
-    const auto latest_version = cat.getLatestVersion("ka");
-    ASSERT_TRUE(latest_version);
-    ASSERT_EQ(*latest_version, 5);
+    const auto latest = cat.getLatestVersion("ka");
+    ASSERT_TRUE(latest);
+    ASSERT_FALSE(latest->deleted);
+    ASSERT_EQ(latest->version, 5);
 
     const auto value = cat.getLatest("ka");
     ASSERT_EQ(asVersioned(value).block_id, 5);
     ASSERT_EQ(asVersioned(value).data, "va5");
 
-    auto latest_versions = std::vector<std::optional<BlockId>>{};
+    const auto deleted = false;
+    auto latest_versions = std::vector<std::optional<TaggedVersion>>{};
     cat.multiGetLatestVersion({"ka"}, latest_versions);
-    const auto expected_versions = std::vector<std::optional<BlockId>>{5};
+    const auto expected_versions = std::vector<std::optional<TaggedVersion>>{TaggedVersion{deleted, 5}};
     ASSERT_EQ(latest_versions, expected_versions);
 
     auto latest_values = std::vector<std::optional<categorization::Value>>{};
@@ -524,17 +598,19 @@ TEST_F(versioned_kv_category, delete_genesis) {
 
   // Make sure we have a latest version for "kd".
   {
-    const auto latest_version = cat.getLatestVersion("kd");
-    ASSERT_TRUE(latest_version);
-    ASSERT_EQ(*latest_version, 5);
+    const auto deleted = false;
+    const auto latest = cat.getLatestVersion("kd");
+    ASSERT_TRUE(latest);
+    ASSERT_FALSE(latest->deleted);
+    ASSERT_EQ(latest->version, 5);
 
     const auto value = cat.getLatest("kd");
     ASSERT_EQ(asVersioned(value).block_id, 5);
     ASSERT_EQ(asVersioned(value).data, "vd5");
 
-    auto latest_versions = std::vector<std::optional<BlockId>>{};
+    auto latest_versions = std::vector<std::optional<TaggedVersion>>{};
     cat.multiGetLatestVersion({"kd"}, latest_versions);
-    const auto expected_versions = std::vector<std::optional<BlockId>>{5};
+    const auto expected_versions = std::vector<std::optional<TaggedVersion>>{TaggedVersion{deleted, 5}};
     ASSERT_EQ(latest_versions, expected_versions);
 
     auto latest_values = std::vector<std::optional<categorization::Value>>{};
@@ -551,7 +627,7 @@ TEST_F(versioned_kv_category, delete_genesis) {
   }
 }
 
-TEST_F(versioned_kv_category, delete_genesis_with_deleted_keys) {
+TEST_F(versioned_kv_category, delete_genesis_with_deletes) {
   auto out = VersionedOutput{};
   {
     auto in = VersionedInput{};
@@ -591,7 +667,7 @@ TEST_F(versioned_kv_category, delete_genesis_with_deleted_keys) {
   }
 }
 
-TEST_F(versioned_kv_category, delete_last_reachable) {
+TEST_F(versioned_kv_category, delete_last_reachable_with_updates) {
   const auto stale_on_update = false;
 
   // Add key "ka" in block 1.
@@ -603,7 +679,7 @@ TEST_F(versioned_kv_category, delete_last_reachable) {
     out1 = add(1, std::move(in));
   }
 
-  // Update key "ka" in block 2 (making it stale). Add a new key "kab" in block 5.
+  // Update key "ka" in block 5 (making it stale). Add a new key "kab" in block 5.
   auto out5 = VersionedOutput{};
   {
     auto in = VersionedInput{};
@@ -654,6 +730,89 @@ TEST_F(versioned_kv_category, delete_last_reachable) {
     auto latest_ver_iter = db->getIterator(latest_ver_cf);
     latest_ver_iter.first();
     ASSERT_FALSE(latest_ver_iter);
+  }
+}
+
+TEST_F(versioned_kv_category, delete_last_reachable_with_deletes) {
+  const auto stale_on_update = false;
+
+  // Add key "k" in block 1.
+  auto out1 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["k"] = ValueWithFlags{"v1", stale_on_update};
+    out1 = add(1, std::move(in));
+  }
+
+  // Delete key "k" in block 3.
+  auto out3 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.deletes.push_back("k");
+    out3 = add(3, std::move(in));
+  }
+
+  // Update key "k" in block 5.
+  auto out5 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["k"] = ValueWithFlags{"v5", stale_on_update};
+    out5 = add(5, std::move(in));
+  }
+
+  // The latest version is 5.
+  {
+    const auto latest = cat.getLatestVersion("k");
+    ASSERT_TRUE(latest);
+    ASSERT_FALSE(latest->deleted);
+    ASSERT_EQ(latest->version, 5);
+  }
+
+  // Delete last reachable block 5.
+  {
+    auto batch = db->getBatch();
+    cat.deleteLastReachableBlock(5, out5, batch);
+    db->write(std::move(batch));
+  }
+
+  // Make sure the latest version is 3 - the version key "k" was deleted at.
+  {
+    const auto latest = cat.getLatestVersion("k");
+    ASSERT_TRUE(latest);
+    ASSERT_TRUE(latest->deleted);
+    ASSERT_EQ(latest->version, 3);
+
+    auto versions = std::vector<std::optional<TaggedVersion>>{};
+    cat.multiGetLatestVersion({"k"}, versions);
+    ASSERT_EQ(versions.size(), 1);
+    ASSERT_TRUE(versions[0]);
+    ASSERT_TRUE(versions[0]->deleted);
+    ASSERT_EQ(versions[0]->version, 3);
+  }
+
+  // Delete last reachable block 3.
+  {
+    auto batch = db->getBatch();
+    cat.deleteLastReachableBlock(3, out3, batch);
+    db->write(std::move(batch));
+  }
+
+  // Make sure the latest version is 1.
+  {
+    const auto latest = cat.getLatestVersion("k");
+    ASSERT_TRUE(latest);
+    ASSERT_FALSE(latest->deleted);
+    ASSERT_EQ(latest->version, 1);
+
+    auto versions = std::vector<std::optional<TaggedVersion>>{};
+    cat.multiGetLatestVersion({"k"}, versions);
+    ASSERT_EQ(versions.size(), 1);
+    ASSERT_TRUE(versions[0]);
+    ASSERT_FALSE(versions[0]->deleted);
+    ASSERT_EQ(versions[0]->version, 1);
   }
 }
 

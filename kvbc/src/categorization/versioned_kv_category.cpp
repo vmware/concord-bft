@@ -22,27 +22,23 @@
 #include <rocksdb/status.h>
 
 #include <utility>
-#include <variant>
 
 namespace concord::kvbc::categorization::detail {
 
 using namespace std::literals;
 
 template <typename Span>
-std::optional<std::string> value(const Span &ser) {
-  auto db_value = VersionedDbValue{};
-  deserialize(ser, db_value);
-  if (!std::holds_alternative<DbValue>(db_value.data)) {
-    return std::nullopt;
-  }
-  return std::get<DbValue>(std::move(db_value.data)).data;
+DbValue value(const Span &ser) {
+  auto v = DbValue{};
+  deserialize(ser, v);
+  return v;
 }
 
 template <typename Span>
-BlockId latestVersion(const Span &ser) {
-  auto latest_version = LatestKeyVersion{};
-  deserialize(ser, latest_version);
-  return latest_version.block_id;
+TaggedVersion latestVersion(const Span &ser) {
+  auto latest = LatestKeyVersion{};
+  deserialize(ser, latest);
+  return TaggedVersion{latest.block_id};
 }
 
 VersionedKeyValueCategory::VersionedKeyValueCategory(const std::string &category_id,
@@ -72,9 +68,9 @@ void VersionedKeyValueCategory::addDeletes(BlockId block_id,
   for (auto &&key : keys) {
     auto versioned_key = VersionedRawKey{std::move(key), block_id};
 
-    updateLatestKeyVersion(versioned_key.value, block_id, batch);
+    updateLatestKeyVersion(versioned_key.value, TaggedVersion{deleted, block_id}, batch);
 
-    putValue(versioned_key, VersionedDbValue{Tombstone{}}, batch);
+    putValue(versioned_key, DbValue{deleted, ""s}, batch);
 
     addKeyToUpdateInfo(std::move(versioned_key.value), deleted, stale_on_update, out);
   }
@@ -113,9 +109,9 @@ void VersionedKeyValueCategory::addUpdates(BlockId block_id,
 
     auto versioned_key = VersionedRawKey{std::move(key), block_id};
 
-    updateLatestKeyVersion(versioned_key.value, block_id, batch);
+    updateLatestKeyVersion(versioned_key.value, TaggedVersion{deleted, block_id}, batch);
 
-    putValue(versioned_key, VersionedDbValue{DbValue{std::move(value.data)}}, batch);
+    putValue(versioned_key, DbValue{deleted, std::move(value.data)}, batch);
 
     addKeyToUpdateInfo(std::move(versioned_key.value), deleted, value.stale_on_update, out);
   }
@@ -126,13 +122,13 @@ void VersionedKeyValueCategory::addUpdates(BlockId block_id,
 }
 
 void VersionedKeyValueCategory::updateLatestKeyVersion(const std::string &key,
-                                                       BlockId version,
+                                                       TaggedVersion version,
                                                        storage::rocksdb::NativeWriteBatch &batch) {
-  batch.put(latest_ver_cf_, key, serialize(LatestKeyVersion{version}));
+  batch.put(latest_ver_cf_, key, serialize(LatestKeyVersion{version.encode()}));
 }
 
 void VersionedKeyValueCategory::putValue(const VersionedRawKey &key,
-                                         const VersionedDbValue &value,
+                                         const DbValue &value,
                                          storage::rocksdb::NativeWriteBatch &batch) {
   batch.put(values_cf_, serialize(key), serialize(value));
 }
@@ -148,23 +144,24 @@ void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
                                                    const VersionedOutput &out,
                                                    storage::rocksdb::NativeWriteBatch &batch) {
   for (const auto &[key, flags] : out.keys) {
-    const auto latest_version = getLatestVersion(key);
-    ConcordAssert(latest_version.has_value());
+    const auto latest = getLatestVersion(key);
+    ConcordAssert(latest.has_value());
+    ConcordAssertEQ(latest->deleted, flags.deleted);
     // Note: Deleted keys cannot be marked as stale on update.
     if (flags.stale_on_update) {
       // This key is marked stale-on-update and, therefore, we can remove its value at `block_id`.
       batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
       // If there are no new versions of a key that was marked as stale-on-update at `block_id`, remove the latest
       // version too.
-      if (*latest_version == block_id) {
+      if (latest->version == block_id) {
         batch.del(latest_ver_cf_, key);
       }
-    } else if (flags.deleted && *latest_version == block_id) {
+    } else if (flags.deleted && latest->version == block_id) {
       // If the key was deleted at this block and there are no new versions, delete both the value and the latest
       // version.
       batch.del(latest_ver_cf_, key);
       batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
-    } else if (*latest_version > block_id) {
+    } else if (latest->version > block_id) {
       // If this key is stale as of `block_id` (meaning it has a newer version), we can remove its value at `block_id`.
       batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
     }
@@ -190,7 +187,10 @@ void VersionedKeyValueCategory::deleteLastReachableBlock(BlockId block_id,
       auto prev_key = VersionedRawKey{};
       deserialize(iter.keyView(), prev_key);
       if (prev_key.value == key) {
-        updateLatestKeyVersion(key, prev_key.version, batch);
+        // Preserve the deleted flag from the value into the version index.
+        auto deleted = Deleted{};
+        deserialize(iter.valueView(), deleted);
+        updateLatestKeyVersion(key, TaggedVersion{deleted.value, prev_key.version}, batch);
       } else {
         // This is the only version of the key - remove the latest version index too.
         batch.del(latest_ver_cf_, key);
@@ -211,18 +211,18 @@ std::optional<Value> VersionedKeyValueCategory::get(const std::string &key, Bloc
     return std::nullopt;
   }
   auto v = value(*ser);
-  if (!v) {
+  if (v.deleted) {
     return std::nullopt;
   }
-  return VersionedValue{{block_id, *std::move(v)}};
+  return VersionedValue{{block_id, std::move(v.data)}};
 }
 
 std::optional<Value> VersionedKeyValueCategory::getLatest(const std::string &key) const {
-  const auto latest_version = getLatestVersion(key);
-  if (!latest_version) {
+  const auto latest = getLatestVersion(key);
+  if (!latest || latest->deleted) {
     return std::nullopt;
   }
-  return get(key, *latest_version);
+  return get(key, latest->version);
 }
 
 void VersionedKeyValueCategory::multiGet(const std::vector<std::string> &keys,
@@ -232,7 +232,7 @@ void VersionedKeyValueCategory::multiGet(const std::vector<std::string> &keys,
 
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
-  auto versioned_keys = std::vector<std::vector<std::uint8_t>>{};
+  auto versioned_keys = std::vector<Buffer>{};
   versioned_keys.reserve(keys.size());
 
   for (auto i = 0ull; i < keys.size(); ++i) {
@@ -248,8 +248,8 @@ void VersionedKeyValueCategory::multiGet(const std::vector<std::string> &keys,
     const auto version = versions[i];
     if (status.ok()) {
       auto v = value(slice);
-      if (v) {
-        values.push_back(VersionedValue{{version, *std::move(v)}});
+      if (!v.deleted) {
+        values.push_back(VersionedValue{{version, std::move(v.data)}});
       } else {
         values.push_back(std::nullopt);
       }
@@ -263,26 +263,44 @@ void VersionedKeyValueCategory::multiGet(const std::vector<std::string> &keys,
 
 void VersionedKeyValueCategory::multiGetLatest(const std::vector<std::string> &keys,
                                                std::vector<std::optional<Value>> &values) const {
-  auto versions = std::vector<BlockId>{};
-  versions.reserve(keys.size());
-  auto slices = std::vector<::rocksdb::PinnableSlice>{};
-  auto statuses = std::vector<::rocksdb::Status>{};
-  db_->multiGet(latest_ver_cf_, keys, slices, statuses);
-  for (auto i = 0ull; i < slices.size(); ++i) {
-    const auto &status = statuses[i];
-    const auto &slice = slices[i];
-    if (status.ok()) {
-      versions.push_back(latestVersion(slice));
-    } else if (status.IsNotFound()) {
-      versions.push_back(Blockchain::INVALID_BLOCK_ID);
-    } else {
-      throw std::runtime_error{"VersionedKeyValueCategory multiGetLatest() failure: " + status.ToString()};
+  auto versions = std::vector<std::optional<TaggedVersion>>{};
+  multiGetLatestVersion(keys, versions);
+
+  // Generate the set of versioned keys for all keys that have latest versions and are not deleted.
+  auto found_keys = std::vector<std::string>{};
+  auto found_versions = std::vector<BlockId>{};
+  for (auto i = 0u; i < keys.size(); i++) {
+    if (versions[i] && !versions[i]->deleted) {
+      const auto latest_version = versions[i]->version;
+      found_versions.push_back(latest_version);
+      found_keys.push_back(keys[i]);
     }
   }
-  multiGet(keys, versions, values);
+
+  values.clear();
+  // Optimize for all keys existing (having latest versions).
+  if (found_keys.size() == keys.size()) {
+    return multiGet(found_keys, found_versions, values);
+  }
+
+  // Retrieve only the keys that have latest versions.
+  auto retrieved_values = std::vector<std::optional<Value>>{};
+  multiGet(found_keys, found_versions, retrieved_values);
+
+  // Merge any keys that didn't have latest versions along with the retrieved keys.
+  auto value_index = 0u;
+  for (auto &version : versions) {
+    if (version && !version->deleted) {
+      values.push_back(retrieved_values[value_index]);
+      ++value_index;
+    } else {
+      values.push_back(std::nullopt);
+    }
+  }
+  ConcordAssertEQ(values.size(), keys.size());
 }
 
-std::optional<BlockId> VersionedKeyValueCategory::getLatestVersion(const std::string &key) const {
+std::optional<TaggedVersion> VersionedKeyValueCategory::getLatestVersion(const std::string &key) const {
   const auto ser = db_->getSlice(latest_ver_cf_, key);
   if (!ser) {
     return std::nullopt;
@@ -291,7 +309,7 @@ std::optional<BlockId> VersionedKeyValueCategory::getLatestVersion(const std::st
 }
 
 void VersionedKeyValueCategory::multiGetLatestVersion(const std::vector<std::string> &keys,
-                                                      std::vector<std::optional<BlockId>> &versions) const {
+                                                      std::vector<std::optional<TaggedVersion>> &versions) const {
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
   db_->multiGet(latest_ver_cf_, keys, slices, statuses);

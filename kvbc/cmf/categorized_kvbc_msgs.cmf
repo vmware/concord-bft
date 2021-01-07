@@ -119,13 +119,23 @@ Msg VersionedRawKey 4003 {
     uint64 version
 }
 
-Msg ImmutableDbValue 4004 {
+Msg DbValue 4004 {
+    bool deleted
+    string data
+}
+
+# Used to deserialize the deleted flag only from a DbValue.
+Msg Deleted 4005 {
+    bool value
+}
+
+Msg ImmutableDbValue 4006 {
     uint64 block_id
     string data
 }
 
 # Used to deserialize the version only from an ImmutableDbValue.
-Msg ImmutableDbVersion 4005 {
+Msg ImmutableDbVersion 4007 {
     uint64 block_id
 }
 
@@ -169,21 +179,4 @@ Msg BatchedInternalNode 5006 {
     # Contains a 1 where a child node is present, 0 otherwise
     uint32 bitmask
     list BatchedInternalNodeChild children
-}
-
-# Versioned category
-
-Msg Tombstone 6000 {
-    bool dummy
-}
-
-Msg DbValue 6001 {
-    string data
-}
-
-Msg VersionedDbValue 6002 {
-    oneof {
-        Tombstone
-        DbValue
-    } data
 }

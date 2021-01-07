@@ -23,7 +23,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <variant>
 #include <vector>
 
 namespace concord::kvbc::categorization::detail {
@@ -74,11 +73,12 @@ class VersionedKeyValueCategory {
 
   // Get the latest version of `key`.
   // Return std::nullopt if the key doesn't exist.
-  std::optional<BlockId> getLatestVersion(const std::string &key) const;
+  std::optional<TaggedVersion> getLatestVersion(const std::string &key) const;
 
   // Get the latest versions of the given keys.
   // If a key is missing, std::nullopt is returned for its version.
-  void multiGetLatestVersion(const std::vector<std::string> &keys, std::vector<std::optional<BlockId>> &versions) const;
+  void multiGetLatestVersion(const std::vector<std::string> &keys,
+                             std::vector<std::optional<TaggedVersion>> &versions) const;
 
   // Get the value of `key` and a proof for it at `block_id`.
   // Return std::nullopt if the key doesn't exist.
@@ -93,9 +93,9 @@ class VersionedKeyValueCategory {
                   VersionedOutput &,
                   storage::rocksdb::NativeWriteBatch &);
 
-  void updateLatestKeyVersion(const std::string &key, BlockId version, storage::rocksdb::NativeWriteBatch &);
+  void updateLatestKeyVersion(const std::string &key, TaggedVersion version, storage::rocksdb::NativeWriteBatch &);
 
-  void putValue(const VersionedRawKey &, const VersionedDbValue &, storage::rocksdb::NativeWriteBatch &);
+  void putValue(const VersionedRawKey &, const DbValue &, storage::rocksdb::NativeWriteBatch &);
 
   void addKeyToUpdateInfo(std::string &&key, bool deleted, bool stale_on_update, VersionedOutput &);
 
