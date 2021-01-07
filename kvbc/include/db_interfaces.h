@@ -103,12 +103,6 @@ class IReader {
                                      const std::vector<std::string> &keys,
                                      std::vector<std::optional<categorization::TaggedVersion>> &versions) const;
 
-  // Get the value of `key` and a proof for it at `block_id`.
-  // Return std::nullopt if the key doesn't exist.
-  virtual std::optional<categorization::Proof> getProof(const std::string &category_id,
-                                                        const std::string &key,
-                                                        BlockId block_id) const = 0;
-
   // Get the updates that were used to create `block_id`.
   virtual categorization::Updates getBlockUpdates(BlockId block_id) const = 0;
 

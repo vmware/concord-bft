@@ -82,7 +82,7 @@ class VersionedKeyValueCategory {
 
   // Get the value of `key` and a proof for it at `block_id`.
   // Return std::nullopt if the key doesn't exist.
-  std::optional<Proof> getProof(BlockId block_id, const std::string &key, const VersionedOutput &) const;
+  std::optional<KeyValueProof> getProof(BlockId block_id, const std::string &key, const VersionedOutput &) const;
 
  private:
   void addDeletes(BlockId, std::vector<std::string> &&keys, VersionedOutput &, storage::rocksdb::NativeWriteBatch &);

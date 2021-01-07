@@ -87,9 +87,9 @@ class ImmutableKeyValueCategory {
 
   // Get the value of a key and a proof for it in `tag`.
   // Return std::nullopt if the key doesn't exist.
-  std::optional<Proof> getProof(const std::string &tag,
-                                const std::string &key,
-                                const ImmutableOutput &updates_info) const;
+  std::optional<KeyValueProof> getProof(const std::string &tag,
+                                        const std::string &key,
+                                        const ImmutableOutput &updates_info) const;
 
  private:
   std::string cf_;

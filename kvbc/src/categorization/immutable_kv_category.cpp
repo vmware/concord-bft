@@ -232,9 +232,9 @@ void ImmutableKeyValueCategory::multiGetLatestVersion(const std::vector<std::str
   }
 }
 
-std::optional<Proof> ImmutableKeyValueCategory::getProof(const std::string &tag,
-                                                         const std::string &key,
-                                                         const ImmutableOutput &updates_info) const {
+std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::string &tag,
+                                                                 const std::string &key,
+                                                                 const ImmutableOutput &updates_info) const {
   // If the key is not part of this block, return a null proof.
   auto key_it = updates_info.tagged_keys.find(key);
   if (key_it == updates_info.tagged_keys.cend()) {

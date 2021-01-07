@@ -326,9 +326,9 @@ void VersionedKeyValueCategory::multiGetLatestVersion(const std::vector<std::str
   }
 }
 
-std::optional<Proof> VersionedKeyValueCategory::getProof(BlockId block_id,
-                                                         const std::string &key,
-                                                         const VersionedOutput &out) const {
+std::optional<KeyValueProof> VersionedKeyValueCategory::getProof(BlockId block_id,
+                                                                 const std::string &key,
+                                                                 const VersionedOutput &out) const {
   // If the key is not part of this block, return a null proof.
   auto key_it = out.keys.find(key);
   if (key_it == out.keys.cend()) {
