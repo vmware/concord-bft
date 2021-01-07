@@ -304,7 +304,8 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   }
 
   if (myReplica_.isCurrentPrimary() && registerSucceeded)
-    return handleClientPreProcessRequestByPrimary(preProcessRequestMsg);
+    preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();  // Increase this metric on the primary replica
+  return handleClientPreProcessRequestByPrimary(preProcessRequestMsg);
 
   LOG_DEBUG(logger(),
             "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
@@ -356,8 +357,9 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
     registerSucceeded = registerRequest(ClientPreProcessReqMsgUniquePtr(), preProcessReqMsg);
   }
   if (registerSucceeded)
-    // Pre-process the request, calculate a hash of the result and send a reply back
-    launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false);
+    preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();  // Increase the metric on non-primary replica
+  // Pre-process the request, calculate a hash of the result and send a reply back
+  launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false);
 }
 
 // Primary replica handling
@@ -545,7 +547,6 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
   } else {
     LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId) << " registered PreProcessRequestMsg");
   }
-  preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();
   return true;
 }
 
