@@ -27,7 +27,7 @@ namespace concord::kvbc::categorization::detail {
 
 using Buffer = std::vector<std::uint8_t>;
 
-enum class CATEGORY_TYPE : char { merkle = 0, immutable = 1, kv_hash = 2, end_of_types };
+enum class CATEGORY_TYPE : char { block_merkle = 0, immutable = 1, versioned_kv = 2, end_of_types };
 
 template <typename Span>
 Hash hash(const Span &span) {

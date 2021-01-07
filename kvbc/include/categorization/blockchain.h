@@ -65,12 +65,12 @@ class Blockchain {
     return Block::deserialize(block_ser.value());
   }
 
-  std::optional<RawBlock> getRawBlock(const BlockId block_id) const {
+  std::optional<RawBlock> getRawBlock(const BlockId block_id, const CategoriesMap* categorires) const {
     auto block = getBlock(block_id);
     if (!block) {
       return std::optional<RawBlock>{};
     }
-    return RawBlock(block.value(), native_client_);
+    return RawBlock(block.value(), native_client_, categorires);
   }
 
   /////////////////////// State transfer Block chain ///////////////////////

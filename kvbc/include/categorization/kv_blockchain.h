@@ -19,17 +19,16 @@
 #include "blocks.h"
 #include "blockchain.h"
 #include "immutable_kv_category.h"
-
+#include "block_merkle_category.h"
+#include "versioned_kv_category.h"
 #include "kv_types.hpp"
+#include "categorization/types.h"
+#include "thread_pool.hpp"
 
 namespace concord::kvbc::categorization {
 
-// Temp forward declearations
-struct BlockMerkleCategory {};
-struct KVHashCategory {};
-
 class KeyValueBlockchain {
-  using VersionedRawBlock = std::pair<BlockId, std::optional<categorization::RawBlock>>;
+  using VersionedRawBlock = std::pair<BlockId, std::optional<categorization::RawBlockData>>;
 
  public:
   KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client, bool link_st_chain);
@@ -94,8 +93,8 @@ class KeyValueBlockchain {
                              const detail::CATEGORY_TYPE type,
                              concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
-  const std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>& getCategory(
-      const std::string& cat_id) const;
+  const std::variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>&
+  getCategory(const std::string& cat_id) const;
 
   /////////////////////// deletes ///////////////////////
 
@@ -139,25 +138,21 @@ class KeyValueBlockchain {
   BlockMerkleOutput handleCategoryUpdates(BlockId block_id,
                                           const std::string& category_id,
                                           BlockMerkleInput&& updates,
-                                          concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                          categorization::RawBlock& raw_block);
+                                          concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   VersionedOutput handleCategoryUpdates(BlockId block_id,
                                         const std::string& category_id,
                                         VersionedInput&& updates,
-                                        concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                        categorization::RawBlock& raw_block);
+                                        concord::storage::rocksdb::NativeWriteBatch& write_batch);
   ImmutableOutput handleCategoryUpdates(BlockId block_id,
                                         const std::string& category_id,
                                         ImmutableInput&& updates,
-                                        concord::storage::rocksdb::NativeWriteBatch& write_batch,
-                                        categorization::RawBlock& raw_block);
+                                        concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   /////////////////////// Members ///////////////////////
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
-  std::map<std::string, std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>>
-      categorires_;
+  CategoriesMap categorires_;
   std::map<std::string, detail::CATEGORY_TYPE> categorires_types_;
   detail::Blockchain block_chain_;
   detail::Blockchain::StateTransfer state_transfer_block_chain_;
@@ -167,22 +162,25 @@ class KeyValueBlockchain {
   // E.L - compare this with getRawBlock to see they are equal
   VersionedRawBlock last_raw_block_;
 
+  // currently we are operating with single thread
+  // to keep resources low I don't use the hardware concurrency constructor, but set it to 2 threads.
+  util::ThreadPool thread_pool_{2};
+
  public:
   struct KeyValueBlockchain_tester {
     void instantiateCategories(KeyValueBlockchain& kvbc) { kvbc.instantiateCategories(); }
-    const std::map<std::string, std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>>&
-    getCategories(KeyValueBlockchain& kvbc) {
-      return kvbc.categorires_;
-    }
-    const std::variant<detail::ImmutableKeyValueCategory, BlockMerkleCategory, KVHashCategory>& getCategory(
-        const std::string& cat_id, KeyValueBlockchain& kvbc) const {
+    const auto& getCategories(KeyValueBlockchain& kvbc) { return kvbc.categorires_; }
+
+    const std::
+        variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>&
+        getCategory(const std::string& cat_id, KeyValueBlockchain& kvbc) const {
       return kvbc.getCategory(cat_id);
     }
 
     detail::Blockchain& getBlockchain(KeyValueBlockchain& kvbc) { return kvbc.block_chain_; }
 
     const VersionedRawBlock& getLastRawBlocked(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
-  };
+  };  // namespace concord::kvbc::categorization
   friend struct KeyValueBlockchain_tester;
 };
 

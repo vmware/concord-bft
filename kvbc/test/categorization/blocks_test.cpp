@@ -71,67 +71,273 @@ TEST_F(categorized_kvbc, serialization_and_desirialization_of_block) {
 }
 
 TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
-  BlockDigest pHash;
-  std::random_device rd;
-  for (int i = 0; i < (int)pHash.size(); i++) {
-    pHash[i] = (uint8_t)(rd() % 255);
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester{};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
 
-  auto cf = std::string("merkle");
-  auto key = std::string("key");
-  auto value = std::string("val");
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
 
-  uint64_t state_root_version = 886;
-  BlockMerkleOutput mui;
-  mui.keys[key] = MerkleKeyFlag{false};
-  mui.root_hash = pHash;
-  mui.state_root_version = state_root_version;
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
 
-  Block block{888};
-  block.add(cf, std::move(mui));
-  block.setParentHash(pHash);
+  {
+    const detail::Buffer& block_db_key = Block::generateKey(1);
+    auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
+    ASSERT_TRUE(block1_db_val.has_value());
 
-  db->createColumnFamily(cf);
-  auto db_key = v2MerkleTree::detail::DBKeyManipulator::genDataDbKey(std::string(key), state_root_version);
-  auto db_val = v2MerkleTree::detail::serialize(
-      v2MerkleTree::detail::DatabaseLeafValue{block.id(), sparse_merkle::LeafNode{std::string(value)}});
-  db->put(cf, db_key, db_val);
-  auto db_get_val = db->get(cf, db_key);
-  ASSERT_EQ(db_get_val.value(), db_val);
+    detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
+    auto block1_from_db = Block::deserialize(in);
 
-  categorization::RawBlock rw(block, db);
-  ASSERT_EQ(rw.data.parent_digest, block.data.parent_digest);
-  auto variant = rw.data.updates.kv[cf];
-  auto merkle_updates = std::get<BlockMerkleInput>(variant);
-  // check reconstruction of original kv
-  ASSERT_EQ(merkle_updates.kv[key], value);
+    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    auto variant = rw.data.updates.kv["merkle"];
+    auto merkle_updates = std::get<BlockMerkleInput>(variant);
+    // check reconstruction of original kv
+    ASSERT_EQ(merkle_updates.kv.size(), 2);
+    ASSERT_EQ(merkle_updates.deletes.size(), 0);
+    ASSERT_EQ(merkle_updates.kv["merkle_key1"], "merkle_value1");
+    ASSERT_EQ(merkle_updates.kv["merkle_key2"], "merkle_value2");
+  }
+
+  {
+    const detail::Buffer& block_db_key = Block::generateKey(2);
+    auto block2_db_val = db->get(BLOCKS_CF, block_db_key);
+    ASSERT_TRUE(block2_db_val.has_value());
+
+    detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
+    auto block2_from_db = Block::deserialize(in);
+
+    categorization::RawBlock rw(block2_from_db, db, &tester.getCategories(block_chain));
+    auto variant = rw.data.updates.kv["merkle"];
+    auto merkle_updates = std::get<BlockMerkleInput>(variant);
+    // check reconstruction of original kv
+    ASSERT_EQ(merkle_updates.kv.size(), 1);
+    ASSERT_EQ(merkle_updates.deletes.size(), 1);
+    ASSERT_EQ(merkle_updates.kv["merkle_key3"], "merkle_value3");
+    ASSERT_EQ(merkle_updates.deletes[0], "merkle_key1");
+  }
 }
 
 TEST_F(categorized_kvbc, fail_reconstruct_merkle_updates) {
-  BlockDigest pHash;
-  std::random_device rd;
-  for (int i = 0; i < (int)pHash.size(); i++) {
-    pHash[i] = (uint8_t)(rd() % 255);
+  // BlockDigest pHash;
+  // std::random_device rd;
+  // for (int i = 0; i < (int)pHash.size(); i++) {
+  //   pHash[i] = (uint8_t)(rd() % 255);
+  // }
+
+  // auto cf = std::string("merkle");
+  // auto key = std::string("key");
+  // auto value = std::string("val");
+
+  // uint64_t state_root_version = 886;
+  // BlockMerkleOutput mui;
+  // mui.keys[key] = MerkleKeyFlag{false};
+  // mui.root_hash = pHash;
+  // mui.state_root_version = state_root_version;
+
+  // Block block{888};
+  // block.add(cf, std::move(mui));
+  // block.setParentHash(pHash);
+
+  // db->createColumnFamily(cf);
+
+  // ASSERT_THROW(categorization::RawBlock rw(block, db), std::runtime_error);
+}
+
+TEST_F(categorized_kvbc, reconstruct_immutable_updates) {
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester{};
+
+  // Add block1
+  {
+    Updates updates;
+    ImmutableUpdates imm_updates;
+    imm_updates.addUpdate("imm_key1", ImmutableUpdates::ImmutableValue{"imm_value1", {"1", "2"}});
+    imm_updates.addUpdate("imm_key2", ImmutableUpdates::ImmutableValue{"imm_value2", {"12", "22"}});
+    updates.add("imm", std::move(imm_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
 
-  auto cf = std::string("merkle");
-  auto key = std::string("key");
-  auto value = std::string("val");
+  // Add block2
+  {
+    Updates updates;
+    ImmutableUpdates imm_updates;
+    imm_updates.addUpdate("imm_key3", ImmutableUpdates::ImmutableValue{"imm_value3", {}});
+    updates.add("imm", std::move(imm_updates));
 
-  uint64_t state_root_version = 886;
-  BlockMerkleOutput mui;
-  mui.keys[key] = MerkleKeyFlag{false};
-  mui.root_hash = pHash;
-  mui.state_root_version = state_root_version;
+    ImmutableUpdates imm_updates2;
+    imm_updates2.addUpdate("imm_key12", ImmutableUpdates::ImmutableValue{"imm_value32", {"32"}});
+    updates.add("imm2", std::move(imm_updates2));
 
-  Block block{888};
-  block.add(cf, std::move(mui));
-  block.setParentHash(pHash);
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
 
-  db->createColumnFamily(cf);
+  {
+    const detail::Buffer& block_db_key = Block::generateKey(1);
+    auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
+    ASSERT_TRUE(block1_db_val.has_value());
 
-  ASSERT_THROW(categorization::RawBlock rw(block, db), std::runtime_error);
+    detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
+    auto block1_from_db = Block::deserialize(in);
+
+    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    auto variant = rw.data.updates.kv["imm"];
+    auto imm_updates = std::get<ImmutableInput>(variant);
+    // check reconstruction of original kv
+    ASSERT_EQ(imm_updates.kv.size(), 2);
+    auto ex1 = ImmutableValueUpdate{"imm_value1", {"1", "2"}};
+    auto ex2 = ImmutableValueUpdate{"imm_value2", {"12", "22"}};
+    ASSERT_EQ(imm_updates.kv["imm_key1"], ex1);
+    ASSERT_EQ(imm_updates.kv["imm_key2"], ex2);
+  }
+
+  {
+    const detail::Buffer& block_db_key = Block::generateKey(2);
+    auto block2_db_val = db->get(BLOCKS_CF, block_db_key);
+    ASSERT_TRUE(block2_db_val.has_value());
+
+    detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
+    auto block2_from_db = Block::deserialize(in);
+
+    categorization::RawBlock rw(block2_from_db, db, &tester.getCategories(block_chain));
+    auto variant = rw.data.updates.kv["imm"];
+    auto imm_updates = std::get<ImmutableInput>(variant);
+    // check reconstruction of original kv
+    ASSERT_EQ(imm_updates.kv.size(), 1);
+    auto ex1 = ImmutableValueUpdate{"imm_value3", {}};
+    ASSERT_EQ(imm_updates.kv["imm_key3"], ex1);
+
+    auto variant2 = rw.data.updates.kv["imm2"];
+    auto imm_updates2 = std::get<ImmutableInput>(variant2);
+    // check reconstruction of original kv
+    ASSERT_EQ(imm_updates2.kv.size(), 1);
+    auto ex2 = ImmutableValueUpdate{"imm_value32", {"32"}};
+    ASSERT_EQ(imm_updates2.kv["imm_key12"], ex2);
+  }
 }
+
+TEST_F(categorized_kvbc, fail_reconstruct_immutable_updates) {
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester{};
+
+  // Add block1
+  {
+    Updates updates;
+    ImmutableUpdates imm_updates;
+    imm_updates.addUpdate("imm_key1", ImmutableUpdates::ImmutableValue{"imm_value1", {"1", "2"}});
+    imm_updates.addUpdate("imm_key2", ImmutableUpdates::ImmutableValue{"imm_value2", {"12", "22"}});
+    updates.add("imm", std::move(imm_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+  const detail::Buffer& block_db_key = Block::generateKey(1);
+  auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
+  ASSERT_TRUE(block1_db_val.has_value());
+
+  detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
+  auto block1_from_db = Block::deserialize(in);
+
+  detail::ImmutableKeyValueCategory cat{"imm", db};
+  auto wb = db->getBatch();
+  auto out = std::get<ImmutableOutput>(block1_from_db.data.categories_updates_info["imm"]);
+  cat.deleteBlock(out, wb);
+  db->write(std::move(wb));
+
+  ASSERT_DEATH(categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain)), "");
+}
+
+TEST_F(categorized_kvbc, reconstruct_versioned_kv_updates) {
+  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain::KeyValueBlockchain_tester tester{};
+
+  // Add block1
+  {
+    Updates updates;
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key1", "ver_value1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_value2", true});
+    updates.add("ver", std::move(ver_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  // Add block2
+  {
+    Updates updates;
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_value3");
+    ver_updates.addDelete("ver_key2");
+    updates.add("ver", std::move(ver_updates));
+
+    VersionedUpdates ver_updates2;
+    ver_updates2.addUpdate("ver_key2_3", "ver_value3");
+    updates.add("ver2", std::move(ver_updates2));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  {
+    const detail::Buffer& block_db_key = Block::generateKey(1);
+    auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
+    ASSERT_TRUE(block1_db_val.has_value());
+
+    detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
+    auto block1_from_db = Block::deserialize(in);
+
+    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    auto variant = rw.data.updates.kv["ver"];
+    auto ver_updates = std::get<VersionedInput>(variant);
+    // check reconstruction of original kv
+    ASSERT_EQ(ver_updates.kv.size(), 2);
+    auto ex1 = ValueWithFlags{"ver_value1", false};
+    auto ex2 = ValueWithFlags{"ver_value2", true};
+    ASSERT_EQ(ver_updates.kv["ver_key1"], ex1);
+    ASSERT_EQ(ver_updates.kv["ver_key2"], ex2);
+  }
+
+  {
+    const detail::Buffer& block_db_key = Block::generateKey(2);
+    auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
+    ASSERT_TRUE(block1_db_val.has_value());
+
+    detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
+    auto block1_from_db = Block::deserialize(in);
+
+    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    auto variant = rw.data.updates.kv["ver"];
+    auto ver_updates = std::get<VersionedInput>(variant);
+    // check reconstruction of original kv
+    ASSERT_EQ(ver_updates.kv.size(), 1);
+    ASSERT_EQ(ver_updates.deletes.size(), 1);
+    auto ex1 = ValueWithFlags{"ver_value3", false};
+    ASSERT_EQ(ver_updates.kv["ver_key3"], ex1);
+    ASSERT_EQ(ver_updates.deletes[0], "ver_key2");
+
+    auto variant2 = rw.data.updates.kv["ver2"];
+    auto ver_updates2 = std::get<VersionedInput>(variant2);
+    // check reconstruction of original kv
+    ASSERT_EQ(ver_updates2.kv.size(), 1);
+    auto ex2 = ValueWithFlags{"ver_value3", false};
+    ASSERT_EQ(ver_updates2.kv["ver_key2_3"], ex2);
+  }
+
+}  // namespace
 
 }  // end namespace
 

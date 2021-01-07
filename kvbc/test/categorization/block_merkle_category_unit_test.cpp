@@ -97,12 +97,12 @@ TEST_F(block_merkle_category, put_and_get) {
   auto expected = MerkleValue{{block_id, val1}};
 
   // Get by key works
-  ASSERT_EQ(expected, cat.getLatest(key1).value());
+  ASSERT_EQ(expected, asMerkle(cat.getLatest(key1).value()));
   // Get by specific block works
-  ASSERT_EQ(expected, cat.get(key1, 1));
+  ASSERT_EQ(expected, asMerkle(cat.get(key1, 1).value()));
 
   // Get by hash works
-  ASSERT_EQ(expected, cat.get(hashed_key1, block_id).value());
+  ASSERT_EQ(expected, asMerkle(cat.get(hashed_key1, block_id).value()));
 
   // Getting the latest version by key and hash works
   ASSERT_EQ(block_id, cat.getLatestVersion(key1)->encode());
@@ -124,36 +124,36 @@ TEST_F(block_merkle_category, multiget) {
   const auto output = add(block_id, std::move(update));
 
   // We can get all keys individually
-  ASSERT_EQ(val1, cat.getLatest(key1).value().data);
-  ASSERT_EQ(val2, cat.getLatest(key2).value().data);
-  ASSERT_EQ(val3, cat.getLatest(key3).value().data);
+  ASSERT_EQ(val1, asMerkle(cat.getLatest(key1).value()).data);
+  ASSERT_EQ(val2, asMerkle(cat.getLatest(key2).value()).data);
+  ASSERT_EQ(val3, asMerkle(cat.getLatest(key3).value()).data);
 
   // We can get all 3 with a multiget
   auto keys = std::vector<std::string>{key1, key2, key3};
   auto versions = std::vector<BlockId>{1u, 1u, 1u};
-  auto values = std::vector<std::optional<MerkleValue>>{};
+  auto values = std::vector<std::optional<concord::kvbc::categorization::Value>>{};
   cat.multiGet(keys, versions, values);
   ASSERT_EQ(keys.size(), values.size());
-  ASSERT_EQ((MerkleValue{{block_id, val1}}), *values[0]);
-  ASSERT_EQ((MerkleValue{{block_id, val2}}), *values[1]);
-  ASSERT_EQ((MerkleValue{{block_id, val3}}), *values[2]);
+  ASSERT_EQ((MerkleValue{{block_id, val1}}), asMerkle(*values[0]));
+  ASSERT_EQ((MerkleValue{{block_id, val2}}), asMerkle(*values[1]));
+  ASSERT_EQ((MerkleValue{{block_id, val3}}), asMerkle(*values[2]));
 
   // Retrieving a key with the non-existant version causes a nullopt for that key only
   versions[1] = 2u;
   cat.multiGet(keys, versions, values);
   ASSERT_EQ(keys.size(), values.size());
-  ASSERT_EQ((MerkleValue{{block_id, val1}}), *values[0]);
+  ASSERT_EQ((MerkleValue{{block_id, val1}}), asMerkle(*values[0]));
   ASSERT_EQ(false, values[1].has_value());
-  ASSERT_EQ((MerkleValue{{block_id, val3}}), *values[2]);
+  ASSERT_EQ((MerkleValue{{block_id, val3}}), asMerkle(*values[2]));
 
   // Retrieving a non-existant key causes a nullopt for that key only
   keys.push_back("key4");
   versions.push_back(1u);
   cat.multiGet(keys, versions, values);
   ASSERT_EQ(keys.size(), values.size());
-  ASSERT_EQ((MerkleValue{{block_id, val1}}), *values[0]);
+  ASSERT_EQ((MerkleValue{{block_id, val1}}), asMerkle(*values[0]));
   ASSERT_EQ(false, values[1].has_value());
-  ASSERT_EQ((MerkleValue{{block_id, val3}}), *values[2]);
+  ASSERT_EQ((MerkleValue{{block_id, val3}}), asMerkle(*values[2]));
   ASSERT_EQ(false, values[3].has_value());
 
   // Get latest versions
@@ -166,9 +166,9 @@ TEST_F(block_merkle_category, multiget) {
 
   // Get latest values
   cat.multiGetLatest(keys, values);
-  ASSERT_EQ((MerkleValue{{block_id, val1}}), *values[0]);
-  ASSERT_EQ((MerkleValue{{block_id, val2}}), *values[1]);
-  ASSERT_EQ((MerkleValue{{block_id, val3}}), *values[2]);
+  ASSERT_EQ((MerkleValue{{block_id, val1}}), asMerkle(*values[0]));
+  ASSERT_EQ((MerkleValue{{block_id, val2}}), asMerkle(*values[1]));
+  ASSERT_EQ((MerkleValue{{block_id, val3}}), asMerkle(*values[2]));
   ASSERT_EQ(false, values[3].has_value());
 }
 
@@ -182,25 +182,25 @@ TEST_F(block_merkle_category, overwrite) {
   auto expected2 = MerkleValue{{2, "new_val"s}};
   auto expected3 = MerkleValue{{1, val3}};
   auto expected4 = MerkleValue{{2, val4}};
-  ASSERT_EQ(expected1, *cat.getLatest(key1));
-  ASSERT_EQ(expected2, *cat.getLatest(key2));
-  ASSERT_EQ(expected3, *cat.getLatest(key3));
-  ASSERT_EQ(expected4, *cat.getLatest(key4));
+  ASSERT_EQ(expected1, asMerkle(*cat.getLatest(key1)));
+  ASSERT_EQ(expected2, asMerkle(*cat.getLatest(key2)));
+  ASSERT_EQ(expected3, asMerkle(*cat.getLatest(key3)));
+  ASSERT_EQ(expected4, asMerkle(*cat.getLatest(key4)));
 
   auto keys = std::vector<std::string>{key1, key2, key3, key4};
-  auto values = std::vector<std::optional<MerkleValue>>{};
+  auto values = std::vector<std::optional<concord::kvbc::categorization::Value>>{};
   cat.multiGetLatest(keys, values);
-  ASSERT_EQ(expected1, *values[0]);
-  ASSERT_EQ(expected2, *values[1]);
-  ASSERT_EQ(expected3, *values[2]);
-  ASSERT_EQ(expected4, *values[3]);
+  ASSERT_EQ(expected1, asMerkle(*values[0]));
+  ASSERT_EQ(expected2, asMerkle(*values[1]));
+  ASSERT_EQ(expected3, asMerkle(*values[2]));
+  ASSERT_EQ(expected4, asMerkle(*values[3]));
 
   // Multiget will find the old value of key2 at 1, but not key4 since it was written at block 2
   const auto versions = std::vector<BlockId>{1u, 1u, 1u, 1u};
   cat.multiGet(keys, versions, values);
-  ASSERT_EQ(expected1, *values[0]);
-  ASSERT_EQ((MerkleValue{{1, val2}}), *values[1]);
-  ASSERT_EQ(expected3, *values[2]);
+  ASSERT_EQ(expected1, asMerkle(*values[0]));
+  ASSERT_EQ((MerkleValue{{1, val2}}), asMerkle(*values[1]));
+  ASSERT_EQ(expected3, asMerkle(*values[2]));
   ASSERT_EQ(false, values[3].has_value());
 }
 
@@ -213,29 +213,29 @@ TEST_F(block_merkle_category, updates_with_deleted_keys) {
   auto expected1 = MerkleValue{{1, val1}};
   auto expected2 = MerkleValue{{2, "new_val"s}};
   auto expected4 = MerkleValue{{1, val4}};
-  ASSERT_EQ(expected1, *cat.getLatest(key1));
-  ASSERT_EQ(expected2, *cat.getLatest(key2));
+  ASSERT_EQ(expected1, asMerkle(*cat.getLatest(key1)));
+  ASSERT_EQ(expected2, asMerkle(*cat.getLatest(key2)));
   ASSERT_FALSE(cat.getLatest(key3).has_value());
-  ASSERT_EQ(expected4, *cat.getLatest(key4));
+  ASSERT_EQ(expected4, asMerkle(*cat.getLatest(key4)));
   ASSERT_FALSE(cat.getLatest(key5).has_value());
 
   auto keys = std::vector<std::string>{key1, key2, key3, key4, key5};
-  auto values = std::vector<std::optional<MerkleValue>>{};
+  auto values = std::vector<std::optional<concord::kvbc::categorization::Value>>{};
   cat.multiGetLatest(keys, values);
-  ASSERT_EQ(expected1, *values[0]);
-  ASSERT_EQ(expected2, *values[1]);
+  ASSERT_EQ(expected1, asMerkle(*values[0]));
+  ASSERT_EQ(expected2, asMerkle(*values[1]));
   ASSERT_FALSE(values[2].has_value());
-  ASSERT_EQ(expected4, *values[3]);
+  ASSERT_EQ(expected4, asMerkle(*values[3]));
   ASSERT_FALSE(values[4].has_value());
 
   // Multiget will find the old values of key2, key3 and key5 at block 1;
   const auto versions = std::vector<BlockId>{1u, 1u, 1u, 1u, 1u};
   cat.multiGet(keys, versions, values);
-  ASSERT_EQ(expected1, *values[0]);
-  ASSERT_EQ((MerkleValue{{1, val2}}), *values[1]);
-  ASSERT_EQ((MerkleValue{{1, val3}}), *values[2]);
-  ASSERT_EQ(expected4, *values[3]);
-  ASSERT_EQ((MerkleValue{{1, val5}}), *values[4]);
+  ASSERT_EQ(expected1, asMerkle(*values[0]));
+  ASSERT_EQ((MerkleValue{{1, val2}}), asMerkle(*values[1]));
+  ASSERT_EQ((MerkleValue{{1, val3}}), asMerkle(*values[2]));
+  ASSERT_EQ(expected4, asMerkle(*values[3]));
+  ASSERT_EQ((MerkleValue{{1, val5}}), asMerkle(*values[4]));
 
   // Getting the latest versions shows key3 and key5 as deleted.
   auto expected_v1 = TaggedVersion{false, 1};

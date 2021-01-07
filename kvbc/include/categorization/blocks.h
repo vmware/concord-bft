@@ -22,6 +22,7 @@
 #include "merkle_tree_db_adapter.h"
 #include "sliver.hpp"
 #include "column_families.h"
+#include "categorization/types.h"
 
 namespace concord::kvbc::categorization {
 
@@ -87,22 +88,27 @@ struct Block {
 // - state hash per category (if exists) E.L check why do we pass it.
 struct RawBlock {
   RawBlock() = default;
-  RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+  RawBlock(const Block& block,
+           const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+           const CategoriesMap* categorires);
 
   BlockMerkleInput getUpdates(const std::string& category_id,
                               const BlockMerkleOutput& update_info,
                               const BlockId& block_id,
-                              const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+                              const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                              const CategoriesMap* categorires);
 
   VersionedInput getUpdates(const std::string& category_id,
                             const VersionedOutput& update_info,
                             const BlockId& block_id,
-                            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+                            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                            const CategoriesMap* categorires);
 
   ImmutableInput getUpdates(const std::string& category_id,
                             const ImmutableOutput& update_info,
                             const BlockId& block_id,
-                            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client);
+                            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                            const CategoriesMap* categorires);
 
   template <typename T>
   static RawBlock deserialize(const T& input) {
