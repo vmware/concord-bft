@@ -317,13 +317,15 @@ TEST_F(versioned_kv_category, get_proof) {
 
   // First key.
   {
-    const auto proof = cat.getProof(block1, "k1", out);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block1);
-    ASSERT_EQ(proof->key, "k1");
-    ASSERT_EQ(proof->value, "v1");
-    ASSERT_EQ(proof->key_value_index, 0);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof(block1, "k1", out);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block1);
+    ASSERT_EQ(proof.key, "k1");
+    ASSERT_EQ(proof.value, "v1");
+    ASSERT_EQ(proof.key_value_index, 0);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -331,13 +333,15 @@ TEST_F(versioned_kv_category, get_proof) {
 
   // Middle key.
   {
-    const auto proof = cat.getProof(block1, "k2", out);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block1);
-    ASSERT_EQ(proof->key, "k2");
-    ASSERT_EQ(proof->value, "v2");
-    ASSERT_EQ(proof->key_value_index, 2);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof(block1, "k2", out);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block1);
+    ASSERT_EQ(proof.key, "k2");
+    ASSERT_EQ(proof.value, "v2");
+    ASSERT_EQ(proof.key_value_index, 2);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -345,13 +349,15 @@ TEST_F(versioned_kv_category, get_proof) {
 
   // Last key.
   {
-    const auto proof = cat.getProof(block1, "k3", out);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block1);
-    ASSERT_EQ(proof->key, "k3");
-    ASSERT_EQ(proof->value, "v3");
-    ASSERT_EQ(proof->key_value_index, 4);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof(block1, "k3", out);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block1);
+    ASSERT_EQ(proof.key, "k3");
+    ASSERT_EQ(proof.value, "v3");
+    ASSERT_EQ(proof.key_value_index, 4);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));

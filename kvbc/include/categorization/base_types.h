@@ -88,6 +88,10 @@ struct KeyValueProof {
   }
 };
 
+struct MerkleProof {};
+
+using Proof = std::variant<KeyValueProof, MerkleProof>;
+
 struct TaggedVersion {
   // The high bit contains a flag indicating whether the key was deleted or not.
   TaggedVersion(uint64_t masked_version) {

@@ -365,13 +365,15 @@ TEST_F(immutable_kv_category, get_proof_multiple_keys) {
 
   // First key.
   {
-    const auto proof = cat.getProof("t", "k1", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k1");
-    ASSERT_EQ(proof->value, "v1");
-    ASSERT_EQ(proof->key_value_index, 0);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t", "k1", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k1");
+    ASSERT_EQ(proof.value, "v1");
+    ASSERT_EQ(proof.key_value_index, 0);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -379,13 +381,15 @@ TEST_F(immutable_kv_category, get_proof_multiple_keys) {
 
   // Middle key.
   {
-    const auto proof = cat.getProof("t", "k2", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k2");
-    ASSERT_EQ(proof->value, "v2");
-    ASSERT_EQ(proof->key_value_index, 2);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t", "k2", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k2");
+    ASSERT_EQ(proof.value, "v2");
+    ASSERT_EQ(proof.key_value_index, 2);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -393,13 +397,15 @@ TEST_F(immutable_kv_category, get_proof_multiple_keys) {
 
   // Last key.
   {
-    const auto proof = cat.getProof("t", "k3", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k3");
-    ASSERT_EQ(proof->value, "v3");
-    ASSERT_EQ(proof->key_value_index, 4);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t", "k3", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k3");
+    ASSERT_EQ(proof.value, "v3");
+    ASSERT_EQ(proof.key_value_index, 4);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -428,13 +434,15 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
 
   // First key.
   {
-    const auto proof = cat.getProof("t1", "k1", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k1");
-    ASSERT_EQ(proof->value, "v1");
-    ASSERT_EQ(proof->key_value_index, 0);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t1", "k1", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k1");
+    ASSERT_EQ(proof.value, "v1");
+    ASSERT_EQ(proof.key_value_index, 0);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -442,13 +450,15 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
 
   // Middle key.
   {
-    const auto proof = cat.getProof("t1", "k2", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k2");
-    ASSERT_EQ(proof->value, "v2");
-    ASSERT_EQ(proof->key_value_index, 2);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t1", "k2", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k2");
+    ASSERT_EQ(proof.value, "v2");
+    ASSERT_EQ(proof.key_value_index, 2);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -456,13 +466,15 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
 
   // Last key.
   {
-    const auto proof = cat.getProof("t1", "k3", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k3");
-    ASSERT_EQ(proof->value, "v3");
-    ASSERT_EQ(proof->key_value_index, 4);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t1", "k3", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k3");
+    ASSERT_EQ(proof.value, "v3");
+    ASSERT_EQ(proof.key_value_index, 4);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xac, 0xc0, 0x73, 0x12, 0xb8, 0x6d, 0xae, 0xc7, 0xd0, 0xb8, 0xb5,
                                  0x3b, 0xd6, 0x7e, 0x49, 0xd7, 0xc5, 0xc1, 0x67, 0x7b, 0xf1, 0x74,
                                  0x90, 0x49, 0x62, 0xa8, 0x36, 0xeb, 0x9d, 0xb4, 0xa8, 0xcf}));
@@ -476,25 +488,29 @@ TEST_F(immutable_kv_category, get_proof_multiple_tags) {
   // root_hash = h(h("k1") || h("v1") || h("k2") || h("v2")) =
   //           = 57ddbd4f1dcab48ea5a6429091549b3f811e0bbe3d14d1f6a1f129cf1acfdb86
   {
-    const auto proof = cat.getProof("t2", "k1", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k1");
-    ASSERT_EQ(proof->value, "v1");
-    ASSERT_EQ(proof->key_value_index, 0);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t2", "k1", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k1");
+    ASSERT_EQ(proof.value, "v1");
+    ASSERT_EQ(proof.key_value_index, 0);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0x57, 0xdd, 0xbd, 0x4f, 0x1d, 0xca, 0xb4, 0x8e, 0xa5, 0xa6, 0x42,
                                  0x90, 0x91, 0x54, 0x9b, 0x3f, 0x81, 0x1e, 0x0b, 0xbe, 0x3d, 0x14,
                                  0xd1, 0xf6, 0xa1, 0xf1, 0x29, 0xcf, 0x1a, 0xcf, 0xdb, 0x86}));
   }
   {
-    const auto proof = cat.getProof("t2", "k2", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k2");
-    ASSERT_EQ(proof->value, "v2");
-    ASSERT_EQ(proof->key_value_index, 2);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t2", "k2", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k2");
+    ASSERT_EQ(proof.value, "v2");
+    ASSERT_EQ(proof.key_value_index, 2);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0x57, 0xdd, 0xbd, 0x4f, 0x1d, 0xca, 0xb4, 0x8e, 0xa5, 0xa6, 0x42,
                                  0x90, 0x91, 0x54, 0x9b, 0x3f, 0x81, 0x1e, 0x0b, 0xbe, 0x3d, 0x14,
                                  0xd1, 0xf6, 0xa1, 0xf1, 0x29, 0xcf, 0x1a, 0xcf, 0xdb, 0x86}));
@@ -514,13 +530,15 @@ TEST_F(immutable_kv_category, get_proof_single_key) {
   // root_hash = h(h("k1") || h("v1")) =
   //           = db58ae726159bc3ef4487002a2169b64c4e968f3ea4938da8a62520aa59d9ddb
   {
-    const auto proof = cat.getProof("t", "k1", update_info);
-    ASSERT_TRUE(proof);
-    ASSERT_EQ(proof->block_id, block_id);
-    ASSERT_EQ(proof->key, "k1");
-    ASSERT_EQ(proof->value, "v1");
-    ASSERT_EQ(proof->key_value_index, 0);  // indexing starts at 0
-    ASSERT_THAT(proof->calculateRootHash(),
+    const auto proof_variant = cat.getProof("t", "k1", update_info);
+    ASSERT_TRUE(proof_variant);
+    ASSERT_TRUE(std::holds_alternative<KeyValueProof>(*proof_variant));
+    const auto &proof = std::get<KeyValueProof>(*proof_variant);
+    ASSERT_EQ(proof.block_id, block_id);
+    ASSERT_EQ(proof.key, "k1");
+    ASSERT_EQ(proof.value, "v1");
+    ASSERT_EQ(proof.key_value_index, 0);  // indexing starts at 0
+    ASSERT_THAT(proof.calculateRootHash(),
                 ContainerEq(Hash{0xdb, 0x58, 0xae, 0x72, 0x61, 0x59, 0xbc, 0x3e, 0xf4, 0x48, 0x70,
                                  0x02, 0xa2, 0x16, 0x9b, 0x64, 0xc4, 0xe9, 0x68, 0xf3, 0xea, 0x49,
                                  0x38, 0xda, 0x8a, 0x62, 0x52, 0x0a, 0xa5, 0x9d, 0x9d, 0xdb}));
