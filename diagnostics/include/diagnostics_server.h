@@ -69,7 +69,7 @@ inline std::string readline(int sock) {
       throw std::runtime_error("Request exceeded max size: " + std::to_string(MAX_INPUT_SIZE));
     }
 
-    rv = read(sock, &buf + count, buf.size() - count);
+    rv = read(sock, buf.data() + count, buf.size() - count);
     if (rv <= 0) {
       throw std::runtime_error("read failed: " + errnoString(rv));
     }
