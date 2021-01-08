@@ -107,6 +107,7 @@ class IReplica {
   virtual bool isRunning() const = 0;
 
   virtual int64_t getLastExecutedSequenceNum() const = 0;
+  virtual void setLastExecutedSequenceNum(const SeqNum &) = 0;
 
   virtual void start() = 0;
 

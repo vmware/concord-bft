@@ -47,6 +47,9 @@ Status ReplicaImp::start() {
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, m_stateTransfer, m_ptrComm);
+    // explicitly set the last executed seqnum from the last reachable block for proper State Transfer functioning
+    // when regular replicas are restored from a backup, earlier than the last reachable block
+    m_replicaPtr->setLastExecutedSequenceNum(m_bcDbAdapter->getLastReachableBlockId() * checkpointWindowSize);
   } else {
     createReplicaAndSyncState();
   }

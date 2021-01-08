@@ -40,6 +40,7 @@ class ReplicaInternal : public IReplica {
   bool isRunning() const override;
 
   int64_t getLastExecutedSequenceNum() const override { return replica_->getLastExecutedSequenceNum(); }
+  void setLastExecutedSequenceNum(const SeqNum &seqNum) override { replica_->setLastExecutedSequenceNum(seqNum); }
 
   void start() override;
 

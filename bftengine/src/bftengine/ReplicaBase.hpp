@@ -70,6 +70,7 @@ class ReplicaBase {
   virtual void start();
   virtual void stop();
   SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
+  void setLastExecutedSequenceNum(const SeqNum& seqNum) { lastExecutedSeqNum = seqNum; }
   virtual bool isRunning() const;
 
   auto& timers() { return timers_; }
