@@ -18,38 +18,38 @@
 #include "assertUtils.hpp"
 #include "kv_types.hpp"
 #include "sha_hash.hpp"
+#include <iostream>
 
 using concord::storage::rocksdb::NativeWriteBatch;
 using concordUtils::Sliver;
 
 namespace concord::kvbc::categorization::detail {
 
-MerkleBlockValue hashUpdate(const BlockMerkleInput& updates) {
+std::tuple<MerkleBlockValue, std::vector<KeyHash>, std::vector<KeyHash>> hashNewBlock(const BlockMerkleInput& updates) {
   MerkleBlockValue value;
-  value.hashed_added_keys.reserve(updates.kv.size());
-  value.hashed_deleted_keys.reserve(updates.deletes.size());
+  auto hashed_added_keys = std::vector<KeyHash>{};
+  auto hashed_deleted_keys = std::vector<KeyHash>{};
 
   // root_hash = h((h(k1) || h(v1)) || ... || (h(kN) || h(vN) || h(dk1) || ... || h(dkN))
   auto root_hasher = Hasher{};
   root_hasher.init();
-  auto kv_hasher = Hasher{};
 
   // Hash all keys and values as part of the root hash
   for (const auto& [k, v] : updates.kv) {
-    auto key_hash = kv_hasher.digest(k.data(), k.size());
-    auto val_hash = kv_hasher.digest(v.data(), v.size());
-    value.hashed_added_keys.push_back(KeyHash{key_hash});
+    auto key_hash = hash(k);
+    auto val_hash = hash(v);
+    hashed_added_keys.push_back(KeyHash{key_hash});
     root_hasher.update(key_hash.data(), key_hash.size());
     root_hasher.update(val_hash.data(), val_hash.size());
   }
 
   for (const auto& k : updates.deletes) {
-    auto key_hash = kv_hasher.digest(k.data(), k.size());
-    value.hashed_deleted_keys.push_back(KeyHash{key_hash});
+    auto key_hash = hash(k);
+    hashed_deleted_keys.push_back(KeyHash{key_hash});
     root_hasher.update(key_hash.data(), key_hash.size());
   }
   value.root_hash = root_hasher.finish();
-  return value;
+  return std::make_tuple(value, hashed_added_keys, hashed_deleted_keys);
 }
 
 BlockMerkleOutput inputToOutput(const BlockMerkleInput& updates) {
@@ -82,6 +82,16 @@ BatchedInternalNodeKey toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey&&
 std::vector<uint8_t> rootKey(uint64_t version) {
   auto v = sparse_merkle::Version(version);
   return serialize(toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey::root(v)));
+}
+
+Sliver merkleKey(BlockId block_id) {
+  auto block_key = serialize(BlockKey{block_id});
+  return Sliver::copy((const char*)block_key.data(), block_key.size());
+}
+
+Sliver merkleValue(const MerkleBlockValue& value) {
+  auto ser_value = serialize(value);
+  return Sliver::copy((const char*)ser_value.data(), ser_value.size());
 }
 
 std::vector<uint8_t> serializeBatchedInternalNode(sparse_merkle::BatchedInternalNode&& node) {
@@ -147,36 +157,144 @@ std::vector<Buffer> versionedKeys(const std::vector<std::string>& keys, const st
   return versioned_keys;
 }
 
+void putKeys(NativeWriteBatch& batch,
+             uint64_t block_id,
+             std::vector<KeyHash>&& hashed_added_keys,
+             std::vector<KeyHash>&& hashed_deleted_keys,
+             BlockMerkleInput& updates) {
+  auto kv_it = updates.kv.begin();
+  for (auto key_it = hashed_added_keys.begin(); key_it != hashed_added_keys.end(); key_it++) {
+    // Write the versioned key/value pair used for direct key lookup
+    batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), kv_it->second);
+
+    // Put the latest version of the key
+    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->value, serialize(LatestKeyVersion{block_id}));
+
+    kv_it++;
+  }
+
+  const bool deleted = true;
+  for (auto key_it = hashed_deleted_keys.begin(); key_it != hashed_deleted_keys.end(); key_it++) {
+    BlockId latest = TaggedVersion(deleted, block_id).encode();
+    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->value, serialize(LatestKeyVersion{latest}));
+  }
+}
+
+void putLatestTreeVersion(uint64_t tree_version, NativeWriteBatch& batch) {
+  batch.put(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0), rootKey(tree_version));
+}
+
+// Write serialized stale keys at the given *tree* version. These keys are safe to delete when the
+// tree version is pruned.
+void putStaleKeys(NativeWriteBatch& batch, sparse_merkle::StaleNodeIndexes&& stale_batch) {
+  auto stale = StaleKeys{};
+  for (auto& key : stale_batch.internal_keys) {
+    stale.internal_keys.push_back(serialize(toBatchedInternalNodeKey(key)));
+  }
+  for (auto& key : stale_batch.leaf_keys) {
+    stale.leaf_keys.push_back(serialize(leafKeyToVersionedKey(key)));
+  }
+  auto tree_version_key = serialize(TreeVersion{stale_batch.stale_since_version.value()});
+  batch.put(BLOCK_MERKLE_STALE_CF, tree_version_key, serialize(stale));
+}
+
+void putMerkleNodes(NativeWriteBatch& batch, sparse_merkle::UpdateBatch&& update_batch) {
+  for (const auto& [leaf_key, leaf_val] : update_batch.leaf_nodes) {
+    auto ser_key = serialize(leafKeyToVersionedKey(leaf_key));
+    batch.put(BLOCK_MERKLE_LEAF_NODES_CF, ser_key, leaf_val.value.string_view());
+  }
+  for (auto&& [internal_key, internal_node] : update_batch.internal_nodes) {
+    auto ser_key = serialize(toBatchedInternalNodeKey(std::move(internal_key)));
+    batch.put(BLOCK_MERKLE_INTERNAL_NODES_CF, ser_key, serializeBatchedInternalNode(std::move(internal_node)));
+  }
+
+  // We always add a root key at version 0 with a value that points to the latest root.
+  auto tree_version = update_batch.stale.stale_since_version.value();
+  putLatestTreeVersion(tree_version, batch);
+
+  putStaleKeys(batch, std::move(update_batch.stale));
+}
+
+// Delete keys that can be safely pruned.
+// Return any active key hashes.
+std::vector<KeyHash> deleteInactiveKeys(BlockId block_id,
+                                        std::vector<Hash>&& hashed_keys,
+                                        const std::vector<std::optional<TaggedVersion>>& latest_versions,
+                                        NativeWriteBatch& batch) {
+  std::vector<KeyHash> active_keys;
+  for (auto i = 0u; i < hashed_keys.size(); i++) {
+    auto& tagged_version = latest_versions[i];
+    auto& hashed_key = hashed_keys[i];
+    ConcordAssert(tagged_version.has_value());
+    ConcordAssertLE(block_id, tagged_version->version);
+
+    if (block_id == tagged_version->version) {
+      if (tagged_version->deleted) {
+        // The latest version is a tombstone. We can delete the key and version.
+        auto versioned_key = serialize(VersionedKey{KeyHash{hashed_key}, block_id});
+        batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
+        batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key);
+      } else {
+        active_keys.push_back(KeyHash{hashed_key});
+      }
+    } else {
+      // block_id < tagged_version->version
+      // The key has been overwritten. Delete it.
+      auto versioned_key = serialize(VersionedKey{KeyHash{hashed_key}, block_id});
+      batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
+    }
+  }
+  return active_keys;
+}
+
+// Return all keys that are still active in the pruned block
+std::vector<KeyHash> remainingActiveKeys(std::vector<KeyHash>& previously_active, std::vector<KeyHash>& deleted) {
+  auto cmp = [](auto& a, auto& b) { return a.value < b.value; };
+  std::sort(deleted.begin(), deleted.end(), cmp);
+  std::sort(previously_active.begin(), previously_active.end(), cmp);
+  auto active_keys = std::vector<KeyHash>{};
+  std::set_difference(previously_active.begin(),
+                      previously_active.end(),
+                      deleted.begin(),
+                      deleted.end(),
+                      std::back_inserter(active_keys),
+                      cmp);
+  return active_keys;
+}
+
+void addStaleKeysToDeleteBatch(const ::rocksdb::PinnableSlice& slice, uint64_t tree_version, NativeWriteBatch& batch) {
+  auto stale = StaleKeys{};
+  deserialize(slice, stale);
+  for (auto& key : stale.internal_keys) {
+    batch.del(BLOCK_MERKLE_INTERNAL_NODES_CF, key);
+  }
+  for (auto& key : stale.leaf_keys) {
+    batch.del(BLOCK_MERKLE_LEAF_NODES_CF, key);
+  }
+  batch.del(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{tree_version}));
+}
+
 BlockMerkleCategory::BlockMerkleCategory(const std::shared_ptr<storage::rocksdb::NativeClient>& db) : db_{db} {
   createColumnFamilyIfNotExisting(BLOCK_MERKLE_INTERNAL_NODES_CF, *db);
   createColumnFamilyIfNotExisting(BLOCK_MERKLE_LEAF_NODES_CF, *db);
-  createColumnFamilyIfNotExisting(BLOCK_MERKLE_LATEST_KEY_VERSION, *db);
+  createColumnFamilyIfNotExisting(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, *db);
   createColumnFamilyIfNotExisting(BLOCK_MERKLE_KEYS_CF, *db);
+  createColumnFamilyIfNotExisting(BLOCK_MERKLE_STALE_CF, *db);
+  createColumnFamilyIfNotExisting(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, *db);
+  createColumnFamilyIfNotExisting(BLOCK_MERKLE_PRUNED_BLOCKS_CF, *db);
   tree_ = sparse_merkle::Tree{std::make_shared<Reader>(*db_)};
 }
 
 BlockMerkleOutput BlockMerkleCategory::add(BlockId block_id, BlockMerkleInput&& updates, NativeWriteBatch& batch) {
-  auto merkle_value = hashUpdate(updates);
-  putKeys(
-      batch, block_id, std::move(merkle_value.hashed_added_keys), std::move(merkle_value.hashed_deleted_keys), updates);
+  auto [merkle_value, hashed_added_keys, hashed_deleted_keys] = hashNewBlock(updates);
+  putKeys(batch, block_id, std::move(hashed_added_keys), std::move(hashed_deleted_keys), updates);
 
-  // We don't want to actually write the hashed keys for new blocks.
-  // We only write the remaining active keys when the block is pruned.
-  merkle_value.hashed_added_keys.clear();
-  merkle_value.hashed_deleted_keys.clear();
-
-  auto block_key = serialize(BlockKey{block_id});
-  auto merkle_key = Sliver::copy((const char*)block_key.data(), block_key.size());
-  auto ser_value = serialize(merkle_value);
-  auto ser_value_sliver = Sliver::copy((const char*)ser_value.data(), ser_value.size());
-  auto tree_update_batch = tree_.update(SetOfKeyValuePairs{{merkle_key, ser_value_sliver}});
-
-  auto tree_version = tree_update_batch.stale.stale_since_version.value();
-  putMerkleNodes(batch, std::move(tree_update_batch), tree_version);
+  auto tree_update_batch = tree_.update({{merkleKey(block_id), merkleValue(merkle_value)}});
+  putMerkleNodes(batch, std::move(tree_update_batch));
 
   auto output = inputToOutput(updates);
   output.root_hash = tree_.get_root_hash().dataArray();
-  output.state_root_version = tree_version;
+  output.state_root_version = tree_.get_version().value();
   return output;
 }
 
@@ -210,7 +328,7 @@ std::optional<TaggedVersion> BlockMerkleCategory::getLatestVersion(const std::st
 }
 
 std::optional<TaggedVersion> BlockMerkleCategory::getLatestVersion(const Hash& hashed_key) const {
-  const auto serialized = db_->getSlice(BLOCK_MERKLE_LATEST_KEY_VERSION, hashed_key);
+  const auto serialized = db_->getSlice(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key);
   if (!serialized) {
     return std::nullopt;
   }
@@ -261,7 +379,7 @@ void BlockMerkleCategory::multiGetLatestVersion(const std::vector<Hash>& hashed_
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
 
-  db_->multiGet(BLOCK_MERKLE_LATEST_KEY_VERSION, hashed_keys, slices, statuses);
+  db_->multiGet(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_keys, slices, statuses);
   versions.clear();
   for (auto i = 0ull; i < slices.size(); ++i) {
     const auto& status = statuses[i];
@@ -318,45 +436,209 @@ void BlockMerkleCategory::multiGetLatest(const std::vector<std::string>& keys,
   ConcordAssertEQ(values.size(), keys.size());
 }
 
-void BlockMerkleCategory::putKeys(NativeWriteBatch& batch,
-                                  uint64_t block_id,
-                                  std::vector<KeyHash>&& hashed_added_keys,
-                                  std::vector<KeyHash>&& hashed_deleted_keys,
-                                  BlockMerkleInput& updates) {
-  auto kv_it = updates.kv.begin();
-  for (auto key_it = hashed_added_keys.begin(); key_it != hashed_added_keys.end(); key_it++) {
-    // Write the versioned key/value pair used for direct key lookup
-    batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), kv_it->second);
+std::unordered_map<BlockId, std::vector<KeyHash>> BlockMerkleCategory::findActiveKeysFromPrunedBlocks(
+    const std::vector<Hash>& hashed_keys) {
+  auto slices = std::vector<::rocksdb::PinnableSlice>{};
+  auto statuses = std::vector<::rocksdb::Status>{};
+  db_->multiGet(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, hashed_keys, slices, statuses);
 
-    // Put the latest version of the key
-    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION, key_it->value, serialize(LatestKeyVersion{block_id}));
-
-    kv_it++;
+  auto found = std::unordered_map<BlockId, std::vector<KeyHash>>{};
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto& status = statuses[i];
+    const auto& slice = slices[i];
+    if (status.ok()) {
+      auto val = BlockVersion{};
+      deserialize(slice, val);
+      auto& vec = found[val.version];
+      vec.push_back(KeyHash{hashed_keys[i]});
+    } else if (status.IsNotFound()) {
+      continue;
+    } else {
+      throw std::runtime_error{"BlockMerkleCategory multiGet() failure: " + status.ToString()};
+    }
   }
-
-  const bool deleted = true;
-  for (auto key_it = hashed_deleted_keys.begin(); key_it != hashed_deleted_keys.end(); key_it++) {
-    BlockId latest = TaggedVersion(deleted, block_id).encode();
-    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION, key_it->value, serialize(LatestKeyVersion{latest}));
-  }
+  return found;
 }
 
-void BlockMerkleCategory::putMerkleNodes(NativeWriteBatch& batch,
-                                         sparse_merkle::UpdateBatch&& update_batch,
-                                         uint64_t tree_version) {
-  ConcordAssertEQ(1, update_batch.leaf_nodes.size());
-  const auto& [leaf_key, leaf_val] = update_batch.leaf_nodes[0];
-  auto ser_key = serialize(leafKeyToVersionedKey(leaf_key));
-  batch.put(BLOCK_MERKLE_LEAF_NODES_CF, ser_key, leaf_val.value.string_view());
+// Precondition: the pruned block exists
+PrunedBlock BlockMerkleCategory::getPrunedBlock(const Buffer& block_key) {
+  auto ser_pruned = db_->get(BLOCK_MERKLE_PRUNED_BLOCKS_CF, block_key);
+  ConcordAssert(ser_pruned.has_value());
+  auto pruned = PrunedBlock{};
+  deserialize(*ser_pruned, pruned);
+  return pruned;
+}
 
-  for (auto& [internal_key, internal_node] : update_batch.internal_nodes) {
-    auto ser_key = serialize(toBatchedInternalNodeKey(std::move(internal_key)));
-    batch.put(BLOCK_MERKLE_INTERNAL_NODES_CF, ser_key, serializeBatchedInternalNode(std::move(internal_node)));
+void BlockMerkleCategory::rewriteAlreadyPrunedBlocks(std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys,
+                                                     NativeWriteBatch& batch) {
+  auto merkle_blocks_to_rewrite = SetOfKeyValuePairs{};
+  auto merkle_blocks_to_delete = KeysVector{};
+  for (auto& [block_id, keys] : deleted_keys) {
+    auto block_key = serialize(BlockVersion{block_id});
+    auto pruned = getPrunedBlock(block_key);
+    for (auto& key : keys) {
+      auto versioned_key = serialize(VersionedKey{key, block_id});
+      batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
+      batch.del(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(key));
+    }
+    auto active_keys = remainingActiveKeys(pruned.active_keys, keys);
+    if (active_keys.empty()) {
+      batch.del(BLOCK_MERKLE_PRUNED_BLOCKS_CF, block_key);
+      merkle_blocks_to_delete.push_back({merkleKey(block_id)});
+    } else {
+      static constexpr bool write_active_keys = false;
+      auto merkle_value = computeRootHash(block_id, active_keys, write_active_keys, batch);
+      merkle_blocks_to_rewrite.emplace(merkleKey(block_id), merkleValue(merkle_value));
+      auto new_pruned = serialize(PrunedBlock{std::move(active_keys)});
+      batch.put(BLOCK_MERKLE_PRUNED_BLOCKS_CF, block_key, new_pruned);
+    }
+  }
+  auto update_batch = tree_.update(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
+  putMerkleNodes(batch, std::move(update_batch));
+}
+
+void BlockMerkleCategory::deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput& out, NativeWriteBatch& batch) {
+  auto [hashed_keys, latest_versions] = getLatestVersions(out);
+  auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
+  rewriteAlreadyPrunedBlocks(overwritten_active_keys_from_pruned_blocks, batch);
+  auto active_keys = deleteInactiveKeys(block_id, std::move(hashed_keys), latest_versions, batch);
+  if (active_keys.empty()) {
+    auto update_batch = tree_.remove({merkleKey(block_id)});
+    putMerkleNodes(batch, std::move(update_batch));
+  } else {
+    writePrunedBlock(block_id, std::move(active_keys), batch);
+  }
+  deleteStaleData(out.state_root_version, batch);
+}
+
+std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> BlockMerkleCategory::getLatestVersions(
+    const BlockMerkleOutput& out) {
+  std::vector<Hash> hashed_keys;
+  hashed_keys.reserve(out.keys.size());
+  for (auto& [key, _] : out.keys) {
+    (void)_;
+    hashed_keys.push_back(hash(key));
   }
 
-  // We always add a root key at version 0 with a value that points to the latest root.
-  batch.put(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0), rootKey(tree_version));
+  std::vector<std::optional<TaggedVersion>> latest_versions;
+  multiGetLatestVersion(hashed_keys, latest_versions);
+
+  return std::make_pair(hashed_keys, latest_versions);
 }
+
+void BlockMerkleCategory::putLastDeletedTreeVersion(uint64_t tree_version, NativeWriteBatch& batch) {
+  batch.put(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{0}), serialize(TreeVersion{tree_version}));
+}
+
+uint64_t BlockMerkleCategory::getLastDeletedTreeVersion() const {
+  // We store the last deleted tree version at stale index 0. This allows us to delete all stale
+  // data for versions last_deleted + 1 up until `tree_version`.
+  auto ser_last_deleted_version = db_->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{0}));
+  uint64_t last_deleted = 0;
+  if (ser_last_deleted_version.has_value()) {
+    auto last_deleted_version = TreeVersion{};
+    deserialize(*ser_last_deleted_version, last_deleted_version);
+    last_deleted = last_deleted_version.version;
+  }
+  return last_deleted;
+}
+
+void BlockMerkleCategory::deleteStaleBatch(uint64_t start, uint64_t end) {
+  auto keys = std::vector<Buffer>{};
+  keys.reserve(end - start);
+  for (auto i = start; i < end; ++i) {
+    keys.push_back(serialize(TreeVersion{i}));
+  }
+
+  auto batch = db_->getBatch();
+  auto slices = std::vector<::rocksdb::PinnableSlice>{};
+  auto statuses = std::vector<::rocksdb::Status>{};
+  db_->multiGet(BLOCK_MERKLE_STALE_CF, keys, slices, statuses);
+
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto& status = statuses[i];
+    const auto& slice = slices[i];
+    if (status.ok()) {
+      addStaleKeysToDeleteBatch(slice, start + i, batch);
+    } else {
+      throw std::runtime_error{"BlockMerkleCategory multiGet() failure: " + status.ToString()};
+    }
+  }
+  putLastDeletedTreeVersion(end - 1, batch);
+  db_->write(std::move(batch));
+}
+
+void BlockMerkleCategory::deleteStaleData(uint64_t tree_version, NativeWriteBatch& batch) {
+  auto last_deleted = getLastDeletedTreeVersion();
+  ConcordAssertLT(last_deleted, tree_version);
+
+  // Delete any stale keys for tree versions from prior prunings (i.e. trees not associated with blocks).
+  static constexpr uint64_t batch_size = 50;
+  auto start = last_deleted + 1;
+  auto end = start;
+  do {
+    start = end;
+    end = std::min(start + batch_size, tree_version);
+    deleteStaleBatch(start, end);
+  } while (end < tree_version);
+
+  // Create a batch to delete stale keys for this tree version
+  auto ser_stale = db_->getSlice(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{tree_version}));
+  ConcordAssert(ser_stale.has_value());
+  addStaleKeysToDeleteBatch(*ser_stale, tree_version, batch);
+  putLastDeletedTreeVersion(tree_version, batch);
+}
+
+MerkleBlockValue BlockMerkleCategory::computeRootHash(BlockId block_id,
+                                                      const std::vector<KeyHash>& active_keys,
+                                                      bool write_active_key,
+                                                      NativeWriteBatch& batch) {
+  auto hasher = Hasher{};
+  hasher.init();
+  MerkleBlockValue merkle_value;
+  auto block_version = serialize(BlockVersion{block_id});
+  for (auto& key : active_keys) {
+    if (write_active_key) {
+      // Save a reference to the active key for use in pruning of the block that "de-activates" this
+      // key by overwriting or deleting it.
+      batch.put(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(key), block_version);
+    }
+
+    // Calculate a new root hash for all keys in the block
+    auto versioned_key = serialize(VersionedKey{key, block_id});
+    auto value = db_->getSlice(BLOCK_MERKLE_KEYS_CF, versioned_key);
+    ConcordAssert(value.has_value());
+    auto val_hash = hash(*value);
+    hasher.update(key.value.data(), key.value.size());
+    hasher.update(val_hash.data(), val_hash.size());
+  }
+  merkle_value.root_hash = hasher.finish();
+  return merkle_value;
+}
+
+void BlockMerkleCategory::writePrunedBlock(BlockId block_id,
+                                           std::vector<KeyHash>&& active_keys,
+                                           NativeWriteBatch& batch) {
+  static constexpr bool write_active_keys = true;
+  auto merkle_value = computeRootHash(block_id, active_keys, write_active_keys, batch);
+  auto update_batch = tree_.update({{merkleKey(block_id), merkleValue(merkle_value)}});
+  putMerkleNodes(batch, std::move(update_batch));
+  auto block_key = serialize(BlockVersion{block_id});
+  batch.put(BLOCK_MERKLE_PRUNED_BLOCKS_CF, block_key, serialize(PrunedBlock{std::move(active_keys)}));
+}
+
+uint64_t BlockMerkleCategory::getLatestTreeVersion() const {
+  if (auto latest_root_key = db_->get(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0))) {
+    BatchedInternalNodeKey key{};
+    deserialize(*latest_root_key, key);
+    return key.version;
+  }
+  return 0;
+}
+
+void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_Id,
+                                                   const BlockMerkleOutput& out,
+                                                   NativeWriteBatch& batch) {}
 
 sparse_merkle::BatchedInternalNode BlockMerkleCategory::Reader::get_latest_root() const {
   if (auto latest_root_key = db_.get(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0))) {

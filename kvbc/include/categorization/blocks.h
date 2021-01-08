@@ -60,7 +60,7 @@ struct Block {
 
   BlockId id() const { return data.block_id; }
 
-  static const detail::Buffer& serialize(const Block& block) { return detail::serialize(block.data); }
+  static const detail::Buffer& serialize(const Block& block) { return detail::serializeThreadLocal(block.data); }
 
   template <typename T>
   static Block deserialize(const T& input) {
@@ -73,7 +73,7 @@ struct Block {
   // Using CMF for big endian
   static const detail::Buffer& generateKey(const BlockId block_id) {
     BlockKey key{block_id};
-    return detail::serialize(key);
+    return detail::serializeThreadLocal(key);
   }
 
   BlockData data;
@@ -117,7 +117,7 @@ struct RawBlock {
     return output;
   }
 
-  static const detail::Buffer& serialize(const RawBlock& raw) { return detail::serialize(raw.data); }
+  static const detail::Buffer& serialize(const RawBlock& raw) { return detail::serializeThreadLocal(raw.data); }
 
   RawBlockData data;
 };
