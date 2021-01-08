@@ -620,7 +620,7 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   const auto &senderId = preProcessRequestMsg->senderId();
   preExecuteDuration_.start(preProcessRequestMsg->getCid());
   LOG_INFO(logger(),
-           "Start request processing by a primary replica"
+           "Start request pre-processing by the primary replica"
                << KVLOG(reqSeqNum, preProcessRequestMsg->getCid(), clientId, senderId));
   sendPreProcessRequestToAllReplicas(preProcessRequestMsg);
   // Pre-process the request and calculate a hash of the result

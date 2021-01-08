@@ -1025,7 +1025,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
 
-  LOG_DEBUG(CNSUS, "Reached consensus, Received FullCommitProofMsg message");
+  LOG_INFO(CNSUS, "Consensus reached, Received FullCommitProofMsg message");
 
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
@@ -1336,7 +1336,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(GL, "Received CommitFullMsg" << KVLOG(msgSender));
+    LOG_INFO(GL, "Consensus reached, Received CommitFullMsg" << KVLOG(msgSender));
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -3828,10 +3828,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     auto dur = controller->durationSincePrePrepare(lastExecutedSeqNum + 1);
     if (dur > 0) {
       // Primary
-      LOG_DEBUG(CNSUS, "Consensus reached, duration [" << dur << "ms]");
+      LOG_INFO(CNSUS, "Consensus reached, duration [" << dur << "ms]");
 
     } else {
-      LOG_DEBUG(CNSUS, "Consensus reached");
+      LOG_INFO(CNSUS, "Consensus reached");
     }
     executeRequestsAndSendResponses(ppMsg, requestSet, span);
   }
