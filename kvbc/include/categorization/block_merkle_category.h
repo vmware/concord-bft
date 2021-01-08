@@ -70,20 +70,47 @@ class BlockMerkleCategory {
                              std::vector<std::optional<TaggedVersion>>& versions) const;
   void multiGetLatestVersion(const std::vector<Hash>& keys, std::vector<std::optional<TaggedVersion>>& versions) const;
 
+  // Delete the given block ID as a genesis one.
+  // Precondition: The given block ID must be the genesis one.
+  void deleteGenesisBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
+
+  // Delete the given block ID as a last reachable one.
+  // Precondition: The given block ID must be the last reachable one.
+  void deleteLastReachableBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
+
+  uint64_t getLatestTreeVersion() const;
+  uint64_t getLastDeletedTreeVersion() const;
+
  private:
   void multiGet(const std::vector<Buffer>& versioned_keys,
                 const std::vector<BlockId>& versions,
                 std::vector<std::optional<MerkleValue>>& values) const;
 
-  void putKeys(storage::rocksdb::NativeWriteBatch& batch,
-               uint64_t block_id,
-               std::vector<KeyHash>&& hashed_added_keys,
-               std::vector<KeyHash>&& hashed_deleted_keys,
-               BlockMerkleInput& updates);
+  sparse_merkle::UpdateBatch updateTree(BlockId, MerkleBlockValue&&);
 
-  void putMerkleNodes(storage::rocksdb::NativeWriteBatch& batch,
-                      sparse_merkle::UpdateBatch&& update_batch,
-                      uint64_t tree_version);
+  // The last deleted tree version is stored at key `0` in BLOCK_MERKLE_STALE_CF
+  void putLastDeletedTreeVersion(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
+
+  // During pruning of a genesis block, rewrite the merkle tree value if some keys are still active.
+  // This is necessary for proofs.
+  //
+  // Retrieve the value of all active keys so we can recalculate the root hash for the modified block.
+  // Write the updated block to the merkle tree.
+  void rewriteMerkleBlock(BlockId, std::vector<KeyHash>&& active_keys, storage::rocksdb::NativeWriteBatch&);
+
+  // When a genesis block is pruned, we must delete all data that is stale as of `tree_version`.
+  //
+  // This includes data that may be written in prior tree versions as a result of prior pruning
+  // operations that generate new tree versions and stale data, but not new blocks. There can be a
+  // large amount of these prior versions, as each pruned block generates a new tree version. If we
+  // prune X blocks in a row before we add a new block, Y, then when we prune Block Y, we will have
+  // to lookup all the indexes for those pruned X tree versions and delete the internal and leaf
+  // nodes in the indexes.
+  void deleteStaleData(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
+
+  // Retrieve the latest versions for all raw keys in a block and return them along with the hashed keys.
+  std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> getLatestVersions(
+      const BlockMerkleOutput& out);
 
  private:
   class Reader : public sparse_merkle::IDBReader {

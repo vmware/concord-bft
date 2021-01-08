@@ -29,7 +29,8 @@ inline const auto CAT_ID_TYPE_CF = std::string{"cat_id_type"};
 
 inline const auto BLOCK_MERKLE_INTERNAL_NODES_CF = std::string{"block_merkle_internal_nodes"};
 inline const auto BLOCK_MERKLE_LEAF_NODES_CF = std::string{"block_merkle_leaf_nodes"};
-inline const auto BLOCK_MERKLE_LATEST_KEY_VERSION = std::string{"block_merkle_latest_key_version"};
+inline const auto BLOCK_MERKLE_LATEST_KEY_VERSION_CF = std::string{"block_merkle_latest_key_version"};
 inline const auto BLOCK_MERKLE_KEYS_CF = std::string{"block_merkle_keys"};
+inline const auto BLOCK_MERKLE_STALE_CF = std::string{"block_merkle_stale"};
 
 }  // namespace concord::kvbc::categorization::detail

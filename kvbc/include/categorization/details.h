@@ -43,7 +43,18 @@ inline VersionedKey versionedKey(const Hash &key_hash, BlockId block_id) {
 }
 
 template <typename T>
-const Buffer &serialize(const T &value) {
+const Buffer serialize(const T &value) {
+  auto buf = Buffer{};
+  serialize(buf, value);
+  return buf;
+}
+
+// should only be used when the returned serialized value is immediately used. Otherwise the
+// reference will be overwritten. It is unsafe to use the result of this function in an inline call
+// to batch.put() for example. It's only safe when a copy is made in which case there is no
+// advantage to using it.
+template <typename T>
+const Buffer &serializeThreadLocal(const T &value) {
   static thread_local auto buf = Buffer{};
   buf.clear();
   serialize(buf, value);

@@ -18,6 +18,7 @@
 #include "kv_types.hpp"
 #include "rocksdb/native_client.h"
 #include "storage/test/storage_test_common.h"
+#include "categorization/column_families.h"
 
 #include <memory>
 #include <optional>
@@ -64,11 +65,11 @@ class block_merkle_category : public Test {
   std::string val3 = "val3"s;
   std::string val4 = "val4"s;
   std::string val5 = "val5"s;
-  Hash hashed_key1 = Hasher{}.digest(key1.data(), key1.size());
-  Hash hashed_key2 = Hasher{}.digest(key2.data(), key2.size());
-  Hash hashed_key3 = Hasher{}.digest(key3.data(), key3.size());
-  Hash hashed_key4 = Hasher{}.digest(key4.data(), key4.size());
-  Hash hashed_key5 = Hasher{}.digest(key5.data(), key5.size());
+  Hash hashed_key1 = hash(key1);
+  Hash hashed_key2 = hash(key2);
+  Hash hashed_key3 = hash(key3);
+  Hash hashed_key4 = hash(key4);
+  Hash hashed_key5 = hash(key5);
 };
 
 TEST_F(block_merkle_category, empty_updates) {
@@ -76,8 +77,8 @@ TEST_F(block_merkle_category, empty_updates) {
   auto batch = db->getBatch();
   const auto output = cat.add(1, std::move(update), batch);
 
-  // A new root index, an internal node, and a leaf node are created.
-  ASSERT_EQ(batch.count(), 3);
+  // A new root index, an internal node, a leaf node, and stale index node are created.
+  ASSERT_EQ(batch.count(), 4);
 }
 
 TEST_F(block_merkle_category, put_and_get) {
@@ -86,9 +87,9 @@ TEST_F(block_merkle_category, put_and_get) {
   auto block_id = 1u;
   const auto output = cat.add(block_id, std::move(update), batch);
 
-  // A new root index, an internal node, and a leaf node are created.
+  // A new root index, an internal node, a leaf node, and stale index node are created.
   // Additionally, a key and its value are written.
-  ASSERT_EQ(batch.count(), 5);
+  ASSERT_EQ(batch.count(), 6);
   ASSERT_EQ(1, output.state_root_version);
   ASSERT_EQ(false, output.keys.find(key1)->second.deleted);
 
@@ -255,6 +256,113 @@ TEST_F(block_merkle_category, updates_with_deleted_keys) {
   ASSERT_EQ(expected_v3, tagged_versions[2]);
   ASSERT_EQ(expected_v4, tagged_versions[3]);
   ASSERT_EQ(expected_v5, tagged_versions[4]);
+}
+
+TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
+  // Create the first block and read its stale keys
+  auto update = BlockMerkleInput{{{key1, val1}, {key2, val2}, {key3, val3}, {key4, val4}, {key5, val5}}};
+  const auto block_out1 = add(1, std::move(update));
+  auto ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{1}));
+  auto stale = StaleKeys{};
+  deserialize(*ser_stale, stale);
+
+  // There's no stale keys on the first block creation, since nothing existed before the first block.
+  ASSERT_EQ(0, stale.internal_keys.size());
+  ASSERT_EQ(0, stale.leaf_keys.size());
+
+  // Create the second block and read its stale keys
+  const auto block_out2 = add(2, BlockMerkleInput{{{key2, "new_val"s}}, {{key3, key5}}});
+  ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{2}));
+  stale = StaleKeys{};
+  deserialize(*ser_stale, stale);
+
+  // Adding a new block adds stale internal keys, but no stale leaf keys, as blocks aren't deleted.
+  ASSERT_LT(0, stale.internal_keys.size());
+  ASSERT_EQ(0, stale.leaf_keys.size());
+
+  // There have been no pruned blocks yet.
+  ASSERT_EQ(0, cat.getLastDeletedTreeVersion());
+  ASSERT_EQ(2, cat.getLatestTreeVersion());
+
+  // Pruning the first block causes key2, key3, and key5 from version 1 to be deleted.
+  // Keys 1, 4, 5 are still active at version 1 and so remain in the database.
+
+  // No tree nodes will get deleted though, as none are stale.
+  auto batch = db->getBatch();
+  cat.deleteGenesisBlock(1, block_out1, batch);
+  db->write(std::move(batch));
+  ASSERT_FALSE(cat.get(key2, 1));
+  ASSERT_FALSE(cat.get(key3, 1));
+  ASSERT_FALSE(cat.get(key5, 1));
+  ASSERT_TRUE(cat.get(key1, 1));
+  ASSERT_TRUE(cat.get(key4, 1));
+  ASSERT_EQ(1, cat.getLastDeletedTreeVersion());
+
+  // A new tree version gets created as a result of the block deletion.
+  ASSERT_EQ(3, cat.getLatestTreeVersion());
+
+  // There are stale leaf keys as of block deletion
+  ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{3}));
+  stale = StaleKeys{};
+  deserialize(*ser_stale, stale);
+  ASSERT_LT(0, stale.internal_keys.size());
+  ASSERT_LT(0, stale.leaf_keys.size());
+
+  // Deleting Block2 causes there to still be active keys.
+  batch = db->getBatch();
+  cat.deleteGenesisBlock(2, block_out2, batch);
+  db->write(std::move(batch));
+  ASSERT_TRUE(cat.getLatest(key1));
+  ASSERT_TRUE(cat.getLatest(key2));
+  ASSERT_FALSE(cat.getLatest(key3));
+  ASSERT_TRUE(cat.getLatest(key4));
+  ASSERT_FALSE(cat.getLatest(key5));
+  ASSERT_EQ(2, cat.getLastDeletedTreeVersion());
+
+  // A new tree version gets created as a result of the block deletion.
+  ASSERT_EQ(4, cat.getLatestTreeVersion());
+
+  // Let's delete the last remaining keys, with a new block addition.
+  const auto block_out3 = add(3, BlockMerkleInput{{}, {{key1, key2, key4}}});
+  ASSERT_FALSE(cat.getLatest(key1));
+  ASSERT_FALSE(cat.getLatest(key2));
+  ASSERT_FALSE(cat.getLatest(key3));
+  ASSERT_FALSE(cat.getLatest(key4));
+  ASSERT_FALSE(cat.getLatest(key5));
+  ASSERT_EQ(2, cat.getLastDeletedTreeVersion());
+  ASSERT_EQ(5, cat.getLatestTreeVersion());
+
+  // We still see tombstones for keys 1, 2, 3
+  ASSERT_TRUE(cat.getLatestVersion(key1)->deleted);
+  ASSERT_TRUE(cat.getLatestVersion(key2)->deleted);
+  ASSERT_TRUE(cat.getLatestVersion(key4)->deleted);
+
+  // We can still access those keys at their old versions
+  auto expected1 = MerkleValue{{1, val1}};
+  auto expected2 = MerkleValue{{2, "new_val"s}};
+  auto expected4 = MerkleValue{{1, val4}};
+  ASSERT_EQ(expected1, cat.get(key1, 1));
+  ASSERT_EQ(expected2, cat.get(key2, 2));
+  ASSERT_EQ(expected4, cat.get(key4, 1));
+
+  // Deleting block 3 triggers all tree versions up to 5 to be removed
+  batch = db->getBatch();
+  cat.deleteGenesisBlock(3, block_out3, batch);
+  db->write(std::move(batch));
+  ASSERT_EQ(5, cat.getLastDeletedTreeVersion());
+  ASSERT_EQ(6, cat.getLatestTreeVersion());
+
+  // There are no more latest versions for any keys.
+  ASSERT_FALSE(cat.getLatestVersion(key1));
+  ASSERT_FALSE(cat.getLatestVersion(key2));
+  ASSERT_FALSE(cat.getLatestVersion(key3));
+  ASSERT_FALSE(cat.getLatestVersion(key4));
+  ASSERT_FALSE(cat.getLatestVersion(key5));
+
+  // We can no longer retrieve keys 1, 2, 4 at their old versions
+  ASSERT_FALSE(cat.get(key1, 1));
+  ASSERT_FALSE(cat.get(key2, 2));
+  ASSERT_FALSE(cat.get(key4, 1));
 }
 
 }  // namespace
