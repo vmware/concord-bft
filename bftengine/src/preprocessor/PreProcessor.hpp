@@ -150,7 +150,7 @@ class PreProcessor {
   void addTimers();
   void cancelTimers();
   void onRequestsStatusCheckTimer();
-  void handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqMsgUniquePtr clientMsg, uint16_t msgOffsetInBatch);
+  void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg, uint16_t msgOffsetInBatch);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");

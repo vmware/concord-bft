@@ -271,82 +271,27 @@ template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onMessage);
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
-  ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
-
-  const string &cid = clientPreProcessReqMsg->getCid();
-  const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
-  const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
-  const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
-  const auto &reqTimeoutMilli = clientPreProcessReqMsg->requestTimeoutMilli();
-  SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
-  if (!checkClientMsgCorrectness(reqSeqNum, cid, clientPreProcessReqMsg->isReadOnly(), clientId, senderId)) {
-    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-    return;
-  }
-  PreProcessRequestMsgSharedPtr preProcessRequestMsg;
-  bool registerSucceeded = false;
-  ReqId seqNumberOfLastReply = 0;
-  {
-    const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, 0)];
-    lock_guard<mutex> lock(reqEntry->mutex);
-    if (reqEntry->reqProcessingStatePtr) {
-      const auto &ongoingReqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
-      const auto &ongoingCid = reqEntry->reqProcessingStatePtr->getReqCid();
-      LOG_DEBUG(logger(),
-                KVLOG(reqSeqNum, clientId, senderId)
-                    << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid) << " is in progress");
-      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-      return;
-    }
-    // Count requests arrived through non-primary replicas and accepted in spite of the
-    // same request has been processing by the primary replica
-    if (clientId != senderId && myReplica_.isClientRequestInProcess(clientId, reqSeqNum))
-      preProcessorMetrics_.preProcReqForwardedByNonPrimaryNotIgnored.Get().Inc();
-    // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
-    // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
-    // request messages from the primary.
-    // TBD: save senderId in the header and set it before re-sending
-    if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
-      LOG_DEBUG(logger(),
-                "Specified request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId, senderId));
-      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-      return;
-    }
-    seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
-    if (seqNumberOfLastReply == reqSeqNum) {
-      LOG_INFO(logger(),
-               "Request has already been executed - let replica to decide how to proceed further"
-                   << KVLOG(reqSeqNum, clientId));
-      preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
-      return incomingMsgsStorage_->pushExternalMsg(clientPreProcessReqMsg->convertToClientRequestMsg(false));
-    }
-    if (seqNumberOfLastReply < reqSeqNum)
-      registerSucceeded = registerReplicaDependentRequest(
-          move(clientPreProcessReqMsg), preProcessRequestMsg, 0, ++(reqEntry->reqRetryId));
-  }
-
-  if (myReplica_.isCurrentPrimary() && registerSucceeded) {
-    preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();  // Increase this metric on the primary replica
-    return handleClientPreProcessRequestByPrimary(preProcessRequestMsg);
-  }
-
-  LOG_DEBUG(logger(),
-            "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
-                                         << " is ignored because request is old/duplicated");
-  preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-}
-
-void PreProcessor::handleSingleMsgFromClientBatchRequestMsg(ClientPreProcessReqMsgUniquePtr clientMsg,
-                                                            uint16_t msgOffsetInBatch) {
-  SCOPED_MDC_CID(clientMsg->getCid());
+  ClientPreProcessReqMsgUniquePtr clientMsg(msg);
+  const string &cid = clientMsg->getCid();
   const NodeIdType &senderId = clientMsg->senderId();
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   const auto &reqTimeoutMilli = clientMsg->requestTimeoutMilli();
-  LOG_DEBUG(logger(),
-            "Start handling single message from the batch:" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
+  SCOPED_MDC_CID(cid);
+  LOG_DEBUG(logger(), "Received ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId, reqTimeoutMilli));
+  if (!checkClientMsgCorrectness(reqSeqNum, cid, clientMsg->isReadOnly(), clientId, senderId)) {
+    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    return;
+  }
+  handleSingleClientRequestMessage(move(clientMsg), 0);
+}
 
+void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                                    uint16_t msgOffsetInBatch) {
+  SCOPED_MDC_CID(clientMsg->getCid());
+  const NodeIdType &senderId = clientMsg->senderId();
+  const NodeIdType &clientId = clientMsg->clientProxyId();
+  const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
   bool registerSucceeded = false;
   ReqId seqNumberOfLastReply = 0;
@@ -410,10 +355,16 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
-
   ClientMsgsList &clientMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
   uint16_t offset = 0;
-  for (auto &clientMsg : clientMsgs) handleSingleMsgFromClientBatchRequestMsg(move(clientMsg), offset++);
+  for (auto &clientMsg : clientMsgs) {
+    LOG_DEBUG(logger(),
+              "Start handling single message from the batch:" << KVLOG(clientMsg->requestSeqNum(),
+                                                                       clientMsg->clientProxyId(),
+                                                                       clientMsg->senderId(),
+                                                                       clientMsg->requestTimeoutMilli()));
+    handleSingleClientRequestMessage(move(clientMsg), offset++);
+  }
 }
 
 // Non-primary replica request handling
