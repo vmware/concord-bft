@@ -159,7 +159,7 @@ TEST_F(categorized_kvbc, get_block) {
 
 TEST_F(categorized_kvbc, fail_get_raw) {
   detail::Blockchain block_chain{db};
-  auto rb = block_chain.getRawBlock(100);
+  auto rb = block_chain.getRawBlock(100, nullptr);
   ASSERT_FALSE(rb.has_value());
 }
 

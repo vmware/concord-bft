@@ -13,20 +13,24 @@
 
 #include "categorization/blocks.h"
 #include "categorization/immutable_kv_category.h"
+#include "categorization/block_merkle_category.h"
+#include "categorization/versioned_kv_category.h"
 
 namespace concord::kvbc::categorization {
 
 //////////////////////////////////// RAW BLOCKS//////////////////////////////////////
 
 // the constructor converts the input block i.e. the update_infos into a raw block
-RawBlock::RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+RawBlock::RawBlock(const Block& block,
+                   const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                   const CategoriesMap* categorires) {
   // parent digest (std::copy?)
   data.parent_digest = block.data.parent_digest;
   // recontruct updates of categories
   for (auto& [cat_id, update_info] : block.data.categories_updates_info) {
     std::visit(
-        [category_id = cat_id, &block, this, &native_client](const auto& update_info) {
-          auto category_updates = getUpdates(category_id, update_info, block.id(), native_client);
+        [category_id = cat_id, &block, this, &native_client, &categorires](const auto& update_info) {
+          auto category_updates = getUpdates(category_id, update_info, block.id(), native_client, categorires);
           data.updates.kv.emplace(category_id, std::move(category_updates));
         },
         update_info);
@@ -40,32 +44,25 @@ RawBlock::RawBlock(const Block& block, const std::shared_ptr<storage::rocksdb::N
 BlockMerkleInput RawBlock::getUpdates(const std::string& category_id,
                                       const BlockMerkleOutput& update_info,
                                       const BlockId& block_id,
-                                      const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
-  // For old serialization
-  using namespace concord::kvbc::v2MerkleTree;
+                                      const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                                      const CategoriesMap* categorires) {
+  ConcordAssert(categorires != nullptr);
+  ConcordAssert(categorires->count(category_id) == 1);
   BlockMerkleInput data;
-  // Iterate over the keys:
-  // if deleted, add to the deleted set.
-  // else generate a db key, serialize it and
-  // get the value from the corresponding column family
+  const auto& cat = std::get<detail::BlockMerkleCategory>((*categorires).at(category_id));
   for (auto& [key, flag] : update_info.keys) {
     if (flag.deleted) {
       data.deletes.push_back(key);
       continue;
     }
-    // E.L see how we can optimize the sliver temporary allocation
-    auto db_key =
-        v2MerkleTree::detail::DBKeyManipulator::genDataDbKey(Key(std::string(key)), update_info.state_root_version);
-    auto val = native_client->get(category_id, db_key);
+    // get value of the key for a version from storage via the category
+    const auto& val = cat.get(key, block_id);
     if (!val.has_value()) {
-      throw std::runtime_error("Couldn't find value for key");
+      LOG_FATAL(CAT_BLOCK_LOG, "Couldn't find value for key [" << key << "] (Merkle category)");
+      ConcordAssert(false);
     }
-    // E.L serializtion of the Merkle to CMF will be in later phase
-    auto dbLeafVal = v2MerkleTree::detail::deserialize<v2MerkleTree::detail::DatabaseLeafValue>(
-        concordUtils::Sliver{std::move(val.value())});
-    ConcordAssert(dbLeafVal.addedInBlockId == block_id);
-
-    data.kv[key] = dbLeafVal.leafNode.value.toString();
+    // Merkle map is string(key) to string(value)
+    data.kv[key] = detail::asMerkle(*val).data;
   }
 
   return data;
@@ -75,9 +72,27 @@ BlockMerkleInput RawBlock::getUpdates(const std::string& category_id,
 VersionedInput RawBlock::getUpdates(const std::string& category_id,
                                     const VersionedOutput& update_info,
                                     const BlockId& block_id,
-                                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+                                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                                    const CategoriesMap* categorires) {
+  ConcordAssert(categorires != nullptr);
+  ConcordAssert(categorires->count(category_id) == 1);
   VersionedInput data;
-
+  data.calculate_root_hash = update_info.root_hash.has_value();
+  const auto& cat = std::get<detail::VersionedKeyValueCategory>((*categorires).at(category_id));
+  for (const auto& [key, flags] : update_info.keys) {
+    if (flags.deleted) {
+      data.deletes.push_back(key);
+      continue;
+    }
+    // get value of the key for a version from storage via the category
+    auto val = cat.get(key, block_id);
+    if (!val.has_value()) {
+      LOG_FATAL(CAT_BLOCK_LOG, "Couldn't find value for key [" << key << "] (versioned kv category)");
+      ConcordAssert(false);
+    }
+    // reconstruct the versioned value which is the key and stale_on_update
+    data.kv[key] = ValueWithFlags{detail::asVersioned(*val).data, flags.stale_on_update};
+  }
   return data;
 }
 
@@ -88,14 +103,20 @@ VersionedInput RawBlock::getUpdates(const std::string& category_id,
 ImmutableInput RawBlock::getUpdates(const std::string& category_id,
                                     const ImmutableOutput& update_info,
                                     const BlockId& block_id,
-                                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client) {
+                                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
+                                    const CategoriesMap* categorires) {
+  ConcordAssert(categorires != nullptr);
+  ConcordAssert(categorires->count(category_id) == 1);
   ImmutableInput data;
-  detail::ImmutableKeyValueCategory imm{category_id, native_client};
+  const auto& cat = std::get<detail::ImmutableKeyValueCategory>((*categorires).at(category_id));
   for (const auto& [key, tags] : update_info.tagged_keys) {
-    auto val = imm.get(key, block_id);
+    // get value of the key for a version from storage via the category
+    auto val = cat.get(key, block_id);
     if (!val.has_value()) {
-      throw std::runtime_error("Couldn't find value for key (immutable category)");
+      LOG_FATAL(CAT_BLOCK_LOG, "Couldn't find value for key [" << key << "] (immutable category)");
+      ConcordAssert(false);
     }
+    // the tags are being stored in the block itself, and the value we get from storage via the category
     data.kv[key] = ImmutableValueUpdate{detail::asImmutable(*val).data, tags};
   }
   return data;

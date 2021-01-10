@@ -61,6 +61,8 @@ struct ImmutableUpdates {
 
   void addUpdate(std::string&& key, ImmutableValue&& val) { data_.kv.emplace(std::move(key), std::move(val.update_)); }
 
+  void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
+
  private:
   ImmutableInput data_;
   friend struct Updates;

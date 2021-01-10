@@ -48,6 +48,10 @@ TEST_F(categorized_kvbc, merkle_update) {
   ASSERT_TRUE(mu.getData().kv.size() == 1);
 }
 
+// Add a block which contains updates per category.
+// Each category handles its updates and returs an output which goes to the block structure.
+// The block structure is then inserted into the DB.
+// we test that the block that is written to DB contains the expected data.
 TEST_F(categorized_kvbc, add_blocks) {
   KeyValueBlockchain block_chain{db, true};
   // Add block1
@@ -55,12 +59,13 @@ TEST_F(categorized_kvbc, add_blocks) {
     Updates updates;
     BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key1", "merkle_value1");
-    merkle_updates.addDelete("merkle_deleted");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
     updates.add("merkle", std::move(merkle_updates));
 
     VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
     ver_updates.addUpdate("ver_key1", "ver_val1");
-    ver_updates.addDelete("ver_deleted");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
     updates.add("versioned", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
@@ -68,14 +73,21 @@ TEST_F(categorized_kvbc, add_blocks) {
   {
     Updates updates;
     BlockMerkleUpdates merkle_updates;
-    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
-    merkle_updates.addDelete("merkle_deleted");
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
     updates.add("merkle", std::move(merkle_updates));
 
     VersionedUpdates ver_updates;
-    ver_updates.addUpdate("ver_key2", "ver_val2");
-    ver_updates.addDelete("ver_deleted");
+    ver_updates.calculateRootHash(false);
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addDelete("ver_key2");
     updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    // E.L --> some UT fails check if related to CMF
+    ver_updates_2.calculateRootHash(false);
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
 
     ImmutableUpdates immutable_updates;
     immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
@@ -87,28 +99,82 @@ TEST_F(categorized_kvbc, add_blocks) {
     const detail::Buffer& block_db_key = Block::generateKey(1);
     auto block1_db_val = db->get(BLOCKS_CF, block_db_key);
     ASSERT_TRUE(block1_db_val.has_value());
-    // E.L need to add support for strings in cmf
+
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
+
+    // First block has zeroed parent digest
+    for (auto i : block1_from_db.data.parent_digest) {
+      ASSERT_EQ(i, 0);
+    }
+
+    // Get the merkle updates output of block1
     auto merkle_variant = block1_from_db.data.categories_updates_info["merkle"];
     auto merkle_update_info1 = std::get<BlockMerkleOutput>(merkle_variant);
-    ASSERT_EQ(merkle_update_info1.keys["merkle_deleted"].deleted, true);
+    ASSERT_EQ(merkle_update_info1.keys.size(), 2);
+    ASSERT_EQ(merkle_update_info1.keys.count("merkle_key1"), 1);
+    ASSERT_EQ(merkle_update_info1.keys.count("merkle_key2"), 1);
+    ASSERT_EQ(merkle_update_info1.keys["merkle_key1"].deleted, false);
+    ASSERT_EQ(merkle_update_info1.keys.count("not_exist"), 0);
+    ASSERT_EQ(merkle_update_info1.state_root_version, 1);
+
     auto ver_variant = block1_from_db.data.categories_updates_info["versioned"];
     auto ver_out1 = std::get<VersionedOutput>(ver_variant);
-    ASSERT_EQ(ver_out1.keys["ver_deleted"].deleted, true);
+    ASSERT_EQ(ver_out1.keys.size(), 2);
+    ASSERT_EQ(ver_out1.keys.count("ver_key1"), 1);
+    ASSERT_EQ(ver_out1.keys.count("ver_key2"), 1);
+    ASSERT_EQ(ver_out1.keys["ver_key1"].deleted, false);
+    ASSERT_EQ(ver_out1.keys["ver_key1"].stale_on_update, false);
+    ASSERT_EQ(ver_out1.keys.count("not_exist"), 0);
+    ASSERT_EQ(ver_out1.keys["ver_key2"].deleted, false);
+    ASSERT_EQ(ver_out1.keys["ver_key2"].stale_on_update, true);
+    ASSERT_EQ(ver_out1.root_hash.has_value(), true);
   }
   // get block 2 from DB and test it
   {
     const detail::Buffer& block_db_key = Block::generateKey(2);
     auto block2_db_val = db->get(BLOCKS_CF, block_db_key);
     ASSERT_TRUE(block2_db_val.has_value());
-    // E.L need to add support for strings in cmf
     detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
     auto block2_from_db = Block::deserialize(in);
     const auto expected_tags = std::vector<std::string>{"1", "2"};
     auto immutable_variant = block2_from_db.data.categories_updates_info["immutable"];
     auto immutable_update_info2 = std::get<ImmutableOutput>(immutable_variant);
     ASSERT_EQ(immutable_update_info2.tagged_keys["immutable_key2"], expected_tags);
+
+    // test parent digest is not zeroed
+    auto contains_data = false;
+    for (auto i : block2_from_db.data.parent_digest) {
+      if ((contains_data = (i != 0))) break;
+    }
+    ASSERT_TRUE(contains_data);
+
+    // Get the merkle updates output of block2
+    auto merkle_variant = block2_from_db.data.categories_updates_info["merkle"];
+    auto merkle_update_info2 = std::get<BlockMerkleOutput>(merkle_variant);
+    ASSERT_EQ(merkle_update_info2.keys.size(), 2);
+    ASSERT_EQ(merkle_update_info2.keys.count("merkle_key1"), 1);
+    ASSERT_EQ(merkle_update_info2.keys.count("merkle_key3"), 1);
+    ASSERT_EQ(merkle_update_info2.keys["merkle_key1"].deleted, true);
+    ASSERT_EQ(merkle_update_info2.keys.count("not_exist"), 0);
+    ASSERT_EQ(merkle_update_info2.state_root_version, 2);
+
+    auto ver_variant = block2_from_db.data.categories_updates_info["versioned"];
+    auto ver_out2 = std::get<VersionedOutput>(ver_variant);
+    ASSERT_EQ(ver_out2.keys.size(), 2);
+    ASSERT_EQ(ver_out2.keys.count("ver_key3"), 1);
+    ASSERT_EQ(ver_out2.keys.count("ver_key2"), 1);
+    ASSERT_EQ(ver_out2.keys["ver_key3"].deleted, false);
+    ASSERT_EQ(ver_out2.keys["ver_key2"].deleted, true);
+    ASSERT_EQ(ver_out2.root_hash.has_value(), false);
+
+    auto ver_variant_2 = block2_from_db.data.categories_updates_info["versioned_2"];
+    auto ver_out3 = std::get<VersionedOutput>(ver_variant_2);
+    ASSERT_EQ(ver_out3.keys.size(), 1);
+    ASSERT_EQ(ver_out3.keys.count("ver_key4"), 1);
+    ASSERT_EQ(ver_out3.keys["ver_key4"].deleted, false);
+    // E.L --> some UT fails
+    ASSERT_EQ(ver_out3.root_hash.has_value(), false);
   }
 }
 
@@ -125,7 +191,7 @@ TEST_F(categorized_kvbc, delete_block) {
     VersionedUpdates ver_updates;
     ver_updates.addUpdate("ver_key1", "ver_val1");
     ver_updates.addDelete("ver_deleted");
-    updates.add("kv_hash", std::move(ver_updates));
+    updates.add("versioned_kv", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
   // Can't delete only block
@@ -279,7 +345,7 @@ TEST_F(categorized_kvbc, add_raw_block) {
     VersionedUpdates ver_updates;
     ver_updates.addUpdate("ver_key1", "key_val1");
     ver_updates.addDelete("ver_deleted");
-    updates.add("kv_hash", std::move(ver_updates));
+    updates.add("versioned_kv", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
   }
@@ -354,7 +420,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
     VersionedUpdates ver_updates;
     ver_updates.addUpdate("ver_key1", "key_val1");
     ver_updates.addDelete("ver_deleted");
-    updates.add("kv_hash", std::move(ver_updates));
+    updates.add("versioned_kv", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
   }
@@ -420,7 +486,7 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
     VersionedUpdates ver_updates;
     ver_updates.addUpdate("ver_key2", "key_val2");
     ver_updates.addDelete("ver_deleted");
-    updates.add("kv_hash", std::move(ver_updates));
+    updates.add("versioned_kv", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
     ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
     ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 2);
@@ -485,14 +551,17 @@ TEST_F(categorized_kvbc, creation_of_category_type_cf) {
 TEST_F(categorized_kvbc, instantiation_of_categories) {
   auto wb = db->getBatch();
   db->createColumnFamily(detail::CAT_ID_TYPE_CF);
-  wb.put(
-      detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::merkle)));
-  wb.put(
-      detail::CAT_ID_TYPE_CF, std::string("merkle2"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF,
+         std::string("merkle"),
+         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF,
+         std::string("merkle2"),
+         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
   wb.put(
       detail::CAT_ID_TYPE_CF, std::string("imm"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::immutable)));
-  wb.put(
-      detail::CAT_ID_TYPE_CF, std::string("kvhash"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::kv_hash)));
+  wb.put(detail::CAT_ID_TYPE_CF,
+         std::string("versioned_kv"),
+         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::versioned_kv)));
 
   db->write(std::move(wb));
 
@@ -500,20 +569,20 @@ TEST_F(categorized_kvbc, instantiation_of_categories) {
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
   auto cats = tester.getCategories(block_chain);
   ASSERT_EQ(cats.count("merkle"), 1);
-  ASSERT_THROW(std::get<KVHashCategory>(cats["merkle"]), std::bad_variant_access);
-  ASSERT_NO_THROW(std::get<BlockMerkleCategory>(cats["merkle"]));
+  ASSERT_THROW(std::get<detail::VersionedKeyValueCategory>(cats["merkle"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<detail::BlockMerkleCategory>(cats["merkle"]));
 
   ASSERT_EQ(cats.count("merkle2"), 1);
-  ASSERT_THROW(std::get<KVHashCategory>(cats["merkle2"]), std::bad_variant_access);
-  ASSERT_NO_THROW(std::get<BlockMerkleCategory>(cats["merkle2"]));
+  ASSERT_THROW(std::get<detail::VersionedKeyValueCategory>(cats["merkle2"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<detail::BlockMerkleCategory>(cats["merkle2"]));
 
   ASSERT_EQ(cats.count("imm"), 1);
-  ASSERT_THROW(std::get<KVHashCategory>(cats["imm"]), std::bad_variant_access);
+  ASSERT_THROW(std::get<detail::VersionedKeyValueCategory>(cats["imm"]), std::bad_variant_access);
   ASSERT_NO_THROW(std::get<detail::ImmutableKeyValueCategory>(cats["imm"]));
 
-  ASSERT_EQ(cats.count("kvhash"), 1);
-  ASSERT_THROW(std::get<BlockMerkleCategory>(cats["kvhash"]), std::bad_variant_access);
-  ASSERT_NO_THROW(std::get<KVHashCategory>(cats["kvhash"]));
+  ASSERT_EQ(cats.count("versioned_kv"), 1);
+  ASSERT_THROW(std::get<detail::BlockMerkleCategory>(cats["versioned_kv"]), std::bad_variant_access);
+  ASSERT_NO_THROW(std::get<detail::VersionedKeyValueCategory>(cats["versioned_kv"]));
 }
 
 TEST_F(categorized_kvbc, throw_on_non_exist_category_type) {
@@ -537,65 +606,66 @@ TEST_F(categorized_kvbc, throw_on_non_exist_category) {
 TEST_F(categorized_kvbc, get_category) {
   db->createColumnFamily(detail::CAT_ID_TYPE_CF);
   auto wb = db->getBatch();
-  wb.put(
-      detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF,
+         std::string("merkle"),
+         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
   db->write(std::move(wb));
   KeyValueBlockchain block_chain{db, true};
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
   ASSERT_NO_THROW(std::get<BlockMerkleCategory>(tester.getCategory("merkle", block_chain)));
 }
 
-// E.L temporary imp till categories are wired
 TEST_F(categorized_kvbc, get_block_data) {
   KeyValueBlockchain block_chain{db, true};
-  KeyValueBlockchain::KeyValueBlockchain_tester tester;
 
-  // create block
-  BlockDigest pHash;
-  std::random_device rd;
-  for (int i = 0; i < (int)pHash.size(); i++) {
-    pHash[i] = (uint8_t)(rd() % 255);
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
 
-  auto cf = std::string("merkle");
-  auto key = std::string("key");
-  auto value = std::string("val");
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
 
-  uint64_t state_root_version = 886;
-  BlockMerkleOutput mui;
-  mui.keys[key] = MerkleKeyFlag{false};
-  mui.root_hash = pHash;
-  mui.state_root_version = state_root_version;
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
 
-  Block block{888};
-  block.add(cf, std::move(mui));
-  block.setParentHash(pHash);
-
-  // Add it to the blockchain and load it
-  auto wb = db->getBatch();
-  tester.getBlockchain(block_chain).addBlock(block, wb);
-  db->write(std::move(wb));
-  auto last_block = tester.getBlockchain(block_chain).loadLastReachableBlockId();
-  ASSERT_EQ(*last_block, 888);
-  tester.getBlockchain(block_chain).setLastReachableBlockId(*last_block);
-
-  // write category kvs
-  db->createColumnFamily(cf);
-  auto db_key = v2MerkleTree::detail::DBKeyManipulator::genDataDbKey(std::string(key), state_root_version);
-  auto db_val = v2MerkleTree::detail::serialize(
-      v2MerkleTree::detail::DatabaseLeafValue{block.id(), sparse_merkle::LeafNode{std::string(value)}});
-  db->put(cf, db_key, db_val);
-  auto db_get_val = db->get(cf, db_key);
-  ASSERT_EQ(db_get_val.value(), db_val);
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
 
   // try to get updates
   ASSERT_THROW(block_chain.getBlockData(889), std::runtime_error);
   ASSERT_THROW(block_chain.getBlockData(887), std::runtime_error);
-  auto updates = block_chain.getBlockData(888);
-  auto variant = updates.kv[cf];
-  auto merkle_updates = std::get<BlockMerkleInput>(variant);
+  auto updates = block_chain.getBlockData(1);
+  auto variant = updates.kv["versioned"];
+  auto versioned_updates = std::get<VersionedInput>(variant);
   // check reconstruction of original kv
-  ASSERT_EQ(merkle_updates.kv[key], value);
+  ASSERT_TRUE(versioned_updates.calculate_root_hash);
+  auto expected = ValueWithFlags{"ver_val2", true};
+  ASSERT_EQ(versioned_updates.kv["ver_key2"], expected);
 }
 
 TEST_F(categorized_kvbc, validate_category_creation_on_add) {
@@ -609,7 +679,7 @@ TEST_F(categorized_kvbc, validate_category_creation_on_add) {
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
   auto cats = tester.getCategories(block_chain);
   ASSERT_EQ(cats.count("imm"), 1);
-  ASSERT_THROW(std::get<KVHashCategory>(cats["imm"]), std::bad_variant_access);
+  ASSERT_THROW(std::get<detail::VersionedKeyValueCategory>(cats["imm"]), std::bad_variant_access);
   ASSERT_NO_THROW(std::get<detail::ImmutableKeyValueCategory>(cats["imm"]));
 
   auto type = db->get(detail::CAT_ID_TYPE_CF, std::string("imm"));
@@ -630,7 +700,7 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
   ASSERT_EQ(last_raw.first, 1);
   ASSERT_TRUE(last_raw.second.has_value());
   auto raw_from_api = block_chain.getRawBlock(1);
-  auto last_raw_imm_data = std::get<ImmutableInput>(last_raw.second.value().data.updates.kv["imm"]);
+  auto last_raw_imm_data = std::get<ImmutableInput>(last_raw.second.value().updates.kv["imm"]);
   auto raw_from_api_imm_data = std::get<ImmutableInput>(raw_from_api.data.updates.kv["imm"]);
   std::vector<std::string> vec{"0", "1"};
   ASSERT_EQ(last_raw_imm_data.kv["key"].data, "val");

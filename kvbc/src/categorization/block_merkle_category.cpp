@@ -180,11 +180,11 @@ BlockMerkleOutput BlockMerkleCategory::add(BlockId block_id, BlockMerkleInput&& 
   return output;
 }
 
-std::optional<MerkleValue> BlockMerkleCategory::get(const std::string& key, BlockId block_id) const {
+std::optional<Value> BlockMerkleCategory::get(const std::string& key, BlockId block_id) const {
   return get(hash(key), block_id);
 }
 
-std::optional<MerkleValue> BlockMerkleCategory::get(const Hash& hashed_key, BlockId block_id) const {
+std::optional<Value> BlockMerkleCategory::get(const Hash& hashed_key, BlockId block_id) const {
   auto key = VersionedKey{KeyHash{hashed_key}, block_id};
   if (auto val = db_->get(BLOCK_MERKLE_KEYS_CF, serialize(key))) {
     auto rv = MerkleValue{};
@@ -195,7 +195,7 @@ std::optional<MerkleValue> BlockMerkleCategory::get(const Hash& hashed_key, Bloc
   return std::nullopt;
 }
 
-std::optional<MerkleValue> BlockMerkleCategory::getLatest(const std::string& key) const {
+std::optional<Value> BlockMerkleCategory::getLatest(const std::string& key) const {
   auto hashed_key = hash(key);
   if (auto latest = getLatestVersion(hashed_key)) {
     if (!latest->deleted) {
@@ -221,7 +221,7 @@ std::optional<TaggedVersion> BlockMerkleCategory::getLatestVersion(const Hash& h
 
 void BlockMerkleCategory::multiGet(const std::vector<std::string>& keys,
                                    const std::vector<BlockId>& versions,
-                                   std::vector<std::optional<MerkleValue>>& values) const {
+                                   std::vector<std::optional<Value>>& values) const {
   ConcordAssertEQ(keys.size(), versions.size());
   auto versioned_keys = versionedKeys(keys, versions);
   multiGet(versioned_keys, versions, values);
@@ -229,7 +229,7 @@ void BlockMerkleCategory::multiGet(const std::vector<std::string>& keys,
 
 void BlockMerkleCategory::multiGet(const std::vector<Buffer>& versioned_keys,
                                    const std::vector<BlockId>& versions,
-                                   std::vector<std::optional<MerkleValue>>& values) const {
+                                   std::vector<std::optional<Value>>& values) const {
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
 
@@ -279,7 +279,7 @@ void BlockMerkleCategory::multiGetLatestVersion(const std::vector<Hash>& hashed_
 }
 
 void BlockMerkleCategory::multiGetLatest(const std::vector<std::string>& keys,
-                                         std::vector<std::optional<MerkleValue>>& values) const {
+                                         std::vector<std::optional<Value>>& values) const {
   auto hashed_keys = hashedKeys(keys);
   std::vector<std::optional<TaggedVersion>> versions;
   multiGetLatestVersion(hashed_keys, versions);
@@ -302,7 +302,7 @@ void BlockMerkleCategory::multiGetLatest(const std::vector<std::string>& keys,
   }
 
   // Retrieve only the keys that have latest versions
-  auto retrieved_values = std::vector<std::optional<MerkleValue>>{};
+  auto retrieved_values = std::vector<std::optional<Value>>{};
   multiGet(versioned_keys, found_versions, retrieved_values);
 
   // Merge any keys that didn't have latest versions along with the retrieved keys.

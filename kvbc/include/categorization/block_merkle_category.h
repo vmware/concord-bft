@@ -41,12 +41,12 @@ class BlockMerkleCategory {
 
   // Return the value of `key` at `block_id`.
   // Return std::nullopt if the key doesn't exist at `block_id`.
-  std::optional<MerkleValue> get(const std::string& key, BlockId block_id) const;
-  std::optional<MerkleValue> get(const Hash& hashed_key, BlockId block_id) const;
+  std::optional<Value> get(const std::string& key, BlockId block_id) const;
+  std::optional<Value> get(const Hash& hashed_key, BlockId block_id) const;
 
   // Return the value of `key` at its most recent block version.
   // Return std::nullopt if the key doesn't exist.
-  std::optional<MerkleValue> getLatest(const std::string& key) const;
+  std::optional<Value> getLatest(const std::string& key) const;
 
   // Returns the latest *block* version of a key.
   // Returns std::nullopt if the key doesn't exist.
@@ -58,11 +58,11 @@ class BlockMerkleCategory {
   // If a key is missing at the specified version, std::nullopt is returned for it.
   void multiGet(const std::vector<std::string>& keys,
                 const std::vector<BlockId>& versions,
-                std::vector<std::optional<MerkleValue>>& values) const;
+                std::vector<std::optional<Value>>& values) const;
 
   // Get the latest values of a list of keys.
   // If a key is missing, std::nullopt is returned for it.
-  void multiGetLatest(const std::vector<std::string>& keys, std::vector<std::optional<MerkleValue>>& values) const;
+  void multiGetLatest(const std::vector<std::string>& keys, std::vector<std::optional<Value>>& values) const;
 
   // Get the latest versions of the given keys.
   // If a key is missing, std::nullopt is returned for its version.
@@ -73,7 +73,7 @@ class BlockMerkleCategory {
  private:
   void multiGet(const std::vector<Buffer>& versioned_keys,
                 const std::vector<BlockId>& versions,
-                std::vector<std::optional<MerkleValue>>& values) const;
+                std::vector<std::optional<Value>>& values) const;
 
   void putKeys(storage::rocksdb::NativeWriteBatch& batch,
                uint64_t block_id,
@@ -110,6 +110,9 @@ class BlockMerkleCategory {
   logging::Logger logger_;
   sparse_merkle::Tree tree_;
 };
+
+inline const MerkleValue& asMerkle(const Value& v) { return std::get<MerkleValue>(v); }
+inline MerkleValue& asMerkle(Value& v) { return std::get<MerkleValue>(v); }
 
 }  // namespace concord::kvbc::categorization::detail
 
