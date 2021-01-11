@@ -143,101 +143,61 @@ std::future<BlockDigest> KeyValueBlockchain::computeParentBlockDigest(const Bloc
 
 /////////////////////// Readers ///////////////////////
 
-const std::variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>&
-KeyValueBlockchain::getCategory(const std::string& cat_id) const {
+const Category& KeyValueBlockchain::getCategory(const std::string& cat_id) const {
   if (categorires_.count(cat_id) == 0) {
     throw std::runtime_error{"Category does not exist = " + cat_id};
   }
   return categorires_.find(cat_id)->second;
 }
 
-std::optional<Value> KeyValueBlockchain::get(const std::string& cat_id,
+std::optional<Value> KeyValueBlockchain::get(const std::string& category_id,
                                              const std::string& key,
                                              BlockId block_id) const {
-  auto category = getCategory(cat_id);
-  std::visit(
-      [&key, &block_id](const auto& cat) {
-        (void)key;
-        (void)block_id;
-        // cat.get(key,block_id);
-        return;
-      },
-      category);
-
-  return std::optional<Value>{};
+  std::optional<Value> ret;
+  std::visit([&key, &block_id, &ret](const auto& category) { ret = category.get(key, block_id); },
+             getCategory(category_id));
+  return ret;
 }
 
-std::optional<Value> KeyValueBlockchain::getLatest(const std::string& cat_id, const std::string& key) const {
-  auto category = getCategory(cat_id);
-  std::visit(
-      [&key](const auto& cat) {
-        (void)key;
-        // cat.getLatest(key);
-        return;
-      },
-      category);
-
-  return std::optional<Value>{};
+std::optional<Value> KeyValueBlockchain::getLatest(const std::string& category_id, const std::string& key) const {
+  std::optional<Value> ret;
+  std::visit([&key, &ret](const auto& category) { ret = category.getLatest(key); }, getCategory(category_id));
+  return ret;
 }
 
-void KeyValueBlockchain::multiGet(const std::string& cat_id,
+void KeyValueBlockchain::multiGet(const std::string& category_id,
                                   const std::vector<std::string>& keys,
                                   const std::vector<BlockId>& versions,
                                   std::vector<std::optional<Value>>& values) const {
-  auto category = getCategory(cat_id);
-  std::visit(
-      [&keys, &versions, &values](const auto& cat) {
-        (void)keys;
-        (void)versions;
-        (void)values;
-        // cat.multiGet(keys,versions,values);
-        return;
-      },
-      category);
+  std::visit([&keys, &versions, &values](const auto& category) { category.multiGet(keys, versions, values); },
+             getCategory(category_id));
 }
 
-void KeyValueBlockchain::multiGetLatest(const std::string& cat_id,
+void KeyValueBlockchain::multiGetLatest(const std::string& category_id,
                                         const std::vector<std::string>& keys,
                                         std::vector<std::optional<Value>>& values) const {
-  auto category = getCategory(cat_id);
-  std::visit(
-      [&keys, &values](const auto& cat) {
-        (void)keys;
-        (void)values;
-        // cat.multiGetLatest(keys,values);
-        return;
-      },
-      category);
+  std::visit([&keys, &values](const auto& category) { category.multiGetLatest(keys, values); },
+             getCategory(category_id));
 }
 
-std::optional<BlockId> KeyValueBlockchain::getLatestVersion(const std::string& cat_id, const std::string& key) const {
-  auto category = getCategory(cat_id);
-  std::visit(
-      [&key](const auto& cat) {
-        (void)key;
-        // cat.getLatestVersion(key);
-        return;
-      },
-      category);
-
-  return std::optional<BlockId>{};
+std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string& category_id,
+                                                                                  const std::string& key) const {
+  std::optional<categorization::TaggedVersion> ret;
+  std::visit([&key, &ret](const auto& category) { ret = category.getLatestVersion(key); }, getCategory(category_id));
+  return ret;
 }
 
-void KeyValueBlockchain::multiGetLatestVersion(const std::string& cat_id,
-                                               const std::vector<std::string>& keys,
-                                               std::vector<std::optional<BlockId>>& versions) const {
-  auto category = getCategory(cat_id);
-  std::visit(
-      [&keys, &versions](const auto& cat) {
-        (void)keys;
-        (void)versions;
-        // cat.multiGetLatestVersion(keys,values);
-        return;
-      },
-      category);
+void KeyValueBlockchain::multiGetLatestVersion(
+    const std::string& category_id,
+    const std::vector<std::string>& keys,
+    std::vector<std::optional<categorization::TaggedVersion>>& versions) const {
+  std::visit([&keys, &versions](const auto& catagory) { catagory.multiGetLatestVersion(keys, versions); },
+             getCategory(category_id));
 }
 
-CategoryInput KeyValueBlockchain::getBlockData(BlockId block_id) { return getRawBlock(block_id).data.updates; }
+Updates KeyValueBlockchain::getBlockUpdates(BlockId block_id) const {
+  return Updates{std::move(getRawBlock(block_id).data.updates)};
+}
 
 /////////////////////// Delete block ///////////////////////
 bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
@@ -514,7 +474,7 @@ RawBlock KeyValueBlockchain::getRawBlock(const BlockId& block_id) const {
   }
 
   // Try from the blockchain itself
-  auto raw_block = block_chain_.getRawBlock(block_id, &categorires_);
+  auto raw_block = block_chain_.getRawBlock(block_id, categorires_);
   if (!raw_block) {
     throw std::runtime_error{"Failed to get block node ID = " + std::to_string(block_id)};
   }

@@ -104,7 +104,7 @@ TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
 
-    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    categorization::RawBlock rw(block1_from_db, db, tester.getCategories(block_chain));
     auto variant = rw.data.updates.kv["merkle"];
     auto merkle_updates = std::get<BlockMerkleInput>(variant);
     // check reconstruction of original kv
@@ -122,7 +122,7 @@ TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
     detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
     auto block2_from_db = Block::deserialize(in);
 
-    categorization::RawBlock rw(block2_from_db, db, &tester.getCategories(block_chain));
+    categorization::RawBlock rw(block2_from_db, db, tester.getCategories(block_chain));
     auto variant = rw.data.updates.kv["merkle"];
     auto merkle_updates = std::get<BlockMerkleInput>(variant);
     // check reconstruction of original kv
@@ -196,7 +196,7 @@ TEST_F(categorized_kvbc, reconstruct_immutable_updates) {
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
 
-    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    categorization::RawBlock rw(block1_from_db, db, tester.getCategories(block_chain));
     auto variant = rw.data.updates.kv["imm"];
     auto imm_updates = std::get<ImmutableInput>(variant);
     // check reconstruction of original kv
@@ -215,7 +215,7 @@ TEST_F(categorized_kvbc, reconstruct_immutable_updates) {
     detail::Buffer in{block2_db_val.value().begin(), block2_db_val.value().end()};
     auto block2_from_db = Block::deserialize(in);
 
-    categorization::RawBlock rw(block2_from_db, db, &tester.getCategories(block_chain));
+    categorization::RawBlock rw(block2_from_db, db, tester.getCategories(block_chain));
     auto variant = rw.data.updates.kv["imm"];
     auto imm_updates = std::get<ImmutableInput>(variant);
     // check reconstruction of original kv
@@ -259,7 +259,7 @@ TEST_F(categorized_kvbc, fail_reconstruct_immutable_updates) {
   cat.deleteBlock(out, wb);
   db->write(std::move(wb));
 
-  ASSERT_DEATH(categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain)), "");
+  ASSERT_DEATH(categorization::RawBlock rw(block1_from_db, db, tester.getCategories(block_chain)), "");
 }
 
 TEST_F(categorized_kvbc, reconstruct_versioned_kv_updates) {
@@ -300,7 +300,7 @@ TEST_F(categorized_kvbc, reconstruct_versioned_kv_updates) {
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
 
-    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    categorization::RawBlock rw(block1_from_db, db, tester.getCategories(block_chain));
     auto variant = rw.data.updates.kv["ver"];
     auto ver_updates = std::get<VersionedInput>(variant);
     // check reconstruction of original kv
@@ -319,7 +319,7 @@ TEST_F(categorized_kvbc, reconstruct_versioned_kv_updates) {
     detail::Buffer in{block1_db_val.value().begin(), block1_db_val.value().end()};
     auto block1_from_db = Block::deserialize(in);
 
-    categorization::RawBlock rw(block1_from_db, db, &tester.getCategories(block_chain));
+    categorization::RawBlock rw(block1_from_db, db, tester.getCategories(block_chain));
     auto variant = rw.data.updates.kv["ver"];
     auto ver_updates = std::get<VersionedInput>(variant);
     // check reconstruction of original kv

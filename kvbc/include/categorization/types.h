@@ -19,8 +19,8 @@
 
 namespace concord::kvbc::categorization {
 
-using CategoriesMap = std::map<
-    std::string,
-    std::variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>>;
+using Category =
+    std::variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>;
+using CategoriesMap = std::map<std::string, Category>;
 
 }  // namespace concord::kvbc::categorization

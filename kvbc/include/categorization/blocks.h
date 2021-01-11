@@ -90,25 +90,25 @@ struct RawBlock {
   RawBlock() = default;
   RawBlock(const Block& block,
            const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-           const CategoriesMap* categorires);
+           const CategoriesMap& categorires);
 
   BlockMerkleInput getUpdates(const std::string& category_id,
                               const BlockMerkleOutput& update_info,
                               const BlockId& block_id,
                               const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                              const CategoriesMap* categorires);
+                              const CategoriesMap& categorires);
 
   VersionedInput getUpdates(const std::string& category_id,
                             const VersionedOutput& update_info,
                             const BlockId& block_id,
                             const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                            const CategoriesMap* categorires);
+                            const CategoriesMap& categorires);
 
   ImmutableInput getUpdates(const std::string& category_id,
                             const ImmutableOutput& update_info,
                             const BlockId& block_id,
                             const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                            const CategoriesMap* categorires);
+                            const CategoriesMap& categorires);
 
   template <typename T>
   static RawBlock deserialize(const T& input) {
