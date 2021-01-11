@@ -50,7 +50,7 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
 
 void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
   auto totalSize = sizeof(Header) + spanContextSize();
-  if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()) || idOfGeneratedReplica() == repInfo.myId())
+  if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
