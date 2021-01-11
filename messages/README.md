@@ -66,6 +66,13 @@ Compound data types may include primitive types and other compound types. We ens
  * oneof - A sum type (tagged union) containing exactly one of the given messages. oneof types cannot contain primitives or compound types, they can only refer to messages. This is useful for deserializing a set of related messages into a given wrapper type. A oneof maps to a `std::variant` in c++.
  * optional - An optional value of any type. An optional maps to a `std::optional` in C++.
 
+ ## C++ Struct Member Initialization
+ C++ struct members are value-initialized via `{}`, effectively:
+* initializing integer types to 0
+* initializing booleans to false
+* value-initializing std::pair members
+* value-initializing std::array members
+
 ## Comments
 
 Comments must be on their own line and start with the `#` character. Leading whitespace is allowed.
