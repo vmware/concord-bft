@@ -266,7 +266,6 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
 }
 
-// TBD: adapt to ClientPreProcessBatchRequestMsg when available
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onMessage);
@@ -332,7 +331,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
     }
     if (seqNumberOfLastReply < reqSeqNum)
       registerSucceeded = registerReplicaDependentRequest(
-          move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, ++(reqEntry->reqRetryId));
+          move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
   }
 
   if (myReplica_.isCurrentPrimary() && registerSucceeded)
@@ -346,16 +345,15 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
 
 template <>
 void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
-  ClientBatchRequestMsgUniquePtr clientBatchReqMsg(msg);
-  LOG_DEBUG(
-      logger(),
-      "Received ClientBatchPreProcessRequestMsg" << KVLOG(
-          clientBatchReqMsg->clientId(), clientBatchReqMsg->numOfMessagesInBatch(), clientBatchReqMsg->batchSize()));
-  if (!checkClientBatchMsgCorrectness(clientBatchReqMsg)) {
+  ClientBatchRequestMsgUniquePtr clientBatch(msg);
+  LOG_DEBUG(logger(),
+            "Received ClientBatchPreProcessRequestMsg"
+                << KVLOG(clientBatch->clientId(), clientBatch->numOfMessagesInBatch(), clientBatch->batchSize()));
+  if (!checkClientBatchMsgCorrectness(clientBatch)) {
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
-  ClientMsgsList &clientMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
+  ClientMsgsList &clientMsgs = clientBatch->getClientPreProcessRequestMsgs();
   uint16_t offset = 0;
   for (auto &clientMsg : clientMsgs) {
     LOG_DEBUG(logger(),

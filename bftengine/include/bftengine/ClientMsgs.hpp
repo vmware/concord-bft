@@ -23,6 +23,8 @@ namespace bftEngine {
 #pragma pack(push, 1)
 
 struct ClientBatchRequestMsgHeader {
+  uint16_t msgType;  // always == BATCH_REQUEST_MSG_TYPE
+  uint32_t cidSize;
   uint16_t clientId;
   uint32_t numOfMessagesInBatch;
   uint32_t dataSize;

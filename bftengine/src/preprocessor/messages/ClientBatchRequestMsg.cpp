@@ -18,16 +18,26 @@ using namespace std;
 
 ClientBatchRequestMsg::ClientBatchRequestMsg(NodeIdType clientId,
                                              const std::deque<ClientRequestMsg*>& batch,
-                                             uint32_t batchBufSize)
-    : MessageBase(clientId, MsgCode::ClientBatchRequest, 0, sizeof(ClientBatchRequestMsgHeader) + batchBufSize) {
+                                             uint32_t batchBufSize,
+                                             const string& cid)
+    : MessageBase(
+          clientId, MsgCode::ClientBatchRequest, 0, sizeof(ClientBatchRequestMsgHeader) + cid.size() + batchBufSize) {
+  const auto& numOfMessagesInBatch = batch.size();
+  msgBody()->msgType = MsgCode::ClientBatchRequest;
+  msgBody()->cidSize = cid.size();
   msgBody()->clientId = clientId;
-  msgBody()->numOfMessagesInBatch = batch.size();
+  msgBody()->numOfMessagesInBatch = numOfMessagesInBatch;
   msgBody()->dataSize = batchBufSize;
   char* data = body() + sizeof(ClientBatchRequestMsgHeader);
+  if (cid.size()) {
+    memcpy(data, cid.c_str(), cid.size());
+    data += cid.size();
+  }
   for (auto const& msg : batch) {
     memcpy(data, msg->body(), msg->size());
     data += msg->size();
   }
+  LOG_DEBUG(logger(), KVLOG(cid, clientId, numOfMessagesInBatch, batchBufSize));
 }
 
 void ClientBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
@@ -41,7 +51,7 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
   if (!clientMsgsList_.empty()) return clientMsgsList_;
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
-  char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader);
+  char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(ClientRequestMsgHeader*)dataPosition;
     const char* spanDataPosition = dataPosition + sizeof(ClientRequestMsgHeader);

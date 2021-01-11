@@ -48,7 +48,7 @@ enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, I
 
 struct ClientRequest {
   uint8_t flags = 0;
-  const char* request = nullptr;
+  std::vector<uint8_t> request;
   uint32_t lengthOfRequest = 0;
   uint64_t reqSeqNum = 0;
   uint64_t timeoutMilli = 0;
@@ -96,11 +96,12 @@ class SimpleClient {
                                       char* replyBuffer,
                                       uint32_t& actualReplyLength,
                                       const std::string& cid = "",
-                                      const std::string& span_context = "") = 0;
+                                      const std::string& spanContext = "") = 0;
 
   // To be used only for write requests
   virtual OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
-                                    std::deque<ClientReply>& clientReplies) = 0;
+                                    std::deque<ClientReply>& clientReplies,
+                                    const std::string& cid) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

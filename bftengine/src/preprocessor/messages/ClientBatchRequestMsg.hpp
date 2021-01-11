@@ -14,6 +14,7 @@
 #include "ClientPreProcessRequestMsg.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
+#include "Logger.hpp"
 #include <deque>
 
 namespace bftEngine::impl {
@@ -25,10 +26,13 @@ class ClientBatchRequestMsg : public MessageBase {
   static_assert(sizeof(ClientBatchRequestMsgHeader::clientId) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientBatchRequestMsgHeader::numOfMessagesInBatch) == sizeof(uint32_t), "");
   static_assert(sizeof(ClientBatchRequestMsgHeader::dataSize) == sizeof(uint32_t), "");
-  static_assert(sizeof(ClientBatchRequestMsgHeader) == 10, "ClientBatchRequestMsgHeader size is 10B");
+  static_assert(sizeof(ClientBatchRequestMsgHeader) == 16, "ClientBatchRequestMsgHeader size is 16B");
 
  public:
-  ClientBatchRequestMsg(NodeIdType clientId, const std::deque<ClientRequestMsg*>& batch, uint32_t batchBufSize);
+  ClientBatchRequestMsg(NodeIdType clientId,
+                        const std::deque<ClientRequestMsg*>& batch,
+                        uint32_t batchBufSize,
+                        const std::string& cid);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ClientBatchRequestMsg)
 
@@ -42,6 +46,10 @@ class ClientBatchRequestMsg : public MessageBase {
   ClientBatchRequestMsgHeader* msgBody() const { return ((ClientBatchRequestMsgHeader*)msgBody_); }
 
  private:
+  static logging::Logger& logger() {
+    static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
+    return logger_;
+  }
   ClientMsgsList clientMsgsList_;
 };
 

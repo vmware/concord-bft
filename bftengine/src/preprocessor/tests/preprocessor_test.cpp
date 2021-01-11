@@ -515,7 +515,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
     batch.push_back(clientReqMsg);
     batchSize += clientReqMsg->size();
   }
-  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize);
+  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 5);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 6);
@@ -548,7 +548,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
     batch.push_back(clientReqMsg);
     batchSize += clientReqMsg->size();
   }
-  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize);
+  auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 5);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 6);

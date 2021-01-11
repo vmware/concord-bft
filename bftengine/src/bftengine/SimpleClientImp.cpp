@@ -50,9 +50,11 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                               char* replyBuffer,
                               uint32_t& actualReplyLength,
                               const std::string& cid,
-                              const std::string& span_context) override;
+                              const std::string& spanContext) override;
 
-  OperationResult sendBatch(const deque<ClientRequest>& clientRequests, deque<ClientReply>& clientReplies) override;
+  OperationResult sendBatch(const deque<ClientRequest>& clientRequests,
+                            deque<ClientReply>& clientReplies,
+                            const std::string& cid) override;
 
   // IReceiver methods
   void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) override;
@@ -72,9 +74,9 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
 
  protected:
   bool isSystemReady() const;
-  void sendPendingRequest();
+  void sendPendingRequest(const std::string& cid);
   void onMessageFromReplica(MessageBase* msg);
-  void onRetransmission();
+  void onRetransmission(const std::string& cid);
   void reset();
   bool allRequiredRepliesReceived();
   void sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size);
@@ -82,7 +84,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   OperationResult isBatchRequestValid(const ClientRequest& req);
   OperationResult preparePendingRequestsFromBatch(const deque<ClientRequest>& clientRequests, uint64_t& maxTimeToWait);
   void verifySendRequestPrerequisites();
-  tuple<bool, bool> pendingRequestProcessing(const Time& beginTime, uint64_t reqTimeoutMilli);
+  tuple<bool, bool> pendingRequestProcessing(const Time& beginTime, uint64_t reqTimeoutMilli, const std::string& cid);
 
  protected:
   static const uint32_t maxLegalMsgSize_ = 64 * 1024;  // TODO(GG): ???
@@ -165,9 +167,9 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   if (elem->second.isInconsistent()) elem->second.resetAndFree();
 }
 
-void SimpleClientImp::onRetransmission() {
+void SimpleClientImp::onRetransmission(const std::string& cid) {
   client_metrics_.retransmissions.Get().Inc();
-  sendPendingRequest();
+  sendPendingRequest(cid);
 }
 
 // in this version we assume that the set of replicas is 0,1,2,...,numberOfReplicas (TODO(GG): should be changed to
@@ -226,7 +228,9 @@ void SimpleClientImp::verifySendRequestPrerequisites() {
   ConcordAssert(numberOfTransmissions_ == 0);
 }
 
-tuple<bool, bool> SimpleClientImp::pendingRequestProcessing(const Time& beginTime, uint64_t reqTimeoutMilli) {
+tuple<bool, bool> SimpleClientImp::pendingRequestProcessing(const Time& beginTime,
+                                                            uint64_t reqTimeoutMilli,
+                                                            const std::string& cid) {
   bool requestCommitted = false;
   bool requestTimedOut = false;
   auto predicate = [this] { return !msgQueue_.empty(); };
@@ -258,7 +262,7 @@ tuple<bool, bool> SimpleClientImp::pendingRequestProcessing(const Time& beginTim
     }
     if ((uint64_t)duration_cast<milliseconds>(currTime - timeOfLastTransmission_).count() >
         limitOfExpectedOperationTime_.upperLimit()) {
-      onRetransmission();
+      onRetransmission(cid);
     }
   }
   return {requestCommitted, requestTimedOut};
@@ -273,7 +277,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                                              char* replyBuffer,
                                              uint32_t& actualReplyLength,
                                              const std::string& cid,
-                                             const std::string& span_context) {
+                                             const std::string& spanContext) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
@@ -287,7 +291,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                   lenOfRequest,
                   reqTimeoutMilli,
                   maxRetransmissionTimeout,
-                  span_context.empty()));
+                  spanContext.empty()));
   ConcordAssert(!(isReadOnly && isPreProcessRequired));
 
   if (!communication_->isRunning()) communication_->Start();
@@ -301,18 +305,18 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
   verifySendRequestPrerequisites();
   const Time beginTime = getMonotonicTime();
   ClientRequestMsg* reqMsg;
-  concordUtils::SpanContext ctx{span_context};
+  concordUtils::SpanContext ctx{spanContext};
   if (isPreProcessRequired)
     reqMsg = new ClientPreProcessRequestMsg(clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
   else
     reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
   pendingRequest_.push_back(reqMsg);
-  sendPendingRequest();
+  sendPendingRequest(cid);
 
   client_metrics_.retransmissionTimer.Get().Set(maxRetransmissionTimeout);
   metrics_.UpdateAggregator();
 
-  auto [requestCommitted, requestTimedOut] = pendingRequestProcessing(beginTime, reqTimeoutMilli);
+  auto [requestCommitted, requestTimedOut] = pendingRequestProcessing(beginTime, reqTimeoutMilli, cid);
   if (requestCommitted) {
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
@@ -383,11 +387,10 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
   OperationResult res = SUCCESS;
   ClientRequestMsg* reqMsg = nullptr;
   const auto& maxRetransmissionTimeout = limitOfExpectedOperationTime_.upperLimit();
-  string cid;
   for (auto& req : clientRequests) {
     res = isBatchRequestValid(req);
     if (res != SUCCESS) return res;
-    cid = req.cid.empty() ? to_string(req.reqSeqNum) + "-" + to_string(clientId_) : req.cid;
+    const auto& cid = req.cid.empty() ? to_string(req.reqSeqNum) + "-" + to_string(clientId_) : req.cid;
     if (maxTimeToWait != INFINITE_TIMEOUT) {
       if (req.timeoutMilli != INFINITE_TIMEOUT)
         maxTimeToWait += req.timeoutMilli;
@@ -403,15 +406,22 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
                     maxRetransmissionTimeout,
                     req.span_context.empty()));
     concordUtils::SpanContext ctx{req.span_context};
-    reqMsg = new ClientRequestMsg(
-        clientId_, req.flags, req.reqSeqNum, req.lengthOfRequest, req.request, req.timeoutMilli, cid, ctx);
+    reqMsg = new ClientRequestMsg(clientId_,
+                                  req.flags,
+                                  req.reqSeqNum,
+                                  req.lengthOfRequest,
+                                  (char*)req.request.data(),
+                                  req.timeoutMilli,
+                                  cid,
+                                  ctx);
     pendingRequest_.push_back(reqMsg);
   }
   return res;
 }
 
 OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientRequests,
-                                           deque<ClientReply>& clientReplies) {
+                                           deque<ClientReply>& clientReplies,
+                                           const std::string& cid) {
   OperationResult res = isBatchValid(clientRequests.size(), clientReplies.size());
   if (res != SUCCESS) return res;
 
@@ -421,13 +431,13 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
 
   verifySendRequestPrerequisites();
   const Time beginTime = getMonotonicTime();
-  sendPendingRequest();
+  sendPendingRequest(cid);
 
   const auto& maxRetransmissionTimeout = limitOfExpectedOperationTime_.upperLimit();
   client_metrics_.retransmissionTimer.Get().Set(maxRetransmissionTimeout);
   metrics_.UpdateAggregator();
 
-  auto [requestCommitted, requestTimedOut] = pendingRequestProcessing(beginTime, maxTimeToWait);
+  auto [requestCommitted, requestTimedOut] = pendingRequestProcessing(beginTime, maxTimeToWait, cid);
   if (requestCommitted) {
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
@@ -519,7 +529,7 @@ void SimpleClientImp::sendRequestToAllOrToPrimary(bool sendToAll, char* data, ui
     communication_->sendAsyncMessage(knownPrimaryReplica_, data, size);
 }
 
-void SimpleClientImp::sendPendingRequest() {
+void SimpleClientImp::sendPendingRequest(const std::string& cid) {
   ConcordAssert(!pendingRequest_.empty());
 
   timeOfLastTransmission_ = getMonotonicTime();
@@ -551,7 +561,7 @@ void SimpleClientImp::sendPendingRequest() {
 
   uint32_t batchBufSize = 0;
   for (auto const& msg : pendingRequest_) batchBufSize += msg->size();
-  ClientBatchRequestMsg* batchMsg = new ClientBatchRequestMsg(clientId_, pendingRequest_, batchBufSize);
+  ClientBatchRequestMsg* batchMsg = new ClientBatchRequestMsg(clientId_, pendingRequest_, batchBufSize, cid);
   sendRequestToAllOrToPrimary(sendToAll, batchMsg->body(), batchMsg->size());
   delete batchMsg;
 }
