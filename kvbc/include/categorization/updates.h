@@ -148,6 +148,7 @@ struct BlockMerkleUpdates {
 struct Updates {
   Updates() = default;
   Updates(CategoryInput&& updates) : category_updates_{std::move(updates)} {}
+  bool operator==(const Updates& other) { return category_updates_ == other.category_updates_; }
   void add(const std::string& category_id, BlockMerkleUpdates&& updates) {
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {

@@ -631,7 +631,18 @@ TEST_F(categorized_kvbc, get_block_data) {
     ver_updates.addUpdate("ver_key1", "ver_val1");
     ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
     updates.add("versioned", std::move(ver_updates));
+    Updates updates_copy = updates;
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.calculateRootHash(true);
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    auto up_before_move = updates;
+
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+    auto reconstructed_updates = block_chain.getBlockUpdates(1);
+    ASSERT_TRUE(up_before_move == reconstructed_updates);
   }
   // Add block2
   {
@@ -639,33 +650,36 @@ TEST_F(categorized_kvbc, get_block_data) {
     BlockMerkleUpdates merkle_updates;
     merkle_updates.addUpdate("merkle_key3", "merkle_value3");
     merkle_updates.addDelete("merkle_key1");
+    merkle_updates.addUpdate("merkle_key2", "update");
     updates.add("merkle", std::move(merkle_updates));
 
     VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(false);
     ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
     ver_updates.addDelete("ver_key2");
     updates.add("versioned", std::move(ver_updates));
 
     VersionedUpdates ver_updates_2;
+    ver_updates_2.calculateRootHash(true);
     ver_updates_2.addUpdate("ver_key4", "ver_val4");
     updates.add("versioned_2", std::move(ver_updates_2));
 
     ImmutableUpdates immutable_updates;
+    immutable_updates.calculateRootHash(false);
+    immutable_updates.addUpdate("immutable_key1", {"ddd", {"1", "2"}});
     immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
     updates.add("immutable", std::move(immutable_updates));
+
+    auto up_before_move = updates;
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+    auto reconstructed_updates = block_chain.getBlockUpdates(2);
+    ASSERT_TRUE(up_before_move == reconstructed_updates);
   }
 
   // try to get updates
-  ASSERT_THROW(block_chain.getBlockData(889), std::runtime_error);
-  ASSERT_THROW(block_chain.getBlockData(887), std::runtime_error);
-  auto updates = block_chain.getBlockData(1);
-  auto variant = updates.kv["versioned"];
-  auto versioned_updates = std::get<VersionedInput>(variant);
-  // check reconstruction of original kv
-  ASSERT_TRUE(versioned_updates.calculate_root_hash);
-  auto expected = ValueWithFlags{"ver_val2", true};
-  ASSERT_EQ(versioned_updates.kv["ver_key2"], expected);
+  ASSERT_THROW(block_chain.getBlockUpdates(889), std::runtime_error);
+  ASSERT_THROW(block_chain.getBlockUpdates(887), std::runtime_error);
 }
 
 TEST_F(categorized_kvbc, validate_category_creation_on_add) {
@@ -709,6 +723,740 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
   ASSERT_EQ(raw_from_api_imm_data.kv["key"].tags, vec);
 
   // ASSERT_EQ(raw_from_api.data, last_raw.second.value().data);
+}
+
+TEST_F(categorized_kvbc, single_read_with_version) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  ASSERT_THROW(block_chain.get("non_exist", "key", 1), std::runtime_error);
+  ASSERT_FALSE(block_chain.get("merkle", "non_exist", 1).has_value());
+  ASSERT_FALSE(block_chain.get("versioned", "non_exist", 1).has_value());
+  ASSERT_FALSE(block_chain.get("immutable", "non_exist", 1).has_value());
+  auto ex1 = categorization::MerkleValue{{1, "merkle_value1"}};
+  ASSERT_EQ(std::get<categorization::MerkleValue>(block_chain.get("merkle", "merkle_key1", 1).value()), ex1);
+  auto ex2 = categorization::VersionedValue{{1, "ver_val1"}};
+  ASSERT_EQ(std::get<categorization::VersionedValue>(block_chain.get("versioned", "ver_key1", 1).value()), ex2);
+  auto ex_imm = categorization::ImmutableValue{{1, "immutable_val1"}};
+  ASSERT_EQ(std::get<categorization::ImmutableValue>(block_chain.get("immutable", "immutable_key1", 1).value()),
+            ex_imm);
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  // added at block 1 but requested version 2
+  ASSERT_FALSE(block_chain.get("merkle", "merkle_key2", 2).has_value());
+
+  // deleted
+  // At version 1 key exists
+  ASSERT_TRUE(block_chain.get("merkle", "merkle_key1", 1).has_value());
+  ASSERT_EQ(std::get<categorization::MerkleValue>(block_chain.get("merkle", "merkle_key1", 1).value()), ex1);
+  // At version 2 key deleted
+  ASSERT_FALSE(block_chain.get("merkle", "merkle_key1", 2).has_value());
+  // At version 1 key exists
+  ASSERT_TRUE(block_chain.get("versioned", "ver_key2", 1).has_value());
+  auto ex3 = categorization::VersionedValue{{1, "ver_val2"}};
+  ASSERT_EQ(std::get<categorization::VersionedValue>(block_chain.get("versioned", "ver_key2", 1).value()), ex3);
+  // At version 2 key deleted
+  ASSERT_FALSE(block_chain.get("versioned", "ver_key2", 2).has_value());
+
+  // update
+  // at version 1 is the original value
+  ASSERT_EQ(std::get<categorization::VersionedValue>(block_chain.get("versioned", "ver_key1", 1).value()), ex2);
+  auto ex4 = categorization::VersionedValue{{2, "update"}};
+  ASSERT_EQ(std::get<categorization::VersionedValue>(block_chain.get("versioned", "ver_key1", 2).value()), ex4);
+  // Immutable for version 1 now does not exist
+  ASSERT_FALSE(block_chain.get("immutable", "immutable_key1", 1).has_value());
+  // Immutable for version 2
+  auto ex_imm2 = categorization::ImmutableValue{{2, "update"}};
+  ASSERT_EQ(std::get<categorization::ImmutableValue>(block_chain.get("immutable", "immutable_key1", 2).value()),
+            ex_imm2);
+}
+
+TEST_F(categorized_kvbc, single_get_latest) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  ASSERT_FALSE(block_chain.getLatest("merkle", "non_exist").has_value());
+  ASSERT_FALSE(block_chain.getLatest("versioned", "non_exist").has_value());
+  ASSERT_FALSE(block_chain.getLatest("immutable", "non_exist").has_value());
+  auto ex1 = categorization::MerkleValue{{1, "merkle_value1"}};
+  ASSERT_EQ(std::get<categorization::MerkleValue>(block_chain.getLatest("merkle", "merkle_key1").value()), ex1);
+  auto ex2 = categorization::VersionedValue{{1, "ver_val1"}};
+  ASSERT_EQ(std::get<categorization::VersionedValue>(block_chain.getLatest("versioned", "ver_key1").value()), ex2);
+  auto ex_imm = categorization::ImmutableValue{{1, "immutable_val1"}};
+  ASSERT_EQ(std::get<categorization::ImmutableValue>(block_chain.getLatest("immutable", "immutable_key1").value()),
+            ex_imm);
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  // added at block 1
+  auto ex_mer = categorization::MerkleValue{{1, "merkle_value2"}};
+  ASSERT_EQ(std::get<categorization::MerkleValue>(block_chain.getLatest("merkle", "merkle_key2").value()), ex_mer);
+
+  // deleted
+  ASSERT_FALSE(block_chain.getLatest("merkle", "merkle_key1").has_value());
+  ASSERT_FALSE(block_chain.getLatest("versioned", "ver_key2").has_value());
+
+  // update
+  auto ex4 = categorization::VersionedValue{{2, "update"}};
+  ASSERT_EQ(std::get<categorization::VersionedValue>(block_chain.getLatest("versioned", "ver_key1").value()), ex4);
+
+  // Immutable for version 2
+  auto ex_imm2 = categorization::ImmutableValue{{2, "update"}};
+  ASSERT_EQ(std::get<categorization::ImmutableValue>(block_chain.getLatest("immutable", "immutable_key1").value()),
+            ex_imm2);
+}
+
+TEST_F(categorized_kvbc, multi_read_with_version) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  // Add block3
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "update");
+    merkle_updates.addUpdate("merkle_key4", "merkle_value4");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "update");
+    ver_updates_2.addUpdate("ver_key5", "ver_val6");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update2", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)3);
+  }
+
+  // Merkle
+  {
+    std::vector<std::string> merkle_keys{
+        "merkle_key1", "merkle_key2", "merkle_key3", "merkle_key4", "merkle_key3", "merkle_key1"};
+    std::vector<BlockId> bad_size{3, 4, 2, 1};
+    std::vector<std::optional<categorization::Value>> values;
+    ASSERT_DEATH(block_chain.multiGet("merkle", merkle_keys, bad_size, values), "");
+    // #0 -> merkle_value1 | #1 -> not exist | #2 -> merkle_value3 | #3 merkle_key4 -> not exist | #4 -> update | #5 ->
+    // not exist(deleted)
+    std::vector<BlockId> versions{1, 2, 2, 1, 3, 2};
+    block_chain.multiGet("merkle", merkle_keys, versions, values);
+    ASSERT_FALSE(values[1].has_value());
+    ASSERT_FALSE(values[3].has_value());
+    ASSERT_FALSE(values[5].has_value());
+    auto ex0 = categorization::MerkleValue{{1, "merkle_value1"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[0].value()), ex0);
+    auto ex1 = categorization::MerkleValue{{2, "merkle_value3"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[2].value()), ex1);
+    auto ex2 = categorization::MerkleValue{{3, "update"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[4].value()), ex2);
+  }
+  // Versioned
+  {
+    std::vector<std::string> keys{
+        "ver_key1", "ver_key1", "ver_key1", "ver_key2", "ver_key2", "ver_key3", "ver_key3", "dummy"};
+    std::vector<BlockId> bad_size{3};
+    std::vector<std::optional<categorization::Value>> values;
+    ASSERT_DEATH(block_chain.multiGet("versioned", keys, bad_size, values), "");
+    // #0 -> ver_val1 | #1 -> update | #2 -> not exist | #3-> ver_val2 | #4 -> not exist(deleted) |#5 -> ver_val3 |#6 ->
+    // not exist | #7 -> not exist
+    std::vector<BlockId> versions{1, 2, 3, 1, 2, 2, 12, 1};
+    block_chain.multiGet("versioned", keys, versions, values);
+    ASSERT_FALSE(values[2].has_value());
+    ASSERT_FALSE(values[4].has_value());
+    ASSERT_FALSE(values[6].has_value());
+    ASSERT_FALSE(values[7].has_value());
+    auto ex0 = categorization::VersionedValue{{1, "ver_val1"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[0].value()), ex0);
+    auto ex1 = categorization::VersionedValue{{2, "update"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[1].value()), ex1);
+    auto ex2 = categorization::VersionedValue{{1, "ver_val2"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[3].value()), ex2);
+    auto ex3 = categorization::VersionedValue{{2, "ver_val3"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[5].value()), ex3);
+  }
+
+  // Versioned_2
+  {
+    std::vector<std::string> keys{"ver_key4", "ver_key5"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> ver_val4 | #1 -> ver_val6
+    std::vector<BlockId> versions{2, 3};
+    block_chain.multiGet("versioned_2", keys, versions, values);
+    auto ex0 = categorization::VersionedValue{{2, "ver_val4"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[0].value()), ex0);
+    auto ex1 = categorization::VersionedValue{{3, "ver_val6"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[1].value()), ex1);
+  }
+
+  // Immutable
+  {
+    std::vector<std::string> keys{
+        "immutable_key1", "immutable_key1", "immutable_key1", "immutable_key2", "immutable_key2", "dummy"};
+    std::vector<BlockId> bad_size{3};
+    std::vector<std::optional<categorization::Value>> values;
+    ASSERT_DEATH(block_chain.multiGet("immutable", keys, bad_size, values), "");
+    // #0 -> not exist | #1 -> not exist | #2 -> update2 | #3->immutable_val2 | #4 -> not exist | #5 -> not exist
+    std::vector<BlockId> versions{1, 2, 3, 3, 12, 3};
+    block_chain.multiGet("immutable", keys, versions, values);
+    ASSERT_FALSE(values[0].has_value());
+    ASSERT_FALSE(values[1].has_value());
+    ASSERT_FALSE(values[4].has_value());
+    ASSERT_FALSE(values[5].has_value());
+    auto ex0 = categorization::ImmutableValue{{3, "update2"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[2].value()), ex0);
+    auto ex1 = categorization::ImmutableValue{{3, "immutable_val2"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[3].value()), ex1);
+  }
+}
+
+TEST_F(categorized_kvbc, multi_read_latest) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  // Merkle
+  {
+    std::vector<std::string> merkle_keys{"merkle_key1", "merkle_key2", "merkle_key3"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> merkle_value1 | #1 -> merkle_value2 | #2 -> not exist
+    block_chain.multiGetLatest("merkle", merkle_keys, values);
+    ASSERT_FALSE(values[2].has_value());
+    auto ex0 = categorization::MerkleValue{{1, "merkle_value1"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[0].value()), ex0);
+    auto ex1 = categorization::MerkleValue{{1, "merkle_value2"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[1].value()), ex1);
+  }
+
+  // Versioned
+  {
+    std::vector<std::string> keys{"ver_key1", "ver_key2", "ver_key3"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> ver_val1 | #1 -> ver_val2 | #2 -> not exist
+    block_chain.multiGetLatest("versioned", keys, values);
+    ASSERT_FALSE(values[2].has_value());
+    auto ex0 = categorization::VersionedValue{{1, "ver_val1"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[0].value()), ex0);
+    auto ex1 = categorization::VersionedValue{{1, "ver_val2"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[1].value()), ex1);
+  }
+
+  // Immutable
+  {
+    std::vector<std::string> keys{"immutable_key1", "immutable_key2", "dummy"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> immutable_val1 | #1 -> immutable_val2 | #2 -> not exist
+    block_chain.multiGetLatest("immutable", keys, values);
+    ASSERT_FALSE(values[2].has_value());
+    auto ex0 = categorization::ImmutableValue{{1, "immutable_val1"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[0].value()), ex0);
+    auto ex1 = categorization::ImmutableValue{{1, "immutable_val2"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[1].value()), ex1);
+  }
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  // Merkle
+  {
+    std::vector<std::string> merkle_keys{"merkle_key1", "merkle_key2", "merkle_key3"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> not exist | #1 -> merkle_value2 | #2 -> merkle_value3
+    block_chain.multiGetLatest("merkle", merkle_keys, values);
+    ASSERT_FALSE(values[0].has_value());
+    auto ex0 = categorization::MerkleValue{{1, "merkle_value2"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[1].value()), ex0);
+    auto ex1 = categorization::MerkleValue{{2, "merkle_value3"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[2].value()), ex1);
+  }
+
+  // Versioned
+  {
+    std::vector<std::string> keys{"ver_key1", "ver_key2", "ver_key3"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> update | #1 -> not exist | #2 -> ver_val3
+    block_chain.multiGetLatest("versioned", keys, values);
+    ASSERT_FALSE(values[1].has_value());
+    auto ex0 = categorization::VersionedValue{{2, "update"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[0].value()), ex0);
+    auto ex1 = categorization::VersionedValue{{2, "ver_val3"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[2].value()), ex1);
+  }
+
+  // Immutable
+  {
+    std::vector<std::string> keys{"immutable_key1", "immutable_key2", "dummy"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> update | #1 -> immutable_val2 | #2 -> not exist
+    block_chain.multiGetLatest("immutable", keys, values);
+    ASSERT_FALSE(values[2].has_value());
+    auto ex0 = categorization::ImmutableValue{{2, "update"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[0].value()), ex0);
+    auto ex1 = categorization::ImmutableValue{{1, "immutable_val2"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[1].value()), ex1);
+  }
+
+  // Add block3
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "update");
+    merkle_updates.addUpdate("merkle_key4", "merkle_value4");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key4", "update");
+    ver_updates.addDelete("ver_key1");
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)3);
+  }
+
+  // Merkle
+  {
+    std::vector<std::string> merkle_keys{"merkle_key1", "merkle_key2", "merkle_key3", "merkle_key4"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> not exist | #1 -> merkle_value2 | #2 -> update | #4 -> merkle_key4
+    block_chain.multiGetLatest("merkle", merkle_keys, values);
+    ASSERT_FALSE(values[0].has_value());
+    auto ex0 = categorization::MerkleValue{{1, "merkle_value2"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[1].value()), ex0);
+    auto ex1 = categorization::MerkleValue{{3, "update"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[2].value()), ex1);
+    auto ex2 = categorization::MerkleValue{{3, "merkle_value4"}};
+    ASSERT_EQ(std::get<categorization::MerkleValue>(values[3].value()), ex2);
+  }
+
+  // Versioned
+  {
+    std::vector<std::string> keys{"ver_key1", "ver_key2", "ver_key3", "ver_key4"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> not exist | #1 -> not exist | #2 -> ver_val3 | #3 -> update
+    block_chain.multiGetLatest("versioned", keys, values);
+    ASSERT_FALSE(values[0].has_value());
+    ASSERT_FALSE(values[1].has_value());
+    auto ex0 = categorization::VersionedValue{{2, "ver_val3"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[2].value()), ex0);
+    auto ex1 = categorization::VersionedValue{{3, "update"}};
+    ASSERT_EQ(std::get<categorization::VersionedValue>(values[3].value()), ex1);
+  }
+
+  // Immutable
+  {
+    std::vector<std::string> keys{"immutable_key1", "immutable_key2", "dummy"};
+    std::vector<std::optional<categorization::Value>> values;
+    // #0 -> update2 | #1 -> immutable_val2 | #2 -> not exist
+    block_chain.multiGetLatest("immutable", keys, values);
+    ASSERT_FALSE(values[2].has_value());
+    auto ex0 = categorization::ImmutableValue{{3, "update2"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[0].value()), ex0);
+    auto ex1 = categorization::ImmutableValue{{1, "immutable_val2"}};
+    ASSERT_EQ(std::get<categorization::ImmutableValue>(values[1].value()), ex1);
+  }
+}
+
+TEST_F(categorized_kvbc, single_get_latest_version) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  // Merkle
+  {
+    ASSERT_FALSE(block_chain.getLatestVersion("merkle", "dummy").has_value());
+    ASSERT_FALSE(block_chain.getLatestVersion("merkle", "merkle_key1").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("merkle", "merkle_key1").value().version, 1);
+  }
+
+  // Versioned
+  {
+    ASSERT_FALSE(block_chain.getLatestVersion("versioned", "dummy").has_value());
+    ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key1").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("versioned", "ver_key1").value().version, 1);
+  }
+
+  // Immutable
+  {
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "dummy").has_value());
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key1").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("immutable", "immutable_key1").value().version, 1);
+  }
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  // Merkle
+  {
+    ASSERT_TRUE(block_chain.getLatestVersion("merkle", "merkle_key1").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("merkle", "merkle_key1").value().version, 2);
+
+    ASSERT_FALSE(block_chain.getLatestVersion("merkle", "merkle_key3").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("merkle", "merkle_key3").value().version, 2);
+
+    ASSERT_FALSE(block_chain.getLatestVersion("merkle", "merkle_key2").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("merkle", "merkle_key2").value().version, 1);
+  }
+
+  // Versioned
+  {
+    ASSERT_TRUE(block_chain.getLatestVersion("versioned", "ver_key2").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("versioned", "ver_key2").value().version, 2);
+
+    ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key1").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("versioned", "ver_key1").value().version, 2);
+
+    ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key3").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("versioned", "ver_key3").value().version, 2);
+  }
+
+  // Immutable
+  {
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key1").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("immutable", "immutable_key1").value().version, 2);
+
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key2").value().deleted);
+    ASSERT_EQ(block_chain.getLatestVersion("immutable", "immutable_key2").value().version, 1);
+  }
+}
+
+TEST_F(categorized_kvbc, multi_get_latest_version) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block1
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    ver_updates.addUpdate("ver_key0", "v");
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    immutable_updates.addUpdate("immutable_key2", {"immutable_val2", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+  }
+
+  // Merkle
+  {
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    std::vector<std::string> keys{"dummy", "merkle_key1"};
+    block_chain.multiGetLatestVersion("merkle", keys, versions);
+    ASSERT_FALSE(versions[0].has_value());
+    ASSERT_EQ(versions[1].value().version, 1);
+  }
+
+  // Versioned
+  {
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    std::vector<std::string> keys{"dummy", "ver_key1"};
+    block_chain.multiGetLatestVersion("versioned", keys, versions);
+    ASSERT_FALSE(versions[0].has_value());
+    ASSERT_EQ(versions[1].value().version, 1);
+  }
+
+  // Immutable
+  {
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    std::vector<std::string> keys{"dummy", "immutable_key1"};
+    block_chain.multiGetLatestVersion("immutable", keys, versions);
+    ASSERT_FALSE(versions[0].has_value());
+    ASSERT_EQ(versions[1].value().version, 1);
+  }
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3", "merkle_value3");
+    merkle_updates.addDelete("merkle_key1");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("ver_key3", "ver_val3");
+    ver_updates.addUpdate("ver_key1", "update");
+    ver_updates.addDelete("ver_key2");
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates_2;
+    ver_updates_2.addUpdate("ver_key4", "ver_val4");
+    updates.add("versioned_2", std::move(ver_updates_2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"update", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+  }
+
+  // Merkle
+  {
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    std::vector<std::string> keys{"merkle_key1", "merkle_key3", "merkle_key2"};
+    block_chain.multiGetLatestVersion("merkle", keys, versions);
+    ASSERT_TRUE(versions[0].value().deleted);
+    ASSERT_EQ(versions[0].value().version, 2);
+
+    ASSERT_FALSE(versions[1].value().deleted);
+    ASSERT_EQ(versions[1].value().version, 2);
+
+    ASSERT_FALSE(versions[2].value().deleted);
+    ASSERT_EQ(versions[2].value().version, 1);
+  }
+
+  // Versioned
+  {
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    std::vector<std::string> keys{"ver_key2", "ver_key1", "ver_key3", "ver_key0"};
+    block_chain.multiGetLatestVersion("versioned", keys, versions);
+    ASSERT_TRUE(versions[0].value().deleted);
+    ASSERT_EQ(versions[0].value().version, 2);
+
+    ASSERT_FALSE(versions[1].value().deleted);
+    ASSERT_EQ(versions[1].value().version, 2);
+
+    ASSERT_FALSE(versions[2].value().deleted);
+    ASSERT_EQ(versions[2].value().version, 2);
+
+    ASSERT_FALSE(versions[3].value().deleted);
+    ASSERT_EQ(versions[3].value().version, 1);
+  }
+
+  // Immutable
+  {
+    std::vector<std::optional<categorization::TaggedVersion>> versions;
+    std::vector<std::string> keys{"immutable_key1", "immutable_key2"};
+    block_chain.multiGetLatestVersion("immutable", keys, versions);
+
+    ASSERT_FALSE(versions[0].value().deleted);
+    ASSERT_EQ(versions[0].value().version, 2);
+
+    ASSERT_FALSE(versions[1].value().deleted);
+    ASSERT_EQ(versions[1].value().version, 1);
+  }
 }
 
 }  // end namespace

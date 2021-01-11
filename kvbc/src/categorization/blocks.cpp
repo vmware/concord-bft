@@ -23,7 +23,7 @@ namespace concord::kvbc::categorization {
 // the constructor converts the input block i.e. the update_infos into a raw block
 RawBlock::RawBlock(const Block& block,
                    const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                   const CategoriesMap* categorires) {
+                   const CategoriesMap& categorires) {
   // parent digest (std::copy?)
   data.parent_digest = block.data.parent_digest;
   // recontruct updates of categories
@@ -45,11 +45,10 @@ BlockMerkleInput RawBlock::getUpdates(const std::string& category_id,
                                       const BlockMerkleOutput& update_info,
                                       const BlockId& block_id,
                                       const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                                      const CategoriesMap* categorires) {
-  ConcordAssert(categorires != nullptr);
-  ConcordAssert(categorires->count(category_id) == 1);
+                                      const CategoriesMap& categorires) {
+  ConcordAssert(categorires.count(category_id) == 1);
   BlockMerkleInput data;
-  const auto& cat = std::get<detail::BlockMerkleCategory>((*categorires).at(category_id));
+  const auto& cat = std::get<detail::BlockMerkleCategory>(categorires.at(category_id));
   for (auto& [key, flag] : update_info.keys) {
     if (flag.deleted) {
       data.deletes.push_back(key);
@@ -73,12 +72,11 @@ VersionedInput RawBlock::getUpdates(const std::string& category_id,
                                     const VersionedOutput& update_info,
                                     const BlockId& block_id,
                                     const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                                    const CategoriesMap* categorires) {
-  ConcordAssert(categorires != nullptr);
-  ConcordAssert(categorires->count(category_id) == 1);
+                                    const CategoriesMap& categorires) {
+  ConcordAssert(categorires.count(category_id) == 1);
   VersionedInput data;
   data.calculate_root_hash = update_info.root_hash.has_value();
-  const auto& cat = std::get<detail::VersionedKeyValueCategory>((*categorires).at(category_id));
+  const auto& cat = std::get<detail::VersionedKeyValueCategory>(categorires.at(category_id));
   for (const auto& [key, flags] : update_info.keys) {
     if (flags.deleted) {
       data.deletes.push_back(key);
@@ -104,11 +102,11 @@ ImmutableInput RawBlock::getUpdates(const std::string& category_id,
                                     const ImmutableOutput& update_info,
                                     const BlockId& block_id,
                                     const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
-                                    const CategoriesMap* categorires) {
-  ConcordAssert(categorires != nullptr);
-  ConcordAssert(categorires->count(category_id) == 1);
+                                    const CategoriesMap& categorires) {
+  ConcordAssert(categorires.count(category_id) == 1);
   ImmutableInput data;
-  const auto& cat = std::get<detail::ImmutableKeyValueCategory>((*categorires).at(category_id));
+  data.calculate_root_hash = update_info.tag_root_hashes.has_value();
+  const auto& cat = std::get<detail::ImmutableKeyValueCategory>(categorires.at(category_id));
   for (const auto& [key, tags] : update_info.tagged_keys) {
     // get value of the key for a version from storage via the category
     auto val = cat.get(key, block_id);

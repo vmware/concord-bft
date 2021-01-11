@@ -55,24 +55,28 @@ class KeyValueBlockchain {
   /////////////////////// Read interface ///////////////////////
 
   // Gets the value of a key by the exact blockVersion.
-  std::optional<Value> get(const std::string& cat_id, const std::string& key, BlockId block_id) const;
-  std::optional<Value> getLatest(const std::string& cat_id, const std::string& key) const;
+  std::optional<Value> get(const std::string& category_id, const std::string& key, BlockId block_id) const;
 
-  void multiGet(const std::string& cat_id,
+  std::optional<Value> getLatest(const std::string& category_id, const std::string& key) const;
+
+  void multiGet(const std::string& category_id,
                 const std::vector<std::string>& keys,
                 const std::vector<BlockId>& versions,
                 std::vector<std::optional<Value>>& values) const;
 
-  void multiGetLatest(const std::string& cat_id,
+  void multiGetLatest(const std::string& category_id,
                       const std::vector<std::string>& keys,
                       std::vector<std::optional<Value>>& values) const;
 
-  std::optional<BlockId> getLatestVersion(const std::string& cat_id, const std::string& key) const;
-  void multiGetLatestVersion(const std::string& cat_id,
-                             const std::vector<std::string>& keys,
-                             std::vector<std::optional<BlockId>>& versions) const;
+  std::optional<categorization::TaggedVersion> getLatestVersion(const std::string& category_id,
+                                                                const std::string& key) const;
 
-  CategoryInput getBlockData(BlockId block_id);
+  void multiGetLatestVersion(const std::string& category_id,
+                             const std::vector<std::string>& keys,
+                             std::vector<std::optional<categorization::TaggedVersion>>& versions) const;
+
+  // Get the updates that were used to create `block_id`.
+  Updates getBlockUpdates(BlockId block_id) const;
 
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
@@ -163,8 +167,7 @@ class KeyValueBlockchain {
   VersionedRawBlock last_raw_block_;
 
   // currently we are operating with single thread
-  // to keep resources low I don't use the hardware concurrency constructor, but set it to 2 threads.
-  util::ThreadPool thread_pool_{2};
+  util::ThreadPool thread_pool_{1};
 
  public:
   struct KeyValueBlockchain_tester {
