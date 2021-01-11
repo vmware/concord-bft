@@ -234,7 +234,7 @@ class CppVisitor(Visitor):
     def field_end(self):
         # The field is preceeded by the type in the struct definition. Close it with the name and
         # necessary syntax.
-        self.struct += f" {self.field['name']};\n"
+        self.struct += f" {self.field['name']}{{}};\n"
 
 
 ### The following callbacks generate types for struct fields, recursively when necessary.
