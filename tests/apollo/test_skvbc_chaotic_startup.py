@@ -54,6 +54,65 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
+    async def test_missed_two_view_changes(self, bft_network, skvbc, constant_load):
+        """
+        The purpose of this test is to verify that if a Replica's View is behind the peers by more than 1
+        it manages to catch up properly and to join and participate in the View its peers are working in.
+        """
+
+        late_replica = 2
+        num_req = 10
+
+        async def write_req():
+            for _ in range(num_req):
+                await skvbc.write_known_kv()
+
+        bft_network.start_all_replicas()
+        await write_req()
+
+        current_view = await bft_network.wait_for_view(
+            replica_id=0,
+            err_msg="Make sure view is stable after all replicas are started."
+        )
+
+        bft_network.stop_replica(late_replica)
+
+        for isolated_replica in [0, 1]:
+            with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, {isolated_replica}) as adversary:
+                adversary.interfere()
+                try:
+                    client = bft_network.random_client()
+                    client.primary = None
+                    for _ in range(5):
+                        msg = skvbc.write_req(
+                            [], [(skvbc.random_key(), skvbc.random_value())], 0)
+                        await client.write(msg)
+                except:
+                    pass
+
+                await trio.sleep(seconds=30)
+
+            view = await bft_network.wait_for_view(
+                replica_id=3,
+                expected=lambda v: v > current_view,
+                err_msg=f"Make sure current View is higher than {current_view}"
+            )
+            current_view = view
+
+        bft_network.start_replica(late_replica)
+
+        # Make sure the current view is stable
+        current_view = await bft_network.wait_for_view(
+            replica_id=0,
+            err_msg="Make sure view is stable after all Replicas are connected."
+        )
+
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: write_req(), threshold=num_req)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_constant_load
     async def test_delayed_replicas_start_up(self, bft_network, skvbc, constant_load):
         """
         The goal is to make sure that if replicas are started in a random

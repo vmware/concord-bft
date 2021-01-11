@@ -2646,6 +2646,11 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
     LOG_INFO(GL, "Call to another startCollectingState()");
     clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
     stateTransfer->startCollectingState();
+  } else {
+    if (!currentViewIsActive()) {
+      LOG_INFO(GL, "tryToEnterView after State Transfer finished ...");
+      tryToEnterView();
+    }
   }
 }
 
