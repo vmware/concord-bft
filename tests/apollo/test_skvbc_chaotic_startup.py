@@ -59,6 +59,13 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         """
         The purpose of this test is to verify that if a Replica's View is behind the peers by more than 1
         it manages to catch up properly and to join and participate in the View its peers are working in.
+        1) Start all replicas and store the current View they are in.
+        2) Stop Replica 2 which we will later bring back
+        3) Isolate Replica 0 and verify View Change happens
+        4) Isolate Replica 1 and verify View Change happens. This time we are going to go to View = 3,
+           because we previously stopped Replica 2.
+        5) Start Replica 2.
+        6) Verify Fast Path of execution is restored.
         """
 
         late_replica = 2
