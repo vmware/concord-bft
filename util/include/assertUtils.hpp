@@ -31,7 +31,6 @@ inline void printCallStack() {
     if (symbolsList) {
       std::ostringstream os;
       const size_t MAX_FUNC_NAME_SIZE = 256;
-      char funcName[MAX_FUNC_NAME_SIZE];
       // Iterate over the returned symbol lines. Skip the first, it is the address of this function.
       for (int i = 1; i < addrLen; i++) {
         char *beginName = nullptr, *beginOffset = nullptr, *endOffset = nullptr;
@@ -50,11 +49,15 @@ inline void printCallStack() {
           *beginOffset++ = '\0';
           *endOffset = '\0';
           int status;
-          char *ret = abi::__cxa_demangle(beginName, funcName, (size_t *)&MAX_FUNC_NAME_SIZE, &status);
+          size_t demangledSize;
+          char *ret = abi::__cxa_demangle(beginName, nullptr, &demangledSize, &status);
           if (status == 0) {
-            std::memcpy(funcName, ret, MAX_FUNC_NAME_SIZE);
-            os << " [bt] " << funcName << "+" << beginOffset << std::endl;
+            if (demangledSize > MAX_FUNC_NAME_SIZE) {
+              ret[MAX_FUNC_NAME_SIZE] = '\0';
+            }
+            os << " [bt] " << ret << "+" << beginOffset << std::endl;
           }
+          free(ret);
         }
       }
       LOG_FATAL(GL, "\n" << os.str());
