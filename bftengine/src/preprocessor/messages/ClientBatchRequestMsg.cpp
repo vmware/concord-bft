@@ -40,6 +40,11 @@ ClientBatchRequestMsg::ClientBatchRequestMsg(NodeIdType clientId,
   LOG_DEBUG(logger(), KVLOG(cid, clientId, numOfMessagesInBatch, batchBufSize));
 }
 
+const string& ClientBatchRequestMsg::getCid() {
+  if (cid_.empty()) cid_ = string(body() + sizeof(ClientBatchRequestMsgHeader), msgBody()->cidSize);
+  return cid_;
+}
+
 void ClientBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
   if (size() < sizeof(ClientBatchRequestMsgHeader) ||

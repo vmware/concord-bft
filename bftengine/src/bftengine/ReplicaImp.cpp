@@ -205,9 +205,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     return;
   }
 
-  const ReqId seqNumberOfLastReply = seqNumberOfLastReplyToClient(clientId);
-
-  if (seqNumberOfLastReply < reqSeqNum) {
+  if (!isReplySentToClientForRequest(clientId, reqSeqNum)) {
     if (isCurrentPrimary()) {
       histograms_.requestsQueueOfPrimarySize->record(requestsQueueOfPrimary.size());
       // TODO(GG): use config/parameter
@@ -218,7 +216,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         delete m;
         return;
       }
-      if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum)) {
+      if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
         LOG_DEBUG(CNSUS,
                   "Pushing to primary queue, request [" << reqSeqNum << "], client [" << clientId
                                                         << "], senderId=" << senderId);
@@ -228,38 +226,32 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         return;
       } else {
         LOG_INFO(GL,
-                 "ClientRequestMsg is ignored because: request is old, OR primary is current working on a request from "
-                 "the same client. "
+                 "ClientRequestMsg is ignored because: request is old, or primary is current working on it"
                      << KVLOG(clientId, reqSeqNum));
       }
     } else {  // not the current primary
-      if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum)) {
+      if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
         clientsManager->addPendingRequest(clientId, reqSeqNum);
 
         // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary view-change)
         send(m, currentPrimary());
-
-        LOG_INFO(GL, "Forwarding ClientRequestMsg to the current primary. " << KVLOG(reqSeqNum, clientId));
+        LOG_INFO(GL, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
       } else {
         LOG_INFO(GL,
-                 "ClientRequestMsg is ignored because: request is old, OR primary is current working on a request "
-                 "from the same client. "
+                 "ClientRequestMsg is ignored because: request is old, or primary is currently working on it"
                      << KVLOG(clientId, reqSeqNum));
       }
     }
-  } else if (seqNumberOfLastReply == reqSeqNum) {
-    LOG_DEBUG(
-        GL,
-        "ClientRequestMsg has already been executed: retransmitting reply to client. " << KVLOG(reqSeqNum, clientId));
-    ClientReplyMsg *repMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-    send(repMsg, clientId);
-    delete repMsg;
-  } else {
-    LOG_INFO(GL,
-             "ClientRequestMsg is ignored because request sequence number is not monotonically increasing. "
-                 << KVLOG(clientId, reqSeqNum, seqNumberOfLastReply));
+  } else {  // Reply has already been sent to the client for this request
+    ClientReplyMsg *repMsg = clientsManager->allocateReplyFromSavedOne(clientId, reqSeqNum, currentPrimary());
+    if (repMsg) {
+      LOG_DEBUG(
+          GL,
+          "ClientRequestMsg has already been executed: retransmitting reply to client." << KVLOG(reqSeqNum, clientId));
+      send(repMsg, clientId);
+      delete repMsg;
+    }
   }
-
   delete m;
 }
 
@@ -318,8 +310,7 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
 void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
-  while (first != nullptr &&
-         !clientsManager->noPendingAndRequestCanBecomePending(first->clientProxyId(), first->requestSeqNum())) {
+  while (first != nullptr && !clientsManager->canBecomePending(first->clientProxyId(), first->requestSeqNum())) {
     primaryCombinedReqSize -= first->size();
     delete first;
     requestsQueueOfPrimary.pop();
@@ -398,8 +389,7 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
                                                             uint16_t maxStorageForRequests) {
   if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
     SCOPED_MDC_CID(nextRequest->getCid());
-    if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
-                                                            nextRequest->requestSeqNum())) {
+    if (clientsManager->canBecomePending(nextRequest->clientProxyId(), nextRequest->requestSeqNum())) {
       prePrepareMsg.addRequest(nextRequest->body(), nextRequest->size());
       clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
     }
@@ -3508,18 +3498,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager = sigMgr;
     repsInfo = replicasInfo;
     viewsManager = viewsMgr;
-
-    // TODO(GG): consider to add relevant asserts
   }
 
   std::set<NodeIdType> clientsSet;
   const auto numOfEntities = config_.getnumReplicas() + config_.getnumRoReplicas() + config_.getnumOfClientProxies() +
                              config_.getnumOfExternalClients();
   for (uint16_t i = config_.getnumReplicas() + config_.getnumRoReplicas(); i < numOfEntities; i++) clientsSet.insert(i);
-  clientsManager = new ClientsManager(config_.getreplicaId(),
-                                      clientsSet,
-                                      ReplicaConfig::instance().getsizeOfReservedPage(),
-                                      ReplicaConfig::instance().getmaxReplyMessageSize());
+  clientsManager = new ClientsManager(clientsSet);
   clientsManager->initInternalClientInfo(config_.getnumReplicas());
   internalBFTClient_.reset(new InternalBFTClient(
       config_.getreplicaId(), clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
@@ -3795,14 +3780,15 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           LOG_WARN(GL, "The client is not valid. " << KVLOG(clientId));
           continue;
         }
-
-        if (seqNumberOfLastReplyToClient(clientId) >= req.requestSeqNum()) {
-          ClientReplyMsg *replyMsg = clientsManager->allocateMsgWithLatestReply(clientId, currentPrimary());
-          send(replyMsg, clientId);
-          delete replyMsg;
+        if (isReplySentToClientForRequest(clientId, req.requestSeqNum())) {
+          ClientReplyMsg *replyMsg =
+              clientsManager->allocateReplyFromSavedOne(clientId, req.requestSeqNum(), currentPrimary());
+          if (replyMsg) {
+            send(replyMsg, clientId);
+            delete replyMsg;
+          }
           continue;
         }
-
         requestSet.set(reqIdx);
         reqIdx++;
       }
@@ -3983,7 +3969,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       free(req.outReply);
       send(replyMsg.get(), req.clientId);
     }
-    clientsManager->removePendingRequestOfClient(req.clientId);
+    clientsManager->removePendingRequestOfClient(req.clientId, req.requestSequenceNum);
   }
 }
 

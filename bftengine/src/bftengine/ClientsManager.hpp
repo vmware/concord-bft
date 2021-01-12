@@ -27,56 +27,42 @@ class ClientRequestMsg;
 
 class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
-  ClientsManager(ReplicaId myId,
-                 std::set<NodeIdType>& clientsSet,
-                 uint32_t sizeOfReservedPage,
-                 const uint32_t& maxReplySize);
+  ClientsManager(std::set<NodeIdType>& clientsSet);
   ~ClientsManager();
 
   void init(IStateTransfer* stateTransfer);
 
   uint32_t numberOfRequiredReservedPages() const;
 
-  void clearReservedPages();
-
   void loadInfoFromReservedPages();
 
   // Replies
 
-  ReqId seqNumberOfLastReplyToClient(
-      NodeIdType clientId);  // TODO(GG): make sure that ReqId is based on time (and ignore requests with time that does
-                             // not make sense (too high) - this will prevent some potential attacks)
+  // TODO(GG): make sure that ReqId is based on time (and ignore requests with time that does
+  // not make sense (too high) - this will prevent some potential attacks)
+  bool isReplySentToClientForRequest(NodeIdType clientId, ReqId reqSeqNum);
 
   bool isValidClient(NodeIdType clientId) const;
-
-  void getInfoAboutLastReplyToClient(NodeIdType clientId, ReqId& outseqNumber, Time& outSentTime);
 
   ClientReplyMsg* allocateNewReplyMsgAndWriteToStorage(
       NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength);
 
-  ClientReplyMsg* allocateMsgWithLatestReply(NodeIdType clientId, uint16_t currentPrimaryId);
+  ClientReplyMsg* allocateReplyFromSavedOne(NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId);
 
   // Requests
 
-  bool noPendingAndRequestCanBecomePending(
-      NodeIdType clientId, ReqId reqSeqNum) const;  // return true IFF there is no pending requests for clientId, and
-                                                    // reqSeqNum can become the new pending request
-
-  // bool isPendingOrLate(NodeIdType clientId, ReqId reqSeqNum) const ;
+  // Return true IFF there is no pending requests for clientId, and reqSeqNum can become the new pending request
+  bool canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const;
 
   void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum);
 
-  // void removePendingRequest(NodeIdType clientId, ReqId reqSeqNum);
-
-  // void removeEarlierPendingRequests(NodeIdType clientId, ReqId reqSeqNum);
-
-  // void removeEarlierOrEqualPendingRequests(NodeIdType clientId, ReqId reqSeqNum);
-
-  void removePendingRequestOfClient(NodeIdType clientId);
+  void removePendingRequestOfClient(NodeIdType clientId, ReqId reqSequenceNum);
 
   void clearAllPendingRequests();
 
   Time timeOfEarliestPendingRequest() const;
+
+  void deleteOldestReply(NodeIdType clientId);
 
   // Internal Clients
   void initInternalClientInfo(const int& numReplicas);
@@ -86,7 +72,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   NodeIdType getHighestIdOfNonInternalClient();
 
   // General
-  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplysize);
+  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
   int getIndexOfClient(const NodeIdType& id) const;
 
  protected:
@@ -106,17 +92,14 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   std::map<NodeIdType, uint16_t> clientIdToIndex_;
 
   struct ClientInfo {
-    // requests
-    ReqId currentPendingRequest;
-    Time timeOfCurrentPendingRequest;
-
-    // replies
-    ReqId lastSeqNumberOfReply;
-    Time latestReplyTime;
+    std::map<ReqId, Time> requestsInfo;  // requestId to requestTime
+    std::map<ReqId, Time> repliesInfo;   // replyId to replyTime
   };
 
   std::vector<ClientInfo> indexToClientInfo_;
-  uint32_t maxReplysize_{};
+  const uint32_t maxReplySize_;
+  const uint16_t maxNumOfReqsPerClient_;
 };
+
 }  // namespace impl
 }  // namespace bftEngine

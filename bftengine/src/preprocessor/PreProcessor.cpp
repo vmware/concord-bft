@@ -83,9 +83,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
                     myReplica_.getReplicaConfig().numOfClientProxies),
-      batchSize_(myReplica.getReplicaConfig().clientMiniBatchingEnabled
-                     ? myReplica.getReplicaConfig().clientMiniBatchingMaxMsgsNbr
-                     : 1),
+      batchingEnabled_(myReplica.getReplicaConfig().clientMiniBatchingEnabled),
+      batchSize_(batchingEnabled_ ? myReplica.getReplicaConfig().clientMiniBatchingMaxMsgsNbr : 1),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -124,6 +123,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   LOG_INFO(logger(),
            KVLOG(firstClientId,
                  numOfClients_,
+                 batchingEnabled_,
                  batchSize_,
                  maxPreExecResultSize_,
                  preExecReqStatusCheckPeriodMilli_,
@@ -230,6 +230,12 @@ bool PreProcessor::checkClientMsgCorrectness(
 }
 
 bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg) {
+  if (!batchingEnabled_) {
+    LOG_ERROR(logger(),
+              "Batching functionality is disabled => reject message"
+                  << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
+    return false;
+  }
   const auto &clientRequestMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
   for (const auto &msg : clientRequestMsgs) {
     if (!checkClientMsgCorrectness(msg->requestSeqNum(), msg->getCid(), false, msg->clientProxyId(), msg->senderId()))
@@ -282,10 +288,11 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
-  handleSingleClientRequestMessage(move(clientMsg), 0);
+  handleSingleClientRequestMessage(move(clientMsg), false, 0);
 }
 
 void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                                    bool arrivedInBatch,
                                                     uint16_t msgOffsetInBatch) {
   SCOPED_MDC_CID(clientMsg->getCid());
   const NodeIdType &senderId = clientMsg->senderId();
@@ -293,7 +300,6 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
   bool registerSucceeded = false;
-  ReqId seqNumberOfLastReply = 0;
   {
     const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, msgOffsetInBatch)];
     lock_guard<mutex> lock(reqEntry->mutex);
@@ -320,8 +326,8 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       preProcessorMetrics_.preProcReqIgnored.Get().Inc();
       return;
     }
-    seqNumberOfLastReply = myReplica_.seqNumberOfLastReplyToClient(clientId);
-    if (seqNumberOfLastReply == reqSeqNum) {
+    const bool replySentToClient = myReplica_.isReplySentToClientForRequest(clientId, reqSeqNum);
+    if (replySentToClient) {
       LOG_INFO(logger(),
                "Request has already been executed - let replica to decide how to proceed further"
                    << KVLOG(reqSeqNum, clientId));
@@ -329,17 +335,18 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       incomingMsgsStorage_->pushExternalMsg(move(clientMsg));
       return;
     }
-    if (seqNumberOfLastReply < reqSeqNum)
-      registerSucceeded = registerReplicaDependentRequest(
+    if (myReplica_.isCurrentPrimary())
+      registerSucceeded = registerRequestOnPrimaryReplica(
           move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
+    else
+      registerAndHandleClientPreProcessReqOnNonPrimary(move(clientMsg), arrivedInBatch, msgOffsetInBatch);
   }
-
   if (myReplica_.isCurrentPrimary() && registerSucceeded)
     return handleClientPreProcessRequestByPrimary(preProcessRequestMsg);
 
-  LOG_DEBUG(logger(),
-            "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
-                                         << " is ignored because request is old/duplicated");
+  LOG_INFO(logger(),
+           "ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, clientId, senderId)
+                                        << " is ignored because request is old/duplicated");
   preProcessorMetrics_.preProcReqIgnored.Get().Inc();
 }
 
@@ -348,7 +355,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   ClientBatchRequestMsgUniquePtr clientBatch(msg);
   LOG_DEBUG(logger(),
             "Received ClientBatchPreProcessRequestMsg"
-                << KVLOG(clientBatch->clientId(), clientBatch->numOfMessagesInBatch(), clientBatch->batchSize()));
+                << KVLOG(clientBatch->clientId(), clientBatch->getCid(), clientBatch->numOfMessagesInBatch()));
   if (!checkClientBatchMsgCorrectness(clientBatch)) {
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
@@ -361,7 +368,13 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
                                                                        clientMsg->clientProxyId(),
                                                                        clientMsg->senderId(),
                                                                        clientMsg->requestTimeoutMilli()));
-    handleSingleClientRequestMessage(move(clientMsg), offset++);
+    handleSingleClientRequestMessage(move(clientMsg), true, offset++);
+  }
+  if (!myReplica_.isCurrentPrimary()) {
+    sendMsg(clientBatch->body(), myReplica_.currentPrimary(), clientBatch->type(), clientBatch->size());
+    LOG_DEBUG(logger(),
+              "Sent ClientBatchRequestMsg" << KVLOG(clientBatch->clientId(), clientBatch->getCid())
+                                           << " to the current primary");
   }
 }
 
@@ -665,25 +678,21 @@ void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize
 }
 
 // This function should be called under a reqEntry->mutex lock
-bool PreProcessor::registerReplicaDependentRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+bool PreProcessor::registerRequestOnPrimaryReplica(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                    PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                                    uint16_t reqOffsetInBatch,
                                                    uint64_t reqRetryId) {
-  if (myReplica_.isCurrentPrimary()) {
-    preProcessRequestMsg =
-        make_shared<PreProcessRequestMsg>(myReplicaId_,
-                                          clientReqMsg->clientProxyId(),
-                                          reqOffsetInBatch,
-                                          clientReqMsg->requestSeqNum(),
-                                          reqRetryId,
-                                          clientReqMsg->requestLength(),
-                                          clientReqMsg->requestBuf(),
-                                          clientReqMsg->getCid(),
-                                          clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
-    return registerRequest(move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
-  }
-  handleClientPreProcessRequestByNonPrimary(move(clientReqMsg), reqOffsetInBatch);
-  return true;
+  preProcessRequestMsg =
+      make_shared<PreProcessRequestMsg>(myReplicaId_,
+                                        clientReqMsg->clientProxyId(),
+                                        reqOffsetInBatch,
+                                        clientReqMsg->requestSeqNum(),
+                                        reqRetryId,
+                                        clientReqMsg->requestLength(),
+                                        clientReqMsg->requestBuf(),
+                                        clientReqMsg->getCid(),
+                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
+  return registerRequest(move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
 }
 
 // Primary replica: start client request handling
@@ -702,8 +711,9 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
 
 // Non-primary replica: start client request handling
 // This function should be called under a reqEntry->mutex lock
-void PreProcessor::handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg,
-                                                             uint16_t reqOffsetInBatch) {
+void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                                                                    bool arrivedInBatch,
+                                                                    uint16_t reqOffsetInBatch) {
   const auto &reqSeqNum = clientReqMsg->requestSeqNum();
   const auto &clientId = clientReqMsg->clientProxyId();
   const auto &senderId = clientReqMsg->senderId();
@@ -718,6 +728,7 @@ void PreProcessor::handleClientPreProcessRequestByNonPrimary(ClientPreProcessReq
     LOG_INFO(logger(),
              "Start request processing by a non-primary replica"
                  << KVLOG(reqSeqNum, cid, clientId, reqOffsetInBatch, senderId, reqTimeoutMilli));
+    if (arrivedInBatch) return;  // Need to re-send the whole batch to the primary
     sendMsg(msgBody, myReplica_.currentPrimary(), msgType, msgSize);
     LOG_DEBUG(logger(),
               "Sent ClientPreProcessRequestMsg" << KVLOG(reqSeqNum, cid, clientId, reqOffsetInBatch)

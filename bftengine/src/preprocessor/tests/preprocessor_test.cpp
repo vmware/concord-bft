@@ -97,7 +97,7 @@ class DummyReplica : public InternalReplicaApi {
   ReplicaId currentPrimary() const override { return replicaConfig.replicaId; }
   bool isCurrentPrimary() const override { return primary_; }
   bool currentViewIsActive() const override { return true; }
-  ReqId seqNumberOfLastReplyToClient(NodeIdType) const override { return 1; }
+  bool isReplySentToClientForRequest(NodeIdType, ReqId) const override { return 1; }
   bool isClientRequestInProcess(NodeIdType, ReqId) const override { return false; }
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override { return *incomingMsgsStorage_; }

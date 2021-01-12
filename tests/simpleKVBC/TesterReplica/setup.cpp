@@ -39,11 +39,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     bftEngine::ReplicaConfig& replicaConfig = bftEngine::ReplicaConfig::instance();
     replicaConfig.numOfClientProxies = 100;
     replicaConfig.numOfExternalClients = 30;
-    replicaConfig.concurrencyLevel = 1;
+    replicaConfig.concurrencyLevel = 3;
     replicaConfig.debugStatisticsEnabled = true;
     replicaConfig.viewChangeTimerMillisec = 45 * 1000;
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
+    replicaConfig.clientMiniBatchingEnabled = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     PersistencyMode persistMode = PersistencyMode::Off;
     std::string keysFilePrefix;

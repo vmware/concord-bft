@@ -266,11 +266,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(curView); }
   bool isCurrentPrimary() const override { return (currentPrimary() == config_.replicaId); }
   bool currentViewIsActive() const override { return (viewsManager->viewIsActive(curView)); }
-  ReqId seqNumberOfLastReplyToClient(NodeIdType clientId) const override {
-    return clientsManager->seqNumberOfLastReplyToClient(clientId);
+  bool isReplySentToClientForRequest(NodeIdType clientId, ReqId reqSeqNum) const override {
+    return clientsManager->isReplySentToClientForRequest(clientId, reqSeqNum);
   }
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
-    return !clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum);
+    return !clientsManager->canBecomePending(clientId, reqSeqNum);
   }
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }

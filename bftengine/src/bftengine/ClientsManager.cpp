@@ -18,48 +18,38 @@
 #include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 
-namespace bftEngine {
-namespace impl {
-// initialize:
-//* map of client id to indices.
-//* map indices to client info.
-//* Calculate reserved pages per client.
-ClientsManager::ClientsManager(ReplicaId myId,
-                               std::set<NodeIdType>& clientsSet,
-                               uint32_t sizeOfReservedPage,
-                               const uint32_t& maxReplysize)
-    : myId_(myId),
-      sizeOfReservedPage_(sizeOfReservedPage),
+namespace bftEngine::impl {
+// Initialize:
+// * map of client id to indices.
+// * Calculate reserved pages per client.
+ClientsManager::ClientsManager(std::set<NodeIdType>& clientsSet)
+    : myId_(ReplicaConfig::instance().replicaId),
+      sizeOfReservedPage_(ReplicaConfig::instance().getsizeOfReservedPage()),
       indexToClientInfo_(clientsSet.size()),
-      maxReplysize_(maxReplysize) {
+      maxReplySize_(ReplicaConfig::instance().getmaxReplyMessageSize()),
+      maxNumOfReqsPerClient_(ReplicaConfig::instance().clientMiniBatchingEnabled
+                                 ? ReplicaConfig::instance().clientMiniBatchingMaxMsgsNbr
+                                 : 1) {
   ConcordAssert(clientsSet.size() >= 1);
-
-  scratchPage_ = (char*)std::malloc(sizeOfReservedPage);
-  memset(scratchPage_, 0, sizeOfReservedPage);
+  scratchPage_ = (char*)std::malloc(sizeOfReservedPage_);
+  memset(scratchPage_, 0, sizeOfReservedPage_);
 
   uint16_t idx = 0;
   for (NodeIdType c : clientsSet) {
     clientIdToIndex_.insert(std::pair<NodeIdType, uint16_t>(c, idx));
-
-    indexToClientInfo_[idx].currentPendingRequest = 0;
-    indexToClientInfo_[idx].timeOfCurrentPendingRequest = MinTime;
-
-    indexToClientInfo_[idx].lastSeqNumberOfReply = 0;
-    indexToClientInfo_[idx].latestReplyTime = MinTime;
     highestIdOfNonInternalClient_ = c;
+    indexToClientInfo_.push_back(ClientInfo());
     idx++;
   }
-
-  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage, maxReplysize_);
-
+  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage_, maxReplySize_);
   numOfClients_ = (uint16_t)clientsSet.size();
-
   requiredNumberOfPages_ = (numOfClients_ * reservedPagesPerClient_);
+  LOG_DEBUG(GL, KVLOG(sizeOfReservedPage_, reservedPagesPerClient_, maxReplySize_, maxNumOfReqsPerClient_));
 }
 
-uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplysize) {
-  uint32_t reservedPagesPerClient = maxReplysize / sizeOfReservedPage;
-  if (maxReplysize % sizeOfReservedPage != 0) {
+uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize) {
+  uint32_t reservedPagesPerClient = maxReplySize / sizeOfReservedPage;
+  if (maxReplySize % sizeOfReservedPage != 0) {
     reservedPagesPerClient++;
   }
   return reservedPagesPerClient;
@@ -73,11 +63,7 @@ void ClientsManager::initInternalClientInfo(const int& numReplicas) {
   auto currIdx = clientIdToIndex_[highestIdOfNonInternalClient_];
   for (int i = 0; i < numReplicas; i++) {
     clientIdToIndex_.insert(std::pair<NodeIdType, uint16_t>(++currClId, ++currIdx));
-    indexToClientInfo_[currIdx].currentPendingRequest = 0;
-    indexToClientInfo_[currIdx].timeOfCurrentPendingRequest = MinTime;
-
-    indexToClientInfo_[currIdx].lastSeqNumberOfReply = 0;
-    indexToClientInfo_[currIdx].latestReplyTime = MinTime;
+    indexToClientInfo_.push_back(ClientInfo());
     LOG_DEBUG(GL,
               "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vector size "
                                              << indexToClientInfo_.size());
@@ -96,17 +82,12 @@ ClientsManager::~ClientsManager() { std::free(scratchPage_); }
 void ClientsManager::init(IStateTransfer* stateTransfer) {
   ConcordAssert(stateTransfer != nullptr);
   ConcordAssert(stateTransfer_ == nullptr);
-
   stateTransfer_ = stateTransfer;
 }
 
 uint32_t ClientsManager::numberOfRequiredReservedPages() const { return requiredNumberOfPages_; }
 
-void ClientsManager::clearReservedPages() {
-  for (uint32_t i = 0; i < requiredNumberOfPages_; i++) stateTransfer_->zeroReservedPage(resPageOffset() + i);
-}
-
-// per client:
+// Per client:
 // * calculate offset of reserved page start.
 // * load corresponding page from state-transfer to scratchPage.
 // * Fill its clientInfo.
@@ -121,63 +102,64 @@ void ClientsManager::loadInfoFromReservedPages() {
     ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
     ConcordAssert(replyHeader->currentPrimaryId == 0);
     ConcordAssert(replyHeader->replyLength >= 0);
-    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplysize_);
+    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
-    ClientInfo& ci = indexToClientInfo_.at(e.second);
-    ci.lastSeqNumberOfReply = replyHeader->reqSeqNum;
-    ci.latestReplyTime = MinTime;
+    auto& repliesInfo = indexToClientInfo_.at(e.second).repliesInfo;
+    repliesInfo.emplace(replyHeader->reqSeqNum, MinTime);
 
-    // update pending request
-    if (ci.currentPendingRequest != 0 && (ci.currentPendingRequest <= replyHeader->reqSeqNum)) {
-      ci.currentPendingRequest = 0;
-      ci.timeOfCurrentPendingRequest = MinTime;
-    }
+    // Remove pending request
+    auto& requestsInfo = indexToClientInfo_.at(e.second).requestsInfo;
+    const auto& reqIt = requestsInfo.find(replyHeader->reqSeqNum);
+    if (reqIt != requestsInfo.end()) requestsInfo.erase(reqIt);
   }
 }
 
-ReqId ClientsManager::seqNumberOfLastReplyToClient(NodeIdType clientId) {
+bool ClientsManager::isReplySentToClientForRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
-  ReqId retVal = indexToClientInfo_.at(idx).lastSeqNumberOfReply;
-  return retVal;
+  const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
+  const auto& elem = repliesInfo.find(reqSeqNum);
+  return (elem != repliesInfo.end());
+}
+
+void ClientsManager::deleteOldestReply(NodeIdType clientId) {
+  Time earliestTime = MaxTime;
+  ReqId earliestReplyId = 0;
+  const uint16_t clientIdx = clientIdToIndex_.at(clientId);
+  auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
+  for (const auto& reply : repliesInfo) {
+    if (reply.second != MinTime && earliestTime > reply.second) {
+      earliestReplyId = reply.first;
+      earliestTime = reply.second;
+    }
+  }
+  if (earliestReplyId) {
+    repliesInfo.erase(earliestReplyId);
+    LOG_DEBUG(GL, "Deleted oldest reply message" << KVLOG(earliestReplyId));
+  }
 }
 
 bool ClientsManager::isValidClient(NodeIdType clientId) const { return (clientIdToIndex_.count(clientId) > 0); }
 
-void ClientsManager::getInfoAboutLastReplyToClient(NodeIdType clientId, ReqId& outSeqNumber, Time& outLatestTime) {
-  uint16_t idx = clientIdToIndex_.at(clientId);
-  const ClientInfo& c = indexToClientInfo_.at(idx);
-
-  outSeqNumber = c.lastSeqNumberOfReply;
-  outLatestTime = c.latestReplyTime;
-}
-
 // Reference the ClientInfo of the corresponding client:
-//* set last reply seq num to the seq num of the request we reply to.
-//* set reply time to `now`.
-//* allocate new ClientReplyMsg
-//* calculate: num of pages, size of last page.
-//* save the reply to the reserved pages.
+// * set last reply seq num to the seq num of the request we reply to.
+// * set reply time to `now`.
+// * allocate new ClientReplyMsg
+// * calculate: num of pages, size of last page.
+// * save the reply to the reserved pages.
 ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
-  // ConcordAssert(replyLength <= .... ) - TODO(GG)
-
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
-
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
+  ConcordAssert(!isReplySentToClientForRequest(clientId, requestSeqNum));
+  if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
 
-  ConcordAssert(c.lastSeqNumberOfReply <= requestSeqNum);
-
-  c.lastSeqNumberOfReply = requestSeqNum;
-  c.latestReplyTime = getMonotonicTime();
+  c.repliesInfo.erase(c.repliesInfo.begin());
+  c.repliesInfo.emplace(requestSeqNum, getMonotonicTime());
 
   LOG_DEBUG(GL, "requestSeqNum=" << requestSeqNum);
-
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, requestSeqNum, reply, replyLength);
-
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
-
   LOG_DEBUG(GL, "firstPageId=" << firstPageId);
-
   uint32_t numOfPages = r->size() / sizeOfReservedPage_;
   uint32_t sizeLastPage = sizeOfReservedPage_;
 
@@ -187,7 +169,6 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   }
 
   LOG_DEBUG(GL, "numOfPages=" << numOfPages << " sizeLastPage=" << sizeLastPage);
-
   // write reply message to reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
     const char* ptrPage = r->body() + i * sizeOfReservedPage_;
@@ -197,50 +178,40 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
 
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
   r->setPrimaryId(currentPrimaryId);
-
   LOG_DEBUG(GL, "returns reply with hash=" << r->debugHash());
-
   return r;
 }
 
-//* load client reserve page to scratchPage
-//* cast to ClientReplyMsgHeader and validate.
-//* calculate: reply msg size, num of pages, size of last page.
-//* allocate new ClientReplyMsg.
-//* copy relpy from reserved pages to ClientReplyMsg.
-//* set primary id.
-ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, uint16_t currentPrimaryId) {
+// * load client reserve page to scratchPage
+// * cast to ClientReplyMsgHeader and validate.
+// * calculate: reply msg size, num of pages, size of last page.
+// * allocate new ClientReplyMsg.
+// * copy reply from reserved pages to ClientReplyMsg.
+// * set primary id.
+ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
+                                                          ReqId requestSeqNum,
+                                                          uint16_t currentPrimaryId) {
+  ConcordAssert(isReplySentToClientForRequest(clientId, requestSeqNum));
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
-
-  ClientInfo& info = indexToClientInfo_.at(clientIdx);
-
-  ConcordAssert(info.lastSeqNumberOfReply != 0);
-
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
-
-  LOG_DEBUG(GL, "info.lastSeqNumberOfReply=" << info.lastSeqNumberOfReply << " firstPageId=" << firstPageId);
-
+  LOG_DEBUG(GL, KVLOG(requestSeqNum, firstPageId));
   stateTransfer_->loadReservedPage(resPageOffset() + firstPageId, sizeOfReservedPage_, scratchPage_);
 
   ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
   ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
   ConcordAssert(replyHeader->currentPrimaryId == 0);
   ConcordAssert(replyHeader->replyLength > 0);
-  ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplysize_);
+  ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
   uint32_t replyMsgSize = sizeof(ClientReplyMsgHeader) + replyHeader->replyLength;
-
   uint32_t numOfPages = replyMsgSize / sizeOfReservedPage_;
   uint32_t sizeLastPage = sizeOfReservedPage_;
   if (replyMsgSize % sizeOfReservedPage_ != 0) {
     numOfPages++;
     sizeLastPage = replyMsgSize % sizeOfReservedPage_;
   }
-
   LOG_DEBUG(GL, "numOfPages=" << numOfPages << " sizeLastPage=" << sizeLastPage);
-
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, replyHeader->replyLength);
-
   // load reply message from reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
     char* const ptrPage = r->body() + i * sizeOfReservedPage_;
@@ -248,122 +219,80 @@ ClientReplyMsg* ClientsManager::allocateMsgWithLatestReply(NodeIdType clientId, 
     stateTransfer_->loadReservedPage(resPageOffset() + firstPageId + i, sizePage, ptrPage);
   }
 
+  if (r->reqSeqNum() != requestSeqNum) {
+    LOG_WARN(GL, "Reserved page contains reply for the different request: " << r->reqSeqNum() << " => ignore");
+    delete r;
+    return nullptr;
+  }
+
   r->setPrimaryId(currentPrimaryId);
-
-  LOG_DEBUG(GL, "returns reply with hash=" << r->debugHash());
-
+  LOG_DEBUG(GL, "Returns reply with hash=" << r->debugHash());
   return r;
 }
 
 // Check that:
-//* no pending req is set for that client.
-//* request seq number is bigger than the last reply seq number.
-bool ClientsManager::noPendingAndRequestCanBecomePending(NodeIdType clientId, ReqId reqSeqNum) const {
+// * max number of pending requests not reached for that client.
+// * request seq number is bigger than the last reply seq number.
+bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const {
   uint16_t idx = clientIdToIndex_.at(clientId);
-  const ClientInfo& c = indexToClientInfo_.at(idx);
-
-  if (c.currentPendingRequest != 0) return false;  // if has pending request
-
-  if (reqSeqNum <= c.lastSeqNumberOfReply) return false;  // if already executed a later/equivalent request
-
+  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  if (requestsInfo.size() == maxNumOfReqsPerClient_) {
+    LOG_INFO(GL, "Maximum number of requests per client reached" << KVLOG(maxNumOfReqsPerClient_, clientId, reqSeqNum));
+    return false;
+  }
+  const auto& reqIt = requestsInfo.find(reqSeqNum);
+  if (reqIt != requestsInfo.end()) {
+    LOG_DEBUG(GL, "The request has been executing right now" << KVLOG(clientId, reqSeqNum));
+    return false;
+  }
+  const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
+  const auto& replyIt = repliesInfo.find(reqSeqNum);
+  if (replyIt != repliesInfo.end()) {
+    LOG_DEBUG(GL, "The request has been already executed" << KVLOG(clientId, reqSeqNum));
+    return false;
+  }
   return true;
 }
 
-/*
-bool ClientsManager::isPendingOrLate(NodeIdType clientId, ReqId reqSeqNum) const
-{
-        uint16_t idx = clientIdToIndex_.at(clientId);
-        const ClientInfo& c = indexToClientInfo_.at(idx);
-        bool retVal = (reqSeqNum <= c.lastSeqNumberOfReply || reqSeqNum <= c.currentPendingRequest);
-        return retVal;
-}
-*/
-
 void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
-  ClientInfo& c = indexToClientInfo_.at(idx);
-  ConcordAssert(reqSeqNum > c.lastSeqNumberOfReply && reqSeqNum > c.currentPendingRequest);
+  const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
+  const auto& replyIt = repliesInfo.find(reqSeqNum);
+  ConcordAssert(replyIt == repliesInfo.end());
 
-  c.currentPendingRequest = reqSeqNum;
-  c.timeOfCurrentPendingRequest = getMonotonicTime();
+  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  const auto& requestIt = requestsInfo.find(reqSeqNum);
+  ConcordAssert(requestIt == requestsInfo.end());
+  requestsInfo.emplace(reqSeqNum, getMonotonicTime());
 }
 
-/*
-void ClientsManager::removePendingRequest(NodeIdType clientId, ReqId reqSeqNum)
-{
-        uint16_t idx = clientIdToIndex_.at(clientId);
-        ClientInfo& c = indexToClientInfo_.at(idx);
-
-        if (c.currentPendingRequest == reqSeqNum)
-        {
-                c.currentPendingRequest = 0;
-                c.timeOfCurrentPendingRequest = MinTime;
-        }
-}
-
-
-void ClientsManager::removeEarlierPendingRequests(NodeIdType clientId, ReqId reqSeqNum)
-{
-        uint16_t idx = clientIdToIndex_.at(clientId);
-        ClientInfo& c = indexToClientInfo_.at(idx);
-
-        if (c.currentPendingRequest < reqSeqNum)
-        {
-                c.currentPendingRequest = 0;
-                c.timeOfCurrentPendingRequest = MinTime;
-        }
-}
-
-
-void ClientsManager::removeEarlierOrEqualPendingRequests(NodeIdType clientId, ReqId reqSeqNum)
-{
-        uint16_t idx = clientIdToIndex_.at(clientId);
-        ClientInfo& c = indexToClientInfo_.at(idx);
-
-        if (c.currentPendingRequest <= reqSeqNum)
-        {
-                c.currentPendingRequest = 0;
-                c.timeOfCurrentPendingRequest = MinTime;
-        }
-}
-
-*/
-
-void ClientsManager::removePendingRequestOfClient(NodeIdType clientId) {
+void ClientsManager::removePendingRequestOfClient(NodeIdType clientId, ReqId reqSequenceNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
-  ClientInfo& c = indexToClientInfo_.at(idx);
-
-  if (c.currentPendingRequest != 0) {
-    c.currentPendingRequest = 0;
-    c.timeOfCurrentPendingRequest = MinTime;
-  }
+  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  const auto& reqIt = requestsInfo.find(reqSequenceNum);
+  if (reqIt != requestsInfo.end()) requestsInfo.erase(reqIt);
 }
 
 void ClientsManager::clearAllPendingRequests() {
-  for (ClientInfo& c : indexToClientInfo_) {
-    c.currentPendingRequest = 0;
-    c.timeOfCurrentPendingRequest = MinTime;
-  }
-
-  ConcordAssert(indexToClientInfo_[0].currentPendingRequest == 0);  // TODO(GG): debug
+  for (ClientInfo& clientInfo : indexToClientInfo_) clientInfo.requestsInfo.clear();
 }
 
-// iterate over all clients and choose the earliest pending request.
-Time ClientsManager::timeOfEarliestPendingRequest() const  // TODO(GG): naive implementation - consider to optimize
-{
-  Time t = MaxTime;
-  ClientInfo earliestClientWithPendingRequest = indexToClientInfo_.at(0);
-
-  for (const ClientInfo& c : indexToClientInfo_) {
-    if (c.timeOfCurrentPendingRequest != MinTime && t > c.timeOfCurrentPendingRequest) {
-      t = c.timeOfCurrentPendingRequest;
-      earliestClientWithPendingRequest = c;
+// Iterate over all clients and choose the earliest pending request.
+Time ClientsManager::timeOfEarliestPendingRequest() const {
+  Time earliestTime = MaxTime;
+  ReqId earliestPendingReqId = 0;
+  ClientInfo clientWithEarliestPendingRequest = indexToClientInfo_.at(0);
+  for (const ClientInfo& clientInfo : indexToClientInfo_) {
+    for (const auto& req : clientInfo.requestsInfo) {
+      if (req.second != MinTime && earliestTime > req.second) {
+        earliestPendingReqId = req.first;
+        earliestTime = req.second;
+        clientWithEarliestPendingRequest = clientInfo;
+      }
     }
   }
-
-  LOG_INFO(GL, "Earliest pending client request: " << KVLOG(earliestClientWithPendingRequest.currentPendingRequest));
-
-  return t;
+  if (earliestTime != MaxTime) LOG_INFO(GL, "Earliest pending request: " << KVLOG(earliestPendingReqId));
+  return earliestTime;
 }
-}  // namespace impl
-}  // namespace bftEngine
+
+}  // namespace bftEngine::impl

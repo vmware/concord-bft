@@ -39,6 +39,7 @@ class ClientBatchRequestMsg : public MessageBase {
   uint16_t clientId() const { return msgBody()->clientId; }
   uint32_t numOfMessagesInBatch() const { return msgBody()->numOfMessagesInBatch; }
   uint32_t batchSize() const { return msgBody()->dataSize; }
+  const std::string& getCid();
   ClientMsgsList& getClientPreProcessRequestMsgs();
   void validate(const ReplicasInfo&) const override;
 
@@ -50,6 +51,7 @@ class ClientBatchRequestMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
+  std::string cid_;
   ClientMsgsList clientMsgsList_;
 };
 

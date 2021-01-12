@@ -85,7 +85,7 @@ class PreProcessor {
   template <typename T>
   void onMessage(T *msg);
 
-  bool registerReplicaDependentRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+  bool registerRequestOnPrimaryReplica(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                        PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                        uint16_t reqOffsetInBatch,
                                        uint64_t reqRetryId);
@@ -100,7 +100,9 @@ class PreProcessor {
       uint64_t reqSeqNum, const std::string &cid, bool isReadOnly, uint16_t clientId, NodeIdType senderId) const;
   bool checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg);
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg);
-  void handleClientPreProcessRequestByNonPrimary(ClientPreProcessReqMsgUniquePtr msg, uint16_t reqOffsetInBatch);
+  void registerAndHandleClientPreProcessReqOnNonPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg,
+                                                        bool arrivedInBatch,
+                                                        uint16_t reqOffsetInBatch);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
   void sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
   void resendPreProcessRequest(const RequestProcessingStateUniquePtr &reqStatePtr);
@@ -150,7 +152,9 @@ class PreProcessor {
   void addTimers();
   void cancelTimers();
   void onRequestsStatusCheckTimer();
-  void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg, uint16_t msgOffsetInBatch);
+  void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                        bool arrivedInBatch,
+                                        uint16_t msgOffsetInBatch);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
@@ -171,6 +175,7 @@ class PreProcessor {
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
   const uint16_t numOfClients_;
+  const bool batchingEnabled_;
   const uint16_t batchSize_;
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
