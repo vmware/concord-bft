@@ -44,13 +44,16 @@ class KeyValueBlockchain {
   /////////////////////// Raw Blocks ///////////////////////
 
   // Adds raw block and tries to link the state transfer blockchain to the main blockchain
-  void addRawBlock(RawBlock& block, const BlockId& block_id);
+  void addRawBlock(const RawBlock& block, const BlockId& block_id);
   RawBlock getRawBlock(const BlockId& block_id) const;
 
   /////////////////////// Info ///////////////////////
-  BlockId getGenesisBlockId() { return block_chain_.getGenesisBlockId(); }
+  BlockId getGenesisBlockId() const { return block_chain_.getGenesisBlockId(); }
   BlockId getLastReachableBlockId() const { return block_chain_.getLastReachableBlockId(); }
   std::optional<BlockId> getLastStatetransferBlockId() const { return state_transfer_block_chain_.getLastBlockId(); }
+
+  std::optional<Hash> parentDigest(BlockId block_id) const;
+  bool hasBlock(BlockId block_id) const;
 
   /////////////////////// Read interface ///////////////////////
 
@@ -97,8 +100,10 @@ class KeyValueBlockchain {
                              const detail::CATEGORY_TYPE type,
                              concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
+
   const Category& getCategory(const std::string& cat_id) const;
   Category& getCategory(const std::string& cat_id);
+  bool hasCategory(const std::string& cat_id) const;
 
   /////////////////////// deletes ///////////////////////
 

@@ -51,8 +51,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string s3ConfigFile;
     std::string certRootPath = "certs";
     std::string logPropsFile = "logging.properties";
-    // Set StorageType::V1DirectKeyValue as the default storage type.
-    auto storageType = StorageType::V1DirectKeyValue;
 
     static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
                                           {"key-file-prefix", required_argument, 0, 'k'},
@@ -62,7 +60,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
                                           {"s3-config-file", required_argument, 0, '3'},
                                           {"persistence-mode", no_argument, 0, 'p'},
-                                          {"storage-type", required_argument, 0, 't'},
                                           {"log-props-file", required_argument, 0, 'l'},
                                           {"key-exchange-on-start", required_argument, 0, 'e'},
                                           {"cert-root-path", required_argument, 0, 'c'},
@@ -116,15 +113,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         // We can only toggle persistence on or off. It defaults to InMemory unless -p flag is provided.
         case 'p': {
           persistMode = PersistencyMode::RocksDB;
-        } break;
-        case 't': {
-          if (optarg == std::string{"v1direct"}) {
-            storageType = StorageType::V1DirectKeyValue;
-          } else if (optarg == std::string{"v2merkle"}) {
-            storageType = StorageType::V2MerkleTree;
-          } else {
-            throw std::runtime_error{"invalid argument for --storage-type"};
-          }
         } break;
         case 'l': {
           logPropsFile = optarg;
@@ -195,22 +183,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                     metricsPort,
                                                     persistMode == PersistencyMode::RocksDB,
                                                     s3ConfigFile,
-                                                    storageType,
                                                     logPropsFile});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
     throw;
   }
-}
-
-std::unique_ptr<IStorageFactory> TestSetup::GetInMemStorageFactory() const {
-  if (storageType_ == StorageType::V1DirectKeyValue) {
-    return std::make_unique<v1DirectKeyValue::MemoryDBStorageFactory>();
-  } else if (storageType_ == StorageType::V2MerkleTree) {
-    return std::make_unique<v2MerkleTree::MemoryDBStorageFactory>();
-  }
-  throw std::runtime_error{"Invalid storage type"};
 }
 
 #ifdef USE_S3_OBJECT_STORE
@@ -252,12 +230,7 @@ concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3
 #endif
 
 std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
-#ifndef USE_ROCKSDB
-  return GetInMemStorageFactory();
-#else
-
-  if (!UsePersistentStorage()) return GetInMemStorageFactory();
-
+  // TODO handle persistancy mode
   std::stringstream dbPath;
   dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
 
@@ -268,13 +241,7 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
     return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
   }
 #endif
-  if (storageType_ == StorageType::V1DirectKeyValue) {
-    return std::make_unique<v1DirectKeyValue::RocksDBStorageFactory>(dbPath.str());
-  } else if (storageType_ == StorageType::V2MerkleTree) {
-    return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
-  }
-  throw std::runtime_error{"Invalid storage type"};
-#endif
+  return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
 }
 
 }  // namespace concord::kvbc

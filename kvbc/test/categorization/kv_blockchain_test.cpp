@@ -822,7 +822,7 @@ TEST_F(categorized_kvbc, single_read_with_version) {
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
 
-  ASSERT_THROW(block_chain.get("non_exist", "key", 1), std::runtime_error);
+  ASSERT_NO_THROW(block_chain.get("non_exist", "key", 1));
   ASSERT_FALSE(block_chain.get("merkle", "non_exist", 1).has_value());
   ASSERT_FALSE(block_chain.get("versioned", "non_exist", 1).has_value());
   ASSERT_FALSE(block_chain.get("immutable", "non_exist", 1).has_value());

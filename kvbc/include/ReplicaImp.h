@@ -10,6 +10,7 @@
 #include <atomic>
 
 #include "OpenTracing.hpp"
+#include "categorization/kv_blockchain.h"
 #include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
 #include "bftengine/Replica.hpp"
@@ -31,10 +32,13 @@
 namespace concord::kvbc {
 
 class ReplicaImp : public IReplica,
-                   public ILocalKeyValueStorageReadOnly,
-                   public IBlocksAppender,
                    public IBlocksDeleter,
-                   public bftEngine::bcst::IAppState {
+                   public IReader,
+                   public IBlockAdder,
+                   public bftEngine::bcst::IAppState,
+                   // Deprecated interfaces follow. Will be removed after integration.
+                   public IBlocksAppender,
+                   public ILocalKeyValueStorageReadOnly {
  public:
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IReplica implementation
@@ -42,24 +46,9 @@ class ReplicaImp : public IReplica,
   Status stop() override;
   bool isRunning() const override { return (m_currentRepStatus == RepStatus::Running); }
   RepStatus getReplicaStatus() const override;
-  const ILocalKeyValueStorageReadOnly &getReadOnlyStorage() override;
-  Status addBlockToIdleReplica(const concord::storage::SetOfKeyValuePairs &updates) override;
+  const IReader &getReadOnlyStorage() const override;
+  BlockId addBlockToIdleReplica(categorization::Updates &&updates) override;
   void set_command_handler(ICommandsHandler *handler) override;
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // ILocalKeyValueStorageReadOnly implementation
-  Status get(const Sliver &key, Sliver &outValue) const override;
-  Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override;
-  BlockId getGenesisBlock() const override { return m_bcDbAdapter->getGenesisBlockId(); }
-  BlockId getLastBlock() const override { return getLastBlockNum(); }
-  Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override;
-  Status mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const override;
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // IBlocksAppender implementation
-  Status addBlock(const concord::storage::SetOfKeyValuePairs &updates,
-                  BlockId &outBlockId,
-                  const concordUtils::SpanWrapper &parent_span) override;
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
@@ -68,14 +57,79 @@ class ReplicaImp : public IReplica,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // IReader
+  std::optional<categorization::Value> get(const std::string &category_id,
+                                           const std::string &key,
+                                           BlockId block_id) const override;
+
+  std::optional<categorization::Value> getLatest(const std::string &category_id, const std::string &key) const override;
+
+  void multiGet(const std::string &category_id,
+                const std::vector<std::string> &keys,
+                const std::vector<BlockId> &versions,
+                std::vector<std::optional<categorization::Value>> &values) const override;
+
+  void multiGetLatest(const std::string &category_id,
+                      const std::vector<std::string> &keys,
+                      std::vector<std::optional<categorization::Value>> &values) const override;
+
+  std::optional<categorization::TaggedVersion> getLatestVersion(const std::string &category_id,
+                                                                const std::string &key) const override;
+
+  void multiGetLatestVersion(const std::string &category_id,
+                             const std::vector<std::string> &keys,
+                             std::vector<std::optional<categorization::TaggedVersion>> &versions) const override;
+
+  categorization::Updates getBlockUpdates(BlockId block_id) const override;
+
+  // Get the current genesis block ID in the system.
+  BlockId getGenesisBlockId() const override;
+
+  // Get the last block ID in the system.
+  BlockId getLastBlockId() const override;
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // IBlockAdder
+  BlockId add(categorization::Updates &&) override;
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Deprecated: ILocalKeyValueStorageReadOnly implementation
+  Status get(const Sliver &key, Sliver &outValue) const override { return Status::GeneralError(""); }
+  Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override {
+    return Status::GeneralError("");
+  }
+  BlockId getGenesisBlock() const override { return 0; }
+  BlockId getLastBlock() const override { return 0; }
+  Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override {
+    return Status::GeneralError("");
+  }
+  Status mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const override {
+    return Status::GeneralError("");
+  }
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Deprecated: IBlocksAppender implementation
+  Status addBlock(const concord::storage::SetOfKeyValuePairs &updates,
+                  BlockId &outBlockId,
+                  const concordUtils::SpanWrapper &parent_span) override {
+    return Status::GeneralError("");
+  }
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IAppState implementation
   bool hasBlock(BlockId blockId) const override;
   bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) override;
   bool getPrevDigestFromBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *) override;
-  bool putBlock(const uint64_t blockId, const char *block, const uint32_t blockSize) override;
-  uint64_t getLastReachableBlockNum() const override { return m_bcDbAdapter->getLastReachableBlockId(); }
-  uint64_t getLastBlockNum() const override { return m_bcDbAdapter->getLatestBlockId(); }
+  bool putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) override;
+  uint64_t getLastReachableBlockNum() const override;
+  uint64_t getLastBlockNum() const override;
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  bool getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize);
+  bool getPrevDigestFromObjectStoreBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *);
+  bool putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize);
 
   ReplicaImp(bft::communication::ICommunication *comm,
              const bftEngine::ReplicaConfig &config,
@@ -90,9 +144,6 @@ class ReplicaImp : public IReplica,
   ~ReplicaImp() override;
 
  protected:
-  Status addBlockInternal(const concord::storage::SetOfKeyValuePairs &updates, BlockId &outBlockId);
-  Status getInternal(BlockId readVersion, const Key &key, Sliver &outValue, BlockId &outBlock) const;
-  void insertBlockInternal(BlockId blockId, Sliver block);
   RawBlock getBlockInternal(BlockId blockId) const;
 
  private:
@@ -131,6 +182,10 @@ class ReplicaImp : public IReplica,
   logging::Logger logger;
   RepStatus m_currentRepStatus;
 
+  concord::kvbc::IStorageFactory::DatabaseSet m_dbSet;
+  // The categorization KeyValueBlockchain is used for a normal read-write replica.
+  std::optional<categorization::KeyValueBlockchain> m_kvBlockchain;
+  // The IdbAdapter instance is used for a read-only replica.
   std::unique_ptr<IDbAdapter> m_bcDbAdapter;
   std::shared_ptr<storage::IDBClient> m_metadataDBClient;
   bft::communication::ICommunication *m_ptrComm = nullptr;

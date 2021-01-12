@@ -70,8 +70,8 @@ Msg BlockKey 2000 {
 }
 
 Msg BlockData 2001 {
-    uint64 block_id
     fixedlist uint8 32 parent_digest
+    uint64 block_id
     map string oneof{
         BlockMerkleOutput
         VersionedOutput
@@ -83,6 +83,11 @@ Msg RawBlockData 2005 {
     fixedlist uint8 32 parent_digest
     CategoryInput updates
     map string optional fixedlist uint8 32 category_root_hash
+}
+
+# Used to deserialize the parent_digest only from RawBlockData and BlockData.
+Msg ParentDigest 2006 {
+    fixedlist uint8 32 value
 }
 
 # Misc

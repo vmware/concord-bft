@@ -18,6 +18,7 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 
 #include <ctime>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -191,6 +192,15 @@ struct Updates {
       throw std::logic_error{std::string("Only one update for category is allowed. type: Immutable, category: ") +
                              category_id};
     }
+  }
+
+  std::optional<std::reference_wrapper<const std::variant<BlockMerkleInput, VersionedInput, ImmutableInput>>>
+  categoryUpdates(const std::string& category_id) const {
+    auto it = category_updates_.kv.find(category_id);
+    if (it == category_updates_.kv.cend()) {
+      return std::nullopt;
+    }
+    return it->second;
   }
 
   std::size_t size() const { return block_merkle_size + versioned_kv_size + immutable_size; }

@@ -402,7 +402,7 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
 
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   SetOfKeyValuePairs keys;
-  if (block.length() > 0) {
+  if (saveKvPairsSeparately_ && block.length() > 0) {
     keys = getBlockData(block);
   }
   if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())

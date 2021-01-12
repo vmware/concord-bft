@@ -19,17 +19,18 @@
 #include "block_metadata.hpp"
 #include <unistd.h>
 #include <algorithm>
+#include <variant>
 
 using namespace BasicRandomTests;
 using namespace bftEngine;
 
-using concordUtils::Status;
 using concordUtils::Sliver;
 using concord::kvbc::BlockId;
 using concord::kvbc::KeyValuePair;
 using concord::storage::SetOfKeyValuePairs;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
+static const std::string CAT_ID{"replica_tester_kv_category"};
 
 void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
                                       const std::string &batchCid,
@@ -68,16 +69,33 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   }
 }
 
-void InternalCommandsHandler::addMetadataKeyValue(SetOfKeyValuePairs &updates, uint64_t sequenceNum) const {
-  Sliver metadataKey = m_blockMetadata->getKey();
-  Sliver metadataValue = m_blockMetadata->serialize(sequenceNum);
-  updates.insert(KeyValuePair(metadataKey, metadataValue));
+void InternalCommandsHandler::addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates,
+                                                  uint64_t sequenceNum) const {
+  updates.addUpdate(std::string{concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr},
+                    m_blockMetadata->serialize(sequenceNum));
 }
 
 Sliver InternalCommandsHandler::buildSliverFromStaticBuf(char *buf) {
   char *newBuf = new char[KV_LEN];
   memcpy(newBuf, buf, KV_LEN);
   return Sliver(newBuf, KV_LEN);
+}
+
+std::string InternalCommandsHandler::getAtMost(const std::string &key, concord::kvbc::BlockId current) const {
+  if (m_storage->getLastBlockId() == 0 || m_storage->getGenesisBlockId() == 0 || current == 0) {
+    return std::string(KV_LEN, '\0');
+  }
+
+  auto value = std::string(KV_LEN, '\0');
+  do {
+    const auto v = m_storage->get(CAT_ID, key, current);
+    if (v) {
+      value = std::get<concord::kvbc::categorization::VersionedValue>(*v).data;
+      break;
+    }
+    --current;
+  } while (current);
+  return value;
 }
 
 bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
@@ -141,27 +159,27 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
   }
 
   SimpleKey *readSetArray = writeReq->readSetArray();
-  BlockId currBlock = m_storage->getLastBlock();
+  BlockId currBlock = m_storage->getLastBlockId();
 
   // Look for conflicts
   bool hasConflict = false;
   for (size_t i = 0; !hasConflict && i < writeReq->numOfKeysInReadSet; i++) {
-    m_storage->mayHaveConflictBetween(
-        buildSliverFromStaticBuf(readSetArray[i].key), writeReq->readVersion + 1, currBlock, hasConflict);
+    const auto key = std::string(readSetArray[i].key, KV_LEN);
+    const auto latest = m_storage->getLatestVersion(CAT_ID, key);
+    hasConflict = (latest && (latest->deleted || latest->version > writeReq->readVersion));
   }
 
   if (!hasConflict) {
     SimpleKV *keyValArray = writeReq->keyValueArray();
-    SetOfKeyValuePairs updates;
+    concord::kvbc::categorization::Updates updates;
+    concord::kvbc::categorization::VersionedUpdates verUpdates;
     for (size_t i = 0; i < writeReq->numOfWrites; i++) {
-      KeyValuePair keyValue(buildSliverFromStaticBuf(keyValArray[i].simpleKey.key),
-                            buildSliverFromStaticBuf(keyValArray[i].simpleValue.value));
-      updates.insert(keyValue);
+      verUpdates.addUpdate(std::string(keyValArray[i].simpleKey.key, KV_LEN),
+                           std::string(keyValArray[i].simpleValue.value, KV_LEN));
     }
-    addMetadataKeyValue(updates, sequenceNum);
-    BlockId newBlockId = 0;
-    Status addSuccess = m_blocksAppender->addBlock(updates, newBlockId);
-    ConcordAssert(addSuccess.isOK());
+    addMetadataKeyValue(verUpdates, sequenceNum);
+    updates.add(CAT_ID, std::move(verUpdates));
+    const auto newBlockId = m_blockAdder->add(std::move(updates));
     ConcordAssert(newBlockId == currBlock + 1);
   }
 
@@ -195,15 +213,14 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   }
 
   auto block_id = req->block_id;
-  SetOfKeyValuePairs outBlockData;
-  if (!m_storage->getBlockData(block_id, outBlockData).isOK()) {
-    LOG_ERROR(m_logger, "GetBlockData: Failed to retrieve block %" << block_id);
-    return false;
-  }
+  const auto updates = m_storage->getBlockUpdates(block_id);
+  const auto verUpdates = updates.categoryUpdates(CAT_ID);
+  ConcordAssert(verUpdates.has_value());
+  const auto &verUpdatesKv = std::get<concord::kvbc::categorization::VersionedInput>(verUpdates->get()).kv;
 
   // Each block contains a single metadata key holding the sequence number
   const int numMetadataKeys = 1;
-  auto numOfElements = outBlockData.size() - numMetadataKeys;
+  auto numOfElements = verUpdatesKv.size() - numMetadataKeys;
   size_t replySize = SimpleReply_Read::getSize(numOfElements);
   LOG_INFO(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
   if (maxReplySize < replySize) {
@@ -217,13 +234,11 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   pReply->header.type = READ;
   pReply->numOfItems = numOfElements;
 
-  const Sliver metadataKey = m_blockMetadata->getKey();
-
   auto i = 0;
-  for (const auto &kv : outBlockData) {
-    if (kv.first != metadataKey) {
-      memcpy(pReply->items[i].simpleKey.key, kv.first.data(), KV_LEN);
-      memcpy(pReply->items[i].simpleValue.value, kv.second.data(), KV_LEN);
+  for (const auto &[key, value] : verUpdatesKv) {
+    if (key != concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr) {
+      memcpy(pReply->items[i].simpleKey.key, key.data(), KV_LEN);
+      memcpy(pReply->items[i].simpleValue.value, value.data.data(), KV_LEN);
       ++i;
     }
   }
@@ -261,17 +276,16 @@ bool InternalCommandsHandler::executeReadCommand(
   SimpleKV *replyItems = reply->items;
   for (size_t i = 0; i < numOfItems; i++) {
     memcpy(replyItems->simpleKey.key, readKeys->key, KV_LEN);
-    Sliver value;
-    BlockId outBlock = 0;
-    if (!m_storage->get(readReq->readVersion, buildSliverFromStaticBuf(readKeys->key), value, outBlock).isOK()) {
-      LOG_ERROR(m_logger, "Read: Failed to get keys for readVersion = %" << readReq->readVersion);
-      return false;
+    auto value = std::string(KV_LEN, '\0');
+    if (readReq->readVersion > m_storage->getLastBlockId()) {
+      const auto v = m_storage->getLatest(CAT_ID, std::string(readKeys->key, KV_LEN));
+      if (v) {
+        value = std::get<concord::kvbc::categorization::VersionedValue>(*v).data;
+      }
+    } else {
+      value = getAtMost(std::string(readKeys->key, KV_LEN), readReq->readVersion);
     }
-
-    if (value.length() > 0)
-      memcpy(replyItems->simpleValue.value, value.data(), KV_LEN);
-    else
-      memset(replyItems->simpleValue.value, 0, KV_LEN);
+    memcpy(replyItems->simpleValue.value, value.data(), KV_LEN);
     ++readKeys;
     ++replyItems;
   }
@@ -324,7 +338,7 @@ bool InternalCommandsHandler::executeGetLastBlockCommand(uint32_t requestSize,
 
   auto *reply = (SimpleReply_GetLastBlock *)(outReply);
   reply->header.type = GET_LAST_BLOCK;
-  reply->latestBlock = m_storage->getLastBlock();
+  reply->latestBlock = m_storage->getLastBlockId();
   ++m_getLastBlockCounter;
   LOG_INFO(m_logger,
            "GetLastBlock message handled; getLastBlockCounter=" << m_getLastBlockCounter
