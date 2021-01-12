@@ -51,6 +51,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -102,8 +103,9 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         bft_network.start_replica(late_replica)
 
         # Make sure the current view is stable
-        current_view = await bft_network.wait_for_view(
+        await bft_network.wait_for_view(
             replica_id=0,
+            expected=lambda v: v == current_view,
             err_msg="Make sure view is stable after all Replicas are connected."
         )
 
