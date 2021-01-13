@@ -124,10 +124,10 @@ class TlsTCPCommunication::TlsTcpImpl {
         connect_timer_(io_service_),
         status_(std::make_shared<TlsStatus>()),
         histograms_(Recorders(
-            std::to_string(config.listenPort), config.bufferLength, AsyncTlsConnection::MAX_QUEUE_SIZE_IN_BYTES)) {
+            std::to_string(config.selfId), config.bufferLength, AsyncTlsConnection::MAX_QUEUE_SIZE_IN_BYTES)) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     concord::diagnostics::StatusHandler handler(
-        "tls" + std::to_string(config.listenPort), "TlsTcpImpl status", [this]() { return status_->status(); });
+        "tls" + std::to_string(config.selfId), "TlsTcpImpl status", [this]() { return status_->status(); });
     registrar.status.registerHandler(handler);
   }
 

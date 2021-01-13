@@ -90,13 +90,13 @@ struct Recorders {
   using Recorder = concord::diagnostics::Recorder;
   using Unit = concord::diagnostics::Unit;
 
-  Recorders(std::string port, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
+  Recorders(std::string selfId, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
       : write_queue_size_in_bytes(
             MAKE_SHARED_RECORDER("write_queue_size_in_bytes", 1, max_queue_size_in_bytes, 3, Unit::BYTES)),
         sent_msg_size(MAKE_SHARED_RECORDER("sent_msg_size", 1, max_msg_size, 3, Unit::BYTES)),
         received_msg_size(MAKE_SHARED_RECORDER("received_msg_size", 1, max_msg_size, 3, Unit::BYTES)) {
     auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    registrar.perf.registerComponent("tls" + port,
+    registrar.perf.registerComponent("tls" + selfId,
                                      {write_queue_len,
                                       write_queue_size_in_bytes,
                                       sent_msg_size,
