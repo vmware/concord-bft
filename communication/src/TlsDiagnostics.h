@@ -32,16 +32,7 @@ namespace bft::communication {
 // code harder to read. it's also possible that we forget to reset it and cause more problems than
 // we solve.
 struct TlsStatus {
-  TlsStatus()
-      : total_accepted_connections(0),
-        total_connect_attempts_completed(0),
-        num_resolving(0),
-        num_connecting(0),
-        num_connected_waiting_for_handshake(0),
-        num_accepted_waiting_for_handshake(0),
-        num_connections(0),
-        total_messages_sent(0),
-        total_messages_dropped(0) {}
+  TlsStatus() { reset(); }
 
   void reset() {
     total_accepted_connections = 0;
@@ -53,6 +44,14 @@ struct TlsStatus {
     num_connections = 0;
     total_messages_sent = 0;
     total_messages_dropped = 0;
+    msg_size_header_read_attempts = 0;
+    msg_reads = 0;
+    read_timer_started = 0;
+    read_timer_stopped = 0;
+    read_timer_expired = 0;
+    write_timer_started = 0;
+    write_timer_stopped = 0;
+    write_timer_expired = 0;
   }
 
   std::string status() {
@@ -66,6 +65,14 @@ struct TlsStatus {
     oss << KVLOG(num_connections) << std::endl;
     oss << KVLOG(total_messages_sent) << std::endl;
     oss << KVLOG(total_messages_dropped) << std::endl;
+    oss << KVLOG(msg_size_header_read_attempts) << std::endl;
+    oss << KVLOG(msg_reads) << std::endl;
+    oss << KVLOG(read_timer_started) << std::endl;
+    oss << KVLOG(read_timer_stopped) << std::endl;
+    oss << KVLOG(read_timer_expired) << std::endl;
+    oss << KVLOG(write_timer_started) << std::endl;
+    oss << KVLOG(write_timer_stopped) << std::endl;
+    oss << KVLOG(write_timer_expired) << std::endl;
     return oss.str();
   }
 
@@ -78,6 +85,14 @@ struct TlsStatus {
   std::atomic<size_t> num_connections;
   std::atomic<size_t> total_messages_sent;
   std::atomic<size_t> total_messages_dropped;
+  std::atomic<size_t> msg_size_header_read_attempts;
+  std::atomic<size_t> msg_reads;
+  std::atomic<size_t> read_timer_started;
+  std::atomic<size_t> read_timer_stopped;
+  std::atomic<size_t> read_timer_expired;
+  std::atomic<size_t> write_timer_started;
+  std::atomic<size_t> write_timer_stopped;
+  std::atomic<size_t> write_timer_expired;
 };
 
 // Histogram Recorders for use in the TLS code.
@@ -101,20 +116,22 @@ struct Recorders {
                                       write_queue_size_in_bytes,
                                       sent_msg_size,
                                       received_msg_size,
-                                      send_enqueue_time,
                                       send_time_in_queue,
                                       read_enqueue_time,
-                                      time_between_reads});
+                                      time_between_reads,
+                                      connect_callback,
+                                      on_connection_authenticated});
   }
 
   std::shared_ptr<Recorder> write_queue_size_in_bytes;
   std::shared_ptr<Recorder> sent_msg_size;
   std::shared_ptr<Recorder> received_msg_size;
   DEFINE_SHARED_RECORDER(write_queue_len, 1, MAX_QUEUE_LENGTH, 3, Unit::COUNT);
-  DEFINE_SHARED_RECORDER(send_enqueue_time, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(send_time_in_queue, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(read_enqueue_time, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(time_between_reads, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(connect_callback, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(on_connection_authenticated, 1, MAX_US, 3, Unit::MICROSECONDS);
 };
 
 }  // namespace bft::communication

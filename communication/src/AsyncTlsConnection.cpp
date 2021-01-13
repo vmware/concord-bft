@@ -32,6 +32,7 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
   const size_t bytes_remaining = MSG_HEADER_SIZE - offset;
   auto buf = boost::asio::buffer(read_size_buf_.data() + offset, bytes_remaining);
   const auto start_read = std::chrono::steady_clock::now();
+  tlsTcpImpl_.status_->msg_size_header_read_attempts++;
 
   socket_->async_read_some(
       buf,
@@ -83,6 +84,7 @@ void AsyncTlsConnection::readMsg() {
   auto msg_size = getReadMsgSize();
   LOG_DEBUG(logger_, KVLOG(peer_id_.value(), msg_size, (void*)read_msg_.data()));
   auto self = shared_from_this();
+  tlsTcpImpl_.status_->msg_reads++;
   async_read(*socket_,
              boost::asio::buffer(read_msg_.data(), msg_size),
              [this, self, msg_size](const boost::system::error_code& error_code, auto bytes_transferred) {
@@ -149,13 +151,16 @@ void AsyncTlsConnection::startReadTimer() {
   LOG_DEBUG(logger_, KVLOG(peer_id_.value()));
   auto self = shared_from_this();
   read_timer_.expires_from_now(READ_TIMEOUT);
+  tlsTcpImpl_.status_->read_timer_started++;
   read_timer_.async_wait([this, self](const boost::system::error_code& ec) {
     if (ec == boost::asio::error::operation_aborted || disposed_) {
       // The socket has already been cleaned up and any references are invalid. Just return.
       LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+      tlsTcpImpl_.status_->read_timer_stopped++;
       return;
     }
     LOG_WARN(logger_, "Read timeout from node " << peer_id_.value() << ": " << ec.message());
+    tlsTcpImpl_.status_->read_timer_expired++;
     dispose();
   });
 }
@@ -163,13 +168,16 @@ void AsyncTlsConnection::startReadTimer() {
 void AsyncTlsConnection::startWriteTimer() {
   auto self = shared_from_this();
   write_timer_.expires_from_now(WRITE_TIMEOUT);
+  tlsTcpImpl_.status_->write_timer_started++;
   write_timer_.async_wait([this, self](const boost::system::error_code& ec) {
     if (ec == boost::asio::error::operation_aborted || disposed_) {
       // The socket has already been cleaned up and any references are invalid. Just return.
       LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+      tlsTcpImpl_.status_->write_timer_stopped++;
       return;
     }
     LOG_WARN(logger_, "Write timeout to node " << peer_id_.value() << ": " << ec.message());
+    tlsTcpImpl_.status_->write_timer_expired++;
     dispose();
   });
 }
@@ -183,119 +191,60 @@ uint32_t AsyncTlsConnection::getReadMsgSize() {
   return ntohl(num);
 }
 
-void AsyncTlsConnection::dispose() {
-  ConcordAssert(!disposed_);
+void AsyncTlsConnection::dispose(bool close_connection) {
+  // We only want to dispose of a connection if it was actually authenticated, in which case it has
+  // started to be used. In the case of a server connection failing authentication, it will have no
+  // corresponding peer_id_.
+  if (disposed_ || !peer_id_.has_value()) return;
   LOG_WARN(logger_, "Closing connection to node " << peer_id_.value());
   disposed_ = true;
   boost::system::error_code _;
   read_timer_.cancel(_);
   write_timer_.cancel(_);
-  tlsTcpImpl_.closeConnection(peer_id_.value());
-}
-
-void AsyncTlsConnection::send(std::vector<char>&& raw_msg) {
-  LOG_DEBUG(logger_, KVLOG(peer_id_.value()));
-  std::lock_guard<std::mutex> guard(write_lock_);
-  auto size = raw_msg.size();
-  if (queued_size_in_bytes_ + size > MAX_QUEUE_SIZE_IN_BYTES) {
-    LOG_WARN(logger_, "Outgoing Queue is full. Dropping message with size: " << raw_msg.size());
-    return;
-  }
-  out_queue_.push_back(OutgoingMsg(std::move(raw_msg)));
-  queued_size_in_bytes_ += size;
-
-  tlsTcpImpl_.histograms_.write_queue_len->record(out_queue_.size());
-  tlsTcpImpl_.histograms_.write_queue_size_in_bytes->record(queued_size_in_bytes_);
-
-  // If out_queue_.size() > 1 then the io_thread is already writing. We don't want to initiate two
-  // simultaneous async_write calls to the same socket. We also must ensure that this write call
-  // runs in a strand in io_service_ because the async_write it contains cannot safely run in
-  // another thread. WE use io_service_.post() for this.
-  if (out_queue_.size() == 1) {
-    auto self = shared_from_this();
-    io_service_.post([this, self]() { write(); });
-  }
-
-  if (tlsTcpImpl_.config_.statusCallback && tlsTcpImpl_.isReplica()) {
-    PeerConnectivityStatus pcs{};
-    pcs.peerId = tlsTcpImpl_.config_.selfId;
-    pcs.statusType = StatusType::MessageSent;
-    tlsTcpImpl_.config_.statusCallback(pcs);
-  }
-}
-
-// Invariant: write_lock_ is held
-void AsyncTlsConnection::dropStaleMsgs() {
-  ConcordAssert(!out_queue_.empty());
-  while (out_queue_.front().send_time + STALE_MESSAGE_TIMEOUT < std::chrono::steady_clock::now()) {
-    auto diff = std::chrono::steady_clock::now() - out_queue_.front().send_time;
-    LOG_WARN(logger_,
-             "Message queued for peer " << peer_id_.value() << " for "
-                                        << std::chrono::duration_cast<std::chrono::seconds>(diff).count()
-                                        << " seconds, with size: " << out_queue_.front().msg.size()
-                                        << " dropped. Message is stale: Exceeded threshold of "
-                                        << STALE_MESSAGE_TIMEOUT.count() << " seconds.");
-    queued_size_in_bytes_ -= out_queue_.front().msg.size();
-    tlsTcpImpl_.histograms_.send_time_in_queue->record(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count());
-    out_queue_.pop_front();
-    if (out_queue_.empty()) {
-      return;
-    }
+  if (close_connection) {
+    tlsTcpImpl_.closeConnection(peer_id_.value());
   }
 }
 
 void AsyncTlsConnection::write() {
-  std::lock_guard<std::mutex> guard(write_lock_);
-  dropStaleMsgs();
-  if (out_queue_.empty()) return;
+  if (disposed_ || write_msg_.has_value()) return;
+
+  write_msg_ = write_queue_->pop();
+  if (!write_msg_) return;
+
+  LOG_DEBUG(logger_, "Writing" << KVLOG(write_msg_->msg.size()));
 
   // We don't want to include tcp transmission time.
-  auto diff = std::chrono::steady_clock::now() - out_queue_.front().send_time;
+  auto diff = std::chrono::steady_clock::now() - write_msg_->send_time;
   tlsTcpImpl_.histograms_.send_time_in_queue->record(
       std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count());
 
   auto self = shared_from_this();
-  startWriteTimer();
-  LOG_DEBUG(logger_, "Before async write: " << KVLOG(peer_id_.value(), out_queue_.front().msg.size()));
-  boost::asio::async_write(
-      *socket_,
-      boost::asio::buffer(out_queue_.front().msg),
-      [this, self](const boost::system::error_code& ec, auto bytes_written) {
-        if (disposed_) {
-          return;
-        }
-        if (ec) {
-          if (ec == boost::asio::error::operation_aborted) {
-            // The socket has already been cleaned up and any references are invalid. Just return.
-            LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
-            return;
-          }
-          LOG_WARN(logger_,
-                   "Write failed to node " << peer_id_.value() << " for message with size "
-                                           << out_queue_.front().msg.size() << ": " << ec.message());
-          return dispose();
-        }
-        // The write succeeded.
-        boost::system::error_code _ec;
-        write_timer_.cancel(_ec);
+  boost::asio::async_write(*socket_,
+                           boost::asio::buffer(write_msg_->msg),
+                           [this, self](const boost::system::error_code& ec, auto bytes_written) {
+                             if (disposed_) return;
+                             if (ec) {
+                               if (ec == boost::asio::error::operation_aborted) {
+                                 // The socket has already been cleaned up and any references are invalid. Just return.
+                                 LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+                                 return;
+                               }
+                               LOG_WARN(logger_,
+                                        "Write failed to node " << peer_id_.value() << " for message with size "
+                                                                << write_msg_->msg.size() << ": " << ec.message());
+                               return dispose();
+                             }
 
-        LOG_DEBUG(logger_,
-                  "Successful async write: " << KVLOG(peer_id_.value(), out_queue_.front().msg.size(), bytes_written));
-        auto size = out_queue_.front().msg.size();
-        // Minimize time holding lock. We also can't hold the lock when we call write.
-        bool continue_writing = false;
-        {
-          std::lock_guard<std::mutex> guard(write_lock_);
-          out_queue_.pop_front();
-          continue_writing = !out_queue_.empty();
-          queued_size_in_bytes_ -= size;
-        }
-        tlsTcpImpl_.histograms_.sent_msg_size->record(size);
-        if (continue_writing) {
-          write();
-        }
-      });
+                             // The write succeeded.
+                             boost::system::error_code _ec;
+                             write_timer_.cancel(_ec);
+
+                             tlsTcpImpl_.histograms_.sent_msg_size->record(write_msg_->msg.size());
+                             write_msg_ = std::nullopt;
+                             write();
+                           });
+  startWriteTimer();
 }
 
 void AsyncTlsConnection::createSSLSocket(boost::asio::ip::tcp::socket&& socket) {

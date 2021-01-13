@@ -14,7 +14,7 @@
 #include <chrono>
 #include <mutex>
 #include <thread>
-#include <set>
+#include <unordered_set>
 
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
@@ -24,6 +24,7 @@
 #include "Logger.hpp"
 #include "AsyncTlsConnection.h"
 #include "TlsDiagnostics.h"
+#include "TlsWriteQueue.h"
 
 #pragma once
 
@@ -70,11 +71,6 @@ typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSL_SOCKET;
  *
  *  (1) occurs when the `ICommunication::SendAsyncMsg` method is called.
  *  (2) occurs when the `ICommunication::getCurrentConnectionStatus` method is called.
- *
- *  Since we maintain a map of AsyncTlsConnections and each of these has its own queue of messages
- *  to send, we can protect both with a single mutex: `connections_guard`. This single lock provides
- *  the required mutual exclusion needed to support the application interface provided by
- *  `ICommunication`.
  *
  * **************************
  * Notes on Performance
@@ -123,12 +119,18 @@ class TlsTCPCommunication::TlsTcpImpl {
         accepting_socket_(io_service_),
         connect_timer_(io_service_),
         status_(std::make_shared<TlsStatus>()),
-        histograms_(Recorders(
-            std::to_string(config.selfId), config.bufferLength, AsyncTlsConnection::MAX_QUEUE_SIZE_IN_BYTES)) {
+        histograms_(Recorders(std::to_string(config.selfId), config.bufferLength, MAX_QUEUE_SIZE_IN_BYTES)) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     concord::diagnostics::StatusHandler handler(
         "tls" + std::to_string(config.selfId), "TlsTcpImpl status", [this]() { return status_->status(); });
     registrar.status.registerHandler(handler);
+    write_queues_.reserve(config_.nodes.size() - 1);
+    for (const auto node : config_.nodes) {
+      if (node.first != config_.selfId) {
+        NodeNum id = node.first;
+        write_queues_.try_emplace(id, id, histograms_);
+      }
+    }
   }
 
   //
@@ -233,20 +235,30 @@ class TlsTCPCommunication::TlsTcpImpl {
   // Sockets that are in progress of connecting.
   // When these connections complete, an AsyncTlsConnection will be created and moved into
   // `connected_waiting_for_handshake_`.
-  std::map<NodeNum, boost::asio::ip::tcp::socket> connecting_;
+  std::unordered_map<NodeNum, boost::asio::ip::tcp::socket> connecting_;
 
   // Connections that are in progress of waiting for a handshake to complete.
   // When the handshake completes these will be moved into `connections_`.
-  std::map<NodeNum, std::shared_ptr<AsyncTlsConnection>> connected_waiting_for_handshake_;
+  std::unordered_map<NodeNum, std::shared_ptr<AsyncTlsConnection>> connected_waiting_for_handshake_;
 
   // Connections that have been accepted, but where the handshake has not been completed.
   // When the handshake completes these will be moved into `connections_`.
-  std::map<size_t, std::shared_ptr<AsyncTlsConnection>> accepted_waiting_for_handshake_;
+  std::unordered_map<size_t, std::shared_ptr<AsyncTlsConnection>> accepted_waiting_for_handshake_;
 
   // Connections are manipulated from multiple threads. The io_service thread creates them and runs callbacks on them.
   // Senders find a connection through this map and push data onto the outQueue.
   mutable std::mutex connections_guard_;
-  std::map<NodeNum, std::shared_ptr<AsyncTlsConnection>> connections_;
+  std::unordered_map<NodeNum, std::shared_ptr<AsyncTlsConnection>> connections_;
+
+  // This is a cache of the connected nodes in `connections_`. It's used to determine who to try to connect to in the
+  // connect callback in the io thread so that `connections_guard` does not have to be locked. We only need to lock
+  // `connections_guard` in the io thread when a connection is authenticated or disposed.
+  std::unordered_set<NodeNum> active_connections_;
+
+  // Each destination has its own WriteQueue. The lifetime of these queues is the lifetime of the
+  // TlsTcpImpl. When a connection is established for that destination, a reference to the write
+  // queue is passed into the conneciton.
+  std::unordered_map<NodeNum, WriteQueue> write_queues_;
 
   // Diagnostics
   std::shared_ptr<TlsStatus> status_;

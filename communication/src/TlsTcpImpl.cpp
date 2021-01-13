@@ -15,6 +15,8 @@
 #include "assertUtils.hpp"
 #include "TlsTcpImpl.h"
 
+using concord::diagnostics::TimeRecorder;
+
 namespace bft::communication {
 
 int TlsTCPCommunication::TlsTcpImpl::Start() {
@@ -79,6 +81,12 @@ int TlsTCPCommunication::TlsTcpImpl::Stop() {
     (void)_;  // unused variable hack
     syncCloseConnection(conn);
   }
+
+  for (auto& [_, write_queue] : write_queues_) {
+    (void)_;  // unused variable hack
+    write_queue.clear();
+  }
+
   return 0;
 }
 
@@ -132,26 +140,43 @@ int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination,
     LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(len, max_size));
     return -1;
   }
-  auto start = std::chrono::steady_clock::now();
-  uint32_t msg_size = htonl(static_cast<uint32_t>(len));
-  std::lock_guard<std::mutex> lock(connections_guard_);
-  auto temp = connections_.find(destination);
-  if (temp != connections_.end()) {
-    std::vector<char> owned(len + AsyncTlsConnection::MSG_HEADER_SIZE);
-    std::memcpy(owned.data(), &msg_size, AsyncTlsConnection::MSG_HEADER_SIZE);
-    std::memcpy(owned.data() + AsyncTlsConnection::MSG_HEADER_SIZE, msg, len);
-    temp->second->send(std::move(owned));
-    histograms_.send_enqueue_time->record(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
-    status_->total_messages_sent++;
-    LOG_DEBUG(logger_, "Sent message from: " << config_.selfId << ", to: " << destination << "with size: " << len);
 
-  } else {
-    LOG_DEBUG(logger_, "Connection NOT found, from: " << config_.selfId << ", to: " << destination);
+  auto& queue = write_queues_.at(destination);
+  auto queue_size_after_push = queue.push(msg, len);
+  if (!queue_size_after_push) {
+    LOG_DEBUG(logger_, "Connection NOT found or queue full, from: " << config_.selfId << ", to: " << destination);
     status_->total_messages_dropped++;
     return -1;
   }
-  return 0;
+
+  auto conn = queue.getConn();
+
+  // If queue_size_after_push > 1 then the io_thread is already writing. It's somewhat expensive to
+  // call `io_serivce.post`, and so we only write if we know there's a good chance no other write is
+  // going on. Note that due to the fact that the current message being sent is popped off the write
+  // queue, it's possible there's an inflight write going on and this thread doesn't know about it.
+  // Therefore, we may call post every time a message is sent if the queue never grows beyond 1.
+  if (queue_size_after_push.value() == 1) {
+    if (conn) {
+      io_service_.post([conn]() { conn->write(); });
+    }
+  }
+
+  if (conn) {
+    LOG_DEBUG(logger_, "Sent message from: " << config_.selfId << ", to: " << destination << "with size: " << len);
+    status_->total_messages_sent++;
+
+    if (config_.statusCallback && isReplica()) {
+      PeerConnectivityStatus pcs{};
+      pcs.peerId = config_.selfId;
+      pcs.statusType = StatusType::MessageSent;
+      config_.statusCallback(pcs);
+    }
+    return 0;
+  } else {
+    status_->total_messages_dropped++;
+    return -1;
+  }
 }
 
 void setSocketOptions(boost::asio::ip::tcp::socket& socket) { socket.set_option(boost::asio::ip::tcp::no_delay(true)); }
@@ -161,6 +186,8 @@ void TlsTCPCommunication::TlsTcpImpl::closeConnection(NodeNum id) {
   std::lock_guard<std::mutex> lock(connections_guard_);
   auto conn = std::move(connections_.at(id));
   connections_.erase(id);
+  active_connections_.erase(id);
+  write_queues_.at(id).disconnect();
   status_->num_connections = connections_.size();
   if (config_.statusCallback && isReplica(id)) {
     PeerConnectivityStatus pcs{};
@@ -172,6 +199,9 @@ void TlsTCPCommunication::TlsTcpImpl::closeConnection(NodeNum id) {
 }
 
 void TlsTCPCommunication::TlsTcpImpl::closeConnection(std::shared_ptr<AsyncTlsConnection> conn) {
+  // We don't want AsyncTlsConnection to close the socket, since we are doing that here.
+  static constexpr bool close_connection = false;
+  conn->dispose(close_connection);
   conn->getSocket().lowest_layer().cancel();
   conn->getSocket().async_shutdown([this, conn](const auto& ec) {
     if (ec) {
@@ -188,19 +218,26 @@ void TlsTCPCommunication::TlsTcpImpl::syncCloseConnection(std::shared_ptr<AsyncT
 }
 
 void TlsTCPCommunication::TlsTcpImpl::onConnectionAuthenticated(std::shared_ptr<AsyncTlsConnection> conn) {
-  // Move the connection into the accepted connections map If. there is an existing connection
+  // Move the connection into the accepted connections map. If there is an existing connection
   // discard it. In this case it was likely that connecting end of the connection thinks there is
   // something wrong. This is a vector for a denial of service attack on the accepting side. We can
   // track the number of connections from the node and mark it malicious if necessary.
-  std::lock_guard<std::mutex> lock(connections_guard_);
-  auto it = connections_.find(conn->getPeerId().value());
-  if (it != connections_.end()) {
-    LOG_INFO(logger_,
-             "New connection accepted from same peer. Closing existing connection to " << conn->getPeerId().value());
-    closeConnection(std::move(it->second));
+  TimeRecorder scoped_timer(*histograms_.on_connection_authenticated);
+  auto& queue = write_queues_.at(conn->getPeerId().value());
+  {
+    std::lock_guard<std::mutex> lock(connections_guard_);
+    auto it = connections_.find(conn->getPeerId().value());
+    if (it != connections_.end()) {
+      LOG_INFO(logger_,
+               "New connection accepted from same peer. Closing existing connection to " << conn->getPeerId().value());
+      closeConnection(std::move(it->second));
+    }
+    conn->setWriteQueue(&queue);
+    connections_.insert_or_assign(conn->getPeerId().value(), conn);
+    status_->num_connections = connections_.size();
   }
-  connections_.insert_or_assign(conn->getPeerId().value(), conn);
-  status_->num_connections = connections_.size();
+  queue.connect(conn);
+  active_connections_.insert(conn->getPeerId().value());
   conn->readMsgSizeHeader();
 }
 
