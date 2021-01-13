@@ -94,10 +94,10 @@ struct Recorder {
 };
 
 #define MAKE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
-  std::make_shared<Recorder>(name, lowest, highest, sigfig, unit)
+  std::make_shared<concord::diagnostics::Recorder>(name, lowest, highest, sigfig, unit)
 
 #define DEFINE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
-  std::shared_ptr<Recorder> name = MAKE_SHARED_RECORDER(#name, lowest, highest, sigfig, unit)
+  std::shared_ptr<concord::diagnostics::Recorder> name = MAKE_SHARED_RECORDER(#name, lowest, highest, sigfig, unit)
 // This class should be instantiated to measure a duration of a scope and add it to a histogram
 // recorder. The measurement is taken and recorded in the destructor.
 template <bool IsAtomic = false>
@@ -366,6 +366,12 @@ class PerformanceHandler {
 
   // Snapshot all histograms for the given component
   void snapshot(const std::string& component);
+
+  // DO NOT USE THIS IN PRODUCTION. THIS IS ONLY FOR TESTING, SO THAT WE CAN CLEAR THE SINGLETON AND REREGISTER.
+  void clear() {
+    std::lock_guard<std::mutex> guard(mutex_);
+    components_.clear();
+  }
 
  private:
   Histograms& getHistograms(const std::string& component_name);

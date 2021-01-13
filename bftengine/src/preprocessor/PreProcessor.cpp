@@ -98,7 +98,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers},
-      preExecuteDuration_{histograms_.preExecutionTotal},
+      preExecuteDuration_{histograms_.totalPreExecutionDuration},
       lastViewNum_(myReplica.getCurrentView()) {
   registerMsgHandlers();
   metricsComponent_.Register();

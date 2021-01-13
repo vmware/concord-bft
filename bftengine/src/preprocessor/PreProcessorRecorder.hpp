@@ -18,49 +18,37 @@ class PreProcessorRecorder {
  public:
   PreProcessorRecorder() {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    try {
-      registrar.perf.registerComponent("pre-execution",
-                                       {{"onMessage", onMessage},
-                                        {"launchReqPreProcessing", launchReqPreProcessing},
-                                        {"handlePreProcessedReqByNonPrimary", handlePreProcessedReqByNonPrimary},
-                                        {"handlePreProcessedReqByPrimary", handlePreProcessedReqByPrimary},
-                                        {"sendPreProcessRequestToAllReplicas", sendPreProcessRequestToAllReplicas},
-                                        {"finalizePreProcessing", finalizePreProcessing},
-                                        {"validateMessage", validateMessage},
-                                        {"calculateHash", calculateHash},
-                                        {"signHash", signHash},
-                                        {"convertAndCompareHashes", convertAndCompareHashes},
-                                        {"totalPreExecutionDuration", preExecutionTotal}});
-    } catch (std::invalid_argument &e) {
-      // if component already exists lets keep record on the same histograms
-    }
+    registrar.perf.registerComponent("pre-execution",
+                                     {onMessage,
+                                      launchReqPreProcessing,
+                                      handlePreProcessedReqByNonPrimary,
+                                      handlePreProcessedReqByPrimary,
+                                      sendPreProcessRequestToAllReplicas,
+                                      finalizePreProcessing,
+                                      validateMessage,
+                                      calculateHash,
+                                      signHash,
+                                      convertAndCompareHashes,
+                                      totalPreExecutionDuration});
   }
 
   // 5 Minutes, 300 seconds
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 300000000;
-  typedef std::shared_ptr<concord::diagnostics::Recorder> RecorderSharedPtr;
-  RecorderSharedPtr onMessage = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr launchReqPreProcessing = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr handlePreProcessedReqByNonPrimary = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr handlePreProcessedReqByPrimary = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr sendPreProcessRequestToAllReplicas = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr finalizePreProcessing = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr validateMessage = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr calculateHash = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr signHash = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr convertAndCompareHashes = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  RecorderSharedPtr preExecutionTotal = std::make_shared<concord::diagnostics::Recorder>(
-      1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+
+  using Recorder = concord::diagnostics::Recorder;
+  using Unit = concord::diagnostics::Unit;
+
+  DEFINE_SHARED_RECORDER(onMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(launchReqPreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(handlePreProcessedReqByNonPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(handlePreProcessedReqByPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(sendPreProcessRequestToAllReplicas, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(finalizePreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(validateMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(calculateHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(signHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(convertAndCompareHashes, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(totalPreExecutionDuration, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
 };
 
 }  // namespace preprocessor
