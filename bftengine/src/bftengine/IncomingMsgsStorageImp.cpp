@@ -63,13 +63,15 @@ void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
   std::unique_lock<std::mutex> mlock(lock_);
   if (ptrProtectedQueueForExternalMessages_->size() >= maxNumberOfPendingExternalMsgs_) {
     Time now = getMonotonicTime();
+    auto msg_type = static_cast<MsgCode::Type>(msg->type());
     if ((now - lastOverflowWarning_) > (milliseconds(minTimeBetweenOverflowWarningsMilli_))) {
-      LOG_WARN(GL,
-               "More than " << maxNumberOfPendingExternalMsgs_
-                            << " pending messages in queue - may ignore some of the messages!");
+      LOG_WARN(GL, "Queue Full. Dropping some msgs." << KVLOG(maxNumberOfPendingExternalMsgs_, msg_type));
       lastOverflowWarning_ = now;
     }
+    dropped_msgs++;
   } else {
+    histograms_.dropped_msgs_in_a_row->record(dropped_msgs);
+    dropped_msgs = 0;
     ptrProtectedQueueForExternalMessages_->push(std::move(msg));
     condVar_.notify_one();
   }
@@ -150,7 +152,9 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
           if (msgHandlerCallback) {
             msgHandlerCallback(message);
           } else {
-            LOG_WARN(GL, "Delete unknown message type: " << message->type());
+            LOG_WARN(
+                GL,
+                "Received unknown external Message: " << KVLOG(message->type(), message->senderId(), message->size()));
             delete message;
           }
           break;
