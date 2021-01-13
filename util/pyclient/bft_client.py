@@ -336,7 +336,7 @@ class TcpTlsClient(BftClient):
         2) Disconnected from dest_replica - in that case, try to connect to it. On success, insert the new SSL stream
         into self.ssl_streams and move to parking until un-parked. On failure, sleep for 0.1 sec, and retry.
 
-        SSL stream might be remove from self.ssl_streams while sending or receiving data, after finding out that 
+        SSL stream might be remove from self.ssl_streams while sending or receiving data, after finding out that
         connection is closed or broken.
         """
         if self.exit_flag:
@@ -361,7 +361,7 @@ class TcpTlsClient(BftClient):
                 tcp_stream = await trio.open_tcp_stream(str(dest_replica.ip), int(dest_replica.port))
                 # Wrap this stream with SSL stream, pass server_hostname to be verified
                 ssl_stream = trio.SSLStream(tcp_stream, ssl_context, server_hostname=server_hostname, https_compatible=False)
-                # Wait for handshake to finish (we want to be on the safe side - after this we are sure 
+                # Wait for handshake to finish (we want to be on the safe side - after this we are sure
                 # connection is open)
                 await ssl_stream.do_handshake()
                 # Success! keep stream in dictionary and break out
@@ -391,7 +391,7 @@ class TcpTlsClient(BftClient):
             return
         # first 4 bytes include the data header (message size), then comes the data
         data_len = len(data)
-        out_buff = bytearray(data_len.to_bytes(self.MSG_HEADER_SIZE, "little"))
+        out_buff = bytearray(data_len.to_bytes(self.MSG_HEADER_SIZE, "big"))
         out_buff += bytearray(data)
         stream = self.ssl_streams[dest_addr]
         try:
@@ -436,7 +436,7 @@ class TcpTlsClient(BftClient):
         while len(data) < self.MSG_HEADER_SIZE:
             if not await self._stream_recv_some(data, dest_addr, stream, self.MSG_HEADER_SIZE):
                 return
-        payload_size = int.from_bytes(data[:self.MSG_HEADER_SIZE], "little")
+        payload_size = int.from_bytes(data[:self.MSG_HEADER_SIZE], "big")
         del data[:self.MSG_HEADER_SIZE]
         while len(data) < payload_size:
             if not await self._stream_recv_some(data, dest_addr, stream, payload_size - len(data)):
