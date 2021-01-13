@@ -130,6 +130,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   void startWriteTimer();
 
   void write();
+  void dropStaleMsgs();
 
   void createSSLSocket(boost::asio::ip::tcp::socket&&);
   void initClientSSLContext(NodeNum destination);

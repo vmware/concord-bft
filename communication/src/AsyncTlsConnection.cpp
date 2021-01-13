@@ -215,10 +215,17 @@ void AsyncTlsConnection::send(std::vector<char>&& raw_msg) {
     auto self = shared_from_this();
     io_service_.post([this, self]() { write(); });
   }
+
+  if (tlsTcpImpl_.config_.statusCallback && tlsTcpImpl_.isReplica()) {
+    PeerConnectivityStatus pcs{};
+    pcs.peerId = tlsTcpImpl_.config_.selfId;
+    pcs.statusType = StatusType::MessageSent;
+    tlsTcpImpl_.config_.statusCallback(pcs);
+  }
 }
 
-void AsyncTlsConnection::write() {
-  std::lock_guard<std::mutex> guard(write_lock_);
+// Invariant: write_lock_ is held
+void AsyncTlsConnection::dropStaleMsgs() {
   ConcordAssert(!out_queue_.empty());
   while (out_queue_.front().send_time + STALE_MESSAGE_TIMEOUT < std::chrono::steady_clock::now()) {
     auto diff = std::chrono::steady_clock::now() - out_queue_.front().send_time;
@@ -236,6 +243,12 @@ void AsyncTlsConnection::write() {
       return;
     }
   }
+}
+
+void AsyncTlsConnection::write() {
+  std::lock_guard<std::mutex> guard(write_lock_);
+  dropStaleMsgs();
+  if (out_queue_.empty()) return;
 
   // We don't want to include tcp transmission time.
   auto diff = std::chrono::steady_clock::now() - out_queue_.front().send_time;
@@ -266,12 +279,6 @@ void AsyncTlsConnection::write() {
         // The write succeeded.
         boost::system::error_code _ec;
         write_timer_.cancel(_ec);
-        if (tlsTcpImpl_.config_.statusCallback && tlsTcpImpl_.isReplica()) {
-          PeerConnectivityStatus pcs{};
-          pcs.peerId = tlsTcpImpl_.config_.selfId;
-          pcs.statusType = StatusType::MessageSent;
-          tlsTcpImpl_.config_.statusCallback(pcs);
-        }
 
         LOG_DEBUG(logger_,
                   "Successful async write: " << KVLOG(peer_id_.value(), out_queue_.front().msg.size(), bytes_written));
