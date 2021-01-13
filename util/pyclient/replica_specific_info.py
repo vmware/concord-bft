@@ -34,6 +34,9 @@ class MsgWithReplicaSpecificInfo:
     def get_common_reply(self):
         return self.common_header, self.common_data
 
+    def get_common_data(self):
+        return self.common_data
+
     def get_rsi_data(self):
         return self.rsi_data
 
@@ -50,6 +53,7 @@ class MsgWithReplicaSpecificInfo:
 class RepliesManager:
     def __init__(self):
         self.replies = dict()
+        self.seq_nums = dict()
 
     def add_reply(self, rsi_message):
         """
@@ -59,10 +63,16 @@ class RepliesManager:
         per-replica in a dictionary.
         """
         key = rsi_message.get_matched_reply_key()
+        self.seq_nums[rsi_message.common_header.req_seq_num] = key
         if key not in self.replies.keys():
             self.replies[key] = dict()
-        self.replies[key][rsi_message.get_sender_id()] = rsi_message.get_rsi_data()
+        self.replies[key][rsi_message.get_sender_id()] = rsi_message
         return len(self.replies[key])
+
+    def set_seq_nums(self, seq_nums):
+        self.seq_nums = dict()
+        for s in seq_nums:
+            self.seq_nums[s] = None
 
     def pop(self, matched_reply_key):
         return self.replies.pop(matched_reply_key)
@@ -80,6 +90,21 @@ class RepliesManager:
             return dict()
         return self.replies[matched_reply_key]
 
+    def get_all_replies(self):
+        replies = dict()
+        for seq_num, key in self.seq_nums.items():
+            replies[seq_num] = next(iter(self.replies[key].values()))
+        return replies
+
     def clear_replies(self):
         self.replies = dict()
 
+    def expects_seq_num(self, seq_num):
+        return seq_num in self.seq_nums.keys()
+
+    def has_quorum_on_all(self, required_replies):
+        has_quorum = True
+        for seq_num, key in self.seq_nums.items():
+            if self.num_matching_replies(key) < required_replies:
+                has_quorum = False
+        return has_quorum

@@ -848,6 +848,31 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
+    async def send_tracked_write_batch(self, client, max_set_size, batch_size, long_exec=False):
+        msg_batch = []
+        batch_seq_nums = []
+        client_id = client.client_id
+        for i in range(batch_size):
+            max_read_set_size = 0 if self.no_conflicts else max_set_size
+            readset = self.readset(0, max_read_set_size)
+            writeset = self.writeset(max_set_size)
+            read_version = self.read_block_id()
+            msg_batch.append(self.skvbc.write_req(readset, writeset, read_version, long_exec))
+            seq_num = client.req_seq_num.next()
+            batch_seq_nums.append(seq_num)
+            self.send_write(client_id, seq_num, readset, dict(writeset), read_version)
+        
+        with log.start_action(action_type="send_tracked_kv_set_batch"):
+            try:
+                replies = await client.write_batch(msg_batch, batch_seq_nums)
+                self.status.record_client_reply(client_id)
+                for seq_num, reply_msg in replies.items():
+                    reply = self.skvbc.parse_reply(reply_msg.get_common_data())
+                    self.handle_write_reply(client_id, seq_num, reply)
+            except trio.TooSlowError:
+                self.status.record_client_timeout(client_id)
+                return
+
     async def send_tracked_write(self, client, max_set_size, long_exec=False):
         max_read_set_size = 0 if self.no_conflicts else max_set_size
         readset = self.readset(0, max_read_set_size)

@@ -142,7 +142,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    if skvbc.parse_rsi_reply(rep, r.get_rsi_data()) == 0:
                         done = False
                         break
 
@@ -179,7 +179,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    if skvbc.parse_rsi_reply(rep, r.get_rsi_data()) == 0:
                         done = False
                         break
 
@@ -223,7 +223,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    if skvbc.parse_rsi_reply(rep, r.get_rsi_data()) == 0:
                         done = False
                         break
 
@@ -304,7 +304,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    if skvbc.parse_rsi_reply(rep, r.get_rsi_data()) == 0:
                         done = False
                         break
 
