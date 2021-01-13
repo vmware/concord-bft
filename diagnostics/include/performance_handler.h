@@ -26,7 +26,7 @@
 
 namespace concord::diagnostics {
 
-static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diagnostics");
+static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.perf");
 
 enum class Unit {
   NANOSECONDS,

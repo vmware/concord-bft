@@ -21,7 +21,8 @@ void PerformanceHandler::registerComponent(const std::string& name,
                                            const std::vector<std::shared_ptr<Recorder>>& recorders) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (components_.count(name)) {
-    throw std::invalid_argument(std::string("Component already exists: ") + name);
+    LOG_FATAL(DIAG_LOGGER, "Component already exists: " << name);
+    std::terminate();
   }
   Histograms histograms;
   for (const auto& recorder : recorders) {
