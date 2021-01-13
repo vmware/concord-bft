@@ -145,6 +145,7 @@ int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination,
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
     status_->total_messages_sent++;
     LOG_DEBUG(logger_, "Sent message from: " << config_.selfId << ", to: " << destination << "with size: " << len);
+
   } else {
     LOG_DEBUG(logger_, "Connection NOT found, from: " << config_.selfId << ", to: " << destination);
     status_->total_messages_dropped++;
@@ -233,7 +234,7 @@ void TlsTCPCommunication::TlsTcpImpl::onClientHandshakeComplete(const boost::sys
 
 void TlsTCPCommunication::TlsTcpImpl::startServerSSLHandshake(boost::asio::ip::tcp::socket&& socket) {
   auto connection_id = total_accepted_connections_;
-  auto conn = AsyncTlsConnection::create(io_service_, std::move(socket), receiver_, *this);
+  auto conn = AsyncTlsConnection::create(io_service_, std::move(socket), receiver_, *this, config_.bufferLength);
   accepted_waiting_for_handshake_.insert({connection_id, conn});
   status_->num_accepted_waiting_for_handshake = accepted_waiting_for_handshake_.size();
   conn->getSocket().async_handshake(
@@ -243,7 +244,8 @@ void TlsTCPCommunication::TlsTcpImpl::startServerSSLHandshake(boost::asio::ip::t
 
 void TlsTCPCommunication::TlsTcpImpl::startClientSSLHandshake(boost::asio::ip::tcp::socket&& socket,
                                                               NodeNum destination) {
-  auto conn = AsyncTlsConnection::create(io_service_, std::move(socket), receiver_, *this, destination);
+  auto conn =
+      AsyncTlsConnection::create(io_service_, std::move(socket), receiver_, *this, config_.bufferLength, destination);
   connected_waiting_for_handshake_.insert({destination, conn});
   status_->num_connected_waiting_for_handshake = connected_waiting_for_handshake_.size();
   conn->getSocket().async_handshake(

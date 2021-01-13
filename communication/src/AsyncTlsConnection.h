@@ -32,7 +32,7 @@ typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSL_SOCKET;
 
 class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnection> {
  public:
-  static constexpr uint32_t MSG_HEADER_SIZE = 4;
+  static constexpr size_t MSG_HEADER_SIZE = 4;
   // Any message attempted to be put on the queue that causes the total size of the queue to exceed
   // this value will be dropped. This is to prevent indefinite backups and useless stale messages.
   // The number is very large right now so as not to affect current setups. In the future we will
@@ -53,8 +53,9 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   static std::shared_ptr<AsyncTlsConnection> create(boost::asio::io_service& io_service,
                                                     boost::asio::ip::tcp::socket&& socket,
                                                     IReceiver* receiver,
-                                                    TlsTCPCommunication::TlsTcpImpl& impl) {
-    auto conn = std::make_shared<AsyncTlsConnection>(io_service, receiver, impl);
+                                                    TlsTCPCommunication::TlsTcpImpl& impl,
+                                                    size_t max_buffer_size) {
+    auto conn = std::make_shared<AsyncTlsConnection>(io_service, receiver, impl, max_buffer_size);
     conn->initServerSSLContext();
     conn->createSSLSocket(std::move(socket));
     return conn;
@@ -64,27 +65,33 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                                                     boost::asio::ip::tcp::socket&& socket,
                                                     IReceiver* receiver,
                                                     TlsTCPCommunication::TlsTcpImpl& impl,
+                                                    size_t max_buffer_size,
                                                     NodeNum destination) {
-    auto conn = std::make_shared<AsyncTlsConnection>(io_service, receiver, impl, destination);
+    auto conn = std::make_shared<AsyncTlsConnection>(io_service, receiver, impl, max_buffer_size, destination);
     conn->initClientSSLContext(destination);
     conn->createSSLSocket(std::move(socket));
     return conn;
   }
 
   // Constructor for an accepting (server) connection.
-  AsyncTlsConnection(boost::asio::io_service& io_service, IReceiver* receiver, TlsTCPCommunication::TlsTcpImpl& impl)
+  AsyncTlsConnection(boost::asio::io_service& io_service,
+                     IReceiver* receiver,
+                     TlsTCPCommunication::TlsTcpImpl& impl,
+                     size_t max_buffer_size)
       : logger_(logging::getLogger("concord-bft.tls.conn")),
         io_service_(io_service),
         ssl_context_(boost::asio::ssl::context::tlsv12_server),
         receiver_(receiver),
         tlsTcpImpl_(impl),
         read_timer_(io_service_),
-        write_timer_(io_service_) {}
+        write_timer_(io_service_),
+        read_msg_(max_buffer_size) {}
 
   // Constructor for a connecting (client) connection.
   AsyncTlsConnection(boost::asio::io_service& io_service,
                      IReceiver* receiver,
                      TlsTCPCommunication::TlsTcpImpl& impl,
+                     size_t max_buffer_size,
                      NodeNum peer_id)
       : logger_(logging::getLogger("concord-bft.tls.conn")),
         io_service_(io_service),
@@ -93,7 +100,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         receiver_(receiver),
         tlsTcpImpl_(impl),
         read_timer_(io_service_),
-        write_timer_(io_service_) {}
+        write_timer_(io_service_),
+        read_msg_(max_buffer_size) {}
 
   void send(std::vector<char>&& msg);
   void setPeerId(NodeNum peer_id) { peer_id_ = peer_id; }
@@ -101,7 +109,9 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   SSL_SOCKET& getSocket() { return *socket_.get(); }
 
   // Every messsage is preceded by a 4 byte message header that we must read.
+  // `bytes_already_read` == `std::nullopt` if this is the first read call.
   void readMsgSizeHeader();
+  void readMsgSizeHeader(std::optional<size_t> bytes_already_read);
 
  private:
   // Clean up the connection
@@ -113,7 +123,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // removed and closed.
   void readMsg();
 
-  // Return the recently read size header as an integer. Assume little-endian byte order.
+  // Return the recently read size header as an integer. Assume network byte order.
   uint32_t getReadMsgSize();
 
   void startReadTimer();
