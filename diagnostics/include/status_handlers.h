@@ -22,8 +22,8 @@ namespace concord::diagnostics {
 
 // Every component that can return status should register a status handler with the Registrar.
 struct StatusHandler {
-  StatusHandler(std::string name, std::string description, std::function<std::string()> fun)
-      : name(std::move(name)), description(std::move(description)), f(std::move(fun)) {}
+  StatusHandler(const std::string& name, const std::string& description, std::function<std::string()> fun)
+      : name(name), description(description), f(std::move(fun)) {}
   std::string name;
   std::string description;
   std::function<std::string()> f;

@@ -33,12 +33,13 @@ IClient* createClient(const ClientConfig& conf, ICommunication* comm) {
 Status ClientImp::start() {
   if (isRunning()) return Status::IllegalOperation("todo");
 
-  comm_->Start();
-
   uint16_t fVal = config_.fVal;
   uint16_t cVal = config_.cVal;
   uint16_t clientId = config_.clientId;
   bftClient_ = bftEngine::SimpleClient::createSimpleClient(comm_, clientId, fVal, cVal);
+
+  // Only start the communication after creating the client, because the client sets the receiver of communication
+  comm_->Start();
 
   return Status::OK();
 }

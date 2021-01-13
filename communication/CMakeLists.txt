@@ -9,7 +9,11 @@ if(${BUILD_COMM_TCP_PLAIN})
     set(bftcommunication_src ${bftcommunication_src} src/PlainTcpCommunication.cpp)
 endif()
 if(${BUILD_COMM_TCP_TLS})
-    set(bftcommunication_src ${bftcommunication_src} src/TlsTCPCommunication.cpp)
+    set(bftcommunication_src ${bftcommunication_src}
+        src/TlsTCPCommunication.cpp
+        src/TlsTcpImpl.cpp
+        src/AsyncTlsConnection.cpp
+    )
 endif()
 
 add_library(bftcommunication ${bftcommunication_src})
@@ -34,12 +38,12 @@ if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
     elseif(${BUILD_COMM_TCP_TLS})
         find_package(OpenSSL REQUIRED)
         target_include_directories(bftcommunication PUBLIC ${OPENSSL_INCLUDE_DIR})
-        target_link_libraries(bftcommunication PUBLIC ${OPENSSL_LIBRARIES})
+        target_link_libraries(bftcommunication PUBLIC ${OPENSSL_LIBRARIES} diagnostics)
         target_compile_definitions(bftcommunication PUBLIC USE_COMM_TLS_TCP)
         target_include_directories(bftcommunication_shared PUBLIC ${OPENSSL_INCLUDE_DIR})
-        target_link_libraries(bftcommunication_shared PUBLIC ${OPENSSL_LIBRARIES})
+        target_link_libraries(bftcommunication_shared PUBLIC ${OPENSSL_LIBRARIES} diagnostics)
         target_compile_definitions(bftcommunication_shared PUBLIC USE_COMM_TLS_TCP)
     endif()
 endif()
 install(DIRECTORY include/communication DESTINATION include)
-install (TARGETS bftcommunication_shared DESTINATION lib${LIB_SUFFIX}) 
+install (TARGETS bftcommunication_shared DESTINATION lib${LIB_SUFFIX})
