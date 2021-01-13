@@ -10,10 +10,14 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
+#pragma once
+
 #include <atomic>
 #include <sstream>
 
 #include "kvstream.h"
+#include "diagnostics.h"
+
 namespace bft::communication {
 
 // TLS Status registered with and retrieved by the diagnostics status handler.
@@ -74,6 +78,49 @@ struct TlsStatus {
   std::atomic<size_t> num_connections;
   std::atomic<size_t> total_messages_sent;
   std::atomic<size_t> total_messages_dropped;
+};
+
+// Histogram Recorders for use in the TLS code.
+// These should only be written in the ASIO thread.
+struct Recorders {
+  static constexpr int64_t MAX_NS = 1000 * 1000 * 1000 * 60l;  // 60s
+  static constexpr int64_t MAX_US = 1000 * 1000 * 60;          // 60s
+  static constexpr int64_t MAX_QUEUE_LENGTH = 100000;
+
+  using Recorder = concord::diagnostics::Recorder;
+  using Unit = concord::diagnostics::Unit;
+
+  Recorders(std::string port, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
+      : write_queue_len(std::make_shared<Recorder>(1, MAX_QUEUE_LENGTH, 3, Unit::COUNT)),
+        write_queue_size_in_bytes(std::make_shared<Recorder>(1, max_queue_size_in_bytes, 3, Unit::BYTES)),
+        sent_msg_size(std::make_shared<Recorder>(1, max_msg_size, 3, Unit::BYTES)),
+        received_msg_size(std::make_shared<Recorder>(1, max_msg_size, 3, Unit::BYTES)),
+        send_enqueue_time(std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS)),
+        send_time_in_queue(std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS)),
+        read_enqueue_time(std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS)),
+        time_between_reads(std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS)) {
+    auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.registerComponent("tls" + port,
+                                     {
+                                         {"write_queue_len", write_queue_len},
+                                         {"write_queue_size_in_bytes", write_queue_size_in_bytes},
+                                         {"sent_msg_size", sent_msg_size},
+                                         {"received_msg_size", received_msg_size},
+                                         {"send_enqueue_time", send_enqueue_time},
+                                         {"send_time_in_queue", send_time_in_queue},
+                                         {"read_enqueue_time", read_enqueue_time},
+
+                                     });
+  }
+
+  std::shared_ptr<Recorder> write_queue_len;
+  std::shared_ptr<Recorder> write_queue_size_in_bytes;
+  std::shared_ptr<Recorder> sent_msg_size;
+  std::shared_ptr<Recorder> received_msg_size;
+  std::shared_ptr<Recorder> send_enqueue_time;
+  std::shared_ptr<Recorder> send_time_in_queue;
+  std::shared_ptr<Recorder> read_enqueue_time;
+  std::shared_ptr<concord::diagnostics::Recorder> time_between_reads;
 };
 
 }  // namespace bft::communication

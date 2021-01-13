@@ -24,7 +24,6 @@
 #include "Logger.hpp"
 #include "AsyncTlsConnection.h"
 #include "TlsDiagnostics.h"
-#include "diagnostics.h"
 
 #pragma once
 
@@ -123,7 +122,9 @@ class TlsTCPCommunication::TlsTcpImpl {
         resolver_(io_service_),
         accepting_socket_(io_service_),
         connect_timer_(io_service_),
-        status_(std::make_shared<TlsStatus>()) {
+        status_(std::make_shared<TlsStatus>()),
+        histograms_(Recorders(
+            std::to_string(config.listenPort), config.bufferLength, AsyncTlsConnection::MAX_QUEUE_SIZE_IN_BYTES)) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     concord::diagnostics::StatusHandler handler(
         "tls" + std::to_string(config.listenPort), "TlsTcpImpl status", [this]() { return status_->status(); });
@@ -247,7 +248,9 @@ class TlsTCPCommunication::TlsTcpImpl {
   mutable std::mutex connections_guard_;
   std::map<NodeNum, std::shared_ptr<AsyncTlsConnection>> connections_;
 
+  // Diagnostics
   std::shared_ptr<TlsStatus> status_;
+  Recorders histograms_;
 };
 
 }  // namespace bft::communication

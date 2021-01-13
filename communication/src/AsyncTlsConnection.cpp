@@ -14,15 +14,23 @@
 
 #include <arpa/inet.h>
 #include <boost/filesystem.hpp>
+#include <chrono>
 
 #include "AsyncTlsConnection.h"
 #include "TlsTcpImpl.h"
+#include "TlsDiagnostics.h"
+
+using concord::diagnostics::TimeRecorder;
 
 namespace bft::communication {
 
 void AsyncTlsConnection::readMsgSizeHeader() {
   auto self = shared_from_this();
-  async_read(*socket_, boost::asio::buffer(read_size_buf_), [this, self](const auto& error_code, auto _) {
+  const auto start_read = std::chrono::steady_clock::now();
+  async_read(*socket_, boost::asio::buffer(read_size_buf_), [this, self, start_read](const auto& error_code, auto _) {
+    auto interval =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_read);
+    tlsTcpImpl_.histograms_.time_between_reads->record(interval.count());
     if (error_code) {
       if (error_code == boost::asio::error::operation_aborted || disposed_) {
         // The socket has already been cleaned up and any references are invalid. Just return.
@@ -145,6 +153,8 @@ void AsyncTlsConnection::send(std::vector<char>&& raw_msg) {
 
 // Invariant:  `write_lock_` is held when this function is called
 void AsyncTlsConnection::write() {
+  tlsTcpImpl_.histograms_.write_queue_len->record(out_queue_.size());
+  tlsTcpImpl_.histograms_.write_queue_size_in_bytes->record(queued_size_in_bytes_);
   while (!out_queue_.empty() &&
          out_queue_.front().send_time + STALE_MESSAGE_TIMEOUT < std::chrono::steady_clock::now()) {
     auto diff = std::chrono::steady_clock::now() - out_queue_.front().send_time;
@@ -155,11 +165,18 @@ void AsyncTlsConnection::write() {
                                         << " dropped. Message is stale: Exceeded threshold of "
                                         << STALE_MESSAGE_TIMEOUT.count() << " seconds.");
     queued_size_in_bytes_ -= out_queue_.front().msg.size();
+    tlsTcpImpl_.histograms_.send_time_in_queue->record(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count());
     out_queue_.pop_front();
   }
   if (out_queue_.empty()) {
     return;
   }
+
+  // We don't want to include tcp transmission time.
+  auto diff = std::chrono::steady_clock::now() - out_queue_.front().send_time;
+  tlsTcpImpl_.histograms_.send_time_in_queue->record(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count());
 
   auto self = shared_from_this();
   startWriteTimer();
@@ -185,7 +202,9 @@ void AsyncTlsConnection::write() {
           tlsTcpImpl_.config_.statusCallback(pcs);
         }
         std::lock_guard<std::mutex> guard(write_lock_);
-        queued_size_in_bytes_ -= out_queue_.front().msg.size();
+        auto size = out_queue_.front().msg.size();
+        queued_size_in_bytes_ -= size;
+        tlsTcpImpl_.histograms_.sent_msg_size->record(size);
         out_queue_.pop_front();
         if (!out_queue_.empty()) {
           write();

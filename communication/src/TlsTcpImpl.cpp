@@ -132,6 +132,7 @@ int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination,
     LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(len, max_size));
     return -1;
   }
+  auto start = std::chrono::steady_clock::now();
   uint32_t msg_size = htonl(static_cast<uint32_t>(len));
   std::lock_guard<std::mutex> lock(connections_guard_);
   auto temp = connections_.find(destination);
@@ -140,6 +141,8 @@ int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination,
     std::memcpy(owned.data(), &msg_size, AsyncTlsConnection::MSG_HEADER_SIZE);
     std::memcpy(owned.data() + AsyncTlsConnection::MSG_HEADER_SIZE, msg, len);
     temp->second->send(std::move(owned));
+    histograms_.send_enqueue_time->record(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
     status_->total_messages_sent++;
     LOG_DEBUG(logger_, "Sent message from: " << config_.selfId << ", to: " << destination << "with size: " << len);
   } else {
