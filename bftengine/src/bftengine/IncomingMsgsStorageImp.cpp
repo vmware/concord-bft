@@ -84,7 +84,7 @@ void IncomingMsgsStorageImp::pushInternalMsg(InternalMessage&& msg) {
 
 // should only be called by the dispatching thread
 IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
-  TimeRecorder scoped_timer(*histograms_.getMsgForProcessing);
+  TimeRecorder scoped_timer(*histograms_.get_msg_for_processing);
   auto msg = popThreadLocal();
   if (msg.tag != IncomingMsg::INVALID) return msg;
   {
@@ -102,12 +102,12 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
       std::queue<std::unique_ptr<MessageBase>>* t1 = ptrThreadLocalQueueForExternalMessages_;
       ptrThreadLocalQueueForExternalMessages_ = ptrProtectedQueueForExternalMessages_;
       ptrProtectedQueueForExternalMessages_ = t1;
-      histograms_.externalQueueLenAtSwap->record(ptrThreadLocalQueueForExternalMessages_->size());
+      histograms_.external_queue_len_at_swap->record(ptrThreadLocalQueueForExternalMessages_->size());
 
       auto* t2 = ptrThreadLocalQueueForInternalMessages_;
       ptrThreadLocalQueueForInternalMessages_ = ptrProtectedQueueForInternalMessages_;
       ptrProtectedQueueForInternalMessages_ = t2;
-      histograms_.internalQueueLenAtSwap->record(ptrThreadLocalQueueForInternalMessages_->size());
+      histograms_.internal_queue_len_at_swap->record(ptrThreadLocalQueueForInternalMessages_->size());
     }
   }
   return popThreadLocal();

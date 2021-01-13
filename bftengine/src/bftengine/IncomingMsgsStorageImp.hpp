@@ -87,17 +87,15 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   struct Recorders {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("incomingMsgsStorageImp",
-                                       {{"externalQueueLenAtSwap", externalQueueLenAtSwap},
-                                        {"internalQueueLenAtSwap", internalQueueLenAtSwap},
-                                        {"getMsgForProcessing", getMsgForProcessing}});
+      registrar.perf.registerComponent(
+          "incomingMsgsStorageImp", {external_queue_len_at_swap, internal_queue_len_at_swap, get_msg_for_processing});
     }
-    std::shared_ptr<Recorder> externalQueueLenAtSwap =
-        std::make_shared<Recorder>(1, 10000, 3, concord::diagnostics::Unit::COUNT);
-    std::shared_ptr<Recorder> internalQueueLenAtSwap =
-        std::make_shared<Recorder>(1, 10000, 3, concord::diagnostics::Unit::COUNT);
-    std::shared_ptr<Recorder> getMsgForProcessing =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
+
+    DEFINE_SHARED_RECORDER(internal_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
+
+    DEFINE_SHARED_RECORDER(
+        get_msg_for_processing, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
   };
   Recorders histograms_;
 };

@@ -449,55 +449,48 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5l;
   // 60 seconds
   static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000 * 60l;
+
   using Recorder = concord::diagnostics::Recorder;
+  using Unit = concord::diagnostics::Unit;
+
   struct Recorders {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.registerComponent("replica",
-                                       {{"send", send},
-                                        {"executeReadOnlyRequest", executeReadOnlyRequest},
-                                        {"executeWriteRequest", executeWriteRequest},
-                                        {"executeRequestsInPrePrepareMsg", executeRequestsInPrePrepareMsg},
-                                        {"numRequestsInPrePrepareMsg", numRequestsInPrePrepareMsg},
-                                        {"requestsQueueOfPrimarySize", requestsQueueOfPrimarySize},
-                                        {"onSeqNumIsStable", onSeqNumIsStable},
-                                        {"onTransferringCompleteImp", onTransferringCompleteImp},
-                                        {"consensus", consensus},
-                                        {"timeInActiveView", timeInActiveView},
-                                        {"timeInStateTransfer", timeInStateTransfer},
-                                        {"checkpointFromCreationToStable", checkpoint_creation_to_stable}});
+                                       {send,
+                                        executeReadOnlyRequest,
+                                        executeWriteRequest,
+                                        executeRequestsInPrePrepareMsg,
+                                        numRequestsInPrePrepareMsg,
+                                        requestsQueueOfPrimarySize,
+                                        onSeqNumIsStable,
+                                        onTransferringCompleteImp,
+                                        consensus,
+                                        timeInActiveView,
+                                        timeInStateTransfer,
+                                        checkpointFromCreationToStable});
     }
 
-    std::shared_ptr<Recorder> send =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    std::shared_ptr<Recorder> executeReadOnlyRequest =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    std::shared_ptr<Recorder> executeWriteRequest =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    std::shared_ptr<Recorder> executeRequestsInPrePrepareMsg =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    std::shared_ptr<Recorder> numRequestsInPrePrepareMsg =
-        std::make_shared<Recorder>(1, 2500, 3, concord::diagnostics::Unit::COUNT);
-    std::shared_ptr<Recorder> requestsQueueOfPrimarySize =
-        // Currently hardcoded to 700 in ReplicaImp.cpp
-        std::make_shared<Recorder>(1, 701, 3, concord::diagnostics::Unit::COUNT);
-    std::shared_ptr<Recorder> onSeqNumIsStable =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    std::shared_ptr<Recorder> onTransferringCompleteImp =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(send, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(numRequestsInPrePrepareMsg, 1, 2500, 3, Unit::COUNT);
+    DEFINE_SHARED_RECORDER(requestsQueueOfPrimarySize,
+                           1,
+                           // Currently hardcoded to 700 in ReplicaImp.cpp
+                           701,
+                           3,
+                           Unit::COUNT);
+    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(onTransferringCompleteImp, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
 
     // Only updated by the primary
-    std::shared_ptr<Recorder> consensus =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(consensus, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
 
-    std::shared_ptr<Recorder> timeInActiveView =
-        std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
-
-    std::shared_ptr<Recorder> timeInStateTransfer =
-        std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
-
-    std::shared_ptr<Recorder> checkpoint_creation_to_stable =
-        std::make_shared<Recorder>(1, MAX_VALUE_SECONDS, 3, concord::diagnostics::Unit::SECONDS);
+    DEFINE_SHARED_RECORDER(timeInActiveView, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
+    DEFINE_SHARED_RECORDER(timeInStateTransfer, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
+    DEFINE_SHARED_RECORDER(checkpointFromCreationToStable, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
   };
 
   Recorders histograms_;
@@ -511,6 +504,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::diagnostics::AsyncTimeRecorder<false> time_in_state_transfer_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
-};
+};  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl

@@ -50,6 +50,15 @@ enum class Unit {
 struct Recorder {
   // These values, (except for unit), come directly from hdr histogram.
   // https://github.com/HdrHistogram/HdrHistogram_c/blob/master/src/hdr_interval_recorder.h#L28-L32
+  Recorder(const std::string& name,
+           int64_t lowest_trackable_value,
+           int64_t highest_trackable_value,
+           int significant_figures,
+           Unit unit)
+      : Recorder(lowest_trackable_value, highest_trackable_value, significant_figures, unit) {
+    this->name = name;
+  }
+
   Recorder(int64_t lowest_trackable_value, int64_t highest_trackable_value, int significant_figures, Unit unit)
       : unit(unit) {
     ConcordAssert(lowest_trackable_value > 0);
@@ -66,8 +75,7 @@ struct Recorder {
   // Do NOT mix calls with `recordAtomic` in the same recorder.
   void record(int64_t val) {
     if (!hdr_interval_recorder_record_value(&(recorder), val)) {
-      // We don't track the name in recorder, which we would do just for this, which is almost impossible to hit.
-      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(val, unit));
+      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
     }
   }
 
@@ -75,15 +83,21 @@ struct Recorder {
   // cases. Do NOT mix calls with `record` in the same recorder.
   void recordAtomic(int64_t val) {
     if (!hdr_interval_recorder_record_value_atomic(&(recorder), val)) {
-      // We don't track the name in recorder, which we would do just for this, which is almost impossible to hit.
-      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(val, unit));
+      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
     }
   }
 
   hdr_interval_recorder recorder;
   Unit unit;
+  // Set during registration
+  std::string name;
 };
 
+#define MAKE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
+  std::make_shared<Recorder>(name, lowest, highest, sigfig, unit)
+
+#define DEFINE_SHARED_RECORDER(name, lowest, highest, sigfig, unit) \
+  std::shared_ptr<Recorder> name = MAKE_SHARED_RECORDER(#name, lowest, highest, sigfig, unit)
 // This class should be instantiated to measure a duration of a scope and add it to a histogram
 // recorder. The measurement is taken and recorded in the destructor.
 template <bool IsAtomic = false>
@@ -248,7 +262,6 @@ struct Histogram {
 };
 
 using Name = std::string;
-using Recorders = std::map<Name, std::shared_ptr<Recorder>>;
 using Histograms = std::map<Name, Histogram>;
 
 // Useful data extracted from hdr_histogram(s)
@@ -337,7 +350,7 @@ struct HistogramData {
 
 class PerformanceHandler {
  public:
-  void registerComponent(const std::string& name, const Recorders&);
+  void registerComponent(const std::string& name, const std::vector<std::shared_ptr<Recorder>>&);
 
   // List all components
   std::string list() const;

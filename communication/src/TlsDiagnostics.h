@@ -91,36 +91,30 @@ struct Recorders {
   using Unit = concord::diagnostics::Unit;
 
   Recorders(std::string port, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
-      : write_queue_len(std::make_shared<Recorder>(1, MAX_QUEUE_LENGTH, 3, Unit::COUNT)),
-        write_queue_size_in_bytes(std::make_shared<Recorder>(1, max_queue_size_in_bytes, 3, Unit::BYTES)),
-        sent_msg_size(std::make_shared<Recorder>(1, max_msg_size, 3, Unit::BYTES)),
-        received_msg_size(std::make_shared<Recorder>(1, max_msg_size, 3, Unit::BYTES)),
-        send_enqueue_time(std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS)),
-        send_time_in_queue(std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS)),
-        read_enqueue_time(std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS)),
-        time_between_reads(std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS)) {
+      : write_queue_size_in_bytes(
+            MAKE_SHARED_RECORDER("write_queue_size_in_bytes", 1, max_queue_size_in_bytes, 3, Unit::BYTES)),
+        sent_msg_size(MAKE_SHARED_RECORDER("sent_msg_size", 1, max_msg_size, 3, Unit::BYTES)),
+        received_msg_size(MAKE_SHARED_RECORDER("received_msg_size", 1, max_msg_size, 3, Unit::BYTES)) {
     auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     registrar.perf.registerComponent("tls" + port,
-                                     {
-                                         {"write_queue_len", write_queue_len},
-                                         {"write_queue_size_in_bytes", write_queue_size_in_bytes},
-                                         {"sent_msg_size", sent_msg_size},
-                                         {"received_msg_size", received_msg_size},
-                                         {"send_enqueue_time", send_enqueue_time},
-                                         {"send_time_in_queue", send_time_in_queue},
-                                         {"read_enqueue_time", read_enqueue_time},
-
-                                     });
+                                     {write_queue_len,
+                                      write_queue_size_in_bytes,
+                                      sent_msg_size,
+                                      received_msg_size,
+                                      send_enqueue_time,
+                                      send_time_in_queue,
+                                      read_enqueue_time,
+                                      time_between_reads});
   }
 
-  std::shared_ptr<Recorder> write_queue_len;
   std::shared_ptr<Recorder> write_queue_size_in_bytes;
   std::shared_ptr<Recorder> sent_msg_size;
   std::shared_ptr<Recorder> received_msg_size;
-  std::shared_ptr<Recorder> send_enqueue_time;
-  std::shared_ptr<Recorder> send_time_in_queue;
-  std::shared_ptr<Recorder> read_enqueue_time;
-  std::shared_ptr<concord::diagnostics::Recorder> time_between_reads;
+  DEFINE_SHARED_RECORDER(write_queue_len, 1, MAX_QUEUE_LENGTH, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(send_enqueue_time, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(send_time_in_queue, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(read_enqueue_time, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(time_between_reads, 1, MAX_US, 3, Unit::MICROSECONDS);
 };
 
 }  // namespace bft::communication
