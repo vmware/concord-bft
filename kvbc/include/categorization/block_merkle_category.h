@@ -70,20 +70,107 @@ class BlockMerkleCategory {
                              std::vector<std::optional<TaggedVersion>>& versions) const;
   void multiGetLatestVersion(const std::vector<Hash>& keys, std::vector<std::optional<TaggedVersion>>& versions) const;
 
+  // Delete the given block ID as a genesis one.
+  // Precondition: The given block ID must be the genesis one.
+  void deleteGenesisBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
+
+  // Delete the given block ID as a last reachable one.
+  // Precondition: The given block ID must be the last reachable one.
+  void deleteLastReachableBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
+
+  uint64_t getLatestTreeVersion() const;
+  uint64_t getLastDeletedTreeVersion() const;
+
  private:
   void multiGet(const std::vector<Buffer>& versioned_keys,
                 const std::vector<BlockId>& versions,
                 std::vector<std::optional<Value>>& values) const;
 
-  void putKeys(storage::rocksdb::NativeWriteBatch& batch,
-               uint64_t block_id,
-               std::vector<KeyHash>&& hashed_added_keys,
-               std::vector<KeyHash>&& hashed_deleted_keys,
-               BlockMerkleInput& updates);
+  // The last deleted tree version is stored at key `0` in BLOCK_MERKLE_STALE_CF
+  void putLastDeletedTreeVersion(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
 
-  void putMerkleNodes(storage::rocksdb::NativeWriteBatch& batch,
-                      sparse_merkle::UpdateBatch&& update_batch,
-                      uint64_t tree_version);
+  // During initial pruning of a genesis block, rewrite the merkle tree value if some keys are still active.
+  // This is necessary for proofs.
+  //
+  // The data written in this function is the data that gets rewritten or removed in
+  // `rewriteAlreadyPrunedBlocks`.
+  //
+  // Retrieve the value of all active keys so we can recalculate the root hash for the modified block.
+  // Write the updated block to the merkle tree.
+  // Also write corrsponding active key indexes and pruned block index to their respective column families.
+  void writePrunedBlock(BlockId, std::vector<KeyHash>&& active_keys, storage::rocksdb::NativeWriteBatch&);
+
+  // When a block gets pruned, any keys that are still `active` (latest version of a key) are
+  // tracked in a `PrunedBlock`. PrunedBlocks are kept in their own column family. Additionally, a
+  // new root hash is calculated for all remaining active keys in the block, and a new version of
+  // the `MerkleBlockValue` is written into the block merkle tree. Lastly, each active key hash is
+  // written into a separate column family with the pruned block_id as the value. These latter
+  // active keys are necessary for garbage collection, while the `PrunedBlock` and `MerkleBlockValue`
+  // are used to provide (and verify) proofs for active keys in pruned blocks.
+  //
+  // Garbage collection occurs when the block that first updated or deleted an active key from a
+  // prior prune block is itself pruned. All keys in the current block being pruned are checked
+  // during pruning to see if there were prior active keys from pruned blocks. If so, those prior
+  // versions of the keys are deleted along with their active references used for garbage
+  // collection. If any active keys remain for a pruned block, a new root hash is calculated, a new
+  // PrunedBlock written, and the merkle tree is updated yet again for that block. If no active keys
+  // remain for that pruned block, then the pruned block is deleted and the block is finally removed
+  // from the merkle tree, as there are no longer any keys from that block eligible for proofs. This
+  // garbage collection and update process is what is performed by this function.
+  //
+  // To reiterate: pruning (calling `deleteGenesisBlock`) does not always fully delete all data in a
+  // block. If a key is at the latest version when the block is deleted, it is still `active` and
+  // users can retrieve its data and prove that it is part of the blockchain. Any active keys become
+  // `deactivated` when a new version of the key is written in a later block, or the key is deleted
+  // in a later block. However, even though the key is no longer the latest version, it is not
+  // deleted in this step. Final deletion from the database only occurs when the overwriting block
+  // is itself pruned. This tradeoff is made to defer work to the pruning process and not cause
+  // block addition to slow down.
+  void rewriteAlreadyPrunedBlocks(std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys,
+                                  storage::rocksdb::NativeWriteBatch& batch);
+
+  // When a genesis block is pruned, we must delete all data that is stale as of `tree_version`.
+  //
+  // This includes data that may be written in prior tree versions as a result of prior pruning
+  // operations that generate new tree versions and stale data, but not new blocks. There can be a
+  // large amount of these prior versions, as each pruned block generates a new tree version. If we
+  // prune X blocks in a row before we add a new block, Y, then when we prune Block Y, we will have
+  // to lookup all the indexes for those pruned X tree versions and delete the internal and leaf
+  // nodes in the indexes.
+  void deleteStaleData(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
+
+  // Delete a batch of stale merkle nodes as part of `deleteStaleData`.
+  //
+  // 1. Multiget a batch of stale indexes for tree versions in the range [`start`,`end`).
+  // 2. Create a WriteBatch of all the deletions for the keys in those indexes, as well as the stale
+  //    index keys themselves, and the last deleted tree version for this batch.
+  // 3. Atomically write the batch to the database.
+  void deleteStaleBatch(uint64_t start, uint64_t end);
+
+  // Retrieve the latest versions for all raw keys in a block and return them along with the hashed keys.
+  std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> getLatestVersions(
+      const BlockMerkleOutput& out);
+
+  // Return a map from block id to all hashed keys that were still active in previously pruned blocks.
+  //
+  // This is used during pruning, when we must garbage collect keys from prior pruned blocks that
+  // have been overwritten in a new block. When no active keys for the prior pruned block remain we
+  // can remove the block from the merkle tree.
+  //
+  // In the common case, there should not be very many still active keys from pruned blocks. A good
+  // goal for system builders is to try to ensure that when a block is pruned, none of its keys
+  // remain active. This minimizes overhead prune overhead.
+  std::unordered_map<BlockId, std::vector<KeyHash>> findActiveKeysFromPrunedBlocks(
+      const std::vector<Hash>& hashed_keys);
+
+  // Get a pruned block from the database, deserialize it, and return it.
+  // Precondition: The pruned block exists
+  PrunedBlock getPrunedBlock(const Buffer& block_key);
+
+  MerkleBlockValue computeRootHash(BlockId block_id,
+                                   const std::vector<KeyHash>& active_keys,
+                                   bool write_active_key,
+                                   storage::rocksdb::NativeWriteBatch&);
 
  private:
   class Reader : public sparse_merkle::IDBReader {

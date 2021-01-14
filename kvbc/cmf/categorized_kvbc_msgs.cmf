@@ -139,12 +139,10 @@ Msg ImmutableDbVersion 4007 {
     uint64 block_id
 }
 
-# Merkle Tree Data
+# Block Merkle Tree Data
 
 Msg MerkleBlockValue 5000 {
     fixedlist uint8 32 root_hash
-    list KeyHash hashed_added_keys
-    list KeyHash hashed_deleted_keys
 }
 
 Msg NibblePath 5001 {
@@ -179,4 +177,26 @@ Msg BatchedInternalNode 5006 {
     # Contains a 1 where a child node is present, 0 otherwise
     uint32 bitmask
     list BatchedInternalNodeChild children
+}
+
+# The version of a sparse merkle tree. This is different from a block_id.
+Msg TreeVersion 5007 {
+    uint64 version
+}
+
+Msg BlockVersion 5008 {
+    uint64 version
+}
+
+# Contains serialized internal node keys and leaf keys that are safe to delete when a block
+# pointing to a given tree version is pruned.
+Msg StaleKeys 5009 {
+    list bytes internal_keys
+    list bytes leaf_keys
+}
+
+# Keys are only added to this list after initial block pruning.
+# This list gets updated when the block that has overwritten these active keys gets pruned.
+Msg PrunedBlock 5010 {
+    list KeyHash active_keys
 }
