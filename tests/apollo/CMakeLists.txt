@@ -95,8 +95,10 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
             "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_persistence_tests_${STORAGE_TYPE} python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-    add_test(NAME skvbc_ro_replica_tests_${STORAGE_TYPE} COMMAND sh -c
-            "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests_${STORAGE_TYPE} python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    if (USE_S3_OBJECT_STORE)
+      add_test(NAME skvbc_ro_replica_tests_${STORAGE_TYPE} COMMAND sh -c
+              "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_ro_replica_tests_${STORAGE_TYPE} python3 -m unittest test_skvbc_ro_replica ${TEST_OUTPUT}"
+              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    endif()
   endif()
 endforeach()
