@@ -63,6 +63,8 @@ struct ImmutableUpdates {
 
   void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
 
+  size_t size() const { return data_.kv.size(); }
+
  private:
   ImmutableInput data_;
   friend struct Updates;
@@ -107,6 +109,8 @@ struct VersionedUpdates {
 
   void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
 
+  std::size_t size() const { return data_.kv.size(); }
+
  private:
   VersionedInput data_;
   std::set<std::string> unique_deletes_;
@@ -138,6 +142,8 @@ struct BlockMerkleUpdates {
 
   const BlockMerkleInput& getData() { return data_; }
 
+  std::size_t size() const { return data_.kv.size(); }
+
  private:
   BlockMerkleInput data_;
   std::set<std::string> unique_deletes_;
@@ -150,6 +156,7 @@ struct Updates {
   Updates(CategoryInput&& updates) : category_updates_{std::move(updates)} {}
   bool operator==(const Updates& other) { return category_updates_ == other.category_updates_; }
   void add(const std::string& category_id, BlockMerkleUpdates&& updates) {
+    block_merkle_size += updates.size();
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
@@ -159,6 +166,7 @@ struct Updates {
   }
 
   void add(const std::string& category_id, VersionedUpdates&& updates) {
+    versioned_kv_size += updates.size();
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
@@ -168,6 +176,7 @@ struct Updates {
   }
 
   void add(const std::string& category_id, ImmutableUpdates&& updates) {
+    immutable_size += updates.size();
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
@@ -175,6 +184,12 @@ struct Updates {
                              category_id};
     }
   }
+
+  std::size_t size() const { return block_merkle_size + versioned_kv_size + immutable_size; }
+  bool empty() const { return size() == 0; }
+  std::size_t block_merkle_size{};
+  std::size_t versioned_kv_size{};
+  std::size_t immutable_size{};
 
  private:
   friend class KeyValueBlockchain;
