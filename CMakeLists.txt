@@ -39,6 +39,9 @@ option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" FALSE)
 # This requires the rocksdb dependencies to be installed, so defaults to FALSE
 option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" FALSE)
 
+# Build S3 Object Store support.
+option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
+
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
     math(EXPR COMM_MODULES "${COMM_MODULES}+1")

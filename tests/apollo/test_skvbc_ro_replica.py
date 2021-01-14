@@ -99,11 +99,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                                                     close_fds=True)
 
     @classmethod
-    def setUpClass(cls):
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            log.log_message(message_type="CONCORD_BFT_MINIO_BINARY_PATH is not set. Running in RocksDB mode.")
-            return
-        
+    def setUpClass(cls):        
         log.log_message(message_type="CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
 
         # We need a temp dir for data and binaries - this is cls.dest_dir
