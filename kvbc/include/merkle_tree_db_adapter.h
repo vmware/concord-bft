@@ -22,6 +22,7 @@
 #include "sparse_merkle/tree.h"
 #include "storage/db_interface.h"
 #include "Statistics.hpp"
+#include "PerformanceManager.hpp"
 
 #include <future>
 #include <memory>
@@ -63,7 +64,9 @@ class DBAdapter : public IDbAdapter {
   // Note4: Non-provable keys cannot be deleted for now.
   DBAdapter(const std::shared_ptr<concord::storage::IDBClient> &db,
             bool linkTempSTChain = true,
-            const NonProvableKeySet &nonProvableKeySet = NonProvableKeySet{});
+            const NonProvableKeySet &nonProvableKeySet = NonProvableKeySet{},
+            const std::shared_ptr<concord::performance::PerformanceManager> &pm_ =
+                std::make_shared<concord::performance::PerformanceManager>());
 
   // Make the adapter non-copyable.
   DBAdapter(const DBAdapter &) = delete;
@@ -234,6 +237,7 @@ class DBAdapter : public IDbAdapter {
   sparse_merkle::Tree smTree_;
   std::unique_ptr<concordMetrics::ISummary> commitSizeSummary_;
   const NonProvableKeySet nonProvableKeySet_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 namespace detail {
@@ -267,6 +271,8 @@ struct DatabaseLeafValue {
 
   // The block ID this value was deleted in. Not set if this value has not been deleted.
   std::optional<BlockIdType> deletedInBlockId;
+
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 inline bool operator==(const DatabaseLeafValue &lhs, const DatabaseLeafValue &rhs) {

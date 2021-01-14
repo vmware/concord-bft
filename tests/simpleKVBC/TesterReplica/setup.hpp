@@ -21,6 +21,7 @@
 #include "MetricsServer.hpp"
 #include "config/test_parameters.hpp"
 #include "storage_factory_interface.h"
+#include "PerformanceManager.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"
@@ -40,6 +41,7 @@ class TestSetup {
   logging::Logger GetLogger() { return logger_; }
   const bool UsePersistentStorage() const { return usePersistentStorage_; }
   std::string getLogPropertiesFile() { return logPropsFile_; }
+  std::shared_ptr<concord::performance::PerformanceManager> GetPerformanceManager() { return pm_; }
 
  private:
   enum class StorageType {
@@ -62,7 +64,8 @@ class TestSetup {
         usePersistentStorage_(usePersistentStorage),
         s3ConfigFile_(s3ConfigFile),
         storageType_(storageType),
-        logPropsFile_(logPropsFile) {}
+        logPropsFile_(logPropsFile),
+        pm_{std::make_shared<concord::performance::PerformanceManager>()} {}
   TestSetup() = delete;
 #ifdef USE_S3_OBJECT_STORE
   concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
@@ -76,6 +79,7 @@ class TestSetup {
   std::string s3ConfigFile_;
   StorageType storageType_;
   std::string logPropsFile_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 }  // namespace concord::kvbc

@@ -37,6 +37,7 @@
 #include "RequestsBatchingLogic.hpp"
 #include "ReplicaStatusHandlers.hpp"
 #include "ReplicasAskedToLeaveViewInfo.hpp"
+#include "PerformanceManager.hpp"
 
 namespace bftEngine::impl {
 
@@ -167,6 +168,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   ReplicasAskedToLeaveViewInfo complainedReplicas;
 
+  shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
+
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -235,7 +238,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
-             concordUtil::Timers& timers);
+             concordUtil::Timers& timers,
+             shared_ptr<concord::performance::PerformanceManager>& pm);
 
   ReplicaImp(const LoadedReplicaData&,
              IRequestsHandler* requestsHandler,
@@ -243,7 +247,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
-             concordUtil::Timers& timers);
+             concordUtil::Timers& timers,
+             shared_ptr<concord::performance::PerformanceManager>& pm);
 
   virtual ~ReplicaImp();
 
@@ -290,7 +295,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              ViewsManager*,
              shared_ptr<MsgsCommunicator>,
              shared_ptr<MsgHandlersRegistrator>,
-             concordUtil::Timers& timers);
+             concordUtil::Timers& timers,
+             shared_ptr<concord::performance::PerformanceManager>& pm);
 
   void registerMsgHandlers();
 

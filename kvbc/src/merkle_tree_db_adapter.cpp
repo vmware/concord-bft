@@ -134,7 +134,8 @@ std::pair<ContainerT, ContainerT> splitToProvableAndNonProvable(const ContainerT
 
 DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db,
                      bool linkTempSTChain,
-                     const NonProvableKeySet &nonProvableKeySet)
+                     const NonProvableKeySet &nonProvableKeySet,
+                     const std::shared_ptr<concord::performance::PerformanceManager> &pm)
     : logger_{logging::getLogger("concord.kvbc.v2MerkleTree.DBAdapter")},
       // The smTree_ member needs an initialized DB. Therefore, do that in the initializer list before constructing
       // smTree_ .
@@ -145,7 +146,8 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db,
       smTree_{std::make_shared<Reader>(*this)},
       commitSizeSummary_{concordMetrics::StatisticsFactory::get().createSummary(
           "merkleTreeCommitSizeSummary", {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}})},
-      nonProvableKeySet_{nonProvableKeySet} {
+      nonProvableKeySet_{nonProvableKeySet},
+      pm_{pm} {
   if (!nonProvableKeySet_.empty()) {
     const auto length = nonProvableKeySet_.begin()->length();
     for (const auto &k : nonProvableKeySet_) {
@@ -484,7 +486,9 @@ BatchedInternalNode DBAdapter::Reader::get_internal(const InternalNodeKey &key) 
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes) {
   const auto addedBlockId = getLastReachableBlockId() + 1;
-  const auto status = db_->multiPut(lastReachableBlockDbUpdates(updates, deletes, addedBlockId));
+  auto dbUpdates = lastReachableBlockDbUpdates(updates, deletes, addedBlockId);
+  pm_->Delay<concord::performance::SlowdownPhase::StorageBeforeDbWrite>(dbUpdates);
+  const auto status = db_->multiPut(dbUpdates);
   if (!status.isOK()) {
     throw std::runtime_error{"Failed to add block, reason: " + status.toString()};
   }

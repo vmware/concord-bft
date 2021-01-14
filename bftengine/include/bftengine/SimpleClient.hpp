@@ -20,6 +20,7 @@
 
 #include "Metrics.hpp"
 #include "communication/ICommunication.hpp"
+#include "PerformanceManager.hpp"
 
 namespace bftEngine {
 struct SimpleClientParams {
@@ -48,10 +49,13 @@ enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL };
 
 class SimpleClient {
  public:
-  explicit SimpleClient(uint16_t clientId)
+  explicit SimpleClient(uint16_t clientId,
+                        const std::shared_ptr<concord::performance::PerformanceManager>& pm =
+                            std::make_shared<concord::performance::PerformanceManager>())
       : metrics_{"clientMetrics_" + std::to_string(clientId), std::make_shared<concordMetrics::Aggregator>()},
         client_metrics_{{metrics_.RegisterCounter("retransmissions")},
-                        {metrics_.RegisterGauge("retransmissionTimer", 0)}} {
+                        {metrics_.RegisterGauge("retransmissionTimer", 0)}},
+        pm_{pm} {
     metrics_.Register();
   }
   static const uint64_t INFINITE_TIMEOUT = UINT64_MAX;
@@ -59,13 +63,17 @@ class SimpleClient {
   static SimpleClient* createSimpleClient(bft::communication::ICommunication* communication,
                                           uint16_t clientId,
                                           uint16_t fVal,
-                                          uint16_t cVal);
+                                          uint16_t cVal,
+                                          const std::shared_ptr<concord::performance::PerformanceManager>& pm =
+                                              std::make_shared<concord::performance::PerformanceManager>());
 
   static SimpleClient* createSimpleClient(bft::communication::ICommunication* communication,
                                           uint16_t clientId,
                                           uint16_t fVal,
                                           uint16_t cVal,
-                                          SimpleClientParams p);
+                                          SimpleClientParams p,
+                                          const std::shared_ptr<concord::performance::PerformanceManager>& pm =
+                                              std::make_shared<concord::performance::PerformanceManager>());
 
   virtual ~SimpleClient();
 
@@ -91,6 +99,7 @@ class SimpleClient {
     concordMetrics::CounterHandle retransmissions;
     concordMetrics::GaugeHandle retransmissionTimer;
   } client_metrics_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 // This class is mainly for testing and SimpleClient applications.

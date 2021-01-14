@@ -431,7 +431,8 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
   concordUtil::Timers timers;
-  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
+  auto sdm = make_shared<concord::performance::PerformanceManager>();
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
@@ -451,7 +452,8 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   replica.setPrimary(false);
   concordUtil::Timers timers;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
-  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
+  auto sdm = make_shared<concord::performance::PerformanceManager>();
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
@@ -474,7 +476,8 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   replicaConfig.replicaId = replica_1;
 
   concordUtil::Timers timers;
-  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers);
+  auto sdm = make_shared<concord::performance::PerformanceManager>();
+  PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);

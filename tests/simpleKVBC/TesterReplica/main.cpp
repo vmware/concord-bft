@@ -41,7 +41,8 @@ void run_replica(int argc, char** argv) {
   std::shared_ptr<ReplicaImp> replica = std::make_shared<ReplicaImp>(setup->GetCommunication(),
                                                                      setup->GetReplicaConfig(),
                                                                      setup->GetStorageFactory(),
-                                                                     setup->GetMetricsServer().GetAggregator());
+                                                                     setup->GetMetricsServer().GetAggregator(),
+                                                                     setup->GetPerformanceManager());
 
   auto* blockMetadata = new BlockMetadata(*replica);
 

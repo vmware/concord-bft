@@ -1,0 +1,6 @@
+find_package(GTest REQUIRED)
+add_executable(slowdown_test slowdown_test.cpp )
+target_include_directories(slowdown_test PUBLIC ${CMAKE_SOURCE_DIR}/performance/include)
+target_compile_definitions(slowdown_test PUBLIC USE_SLOWDOWN)
+target_link_libraries(slowdown_test GTest::Main kvbc util)
+add_test(slowdown_test slowdown_test)

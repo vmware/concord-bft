@@ -367,14 +367,16 @@ KeyValuePair DBKeyManipulator::composedToSimple(KeyValuePair _p) {
 DBAdapter::DBAdapter(std::shared_ptr<storage::IDBClient> db,
                      std::unique_ptr<IDataKeyGenerator> keyGen,
                      bool use_mdt,
-                     bool save_kv_pairs_separately)
+                     bool save_kv_pairs_separately,
+                     const std::shared_ptr<concord::performance::PerformanceManager> &pm)
     : logger_{logging::getLogger("concord.kvbc.v1DirectKeyValue.DBAdapter")},
       db_(db),
       keyGen_{std::move(keyGen)},
       mdt_{use_mdt},
       lastBlockId_{fetchLatestBlockId()},
       lastReachableBlockId_{fetchLastReachableBlockId()},
-      saveKvPairsSeparately_{save_kv_pairs_separately} {}
+      saveKvPairsSeparately_{save_kv_pairs_separately},
+      pm_{pm} {}
 
 BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
   BlockId blockId = getLastReachableBlockId() + 1;
@@ -388,6 +390,7 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
 
   SetOfKeyValuePairs outKv;
   const auto block = block::detail::create(kv, outKv, blockDigest);
+  pm_->Delay<concord::performance::SlowdownPhase::StorageBeforeDbWrite>(outKv);
   if (Status s = addBlockAndUpdateMultiKey(outKv, blockId, block); !s.isOK())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: ") + s.toString());
 

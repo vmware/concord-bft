@@ -95,14 +95,15 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
     ReplicaLoader::ErrorCode loadErrCode;
     LoadedReplicaData ld = ReplicaLoader::loadReplica(persistentStorage, loadErrCode);
     ConcordAssert(loadErrCode == ReplicaLoader::ErrorCode::Success);
-
+    auto pm = make_shared<concord::performance::PerformanceManager>();
     replica_.reset(new ReplicaImp(ld,
                                   replicaImp->getRequestsHandler(),
                                   replicaImp->getStateTransfer(),
                                   replicaImp->getMsgsCommunicator(),
                                   persistentStorage,
                                   replicaImp->getMsgHandlersRegistrator(),
-                                  replicaImp->timers()));
+                                  replicaImp->timers(),
+                                  pm));
 
   } else {
     //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
@@ -119,7 +120,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
                                                  MetadataStorage *metadataStorage,
-                                                 bool &erasedMetadata) {
+                                                 bool &erasedMetadata,
+                                                 std::shared_ptr<concord::performance::PerformanceManager> pm) {
   erasedMetadata = false;
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
@@ -167,7 +169,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    msgsCommunicatorPtr,
                                                    persistentStoragePtr,
                                                    msgHandlersPtr,
-                                                   timers));
+                                                   timers,
+                                                   pm));
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -182,14 +185,16 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    msgsCommunicatorPtr,
                                                    persistentStoragePtr,
                                                    msgHandlersPtr,
-                                                   timers));
+                                                   timers,
+                                                   pm));
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,
                                                  incomingMsgsStoragePtr,
                                                  msgHandlersPtr,
                                                  *requestsHandler,
                                                  *dynamic_cast<InternalReplicaApi *>(replicaInternal->replica_.get()),
-                                                 timers);
+                                                 timers,
+                                                 pm);
   return replicaInternal;
 }
 
@@ -197,7 +202,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  IRequestsHandler *requestsHandler,
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
-                                                 MetadataStorage *metadataStorage) {
+                                                 MetadataStorage *metadataStorage,
+                                                 std::shared_ptr<concord::performance::PerformanceManager> pm) {
   bool dummy;
   return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy);
 }
