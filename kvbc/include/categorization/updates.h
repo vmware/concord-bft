@@ -163,7 +163,6 @@ struct BlockMerkleUpdates {
 struct Updates {
   Updates() = default;
   Updates(CategoryInput&& updates) : category_updates_{std::move(updates)} {}
-  bool operator==(const Updates& other) { return category_updates_ == other.category_updates_; }
   void add(const std::string& category_id, BlockMerkleUpdates&& updates) {
     block_merkle_size += updates.size();
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
@@ -210,8 +209,11 @@ struct Updates {
   std::size_t immutable_size{};
 
  private:
+  friend bool operator==(const Updates&, const Updates&);
   friend class KeyValueBlockchain;
   CategoryInput category_updates_;
 };
+
+inline bool operator==(const Updates& l, const Updates& r) { return l.category_updates_ == r.category_updates_; }
 
 }  // namespace concord::kvbc::categorization

@@ -45,7 +45,7 @@ class KeyValueBlockchain {
 
   // Adds raw block and tries to link the state transfer blockchain to the main blockchain
   void addRawBlock(const RawBlock& block, const BlockId& block_id);
-  RawBlock getRawBlock(const BlockId& block_id) const;
+  std::optional<RawBlock> getRawBlock(const BlockId& block_id) const;
 
   /////////////////////// Info ///////////////////////
   BlockId getGenesisBlockId() const { return block_chain_.getGenesisBlockId(); }
@@ -79,7 +79,7 @@ class KeyValueBlockchain {
                              std::vector<std::optional<categorization::TaggedVersion>>& versions) const;
 
   // Get the updates that were used to create `block_id`.
-  Updates getBlockUpdates(BlockId block_id) const;
+  std::optional<Updates> getBlockUpdates(BlockId block_id) const;
 
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);

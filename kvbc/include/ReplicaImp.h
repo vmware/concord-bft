@@ -80,7 +80,7 @@ class ReplicaImp : public IReplica,
                              const std::vector<std::string> &keys,
                              std::vector<std::optional<categorization::TaggedVersion>> &versions) const override;
 
-  categorization::Updates getBlockUpdates(BlockId block_id) const override;
+  std::optional<categorization::Updates> getBlockUpdates(BlockId block_id) const override;
 
   // Get the current genesis block ID in the system.
   BlockId getGenesisBlockId() const override;

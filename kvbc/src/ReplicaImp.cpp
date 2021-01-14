@@ -162,7 +162,7 @@ void ReplicaImp::multiGetLatestVersion(const std::string &category_id,
   return m_kvBlockchain->multiGetLatestVersion(category_id, keys, versions);
 }
 
-categorization::Updates ReplicaImp::getBlockUpdates(BlockId block_id) const {
+std::optional<categorization::Updates> ReplicaImp::getBlockUpdates(BlockId block_id) const {
   return m_kvBlockchain->getBlockUpdates(block_id);
 }
 
@@ -335,7 +335,10 @@ bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSi
     return getBlockFromObjectStore(blockId, outBlock, outBlockSize);
   }
   const auto rawBlock = m_kvBlockchain->getRawBlock(blockId);
-  const auto &ser = categorization::RawBlock::serialize(rawBlock);
+  if (!rawBlock) {
+    throw NotFoundException{"Raw block not found: " + std::to_string(blockId)};
+  }
+  const auto &ser = categorization::RawBlock::serialize(*rawBlock);
   *outBlockSize = ser.size();
   std::memcpy(outBlock, ser.data(), *outBlockSize);
   return true;

@@ -513,7 +513,8 @@ TEST_F(categorized_kvbc, get_raw_block) {
 
   {
     auto rb = block_chain.getRawBlock(5);
-    ASSERT_EQ(std::get<BlockMerkleInput>(rb.data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
+    ASSERT_TRUE(rb);
+    ASSERT_EQ(std::get<BlockMerkleInput>(rb->data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
   }
 
   // E.L not yet possible
@@ -714,7 +715,8 @@ TEST_F(categorized_kvbc, get_block_data) {
 
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     auto reconstructed_updates = block_chain.getBlockUpdates(1);
-    ASSERT_TRUE(up_before_move == reconstructed_updates);
+    ASSERT_TRUE(reconstructed_updates);
+    ASSERT_EQ(up_before_move, *reconstructed_updates);
   }
   // Add block2
   {
@@ -746,7 +748,8 @@ TEST_F(categorized_kvbc, get_block_data) {
     auto up_before_move = updates;
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
     auto reconstructed_updates = block_chain.getBlockUpdates(2);
-    ASSERT_TRUE(up_before_move == reconstructed_updates);
+    ASSERT_TRUE(reconstructed_updates);
+    ASSERT_EQ(up_before_move, *reconstructed_updates);
   }
 
   // try to get updates
@@ -786,8 +789,9 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
   ASSERT_EQ(last_raw.first, 1);
   ASSERT_TRUE(last_raw.second.has_value());
   auto raw_from_api = block_chain.getRawBlock(1);
+  ASSERT_TRUE(raw_from_api);
   auto last_raw_imm_data = std::get<ImmutableInput>(last_raw.second.value().updates.kv["imm"]);
-  auto raw_from_api_imm_data = std::get<ImmutableInput>(raw_from_api.data.updates.kv["imm"]);
+  auto raw_from_api_imm_data = std::get<ImmutableInput>(raw_from_api->data.updates.kv["imm"]);
   std::vector<std::string> vec{"0", "1"};
   ASSERT_EQ(last_raw_imm_data.kv["key"].data, "val");
   ASSERT_EQ(last_raw_imm_data.kv["key"].tags, vec);

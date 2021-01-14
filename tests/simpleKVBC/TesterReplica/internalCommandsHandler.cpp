@@ -214,7 +214,11 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
 
   auto block_id = req->block_id;
   const auto updates = m_storage->getBlockUpdates(block_id);
-  const auto verUpdates = updates.categoryUpdates(CAT_ID);
+  if (!updates) {
+    LOG_ERROR(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
+    return false;
+  }
+  const auto verUpdates = updates->categoryUpdates(CAT_ID);
   ConcordAssert(verUpdates.has_value());
   const auto &verUpdatesKv = std::get<concord::kvbc::categorization::VersionedInput>(verUpdates->get()).kv;
 

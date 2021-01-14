@@ -22,10 +22,7 @@ using ::bftEngine::bcst::computeBlockDigest;
 
 template <typename T>
 void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
-  vec.clear();
-  for (auto i = 0ull; i < count; ++i) {
-    vec.push_back(std::nullopt);
-  }
+  vec.resize(count, std::nullopt);
 }
 
 KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
@@ -126,7 +123,9 @@ std::future<BlockDigest> KeyValueBlockchain::computeParentBlockDigest(const Bloc
   }
   // cached raw block is unusable, get the raw block from storage
   else if (block_id > INITIAL_GENESIS_BLOCK_ID) {
-    cached_raw_block.second = getRawBlock(parent_block_id).data;
+    auto parent_raw_block = getRawBlock(parent_block_id);
+    ConcordAssert(parent_raw_block.has_value());
+    cached_raw_block.second = std::move(parent_raw_block->data);
   }
   // it's the first block, we don't have a parent
   else {
@@ -237,8 +236,12 @@ void KeyValueBlockchain::multiGetLatestVersion(
              getCategory(category_id));
 }
 
-Updates KeyValueBlockchain::getBlockUpdates(BlockId block_id) const {
-  return Updates{std::move(getRawBlock(block_id).data.updates)};
+std::optional<Updates> KeyValueBlockchain::getBlockUpdates(BlockId block_id) const {
+  auto raw = getRawBlock(block_id);
+  if (!raw) {
+    return std::nullopt;
+  }
+  return Updates{std::move(raw->data.updates)};
 }
 
 /////////////////////// Delete block ///////////////////////
@@ -524,25 +527,15 @@ void KeyValueBlockchain::addRawBlock(const RawBlock& block, const BlockId& block
   }
 }
 
-RawBlock KeyValueBlockchain::getRawBlock(const BlockId& block_id) const {
+std::optional<RawBlock> KeyValueBlockchain::getRawBlock(const BlockId& block_id) const {
   const auto last_reachable_block = getLastReachableBlockId();
 
   // Try to take it from the ST chain
   if (block_id > last_reachable_block) {
-    auto raw_block = state_transfer_block_chain_.getRawBlock(block_id);
-    if (!raw_block) {
-      // E.L throw or optional?
-      throw std::runtime_error{"Failed to get state transfer block ID = " + std::to_string(block_id)};
-    }
-    return raw_block.value();
+    return state_transfer_block_chain_.getRawBlock(block_id);
   }
-
   // Try from the blockchain itself
-  auto raw_block = block_chain_.getRawBlock(block_id, categorires_);
-  if (!raw_block) {
-    throw std::runtime_error{"Failed to get block node ID = " + std::to_string(block_id)};
-  }
-  return raw_block.value();
+  return block_chain_.getRawBlock(block_id, categorires_);
 }
 
 std::optional<Hash> KeyValueBlockchain::parentDigest(BlockId block_id) const {

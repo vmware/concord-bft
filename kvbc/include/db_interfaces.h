@@ -74,7 +74,8 @@ class IReader {
                                      std::vector<std::optional<categorization::TaggedVersion>> &versions) const = 0;
 
   // Get the updates that were used to create `block_id`.
-  virtual categorization::Updates getBlockUpdates(BlockId block_id) const = 0;
+  // Return std::nullopt if this block doesn't exist.
+  virtual std::optional<categorization::Updates> getBlockUpdates(BlockId block_id) const = 0;
 
   // Get the current genesis block ID in the system.
   virtual BlockId getGenesisBlockId() const = 0;
