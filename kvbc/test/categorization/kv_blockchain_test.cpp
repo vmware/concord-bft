@@ -507,8 +507,8 @@ TEST_F(categorized_kvbc, get_raw_block) {
     ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
     ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
 
-    ASSERT_THROW(block_chain.getRawBlock(3), std::runtime_error);
-    ASSERT_THROW(block_chain.getRawBlock(6), std::runtime_error);
+    ASSERT_FALSE(block_chain.getRawBlock(3));
+    ASSERT_FALSE(block_chain.getRawBlock(6));
   }
 
   {
@@ -524,7 +524,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
   //   "merkle_value1");
   // }
 
-  { ASSERT_THROW(block_chain.getRawBlock(0), std::runtime_error); }
+  { ASSERT_FALSE(block_chain.getRawBlock(0)); }
 }
 
 TEST_F(categorized_kvbc, link_state_transfer_chain) {
@@ -753,8 +753,8 @@ TEST_F(categorized_kvbc, get_block_data) {
   }
 
   // try to get updates
-  ASSERT_THROW(block_chain.getBlockUpdates(889), std::runtime_error);
-  ASSERT_THROW(block_chain.getBlockUpdates(887), std::runtime_error);
+  ASSERT_FALSE(block_chain.getBlockUpdates(889));
+  ASSERT_FALSE(block_chain.getBlockUpdates(887));
 }
 
 TEST_F(categorized_kvbc, validate_category_creation_on_add) {
