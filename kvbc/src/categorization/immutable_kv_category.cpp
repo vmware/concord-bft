@@ -96,7 +96,7 @@ ImmutableOutput ImmutableKeyValueCategory::add(BlockId block_id,
     }
 
     // Persist the key-value.
-    batch.put(cf_, key, serialize(ImmutableDbValue{block_id, std::move(value.data)}));
+    batch.put(cf_, key, serializeThreadLocal(ImmutableDbValue{block_id, std::move(value.data)}));
 
     // Move the key and the tags to the update info and (optionally) update hashes per tag.
     auto &key_tags = update_info.tagged_keys.emplace(std::move(key), std::vector<std::string>{}).first->second;
