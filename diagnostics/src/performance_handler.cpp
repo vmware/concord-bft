@@ -17,14 +17,16 @@
 
 namespace concord::diagnostics {
 
-void PerformanceHandler::registerComponent(const std::string& name, const Recorders& recorders) {
+void PerformanceHandler::registerComponent(const std::string& name,
+                                           const std::vector<std::shared_ptr<Recorder>>& recorders) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (components_.count(name)) {
-    throw std::invalid_argument(std::string("Component already exists: ") + name);
+    LOG_FATAL(DIAG_LOGGER, "Component already exists: " << name);
+    std::terminate();
   }
   Histograms histograms;
-  for (const auto& [name, recorder] : recorders) {
-    histograms.emplace(name, recorder);
+  for (const auto& recorder : recorders) {
+    histograms.emplace(recorder->name, recorder);
   }
   components_.insert({name, std::move(histograms)});
 }

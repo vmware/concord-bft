@@ -38,13 +38,13 @@ int main() {
   registrar.status.registerHandler(handler1);
   registrar.status.registerHandler(handler2);
 
-  auto recorder1 = std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  auto recorder2 = std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  auto recorder3 = std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  auto recorder4 = std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto recorder1 = std::make_shared<Recorder>("histogram1", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto recorder2 = std::make_shared<Recorder>("histogram2", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto recorder3 = std::make_shared<Recorder>("histogram3", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  auto recorder4 = std::make_shared<Recorder>("histogram4", 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
 
-  registrar.perf.registerComponent("component1", {{"histogram1", recorder1}, {"histogram2", recorder2}});
-  registrar.perf.registerComponent("component2", {{"histogram3", recorder3}, {"histogram4", recorder4}});
+  registrar.perf.registerComponent("component1", {recorder1, recorder2});
+  registrar.perf.registerComponent("component2", {recorder3, recorder4});
 
   concord::diagnostics::Server diagnostics_server;
   diagnostics_server.start(registrar, INADDR_LOOPBACK, PORT);

@@ -12,13 +12,17 @@
 // file.
 
 #include "status_handlers.h"
+#include "Logger.hpp"
 
 namespace concord::diagnostics {
+
+static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.status");
 
 void StatusHandlers::registerHandler(const StatusHandler& handler) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (status_handlers_.count(handler.name)) {
-    throw std::invalid_argument(std::string("StatusHandler already exists: ") + handler.name);
+    LOG_FATAL(DIAG_LOGGER, "StatusHandler already exists: " << handler.name);
+    std::terminate();
   }
   status_handlers_.insert({handler.name, handler});
 }

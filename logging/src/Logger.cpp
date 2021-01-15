@@ -31,3 +31,4 @@ logging::Logger CAT_BLOCK_LOG = logging::getLogger("concord.kvbc.categorized-blo
 logging::Logger VC_LOG = logging::getLogger("concord.bft.viewchange");
 logging::Logger ST_DST_LOG = logging::getLogger("concord.bft.st.dst");
 logging::Logger ST_SRC_LOG = logging::getLogger("concord.bft.st.src");
+logging::Logger MSGS = logging::getLogger("concord.bft.msgs");

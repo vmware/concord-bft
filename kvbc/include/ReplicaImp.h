@@ -151,25 +151,17 @@ class ReplicaImp : public IReplica,
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.registerComponent("kvbc",
-                                       {{"get_value", get_value},
-                                        {"get_block", get_block},
-                                        {"get_block_data", get_block_data},
-                                        {"may_have_conflict_between", may_have_conflict_between},
-                                        {"add_block", add_block}});
+                                       {get_value, get_block, get_block_data, may_have_conflict_between, add_block});
     }
-    std::shared_ptr<Recorder> get_value =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> get_block =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> get_block_data =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    std::shared_ptr<Recorder> may_have_conflict_between =
-        std::make_shared<Recorder>(1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    std::shared_ptr<Recorder> add_block =
-        std::make_shared<Recorder>(1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(get_value, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(get_block, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(get_block_data, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        may_have_conflict_between, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(add_block, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
 
   Recorders histograms_;
-};
+};  // namespace concord::kvbc
 
 }  // namespace concord::kvbc

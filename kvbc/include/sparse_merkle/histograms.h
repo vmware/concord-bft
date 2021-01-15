@@ -29,104 +29,103 @@ struct Recorders {
   Recorders() {
     auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     registrar.perf.registerComponent("sparse_merkle",
-                                     {{"update", update},
-                                      {"insert_key", insert_key},
-                                      {"remove_key", remove_key},
-                                      {"num_update_keys", num_updated_keys},
-                                      {"num_deleted_keys", num_deleted_keys},
-                                      {"key_size", key_size},
-                                      {"val_size", val_size},
-                                      {"hash_val", hash_val},
-                                      {"num_batch_internal_nodes", num_batch_internal_nodes},
-                                      {"num_batch_leaf_nodes", num_batch_leaf_nodes},
-                                      {"num_stale_internal_keys", num_stale_internal_keys},
-                                      {"num_stale_leaf_keys", num_stale_leaf_keys},
-                                      {"insert_depth", insert_depth},
-                                      {"remove_depth", remove_depth},
+                                     {update,
+                                      insert_key,
+                                      remove_key,
+                                      num_updated_keys,
+                                      num_deleted_keys,
+                                      key_size,
+                                      val_size,
+                                      hash_val,
+                                      num_batch_internal_nodes,
+                                      num_batch_leaf_nodes,
+                                      num_stale_internal_keys,
+                                      num_stale_leaf_keys,
+                                      insert_depth,
+                                      remove_depth,
 
-                                      {"internal_node_update_hashes", internal_node_update_hashes},
-                                      {"internal_node_insert", internal_node_insert},
-                                      {"internal_node_remove", internal_node_remove},
+                                      internal_node_update_hashes,
+                                      internal_node_insert,
+                                      internal_node_remove,
 
-                                      {"dba_batch_to_db_updates", dba_batch_to_db_updates},
-                                      {"dba_get_value", dba_get_value},
-                                      {"dba_create_block_node", dba_create_block_node},
-                                      {"dba_get_raw_block", dba_get_raw_block},
-                                      {"dba_last_reachable_block_db_updates", dba_last_reachable_block_db_updates},
-                                      {"dba_size_of_updates", dba_size_of_updates},
-                                      {"dba_get_internal", dba_get_internal},
-                                      {"dba_serialize_internal", dba_serialize_internal},
-                                      {"dba_serialize_leaf", dba_serialize_leaf},
-                                      {"dba_deserialize_internal", dba_deserialize_internal},
-                                      {"dba_deserialize_block", dba_deserialize_block},
-                                      {"dba_deserialize_leaf", dba_deserialize_leaf},
-                                      {"dba_link_st_chain", dba_link_st_chain},
-                                      {"dba_num_blocks_for_st_link", dba_num_blocks_for_st_link},
-                                      {"dba_add_raw_block", dba_add_raw_block},
-                                      {"dba_delete_block", dba_delete_block},
-                                      {"dba_get_leaf_key_val_at_most_version", dba_get_leaf_key_val_at_most_version},
-                                      {"dba_delete_keys_for_block", dba_delete_keys_for_block},
-                                      {"dba_has_block", dba_has_block},
-                                      {"dba_keys_for_version", dba_keys_for_version},
-                                      {"dba_hash_parent_block", dba_hash_parent_block},
-                                      {"dba_hashed_parent_block_size", dba_hashed_parent_block_size},
-                                      {"dba_add_block_rocksdb_write", dba_add_block_rocksdb_write},
+                                      dba_batch_to_db_updates,
+                                      dba_get_value,
+                                      dba_create_block_node,
+                                      dba_get_raw_block,
+                                      dba_last_reachable_block_db_updates,
+                                      dba_size_of_updates,
+                                      dba_get_internal,
+                                      dba_serialize_internal,
+                                      dba_serialize_leaf,
+                                      dba_deserialize_internal,
+                                      dba_deserialize_block,
+                                      dba_deserialize_leaf,
+                                      dba_link_st_chain,
+                                      dba_num_blocks_for_st_link,
+                                      dba_add_raw_block,
+                                      dba_delete_block,
+                                      dba_get_leaf_key_val_at_most_version,
+                                      dba_delete_keys_for_block,
+                                      dba_has_block,
+                                      dba_keys_for_version,
+                                      dba_hash_parent_block,
+                                      dba_hashed_parent_block_size,
+                                      dba_add_block_rocksdb_write,
 
-                                      {"walker_ascend", walker_ascend},
-                                      {"walker_descend", walker_descend}});
+                                      walker_ascend,
+                                      walker_descend});
   }
 
   // Used in tree.cpp
-  std::shared_ptr<Recorder> update = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> insert_key = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> remove_key = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> num_updated_keys = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> num_deleted_keys = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> key_size = std::make_shared<Recorder>(1, 2048, 3, Unit::BYTES);
-  std::shared_ptr<Recorder> val_size = std::make_shared<Recorder>(1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  std::shared_ptr<Recorder> hash_val = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> num_batch_internal_nodes = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> num_batch_leaf_nodes = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> num_stale_internal_keys = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> num_stale_leaf_keys = std::make_shared<Recorder>(1, 1000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> insert_depth = std::make_shared<Recorder>(1, Hash::MAX_NIBBLES, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> remove_depth = std::make_shared<Recorder>(1, Hash::MAX_NIBBLES, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(update, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(insert_key, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(remove_key, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(num_updated_keys, 1, 1000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_deleted_keys, 1, 1000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(key_size, 1, 2048, 3, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(val_size, 1, MAX_VAL_SIZE, 3, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(hash_val, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(num_batch_internal_nodes, 1, 1000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_batch_leaf_nodes, 1, 1000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_stale_internal_keys, 1, 1000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(num_stale_leaf_keys, 1, 1000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(insert_depth, 1, Hash::MAX_NIBBLES, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(remove_depth, 1, Hash::MAX_NIBBLES, 3, Unit::COUNT);
 
   // Used in internal_node.cpp
-  std::shared_ptr<Recorder> internal_node_update_hashes = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> internal_node_insert = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> internal_node_remove = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(internal_node_update_hashes, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(internal_node_insert, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(internal_node_remove, 1, MAX_NS, 3, Unit::NANOSECONDS);
 
   // Used in merkle_tree_db_adapter.cpp
-  std::shared_ptr<Recorder> dba_batch_to_db_updates = std::make_shared<Recorder>(1, MAX_US * 5, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_get_value = std::make_shared<Recorder>(1, MAX_US * 5, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_create_block_node = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_get_raw_block = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_last_reachable_block_db_updates =
-      std::make_shared<Recorder>(1, MAX_US * 5, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_size_of_updates = std::make_shared<Recorder>(1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  std::shared_ptr<Recorder> dba_get_internal = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_serialize_internal = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_serialize_leaf = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_deserialize_internal = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_deserialize_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_deserialize_leaf = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_link_st_chain = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_num_blocks_for_st_link = std::make_shared<Recorder>(1, 1000000, 3, Unit::COUNT);
-  std::shared_ptr<Recorder> dba_add_raw_block = std::make_shared<Recorder>(1, MAX_US * 10, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_delete_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_get_leaf_key_val_at_most_version =
-      std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_delete_keys_for_block = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_has_block = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_keys_for_version = std::make_shared<Recorder>(1, MAX_NS, 3, Unit::NANOSECONDS);
-  std::shared_ptr<Recorder> dba_hash_parent_block = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> dba_hashed_parent_block_size = std::make_shared<Recorder>(1, MAX_VAL_SIZE, 3, Unit::BYTES);
-  std::shared_ptr<Recorder> dba_add_block_rocksdb_write = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+
+  DEFINE_SHARED_RECORDER(dba_batch_to_db_updates, 1, MAX_NS * 5, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_get_value, 1, MAX_NS * 5, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_create_block_node, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_get_raw_block, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_last_reachable_block_db_updates, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_size_of_updates, 1, MAX_VAL_SIZE, 3, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(dba_get_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_serialize_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_serialize_leaf, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_deserialize_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_deserialize_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_deserialize_leaf, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_link_st_chain, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_num_blocks_for_st_link, 1, 1000000, 3, Unit::COUNT);
+  DEFINE_SHARED_RECORDER(dba_add_raw_block, 1, MAX_NS * 10, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_delete_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_get_leaf_key_val_at_most_version, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(dba_delete_keys_for_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_has_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_keys_for_version, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_hash_parent_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_hashed_parent_block_size, 1, MAX_VAL_SIZE, 3, Unit::BYTES);
+  DEFINE_SHARED_RECORDER(dba_add_block_rocksdb_write, 1, MAX_US, 3, Unit::MICROSECONDS);
 
   // Used in walker.cpp
-  std::shared_ptr<Recorder> walker_descend = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
-  std::shared_ptr<Recorder> walker_ascend = std::make_shared<Recorder>(1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(walker_descend, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(walker_ascend, 1, MAX_US, 3, Unit::MICROSECONDS);
 };
 
 inline const Recorders histograms;
