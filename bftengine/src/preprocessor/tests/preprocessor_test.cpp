@@ -527,6 +527,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 0);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 0);
+  clearDiagnosticsHandlers();
 }
 
 TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
@@ -560,6 +561,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 0);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 0);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 0);
+  clearDiagnosticsHandlers();
 }
 
 }  // end namespace
