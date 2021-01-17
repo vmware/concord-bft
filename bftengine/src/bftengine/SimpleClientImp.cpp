@@ -247,8 +247,8 @@ tuple<bool, bool> SimpleClientImp::pendingRequestProcessing(const Time& beginTim
       while (!newMsgs.empty()) {
         MessageBase* msg = newMsgs.front();
         onMessageFromReplica(msg);
+        newMsgs.pop();
       }
-      newMsgs.pop();
     }
     if (allRequiredRepliesReceived()) {
       requestCommitted = true;
