@@ -205,7 +205,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     return;
   }
 
-  if (!isReplySentToClientForRequest(clientId, reqSeqNum)) {
+  if (!isReplyAlreadySentToClient(clientId, reqSeqNum)) {
     if (isCurrentPrimary()) {
       histograms_.requestsQueueOfPrimarySize->record(requestsQueueOfPrimary.size());
       // TODO(GG): use config/parameter
@@ -416,6 +416,7 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
   prePrepareMsg->finishAddingRequests();
   LOG_DEBUG(GL,
             KVLOG(prePrepareMsg->seqNumber(),
+                  prePrepareMsg->getCid(),
                   maxSpaceForReqs,
                   requiredRequestsSize,
                   prePrepareMsg->requestsSize(),
@@ -3780,7 +3781,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           LOG_WARN(GL, "The client is not valid. " << KVLOG(clientId));
           continue;
         }
-        if (isReplySentToClientForRequest(clientId, req.requestSeqNum())) {
+        if (isReplyAlreadySentToClient(clientId, req.requestSeqNum())) {
           ClientReplyMsg *replyMsg =
               clientsManager->allocateReplyFromSavedOne(clientId, req.requestSeqNum(), currentPrimary());
           if (replyMsg) {

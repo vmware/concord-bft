@@ -326,7 +326,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       preProcessorMetrics_.preProcReqIgnored.Get().Inc();
       return;
     }
-    const bool replySentToClient = myReplica_.isReplySentToClientForRequest(clientId, reqSeqNum);
+    const bool replySentToClient = myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum);
     if (replySentToClient) {
       LOG_INFO(logger(),
                "Request has already been executed - let replica to decide how to proceed further"
@@ -673,7 +673,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
 void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize) {
   int errorCode = msgsCommunicator_->sendAsyncMessage(dest, msg, msgSize);
   if (errorCode != 0) {
-    LOG_ERROR(logger(), "sendMsg: sendAsyncMessage returned error: " << errorCode << " for" << KVLOG(msgType));
+    LOG_ERROR(logger(), "sendMsg: sendAsyncMessage returned error" << KVLOG(errorCode, dest, msgType));
   }
 }
 

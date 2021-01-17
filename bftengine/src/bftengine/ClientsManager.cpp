@@ -9,10 +9,8 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <string.h>
 #include "ClientsManager.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "messages/ClientRequestMsg.hpp"
 #include "IStateTransfer.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
@@ -153,10 +151,8 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   ConcordAssert(!isReplySentToClientForRequest(clientId, requestSeqNum));
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
 
-  c.repliesInfo.erase(c.repliesInfo.begin());
   c.repliesInfo.emplace(requestSeqNum, getMonotonicTime());
-
-  LOG_DEBUG(GL, "requestSeqNum=" << requestSeqNum);
+  LOG_DEBUG(GL, KVLOG(clientId, requestSeqNum));
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, requestSeqNum, reply, replyLength);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(GL, "firstPageId=" << firstPageId);
@@ -168,7 +164,7 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     sizeLastPage = r->size() % sizeOfReservedPage_;
   }
 
-  LOG_DEBUG(GL, "numOfPages=" << numOfPages << " sizeLastPage=" << sizeLastPage);
+  LOG_DEBUG(GL, KVLOG(clientId, requestSeqNum, numOfPages, sizeLastPage));
   // write reply message to reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
     const char* ptrPage = r->body() + i * sizeOfReservedPage_;
@@ -178,7 +174,7 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
 
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
   r->setPrimaryId(currentPrimaryId);
-  LOG_DEBUG(GL, "returns reply with hash=" << r->debugHash());
+  LOG_DEBUG(GL, "Returns reply with hash=" << r->debugHash() << KVLOG(clientId, requestSeqNum));
   return r;
 }
 
@@ -210,7 +206,7 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
     numOfPages++;
     sizeLastPage = replyMsgSize % sizeOfReservedPage_;
   }
-  LOG_DEBUG(GL, "numOfPages=" << numOfPages << " sizeLastPage=" << sizeLastPage);
+  LOG_DEBUG(GL, KVLOG(numOfPages, sizeLastPage));
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, replyHeader->replyLength);
   // load reply message from reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
@@ -251,6 +247,7 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
     LOG_DEBUG(GL, "The request has been already executed" << KVLOG(clientId, reqSeqNum));
     return false;
   }
+  LOG_DEBUG(GL, "The request can become pending" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
   return true;
 }
 
@@ -264,13 +261,17 @@ void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum) {
   const auto& requestIt = requestsInfo.find(reqSeqNum);
   ConcordAssert(requestIt == requestsInfo.end());
   requestsInfo.emplace(reqSeqNum, getMonotonicTime());
+  LOG_DEBUG(GL, "Added request" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
 }
 
-void ClientsManager::removePendingRequestOfClient(NodeIdType clientId, ReqId reqSequenceNum) {
+void ClientsManager::removePendingRequestOfClient(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
-  const auto& reqIt = requestsInfo.find(reqSequenceNum);
-  if (reqIt != requestsInfo.end()) requestsInfo.erase(reqIt);
+  const auto& reqIt = requestsInfo.find(reqSeqNum);
+  if (reqIt != requestsInfo.end()) {
+    requestsInfo.erase(reqIt);
+    LOG_DEBUG(GL, "Removed request" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
+  }
 }
 
 void ClientsManager::clearAllPendingRequests() {

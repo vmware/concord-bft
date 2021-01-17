@@ -266,7 +266,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(curView); }
   bool isCurrentPrimary() const override { return (currentPrimary() == config_.replicaId); }
   bool currentViewIsActive() const override { return (viewsManager->viewIsActive(curView)); }
-  bool isReplySentToClientForRequest(NodeIdType clientId, ReqId reqSeqNum) const override {
+  bool isReplyAlreadySentToClient(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->isReplySentToClientForRequest(clientId, reqSeqNum);
   }
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {

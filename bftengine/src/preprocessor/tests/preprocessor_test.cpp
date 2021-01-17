@@ -97,7 +97,7 @@ class DummyReplica : public InternalReplicaApi {
   ReplicaId currentPrimary() const override { return replicaConfig.replicaId; }
   bool isCurrentPrimary() const override { return primary_; }
   bool currentViewIsActive() const override { return true; }
-  bool isReplySentToClientForRequest(NodeIdType, ReqId) const override { return 1; }
+  bool isReplyAlreadySentToClient(NodeIdType, ReqId) const override { return false; }
   bool isClientRequestInProcess(NodeIdType, ReqId) const override { return false; }
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override { return *incomingMsgsStorage_; }
@@ -279,6 +279,7 @@ void setUpConfiguration_4() {
   replicaConfig.viewChangeTimerMillisec = viewChangeTimerMillisec;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
   replicaConfig.numOfExternalClients = 5;
+  replicaConfig.clientMiniBatchingEnabled = true;
 
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_0, publicKey_0));
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_1, publicKey_1));
