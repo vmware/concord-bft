@@ -20,6 +20,7 @@
 #include <rocksdb/table.h>
 #include <rocksdb/filter_policy.h>
 
+#include <algorithm>
 #include <atomic>
 #include <utility>
 
@@ -130,10 +131,25 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
   ::rocksdb::DB *db;
   std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
 
+  auto cf_names = std::vector<std::string>{};
+  if (const auto s = ::rocksdb::DB::ListColumnFamilies(options.db_options, m_dbPath, &cf_names); !s.ok()) {
+    // There's no way to reliably check for non-existing DB. If there's any kind of an error, just clear the list of cf
+    // names. If the DB was actually non-existent, the Open() call will fail anyway.
+    cf_names.clear();
+  }
+
+  // RocksDB creates column families in 2 non-atomic steps:
+  //  1. Create the column family in the DB.
+  //  2. Create the column family in the options file by persisting the respective options provided by the user.
+  // If the process is stopped between these steps, there could be a mismatch between them. That could lead to losing
+  // the column family options the user provided. In that case, track incompletely created column families and if they
+  // are empty, drop them so that user code can re-create them.
+  //
+  // Reference: https://github.com/facebook/rocksdb/blob/v6.8.1/db/db_impl/db_impl.cc#L2187
+  auto incompletelyCreatedColumnFamilies = std::vector<std::string>{};
+
   if (userOptions.has_value()) {
     options = *userOptions;
-    auto cf_names = std::vector<std::string>{};
-    ::rocksdb::DB::ListColumnFamilies(options.db_options, m_dbPath, &cf_names);
     for (const auto &cf_name : cf_names) {
       cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{cf_name, ::rocksdb::ColumnFamilyOptions{}});
     }
@@ -163,6 +179,19 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
     options.db_options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
     options.db_options.statistics = ::rocksdb::CreateDBStatistics();
     options.db_options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptTimeForMutex);
+
+    // Fill any missing column family descriptors. That may happen as there can be a mismatch between the column
+    // families in the DB and the ones in the options file due to the non-atomic way of creating a column family in
+    // terms of DB and options file.
+    for (const auto &cf_name : cf_names) {
+      auto it = std::find_if(
+          cf_descs.begin(), cf_descs.end(), [&cf_name](const auto &cf_desc) { return cf_name == cf_desc.name; });
+      if (it == cf_descs.end()) {
+        // Open with default options and mark as incompletely created.
+        cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{cf_name, ::rocksdb::ColumnFamilyOptions{}});
+        incompletelyCreatedColumnFamilies.push_back(cf_name);
+      }
+    }
 
     // If a comparator is passed, use it. If not, use the default one.
     if (comparator_) {
@@ -213,9 +242,36 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
     dbInstance_.reset(txn_db_->GetBaseDB());
   }
   cf_handles_ = std::move(unique_cf_handles);
+
+  // If an incomplete column family is empty (i.e. has no keys), drop it so that user code can re-create it with the
+  // correct options. Otherwise, warn and continue.
+  for (const auto &cf : incompletelyCreatedColumnFamilies) {
+    if (cf == ::rocksdb::kDefaultColumnFamilyName) {
+      continue;
+    }
+    auto cf_iter = cf_handles_.find(cf);
+    ConcordAssertNE(cf_iter, cf_handles_.end());
+    if (columnFamilyIsEmpty(cf_iter->second.get())) {
+      const auto s = dbInstance_->DropColumnFamily(cf_iter->second.get());
+      if (!s.ok()) {
+        const auto msg = "Failed to drop incompletely created RocksDB column family: " + s.ToString();
+        LOG_ERROR(logger(), msg);
+        throw std::runtime_error{msg};
+      }
+      cf_handles_.erase(cf_iter);
+      LOG_WARN(logger(), "Dropped incompletely created and empty RocksDB column family: " << cf);
+    } else {
+      LOG_WARN(
+          logger(),
+          "Column family ["
+              << cf
+              << "] was not completely created and user-provided options are not persisted, using default options");
+    }
+  }
+
   initialized_ = true;
   storage_metrics_.setMetricsDataSources(options.db_options.sst_file_manager, options.db_options.statistics);
-}  // namespace rocksdb
+}
 
 void Client::init(bool readOnly) {
   const auto applyOptimizations = true;
@@ -245,6 +301,16 @@ bool Client::keyIsBefore(const Sliver &_lhs, const Sliver &_rhs) const {
     return comparator_->Compare(toRocksdbSlice(_lhs), toRocksdbSlice(_rhs)) < 0;
   }
   return _lhs.compare(_rhs) < 0;
+}
+
+bool Client::columnFamilyIsEmpty(::rocksdb::ColumnFamilyHandle *cf) const {
+  auto it = std::unique_ptr<::rocksdb::Iterator>{dbInstance_->NewIterator(::rocksdb::ReadOptions{}, cf)};
+  it->SeekToFirst();
+  const auto s = it->status();
+  if (!s.ok()) {
+    throw std::runtime_error{"Failed to seek to first during columnFamilyIsEmpty(): " + s.ToString()};
+  }
+  return !it->Valid();
 }
 
 /**
