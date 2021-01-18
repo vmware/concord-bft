@@ -45,9 +45,11 @@ VersionedKeyValueCategory::VersionedKeyValueCategory(const std::string &category
                                                      const std::shared_ptr<storage::rocksdb::NativeClient> &db)
     : values_cf_{category_id + VERSIONED_KV_VALUES_CF_SUFFIX},
       latest_ver_cf_{category_id + VERSIONED_KV_LATEST_VER_CF_SUFFIX},
+      active_cf_{category_id + VERSIONED_KV_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF_SUFFIX},
       db_{db} {
   createColumnFamilyIfNotExisting(values_cf_, *db_);
   createColumnFamilyIfNotExisting(latest_ver_cf_, *db_);
+  createColumnFamilyIfNotExisting(active_cf_, *db_);
 }
 
 VersionedOutput VersionedKeyValueCategory::add(BlockId block_id,
@@ -124,13 +126,15 @@ void VersionedKeyValueCategory::addUpdates(BlockId block_id,
 void VersionedKeyValueCategory::updateLatestKeyVersion(const std::string &key,
                                                        TaggedVersion version,
                                                        storage::rocksdb::NativeWriteBatch &batch) {
-  batch.put(latest_ver_cf_, key, serialize(LatestKeyVersion{version.encode()}));
+  batch.put(latest_ver_cf_, key, serializeThreadLocal(LatestKeyVersion{version.encode()}));
 }
 
 void VersionedKeyValueCategory::putValue(const VersionedRawKey &key,
                                          const DbValue &value,
                                          storage::rocksdb::NativeWriteBatch &batch) {
-  batch.put(values_cf_, serialize(key), serialize(value));
+  // Make sure serializeThreadLocal() is called with different types. Since it is a template, that ensures we will get
+  // references to different buffers. Doing so avoids copying.
+  batch.put(values_cf_, serializeThreadLocal(key), serializeThreadLocal(value));
 }
 
 void VersionedKeyValueCategory::addKeyToUpdateInfo(std::string &&key,
@@ -140,17 +144,57 @@ void VersionedKeyValueCategory::addKeyToUpdateInfo(std::string &&key,
   out.keys.emplace(std::move(key), VersionedKeyFlags{deleted, stale_on_update});
 }
 
+std::unordered_map<BlockId, std::vector<std::string>> VersionedKeyValueCategory::activeKeysFromPrunedBlocks(
+    const std::map<std::string, VersionedKeyFlags> &kv) const {
+  auto keys = std::vector<std::string>{};
+  keys.reserve(kv.size());
+  for (const auto &[key, _] : kv) {
+    (void)_;
+    keys.push_back(key);
+  }
+
+  auto slices = std::vector<::rocksdb::PinnableSlice>{};
+  auto statuses = std::vector<::rocksdb::Status>{};
+  db_->multiGet(active_cf_, keys, slices, statuses);
+
+  auto found = std::unordered_map<BlockId, std::vector<std::string>>{};
+  for (auto i = 0ull; i < slices.size(); ++i) {
+    const auto &status = statuses[i];
+    const auto &slice = slices[i];
+    if (status.ok()) {
+      auto val = BlockVersion{};
+      deserialize(slice, val);
+      auto &vec = found[val.version];
+      vec.push_back(std::move(keys[i]));
+    } else if (status.IsNotFound()) {
+      continue;
+    } else {
+      throw std::runtime_error{"VersionedKeyValueCategory multiGet() failure: " + status.ToString()};
+    }
+  }
+  return found;
+}
+
 void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
                                                    const VersionedOutput &out,
                                                    storage::rocksdb::NativeWriteBatch &batch) {
+  // Delete active keys from previously pruned genesis blocks.
+  for (const auto &[block_id, keys] : activeKeysFromPrunedBlocks(out.keys)) {
+    for (const auto &key : keys) {
+      batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
+      batch.del(active_cf_, key);
+    }
+  }
+
   for (const auto &[key, flags] : out.keys) {
     const auto latest = getLatestVersion(key);
     ConcordAssert(latest.has_value());
     ConcordAssertEQ(latest->deleted, flags.deleted);
+
     // Note: Deleted keys cannot be marked as stale on update.
     if (flags.stale_on_update) {
       // This key is marked stale-on-update and, therefore, we can remove its value at `block_id`.
-      batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
+      batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
       // If there are no new versions of a key that was marked as stale-on-update at `block_id`, remove the latest
       // version too.
       if (latest->version == block_id) {
@@ -160,10 +204,13 @@ void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
       // If the key was deleted at this block and there are no new versions, delete both the value and the latest
       // version.
       batch.del(latest_ver_cf_, key);
-      batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
+      batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
     } else if (latest->version > block_id) {
       // If this key is stale as of `block_id` (meaning it has a newer version), we can remove its value at `block_id`.
-      batch.del(values_cf_, serialize(VersionedRawKey{key, block_id}));
+      batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
+    } else {
+      // This key is active. Indicate that in the active column family.
+      batch.put(active_cf_, key, serializeThreadLocal(BlockVersion{block_id}));
     }
   }
 }
@@ -173,7 +220,7 @@ void VersionedKeyValueCategory::deleteLastReachableBlock(BlockId block_id,
                                                          storage::rocksdb::NativeWriteBatch &batch) {
   for (const auto &[key, _] : out.keys) {
     (void)_;
-    const auto versioned_key = serialize(VersionedRawKey{key, block_id});
+    const auto versioned_key = serializeThreadLocal(VersionedRawKey{key, block_id});
 
     // Find the previous version of the key and set it as a last version. Exploit the fact that CMF
     // serializes strings prefixed by their length (in big-endian). Therefore, VersionedRawKeys will be ordered by key
@@ -206,7 +253,7 @@ void VersionedKeyValueCategory::deleteLastReachableBlock(BlockId block_id,
 }
 
 std::optional<Value> VersionedKeyValueCategory::get(const std::string &key, BlockId block_id) const {
-  const auto ser = db_->getSlice(values_cf_, serialize(VersionedRawKey{key, block_id}));
+  const auto ser = db_->getSlice(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
   if (!ser) {
     return std::nullopt;
   }
@@ -236,7 +283,7 @@ void VersionedKeyValueCategory::multiGet(const std::vector<std::string> &keys,
   versioned_keys.reserve(keys.size());
 
   for (auto i = 0ull; i < keys.size(); ++i) {
-    versioned_keys.push_back(serialize(VersionedRawKey{keys[i], versions[i]}));
+    versioned_keys.push_back(serializeThreadLocal(VersionedRawKey{keys[i], versions[i]}));
   }
 
   db_->multiGet(values_cf_, versioned_keys, slices, statuses);

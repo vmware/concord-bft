@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace concord::kvbc::categorization::detail {
@@ -99,9 +100,13 @@ class VersionedKeyValueCategory {
 
   void addKeyToUpdateInfo(std::string &&key, bool deleted, bool stale_on_update, VersionedOutput &);
 
+  std::unordered_map<BlockId, std::vector<std::string>> activeKeysFromPrunedBlocks(
+      const std::map<std::string, VersionedKeyFlags> &kv) const;
+
  private:
   std::string values_cf_;
   std::string latest_ver_cf_;
+  std::string active_cf_;
   std::shared_ptr<storage::rocksdb::NativeClient> db_;
 };
 

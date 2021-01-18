@@ -58,14 +58,16 @@ class versioned_kv_category : public Test {
   const std::string category_id{"cat"};
   const std::string values_cf{category_id + VERSIONED_KV_VALUES_CF_SUFFIX};
   const std::string latest_ver_cf{category_id + VERSIONED_KV_LATEST_VER_CF_SUFFIX};
+  const std::string active_cf_{category_id + VERSIONED_KV_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF_SUFFIX};
   std::shared_ptr<NativeClient> db;
 
   VersionedKeyValueCategory cat;
 };
 
 TEST_F(versioned_kv_category, create_column_families_on_construction) {
-  ASSERT_THAT(db->columnFamilies(),
-              ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(), values_cf, latest_ver_cf}));
+  ASSERT_THAT(
+      db->columnFamilies(),
+      ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(), values_cf, latest_ver_cf, active_cf_}));
 }
 
 TEST_F(versioned_kv_category, empty_updates) {
@@ -664,6 +666,145 @@ TEST_F(versioned_kv_category, delete_genesis_with_deletes) {
     auto latest_ver_iter = db->getIterator(latest_ver_cf);
     latest_ver_iter.first();
     ASSERT_FALSE(latest_ver_iter);
+  }
+}
+
+TEST_F(versioned_kv_category, delete_genesis_with_active_keys) {
+  const auto stale_on_update = false;
+
+  // Add block 1 with 2 keys.
+  auto out1 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["ka"] = ValueWithFlags{"va1", stale_on_update};
+    in.kv["kb"] = ValueWithFlags{"vb1", stale_on_update};
+    out1 = add(1, std::move(in));
+  }
+
+  // Delete genesis block 1 with active keys inside.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(1, out1, batch);
+    db->write(std::move(batch));
+  }
+
+  // Verify that keys are persisted in in the active key column family.
+  ASSERT_TRUE(db->get(active_cf_, "ka"sv));
+  ASSERT_TRUE(db->get(active_cf_, "kb"sv));
+
+  // Add block 2 with the same 2 keys as in block 1.
+  auto out2 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["ka"] = ValueWithFlags{"va2", stale_on_update};
+    in.kv["kb"] = ValueWithFlags{"vb2", stale_on_update};
+    out2 = add(2, std::move(in));
+  }
+
+  // Add block 3 with the same 2 keys as in block 1 and 2.
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["ka"] = ValueWithFlags{"va3", stale_on_update};
+    in.kv["kb"] = ValueWithFlags{"vb3", stale_on_update};
+    add(3, std::move(in));
+  }
+
+  // Delete genesis block 2. Since there is a subsequent block 3 with the same keys, the keys in block 2 are not active
+  // anymore and can be deleted.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(2, out2, batch);
+    db->write(std::move(batch));
+  }
+
+  // Verify that keys that were active at block version 1 are deleted.
+  {
+    ASSERT_FALSE(cat.get("ka", 1));
+    ASSERT_FALSE(cat.get("kb", 1));
+
+    auto values = std::vector<std::optional<categorization::Value>>{};
+    cat.multiGet({"ka", "kb"}, {1, 1}, values);
+    ASSERT_EQ(values.size(), 2);
+    ASSERT_FALSE(values[0]);
+    ASSERT_FALSE(values[1]);
+  }
+
+  // Verify that keys in the active key column family are deleted.
+  ASSERT_FALSE(db->get(active_cf_, "ka"sv));
+  ASSERT_FALSE(db->get(active_cf_, "kb"sv));
+}
+
+TEST_F(versioned_kv_category, delete_genesis_with_active_keys_and_previous_active_keys) {
+  const auto stale_on_update = false;
+
+  // Add block 1 with 2 keys.
+  auto out1 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["ka"] = ValueWithFlags{"va1", stale_on_update};
+    in.kv["kb"] = ValueWithFlags{"vb1", stale_on_update};
+    out1 = add(1, std::move(in));
+  }
+
+  // Delete genesis block 1 with active keys inside.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(1, out1, batch);
+    db->write(std::move(batch));
+  }
+
+  // Verify that keys are persisted in in the active key column family.
+  ASSERT_TRUE(db->get(active_cf_, "ka"sv));
+  ASSERT_TRUE(db->get(active_cf_, "kb"sv));
+
+  // Add block 2 with the same 2 keys as in block 1.
+  auto out2 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = true;
+    in.kv["ka"] = ValueWithFlags{"va2", stale_on_update};
+    in.kv["kb"] = ValueWithFlags{"vb2", stale_on_update};
+    out2 = add(2, std::move(in));
+  }
+
+  // Delete genesis block 2. That should remove the active keys at block 1 and update the active key versions in the
+  // active key column family.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(2, out2, batch);
+    db->write(std::move(batch));
+  }
+
+  // Verify that keys that were active at block version 1 are deleted.
+  {
+    ASSERT_FALSE(cat.get("ka", 1));
+    ASSERT_FALSE(cat.get("kb", 1));
+
+    auto values = std::vector<std::optional<categorization::Value>>{};
+    cat.multiGet({"ka", "kb"}, {1, 1}, values);
+    ASSERT_EQ(values.size(), 2);
+    ASSERT_FALSE(values[0]);
+    ASSERT_FALSE(values[1]);
+  }
+
+  // Verify that keys in the active key column family are of version 2 and not 1.
+  {
+    const auto ka = db->get(active_cf_, "ka"sv);
+    ASSERT_TRUE(ka);
+    auto ver_a = BlockVersion{};
+    deserialize(*ka, ver_a);
+    ASSERT_EQ(ver_a.version, 2);
+  }
+  {
+    const auto kb = db->get(active_cf_, "kb"sv);
+    ASSERT_TRUE(kb);
+    auto ver_b = BlockVersion{};
+    deserialize(*kb, ver_b);
+    ASSERT_EQ(ver_b.version, 2);
   }
 }
 
