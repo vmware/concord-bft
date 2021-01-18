@@ -466,24 +466,25 @@ class TcpTlsClient(BftClient):
         3) Process the received message payload.
         If there is an error in stages 1 or 2 - exit straight (connection is closed inside _stream_recv_some)
         """
-        if dest_addr not in self.ssl_streams:
-            self.establish_ssl_stream_parklot[dest_addr].unpark()
-            return
-        data = bytearray()
-        stream = self.ssl_streams[dest_addr]
-        while len(data) < self.MSG_HEADER_SIZE:
-            if not await self._stream_recv_some(data, dest_addr, stream, self.MSG_HEADER_SIZE):
+        while True:
+            if dest_addr not in self.ssl_streams:
+                self.establish_ssl_stream_parklot[dest_addr].unpark()
                 return
-        payload_size = int.from_bytes(data[:self.MSG_HEADER_SIZE], "big")
-        del data[:self.MSG_HEADER_SIZE]
-        while len(data) < payload_size:
-            if not await self._stream_recv_some(data, dest_addr, stream, payload_size - len(data)):
+            data = bytearray()
+            stream = self.ssl_streams[dest_addr]
+            while len(data) < self.MSG_HEADER_SIZE:
+                if not await self._stream_recv_some(data, dest_addr, stream, self.MSG_HEADER_SIZE):
+                    return
+            payload_size = int.from_bytes(data[:self.MSG_HEADER_SIZE], "big")
+            del data[:self.MSG_HEADER_SIZE]
+            while len(data) < payload_size:
+                if not await self._stream_recv_some(data, dest_addr, stream, payload_size - len(data)):
+                    return
+            try:
+                self._process_received_msg(bytes(data), dest_addr, replicas_addr, required_replies, cancel_scope)
+            except (bft_msgs.MsgError , struct.error) as ex:
+                # TCP is a stream protocol and we can receive in a certain period of time a broken stream of bytes
                 return
-        try:
-            self._process_received_msg(bytes(data), dest_addr, replicas_addr, required_replies, cancel_scope)
-        except (bft_msgs.MsgError , struct.error) as ex:
-            # TCP is a stream protocol and we can receive in a certain period of time a broken stream of bytes
-            return
 
     async def _recv_data(self, required_replies, dest_replicas, cancel_scope):
         """
