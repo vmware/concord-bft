@@ -42,19 +42,25 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   auto& msgHeader = *msgBody();
   ConcordAssert(msgHeader.senderId != repInfo.myId());
 
-  if (sigManager_ == nullptr) throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig"));
+  if (sigManager_ == nullptr) throw runtime_error(__PRETTY_FUNCTION__ + string(": sigManager_ is null"));
 
   uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
-  if (size() < (sizeof(Header) + sigLen)) throw runtime_error(__PRETTY_FUNCTION__ + string(": size"));
-
-  concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->validateMessage);
-  if (!sigManager_->verifySig(msgHeader.senderId,
-                              (char*)msgBody()->resultsHash,
-                              SHA3_256::SIZE_IN_BYTES,
-                              (char*)msgBody() + headerSize,
-                              sigLen))
-    throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig"));
-}
+  if (msgHeader.status == STATUS_GOOD) {
+    if (size() < (sizeof(Header) + sigLen)) {
+      LOG_ERROR(logger(),
+                "Message size is too small" << KVLOG(
+                    msgHeader.senderId, msgHeader.clientId, msgHeader.reqSeqNum, size(), sizeof(Header) + sigLen));
+      throw runtime_error(__PRETTY_FUNCTION__ + string(": Message size is too small"));
+    }
+    concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->validateMessage);
+    if (!sigManager_->verifySig(msgHeader.senderId,
+                                (char*)msgBody()->resultsHash,
+                                SHA3_256::SIZE_IN_BYTES,
+                                (char*)msgBody() + headerSize,
+                                sigLen))
+      throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig failed"));
+  }
+}  // namespace preprocessor
 
 void PreProcessReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId) {
   msgBody()->senderId = senderId;
