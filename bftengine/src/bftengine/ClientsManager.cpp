@@ -148,7 +148,6 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
-  ConcordAssert(!isReplySentToClientForRequest(clientId, requestSeqNum));
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
 
   c.repliesInfo.emplace(requestSeqNum, getMonotonicTime());
@@ -187,7 +186,6 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
 ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
                                                           ReqId requestSeqNum,
                                                           uint16_t currentPrimaryId) {
-  ConcordAssert(isReplySentToClientForRequest(clientId, requestSeqNum));
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(GL, KVLOG(requestSeqNum, firstPageId));
@@ -253,13 +251,11 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
 
 void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
-  const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
-  const auto& replyIt = repliesInfo.find(reqSeqNum);
-  ConcordAssert(replyIt == repliesInfo.end());
-
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
-  const auto& requestIt = requestsInfo.find(reqSeqNum);
-  ConcordAssert(requestIt == requestsInfo.end());
+  if (requestsInfo.find(reqSeqNum) != requestsInfo.end()) {
+    LOG_WARN(GL, "The request already exists - skip adding" << KVLOG(clientId, reqSeqNum));
+    return;
+  }
   requestsInfo.emplace(reqSeqNum, getMonotonicTime());
   LOG_DEBUG(GL, "Added request" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
 }
