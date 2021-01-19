@@ -27,14 +27,15 @@ jobs:
           uses: actions/checkout@v2
         - name: Create artifact directory
           run: mkdir -p ${{ github.workspace }}/artifact
-        - name: Configure core dump location
-          run: |
-            echo "/concord-bft/build/cores/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
+        #- name: Configure core dump location
+        #  run: |
+            # Uncomment the line below to enable core dump collection
+            # echo "/concord-bft/build/cores/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
             # Uncomment this is you want to login into the running session.
             # Please note that the build will block on this step.
             # Refer to https://github.com/marketplace/actions/debugging-with-tmate
-            #- name: Setup tmate session
-            #  uses: mxschmitt/action-tmate@v2
+        #- name: Setup tmate session
+        #  uses: mxschmitt/action-tmate@v2
         - name: Build and test
           run: |
               script -q -e -c "make pull"
@@ -57,7 +58,7 @@ jobs:
           if: failure()
           run: |
             sudo chown -R ${USER}:${GROUP} ${PWD}/build
-            mv ${PWD}/build ${{ github.workspace }}/artifact/
+            tar -czvf ${{ github.workspace }}/artifact/logs.tar.gz ./build/tests/apollo/logs
             du -h ${{ github.workspace }}/artifact
             sudo df -h
         - name: Upload artifacts
