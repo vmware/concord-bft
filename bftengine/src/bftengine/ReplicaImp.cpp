@@ -4011,7 +4011,23 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       free(req.outReply);
       send(replyMsg.get(), req.clientId);
     }
-    clientsManager->removePendingRequestOfClient(req.clientId);
+  }
+}
+
+void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNum));
+  SeqNumInfo &seqNumInfo = mainLog->get(seqNum);
+  PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
+  if (prePrepareMsg == nullptr) return;
+  LOG_DEBUG(GL, "clear pending requests" << KVLOG(seqNum));
+
+  RequestsIterator reqIter(prePrepareMsg);
+  char *requestBody = nullptr;
+  while (reqIter.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    auto clientId = req.clientProxyId();
+    LOG_DEBUG(GL, "removing pending requests for client" << KVLOG(clientId));
+    clientsManager->removePendingRequestOfClient(clientId);
   }
 }
 
@@ -4022,6 +4038,8 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
   consensus_times_.end(seqNumber);
+  // First of all, we remove the pending request before the execution, to prevent long execution from affecting VC
+  tryToRemovePendingRequestsForSeqNum(seqNumber);
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SCOPED_MDC_SEQ_NUM(std::to_string(nextExecutedSeqNum));
