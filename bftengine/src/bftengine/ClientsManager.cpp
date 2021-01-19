@@ -355,8 +355,8 @@ void ClientsManager::clearAllPendingRequests() {
 }
 
 // iterate over all clients and choose the earliest pending request.
-ClientsManager::ClientInfo ClientsManager::infoOfEarliestPendingRequest()
-    const  // TODO(GG): naive implementation - consider to optimize
+Time ClientsManager::infoOfEarliestPendingRequest(
+    std::string& cid) const  // TODO(GG): naive implementation - consider to optimize
 {
   Time t = MaxTime;
   ClientInfo earliestClientWithPendingRequest = indexToClientInfo_.at(0);
@@ -369,8 +369,8 @@ ClientsManager::ClientInfo ClientsManager::infoOfEarliestPendingRequest()
   }
 
   LOG_INFO(GL, "Earliest pending client request: " << KVLOG(earliestClientWithPendingRequest.currentPendingRequest));
-
-  return earliestClientWithPendingRequest;
+  cid = earliestClientWithPendingRequest.cid;
+  return t;
 }
 }  // namespace impl
 }  // namespace bftEngine

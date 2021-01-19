@@ -3005,9 +3005,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   if (currentViewIsActive()) {
     if (isCurrentPrimary() || complainedReplicas.getComplaintFromReplica(config_.replicaId) != nullptr) return;
 
-    const auto earliestPendingRequestInfo = clientsManager->infoOfEarliestPendingRequest();
-    const Time timeOfEarliestPendingRequest = earliestPendingRequestInfo.timeOfCurrentPendingRequest;
-    const auto &cidOfEarliestPendingRequest = earliestPendingRequestInfo.cid;
+    std::string cidOfEarliestPendingRequest = std::string();
+    const Time timeOfEarliestPendingRequest = clientsManager->infoOfEarliestPendingRequest(cidOfEarliestPendingRequest);
 
     const bool hasPendingRequest = (timeOfEarliestPendingRequest != MaxTime);
 

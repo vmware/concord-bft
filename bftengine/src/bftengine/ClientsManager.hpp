@@ -27,7 +27,6 @@ class ClientRequestMsg;
 
 class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
-  struct ClientInfo;
   ClientsManager(ReplicaId myId,
                  std::set<NodeIdType>& clientsSet,
                  uint32_t sizeOfReservedPage,
@@ -77,7 +76,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   void clearAllPendingRequests();
 
-  ClientInfo infoOfEarliestPendingRequest() const;
+  Time infoOfEarliestPendingRequest(std::string& cid) const;
 
   // Internal Clients
   void initInternalClientInfo(const int& numReplicas);
@@ -106,7 +105,6 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   std::map<NodeIdType, uint16_t> clientIdToIndex_;
 
- public:
   struct ClientInfo {
     // requests
     ReqId currentPendingRequest;
