@@ -29,11 +29,11 @@ using namespace concord::performance;
 TEST(slowdown_test, empty_configuration) {
   PerformanceManager pm;
   SlowDownResult res = pm.Delay<SlowdownPhase::PreProcessorAfterPreexecPrimary>();
-  assert(res.phase == SlowdownPhase::None);
-  assert(res.totalWaitDuration == 0);
-  assert(res.totalSleepDuration == 0);
-  assert(res.totalKeyCount == 0);
-  assert(res.totalValueSize == 0);
+  EXPECT_EQ(res.phase, SlowdownPhase::None);
+  EXPECT_EQ(res.totalWaitDuration, 0);
+  EXPECT_EQ(res.totalSleepDuration, 0);
+  EXPECT_EQ(res.totalKeyCount, 0);
+  EXPECT_EQ(res.totalValueSize, 0);
 }
 
 TEST(slowdown_test, simple_configuration) {
@@ -46,11 +46,11 @@ TEST(slowdown_test, simple_configuration) {
   (*sm)[SlowdownPhase::BftClientBeforeSendPrimary] = policies;
   PerformanceManager pm(sm);
   SlowDownResult res = pm.Delay<SlowdownPhase::BftClientBeforeSendPrimary>();
-  assert(res.phase == SlowdownPhase::BftClientBeforeSendPrimary);
-  assert(res.totalWaitDuration == bp.wait_duration_ms);
-  assert(res.totalSleepDuration == bp.sleep_duration_ms + sp.sleep_duration_ms);
-  assert(res.totalKeyCount == 0);
-  assert(res.totalValueSize == 0);
+  EXPECT_EQ(res.phase, SlowdownPhase::BftClientBeforeSendPrimary);
+  EXPECT_EQ(res.totalWaitDuration, bp.wait_duration_ms);
+  EXPECT_EQ(res.totalSleepDuration, bp.sleep_duration_ms + sp.sleep_duration_ms);
+  EXPECT_EQ(res.totalKeyCount, 0);
+  EXPECT_EQ(res.totalValueSize, 0);
 }
 
 TEST(slowdown_test, hybrid_configuration) {
@@ -66,12 +66,12 @@ TEST(slowdown_test, hybrid_configuration) {
   PerformanceManager pm(sm);
   concord::kvbc::SetOfKeyValuePairs set;
   SlowDownResult res = pm.Delay<SlowdownPhase::StorageBeforeDbWrite>(set);
-  assert(res.phase == SlowdownPhase::StorageBeforeDbWrite);
-  assert(res.totalWaitDuration == bp.wait_duration_ms);
-  assert(res.totalSleepDuration == bp.sleep_duration_ms + sp.sleep_duration_ms);
-  assert(res.totalKeyCount == 10);
-  assert(set.size() == 10);
-  assert(res.totalValueSize >= 10 * 3000);
+  EXPECT_EQ(res.phase, SlowdownPhase::StorageBeforeDbWrite);
+  EXPECT_EQ(res.totalWaitDuration, bp.wait_duration_ms);
+  EXPECT_EQ(res.totalSleepDuration, bp.sleep_duration_ms + sp.sleep_duration_ms);
+  EXPECT_EQ(res.totalKeyCount, 10);
+  EXPECT_EQ(set.size(), 10);
+  EXPECT_GE(res.totalValueSize, 10 * 3000);
 }
 
 }  // anonymous namespace
