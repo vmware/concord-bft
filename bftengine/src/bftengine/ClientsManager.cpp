@@ -43,6 +43,7 @@ ClientsManager::ClientsManager(ReplicaId myId,
 
     indexToClientInfo_[idx].currentPendingRequest = 0;
     indexToClientInfo_[idx].timeOfCurrentPendingRequest = MinTime;
+    indexToClientInfo_[idx].cid = std::string();
 
     indexToClientInfo_[idx].lastSeqNumberOfReply = 0;
     indexToClientInfo_[idx].latestReplyTime = MinTime;
@@ -75,6 +76,7 @@ void ClientsManager::initInternalClientInfo(const int& numReplicas) {
     clientIdToIndex_.insert(std::pair<NodeIdType, uint16_t>(++currClId, ++currIdx));
     indexToClientInfo_[currIdx].currentPendingRequest = 0;
     indexToClientInfo_[currIdx].timeOfCurrentPendingRequest = MinTime;
+    indexToClientInfo_[currIdx].cid = std::string();
 
     indexToClientInfo_[currIdx].lastSeqNumberOfReply = 0;
     indexToClientInfo_[currIdx].latestReplyTime = MinTime;
@@ -131,6 +133,7 @@ void ClientsManager::loadInfoFromReservedPages() {
     if (ci.currentPendingRequest != 0 && (ci.currentPendingRequest <= replyHeader->reqSeqNum)) {
       ci.currentPendingRequest = 0;
       ci.timeOfCurrentPendingRequest = MinTime;
+      ci.cid = std::string();
     }
   }
 }
@@ -279,13 +282,14 @@ bool ClientsManager::isPendingOrLate(NodeIdType clientId, ReqId reqSeqNum) const
 }
 */
 
-void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum) {
+void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   ClientInfo& c = indexToClientInfo_.at(idx);
   ConcordAssert(reqSeqNum > c.lastSeqNumberOfReply && reqSeqNum > c.currentPendingRequest);
 
   c.currentPendingRequest = reqSeqNum;
   c.timeOfCurrentPendingRequest = getMonotonicTime();
+  c.cid = cid;
 }
 
 /*
@@ -336,6 +340,7 @@ void ClientsManager::removePendingRequestOfClient(NodeIdType clientId) {
   if (c.currentPendingRequest != 0) {
     c.currentPendingRequest = 0;
     c.timeOfCurrentPendingRequest = MinTime;
+    c.cid = std::string();
   }
 }
 
@@ -343,13 +348,15 @@ void ClientsManager::clearAllPendingRequests() {
   for (ClientInfo& c : indexToClientInfo_) {
     c.currentPendingRequest = 0;
     c.timeOfCurrentPendingRequest = MinTime;
+    c.cid = std::string();
   }
 
   ConcordAssert(indexToClientInfo_[0].currentPendingRequest == 0);  // TODO(GG): debug
 }
 
 // iterate over all clients and choose the earliest pending request.
-Time ClientsManager::timeOfEarliestPendingRequest() const  // TODO(GG): naive implementation - consider to optimize
+Time ClientsManager::infoOfEarliestPendingRequest(
+    std::string& cid) const  // TODO(GG): naive implementation - consider to optimize
 {
   Time t = MaxTime;
   ClientInfo earliestClientWithPendingRequest = indexToClientInfo_.at(0);
@@ -362,7 +369,7 @@ Time ClientsManager::timeOfEarliestPendingRequest() const  // TODO(GG): naive im
   }
 
   LOG_INFO(GL, "Earliest pending client request: " << KVLOG(earliestClientWithPendingRequest.currentPendingRequest));
-
+  cid = earliestClientWithPendingRequest.cid;
   return t;
 }
 }  // namespace impl

@@ -234,7 +234,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       }
     } else {  // not the current primary
       if (clientsManager->noPendingAndRequestCanBecomePending(clientId, reqSeqNum)) {
-        clientsManager->addPendingRequest(clientId, reqSeqNum);
+        clientsManager->addPendingRequest(clientId, reqSeqNum, m->getCid());
 
         // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary view-change)
         send(m, currentPrimary());
@@ -401,7 +401,8 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
     if (clientsManager->noPendingAndRequestCanBecomePending(nextRequest->clientProxyId(),
                                                             nextRequest->requestSeqNum())) {
       prePrepareMsg.addRequest(nextRequest->body(), nextRequest->size());
-      clientsManager->addPendingRequest(nextRequest->clientProxyId(), nextRequest->requestSeqNum());
+      clientsManager->addPendingRequest(
+          nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
     }
     primaryCombinedReqSize -= nextRequest->size();
   } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
@@ -3004,7 +3005,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   if (currentViewIsActive()) {
     if (isCurrentPrimary() || complainedReplicas.getComplaintFromReplica(config_.replicaId) != nullptr) return;
 
-    const Time timeOfEarliestPendingRequest = clientsManager->timeOfEarliestPendingRequest();
+    std::string cidOfEarliestPendingRequest = std::string();
+    const Time timeOfEarliestPendingRequest = clientsManager->infoOfEarliestPendingRequest(cidOfEarliestPendingRequest);
 
     const bool hasPendingRequest = (timeOfEarliestPendingRequest != MaxTime);
 
@@ -3015,9 +3017,10 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t diffMilli3 = duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
-      LOG_INFO(
-          VC_LOG,
-          "Ask to leave view=" << curView << " (" << diffMilli3 << " ms after the earliest pending client request).");
+      LOG_INFO(VC_LOG,
+               "Ask to leave view=" << curView << " (" << diffMilli3
+                                    << " ms after the earliest pending client request)."
+                                    << KVLOG(cidOfEarliestPendingRequest));
 
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
           config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));

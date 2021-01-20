@@ -64,7 +64,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   // bool isPendingOrLate(NodeIdType clientId, ReqId reqSeqNum) const ;
 
-  void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum);
+  void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid);
 
   // void removePendingRequest(NodeIdType clientId, ReqId reqSeqNum);
 
@@ -76,7 +76,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   void clearAllPendingRequests();
 
-  Time timeOfEarliestPendingRequest() const;
+  Time infoOfEarliestPendingRequest(std::string& cid) const;
 
   // Internal Clients
   void initInternalClientInfo(const int& numReplicas);
@@ -109,6 +109,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
     // requests
     ReqId currentPendingRequest;
     Time timeOfCurrentPendingRequest;
+    std::string cid;
 
     // replies
     ReqId lastSeqNumberOfReply;
