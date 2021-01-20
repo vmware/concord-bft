@@ -848,15 +848,16 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
-    async def send_tracked_write_batch(self, client, max_set_size, batch_size, long_exec=False):
+    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False):
         msg_batch = []
         batch_seq_nums = []
         client_id = client.client_id
+        if read_version is None:
+            read_version = self.read_block_id()
         for i in range(batch_size):
             max_read_set_size = 0 if self.no_conflicts else max_set_size
             readset = self.readset(0, max_read_set_size)
             writeset = self.writeset(max_set_size)
-            read_version = self.read_block_id()
             msg_batch.append(self.skvbc.write_req(readset, writeset, read_version, long_exec))
             seq_num = client.req_seq_num.next()
             batch_seq_nums.append(seq_num)
@@ -923,6 +924,22 @@ class SkvbcTracker:
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
+    async def run_concurrent_batch_ops(self, num_ops, batch_size):
+        with log.start_action(action_type="run_concurrent_batch_ops"):
+            max_concurrency = len(self.bft_network.clients) // 2
+            max_size = len(self.skvbc.keys) // 2
+            sent = 0
+            write_count = 0
+            clients = self.bft_network.random_clients(max_concurrency)
+            with log.start_action(action_type="send_concurrent_ops"):
+                while sent < num_ops:
+                    async with trio.open_nursery() as nursery:
+                        for client in clients:
+                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size)
+                            write_count += 1
+                    sent += len(clients)
+            return write_count
+
     async def run_concurrent_ops(self, num_ops, write_weight=.70):
         with log.start_action(action_type="run_concurrent_ops"):
             max_concurrency = len(self.bft_network.clients) // 2
@@ -963,6 +980,17 @@ class SkvbcTracker:
                             read_count += 1
                 sent += len(clients)
         return read_count, write_count
+
+    async def send_indefinite_tracked_batch_writes(self, batch_size, time_interval=.01):
+        max_size = len(self.skvbc.keys) // 2
+        while True:
+            client = self.bft_network.random_client()
+            async with trio.open_nursery() as nursery:
+                try:
+                    nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size)
+                except:
+                    pass
+                await trio.sleep(time_interval)
 
     async def send_indefinite_tracked_ops(self, write_weight=.70, time_interval=.01):
         max_size = len(self.skvbc.keys) // 2
