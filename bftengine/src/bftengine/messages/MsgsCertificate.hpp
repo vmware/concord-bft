@@ -42,6 +42,8 @@ class MsgsCertificate {
                   const uint16_t numOfRequired,
                   const ReplicaId selfReplicaId);
 
+  MsgsCertificate(const MsgsCertificate&) = delete;
+  MsgsCertificate& operator=(const MsgsCertificate&) = delete;
   ~MsgsCertificate();
 
   bool addMsg(T* msg, ReplicaId replicaId);
