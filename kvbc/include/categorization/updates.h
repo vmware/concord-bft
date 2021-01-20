@@ -65,6 +65,8 @@ struct ImmutableUpdates {
 
   size_t size() const { return data_.kv.size(); }
 
+  const ImmutableInput& getData() const { return data_; }
+
  private:
   ImmutableInput data_;
   friend struct Updates;
@@ -111,6 +113,8 @@ struct VersionedUpdates {
 
   std::size_t size() const { return data_.kv.size(); }
 
+  const VersionedInput& getData() const { return data_; }
+
  private:
   VersionedInput data_;
   std::set<std::string> unique_deletes_;
@@ -140,7 +144,7 @@ struct BlockMerkleUpdates {
     data_.deletes.emplace_back(std::move(key));
   }
 
-  const BlockMerkleInput& getData() { return data_; }
+  const BlockMerkleInput& getData() const { return data_; }
 
   std::size_t size() const { return data_.kv.size(); }
 
