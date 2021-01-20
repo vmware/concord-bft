@@ -22,7 +22,7 @@ from util import skvbc as kvbc
 import util.bft_network_partitioning as net
 import util.eliot_logging as log
 
-SKVBC_INIT_GRACE_TIME = 2
+SKVBC_INIT_GRACE_TIME = 3
 NUM_OF_SEQ_WRITES = 100
 NUM_OF_PARALLEL_WRITES = 1000
 MAX_CONCURRENCY = 10
@@ -103,6 +103,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Use a random client to launch one pre-process request in time and ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
@@ -118,6 +119,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Launch concurrent requests from different clients in parallel. Ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
