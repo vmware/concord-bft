@@ -173,7 +173,8 @@ class SleepPolicy : public BasePolicy {
 
 class AddKeysPolicy : public BasePolicy {
  public:
-  explicit AddKeysPolicy(SlowdownPolicyConfig *c) : keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
+  explicit AddKeysPolicy(SlowdownPolicyConfig *c)
+      : keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
     prgState_.a = std::chrono::steady_clock::now().time_since_epoch().count();
     data_.reserve(keyCount_ * 10);
     for (uint i = 0; i < keyCount_ * 10; ++i) {
@@ -198,7 +199,7 @@ class AddKeysPolicy : public BasePolicy {
       std::copy(key.begin(), key.end(), key_data);
       concordUtils::Sliver k{(const char *)key_data, key.size() * sizeof(uint64_t)};
 
-      if(valueSize_ > 0) {
+      if (valueSize_ > 0) {
         auto *value_data = new uint64_t[value.size()];
         std::copy(value.begin(), value.end(), value_data);
         concordUtils::Sliver v{(const char *)value_data, value.size() * sizeof(uint64_t)};

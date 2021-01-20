@@ -359,6 +359,7 @@ void InternalCommandsHandler::setControlStateManager(
   controlStateManager_ = controlStateManager;
 }
 
-void InternalCommandsHandler::setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) {
-   perfManager_ = perfManager;
+void InternalCommandsHandler::setPerformanceManager(
+    std::shared_ptr<concord::performance::PerformanceManager> perfManager) {
+  perfManager_ = perfManager;
 }
