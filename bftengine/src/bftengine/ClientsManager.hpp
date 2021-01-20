@@ -54,13 +54,13 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   // Return true IFF there is no pending requests for clientId, and reqSeqNum can become the new pending request
   bool canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const;
 
-  void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum);
+  void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid);
 
   void removePendingRequestOfClient(NodeIdType clientId, ReqId reqSequenceNum);
 
   void clearAllPendingRequests();
 
-  Time timeOfEarliestPendingRequest() const;
+  Time infoOfEarliestPendingRequest(std::string& cid) const;
 
   void deleteOldestReply(NodeIdType clientId);
 
@@ -91,9 +91,14 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   std::map<NodeIdType, uint16_t> clientIdToIndex_;
 
+  struct RequestInfo {
+    Time time;
+    std::string cid;
+  };
+
   struct ClientInfo {
-    std::map<ReqId, Time> requestsInfo;  // requestId to requestTime
-    std::map<ReqId, Time> repliesInfo;   // replyId to replyTime
+    std::map<ReqId, RequestInfo> requestsInfo;
+    std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
   };
 
   std::vector<ClientInfo> indexToClientInfo_;

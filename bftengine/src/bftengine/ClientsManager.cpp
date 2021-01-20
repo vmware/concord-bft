@@ -249,14 +249,14 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
   return true;
 }
 
-void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum) {
+void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   if (requestsInfo.find(reqSeqNum) != requestsInfo.end()) {
     LOG_WARN(GL, "The request already exists - skip adding" << KVLOG(clientId, reqSeqNum));
     return;
   }
-  requestsInfo.emplace(reqSeqNum, getMonotonicTime());
+  requestsInfo.emplace(reqSeqNum, RequestInfo{getMonotonicTime(), cid});
   LOG_DEBUG(GL, "Added request" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
 }
 
@@ -275,21 +275,21 @@ void ClientsManager::clearAllPendingRequests() {
 }
 
 // Iterate over all clients and choose the earliest pending request.
-Time ClientsManager::timeOfEarliestPendingRequest() const {
+Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   Time earliestTime = MaxTime;
   ReqId earliestPendingReqId = 0;
-  ClientInfo clientWithEarliestPendingRequest = indexToClientInfo_.at(0);
+  RequestInfo earliestPendingReqInfo;
   for (const ClientInfo& clientInfo : indexToClientInfo_) {
     for (const auto& req : clientInfo.requestsInfo) {
-      if (req.second != MinTime && earliestTime > req.second) {
+      if (req.second.time != MinTime && earliestTime > req.second.time) {
         earliestPendingReqId = req.first;
-        earliestTime = req.second;
-        clientWithEarliestPendingRequest = clientInfo;
+        earliestPendingReqInfo = req.second;
       }
     }
   }
-  if (earliestTime != MaxTime) LOG_INFO(GL, "Earliest pending request: " << KVLOG(earliestPendingReqId));
-  return earliestTime;
+  if (earliestPendingReqInfo.time != MaxTime) LOG_INFO(GL, "Earliest pending request: " << KVLOG(earliestPendingReqId));
+  cid = earliestPendingReqInfo.cid;
+  return earliestPendingReqInfo.time;
 }
 
 }  // namespace bftEngine::impl
