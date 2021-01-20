@@ -90,7 +90,7 @@ bftEngine::ReplicaConfig& createReplicaConfig() {
   config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
   config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
 
-  bftEngine::CryptoManager::instance(&config, new TestCryptoSystem);
+  bftEngine::CryptoManager::instance(new TestCryptoSystem);
 
   return config;
 }

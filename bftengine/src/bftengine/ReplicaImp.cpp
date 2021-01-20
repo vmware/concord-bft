@@ -165,7 +165,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
     // If Multi sig keys haven't been replaced for all replicas and it's not a key ex msg then don't accept the msg.
-    if (!KeyManager::get().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
+    if (!KeyManager::instance().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
       return;
@@ -822,7 +822,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   for (SeqNum i = minSeqNum; i <= lastRelatedSeqNum; i++) {
     if (!recentViewChange) {
       // during exchange we need missing data to be performed in slow path
-      auto exchanging = (!KeyManager::get().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
+      auto exchanging = (!KeyManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
       tryToSendReqMissingDataMsg(i, exchanging);
     } else {
       if (isCurrentPrimary()) {
@@ -2589,7 +2589,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyManager::get().loadKeysFromReservedPages();
+    KeyManager::instance().loadKeysFromReservedPages();
   }
 
   if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -3671,7 +3671,7 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyManager::get().sendInitialKey();
+    KeyManager::instance().sendInitialKey();
   }
 }
 
@@ -3888,7 +3888,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       onSeqNumIsSuperStable(lastStableSeqNum);
     }
 
-    KeyManager::get().onCheckpoint(checkpointNum);
+    KeyManager::instance().onCheckpoint(checkpointNum);
   }
 
   if (ps_) ps_->endWriteTran();
@@ -4009,7 +4009,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     if (requestMissingInfo && !ready) {
       LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextExecutedSeqNum, curView, lastStableSeqNum));
       // during exchange we need missing data to be performed in slow path
-      auto exchanging = (!KeyManager::get().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
+      auto exchanging = (!KeyManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
       tryToSendReqMissingDataMsg(nextExecutedSeqNum, exchanging);
     }
 
