@@ -20,6 +20,7 @@ class MsgError(Exception):
 
 PRE_PROCESS_TYPE = 500
 REQUEST_MSG_TYPE = 700
+BATCH_REQUEST_MSG_TYPE = 750
 REPLY_MSG_TYPE = 800
 
 # A Request type precedes all headers. It can be viewed as part of the headers
@@ -35,6 +36,12 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 REQUEST_HEADER_FMT = "<LHBQLQL"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
+# The struct definition of the client batch request msg header
+# Little Endian format with no padding
+# We don't include the msg type here, since we have to read it first to
+# understand what message is incoming.
+BATCH_REQUEST_HEADER_FMT = "<LHLL"
+
 # The struct definition of the client reply msg header
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
@@ -44,6 +51,8 @@ REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
     'req_seq_num', 'length', 'timeout_milli', 'cid'])
+BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id', 
+    'num_of_messages_in_batch', 'data_size'])
 
 # Unless bft clients are blocking there is no actual need for span context
 # The field was added for compatibility with other messages
@@ -64,11 +73,22 @@ def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre
     data = b''.join([pack_request_header(header, pre_process), span_context, msg, cid.encode()])
     return data
 
+def pack_batch_request(client_id, num_of_messages_in_batch, msg_data, cid):
+    """Create and return a buffer with a header and message"""
+    header = BatchRequestHeader(len(cid), client_id, num_of_messages_in_batch, len(msg_data))
+    data = b''.join([pack_batch_request_header(header), cid.encode(), msg_data])
+    return data
+
 def pack_request_header(header, pre_process=False):
     """Take a RequestHeader and return a buffer"""
     msg_type = PRE_PROCESS_TYPE if pre_process else REQUEST_MSG_TYPE
     return b''.join([struct.pack(MSG_TYPE_FMT, msg_type),
                      struct.pack(REQUEST_HEADER_FMT, *header)])
+
+def pack_batch_request_header(header):
+    msg_type = BATCH_REQUEST_MSG_TYPE
+    return b''.join([struct.pack(MSG_TYPE_FMT, msg_type),
+                     struct.pack(BATCH_REQUEST_HEADER_FMT, *header)])
 
 def unpack_request(data):
     """Take a buffer and return a pair of the RequestHeader and app data"""
