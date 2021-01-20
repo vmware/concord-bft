@@ -173,7 +173,7 @@ class SleepPolicy : public BasePolicy {
 
 class AddKeysPolicy : public BasePolicy {
  public:
-  explicit AddKeysPolicy(SlowdownPolicyConfig *c) : keyCount_{c->GetItemCount()} {
+  explicit AddKeysPolicy(SlowdownPolicyConfig *c) : keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
     prgState_.a = std::chrono::steady_clock::now().time_since_epoch().count();
     data_.reserve(keyCount_ * 10);
     for (uint i = 0; i < keyCount_ * 10; ++i) {
@@ -196,12 +196,16 @@ class AddKeysPolicy : public BasePolicy {
 
       auto *key_data = new uint64_t[key.size()];
       std::copy(key.begin(), key.end(), key_data);
-      auto *value_data = new uint64_t[value.size()];
-      std::copy(value.begin(), value.end(), value_data);
-
       concordUtils::Sliver k{(const char *)key_data, key.size() * sizeof(uint64_t)};
-      concordUtils::Sliver v{(const char *)value_data, value.size() * sizeof(uint64_t)};
-      data_.emplace_back(k, v);
+
+      if(valueSize_ > 0) {
+        auto *value_data = new uint64_t[value.size()];
+        std::copy(value.begin(), value.end(), value_data);
+        concordUtils::Sliver v{(const char *)value_data, value.size() * sizeof(uint64_t)};
+        data_.emplace_back(k, v);
+      } else {
+        data_.emplace_back(k, concordUtils::Sliver{});
+      }
     }
   }
 
@@ -222,6 +226,8 @@ class AddKeysPolicy : public BasePolicy {
 
  private:
   uint keyCount_ = 0;
+  uint keySize_ = 0;
+  uint valueSize_ = 0;
   uint totalValueSize_ = 0;
   std::vector<concord::kvbc::KeyValuePair> data_;
   xorshift64_state prgState_{};
