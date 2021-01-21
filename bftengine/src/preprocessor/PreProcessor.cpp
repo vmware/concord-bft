@@ -788,10 +788,10 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Request pre-processed" << KVLOG(isPrimary, reqSeqNum, clientId));
   if (isPrimary) {
-    pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecNonPrimary>();
+    pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
     handlePreProcessedReqByPrimary(preProcessReqMsg, clientId, actualResultBufLen);
   } else {
-    pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
+    pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecNonPrimary>();
     handlePreProcessedReqByNonPrimary(
         clientId, reqSeqNum, preProcessReqMsg->reqRetryId(), actualResultBufLen, preProcessReqMsg->getCid());
   }
