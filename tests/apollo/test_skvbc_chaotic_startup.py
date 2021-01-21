@@ -37,8 +37,8 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
             "-v", view_change_timeout_milli,
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
-                 else "",
-            "-t", os.environ.get('STORAGE_TYPE')]
+                 else ""
+            ]
 
 
 def start_replica_cmd_with_vc_timeout(vc_timeout):

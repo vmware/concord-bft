@@ -39,8 +39,8 @@ def start_replica_cmd(builddir, replica_id):
             "-e", str(True),
             "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
                     in set(["true", "on"])
-                 else "",
-            "-t", os.environ.get('STORAGE_TYPE')]
+                 else ""
+            ]
 
 
 class SkvbcTest(unittest.TestCase):

@@ -48,8 +48,7 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
             "-i", str(replica_id),
             "-s", status_timer_milli,
             "-v", view_change_timeout_milli,
-            "-p",
-            "-t", os.environ.get('STORAGE_TYPE')
+            "-p"
             ]
 
 def start_replica_cmd_with_vc_timeout(vc_timeout):

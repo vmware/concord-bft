@@ -39,8 +39,8 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-p",
-            "-t", os.environ.get('STORAGE_TYPE')]
+            "-p"
+            ]
 
 
 class SkvbcLongRunningTest(unittest.TestCase):

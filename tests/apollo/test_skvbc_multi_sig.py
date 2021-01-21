@@ -35,8 +35,8 @@ def start_replica_cmd(builddir, replica_id):
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
             "-e", str(True),
-            "-p",
-            "-t", os.environ.get('STORAGE_TYPE')]
+            "-p"
+            ]
 
 
 class SkvbcMultiSig(unittest.TestCase):
