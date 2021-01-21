@@ -994,7 +994,7 @@ class SkvbcTracker:
         [ self.bft_network.start_replica(i) for i in initial_nodes]
         client = self.bft_network.random_client()
         # Write a KV pair with a known value
-        known_key = self.skvbc.max_key()
+        known_key = self.skvbc.unique_random_key()
         known_val = self.skvbc.random_value()
         known_kv = [(known_key, known_val)]
         await self.write_and_track_known_kv(known_kv, client)
@@ -1165,7 +1165,7 @@ class PassThroughSkvbcTracker:
         [ self.bft_network.start_replica(i) for i in initial_nodes ]
         client = self.bft_network.random_client()
         # Write a KV pair with a known value
-        known_key = self.skvbc.max_key()
+        known_key = self.skvbc.unique_random_key()
         known_val = self.skvbc.random_value()
         known_kv = [(known_key, known_val)]
         await self.write_and_track_known_kv(known_kv, client)
