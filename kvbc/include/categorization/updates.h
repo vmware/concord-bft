@@ -60,9 +60,7 @@ struct ImmutableUpdates {
     friend struct ImmutableUpdates;
   };
 
-  void addUpdate(std::string&& key, ImmutableValue&& val, bool allow_update = false) {
-    data_.kv[std::move(key)] = std::move(val.update_);
-  }
+  void addUpdate(std::string&& key, ImmutableValue&& val) { data_.kv[std::move(key)] = std::move(val.update_); }
 
   void calculateRootHash(const bool hash) { data_.calculate_root_hash = hash; }
 
@@ -94,12 +92,12 @@ struct VersionedUpdates {
     bool stale_on_update{false};
   };
 
-  void addUpdate(std::string&& key, Value&& val, bool allow_update = false) {
+  void addUpdate(std::string&& key, Value&& val) {
     data_.kv[std::move(key)] = ValueWithFlags{std::move(val.data), val.stale_on_update};
   }
 
   // Set a value with no flags set
-  void addUpdate(std::string&& key, std::string&& val, bool allow_update = false) {
+  void addUpdate(std::string&& key, std::string&& val) {
     data_.kv[std::move(key)] = ValueWithFlags{std::move(val), false};
   }
 
@@ -136,9 +134,7 @@ struct BlockMerkleUpdates {
   BlockMerkleUpdates(BlockMerkleUpdates& other) = delete;
   BlockMerkleUpdates& operator=(BlockMerkleUpdates& other) = delete;
 
-  void addUpdate(std::string&& key, std::string&& val, bool allow_update = false) {
-    data_.kv[std::move(key)] = std::move(val);
-  }
+  void addUpdate(std::string&& key, std::string&& val) { data_.kv[std::move(key)] = std::move(val); }
 
   void addDelete(std::string&& key) {
     if (const auto [itr, inserted] = unique_deletes_.insert(key); !inserted) {

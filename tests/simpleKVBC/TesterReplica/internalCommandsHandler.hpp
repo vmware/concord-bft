@@ -98,7 +98,11 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
 
  private:
   static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
-  std::string getAtMost(const std::string &key, concord::kvbc::BlockId block_id) const;
+  std::optional<std::string> get(const std::string &key, concord::kvbc::BlockId blockId) const;
+  std::string getAtMost(const std::string &key, concord::kvbc::BlockId blockId) const;
+  std::string getLatest(const std::string &key) const;
+  std::optional<concord::kvbc::BlockId> getLatestVersion(const std::string &key) const;
+  std::optional<std::map<std::string, std::string>> getBlockUpdates(concord::kvbc::BlockId blockId) const;
 
  private:
   concord::kvbc::IReader *m_storage;
