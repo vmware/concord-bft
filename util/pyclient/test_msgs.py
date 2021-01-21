@@ -71,8 +71,8 @@ class TestRepliesManager(unittest.TestCase):
         self.assertEqual(common_key.header.primary_id, 0)
         self.assertEqual(common_key.header.req_seq_num, 1)
         self.assertEqual(common_key.data, b'hello')
-        self.assertEqual(b'1', rsi_replies[0].get_rsi_data())
-        self.assertTrue(b'0', rsi_replies[1].get_rsi_data())
+        self.assertEqual(b'1', rsi_replies[0])
+        self.assertTrue(b'0', rsi_replies[1])
 
     def test_add_message_with_two_seq_num_to_manager(self):
         replies_manager = rsi.RepliesManager()

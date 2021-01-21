@@ -81,7 +81,7 @@ class BftClient(ABC):
         self.req_seq_num = ReqSeqNum()
         self.client_id = config.id
         self.primary = None
-        self.replies = None
+        self.reply = None
         self.retries = 0
         self.msgs_sent = 0
         self.replies_manager = rsi.RepliesManager()
@@ -163,47 +163,10 @@ class BftClient(ABC):
         # Raise a trio.TooSlowError exception if a quorum of replies
         try:
             with trio.fail_after(self.config.req_timeout_milli / 1000):
-                self._reset_on_new_request([seq_num])
-                replies = await self._send_receive_loop(data, read_only, m_of_n_quorum)
-                return next(iter(self.replies.values())).get_common_data()
+                self._reset_on_new_request()
+                return await self._send_receive_loop(data, read_only, m_of_n_quorum)
         except trio.TooSlowError:
             print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
-            raise trio.TooSlowError
-        finally:
-            pass
-
-    async def write_batch(self, msg_batch, batch_seq_nums=None, m_of_n_quorum=None):
-        if not self.comm_prepared:
-            await self._comm_prepare()
-
-        cid = str(self.req_seq_num.next())
-
-        if batch_seq_nums is None:
-            batch_seq_nums = []
-            for n in range(len(msg_batch)):
-                batch_seq_nums.append(self.req_seq_num.next())
-        
-        msg_data = b''
-        for n in range(len(msg_batch)):
-            msg = msg_batch[n]
-            msg_seq_num = batch_seq_nums[n]
-            msg_cid = str(msg_seq_num)
-            msg_data = b''.join([msg_data, bft_msgs.pack_request(
-                self.client_id, msg_seq_num, False, self.config.req_timeout_milli, msg_cid, msg, True)])
-        
-        data = bft_msgs.pack_batch_request(
-            self.client_id, len(msg_batch), msg_data, cid)
-
-        if m_of_n_quorum is None:
-            m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])
-        
-        # Raise a trio.TooSlowError exception if a quorum of replies
-        try:
-            with trio.fail_after(len(msg_batch) * self.config.req_timeout_milli / 1000):
-                self._reset_on_new_request(batch_seq_nums)
-                return await self._send_receive_loop(data, False, m_of_n_quorum)
-        except trio.TooSlowError:
-            print(f"TooSlowError thrown from client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
             raise trio.TooSlowError
         finally:
             pass
@@ -216,13 +179,12 @@ class BftClient(ABC):
             self.rsi_replies = dict()
             self.replies_manager.clear_replies()
 
-    def _reset_on_new_request(self, seq_nums):
+    def _reset_on_new_request(self):
         """Reset any state that must be reset during new requests"""
-        self.replies = None
+        self.reply = None
         self.retries = 0
         self.rsi_replies = dict()
         self.replies_manager.clear_replies()
-        self.replies_manager.set_seq_nums(seq_nums)
 
     async def _send_receive_loop(self, data, read_only, m_of_n_quorum):
         """
@@ -232,7 +194,7 @@ class BftClient(ABC):
         including this one.
         """
         dest_replicas = [r for r in self.replicas if r.id in m_of_n_quorum.replicas]
-        while self.replies is None:
+        while self.reply is None:
             with trio.move_on_after(self.config.retry_timeout_milli / 1000):
                 async with trio.open_nursery() as nursery:
                     if read_only or self.primary is None:
@@ -240,10 +202,10 @@ class BftClient(ABC):
                     else:
                         await self._send_to_primary(data)
                     nursery.start_soon(self._recv_data, m_of_n_quorum.required, dest_replicas, nursery.cancel_scope)
-            if self.replies is None:
+            if self.reply is None:
                 self._reset_on_retry()
                 await trio.sleep(0.1)
-        return self.replies
+        return self.reply
 
     async def _send_to_primary(self, request):
         """Send a serialized request to the primary"""
@@ -263,7 +225,7 @@ class BftClient(ABC):
 
     def _valid_reply(self, header, sender, dest_replicas):
         """Check if received reply is valid - sequence number match and source is in dest_replicas"""
-        return self.replies_manager.expects_seq_num(header.req_seq_num) and sender in dest_replicas
+        return self.req_seq_num.val() == header.req_seq_num and sender in dest_replicas
 
     def get_rsi_replies(self):
         """
@@ -277,9 +239,9 @@ class BftClient(ABC):
         rsi_msg = rsi.MsgWithReplicaSpecificInfo(data, sender)
         header, reply = rsi_msg.get_common_reply()
         if self._valid_reply(header, rsi_msg.get_sender_id(), replicas_addr):
-            self.replies_manager.add_reply(rsi_msg)
-            if self.replies_manager.has_quorum_on_all(required_replies):
-                self.replies = self.replies_manager.get_all_replies()
+            quorum_size = self.replies_manager.add_reply(rsi_msg)
+            if quorum_size >= required_replies:
+                self.reply = reply
                 self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
                 self.primary = self.replicas[header.primary_id]
                 cancel_scope.cancel()
