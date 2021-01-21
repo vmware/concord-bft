@@ -22,7 +22,6 @@ class PerformanceManager {
   explicit PerformanceManager(std::shared_ptr<SlowdownConfiguration> &config) {
     slowdownManager_ = std::make_shared<SlowdownManager>(config);
   }
-
 #ifdef USE_SLOWDOWN
   // slow down methods
   template <SlowdownPhase T>

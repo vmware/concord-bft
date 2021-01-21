@@ -19,12 +19,44 @@
 #include <iterator>
 #include <thread>
 #include <chrono>
-
+#include <ReplicaImp.h>
+#include <communication/ICommunication.hpp>
+#include <ReplicaConfig.hpp>
+#include "merkle_tree_storage_factory.h"
 #include "PerformanceManager.hpp"
 
 namespace {
 
 using namespace concord::performance;
+using namespace bft::communication;
+
+class MockComm : public bft::communication::ICommunication {
+ public:
+  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override {
+    (void)node;
+    return ConnectionStatus::Connected;
+  }
+
+  int getMaxMessageSize() override { return 64000; }
+
+  bool isRunning() const override { return true; }
+
+  int sendAsyncMessage(NodeNum destNode, const char* const message, size_t messageLength) override {
+    (void)destNode;
+    (void)message;
+    (void)messageLength;
+    return 0;
+  }
+
+  void setReceiver(NodeNum receiverNum, IReceiver* receiver) override {
+    (void)receiverNum;
+    (void)receiver;
+  }
+
+  int Start() override { return 0; }
+
+  int Stop() override { return 0; }
+};
 
 TEST(slowdown_test, empty_configuration) {
   PerformanceManager pm;
@@ -62,7 +94,8 @@ TEST(slowdown_test, hybrid_configuration) {
   policies.push_back(std::make_shared<BusyWaitPolicyConfig>(bp));
   policies.push_back(std::make_shared<SleepPolicyConfig>(sp));
   policies.push_back(std::make_shared<AddKeysPolicyConfig>(ap));
-  (*sm)[SlowdownPhase::StorageBeforeDbWrite] = policies;
+  sm->insert({SlowdownPhase::StorageBeforeDbWrite, policies});
+  sm->insert({SlowdownPhase::StorageBeforeKVBC, policies});
   PerformanceManager pm(sm);
   concord::kvbc::SetOfKeyValuePairs set;
   SlowDownResult res = pm.Delay<SlowdownPhase::StorageBeforeDbWrite>(set);
@@ -72,6 +105,43 @@ TEST(slowdown_test, hybrid_configuration) {
   EXPECT_EQ(res.totalKeyCount, 10);
   EXPECT_EQ(set.size(), 10);
   EXPECT_GE(res.totalValueSize, 10 * 3000);
+  auto size = set.size();
+  EXPECT_EQ(set.size(), 10);
+  pm.Delay<SlowdownPhase::StorageBeforeKVBC>(set);
+  EXPECT_EQ(set.size(), size + 10);
+}
+
+TEST(slowdown_test, add_keys_configuration) {
+  using namespace concord::kvbc;
+  using namespace concord::kvbc::v2MerkleTree;
+
+  auto sm = std::make_shared<SlowdownConfiguration>();
+  AddKeysPolicyConfig ap(10, 200, 3000);
+  std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies;
+  policies.push_back(std::make_shared<AddKeysPolicyConfig>(ap));
+
+  std::unique_ptr<IStorageFactory> f = std::make_unique<MemoryDBStorageFactory>();
+  auto comm = MockComm();
+  bftEngine::ReplicaConfig& rc = bftEngine::ReplicaConfig::instance();
+  rc.numReplicas = 4;
+  rc.fVal = 1;
+  rc.cVal = 0;
+  rc.numOfExternalClients = 1;
+  (*sm)[SlowdownPhase::StorageBeforeKVBC] = policies;
+  auto pm = std::make_shared<PerformanceManager>(sm);
+
+  ReplicaImp r(
+      dynamic_cast<ICommunication*>(&comm), rc, std::move(f), std::make_shared<concordMetrics::Aggregator>(), pm);
+  SetOfKeyValuePairs set;
+  set.insert({concordUtils::Sliver("key"), concordUtils::Sliver("value")});
+  set.insert({concordUtils::Sliver("key1"), concordUtils::Sliver("value2")});
+  set.insert({concordUtils::Sliver("key2"), concordUtils::Sliver("value2")});
+  auto size = set.size();
+  concordUtils::SpanWrapper s;
+  BlockId id;
+  r.addBlock(set, id, s);
+  EXPECT_EQ(id, 1);
+  EXPECT_EQ(set.size(), size);  // was not changed
 }
 
 }  // anonymous namespace

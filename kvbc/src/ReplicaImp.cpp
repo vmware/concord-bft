@@ -266,8 +266,9 @@ ReplicaImp::~ReplicaImp() {
 }
 
 Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {
-  outBlockId = m_bcDbAdapter->addBlock(updates);
-
+  auto data = updates;
+  pm_->Delay<concord::performance::SlowdownPhase::StorageBeforeKVBC>(data);
+  outBlockId = m_bcDbAdapter->addBlock(data);
   return Status::OK();
 }
 

@@ -31,7 +31,7 @@ enum class SlowdownPhase : uint16_t {
   ConsensusFullCommitMsgProcess,
   PostExecBeforeConflictResolution,
   PostExecAfterConflictResolution,
-  StorageBeforeMerkleTree,
+  StorageBeforeKVBC,
   StorageBeforeDbWrite
 };
 
@@ -116,7 +116,7 @@ typedef phase_tag<SlowdownPhase::BftClientBeforeSendPrimary> bftclient_before_se
 typedef phase_tag<SlowdownPhase::PreProcessorAfterPreexecPrimary> pre_processor_aferpe_primary;
 typedef phase_tag<SlowdownPhase::PreProcessorAfterPreexecNonPrimary> pre_processor_aferpe_nonprimary;
 typedef phase_tag<SlowdownPhase::ConsensusFullCommitMsgProcess> cons_process_fullcommit_msg;
-typedef phase_tag<SlowdownPhase::StorageBeforeMerkleTree> storage_before_merkle_tree;
+typedef phase_tag<SlowdownPhase::StorageBeforeKVBC> storage_before_merkle_tree;
 typedef phase_tag<SlowdownPhase::StorageBeforeDbWrite> storage_before_db_write;
 typedef phase_tag<SlowdownPhase::PostExecAfterConflictResolution> post_exec_after_conflict_det;
 typedef phase_tag<SlowdownPhase::PostExecBeforeConflictResolution> post_exec_before_conflict_det;
@@ -273,11 +273,11 @@ class SlowdownManager {
   }
 
   void DelayImp(storage_before_merkle_tree, concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &res) {
-    DelayInternal(SlowdownPhase::StorageBeforeMerkleTree, set, res);
+    DelayInternal(SlowdownPhase::StorageBeforeKVBC, set, res);
   }
 
   void DelayImp(storage_before_merkle_tree, SlowDownResult &res) {
-    DelayInternal(SlowdownPhase::StorageBeforeMerkleTree, res);
+    DelayInternal(SlowdownPhase::StorageBeforeKVBC, res);
   }
 
   void DelayImp(storage_before_db_write, concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &res) {
