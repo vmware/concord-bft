@@ -66,10 +66,6 @@ foreach(STORAGE_TYPE ${STORAGE_TYPES})
           "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_preexecution_tests_${STORAGE_TYPE} python3 -m unittest test_skvbc_preexecution ${TEST_OUTPUT}"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-  add_test(NAME skvbc_batch_preexecution_tests_${STORAGE_TYPE} COMMAND sh -c
-          "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_batch_preexecution_tests_${STORAGE_TYPE} python3 -m unittest test_skvbc_batch_preexecution ${TEST_OUTPUT}"
-          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
   add_test(NAME skvbc_network_partitioning_tests_${STORAGE_TYPE} COMMAND sh -c
           "env ${APOLLO_TEST_ENV} STORAGE_TYPE=${STORAGE_TYPE} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_network_partitioning_tests_${STORAGE_TYPE} python3 -m unittest test_skvbc_network_partitioning ${TEST_OUTPUT}"
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

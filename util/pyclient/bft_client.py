@@ -201,7 +201,7 @@ class BftClient(ABC):
         try:
             with trio.fail_after(len(msg_batch) * self.config.req_timeout_milli / 1000):
                 self._reset_on_new_request(batch_seq_nums)
-                return await self._send_receive_loop(data, False, m_of_n_quorum, len(msg_batch) * self.config.req_timeout_milli / 1000)
+                return await self._send_receive_loop(data, False, m_of_n_quorum)
         except trio.TooSlowError:
             print(f"TooSlowError thrown from client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
             raise trio.TooSlowError
@@ -224,18 +224,16 @@ class BftClient(ABC):
         self.replies_manager.clear_replies()
         self.replies_manager.set_seq_nums(seq_nums)
 
-    async def _send_receive_loop(self, data, read_only, m_of_n_quorum, timeout = None):
+    async def _send_receive_loop(self, data, read_only, m_of_n_quorum):
         """
         Send and wait for a quorum of replies. Keep retrying if a quorum
         isn't received. Eventually the max request timeout from the
         outer scope will fire cancelling all sub-scopes and their coroutines
         including this one.
         """
-        if timeout is None:
-            timeout = self.config.retry_timeout_milli / 1000
         dest_replicas = [r for r in self.replicas if r.id in m_of_n_quorum.replicas]
         while self.replies is None:
-            with trio.move_on_after(timeout):
+            with trio.move_on_after(self.config.retry_timeout_milli / 1000):
                 async with trio.open_nursery() as nursery:
                     if read_only or self.primary is None:
                         await self._send_to_replicas(data, dest_replicas)

@@ -105,8 +105,6 @@ class RepliesManager:
     def has_quorum_on_all(self, required_replies):
         has_quorum = True
         for seq_num, key in self.seq_nums.items():
-            if key is None:
-                has_quorum = False
-            elif self.num_matching_replies(key) < required_replies:
+            if self.num_matching_replies(key) < required_replies:
                 has_quorum = False
         return has_quorum
