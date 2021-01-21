@@ -430,6 +430,7 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
 OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientRequests,
                                            deque<ClientReply>& clientReplies,
                                            const std::string& cid) {
+  LOG_DEBUG(logger_, KVLOG(clientId_, clientRequests.size(), cid));
   OperationResult res = isBatchValid(clientRequests.size(), clientReplies.size());
   if (res != SUCCESS) return res;
 
