@@ -92,6 +92,9 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   std::map<NodeIdType, uint16_t> clientIdToIndex_;
 
   struct RequestInfo {
+    RequestInfo() : time(MinTime) {}
+    RequestInfo(Time t, const std::string& c) : time(t), cid(c) {}
+
     Time time;
     std::string cid;
   };

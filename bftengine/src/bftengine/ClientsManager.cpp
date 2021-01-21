@@ -277,18 +277,17 @@ void ClientsManager::clearAllPendingRequests() {
 // Iterate over all clients and choose the earliest pending request.
 Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   Time earliestTime = MaxTime;
-  ReqId earliestPendingReqId = 0;
-  RequestInfo earliestPendingReqInfo;
+  RequestInfo earliestPendingReqInfo{MaxTime, std::string()};
   for (const ClientInfo& clientInfo : indexToClientInfo_) {
     for (const auto& req : clientInfo.requestsInfo) {
       if (req.second.time != MinTime && earliestTime > req.second.time) {
-        earliestPendingReqId = req.first;
         earliestPendingReqInfo = req.second;
+        earliestTime = earliestPendingReqInfo.time;
       }
     }
   }
-  if (earliestPendingReqInfo.time != MaxTime) LOG_INFO(GL, "Earliest pending request: " << KVLOG(earliestPendingReqId));
   cid = earliestPendingReqInfo.cid;
+  if (earliestPendingReqInfo.time != MaxTime) LOG_INFO(GL, "Earliest pending request: " << KVLOG(cid));
   return earliestPendingReqInfo.time;
 }
 
