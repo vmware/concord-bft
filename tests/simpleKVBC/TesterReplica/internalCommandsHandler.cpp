@@ -149,9 +149,11 @@ std::string InternalCommandsHandler::getLatest(const std::string &key) const {
 
 std::optional<BlockId> InternalCommandsHandler::getLatestVersion(const std::string &key) const {
   const auto v = m_storage->getLatestVersion(keyToCategory(key), key);
-  if (!v || v->deleted) {
+  if (!v) {
     return std::nullopt;
   }
+  // We never delete keys in TesterReplica at that stage.
+  ConcordAssert(!v->deleted);
   return v->version;
 }
 
