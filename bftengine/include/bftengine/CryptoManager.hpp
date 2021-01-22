@@ -23,7 +23,9 @@ namespace bftEngine {
 class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
  public:
   static CryptoManager& instance(Cryptosystem* cryptoSys = nullptr) {
-    static CryptoManager cm_(cryptoSys);
+    // ensure cryptoSys will be freed since we're expected to take ownership
+    std::unique_ptr<Cryptosystem> cryptoSysPtr(cryptoSys);
+    static CryptoManager cm_(cryptoSysPtr);
     return cm_;
   }
 
@@ -52,11 +54,11 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   }
 
  private:
-  CryptoManager(Cryptosystem* cryptoSys)
+  CryptoManager(std::unique_ptr<Cryptosystem>& cryptoSys)
       : f_{ReplicaConfig::instance().getfVal()},
         c_{ReplicaConfig::instance().getcVal()},
         numSigners_{ReplicaConfig::instance().getnumReplicas()} {
-    multiSigCryptoSystem_.reset(cryptoSys);
+    multiSigCryptoSystem_ = std::move(cryptoSys);
     init();
   }
 
