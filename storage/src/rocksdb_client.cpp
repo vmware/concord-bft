@@ -254,18 +254,18 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
     if (columnFamilyIsEmpty(cf_iter->second.get())) {
       const auto s = dbInstance_->DropColumnFamily(cf_iter->second.get());
       if (!s.ok()) {
-        const auto msg = "Failed to drop incompletely created RocksDB column family: " + s.ToString();
+        const auto msg =
+            "Failed to drop incompletely created RocksDB column family [" + cf + "], reason: " + s.ToString();
         LOG_ERROR(logger(), msg);
         throw std::runtime_error{msg};
       }
       cf_handles_.erase(cf_iter);
-      LOG_WARN(logger(), "Dropped incompletely created and empty RocksDB column family: " << cf);
+      LOG_WARN(logger(), "Dropped incompletely created and empty RocksDB column family [" << cf << ']');
     } else {
-      LOG_WARN(
-          logger(),
-          "Column family ["
-              << cf
-              << "] was not completely created and user-provided options are not persisted, using default options");
+      const auto msg = "RocksDB column family [" + cf +
+                       "] has no persisted options, yet there is data inside - cannot continue with unknown options";
+      LOG_ERROR(logger(), msg);
+      throw std::runtime_error{msg};
     }
   }
 
