@@ -44,10 +44,7 @@ def start_replica_cmd(builddir, replica_id):
             "-b", BATCHING_POLICY,
             "-m", MAX_REQS_SIZE_IN_BATCH,
             "-q", MAX_REQ_NUM_IN_BATCH,
-            "-z", BATCH_FLUSH_PERIOD,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
-                    in set(["true", "on"])
-                 else ""
+            "-z", BATCH_FLUSH_PERIOD
             ]
 
 class SkvbcConsensusBatchingPoliciesTest(unittest.TestCase):

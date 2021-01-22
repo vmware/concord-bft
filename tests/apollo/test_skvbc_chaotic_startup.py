@@ -34,10 +34,7 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", view_change_timeout_milli,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
-                    in set(["true", "on"])
-                 else ""
+            "-v", view_change_timeout_milli
             ]
 
 

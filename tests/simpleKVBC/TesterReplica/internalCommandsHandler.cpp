@@ -167,7 +167,7 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
   {
     const auto verUpdates = updates->categoryUpdates(VERSIONED_KV_CAT_ID);
     if (verUpdates) {
-      const auto u = std::get<VersionedInput>(verUpdates->get());
+      const auto &u = std::get<VersionedInput>(verUpdates->get());
       for (const auto &[key, valueWithFlags] : u.kv) {
         ret[key] = valueWithFlags.data;
       }
@@ -177,7 +177,7 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
   {
     const auto merkleUpdates = updates->categoryUpdates(BLOCK_MERKLE_CAT_ID);
     if (merkleUpdates) {
-      const auto u = std::get<BlockMerkleInput>(merkleUpdates->get());
+      const auto &u = std::get<BlockMerkleInput>(merkleUpdates->get());
       for (const auto &[key, value] : u.kv) {
         ret[key] = value;
       }

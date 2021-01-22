@@ -41,10 +41,7 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
              "-e", str(True),
-            "-v", viewChangeTimeoutMilli,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
-                    in set(["true", "on"])
-                 else ""
+            "-v", viewChangeTimeoutMilli
             ]
 
 

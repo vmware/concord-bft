@@ -45,7 +45,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
-    PersistencyMode persistMode = PersistencyMode::Off;
+    const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
     std::string s3ConfigFile;
@@ -59,7 +59,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"view-change-timeout", required_argument, 0, 'v'},
                                           {"auto-primary-rotation-timeout", required_argument, 0, 'a'},
                                           {"s3-config-file", required_argument, 0, '3'},
-                                          {"persistence-mode", no_argument, 0, 'p'},
                                           {"log-props-file", required_argument, 0, 'l'},
                                           {"key-exchange-on-start", required_argument, 0, 'e'},
                                           {"cert-root-path", required_argument, 0, 'c'},
@@ -73,7 +72,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:pt:l:c:e:b:m:q:y:z:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:t:l:c:e:b:m:q:y:z:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -109,10 +108,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           if (concurrencyLevel < 1 || concurrencyLevel > 30)
             throw std::runtime_error{"invalid argument for --consensus-concurrency-level"};
           replicaConfig.concurrencyLevel = concurrencyLevel;
-        } break;
-        // We can only toggle persistence on or off. It defaults to InMemory unless -p flag is provided.
-        case 'p': {
-          persistMode = PersistencyMode::RocksDB;
         } break;
         case 'l': {
           logPropsFile = optarg;
