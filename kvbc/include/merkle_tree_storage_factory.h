@@ -14,6 +14,7 @@
 
 #include "storage_factory_interface.h"
 #include "kv_types.hpp"
+#include "PerformanceManager.hpp"
 
 #include <optional>
 #include <string>
@@ -26,7 +27,9 @@ class RocksDBStorageFactory : public IStorageFactory {
  public:
   RocksDBStorageFactory(
       const std::string& dbPath,
-      const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet = std::unordered_set<concord::kvbc::Key>{});
+      const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet = std::unordered_set<concord::kvbc::Key>{},
+      const std::shared_ptr<concord::performance::PerformanceManager>& pm =
+          std::make_shared<concord::performance::PerformanceManager>());
 
  public:
   DatabaseSet newDatabaseSet() const override;
@@ -36,6 +39,7 @@ class RocksDBStorageFactory : public IStorageFactory {
  private:
   const std::string dbPath_;
   const std::unordered_set<concord::kvbc::Key> nonProvableKeySet_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 #endif
 

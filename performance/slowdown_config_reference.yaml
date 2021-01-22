@@ -1,0 +1,61 @@
+bftclient:
+  - phase: before-send
+    id: 1
+    policies:
+      - id: 0
+        duration: 0
+        sleep-time: 0
+      - id: 3
+        duration: 0
+
+preprocessor:
+  - phase: after-preexec-primary
+    id: 2
+    policies:
+      - id: 0
+        duration: 0
+        sleep-time: 0
+  - phase: after-preexec-nonprimary
+    id: 3
+    policies:
+      - id: 3
+        duration: 0
+
+consensus:
+  - phase: on-fullcommitproof
+    id: 4
+    policies:
+      - id: 0
+        duration: 0
+        sleep-time: 0
+
+# will be removed, implemented here for the simplicity
+post_execution:
+  - phase: before-contention
+    id: 5
+    policies:
+      - id: 2
+        count: 0
+        key-size: 0
+        value-size: 0
+  - phase: after-contention
+    id: 6
+    policies:
+      - id: 0
+        duration: 0
+        sleep-time: 0
+
+storage:
+  - phase: before-merkle
+    id: 7
+    policies:
+      - id: 2
+        count: 0
+        key-size: 0
+        value-size: 0
+  - phase: before-dbwrite
+    id: 8
+    policies:
+      - id: 0
+        duration: 0
+        sleep-time: 0

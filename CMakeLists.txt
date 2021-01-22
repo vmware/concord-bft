@@ -42,6 +42,9 @@ option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" FALSE)
 # Build S3 Object Store support.
 option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
 
+# Build Slowdown framework
+option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
+
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
     math(EXPR COMM_MODULES "${COMM_MODULES}+1")
@@ -116,6 +119,7 @@ add_subdirectory(logging)
 add_subdirectory(util)
 add_subdirectory(threshsign)
 add_subdirectory(communication)
+add_subdirectory(performance)
 add_subdirectory(bftengine)
 add_subdirectory(tools)
 add_subdirectory(kvbc)

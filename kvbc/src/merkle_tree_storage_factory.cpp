@@ -18,18 +18,18 @@
 #include "rocksdb/client.h"
 
 namespace concord::kvbc::v2MerkleTree {
-
 #ifdef USE_ROCKSDB
 RocksDBStorageFactory::RocksDBStorageFactory(const std::string& dbPath,
-                                             const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet)
-    : dbPath_{dbPath}, nonProvableKeySet_{nonProvableKeySet} {}
+                                             const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet,
+                                             const std::shared_ptr<concord::performance::PerformanceManager>& pm)
+    : dbPath_{dbPath}, nonProvableKeySet_{nonProvableKeySet}, pm_{pm} {}
 
 IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
   auto ret = IStorageFactory::DatabaseSet{};
   ret.dataDBClient = std::make_shared<storage::rocksdb::Client>(dbPath_);
   ret.dataDBClient->init();
   ret.metadataDBClient = ret.dataDBClient;
-  ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient, true, nonProvableKeySet_);
+  ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient, true, nonProvableKeySet_, pm_);
   return ret;
 }
 

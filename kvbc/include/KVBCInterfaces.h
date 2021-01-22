@@ -122,6 +122,7 @@ class ICommandsHandler : public bftEngine::IRequestsHandler {
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override = 0;
   virtual void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) = 0;
+  virtual void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) = 0;
   ~ICommandsHandler() override = default;
 };
 

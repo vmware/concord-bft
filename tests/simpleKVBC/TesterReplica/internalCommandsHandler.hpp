@@ -57,6 +57,8 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
 
   void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) override;
 
+  void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
+
  private:
   bool executeWriteCommand(uint32_t requestSize,
                            const char *request,
@@ -109,4 +111,5 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_getLastBlockCounter = 0;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
   std::shared_ptr<InternalControlHandlers> controlHandlers_;
+  std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
 };

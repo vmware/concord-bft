@@ -14,6 +14,8 @@
 #include <mutex>
 #include <cmath>
 #include <condition_variable>
+#include <memory>
+#include <SimpleClient.hpp>
 
 #include "ClientMsgs.hpp"
 #include "OpenTracing.hpp"
@@ -35,8 +37,12 @@ namespace bftEngine {
 namespace impl {
 class SimpleClientImp : public SimpleClient, public IReceiver {
  public:
-  SimpleClientImp(
-      ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p);
+  SimpleClientImp(ICommunication* communication,
+                  uint16_t clientId,
+                  uint16_t fVal,
+                  uint16_t cVal,
+                  SimpleClientParams& p,
+                  const std::shared_ptr<concord::performance::PerformanceManager>& pm);
   ~SimpleClientImp() override;
 
   OperationResult sendRequest(uint8_t flags,
@@ -105,6 +111,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   uint16_t clientSendsRequestToAllReplicasFirstThresh_;
   uint16_t clientSendsRequestToAllReplicasPeriodThresh_;
   uint16_t clientPeriodicResetThresh_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 
   logging::Logger logger_ = logging::getLogger("concord.bft.client");
 };
@@ -159,9 +166,13 @@ static std::set<ReplicaId> generateSetOfReplicas_helpFunc(const int16_t numberOf
   return retVal;
 }
 
-SimpleClientImp::SimpleClientImp(
-    ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams& p)
-    : SimpleClient(clientId),
+SimpleClientImp::SimpleClientImp(ICommunication* communication,
+                                 uint16_t clientId,
+                                 uint16_t fVal,
+                                 uint16_t cVal,
+                                 SimpleClientParams& p,
+                                 const std::shared_ptr<concord::performance::PerformanceManager>& pm)
+    : SimpleClient(clientId, pm),
       clientId_{clientId},
       numberOfReplicas_(3 * fVal + 2 * cVal + 1),
       numberOfRequiredReplicas_(2 * fVal + cVal + 1),
@@ -180,7 +191,8 @@ SimpleClientImp::SimpleClientImp(
                                     p.clientSendsRequestToAllReplicasPeriodThresh),
       clientSendsRequestToAllReplicasFirstThresh_{p.clientSendsRequestToAllReplicasFirstThresh},
       clientSendsRequestToAllReplicasPeriodThresh_{p.clientSendsRequestToAllReplicasPeriodThresh},
-      clientPeriodicResetThresh_{p.clientPeriodicResetThresh} {
+      clientPeriodicResetThresh_{p.clientPeriodicResetThresh},
+      pm_{pm} {
   ConcordAssert(fVal_ >= 1);
 
   pendingRequest_ = nullptr;
@@ -435,7 +447,7 @@ void SimpleClientImp::sendPendingRequest() {
       // TODO(GG): handle errors (print and/or ....)
     }
   } else {
-    // int stat =
+    pm_->Delay<concord::performance::SlowdownPhase::BftClientBeforeSendPrimary>();
     communication_->sendAsyncMessage(knownPrimaryReplica_, pendingRequest_->body(), pendingRequest_->size());
     // TODO(GG): handle errors (print and/or ....)
   }
@@ -492,17 +504,22 @@ uint64_t SeqNumberGeneratorForClientRequestsImp::generateUniqueSequenceNumberFor
 
 }  // namespace impl
 
-SimpleClient* SimpleClient::createSimpleClient(
-    ICommunication* communication, uint16_t clientId, uint16_t fVal, uint16_t cVal, SimpleClientParams p) {
-  return new impl::SimpleClientImp(communication, clientId, fVal, cVal, p);
+SimpleClient* SimpleClient::createSimpleClient(ICommunication* communication,
+                                               uint16_t clientId,
+                                               uint16_t fVal,
+                                               uint16_t cVal,
+                                               SimpleClientParams p,
+                                               const std::shared_ptr<concord::performance::PerformanceManager>& pm) {
+  return new impl::SimpleClientImp(communication, clientId, fVal, cVal, p, pm);
 }
 
 SimpleClient* SimpleClient::createSimpleClient(ICommunication* communication,
                                                uint16_t clientId,
                                                uint16_t fVal,
-                                               uint16_t cVal) {
+                                               uint16_t cVal,
+                                               const std::shared_ptr<concord::performance::PerformanceManager>& pm) {
   SimpleClientParams p;
-  return SimpleClient::createSimpleClient(communication, clientId, fVal, cVal, p);
+  return SimpleClient::createSimpleClient(communication, clientId, fVal, cVal, p, pm);
 }
 
 SimpleClient::~SimpleClient() = default;

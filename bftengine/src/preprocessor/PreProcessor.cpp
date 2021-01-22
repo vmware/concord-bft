@@ -35,7 +35,8 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
                                       shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                                       bftEngine::IRequestsHandler &requestsHandler,
                                       InternalReplicaApi &replica,
-                                      concordUtil::Timers &timers) {
+                                      concordUtil::Timers &timers,
+                                      shared_ptr<concord::performance::PerformanceManager> &pm) {
   if (ReplicaConfig::instance().getnumOfExternalClients() + ReplicaConfig::instance().getnumOfClientProxies() <= 0) {
     LOG_ERROR(logger(), "Wrong configuration: a number of clients could not be zero!");
     return;
@@ -43,7 +44,7 @@ void PreProcessor::addNewPreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunic
 
   if (ReplicaConfig::instance().getpreExecutionFeatureEnabled())
     preProcessors_.push_back(make_unique<PreProcessor>(
-        msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers));
+        msgsCommunicator, incomingMsgsStorage, msgHandlersRegistrator, requestsHandler, replica, timers, pm));
 }
 
 void PreProcessor::setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
@@ -71,7 +72,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                            IRequestsHandler &requestsHandler,
                            const InternalReplicaApi &myReplica,
-                           concordUtil::Timers &timers)
+                           concordUtil::Timers &timers,
+                           shared_ptr<concord::performance::PerformanceManager> &pm)
     : msgsCommunicator_(msgsCommunicator),
       incomingMsgsStorage_(incomingMsgsStorage),
       msgHandlersRegistrator_(msgHandlersRegistrator),
@@ -99,7 +101,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers},
       preExecuteDuration_{histograms_.totalPreExecutionDuration},
-      lastViewNum_(myReplica.getCurrentView()) {
+      lastViewNum_(myReplica.getCurrentView()),
+      pm_{pm} {
   registerMsgHandlers();
   metricsComponent_.Register();
   sigManager_ = make_shared<SigManager>(myReplicaId_,
@@ -784,11 +787,14 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   }
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Request pre-processed" << KVLOG(isPrimary, reqSeqNum, clientId));
-  if (isPrimary)
+  if (isPrimary) {
+    pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
     handlePreProcessedReqByPrimary(preProcessReqMsg, clientId, actualResultBufLen);
-  else
+  } else {
+    pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecNonPrimary>();
     handlePreProcessedReqByNonPrimary(
         clientId, reqSeqNum, preProcessReqMsg->reqRetryId(), actualResultBufLen, preProcessReqMsg->getCid());
+  }
 }
 
 //**************** Class AsyncPreProcessJob ****************//

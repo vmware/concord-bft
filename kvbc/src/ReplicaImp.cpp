@@ -197,12 +197,14 @@ void ReplicaImp::set_command_handler(ICommandsHandler *handler) {
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,
                        std::unique_ptr<IStorageFactory> storageFactory,
-                       std::shared_ptr<concordMetrics::Aggregator> aggregator)
+                       std::shared_ptr<concordMetrics::Aggregator> aggregator,
+                       const std::shared_ptr<concord::performance::PerformanceManager> &pm)
     : logger(logging::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
       m_ptrComm(comm),
       replicaConfig_(replicaConfig),
-      aggregator_(aggregator) {
+      aggregator_(aggregator),
+      pm_{pm} {
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
@@ -264,8 +266,9 @@ ReplicaImp::~ReplicaImp() {
 }
 
 Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {
-  outBlockId = m_bcDbAdapter->addBlock(updates);
-
+  auto data = updates;
+  pm_->Delay<concord::performance::SlowdownPhase::StorageBeforeKVBC>(data);
+  outBlockId = m_bcDbAdapter->addBlock(data);
   return Status::OK();
 }
 

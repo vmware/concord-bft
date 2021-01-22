@@ -358,3 +358,8 @@ void InternalCommandsHandler::setControlStateManager(
     std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) {
   controlStateManager_ = controlStateManager;
 }
+
+void InternalCommandsHandler::setPerformanceManager(
+    std::shared_ptr<concord::performance::PerformanceManager> perfManager) {
+  perfManager_ = perfManager;
+}
