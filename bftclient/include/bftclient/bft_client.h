@@ -57,6 +57,7 @@ class Client {
   // Throws a BftClientException on error.
   Reply send(const WriteConfig& config, Msg&& request);
   Reply send(const ReadConfig& config, Msg&& request);
+  bool isServing(int numOfReplicas, int requiredNumOfReplicas) const;
 
   // Useful for testing. Shouldn't be relied on in production.
   std::optional<ReplicaId> primary() { return primary_; }
