@@ -25,7 +25,10 @@ target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include/bftengine)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/src/bftengine)
 get_property(perf_include GLOBAL PROPERTY PERF_MANAGER_INCLUDE_DIR)
-target_include_directories(preprocessor PUBLIC ${perf_include})
+get_property(util_include GLOBAL PROPERTY UTIL_INCLUDE_DIR)
+get_property(kvbc_include GLOBAL PROPERTY KVBC_INCLUDE_DIR)
+target_include_directories(preprocessor PUBLIC ${perf_include} ${util_include} ${kvbc_include})
+
 target_link_libraries(preprocessor PUBLIC diagnostics)
 
 if(BUILD_SLOWDOWN)

@@ -18,8 +18,8 @@
 #include <vector>
 #include <iostream>
 #include "Helper.hpp"
-#include "../../kvbc/include/kv_types.hpp"
-#include "../../util/include/sliver.hpp"
+#include "kv_types.hpp"
+#include "sliver.hpp"
 
 namespace concord::performance {
 

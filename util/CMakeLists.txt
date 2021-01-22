@@ -63,4 +63,6 @@ install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
     ${CMAKE_CURRENT_SOURCE_DIR}/include/)
-install (TARGETS util_shared DESTINATION lib${LIB_SUFFIX}) 
+install (TARGETS util_shared DESTINATION lib${LIB_SUFFIX})
+
+set_property(GLOBAL PROPERTY UTIL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
