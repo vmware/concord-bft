@@ -112,7 +112,7 @@ Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
     _outValue = Sliver::copy(reinterpret_cast<const char*>(cbData.data), cbData.readLength);
     return Status::OK();
   } else {
-    LOG_ERROR(logger_, "get status: " << S3_get_status_name(cbData.status));
+    LOG_ERROR(logger_, "get status: " << S3_get_status_name(cbData.status) << " (" << cbData.errorMessage << ")");
     if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket ||
         cbData.status == S3Status::S3StatusErrorNoSuchKey)
       return Status::NotFound("Status: " + std::string(S3_get_status_name(cbData.status)) +
@@ -152,7 +152,7 @@ Status Client::put_internal(const Sliver& _key, const Sliver& _value) {
     metrics_.metrics_component.UpdateAggregator();
     return Status::OK();
   } else {
-    LOG_ERROR(logger_, "put status: " << cbData.status);
+    LOG_ERROR(logger_, "put status: " << S3_get_status_name(cbData.status) << " (" << cbData.errorMessage << ")");
     if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket)
       return Status::NotFound("Status: " + to_string(cbData.status) + "msg: " + cbData.errorMessage);
 
