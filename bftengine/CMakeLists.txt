@@ -84,6 +84,7 @@ target_include_directories(bftheaders INTERFACE include)
 find_package(cryptopp REQUIRED)
 
 get_property(perf_include GLOBAL PROPERTY PERF_MANAGER_INCLUDE_DIR)
+get_property(kvbc_include GLOBAL PROPERTY KVBC_INCLUDE_DIR)
 
 target_compile_options(corebft PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 target_include_directories(corebft PUBLIC include/)
@@ -110,6 +111,7 @@ target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
 target_include_directories(bftclient PUBLIC ${perf_include})
+target_include_directories(bftclient PUBLIC ${kvbc_include})
 target_link_libraries(bftclient PUBLIC bftcommunication)
 
 target_include_directories(bftclient_shared PUBLIC include/bftengine)
@@ -117,6 +119,7 @@ target_include_directories(bftclient_shared PUBLIC src/bftengine)
 target_include_directories(bftclient_shared PUBLIC src/preprocessor)
 target_include_directories(bftclient_shared PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(bftclient_shared PUBLIC ${perf_include})
+target_include_directories(bftclient_shared PUBLIC ${kvbc_include})
 
 target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared ${CRYPTOPP_SHARED_LIBRARY})
 install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})

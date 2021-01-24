@@ -46,3 +46,5 @@ add_subdirectory(benchmark)
 add_subdirectory(tools)
 find_package(CMFC REQUIRED)
 add_subdirectory(cmf)
+
+set_property(GLOBAL PROPERTY KVBC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
