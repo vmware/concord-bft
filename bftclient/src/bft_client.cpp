@@ -26,6 +26,9 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
   if (config.pre_execute) {
     flags |= PRE_PROCESS_REQ;
   }
+  if (config.key_exchange) {
+    flags |= KEY_EXCHANGE_REQ;
+  }
 
   auto header_size = sizeof(bftEngine::ClientRequestMsgHeader);
 
@@ -164,6 +167,15 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
     mc.quorum = quorum_converter_.toMofN(std::get<MofN>(read_config.quorum));
   }
   return mc;
+}
+
+bool Client::isServing(int numOfReplicas, int requiredNumOfReplicas) const {
+  int connected = 0;
+  for (int i = 0; i < numOfReplicas; i++) {
+    if (communication_->getCurrentConnectionStatus(i) == communication::ConnectionStatus::Connected) connected++;
+    if (connected == requiredNumOfReplicas) return true;
+  }
+  return false;
 }
 
 }  // namespace bft::client

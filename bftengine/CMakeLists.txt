@@ -83,6 +83,8 @@ target_include_directories(bftheaders INTERFACE include)
 
 find_package(cryptopp REQUIRED)
 
+get_property(perf_include GLOBAL PROPERTY PERF_MANAGER_INCLUDE_DIR)
+
 target_compile_options(corebft PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 target_include_directories(corebft PUBLIC include/)
 target_include_directories(corebft PUBLIC include/bftengine)
@@ -93,6 +95,7 @@ target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PRIVATE util/include)
 target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
+target_include_directories(corebft PUBLIC ${perf_include}/performance/include)
 target_link_libraries(corebft PUBLIC
   threshsign
   Threads::Threads
@@ -100,19 +103,28 @@ target_link_libraries(corebft PUBLIC
   concordbft_storage
   preprocessor
   bftcommunication
-  diagnostics
-)
+  diagnostics)
+
 
 target_include_directories(bftclient PUBLIC include/bftengine)
 target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
+target_include_directories(bftclient PUBLIC ${perf_include})
 target_link_libraries(bftclient PUBLIC bftcommunication)
 
 target_include_directories(bftclient_shared PUBLIC include/bftengine)
 target_include_directories(bftclient_shared PUBLIC src/bftengine)
 target_include_directories(bftclient_shared PUBLIC src/preprocessor)
 target_include_directories(bftclient_shared PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
+target_include_directories(bftclient_shared PUBLIC ${perf_include})
+
 target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared ${CRYPTOPP_SHARED_LIBRARY})
 install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
 
 install(DIRECTORY include/bftengine DESTINATION include)
+
+if(BUILD_SLOWDOWN)
+    target_compile_definitions(bftclient PUBLIC USE_SLOWDOWN)
+    target_compile_definitions(corebft PUBLIC USE_SLOWDOWN)
+    target_compile_definitions(bftclient_shared PUBLIC USE_SLOWDOWN)
+endif()

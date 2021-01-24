@@ -73,6 +73,7 @@ struct RequestConfig {
   std::chrono::milliseconds timeout = 5s;
   std::string correlation_id = "";
   std::string span_context = "";
+  bool key_exchange = false;
 };
 
 // The configuration for a single write request.

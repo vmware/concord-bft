@@ -24,6 +24,7 @@
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "ControlStateManager.hpp"
+#include "../../../performance/include/PerformanceManager.hpp"
 
 namespace bftEngine {
 
@@ -92,13 +93,17 @@ class IReplica {
                                       IRequestsHandler *,
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
-                                      MetadataStorage *);
+                                      MetadataStorage *,
+                                      std::shared_ptr<concord::performance::PerformanceManager> sdm =
+                                          std::make_shared<concord::performance::PerformanceManager>());
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
                                       IRequestsHandler *,
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
-                                      bool &erasedMetadata);
+                                      bool &erasedMetadata,
+                                      std::shared_ptr<concord::performance::PerformanceManager> sdm =
+                                          std::make_shared<concord::performance::PerformanceManager>());
 
   static IReplicaPtr createNewRoReplica(const ReplicaConfig &, IStateTransfer *, bft::communication::ICommunication *);
 

@@ -125,6 +125,7 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;
+  bool columnFamilyIsEmpty(::rocksdb::ColumnFamilyHandle*) const;
 
   // Column family unique pointers that are managed solely by Client. This allows us to use a raw
   // pointer in CfDeleter as we know the column family unique pointer will not be moved out of Client.

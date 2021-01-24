@@ -10,6 +10,7 @@
 #include "Logger.hpp"
 #include "storage/db_interface.h"
 #include "storage/direct_kv_key_manipulator.h"
+#include "PerformanceManager.hpp"
 
 #include <memory>
 
@@ -125,7 +126,9 @@ class DBAdapter : public IDbAdapter {
   DBAdapter(std::shared_ptr<storage::IDBClient> dataStore,
             std::unique_ptr<IDataKeyGenerator> keyGen = std::make_unique<RocksKeyGenerator>(),
             bool use_mdt = false,
-            bool save_kv_pairs_separately = true);
+            bool save_kv_pairs_separately = true,
+            const std::shared_ptr<concord::performance::PerformanceManager> &pm_ =
+                std::make_shared<concord::performance::PerformanceManager>());
 
   // Adds a block from a set of key/value pairs and a block ID. Includes:
   // - adding the key/value pairs in separate keys
@@ -184,6 +187,7 @@ class DBAdapter : public IDbAdapter {
   BlockId lastBlockId_ = 0;
   BlockId lastReachableBlockId_ = 0;
   bool saveKvPairsSeparately_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 }  // namespace concord::kvbc::v1DirectKeyValue

@@ -1044,6 +1044,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
       metric_total_committed_sn_.Get().Inc();
+      pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
       executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
       return;
     } else if (pps.hasFullProof()) {
@@ -3113,7 +3114,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<PersistentStorage> persistentStorage,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
-                       concordUtil::Timers &timers)
+                       concordUtil::Timers &timers,
+                       shared_ptr<concord::performance::PerformanceManager> &pm)
     : ReplicaImp(false,
                  ld.repConfig,
                  requestsHandler,
@@ -3123,7 +3125,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  ld.viewsManager,
                  msgsCommunicator,
                  msgHandlers,
-                 timers) {
+                 timers,
+                 pm) {
   ConcordAssertNE(persistentStorage, nullptr);
 
   ps_ = persistentStorage;
@@ -3373,9 +3376,19 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<PersistentStorage> persistentStorage,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
-                       concordUtil::Timers &timers)
-    : ReplicaImp(
-          true, config, requestsHandler, stateTrans, nullptr, nullptr, nullptr, msgsCommunicator, msgHandlers, timers) {
+                       concordUtil::Timers &timers,
+                       shared_ptr<concord::performance::PerformanceManager> &pm)
+    : ReplicaImp(true,
+                 config,
+                 requestsHandler,
+                 stateTrans,
+                 nullptr,
+                 nullptr,
+                 nullptr,
+                 msgsCommunicator,
+                 msgHandlers,
+                 timers,
+                 pm) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3394,7 +3407,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        ViewsManager *viewsMgr,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
-                       concordUtil::Timers &timers)
+                       concordUtil::Timers &timers,
+                       shared_ptr<concord::performance::PerformanceManager> &pm)
     : ReplicaForStateTransfer(config, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
@@ -3405,6 +3419,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
       complainedReplicas(config),
+      pm_{pm},
       metric_view_{metrics_.RegisterGauge("view", curView)},
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
@@ -3818,7 +3833,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     auto dur = controller->durationSincePrePrepare(lastExecutedSeqNum + 1);
     if (dur > 0) {
       // Primary
-      LOG_DEBUG(CNSUS, "Consensus reached, duration [" << dur << "ms]");
+      LOG_DEBUG(CNSUS, "Consensus reached, sleep_duration_ms [" << dur << "ms]");
 
     } else {
       LOG_DEBUG(CNSUS, "Consensus reached");

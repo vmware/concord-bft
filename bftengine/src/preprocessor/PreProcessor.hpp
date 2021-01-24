@@ -25,6 +25,7 @@
 #include "InternalReplicaApi.hpp"
 #include "PreProcessorRecorder.hpp"
 #include "diagnostics.h"
+#include "PerformanceManager.hpp"
 
 #include <mutex>
 
@@ -59,7 +60,8 @@ class PreProcessor {
                std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                bftEngine::IRequestsHandler &requestsHandler,
                const InternalReplicaApi &replica,
-               concordUtil::Timers &timers);
+               concordUtil::Timers &timers,
+               std::shared_ptr<concord::performance::PerformanceManager> &sdm);
 
   ~PreProcessor();
 
@@ -68,7 +70,8 @@ class PreProcessor {
                                  std::shared_ptr<MsgHandlersRegistrator> &msgHandlersRegistrator,
                                  bftEngine::IRequestsHandler &requestsHandler,
                                  InternalReplicaApi &myReplica,
-                                 concordUtil::Timers &timers);
+                                 concordUtil::Timers &timers,
+                                 std::shared_ptr<concord::performance::PerformanceManager> &pm);
 
   static void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator);
 
@@ -202,6 +205,7 @@ class PreProcessor {
   PreProcessorRecorder histograms_;
   concord::diagnostics::AsyncTimeRecorderMap<std::string> preExecuteDuration_;
   ViewNum lastViewNum_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 //**************** Class AsyncPreProcessJob ****************//

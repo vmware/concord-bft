@@ -80,7 +80,8 @@ class ReplicaImp : public IReplica,
   ReplicaImp(bft::communication::ICommunication *comm,
              const bftEngine::ReplicaConfig &config,
              std::unique_ptr<IStorageFactory> storageFactory,
-             std::shared_ptr<concordMetrics::Aggregator> aggregator);
+             std::shared_ptr<concordMetrics::Aggregator> aggregator,
+             const std::shared_ptr<concord::performance::PerformanceManager> &pm);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
@@ -140,6 +141,7 @@ class ReplicaImp : public IReplica,
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_;
   std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
 
   // 5 Minutes

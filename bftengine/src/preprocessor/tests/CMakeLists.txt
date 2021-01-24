@@ -11,3 +11,7 @@ target_link_libraries(preprocessor_test PUBLIC
     bftcommunication
     preprocessor
     corebft)
+
+if(BUILD_SLOWDOWN)
+    target_compile_definitions(preprocessor_test PUBLIC USE_SLOWDOWN)
+endif()
