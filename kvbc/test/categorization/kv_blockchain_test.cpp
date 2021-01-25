@@ -1535,6 +1535,74 @@ TEST_F(categorized_kvbc, multi_get_latest_version) {
   }
 }
 
+TEST_F(categorized_kvbc, updates_append_single_key_value_non_existent_category) {
+  auto updates = Updates{};
+
+  ASSERT_FALSE(updates.appendKeyValue<BlockMerkleUpdates>("non-existent", "k", "v"));
+  ASSERT_FALSE(updates.appendKeyValue<VersionedUpdates>("non-existent", "k", {{"v", false}}));
+  ASSERT_FALSE(updates.appendKeyValue<ImmutableUpdates>(
+      "non-existent", "k", ImmutableUpdates::ImmutableValue{"v", {"t1", "t2"}}));
+
+  ASSERT_EQ(updates.size(), 0);
+  ASSERT_TRUE(updates.empty());
+}
+
+TEST_F(categorized_kvbc, updates_append_single_key_value) {
+  auto updates = Updates{};
+
+  {
+    auto merkle_updates = BlockMerkleUpdates{};
+    merkle_updates.addUpdate("mk1", "mv1");
+    updates.add("merkle", std::move(merkle_updates));
+  }
+
+  {
+    auto ver_updates = VersionedUpdates{};
+    ver_updates.addUpdate("vk1", "vv1");
+    updates.add("versioned", std::move(ver_updates));
+  }
+
+  {
+    auto immutable_updates = ImmutableUpdates{};
+    immutable_updates.addUpdate("ik1", {"iv1", {"t1", "t2"}});
+    updates.add("immutable", std::move(immutable_updates));
+  }
+
+  // Before appending single key-values.
+  ASSERT_EQ(updates.size(), 3);
+  ASSERT_FALSE(updates.empty());
+
+  // Append single key-values.
+  ASSERT_TRUE(updates.appendKeyValue<BlockMerkleUpdates>("merkle", "mk2", "mv2"));
+  ASSERT_TRUE(updates.appendKeyValue<VersionedUpdates>("versioned", "vk2", VersionedUpdates::Value{"vv2", false}));
+  ASSERT_TRUE(updates.appendKeyValue<ImmutableUpdates>(
+      "immutable", "ik2", ImmutableUpdates::ImmutableValue{"iv2", {"t1", "t2"}}));
+
+  // After appending single key-values.
+  ASSERT_EQ(updates.size(), 6);
+  ASSERT_FALSE(updates.empty());
+
+  auto expected = Updates{};
+  {
+    auto merkle_updates = BlockMerkleUpdates{};
+    merkle_updates.addUpdate("mk1", "mv1");
+    merkle_updates.addUpdate("mk2", "mv2");
+    expected.add("merkle", std::move(merkle_updates));
+
+    auto ver_updates = VersionedUpdates{};
+    ver_updates.addUpdate("vk1", "vv1");
+    ver_updates.addUpdate("vk2", "vv2");
+    expected.add("versioned", std::move(ver_updates));
+
+    auto immutable_updates = ImmutableUpdates{};
+    immutable_updates.addUpdate("ik1", {"iv1", {"t1", "t2"}});
+    immutable_updates.addUpdate("ik2", {"iv2", {"t1", "t2"}});
+    expected.add("immutable", std::move(immutable_updates));
+  }
+
+  ASSERT_EQ(updates, expected);
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

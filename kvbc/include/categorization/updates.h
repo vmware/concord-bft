@@ -58,7 +58,10 @@ struct ImmutableUpdates {
    private:
     ImmutableValueUpdate update_;
     friend struct ImmutableUpdates;
+    friend struct Updates;
   };
+
+  using ValueType = ImmutableValue;
 
   void addUpdate(std::string&& key, ImmutableValue&& val) { data_.kv[std::move(key)] = std::move(val.update_); }
 
@@ -91,6 +94,8 @@ struct VersionedUpdates {
     // Mark the key-value stale during the update itself.
     bool stale_on_update{false};
   };
+
+  using ValueType = Value;
 
   void addUpdate(std::string&& key, Value&& val) {
     data_.kv[std::move(key)] = ValueWithFlags{std::move(val.data), val.stale_on_update};
@@ -133,6 +138,8 @@ struct BlockMerkleUpdates {
   // Do not allow copy
   BlockMerkleUpdates(BlockMerkleUpdates& other) = delete;
   BlockMerkleUpdates& operator=(BlockMerkleUpdates& other) = delete;
+
+  using ValueType = std::string;
 
   void addUpdate(std::string&& key, std::string&& val) { data_.kv[std::move(key)] = std::move(val); }
 
@@ -198,11 +205,27 @@ struct Updates {
     return it->second;
   }
 
+  // Appends a key-value of an `Update` type to already existing key-values for that category.
+  // Precondition: The given `category_id` is of the same type as the passed updates.
+  // Returns true on success or false if the given `category_id` doesn't exist.
+  template <typename Update>
+  bool appendKeyValue(const std::string& category_id, std::string&& key, typename Update::ValueType&& value);
+
   std::size_t size() const { return block_merkle_size + versioned_kv_size + immutable_size; }
   bool empty() const { return size() == 0; }
   std::size_t block_merkle_size{};
   std::size_t versioned_kv_size{};
   std::size_t immutable_size{};
+
+ private:
+  std::optional<std::reference_wrapper<std::variant<BlockMerkleInput, VersionedInput, ImmutableInput>>> categoryUpdates(
+      const std::string& category_id) {
+    auto it = category_updates_.kv.find(category_id);
+    if (it == category_updates_.kv.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
 
  private:
   friend bool operator==(const Updates&, const Updates&);
@@ -211,5 +234,45 @@ struct Updates {
 };
 
 inline bool operator==(const Updates& l, const Updates& r) { return l.category_updates_ == r.category_updates_; }
+
+template <>
+inline bool Updates::appendKeyValue<ImmutableUpdates>(const std::string& category_id,
+                                                      std::string&& key,
+                                                      ImmutableUpdates::ValueType&& val) {
+  auto updates = categoryUpdates(category_id);
+  if (!updates) {
+    return false;
+  }
+  std::get<ImmutableInput>(updates->get()).kv[std::move(key)] = std::move(val.update_);
+  immutable_size++;
+  return true;
+}
+
+template <>
+inline bool Updates::appendKeyValue<VersionedUpdates>(const std::string& category_id,
+                                                      std::string&& key,
+                                                      VersionedUpdates::ValueType&& val) {
+  auto updates = categoryUpdates(category_id);
+  if (!updates) {
+    return false;
+  }
+  std::get<VersionedInput>(updates->get()).kv[std::move(key)] =
+      ValueWithFlags{std::move(val.data), val.stale_on_update};
+  versioned_kv_size++;
+  return true;
+}
+
+template <>
+inline bool Updates::appendKeyValue<BlockMerkleUpdates>(const std::string& category_id,
+                                                        std::string&& key,
+                                                        BlockMerkleUpdates::ValueType&& val) {
+  auto updates = categoryUpdates(category_id);
+  if (!updates) {
+    return false;
+  }
+  std::get<BlockMerkleInput>(updates->get()).kv[std::move(key)] = std::move(val);
+  block_merkle_size++;
+  return true;
+}
 
 }  // namespace concord::kvbc::categorization
