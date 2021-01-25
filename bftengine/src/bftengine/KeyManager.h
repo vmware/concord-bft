@@ -113,14 +113,14 @@ class KeyManager {
     bool keyExchangeOnStart{false};
   };
 
-  static KeyManager& get(InitData* id = nullptr) {
+  static KeyManager& instance(InitData* id = nullptr) {
     static KeyManager km{id};
     return km;
   }
 
   static void start(InitData* id) {
-    get(id);
-    get().initMetrics(id->a, id->interval);
+    instance(id);
+    instance().initMetrics(id->a, id->interval);
   }
 
  private:
