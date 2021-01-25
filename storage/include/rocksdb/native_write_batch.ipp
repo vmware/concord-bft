@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "details.h"
 #ifdef USE_ROCKSDB
 
 namespace concord::storage::rocksdb {
@@ -28,6 +29,22 @@ void NativeWriteBatch::put(const std::string &cFamily, const KeySpan &key, const
 
 template <typename KeySpan, typename ValueSpan>
 void NativeWriteBatch::put(const KeySpan &key, const ValueSpan &value) {
+  put(NativeClient::defaultColumnFamily(), key, value);
+}
+
+template <typename KeySpan, size_t N>
+void NativeWriteBatch::put(const std::string &cFamily,
+                           const KeySpan &key,
+                           const std::array<::rocksdb::Slice, N> &value) {
+  const auto key_slice = detail::toSlice(key);
+  auto s = batch_.Put(client_->columnFamilyHandle(cFamily),
+                      ::rocksdb::SliceParts(&key_slice, 1),
+                      ::rocksdb::SliceParts(value.data(), N));
+  detail::throwOnError("batch put(multi-value) failed"sv, std::move(s));
+}
+
+template <typename KeySpan, size_t N>
+void put(const KeySpan &key, const std::array<::rocksdb::Slice, N> &value) {
   put(NativeClient::defaultColumnFamily(), key, value);
 }
 

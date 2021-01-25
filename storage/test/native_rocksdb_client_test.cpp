@@ -307,6 +307,19 @@ TEST_F(native_rocksdb_test, put_in_batch_in_2_families) {
   }
 }
 
+TEST_F(native_rocksdb_test, put_in_batch_multiple_slice_value) {
+  const auto cf1 = "cf1"s;
+  const auto cf2 = "cf2"s;
+  db->createColumnFamily(cf1);
+  auto batch = db->getBatch();
+  std::array<::rocksdb::Slice, 2> val{detail::toSlice(value1), detail::toSlice(value2)};
+  batch.put(cf1, key1, val);
+  db->write(std::move(batch));
+
+  // We should have written the concatenation of value1 and value2 to key1
+  ASSERT_EQ(value1 + value2, db->get(cf1, key1).value());
+}
+
 TEST_F(native_rocksdb_test, del_non_existent_key_in_batch_is_not_an_error) {
   auto batch = db->getBatch();
   batch.del(key);
