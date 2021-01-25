@@ -218,8 +218,8 @@ struct Updates {
   std::size_t immutable_size{};
 
  private:
-  std::optional<std::reference_wrapper<std::variant<BlockMerkleInput, VersionedInput, ImmutableInput>>> categoryUpdates(
-      const std::string& category_id) {
+  std::optional<std::reference_wrapper<std::variant<BlockMerkleInput, VersionedInput, ImmutableInput>>>
+  mutableCategoryUpdates(const std::string& category_id) {
     auto it = category_updates_.kv.find(category_id);
     if (it == category_updates_.kv.end()) {
       return std::nullopt;
@@ -239,7 +239,7 @@ template <>
 inline bool Updates::appendKeyValue<ImmutableUpdates>(const std::string& category_id,
                                                       std::string&& key,
                                                       ImmutableUpdates::ValueType&& val) {
-  auto updates = categoryUpdates(category_id);
+  auto updates = mutableCategoryUpdates(category_id);
   if (!updates) {
     return false;
   }
@@ -252,7 +252,7 @@ template <>
 inline bool Updates::appendKeyValue<VersionedUpdates>(const std::string& category_id,
                                                       std::string&& key,
                                                       VersionedUpdates::ValueType&& val) {
-  auto updates = categoryUpdates(category_id);
+  auto updates = mutableCategoryUpdates(category_id);
   if (!updates) {
     return false;
   }
@@ -266,7 +266,7 @@ template <>
 inline bool Updates::appendKeyValue<BlockMerkleUpdates>(const std::string& category_id,
                                                         std::string&& key,
                                                         BlockMerkleUpdates::ValueType&& val) {
-  auto updates = categoryUpdates(category_id);
+  auto updates = mutableCategoryUpdates(category_id);
   if (!updates) {
     return false;
   }
