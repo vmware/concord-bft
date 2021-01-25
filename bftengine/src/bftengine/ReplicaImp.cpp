@@ -4019,12 +4019,13 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
   SeqNumInfo &seqNumInfo = mainLog->get(seqNum);
   PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
   if (prePrepareMsg == nullptr) return;
-  LOG_DEBUG(GL, "clear pending requests" << KVLOG(seqNum));
+  LOG_INFO(GL, "clear pending requests" << KVLOG(seqNum));
 
   RequestsIterator reqIter(prePrepareMsg);
   char *requestBody = nullptr;
   while (reqIter.getAndGoToNext(requestBody)) {
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    if (!clientsManager->isValidClient(req.clientProxyId())) continue;
     auto clientId = req.clientProxyId();
     LOG_DEBUG(GL, "removing pending requests for client" << KVLOG(clientId));
     clientsManager->removePendingRequestOfClient(clientId);
