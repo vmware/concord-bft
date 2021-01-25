@@ -100,7 +100,6 @@ class KeyValueBlockchain {
                              const detail::CATEGORY_TYPE type,
                              concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
-
   const Category& getCategory(const std::string& cat_id) const;
   Category& getCategory(const std::string& cat_id);
   bool hasCategory(const std::string& cat_id) const;

@@ -35,10 +35,7 @@ class ReplicaImp : public IReplica,
                    public IBlocksDeleter,
                    public IReader,
                    public IBlockAdder,
-                   public bftEngine::bcst::IAppState,
-                   // Deprecated interfaces follow. Will be removed after integration.
-                   public IBlocksAppender,
-                   public ILocalKeyValueStorageReadOnly {
+                   public bftEngine::bcst::IAppState {
  public:
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IReplica implementation
@@ -92,29 +89,6 @@ class ReplicaImp : public IReplica,
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlockAdder
   BlockId add(categorization::Updates &&) override;
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Deprecated: ILocalKeyValueStorageReadOnly implementation
-  Status get(const Sliver &key, Sliver &outValue) const override { return Status::GeneralError(""); }
-  Status get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const override {
-    return Status::GeneralError("");
-  }
-  BlockId getGenesisBlock() const override { return 0; }
-  BlockId getLastBlock() const override { return 0; }
-  Status getBlockData(BlockId blockId, concord::storage::SetOfKeyValuePairs &outBlockData) const override {
-    return Status::GeneralError("");
-  }
-  Status mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const override {
-    return Status::GeneralError("");
-  }
-  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Deprecated: IBlocksAppender implementation
-  Status addBlock(const concord::storage::SetOfKeyValuePairs &updates,
-                  BlockId &outBlockId,
-                  const concordUtils::SpanWrapper &parent_span) override {
-    return Status::GeneralError("");
-  }
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
