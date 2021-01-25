@@ -35,6 +35,12 @@ class NativeWriteBatch {
   template <typename KeySpan, typename ValueSpan>
   void put(const KeySpan &key, const ValueSpan &value);
 
+  // Multi-value put used to eliminate excess copying.
+  template <typename KeySpan, size_t N>
+  void put(const std::string &cFamily, const KeySpan &key, const std::array<::rocksdb::Slice, N> &value);
+  template <typename KeySpan, size_t N>
+  void put(const KeySpan &key, const std::array<::rocksdb::Slice, N> &value);
+
   // Deleting a key that doesn't exist is not an error.
   template <typename KeySpan>
   void del(const std::string &cFamily, const KeySpan &key);
