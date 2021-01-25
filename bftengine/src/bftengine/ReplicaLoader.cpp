@@ -78,7 +78,7 @@ ReplicaLoader::ErrorCode loadConfig(shared_ptr<PersistentStorage> &p, LoadedRepl
                                              ld.repConfig.numReplicas);
   cryptoSys->loadKeys(ld.repConfig.thresholdPublicKey_, ld.repConfig.thresholdVerificationKeys_);
   cryptoSys->loadPrivateKey(ld.repConfig.replicaId + 1, ld.repConfig.thresholdPrivateKey_);
-  bftEngine::CryptoManager::instance(&ld.repConfig, cryptoSys);
+  bftEngine::CryptoManager::instance(cryptoSys);
 
   return Succ;
 }
