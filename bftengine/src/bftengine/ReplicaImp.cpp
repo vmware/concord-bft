@@ -4055,6 +4055,11 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
     stopAtNextCheckpoint_ = true;
   }
+  if (controlStateManager_->getCheckpointToStopAt().has_value() &&
+      lastExecutedSeqNum == controlStateManager_->getCheckpointToStopAt()) {
+    // We are about to stop execution. To avoid VC we now clear all pending requests
+    clientsManager->clearAllPendingRequests();
+  }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
 
