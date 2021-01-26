@@ -23,7 +23,7 @@ CONCORD_BFT_CMAKE_FLAGS:= \
 			-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 			-DOMIT_TEST_OUTPUT=OFF \
 			-DKEEP_APOLLO_LOGS=TRUE \
-			-DBUILD_SLOWDOWN=TRUE
+			-DBUILD_SLOWDOWN=FALSE
 
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.

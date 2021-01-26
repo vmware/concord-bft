@@ -23,13 +23,10 @@ class PerformanceManager {
     slowdownManager_ = std::make_shared<SlowdownManager>(config);
   }
   template <typename T>
-  struct type{};
+  struct type {};
   typedef type<SlowdownManager> slowdown;
 
-  bool enabled(slowdown)
-  {
-    return slowdownManager_ && slowdownManager_->isEnabled();
-  }
+  bool enabled(slowdown) { return slowdownManager_ && slowdownManager_->isEnabled(); }
 
   template <typename T>
   bool isEnabled() {
