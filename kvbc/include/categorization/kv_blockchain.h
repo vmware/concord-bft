@@ -97,8 +97,8 @@ class KeyValueBlockchain {
                              const detail::CATEGORY_TYPE type,
                              concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
-  const std::variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>&
-  getCategory(const std::string& cat_id) const;
+  const Category& getCategory(const std::string& cat_id) const;
+  Category& getCategory(const std::string& cat_id);
 
   /////////////////////// deletes ///////////////////////
 

@@ -191,8 +191,12 @@ TEST_F(categorized_kvbc, delete_block) {
     VersionedUpdates ver_updates;
     ver_updates.addUpdate("ver_key1", "ver_val1");
     ver_updates.addDelete("ver_deleted");
-    updates.add("versioned_kv", std::move(ver_updates));
+    updates.add("versioned", std::move(ver_updates));
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
   }
   // Can't delete only block
   ASSERT_THROW(block_chain.deleteBlock(1), std::logic_error);
@@ -275,11 +279,29 @@ TEST_F(categorized_kvbc, delete_block) {
     auto block4_db_val = db->get(BLOCKS_CF, block4_db_key);
     ASSERT_FALSE(block4_db_val.has_value());
 
+    // TODO: add a test for delete last reachable for the BlockMerkleCategory
+
+    ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key4"));
+    ASSERT_FALSE(block_chain.getLatest("versioned", "ver_key4"));
+    ASSERT_FALSE(block_chain.get("versioned", "ver_key4", 4));
+
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key4"));
+    ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key4"));
+    ASSERT_FALSE(block_chain.get("immutable", "immutable_key4", 4));
+
     // delete last block
     ASSERT_TRUE(block_chain.deleteBlock(3));
     const detail::Buffer& block3_db_key = Block::generateKey(3);
     auto block3_db_val = db->get(BLOCKS_CF, block3_db_key);
     ASSERT_FALSE(block3_db_val.has_value());
+
+    ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key3"));
+    ASSERT_FALSE(block_chain.getLatest("versioned", "ver_key3"));
+    ASSERT_FALSE(block_chain.get("versioned", "ver_key3", 3));
+
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key3"));
+    ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key3"));
+    ASSERT_FALSE(block_chain.get("immutable", "immutable_key3", 3));
 
     // only block 2 left
     ASSERT_THROW(block_chain.deleteBlock(2), std::logic_error);
@@ -287,8 +309,55 @@ TEST_F(categorized_kvbc, delete_block) {
 
   // call delete last block directly
   block_chain.deleteLastReachableBlock();
-  ASSERT_EQ(block_chain.getLastReachableBlockId(), 1);
-  ASSERT_EQ(block_chain.getGenesisBlockId(), 1);
+  ASSERT_EQ(block_chain.getLastReachableBlockId(), 0);
+  ASSERT_EQ(block_chain.getGenesisBlockId(), 0);
+
+  ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key2"));
+  ASSERT_FALSE(block_chain.getLatest("versioned", "ver_key2"));
+  ASSERT_FALSE(block_chain.get("versioned", "ver_key2", 2));
+
+  ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key2"));
+  ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key2"));
+  ASSERT_FALSE(block_chain.get("immutable", "immutable_key2", 2));
+
+  // Block 1 has been deleted as genesis, expect its versioned and merkle data to still be there. Immutable data should
+  // be deleted.
+  {
+    const auto latest_version = block_chain.getLatestVersion("versioned", "ver_key1");
+    ASSERT_TRUE(latest_version);
+    ASSERT_EQ(latest_version->version, 1);
+
+    const auto latest_value = block_chain.getLatest("versioned", "ver_key1");
+    ASSERT_TRUE(latest_value);
+    ASSERT_EQ(std::get<VersionedValue>(*latest_value).block_id, 1);
+    ASSERT_EQ(std::get<VersionedValue>(*latest_value).data, "ver_val1");
+
+    const auto value = block_chain.get("versioned", "ver_key1", 1);
+    ASSERT_TRUE(value);
+    ASSERT_EQ(std::get<VersionedValue>(*value).block_id, 1);
+    ASSERT_EQ(std::get<VersionedValue>(*value).data, "ver_val1");
+  }
+  {
+    const auto latest_version = block_chain.getLatestVersion("merkle", "merkle_key1");
+    ASSERT_TRUE(latest_version);
+    ASSERT_EQ(latest_version->version, 1);
+
+    const auto latest_value = block_chain.getLatest("merkle", "merkle_key1");
+    ASSERT_TRUE(latest_value);
+    ASSERT_EQ(std::get<MerkleValue>(*latest_value).block_id, 1);
+    ASSERT_EQ(std::get<MerkleValue>(*latest_value).data, "merkle_value1");
+
+    const auto value = block_chain.get("merkle", "merkle_key1", 1);
+    ASSERT_TRUE(value);
+    ASSERT_EQ(std::get<MerkleValue>(*value).block_id, 1);
+    ASSERT_EQ(std::get<MerkleValue>(*value).data, "merkle_value1");
+  }
+  {
+    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key1"));
+    ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key1"));
+    ASSERT_FALSE(block_chain.get("immutable", "immutable_key1", 1));
+  }
+
   // Block chain is empty
   ASSERT_THROW(block_chain.deleteLastReachableBlock(), std::runtime_error);
 }
