@@ -353,6 +353,8 @@ class SlowdownManager {
 
   ~SlowdownManager() = default;
 
+  bool isEnabled() { return true; }
+
  private:
   std::unordered_map<SlowdownPhase, std::vector<std::shared_ptr<BasePolicy>>> config_;
   logging::Logger logger_ = logging::getLogger("concord.bft.slowdown");
@@ -378,10 +380,12 @@ class SlowdownManager {
     return SlowDownResult();
   }
 
+  bool isEnabled() { return false; }
+
   ~SlowdownManager() {}
 
  private:
-  logging::Logger logger_ = logging::getLogger("concord.bft.slowdown.empty");
+  logging::Logger logger_ = logging::getLogger("concord.bft.slowdown");
 };
 
 #endif
