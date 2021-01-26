@@ -3605,6 +3605,11 @@ ReplicaImp::~ReplicaImp() {
   delete repsInfo;
   free(replyBuffer);
 
+  for (auto it = tableOfStableCheckpoints.begin(); it != tableOfStableCheckpoints.end(); it++) {
+    delete it->second;
+  }
+  tableOfStableCheckpoints.clear();
+
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::freeDebugStatisticsData();
   }
