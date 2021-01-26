@@ -21,6 +21,9 @@
 #include "Helper.hpp"
 #include "kv_types.hpp"
 #include "sliver.hpp"
+#include <queue>
+#include <mutex>
+#include <functional>
 #include "Logger.hpp"
 
 namespace concord::performance {
@@ -170,7 +173,6 @@ class SleepPolicy : public BasePolicy {
       : BasePolicy(logger), sleepDuration_{c->GetSleepDuration()} {}
 
   void Slowdown(SlowDownResult &outRes) override {
-    LOG_DEBUG(logger_, "Sleep slowdown, duration: " << sleepDuration_);
     if (sleepDuration_ == 0) return;
     std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration_));
     outRes.totalSleepDuration += sleepDuration_;
@@ -231,6 +233,18 @@ class AddKeysPolicy : public BasePolicy {
   uint keyCount_ = 0;
   uint keySize_ = 0;
   uint valueSize_ = 0;
+};
+
+class MessageDelayPolicy : public BasePolicy {
+ public:
+  explicit MessageDelayPolicy(SlowdownPolicyConfig *c) : delay_dur_ms_{c->GetMessageDelayDuration()} {}
+
+  void Slowdown(SlowDownResult &outRes) override { (void)delay_dur_ms_; }
+
+  virtual ~MessageDelayPolicy() = default;
+
+ private:
+  uint delay_dur_ms_;
 };
 
 class SlowdownManager {

@@ -77,6 +77,12 @@ void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
   }
 }
 
+void IncomingMsgsStorageImp::pushExternalMsg(char* msg, size_t size) {
+  size_t actualSize = 0;
+  MessageBase* mb = MessageBase::deserializeMsg(msg, size, actualSize);
+  pushExternalMsg(std::make_unique<MessageBase>(mb));
+}
+
 // can be called by any thread
 void IncomingMsgsStorageImp::pushInternalMsg(InternalMessage&& msg) {
   std::unique_lock<std::mutex> mlock(lock_);

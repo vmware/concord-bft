@@ -209,6 +209,10 @@ bool MessageBase::equals(const MessageBase &other) const {
   return (memcmp(other.msgBody_, msgBody_, msgSize_) == 0);
 }
 
+size_t MessageBase::serializeMsg(char *&buf, char *msg) {
+  return serializeMsg(buf, reinterpret_cast<const MessageBase *>(msg));
+}
+
 size_t MessageBase::serializeMsg(char *&buf, const MessageBase *msg) {
   // As messages could be empty (nullptr), an additional flag is required to
   // distinguish between empty and filled ones.

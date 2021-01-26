@@ -1019,6 +1019,9 @@ template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   metric_received_full_commit_proofs_.Get().Inc();
 
+  char *buf = new char[msg->sizeNeededForObjAndMsgInLocalBuffer()];
+  std::function<size_t(char *&, const MessageBase *)> f = MessageBase::serializeMsg;
+
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_full_commit_proof_msg");
   const SeqNum msgSeqNum = msg->seqNumber();

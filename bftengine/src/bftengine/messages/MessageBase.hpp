@@ -53,6 +53,9 @@ class MessageBase {
   bool equals(const MessageBase &other) const;
 
   static size_t serializeMsg(char *&buf, const MessageBase *msg);
+
+  static size_t serializeMsg(char *&buf, char *msg);
+
   static MessageBase *deserializeMsg(char *&buf, size_t bufLen, size_t &actualSize);
 
   MsgSize size() const { return msgSize_; }

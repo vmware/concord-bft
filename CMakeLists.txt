@@ -43,7 +43,7 @@ option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" FALSE)
 option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
 
 # Build Slowdown framework
-option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
+option(BUILD_SLOWDOWN "Build Slowdown framework" TRUE)
 
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
