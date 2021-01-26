@@ -192,11 +192,12 @@ TEST_F(categorized_kvbc, delete_block) {
     ver_updates.addUpdate("ver_key1", "ver_val1");
     ver_updates.addDelete("ver_deleted");
     updates.add("versioned", std::move(ver_updates));
-    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
 
     ImmutableUpdates immutable_updates;
     immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
     updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), 1);
   }
   // Can't delete only block
   ASSERT_THROW(block_chain.deleteBlock(1), std::logic_error);
