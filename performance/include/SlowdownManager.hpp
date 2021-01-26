@@ -20,6 +20,7 @@
 #include "Helper.hpp"
 #include "kv_types.hpp"
 #include "sliver.hpp"
+#include "Logger.hpp"
 
 namespace concord::performance {
 
@@ -123,18 +124,22 @@ typedef phase_tag<SlowdownPhase::PostExecBeforeConflictResolution> post_exec_bef
 
 class BasePolicy {
  public:
-  BasePolicy() = default;
+  explicit BasePolicy(logging::Logger &logger) : logger_{logger} {}
   virtual void Slowdown(SlowDownResult &outRes) {}
   virtual void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) {}
   virtual ~BasePolicy() = default;
+
+ protected:
+  logging::Logger logger_;
 };
 
 class BusyWaitPolicy : public BasePolicy {
  public:
-  explicit BusyWaitPolicy(SlowdownPolicyConfig *c)
-      : sleepTime_{c->GetSleepDuration()}, waitTime_{c->GetBusyWaitTime()} {}
+  explicit BusyWaitPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), sleepTime_{c->GetSleepDuration()}, waitTime_{c->GetBusyWaitTime()} {}
 
   void Slowdown(SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_, "BusyWait slowdown, duration: " << waitTime_ << ", sleepTime: " << sleepTime_);
     if (waitTime_ == 0) return;
     done_ = false;
     auto s = std::chrono::steady_clock::now();
@@ -160,9 +165,11 @@ class BusyWaitPolicy : public BasePolicy {
 
 class SleepPolicy : public BasePolicy {
  public:
-  explicit SleepPolicy(SlowdownPolicyConfig *c) : sleepDuration_{c->GetSleepDuration()} {}
+  explicit SleepPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), sleepDuration_{c->GetSleepDuration()} {}
 
   void Slowdown(SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_, "Sleep slowdown, duration: " << sleepDuration_);
     if (sleepDuration_ == 0) return;
     std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration_));
     outRes.totalSleepDuration += sleepDuration_;
@@ -178,8 +185,8 @@ class SleepPolicy : public BasePolicy {
 
 class AddKeysPolicy : public BasePolicy {
  public:
-  explicit AddKeysPolicy(SlowdownPolicyConfig *c)
-      : keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
+  explicit AddKeysPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
     prgState_.a = std::chrono::steady_clock::now().time_since_epoch().count();
     data_.reserve(keyCount_ * 10);
     for (uint i = 0; i < keyCount_ * 10; ++i) {
@@ -216,6 +223,8 @@ class AddKeysPolicy : public BasePolicy {
   }
 
   void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_,
+              "Addkeys slowdown, count: " << keyCount_ << ", ksize: " << keySize_ << ", vsize: " << valueSize_);
     for (uint i = 0; i < keyCount_;) {
       auto ind = std::rand() % data_.size();
       auto key = data_[ind].first;
@@ -318,13 +327,13 @@ class SlowdownManager {
       for (auto &p : it.second) {
         switch (p->type) {
           case SlowdownPolicyType::Sleep:
-            policies.push_back(make_shared<SleepPolicy>(p.get()));
+            policies.push_back(make_shared<SleepPolicy>(p.get(), logger_));
             break;
           case SlowdownPolicyType::BusyWait:
-            policies.push_back(make_shared<BusyWaitPolicy>(p.get()));
+            policies.push_back(make_shared<BusyWaitPolicy>(p.get(), logger_));
             break;
           case SlowdownPolicyType::AddKeys:
-            policies.push_back(make_shared<AddKeysPolicy>(p.get()));
+            policies.push_back(make_shared<AddKeysPolicy>(p.get(), logger_));
             break;
           default:
             throw runtime_error("unsupported policy");
@@ -356,6 +365,7 @@ class SlowdownManager {
 
  private:
   std::unordered_map<SlowdownPhase, std::vector<std::shared_ptr<BasePolicy>>> config_;
+  logging::Logger logger_ = logging::getLogger("concord.bft.slowdown");
 };
 
 #else
@@ -368,15 +378,20 @@ class SlowdownManager {
 
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &set) {
+    LOG_DEBUG(logger_, "slowdown was not built !!!");
     return SlowDownResult();
   }
 
   template <SlowdownPhase T>
   SlowDownResult Delay() {
+    LOG_DEBUG(logger_, "slowdown was not built !!!");
     return SlowDownResult();
   }
 
   ~SlowdownManager() {}
+
+ private:
+  logging::Logger logger_ = logging::getLogger("concord.bft.slowdown.empty");
 };
 
 #endif
