@@ -651,14 +651,15 @@ void DBAdapter::deleteLastReachableBlock() {
 
   deleteKeysForBlock(lastReachableBlockKeyDeletes(lastReachableBlockId_), lastReachableBlockId_);
 
-  // Since we allow deletion of the only block left as last reachable (due to replica state sync), reflect that in the
-  // genesis block ID cache.
+  // Since we allow deletion of the only block left as last reachable (due to replica state sync), set both genesis and
+  // last reachable cache variables to 0. Otherise, only decrement the last reachable block ID cache.
   if (lastReachableBlockId_ == genesisBlockId_) {
-    --genesisBlockId_;
+    genesisBlockId_ = 0;
+    lastReachableBlockId_ = 0;
+  } else {
+    // Decrement the last reachable block ID cache.
+    --lastReachableBlockId_;
   }
-
-  // Decrement the last reachable block ID cache.
-  --lastReachableBlockId_;
 }
 
 void DBAdapter::deleteGenesisBlock() {

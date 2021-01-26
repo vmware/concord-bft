@@ -1417,6 +1417,42 @@ TEST_P(db_adapter_custom_blockchain, delete_only_block_as_last_reachable) {
   ASSERT_EQ(version, 1);
 }
 
+TEST_P(db_adapter_custom_blockchain, delete_only_block_with_id_gt_1_as_last_reachable) {
+  auto adapter = DBAdapter{GetParam()->newEmptyDb()};
+
+  const auto key1 = Sliver{"k1"};
+  const auto key2 = Sliver{"k2"};
+
+  // Add 2 blocks
+  ASSERT_EQ(adapter.addBlock(SetOfKeyValuePairs{std::make_pair(key1, Sliver{"v1_1"})}), 1);
+  ASSERT_EQ(
+      adapter.addBlock(SetOfKeyValuePairs{std::make_pair(key1, Sliver{"v1_2"}), std::make_pair(key2, Sliver{"v2_2"})}),
+      2);
+
+  // Delete block 1 as genesis.
+  ASSERT_NO_THROW(adapter.deleteBlock(1));
+
+  // Verify last/latest/genesis block ID is 2.
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 2);
+  ASSERT_EQ(adapter.getLatestBlockId(), 2);
+  ASSERT_EQ(adapter.getGenesisBlockId(), 2);
+
+  // Delete the last block 2 as last reachable.
+  ASSERT_NO_THROW(adapter.deleteLastReachableBlock());
+
+  // Verify last/latest/genesis block ID is 0.
+  ASSERT_EQ(adapter.getLastReachableBlockId(), 0);
+  ASSERT_EQ(adapter.getLatestBlockId(), 0);
+  ASSERT_EQ(adapter.getGenesisBlockId(), 0);
+
+  // Make sure no keys are available at block 1 and block 2 as:
+  // * block 2 updates key1 and then block 1 is pruned
+  // * block 2 is deleted as a last reachable one and all its keys are deleted
+  ASSERT_THROW(adapter.getValue(key1, 1), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key1, 2), NotFoundException);
+  ASSERT_THROW(adapter.getValue(key2, 2), NotFoundException);
+}
+
 TEST_P(db_adapter_custom_blockchain, delete_multiple_genesis_blocks) {
   const auto numBlocks = 10;
   auto adapter = DBAdapter{GetParam()->newEmptyDb()};
