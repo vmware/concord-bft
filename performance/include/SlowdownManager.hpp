@@ -136,11 +136,15 @@ class BusyWaitPolicy : public BasePolicy {
 
   void Slowdown(SlowDownResult &outRes) override {
     if (waitTime_ == 0) return;
+    done_ = false;
     auto s = std::chrono::steady_clock::now();
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s).count() <
-           waitTime_)
+    while (!done_) {
       std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime_));
-    outRes.totalSleepDuration += sleepTime_;
+      outRes.totalSleepDuration += sleepTime_;
+      done_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s).count() >=
+              waitTime_;
+    }
+
     outRes.totalWaitDuration += waitTime_;
   }
 
@@ -151,6 +155,7 @@ class BusyWaitPolicy : public BasePolicy {
  private:
   uint sleepTime_;
   uint waitTime_;
+  volatile bool done_ = false;
 };
 
 class SleepPolicy : public BasePolicy {

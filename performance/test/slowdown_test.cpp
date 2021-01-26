@@ -80,14 +80,15 @@ TEST(slowdown_test, simple_configuration) {
   SlowDownResult res = pm.Delay<SlowdownPhase::BftClientBeforeSendPrimary>();
   EXPECT_EQ(res.phase, SlowdownPhase::BftClientBeforeSendPrimary);
   EXPECT_EQ(res.totalWaitDuration, bp.wait_duration_ms);
-  EXPECT_EQ(res.totalSleepDuration, bp.sleep_duration_ms + sp.sleep_duration_ms);
+  auto expectedSleepDur = bp.sleep_duration_ms ? bp.wait_duration_ms / bp.sleep_duration_ms * bp.sleep_duration_ms : 0;
+  EXPECT_GE(res.totalSleepDuration, sp.sleep_duration_ms + expectedSleepDur);
   EXPECT_EQ(res.totalKeyCount, 0);
   EXPECT_EQ(res.totalValueSize, 0);
 }
 
 TEST(slowdown_test, hybrid_configuration) {
   auto sm = std::make_shared<SlowdownConfiguration>();
-  BusyWaitPolicyConfig bp(100, 30);
+  BusyWaitPolicyConfig bp(200, 50);
   SleepPolicyConfig sp(40);
   AddKeysPolicyConfig ap(10, 200, 3000);
   std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies;
@@ -98,10 +99,14 @@ TEST(slowdown_test, hybrid_configuration) {
   sm->insert({SlowdownPhase::StorageBeforeKVBC, policies});
   PerformanceManager pm(sm);
   concord::kvbc::SetOfKeyValuePairs set;
+  auto s = std::chrono::steady_clock::now();
   SlowDownResult res = pm.Delay<SlowdownPhase::StorageBeforeDbWrite>(set);
+  auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s).count();
+  EXPECT_GE(dur, bp.wait_duration_ms + sp.sleep_duration_ms);
   EXPECT_EQ(res.phase, SlowdownPhase::StorageBeforeDbWrite);
   EXPECT_EQ(res.totalWaitDuration, bp.wait_duration_ms);
-  EXPECT_EQ(res.totalSleepDuration, bp.sleep_duration_ms + sp.sleep_duration_ms);
+  auto expectedSleepDur = bp.sleep_duration_ms ? bp.wait_duration_ms / bp.sleep_duration_ms * bp.sleep_duration_ms : 0;
+  EXPECT_GE(res.totalSleepDuration, expectedSleepDur + sp.sleep_duration_ms);
   EXPECT_EQ(res.totalKeyCount, 10);
   EXPECT_EQ(set.size(), 10);
   EXPECT_GE(res.totalValueSize, 10 * 3000);
