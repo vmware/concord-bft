@@ -110,10 +110,10 @@ TEST(slowdown_test, hybrid_configuration) {
   EXPECT_EQ(res.totalKeyCount, 10);
   EXPECT_EQ(set.size(), 10);
   EXPECT_GE(res.totalValueSize, 10 * 3000);
-  auto size = set.size();
-  EXPECT_EQ(set.size(), 10);
+  set.clear();
+  EXPECT_EQ(set.size(), 0);
   pm.Delay<SlowdownPhase::StorageBeforeKVBC>(set);
-  EXPECT_EQ(set.size(), size + 10);
+  EXPECT_EQ(set.size(), 10);
 }
 
 TEST(slowdown_test, add_keys_configuration) {

@@ -187,36 +187,31 @@ class AddKeysPolicy : public BasePolicy {
  public:
   explicit AddKeysPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
       : BasePolicy(logger), keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
-    prgState_.a = std::chrono::steady_clock::now().time_since_epoch().count();
-    data_.reserve(keyCount_ * 10);
-    for (uint i = 0; i < keyCount_ * 10; ++i) {
-      std::vector<uint64_t> key;
-      uint size = 0;
-      while (size < c->GetKeySize()) {
-        auto t = xorshift64(&prgState_);
-        key.push_back(t);
-        size += sizeof(uint64_t);
+    data_.reserve(keyCount_);
+    for (uint i = 0; i < keyCount_; ++i) {
+      char *key_data = nullptr;
+      char *value_data = nullptr;
+      if (keySize_) {
+        key_data = new char[keySize_];
+        key_data[0] = i;
+        for (uint j = 1; j < keySize_; ++j) {
+          key_data[j] = j;
+        }
+      }
+      if (valueSize_) {
+        value_data = new char[valueSize_];
+        value_data[0] = i;
+        for (uint j = 1; j < valueSize_; ++j) {
+          value_data[j] = j;
+        }
       }
 
-      size = 0;
-      std::vector<uint64_t> value;
-      while (size < c->GetValueSize()) {
-        auto t = xorshift64(&prgState_);
-        value.push_back(t);
-        size += sizeof(uint64_t);
-      }
-      totalValueSize_ += size;
-
-      auto *key_data = new uint64_t[key.size()];
-      std::copy(key.begin(), key.end(), key_data);
-      concordUtils::Sliver k{(const char *)key_data, key.size() * sizeof(uint64_t)};
-
-      if (valueSize_ > 0) {
-        auto *value_data = new uint64_t[value.size()];
-        std::copy(value.begin(), value.end(), value_data);
-        concordUtils::Sliver v{(const char *)value_data, value.size() * sizeof(uint64_t)};
+      if (key_data && value_data) {
+        concordUtils::Sliver k{key_data, keySize_};
+        concordUtils::Sliver v{value_data, valueSize_};
         data_.emplace_back(k, v);
-      } else {
+      } else if (key_data) {
+        concordUtils::Sliver k{key_data, keySize_};
         data_.emplace_back(k, concordUtils::Sliver{});
       }
     }
@@ -225,13 +220,10 @@ class AddKeysPolicy : public BasePolicy {
   void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) override {
     LOG_DEBUG(logger_,
               "Addkeys slowdown, count: " << keyCount_ << ", ksize: " << keySize_ << ", vsize: " << valueSize_);
-    for (uint i = 0; i < keyCount_;) {
-      auto ind = std::rand() % data_.size();
-      auto key = data_[ind].first;
-      if (set.find(key) != set.end()) continue;
-      ++i;
-      set[key] = data_[ind].second;
-      outRes.totalValueSize += data_[ind].second.size();
+    for (uint i = 0; i < keyCount_; ++i) {
+      auto key = data_[i].first;
+      set[key] = data_[i].second;
+      outRes.totalValueSize += data_[i].second.size();
     }
 
     outRes.totalKeyCount += keyCount_;
@@ -243,9 +235,7 @@ class AddKeysPolicy : public BasePolicy {
   uint keyCount_ = 0;
   uint keySize_ = 0;
   uint valueSize_ = 0;
-  uint totalValueSize_ = 0;
   std::vector<concord::kvbc::KeyValuePair> data_;
-  xorshift64_state prgState_{};
 };
 
 class SlowdownManager {
