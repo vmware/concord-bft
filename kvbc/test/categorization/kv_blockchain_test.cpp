@@ -1539,7 +1539,7 @@ TEST_F(categorized_kvbc, updates_append_single_key_value_non_existent_category) 
   auto updates = Updates{};
 
   ASSERT_FALSE(updates.appendKeyValue<BlockMerkleUpdates>("non-existent", "k", "v"));
-  ASSERT_FALSE(updates.appendKeyValue<VersionedUpdates>("non-existent", "k", {{"v", false}}));
+  ASSERT_FALSE(updates.appendKeyValue<VersionedUpdates>("non-existent", "k", VersionedUpdates::Value{"v", false}));
   ASSERT_FALSE(updates.appendKeyValue<ImmutableUpdates>(
       "non-existent", "k", ImmutableUpdates::ImmutableValue{"v", {"t1", "t2"}}));
 
