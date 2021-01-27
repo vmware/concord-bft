@@ -205,8 +205,8 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         bft_network.stop_replica(initial_primary)
 
         try:
-            with trio.move_on_after(seconds=1):
-                await tracker.send_indefinite_tracked_batch_writes(BATCH_SIZE)
+            with trio.move_on_after(seconds=3):
+                await tracker.send_indefinite_tracked_batch_writes(BATCH_SIZE, .1)
 
         except trio.TooSlowError:
             pass
