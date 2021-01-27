@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <cstring>
 #include "Helper.hpp"
 #include "kv_types.hpp"
 #include "sliver.hpp"
@@ -186,15 +187,19 @@ class SleepPolicy : public BasePolicy {
 class AddKeysPolicy : public BasePolicy {
  public:
   explicit AddKeysPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
-      : BasePolicy(logger), keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
-    data_.reserve(keyCount_);
+      : BasePolicy(logger), keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {}
+
+  void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_,
+              "Addkeys slowdown, count: " << keyCount_ << ", ksize: " << keySize_ << ", vsize: " << valueSize_);
     for (uint i = 0; i < keyCount_; ++i) {
       char *key_data = nullptr;
       char *value_data = nullptr;
       if (keySize_) {
         key_data = new char[keySize_];
-        key_data[0] = i;
-        for (uint j = 1; j < keySize_; ++j) {
+        uint64_t v = counter_.fetch_add(1);
+        memcpy(key_data, &(v), sizeof(v));
+        for (uint j = sizeof(v); j < keySize_; ++j) {
           key_data[j] = j;
         }
       }
@@ -209,21 +214,11 @@ class AddKeysPolicy : public BasePolicy {
       if (key_data && value_data) {
         concordUtils::Sliver k{key_data, keySize_};
         concordUtils::Sliver v{value_data, valueSize_};
-        data_.emplace_back(k, v);
+        set.insert({k, v});
       } else if (key_data) {
         concordUtils::Sliver k{key_data, keySize_};
-        data_.emplace_back(k, concordUtils::Sliver{});
+        set.insert({k, concordUtils::Sliver{}});
       }
-    }
-  }
-
-  void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) override {
-    LOG_DEBUG(logger_,
-              "Addkeys slowdown, count: " << keyCount_ << ", ksize: " << keySize_ << ", vsize: " << valueSize_);
-    for (uint i = 0; i < keyCount_; ++i) {
-      auto key = data_[i].first;
-      set[key] = data_[i].second;
-      outRes.totalValueSize += data_[i].second.size();
     }
 
     outRes.totalKeyCount += keyCount_;
@@ -232,10 +227,10 @@ class AddKeysPolicy : public BasePolicy {
   virtual ~AddKeysPolicy() = default;
 
  private:
+  std::atomic<uint64_t> counter_ = 0;
   uint keyCount_ = 0;
   uint keySize_ = 0;
   uint valueSize_ = 0;
-  std::vector<concord::kvbc::KeyValuePair> data_;
 };
 
 class SlowdownManager {
@@ -331,9 +326,13 @@ class SlowdownManager {
       }
       config_[it.first] = policies;
     }
+
+    LOG_DEBUG(logger_, "SlowdownManager initialized with " << config_.size() << " phases");
   }
 
-  SlowdownManager() = default;
+  SlowdownManager() {
+    LOG_DEBUG(logger_, "SlowdownManager initialized with no policies");
+  };
 
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &set) {

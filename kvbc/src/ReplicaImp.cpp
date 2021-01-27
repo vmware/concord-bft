@@ -65,7 +65,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   bool erasedMetaData;
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
+      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
   if (erasedMetaData) isNewStorage = true;
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
