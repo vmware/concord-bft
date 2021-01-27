@@ -461,22 +461,22 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
   if (requestCommitted) {
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
+    string reqCid;
     for (auto& reply : replysCertificate_) {
       ClientReplyMsg* correctReply = reply.second->bestCorrectMsg();
       const auto reqSeqNum = correctReply->reqSeqNum();
-      LOG_DEBUG(logger_, KVLOG(clientId_, reqSeqNum) << " has committed");
+      for (const auto& req : clientRequests)
+        if (req.reqSeqNum == reqSeqNum) reqCid = req.cid;
+      ClientReply* givenReply = nullptr;
+      for (auto& rep : clientReplies)
+        if (rep.cid == reqCid) givenReply = &rep;
+      ConcordAssertNE(givenReply, nullptr);
+      LOG_DEBUG(logger_, KVLOG(clientId_, reqSeqNum, reqCid) << " has committed");
       primaryReplicaIsKnown_ = true;
       knownPrimaryReplica_ = correctReply->currentPrimaryId();
-      if (correctReply->replyLength() <= clientReplies[reqSeqNum].lengthOfReplyBuffer) {
-        LOG_DEBUG(logger_,
-                  "Going to copy reply" << KVLOG(clientId_,
-                                                 reqSeqNum,
-                                                 clientReplies[reqSeqNum].lengthOfReplyBuffer,
-                                                 correctReply->replyLength(),
-                                                 clientReplies[reqSeqNum].replyBuffer));
-        memcpy(clientReplies[reqSeqNum].replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
-        LOG_DEBUG(logger_, "Reply copied");
-        clientReplies[reqSeqNum].actualReplyLength = correctReply->replyLength();
+      if (correctReply->replyLength() <= givenReply->lengthOfReplyBuffer) {
+        memcpy(givenReply->replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
+        givenReply->actualReplyLength = correctReply->replyLength();
       } else {
         reset();
         return BUFFER_TOO_SMALL;
