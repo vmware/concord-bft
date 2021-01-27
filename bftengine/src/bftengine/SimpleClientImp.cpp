@@ -444,12 +444,12 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
   LOG_DEBUG(logger_, KVLOG(clientId_, clientRequests.size(), cid));
   OperationResult res = isBatchValid(clientRequests.size(), clientReplies.size());
   if (res != SUCCESS) return res;
+  verifySendRequestPrerequisites();
 
   uint64_t maxTimeToWait = 0;
   res = preparePendingRequestsFromBatch(clientRequests, maxTimeToWait);
   if (res != SUCCESS) return res;
 
-  verifySendRequestPrerequisites();
   const Time beginTime = getMonotonicTime();
   sendPendingRequest(cid);
 
@@ -491,6 +491,7 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
 }
 
 void SimpleClientImp::reset() {
+  LOG_DEBUG(logger_, KVLOG(clientId_, replysCertificate_.size()));
   for (auto& elem : replysCertificate_) elem.second->resetAndFree();
   replysCertificate_.clear();
 
