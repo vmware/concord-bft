@@ -202,7 +202,8 @@ class BftClient(ABC):
         try:
             with trio.fail_after(batch_size * self.config.req_timeout_milli / 1000):
                 self._reset_on_new_request(batch_seq_nums)
-                return await self._send_receive_loop(data, False, m_of_n_quorum, batch_size * self.config.req_timeout_milli / 1000)
+                return await self._send_receive_loop(data, False, m_of_n_quorum, 
+                    batch_size * self.config.retry_timeout_milli / 1000)
         except trio.TooSlowError:
             print(f"TooSlowError thrown from client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
             raise trio.TooSlowError
