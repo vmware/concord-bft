@@ -332,7 +332,7 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   ASSERT_EQ(2, cat.getLastDeletedTreeVersion());
   ASSERT_EQ(5, cat.getLatestTreeVersion());
 
-  // We still see tombstones for keys 1, 2, 3
+  // We still see tombstones for keys 1, 2, 4
   ASSERT_TRUE(cat.getLatestVersion(key1)->deleted);
   ASSERT_TRUE(cat.getLatestVersion(key2)->deleted);
   ASSERT_TRUE(cat.getLatestVersion(key4)->deleted);
@@ -464,6 +464,131 @@ TEST_F(block_merkle_category, prune_many_nodes) {
   ASSERT_FALSE(db->get(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(KeyHash{hashed_key1})));
   ASSERT_FALSE(cat.getLatest(key1));
   ASSERT_FALSE(cat.getLatestVersion(key1));
+}
+
+// Return all key-value pairs in the column family `cf`
+std::vector<std::pair<std::string, std::string>> getAll(const std::string &cf,
+                                                        std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  auto all = std::vector<std::pair<std::string, std::string>>{};
+  auto iter = db->getIterator(cf);
+  iter.first();
+  while (iter) {
+    all.emplace_back(iter.key(), iter.value());
+    iter.next();
+  }
+  return all;
+}
+
+auto getAllLeaves(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  return getAll(BLOCK_MERKLE_LEAF_NODES_CF, db);
+}
+
+auto getAllInternalNodes(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  return getAll(BLOCK_MERKLE_INTERNAL_NODES_CF, db);
+}
+
+auto getAllStale(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  return getAll(BLOCK_MERKLE_STALE_CF, db);
+}
+
+TEST_F(block_merkle_category, delete_last_reachable) {
+  // Add a bunch of blocks
+  std::vector<BlockMerkleOutput> out;
+  for (auto i = 1u; i <= 5; i++) {
+    auto update = BlockMerkleInput{{{key1, val1}}};
+    out.push_back(add(i, std::move(update)));
+  }
+  ASSERT_EQ(5, cat.getLatestTreeVersion());
+  ASSERT_EQ(5, cat.getLatestVersion(key1)->version);
+  auto expected5 = MerkleValue{{5, val1}};
+  ASSERT_EQ(expected5, asMerkle(*cat.getLatest(key1)));
+
+  // 5 blocks = 5 leaves
+  auto all_leaves_5 = getAllLeaves(db);
+  ASSERT_EQ(5, all_leaves_5.size());
+  // 5 blocks = 5 stale nodes
+  auto all_stale_5 = getAllStale(db);
+  ASSERT_EQ(5, all_stale_5.size());
+
+  // Ensure the stale node keys are actually just tree versions 1-5
+  auto count = 1;
+  for (auto &kv : all_stale_5) {
+    auto ver = TreeVersion{};
+    deserialize(kv.first, ver);
+    ASSERT_EQ(ver.version, count);
+    count++;
+  }
+
+  auto all_internal_5 = getAllInternalNodes(db);
+
+  auto batch = db->getBatch();
+  cat.deleteLastReachableBlock(5, out[4], batch);
+  db->write(std::move(batch));
+
+  auto all_leaves_4 = getAllLeaves(db);
+  ASSERT_EQ(4, all_leaves_4.size());
+  auto all_stale_4 = getAllStale(db);
+  ASSERT_EQ(4, all_stale_4.size());
+
+  // Ensure the stale node keys are actually just tree versions 1-4
+  count = 1;
+  for (auto &kv : all_stale_4) {
+    auto ver = TreeVersion{};
+    deserialize(kv.first, ver);
+    ASSERT_EQ(ver.version, count);
+    count++;
+  }
+
+  // There are fewer internal nodes now
+  auto all_internal_4 = getAllInternalNodes(db);
+  ASSERT_LT(all_internal_4.size(), all_internal_5.size());
+
+  ASSERT_EQ(4, cat.getLatestTreeVersion());
+  ASSERT_EQ(4, cat.getLatestVersion(key1)->version);
+  auto expected4 = MerkleValue{{4, val1}};
+  ASSERT_EQ(expected4, asMerkle(*cat.getLatest(key1)));
+
+  // Adding back block 5 causes the merkle column familes to be exactly the same as before the removal of block 5
+  auto update = BlockMerkleInput{{{key1, val1}}};
+  auto new_out = add(5, std::move(update));
+
+  ASSERT_EQ(all_leaves_5, getAllLeaves(db));
+  ASSERT_EQ(all_stale_5, getAllStale(db));
+  ASSERT_EQ(all_internal_5, getAllInternalNodes(db));
+  ASSERT_EQ(5, cat.getLatestTreeVersion());
+  ASSERT_EQ(5, cat.getLatestVersion(key1)->version);
+  ASSERT_EQ(expected5, asMerkle(*cat.getLatest(key1)));
+
+  // Deleting again generates the same column families as the prior delete
+  {
+    auto batch = db->getBatch();
+    cat.deleteLastReachableBlock(5, new_out, batch);
+    db->write(std::move(batch));
+    ASSERT_EQ(all_leaves_4, getAllLeaves(db));
+    ASSERT_EQ(all_stale_4, getAllStale(db));
+    ASSERT_EQ(all_internal_4, getAllInternalNodes(db));
+    ASSERT_EQ(4, cat.getLatestTreeVersion());
+    ASSERT_EQ(4, cat.getLatestVersion(key1)->version);
+    ASSERT_EQ(expected4, asMerkle(*cat.getLatest(key1)));
+  }
+
+  // Deleting all blocks does the right thing
+  {
+    auto batch = db->getBatch();
+    for (auto i = 4u; i > 1; i--) {
+      cat.deleteLastReachableBlock(i, out[i - 1], batch);
+    }
+    db->write(std::move(batch));
+    ASSERT_EQ(1, getAllLeaves(db).size());
+    // There's a key pointing to the latest root and the root itself
+    ASSERT_EQ(2, getAllInternalNodes(db).size());
+    ASSERT_EQ(1, cat.getLatestTreeVersion());
+    ASSERT_EQ(1, getAllStale(db).size());
+
+    auto expected1 = MerkleValue{{1, val1}};
+    ASSERT_EQ(1, cat.getLatestVersion(key1)->version);
+    ASSERT_EQ(expected1, asMerkle(*cat.getLatest(key1)));
+  }
 }
 
 }  // namespace

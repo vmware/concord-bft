@@ -277,10 +277,10 @@ void KeyValueBlockchain::deleteGenesisBlock() {
   block_chain_.setGenesisBlockId(genesis_id + 1);
 }
 
-// 1 - Get last id block form DB.
-// 2 - iterate over the update_info and calls the corresponding deleteLastReachableBlock
-// 3 - perform the delete
-// 4 - increment the genesis block id.
+// 1 - Get last id block from DB.
+// 2 - Iterate over the update_info and calls the corresponding deleteLastReachableBlock
+// 3 - Perform the delete
+// 4 - Increment the genesis block id.
 void KeyValueBlockchain::deleteLastReachableBlock() {
   auto last_id = block_chain_.getLastReachableBlockId();
   if (last_id == 0) return;
@@ -296,7 +296,7 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   block_chain_.deleteBlock(last_id, write_batch);
 
   // Iterate over groups and call corresponding deleteGenesisBlock,
-  // Each group is responsible to fill its deltetes to the batch
+  // Each group is responsible to put its deletes into the batch
   for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
     std::visit(
         [&last_id, category_id = category_id, &write_batch, this](const auto& update_info) {
