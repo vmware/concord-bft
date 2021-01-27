@@ -468,7 +468,14 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
       primaryReplicaIsKnown_ = true;
       knownPrimaryReplica_ = correctReply->currentPrimaryId();
       if (correctReply->replyLength() <= clientReplies[reqSeqNum].lengthOfReplyBuffer) {
+        LOG_DEBUG(logger_,
+                  "Going to copy reply" << KVLOG(clientId_,
+                                                 reqSeqNum,
+                                                 clientReplies[reqSeqNum].lengthOfReplyBuffer,
+                                                 correctReply->replyLength(),
+                                                 clientReplies[reqSeqNum].replyBuffer));
         memcpy(clientReplies[reqSeqNum].replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
+        LOG_DEBUG(logger_, "Reply copied");
         clientReplies[reqSeqNum].actualReplyLength = correctReply->replyLength();
       } else {
         reset();
