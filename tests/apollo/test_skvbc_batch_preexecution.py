@@ -24,6 +24,7 @@ import util.eliot_logging as log
 
 SKVBC_INIT_GRACE_TIME = 2
 BATCH_SIZE = 4
+INDEFINITE_BATCH_WRITES_TIMEOUT = 1 * BATCH_SIZE
 NUM_OF_SEQ_WRITES = 25
 NUM_OF_PARALLEL_WRITES = 100
 MAX_CONCURRENCY = 10
@@ -195,11 +196,10 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         await trio.sleep(5)
 
         clients = bft_network.clients.values()
-        client = random.choice(list(clients))
+        for client in clients:
+            await tracker.send_tracked_write_batch(client, 2, BATCH_SIZE)
 
-        await tracker.send_tracked_write_batch(client, 2, BATCH_SIZE)
-
-        await bft_network.assert_successful_pre_executions_count(0, BATCH_SIZE)
+        await bft_network.assert_successful_pre_executions_count(0, len(clients) * BATCH_SIZE)
 
         initial_primary = 0
         await bft_network.wait_for_view(replica_id=initial_primary,
@@ -210,7 +210,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         bft_network.stop_replica(initial_primary)
 
         try:
-            with trio.move_on_after(seconds=1):
+            with trio.move_on_after(seconds=INDEFINITE_BATCH_WRITES_TIMEOUT):
                 await tracker.send_indefinite_tracked_batch_writes(BATCH_SIZE)
 
         except trio.TooSlowError:
