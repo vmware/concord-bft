@@ -14,8 +14,13 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace concord::storage {
+
+// Do not use BLOCKCHAIN_DESTRUCTION_INITIATED's value for any other key types in the default column family.
+const auto BLOCKCHAIN_DESTRUCTION_INITIATED = std::uint8_t{127};
+const auto BLOCKCHAIN_DESTRUCTION_INITIATED_KEY = std::string{{BLOCKCHAIN_DESTRUCTION_INITIATED}};
 
 // DB key types are an implementation detail. External users should not rely on it.
 namespace v1DirectKeyValue::detail {

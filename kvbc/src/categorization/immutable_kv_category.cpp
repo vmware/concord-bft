@@ -279,4 +279,9 @@ std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::stri
   return proof;
 }
 
+void ImmutableKeyValueCategory::destroy(std::shared_ptr<storage::rocksdb::NativeClient> &db,
+                                        const std::string &category_id) {
+  db->dropColumnFamily(category_id + IMMUTABLE_KV_CF_SUFFIX);
+}
+
 }  // namespace concord::kvbc::categorization::detail

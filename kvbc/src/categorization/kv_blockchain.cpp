@@ -13,10 +13,17 @@
 
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "storage/db_types.h"
+
+#include <exception>
+#include <string_view>
 
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
+using concord::storage::BLOCKCHAIN_DESTRUCTION_INITIATED_KEY;
+
+using namespace std::literals;
 
 KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
                                        bool link_st_chain)
@@ -24,6 +31,12 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
   }
+
+  // If destruction started and failed, we want to finish it on startup.
+  if (native_client_->get(BLOCKCHAIN_DESTRUCTION_INITIATED_KEY)) {
+    destroy();
+  }
+
   instantiateCategories();
   if (!link_st_chain) return;
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
@@ -286,11 +299,16 @@ void KeyValueBlockchain::deleteGenesisBlock() {
   block_chain_.setGenesisBlockId(genesis_id + 1);
 }
 
+void KeyValueBlockchain::deleteLastReachableBlock() {
+  const auto throw_on_destroy_failure = false;
+  deleteLastReachableBlockImpl(throw_on_destroy_failure);
+}
+
 // 1 - Get last id block form DB.
 // 2 - iterate over the update_info and calls the corresponding deleteLastReachableBlock
 // 3 - perform the delete
 // 4 - increment the genesis block id.
-void KeyValueBlockchain::deleteLastReachableBlock() {
+void KeyValueBlockchain::deleteLastReachableBlockImpl(bool throw_on_destroy_failure) {
   const auto last_id = block_chain_.getLastReachableBlockId();
   if (last_id == 0) {
     throw std::runtime_error{"Blockchain empty, cannot delete last reachable block"};
@@ -318,10 +336,16 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 
   native_client_->write(std::move(write_batch));
 
-  // Since we allow deletion of the only block left as last reachable (due to replica state sync), set both genesis and
-  // last reachable cache variables to 0. Otherise, only decrement the last reachable block ID cache.
-  auto genesis_id = block_chain_.getGenesisBlockId();
-  if (last_id == genesis_id) {
+  if (last_id == block_chain_.getGenesisBlockId()) {
+    // Since we allow deletion of the only block left as last reachable (due to replica state sync), set both genesis
+    // and last reachable cache variables to 0. Furthermore, destroy the whole blockchain and all its data. Rationale is
+    // that there might be active keys from pruned blocks and since the blockchain will start again from block 1, we
+    // don't want any keys at the same block IDs from the previous blockchain in the new one.
+    if (throw_on_destroy_failure) {
+      destroyThrow();
+    } else {
+      destroy();
+    }
     block_chain_.setGenesisBlockId(0);
     block_chain_.setLastReachableBlockId(0);
   } else {
@@ -462,6 +486,81 @@ ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   }
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the ImmutableKeyValueCategory");
   return std::get<detail::ImmutableKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
+}
+
+void KeyValueBlockchain::destroy() noexcept {
+  try {
+    destroyThrow();
+  } catch (const std::exception& e) {
+    LOG_FATAL(CAT_BLOCK_LOG, "Terminating due to failure to destroy the blockchain, reason: " << e.what());
+    std::terminate();
+  } catch (...) {
+    LOG_FATAL(CAT_BLOCK_LOG, "Terminating due to failure to destroy the blockchain");
+    std::terminate();
+  }
+}
+
+void KeyValueBlockchain::destroyThrow() {
+  LOG_WARN(CAT_BLOCK_LOG, "Destroying the blockchain");
+
+  // Mark that we've started destruction in the default column family.
+  native_client_->put(BLOCKCHAIN_DESTRUCTION_INITIATED_KEY, ""sv);
+
+  // Clear categories from the memory first. That allows for
+  // * proper category object cleanup before destruction (via the category's dtor)
+  // * safety and less requirements on categories as no category objects will exist during destruction
+  categorires_.clear();
+  categorires_types_.clear();
+
+  // Reset the last raw block cache.
+  last_raw_block_.first = detail::Blockchain::INVALID_BLOCK_ID;
+  last_raw_block_.second.reset();
+
+  // Destroy all categories.
+  auto it = native_client_->getIterator(detail::CAT_ID_TYPE_CF);
+  it.first();
+  while (it) {
+    ConcordAssertEQ(it.valueView().size(), 1);
+    const auto cat_type = static_cast<detail::CATEGORY_TYPE>(it.valueView()[0]);
+    switch (cat_type) {
+      case detail::CATEGORY_TYPE::block_merkle:
+        detail::BlockMerkleCategory::destroy(native_client_);
+        LOG_INFO(CAT_BLOCK_LOG, "Destroyed category [" << it.key() << "] of type BlockMerkleCategory");
+        break;
+      case detail::CATEGORY_TYPE::immutable:
+        detail::ImmutableKeyValueCategory::destroy(native_client_, it.key());
+        LOG_INFO(CAT_BLOCK_LOG, "Destroyed category [" << it.key() << "] of type ImmutableKeyValueCategory");
+        break;
+      case detail::CATEGORY_TYPE::versioned_kv:
+        detail::VersionedKeyValueCategory::destroy(native_client_, it.key());
+        LOG_INFO(CAT_BLOCK_LOG, "Destroyed category [" << it.key() << "] of type VersionedKeyValueCategory");
+        break;
+      default:
+        throw std::runtime_error("unknown category type for " + it.key());
+        break;
+    }
+    it.next();
+  }
+
+  // Drop the blocks column family.
+  native_client_->dropColumnFamily(detail::BLOCKS_CF);
+
+  // Drop the state transfer chain column family.
+  native_client_->dropColumnFamily(detail::ST_CHAIN_CF);
+
+  // At last, drop the category type family. Do that as a last step, because we want to be able to know all existing
+  // categories on startup if previous destroy() steps fail.
+  native_client_->dropColumnFamily(detail::CAT_ID_TYPE_CF);
+
+  // We are done, we can remove the destruction flag from the default column family.
+  native_client_->del(BLOCKCHAIN_DESTRUCTION_INITIATED_KEY);
+
+  // Re-instantiate blockchains.
+  block_chain_ = detail::Blockchain{native_client_};
+  state_transfer_block_chain_ = detail::Blockchain::StateTransfer{native_client_};
+
+  // Re-create the category type family.
+  detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get());
 }
 
 /////////////////////// state transfer blockchain ///////////////////////

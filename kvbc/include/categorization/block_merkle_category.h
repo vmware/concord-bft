@@ -81,6 +81,9 @@ class BlockMerkleCategory {
   uint64_t getLatestTreeVersion() const;
   uint64_t getLastDeletedTreeVersion() const;
 
+  // Destroy the category by dropping all column families and the data inside.
+  static void destroy(std::shared_ptr<storage::rocksdb::NativeClient>& db);
+
  private:
   void multiGet(const std::vector<Buffer>& versioned_keys,
                 const std::vector<BlockId>& versions,

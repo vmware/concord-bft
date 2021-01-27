@@ -466,6 +466,35 @@ TEST_F(block_merkle_category, prune_many_nodes) {
   ASSERT_FALSE(cat.getLatestVersion(key1));
 }
 
+TEST_F(block_merkle_category, destroy) {
+  // Before.
+  {
+    const auto from_db_before = NativeClient::columnFamilies(db->path());
+    const auto from_client_before = db->columnFamilies();
+    ASSERT_EQ(from_db_before, from_client_before);
+    ASSERT_THAT(from_db_before,
+                ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(),
+                                                            BLOCK_MERKLE_INTERNAL_NODES_CF,
+                                                            BLOCK_MERKLE_LEAF_NODES_CF,
+                                                            BLOCK_MERKLE_LATEST_KEY_VERSION_CF,
+                                                            BLOCK_MERKLE_KEYS_CF,
+                                                            BLOCK_MERKLE_STALE_CF,
+                                                            BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF,
+                                                            BLOCK_MERKLE_PRUNED_BLOCKS_CF}));
+  }
+
+  // Destroy.
+  BlockMerkleCategory::destroy(db);
+
+  // After.
+  {
+    const auto from_db_after = NativeClient::columnFamilies(db->path());
+    const auto from_client_after = db->columnFamilies();
+    ASSERT_EQ(from_db_after, from_client_after);
+    ASSERT_THAT(from_db_after, ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily()}));
+  }
+}
+
 }  // namespace
 
 int main(int argc, char *argv[]) {

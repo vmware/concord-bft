@@ -85,6 +85,9 @@ class VersionedKeyValueCategory {
   // Return std::nullopt if the key doesn't exist.
   std::optional<KeyValueProof> getProof(BlockId block_id, const std::string &key, const VersionedOutput &) const;
 
+  // Destroy the category by dropping all column families and the data inside.
+  static void destroy(std::shared_ptr<storage::rocksdb::NativeClient> &db, const std::string &category_id);
+
  private:
   void addDeletes(BlockId, std::vector<std::string> &&keys, VersionedOutput &, storage::rocksdb::NativeWriteBatch &);
 

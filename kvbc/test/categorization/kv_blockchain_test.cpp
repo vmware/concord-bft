@@ -12,29 +12,39 @@
 // file.
 
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include "categorization/column_families.h"
 #include "categorization/updates.h"
 #include "categorization/kv_blockchain.h"
+#include "storage/db_types.h"
+#include "storage/test/storage_test_common.h"
 #include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
 #include <random>
-#include "storage/test/storage_test_common.h"
 
 using concord::storage::rocksdb::NativeClient;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::categorization::detail;
 using namespace concord::kvbc;
+using namespace ::testing;
 
 namespace {
 
-class categorized_kvbc : public ::testing::Test {
+class categorized_kvbc : public Test {
   void SetUp() override {
     cleanup();
     db = TestRocksDb::createNative();
   }
   void TearDown() override { cleanup(); }
+
+ protected:
+  bool columnFamilyIsEmpty(const std::string& cf) const {
+    auto it = db->getIterator(cf);
+    it.first();
+    return !it;
+  }
 
  protected:
   std::shared_ptr<NativeClient> db;
@@ -313,55 +323,125 @@ TEST_F(categorized_kvbc, delete_block) {
   ASSERT_EQ(block_chain.getLastReachableBlockId(), 0);
   ASSERT_EQ(block_chain.getGenesisBlockId(), 0);
 
-  ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key2"));
-  ASSERT_FALSE(block_chain.getLatest("versioned", "ver_key2"));
-  ASSERT_FALSE(block_chain.get("versioned", "ver_key2", 2));
-
-  ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key2"));
-  ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key2"));
-  ASSERT_FALSE(block_chain.get("immutable", "immutable_key2", 2));
-
-  // Block 1 has been deleted as genesis, expect its versioned and merkle data to still be there. Immutable data should
-  // be deleted.
-  {
-    const auto latest_version = block_chain.getLatestVersion("versioned", "ver_key1");
-    ASSERT_TRUE(latest_version);
-    ASSERT_EQ(latest_version->version, 1);
-
-    const auto latest_value = block_chain.getLatest("versioned", "ver_key1");
-    ASSERT_TRUE(latest_value);
-    ASSERT_EQ(std::get<VersionedValue>(*latest_value).block_id, 1);
-    ASSERT_EQ(std::get<VersionedValue>(*latest_value).data, "ver_val1");
-
-    const auto value = block_chain.get("versioned", "ver_key1", 1);
-    ASSERT_TRUE(value);
-    ASSERT_EQ(std::get<VersionedValue>(*value).block_id, 1);
-    ASSERT_EQ(std::get<VersionedValue>(*value).data, "ver_val1");
-  }
-  {
-    const auto latest_version = block_chain.getLatestVersion("merkle", "merkle_key1");
-    ASSERT_TRUE(latest_version);
-    ASSERT_EQ(latest_version->version, 1);
-
-    const auto latest_value = block_chain.getLatest("merkle", "merkle_key1");
-    ASSERT_TRUE(latest_value);
-    ASSERT_EQ(std::get<MerkleValue>(*latest_value).block_id, 1);
-    ASSERT_EQ(std::get<MerkleValue>(*latest_value).data, "merkle_value1");
-
-    const auto value = block_chain.get("merkle", "merkle_key1", 1);
-    ASSERT_TRUE(value);
-    ASSERT_EQ(std::get<MerkleValue>(*value).block_id, 1);
-    ASSERT_EQ(std::get<MerkleValue>(*value).data, "merkle_value1");
-  }
-  {
-    ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key1"));
-    ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key1"));
-    ASSERT_FALSE(block_chain.get("immutable", "immutable_key1", 1));
-  }
-
   // Block chain is empty
   ASSERT_THROW(block_chain.deleteLastReachableBlock(), std::runtime_error);
 }
+
+TEST_F(categorized_kvbc, destroy_on_deleting_the_only_last_reachable_block) {
+  KeyValueBlockchain block_chain{db, true};
+
+  // Add block 1.
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("mk", "mv");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.addUpdate("vk", "vv");
+    updates.add("versioned", std::move(ver_updates));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.addUpdate("ik", {"iv", {"t1", "t2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), 1);
+  }
+
+  ASSERT_NO_THROW(block_chain.deleteLastReachableBlock());
+
+  // Make sure destroy() has dropped all category column families and the KeyValueBlockchain ones have been re-created
+  // and are empty. Also, make sure the "initiated" flag is not present.
+  {
+    const auto from_db_after = NativeClient::columnFamilies(db->path());
+    const auto from_client_after = db->columnFamilies();
+    ASSERT_EQ(from_db_after, from_client_after);
+    ASSERT_THAT(from_db_after,
+                ContainerEq(std::unordered_set<std::string>{
+                    db->defaultColumnFamily(), BLOCKS_CF, ST_CHAIN_CF, CAT_ID_TYPE_CF}));
+    ASSERT_TRUE(columnFamilyIsEmpty(BLOCKS_CF));
+    ASSERT_TRUE(columnFamilyIsEmpty(ST_CHAIN_CF));
+    ASSERT_TRUE(columnFamilyIsEmpty(CAT_ID_TYPE_CF));
+    ASSERT_FALSE(db->get(concord::storage::BLOCKCHAIN_DESTRUCTION_INITIATED_KEY));
+  }
+}
+
+TEST_F(categorized_kvbc, destroy_on_deleting_the_only_last_reachable_block_with_crash_in_the_middle) {
+  {
+    KeyValueBlockchain block_chain{db, true};
+
+    // Add block 1.
+    {
+      Updates updates;
+      BlockMerkleUpdates merkle_updates;
+      merkle_updates.addUpdate("mk", "mv");
+      updates.add("merkle", std::move(merkle_updates));
+
+      VersionedUpdates ver_updates;
+      ver_updates.addUpdate("vk", "vv");
+      updates.add("versioned", std::move(ver_updates));
+
+      ImmutableUpdates immutable_updates;
+      immutable_updates.addUpdate("ik", {"iv", {"t1", "t2"}});
+      updates.add("immutable", std::move(immutable_updates));
+
+      ASSERT_EQ(block_chain.addBlock(std::move(updates)), 1);
+    }
+
+    // Change the type of the third category to force an exception during destruction, but after some categories have
+    // already been destroyed.
+    auto original_type = detail::CATEGORY_TYPE::end_of_types;
+    auto original_cat_id = std::string{};
+    {
+      auto it = db->getIterator(CAT_ID_TYPE_CF);
+      it.first();
+      it.next();
+      it.next();
+      ASSERT_TRUE(it);
+      ConcordAssertEQ(it.valueView().size(), 1);
+      original_type = static_cast<detail::CATEGORY_TYPE>(it.valueView()[0]);
+      original_cat_id = it.key();
+
+      db->put(CAT_ID_TYPE_CF, original_cat_id, std::string{{static_cast<char>(detail::CATEGORY_TYPE::end_of_types)}});
+    }
+
+    // Make sure an exception is thrown.
+    const auto throw_on_destroy_failure = true;
+    ASSERT_THROW(block_chain.deleteLastReachableBlockImpl(throw_on_destroy_failure), std::exception);
+
+    // Make sure the "initiated" flag is present.
+    ASSERT_TRUE(db->get(concord::storage::BLOCKCHAIN_DESTRUCTION_INITIATED_KEY));
+
+    // Revert to the original type.
+    db->put(CAT_ID_TYPE_CF, original_cat_id, std::string{{static_cast<char>(original_type)}});
+
+    const auto from_db_incomplete = NativeClient::columnFamilies(db->path());
+    const auto from_client_incomplete = db->columnFamilies();
+    ASSERT_EQ(from_db_incomplete, from_client_incomplete);
+    // More families than default and the KeyValueBlockchain ones (BLOCKS_CF, ST_CHAIN_CF and CAT_ID_TYPE_CF) are
+    // present as destroy() failed during category destruction.
+    ASSERT_GT(from_db_incomplete.size(), 4);
+  }
+
+  // Construct a new blockchain to simuate a restart.
+  KeyValueBlockchain block_chain{db, true};
+
+  // Make sure blockchain destruction in the constructor has dropped all category column families and the
+  // KeyValueBlockchain-related ones have been re-created and are empty. Also, make sure the "initiated" flag is not
+  // present.
+  {
+    const auto from_db_after = NativeClient::columnFamilies(db->path());
+    const auto from_client_after = db->columnFamilies();
+    ASSERT_EQ(from_db_after, from_client_after);
+    ASSERT_THAT(from_db_after,
+                ContainerEq(std::unordered_set<std::string>{
+                    db->defaultColumnFamily(), BLOCKS_CF, ST_CHAIN_CF, CAT_ID_TYPE_CF}));
+    ASSERT_TRUE(columnFamilyIsEmpty(BLOCKS_CF));
+    ASSERT_TRUE(columnFamilyIsEmpty(ST_CHAIN_CF));
+    ASSERT_TRUE(columnFamilyIsEmpty(CAT_ID_TYPE_CF));
+    ASSERT_FALSE(db->get(concord::storage::BLOCKCHAIN_DESTRUCTION_INITIATED_KEY));
+  }
+}  // namespace
 
 TEST_F(categorized_kvbc, get_last_and_genesis_block) {
   KeyValueBlockchain block_chain{db, true};
@@ -1532,6 +1612,6 @@ TEST_F(categorized_kvbc, multi_get_latest_version) {
 }  // end namespace
 
 int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
+  InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

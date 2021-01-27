@@ -543,6 +543,16 @@ uint64_t BlockMerkleCategory::getLastDeletedTreeVersion() const {
   return last_deleted;
 }
 
+void BlockMerkleCategory::destroy(std::shared_ptr<storage::rocksdb::NativeClient>& db) {
+  db->dropColumnFamily(BLOCK_MERKLE_INTERNAL_NODES_CF);
+  db->dropColumnFamily(BLOCK_MERKLE_LEAF_NODES_CF);
+  db->dropColumnFamily(BLOCK_MERKLE_LATEST_KEY_VERSION_CF);
+  db->dropColumnFamily(BLOCK_MERKLE_KEYS_CF);
+  db->dropColumnFamily(BLOCK_MERKLE_STALE_CF);
+  db->dropColumnFamily(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF);
+  db->dropColumnFamily(BLOCK_MERKLE_PRUNED_BLOCKS_CF);
+}
+
 void BlockMerkleCategory::deleteStaleBatch(uint64_t start, uint64_t end) {
   auto keys = std::vector<Buffer>{};
   keys.reserve(end - start);

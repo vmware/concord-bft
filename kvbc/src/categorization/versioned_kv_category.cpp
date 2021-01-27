@@ -414,4 +414,11 @@ std::optional<KeyValueProof> VersionedKeyValueCategory::getProof(BlockId block_i
   return proof;
 }
 
+void VersionedKeyValueCategory::destroy(std::shared_ptr<storage::rocksdb::NativeClient> &db,
+                                        const std::string &category_id) {
+  db->dropColumnFamily(category_id + VERSIONED_KV_VALUES_CF_SUFFIX);
+  db->dropColumnFamily(category_id + VERSIONED_KV_LATEST_VER_CF_SUFFIX);
+  db->dropColumnFamily(category_id + VERSIONED_KV_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF_SUFFIX);
+}
+
 }  // namespace concord::kvbc::categorization::detail

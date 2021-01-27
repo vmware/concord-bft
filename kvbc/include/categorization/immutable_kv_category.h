@@ -91,6 +91,9 @@ class ImmutableKeyValueCategory {
                                         const std::string &key,
                                         const ImmutableOutput &updates_info) const;
 
+  // Destroy the category by dropping all column families and the data inside.
+  static void destroy(std::shared_ptr<storage::rocksdb::NativeClient> &db, const std::string &category_id);
+
  private:
   std::string cf_;
   std::shared_ptr<storage::rocksdb::NativeClient> db_;

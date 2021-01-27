@@ -41,6 +41,9 @@ class KeyValueBlockchain {
   bool deleteBlock(const BlockId& blockId);
   void deleteLastReachableBlock();
 
+  // Used for testing only.
+  void deleteLastReachableBlockImpl(bool throw_on_destroy_failure);
+
   /////////////////////// Raw Blocks ///////////////////////
 
   // Adds raw block and tries to link the state transfer blockchain to the main blockchain
@@ -152,6 +155,16 @@ class KeyValueBlockchain {
                                         const std::string& category_id,
                                         ImmutableInput&& updates,
                                         concord::storage::rocksdb::NativeWriteBatch& write_batch);
+
+  ///////////////////// Destruction /////////////////////
+  // Destroy all data in the blockchain.
+
+  // Called when all blocks have been deleted as last reachable (during replica state sync). Calls std::terminate() on
+  // failure.
+  void destroy() noexcept;
+
+  // Implementation of destroy() that throws instead of terminating. Used for testing only.
+  void destroyThrow();
 
   /////////////////////// Members ///////////////////////
 

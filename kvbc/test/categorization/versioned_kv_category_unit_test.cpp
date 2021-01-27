@@ -957,6 +957,29 @@ TEST_F(versioned_kv_category, delete_last_reachable_with_deletes) {
   }
 }
 
+TEST_F(versioned_kv_category, destroy) {
+  // Before.
+  {
+    const auto from_db_before = NativeClient::columnFamilies(db->path());
+    const auto from_client_before = db->columnFamilies();
+    ASSERT_EQ(from_db_before, from_client_before);
+    ASSERT_THAT(
+        from_db_before,
+        ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily(), values_cf, latest_ver_cf, active_cf_}));
+  }
+
+  // Destroy.
+  VersionedKeyValueCategory::destroy(db, category_id);
+
+  // After.
+  {
+    const auto from_db_after = NativeClient::columnFamilies(db->path());
+    const auto from_client_after = db->columnFamilies();
+    ASSERT_EQ(from_db_after, from_client_after);
+    ASSERT_THAT(from_db_after, ContainerEq(std::unordered_set<std::string>{db->defaultColumnFamily()}));
+  }
+}
+
 }  // namespace
 
 int main(int argc, char *argv[]) {
