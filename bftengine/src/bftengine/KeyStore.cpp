@@ -101,7 +101,7 @@ ReplicaKeyStore::ReplicaKey::ReplicaKey(const KeyExchangeMsg& other, const uint6
 //////////////////////CLUSTER KEY STORE////////////////////////
 
 ClusterKeyStore::ClusterKeyStore(const uint32_t& clusterSize,
-                                 IReservedPages& reservedPages,
+                                 IReservedPages* reservedPages,
                                  const uint32_t& sizeOfReservedPage)
     : clusterKeys_(clusterSize), reservedPages_(reservedPages), buffer_(sizeOfReservedPage, 0) {
   ConcordAssertGT(sizeOfReservedPage, 0);
@@ -140,7 +140,7 @@ std::optional<ReplicaKeyStore> ClusterKeyStore::loadReplicaKeyStoreFromResereved
   // being 0 and a failure to load. However, the check is still needed as a failure to load might leave the buffer_
   // variable in a wrong state. Additionally, we need to be sure that returning an empty optional is the right thing to
   // do.
-  if (!reservedPages_.loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data())) {
+  if (!reservedPages_->loadReservedPage(resPageOffset() + repID, buffer_.size(), buffer_.data())) {
     LOG_INFO(KEY_EX_LOG, "Couldn't load replica key store [" << repID << "] from reserved pages, first start?");
     return {};
   }
@@ -162,7 +162,7 @@ void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID)
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, clusterKeys_.at(repID));
   auto rkStr = ss.str();
-  reservedPages_.saveReservedPage(resPageOffset() + repID, rkStr.size(), rkStr.c_str());
+  reservedPages_->saveReservedPage(resPageOffset() + repID, rkStr.size(), rkStr.c_str());
 }
 
 bool ClusterKeyStore::push(const KeyExchangeMsg& kem, const uint64_t& sn) {

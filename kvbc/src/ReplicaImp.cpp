@@ -253,8 +253,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
 
-  controlStateManager_ =
-      std::make_shared<bftEngine::ControlStateManager>(m_stateTransfer, replicaConfig_.getsizeOfReservedPage());
+  controlStateManager_ = std::make_shared<bftEngine::ControlStateManager>(m_stateTransfer);
 }
 
 ReplicaImp::~ReplicaImp() {

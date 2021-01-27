@@ -43,6 +43,7 @@ class ControlStatePage : public concord::serialize::SerializableFactory<ControlS
 
 static constexpr uint32_t ControlHandlerStateManagerReservedPagesIndex = 1;
 static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
+
 class ControlStateManager : public ResPagesClient<ControlStateManager,
                                                   ControlHandlerStateManagerReservedPagesIndex,
                                                   ControlHandlerStateManagerNumOfReservedPages> {
@@ -57,7 +58,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
 
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
-  ControlStateManager(IStateTransfer* state_transfer, uint32_t sizeOfReservedPages);
+  ControlStateManager(IReservedPages* reserved_pages);
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
   ~ControlStateManager() {}
@@ -66,8 +67,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   void enable() { enabled_ = true; }
 
  private:
-  IStateTransfer* state_transfer_;
-  const uint32_t sizeOfReservedPage_;
+  IReservedPages* reserved_pages_;
   std::string scratchPage_;
   bool enabled_ = true;
   ControlStatePage page_;
