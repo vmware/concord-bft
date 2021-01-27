@@ -28,7 +28,8 @@ class RocksDBStorageFactory : public IStorageFactory {
  public:
   RocksDBStorageFactory(const std::string &dbPath,
                         const std::shared_ptr<concord::performance::PerformanceManager> &pm =
-                            std::make_shared<concord::performance::PerformanceManager>()) : dbPath_{dbPath}, pm_{pm} {}
+                            std::make_shared<concord::performance::PerformanceManager>())
+      : dbPath_{dbPath}, pm_{pm} {}
 
  public:
   DatabaseSet newDatabaseSet() const override;

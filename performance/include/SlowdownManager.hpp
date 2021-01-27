@@ -330,9 +330,7 @@ class SlowdownManager {
     LOG_DEBUG(logger_, "SlowdownManager initialized with " << config_.size() << " phases");
   }
 
-  SlowdownManager() {
-    LOG_DEBUG(logger_, "SlowdownManager initialized with no policies");
-  };
+  SlowdownManager() { LOG_DEBUG(logger_, "SlowdownManager initialized with no policies"); };
 
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &set) {
