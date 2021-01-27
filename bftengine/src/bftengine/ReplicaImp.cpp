@@ -3591,6 +3591,11 @@ ReplicaImp::~ReplicaImp() {
   delete repsInfo;
   free(replyBuffer);
 
+  for (auto it = tableOfStableCheckpoints.begin(); it != tableOfStableCheckpoints.end(); it++) {
+    delete it->second;
+  }
+  tableOfStableCheckpoints.clear();
+
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::freeDebugStatisticsData();
   }
@@ -4041,6 +4046,11 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     // next checkpoint, the primary sends noop commands until filling the working window.
     bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
     stopAtNextCheckpoint_ = true;
+  }
+  if (controlStateManager_->getCheckpointToStopAt().has_value() &&
+      lastExecutedSeqNum == controlStateManager_->getCheckpointToStopAt()) {
+    // We are about to stop execution. To avoid VC we now clear all pending requests
+    clientsManager->clearAllPendingRequests();
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }

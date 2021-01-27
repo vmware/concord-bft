@@ -183,6 +183,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
   }
 
   ld.viewsManager = viewsManager;
+  descriptorOfLastExitFromView.clean();
   return Succ;
 }
 
