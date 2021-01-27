@@ -23,7 +23,7 @@ KeyManager::KeyManager(InitData* id)
     : repID_(id->id),
       clusterSize_(id->clusterSize),
       client_(id->cl),
-      keyStore_{id->clusterSize, *id->reservedPages, id->sizeOfReservedPage},
+      keyStore_{id->clusterSize, id->reservedPages, id->sizeOfReservedPage},
       multiSigKeyHdlr_(id->kg),
       keysView_(id->sec, id->backupSec, id->clusterSize),
       keyExchangeOnStart_(id->keyExchangeOnStart),

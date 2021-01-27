@@ -181,7 +181,7 @@ class SimpleTestReplica {
 
   void start() {
     replica->start();
-    control_state_manager_ = std::make_shared<ControlStateManager>(inMemoryST_, inMemoryST_->numberOfReservedPages());
+    control_state_manager_ = std::make_shared<ControlStateManager>(inMemoryST_);
     control_state_manager_->disable();
     replica->setControlStateManager(control_state_manager_);
   }

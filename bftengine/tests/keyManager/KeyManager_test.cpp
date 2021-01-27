@@ -262,7 +262,7 @@ TEST(ReplicaKeyStore, rotate) {
 
 TEST(ClusterKeyStore, push) {
   ReservedPagesMock rpm(7, true);
-  ClusterKeyStore cks{7, rpm, 4094};
+  ClusterKeyStore cks{7, &rpm, 4094};
   {
     KeyExchangeMsg kem;
     kem.key = "a";
@@ -305,7 +305,7 @@ TEST(ClusterKeyStore, push) {
 
 TEST(ClusterKeyStore, rotate) {
   ReservedPagesMock rpm(7, true);
-  ClusterKeyStore cks{7, rpm, 4094};
+  ClusterKeyStore cks{7, &rpm, 4094};
 
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -553,7 +553,7 @@ TEST(KeyManager, endToEnd) {
 
 TEST(ClusterKeyStore, dirty_first_load) {
   ReservedPagesMock rpm(4, false);
-  ClusterKeyStore cks{4, rpm, 4094};
+  ClusterKeyStore cks{4, &rpm, 4094};
 
   for (int i = 0; i < 4; i++) {
     ASSERT_EQ(cks.numKeys(i), 0);
@@ -562,7 +562,7 @@ TEST(ClusterKeyStore, dirty_first_load) {
 
 TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
   ReservedPagesMock rpm(4, false);
-  ClusterKeyStore cks{4, rpm, 4094};
+  ClusterKeyStore cks{4, &rpm, 4094};
 
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -594,7 +594,7 @@ TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
   kem5.repID = 0;
   cks.push(kem5, 2);
 
-  ClusterKeyStore reloadCks{4, rpm, 4094};
+  ClusterKeyStore reloadCks{4, &rpm, 4094};
   for (int i = 0; i < 4; i++) {
     if (i == 0) {
       ASSERT_EQ(reloadCks.numKeys(i), 2);
@@ -606,7 +606,7 @@ TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
 
 TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
   ReservedPagesMock rpm(4, false);
-  ClusterKeyStore cks{4, rpm, 4094};
+  ClusterKeyStore cks{4, &rpm, 4094};
 
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -646,7 +646,7 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
 
   cks.rotate(2);
 
-  ClusterKeyStore reloadCks{4, rpm, 4094};
+  ClusterKeyStore reloadCks{4, &rpm, 4094};
   ASSERT_EQ(reloadCks.exchangedReplicas.size(), 4);
   for (int i = 0; i < 4; i++) {
     if (i == 0) {
