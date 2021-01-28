@@ -81,14 +81,19 @@ Reply Client::send(const MatchConfig& match_config,
   metrics_.updateAggregator();
   outstanding_request_ = Matcher(match_config);
   receiver_.activate(request_config.max_reply_size);
-  const auto msg = makeClientMsg(request_config, std::move(request), read_only, config_.id.val);
+  auto orig_msg = makeClientMsg(request_config, std::move(request), read_only, config_.id.val);
   auto start = std::chrono::steady_clock::now();
   auto end = start + request_config.timeout;
   while (std::chrono::steady_clock::now() < end) {
+    bft::client::Msg msg(orig_msg);  // create copy here due to the loop
     if (primary_ && !read_only) {
-      communication_->sendAsyncMessage(primary_.value().val, (const char*)msg.data(), msg.size());
+      communication_->sendAsyncMessage(primary_.value().val, std::move(msg));
     } else {
-      sendToGroup(match_config, msg);
+      std::set<bft::communication::NodeNum> dests;
+      for (const auto& d : match_config.quorum.destinations) {
+        dests.emplace(d.val);
+      }
+      communication_->multiSendMessage(dests, std::move(msg));
     }
 
     if (auto reply = wait()) {
@@ -130,12 +135,6 @@ std::optional<Reply> Client::wait() {
   }
   primary_ = std::nullopt;
   return std::nullopt;
-}
-
-void Client::sendToGroup(const MatchConfig& config, const Msg& msg) {
-  for (auto dest : config.quorum.destinations) {
-    communication_->sendAsyncMessage(dest.val, (const char*)msg.data(), msg.size());
-  }
 }
 
 MatchConfig Client::writeConfigToMatchConfig(const WriteConfig& write_config) {

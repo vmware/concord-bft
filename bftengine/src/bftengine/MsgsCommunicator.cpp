@@ -50,7 +50,7 @@ void MsgsCommunicator::stopMsgsProcessing() {
 }
 
 int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t messageLength) {
-  return communication_->sendAsyncMessage(destNode, message, messageLength);
+  return communication_->sendAsyncMessage(destNode, std::vector<uint8_t>(message, message + messageLength));
 }
 
 uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
