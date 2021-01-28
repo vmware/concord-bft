@@ -207,7 +207,7 @@ void AsyncTlsConnection::dispose(bool close_connection) {
 }
 
 void AsyncTlsConnection::write() {
-  if (disposed_ || write_msg_.has_value()) return;
+  if (disposed_ || write_msg_) return;
 
   write_msg_ = write_queue_->pop();
   if (!write_msg_) return;
@@ -241,7 +241,7 @@ void AsyncTlsConnection::write() {
                              write_timer_.cancel(_ec);
 
                              tlsTcpImpl_.histograms_.sent_msg_size->record(write_msg_->msg.size());
-                             write_msg_ = std::nullopt;
+                             write_msg_ = nullptr;
                              write();
                            });
   startWriteTimer();

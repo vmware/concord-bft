@@ -36,14 +36,16 @@ static constexpr size_t MAX_QUEUE_SIZE_IN_BYTES = 1024 * 1024 * 1024;  // 1 GB
 static constexpr size_t MSG_HEADER_SIZE = 4;
 
 struct OutgoingMsg {
-  OutgoingMsg(const char* raw_msg, const size_t len)
-      : msg(len + MSG_HEADER_SIZE), send_time(std::chrono::steady_clock::now()) {
-    uint32_t msg_size = htonl(static_cast<uint32_t>(len));
+  OutgoingMsg(std::vector<uint8_t>&& raw_msg)
+      : msg(raw_msg.size() + MSG_HEADER_SIZE), send_time(std::chrono::steady_clock::now()) {
+    uint32_t msg_size = htonl(static_cast<uint32_t>(raw_msg.size()));
     std::memcpy(msg.data(), &msg_size, MSG_HEADER_SIZE);
-    std::memcpy(msg.data() + MSG_HEADER_SIZE, raw_msg, len);
+    std::memcpy(msg.data() + MSG_HEADER_SIZE, raw_msg.data(), raw_msg.size());
   }
-  std::vector<char> msg;
+  std::vector<uint8_t> msg;
   std::chrono::steady_clock::time_point send_time;
+
+  size_t payload_size() { return msg.size() - MSG_HEADER_SIZE; }
 };
 
 // A write queue is a buffer of messages for a single socket. Messages should only be put on the
@@ -79,31 +81,31 @@ class WriteQueue {
 
   // Only add onto the queue if there is an active connection. Return the size of the queue after
   // the push completes or std::nullopt if there is no connection, or the queue is full.
-  std::optional<size_t> push(const char* raw_msg, const size_t len) {
+  std::optional<size_t> push(const std::shared_ptr<OutgoingMsg>& msg) {
     if (!connected_) {
       return std::nullopt;
     }
-    auto msg = OutgoingMsg(raw_msg, len);
+
     std::lock_guard<std::mutex> guard(lock_);
     if (queued_size_in_bytes_ > MAX_QUEUE_SIZE_IN_BYTES) {
-      LOG_WARN(logger_, "Queue full. Dropping message." << KVLOG(destination_, len));
+      LOG_WARN(logger_, "Queue full. Dropping message." << KVLOG(destination_, msg->payload_size()));
       return std::nullopt;
     }
-    queued_size_in_bytes_ += msg.msg.size();
-    msgs_.push_back(std::move(msg));
+    queued_size_in_bytes_ += msg->msg.size();
+    msgs_.push_back(msg);
     return msgs_.size();
   }
 
-  std::optional<OutgoingMsg> pop() {
+  std::shared_ptr<OutgoingMsg> pop() {
     std::lock_guard<std::mutex> guard(lock_);
     recorders_.write_queue_len->record(msgs_.size());
     recorders_.write_queue_size_in_bytes->record(queued_size_in_bytes_);
     if (msgs_.empty()) {
-      return std::nullopt;
+      return nullptr;
     }
     auto msg = std::move(msgs_.front());
     msgs_.pop_front();
-    queued_size_in_bytes_ -= msg.msg.size();
+    queued_size_in_bytes_ -= msg->msg.size();
     return msg;
   }
 
@@ -134,7 +136,7 @@ class WriteQueue {
  private:
   // Protects `msgs_`, `queued_size_in_bytes_`, and `conn_`
   mutable std::mutex lock_;
-  std::deque<OutgoingMsg> msgs_;
+  std::deque<std::shared_ptr<OutgoingMsg>> msgs_;
   size_t queued_size_in_bytes_ = 0;
   std::shared_ptr<AsyncTlsConnection> conn_;
 

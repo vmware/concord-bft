@@ -440,15 +440,12 @@ void SimpleClientImp::sendPendingRequest() {
     // TODO(GG): print ....
   }
 
+  std::vector<uint8_t> msg(pendingRequest_->body(), pendingRequest_->body() + pendingRequest_->size());
   if (sendToAll) {
-    for (uint16_t r : replicas_) {
-      // int stat =
-      communication_->sendAsyncMessage(r, pendingRequest_->body(), pendingRequest_->size());
-      // TODO(GG): handle errors (print and/or ....)
-    }
+    communication_->multiSendMessage(std::set<NodeNum>(replicas_.begin(), replicas_.end()), std::move(msg));
   } else {
     pm_->Delay<concord::performance::SlowdownPhase::BftClientBeforeSendPrimary>();
-    communication_->sendAsyncMessage(knownPrimaryReplica_, pendingRequest_->body(), pendingRequest_->size());
+    communication_->sendAsyncMessage(knownPrimaryReplica_, std::move(msg));
     // TODO(GG): handle errors (print and/or ....)
   }
 }

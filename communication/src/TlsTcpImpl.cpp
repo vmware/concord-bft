@@ -133,16 +133,16 @@ void TlsTCPCommunication::TlsTcpImpl::setReceiver(NodeNum _, IReceiver* receiver
   receiver_ = receiver;
 }
 
-int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination, const char* msg, const size_t len) {
+int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination, std::shared_ptr<OutgoingMsg>& msg) {
   auto max_size = config_.bufferLength - AsyncTlsConnection::MSG_HEADER_SIZE;
-  if (len > max_size) {
+  if (msg->payload_size() > max_size) {
     status_->total_messages_dropped++;
-    LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(len, max_size));
+    LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(msg->payload_size(), max_size));
     return -1;
   }
 
   auto& queue = write_queues_.at(destination);
-  auto queue_size_after_push = queue.push(msg, len);
+  auto queue_size_after_push = queue.push(msg);
   if (!queue_size_after_push) {
     LOG_DEBUG(logger_, "Connection NOT found or queue full, from: " << config_.selfId << ", to: " << destination);
     status_->total_messages_dropped++;
@@ -163,7 +163,9 @@ int TlsTCPCommunication::TlsTcpImpl::sendAsyncMessage(const NodeNum destination,
   }
 
   if (conn) {
-    LOG_DEBUG(logger_, "Sent message from: " << config_.selfId << ", to: " << destination << "with size: " << len);
+    LOG_DEBUG(
+        logger_,
+        "Sent message from: " << config_.selfId << ", to: " << destination << "with size: " << msg->payload_size());
     status_->total_messages_sent++;
 
     if (config_.statusCallback && isReplica()) {

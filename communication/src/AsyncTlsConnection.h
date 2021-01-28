@@ -180,7 +180,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   std::vector<char> read_msg_;
 
   // Message being currently written.
-  std::optional<OutgoingMsg> write_msg_;
+  std::shared_ptr<OutgoingMsg> write_msg_;
 
   WriteQueue* write_queue_ = nullptr;
 };

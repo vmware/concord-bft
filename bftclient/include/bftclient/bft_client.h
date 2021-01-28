@@ -71,9 +71,6 @@ class Client {
   // Return a Reply on quorum, or std::nullopt on timeout.
   std::optional<Reply> wait();
 
-  // Send a Msg to all destinations in the configured quorum.
-  void sendToGroup(const MatchConfig& config, const Msg& msg);
-
   // Extract a matcher configurations from operational configurations
   //
   // Throws BftClientException on error.

@@ -13,6 +13,8 @@
 #pragma once
 
 #include <cstdint>
+#include <set>
+#include <vector>
 
 namespace bft::communication {
 
@@ -25,7 +27,7 @@ class IReceiver {
   // Invoked when a new message is received
   // Notice that the memory pointed by message may be freed immediately
   // after the execution of this method.
-  virtual void onNewMessage(NodeNum sourceNode, const char *const message, size_t messageLength) = 0;
+  virtual void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) = 0;
 
   // Invoked when the known status of a connection is changed.
   // For each NodeNum, this method will never be concurrently
@@ -53,9 +55,11 @@ class ICommunication {
   // Sends a message on the underlying communication layer to a given
   // destination node. Asynchronous (non-blocking) method.
   // Returns 0 on success.
-  virtual int sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) = 0;
+  virtual int sendAsyncMessage(NodeNum destNode, std::vector<uint8_t>&& msg) = 0;
 
-  virtual void setReceiver(NodeNum receiverNum, IReceiver *receiver) = 0;
+  virtual std::set<NodeNum> multiSendMessage(const std::set<NodeNum> dests, std::vector<uint8_t>&& msg) = 0;
+
+  virtual void setReceiver(NodeNum receiverNum, IReceiver* receiver) = 0;
 
   virtual ~ICommunication() = default;
 };
