@@ -14,6 +14,8 @@
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
 
+#include <stdexcept>
+
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
@@ -292,8 +294,10 @@ void KeyValueBlockchain::deleteGenesisBlock() {
 // 4 - increment the genesis block id.
 void KeyValueBlockchain::deleteLastReachableBlock() {
   const auto last_id = block_chain_.getLastReachableBlockId();
-  if (last_id == 0) {
-    throw std::runtime_error{"Blockchain empty, cannot delete last reachable block"};
+  if (last_id == detail::Blockchain::INVALID_BLOCK_ID) {
+    throw std::logic_error{"Blockchain empty, cannot delete last reachable block"};
+  } else if (last_id == block_chain_.getGenesisBlockId()) {
+    throw std::logic_error{"Cannot delete only block as a last reachable one"};
   }
 
   auto write_batch = native_client_->getBatch();
