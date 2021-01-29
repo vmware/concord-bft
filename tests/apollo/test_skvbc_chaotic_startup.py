@@ -51,7 +51,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    #@unittest.skip("Disabled due to BC-6816")
+    # @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @unittest.skip("Disabled due to BC-6816")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
