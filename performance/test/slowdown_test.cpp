@@ -169,38 +169,39 @@ TEST(slowdown_test, hybrid_configuration) {
   t1(data, 10, 'd');
 }
 
-TEST(slowdown_test, add_keys_configuration) {
-  using namespace concord::kvbc;
-  using namespace concord::kvbc::v2MerkleTree;
+// TODO: Provide an implementation for categorization.
+// TEST(slowdown_test, add_keys_configuration) {
+//   using namespace concord::kvbc;
+//   using namespace concord::kvbc::v2MerkleTree;
 
-  auto sm = std::make_shared<SlowdownConfiguration>();
-  AddKeysPolicyConfig ap(10, 200, 3000);
-  std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies;
-  policies.push_back(std::make_shared<AddKeysPolicyConfig>(ap));
+//   auto sm = std::make_shared<SlowdownConfiguration>();
+//   AddKeysPolicyConfig ap(10, 200, 3000);
+//   std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies;
+//   policies.push_back(std::make_shared<AddKeysPolicyConfig>(ap));
 
-  std::unique_ptr<IStorageFactory> f = std::make_unique<MemoryDBStorageFactory>();
-  auto comm = MockComm();
-  bftEngine::ReplicaConfig& rc = bftEngine::ReplicaConfig::instance();
-  rc.numReplicas = 4;
-  rc.fVal = 1;
-  rc.cVal = 0;
-  rc.numOfExternalClients = 1;
-  (*sm)[SlowdownPhase::StorageBeforeKVBC] = policies;
-  auto pm = std::make_shared<PerformanceManager>(sm);
+//   std::unique_ptr<IStorageFactory> f = std::make_unique<MemoryDBStorageFactory>();
+//   auto comm = MockComm();
+//   bftEngine::ReplicaConfig& rc = bftEngine::ReplicaConfig::instance();
+//   rc.numReplicas = 4;
+//   rc.fVal = 1;
+//   rc.cVal = 0;
+//   rc.numOfExternalClients = 1;
+//   (*sm)[SlowdownPhase::StorageBeforeKVBC] = policies;
+//   auto pm = std::make_shared<PerformanceManager>(sm);
 
-  ReplicaImp r(
-      dynamic_cast<ICommunication*>(&comm), rc, std::move(f), std::make_shared<concordMetrics::Aggregator>(), pm);
-  SetOfKeyValuePairs set;
-  set.insert({concordUtils::Sliver("key"), concordUtils::Sliver("value")});
-  set.insert({concordUtils::Sliver("key1"), concordUtils::Sliver("value2")});
-  set.insert({concordUtils::Sliver("key2"), concordUtils::Sliver("value2")});
-  auto size = set.size();
-  concordUtils::SpanWrapper s;
-  BlockId id;
-  r.addBlock(set, id, s);
-  EXPECT_EQ(id, 1);
-  EXPECT_EQ(set.size(), size);  // was not changed
-}
+//   ReplicaImp r(
+//       dynamic_cast<ICommunication*>(&comm), rc, std::move(f), std::make_shared<concordMetrics::Aggregator>(), pm);
+//   SetOfKeyValuePairs set;
+//   set.insert({concordUtils::Sliver("key"), concordUtils::Sliver("value")});
+//   set.insert({concordUtils::Sliver("key1"), concordUtils::Sliver("value2")});
+//   set.insert({concordUtils::Sliver("key2"), concordUtils::Sliver("value2")});
+//   auto size = set.size();
+//   concordUtils::SpanWrapper s;
+//   BlockId id;
+//   r.addBlock(set, id, s);
+//   EXPECT_EQ(id, 1);
+//   EXPECT_EQ(set.size(), size);  // was not changed
+// }
 
 }  // anonymous namespace
 
