@@ -86,7 +86,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         bft_network.stop_replica(late_replica)
 
-        for isolated_replica in [0, 1]:
+        for isolated_replica, views_to_advance in [(0, 1), (1, 2)]:
             with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, {isolated_replica}) as adversary:
                 adversary.interfere()
                 try:
@@ -99,7 +99,13 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                 except:
                     pass
 
-                await trio.sleep(seconds=30)
+                # Wait for View Change initiation to happen
+                with trio.fail_after(60):
+                    while True:
+                        view_of_connected_replica = await self._get_gauge(connected_replica, bft_network, "currentActiveView")
+                        if view_of_connected_replica == current_view + views_to_advance:
+                            break
+                        await trio.sleep(0.2)
 
             view = await bft_network.wait_for_view(
                 replica_id=connected_replica,
@@ -108,6 +114,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
             )
             current_view = view
 
+        constant_load.cancel()
         bft_network.start_replica(late_replica)
 
         # Make sure the current view is stable
