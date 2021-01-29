@@ -18,9 +18,9 @@
 #include "assertUtils.hpp"
 #include "kv_types.hpp"
 #include "sha_hash.hpp"
-#include <iostream>
 
 using concord::storage::rocksdb::NativeWriteBatch;
+using concord::storage::rocksdb::detail::toSlice;
 using concordUtils::Sliver;
 
 namespace concord::kvbc::categorization::detail {
@@ -157,6 +157,10 @@ std::vector<Buffer> versionedKeys(const std::vector<std::string>& keys, const st
   return versioned_keys;
 }
 
+void putLatestKeyVersion(NativeWriteBatch& batch, const Hash& key_hash, TaggedVersion version) {
+  batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_hash, serializeThreadLocal(LatestKeyVersion{version.encode()}));
+}
+
 void putKeys(NativeWriteBatch& batch,
              uint64_t block_id,
              std::vector<KeyHash>&& hashed_added_keys,
@@ -164,8 +168,12 @@ void putKeys(NativeWriteBatch& batch,
              BlockMerkleInput& updates) {
   auto kv_it = updates.kv.begin();
   for (auto key_it = hashed_added_keys.begin(); key_it != hashed_added_keys.end(); key_it++) {
+    // Only serialize the Header of a DBValue, to prevent the need to copy a potentially large value.
+    auto header = toSlice(serializeThreadLocal(DbValueHeader{false, static_cast<uint32_t>(kv_it->second.size())}));
+    std::array<::rocksdb::Slice, 2> val{header, toSlice(kv_it->second)};
+
     // Write the versioned key/value pair used for direct key lookup
-    batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), kv_it->second);
+    batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), val);
 
     // Put the latest version of the key
     batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->value, serialize(LatestKeyVersion{block_id}));
@@ -175,8 +183,10 @@ void putKeys(NativeWriteBatch& batch,
 
   const bool deleted = true;
   for (auto key_it = hashed_deleted_keys.begin(); key_it != hashed_deleted_keys.end(); key_it++) {
-    BlockId latest = TaggedVersion(deleted, block_id).encode();
-    batch.put(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, key_it->value, serialize(LatestKeyVersion{latest}));
+    // Write a tombstone to the value. This is necessary for deleteLastReachable().
+    auto tombstone = serialize(DbValueHeader{true, 0});
+    batch.put(BLOCK_MERKLE_KEYS_CF, serialize(VersionedKey{*key_it, block_id}), tombstone);
+    putLatestKeyVersion(batch, key_it->value, TaggedVersion(deleted, block_id));
   }
 }
 
@@ -213,6 +223,29 @@ void putMerkleNodes(NativeWriteBatch& batch, sparse_merkle::UpdateBatch&& update
   putLatestTreeVersion(tree_version, batch);
 
   putStaleKeys(batch, std::move(update_batch.stale));
+}
+
+// As part of `deleteLastReachable`, we need to remove the block at the end of the chain.
+// We are essentially reverting to the prior version of the merkle tree.
+//
+// This assumes the block where the nodes are being removed has not been pruned.
+void removeMerkleNodes(NativeWriteBatch& batch, BlockId block_id, uint64_t tree_version) {
+  // Remove the leaf
+  auto block_key = merkleKey(block_id);
+  auto leaf_key = sparse_merkle::LeafKey{hash(block_key), tree_version};
+  auto versioned_key = serialize(leafKeyToVersionedKey(leaf_key));
+  batch.del(BLOCK_MERKLE_LEAF_NODES_CF, versioned_key);
+
+  // Remove the internal nodes.
+  auto start = rootKey(tree_version);
+  auto end = rootKey(tree_version + 1);
+  batch.delRange(BLOCK_MERKLE_INTERNAL_NODES_CF, start, end);
+
+  // Remove the stale index
+  batch.del(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{tree_version}));
+
+  // Update the latest root to point to the previous tree version
+  putLatestTreeVersion(tree_version - 1, batch);
 }
 
 // Delete keys that can be safely pruned.
@@ -304,9 +337,14 @@ std::optional<Value> BlockMerkleCategory::get(const std::string& key, BlockId bl
 
 std::optional<Value> BlockMerkleCategory::get(const Hash& hashed_key, BlockId block_id) const {
   auto key = VersionedKey{KeyHash{hashed_key}, block_id};
-  if (auto val = db_->get(BLOCK_MERKLE_KEYS_CF, serialize(key))) {
+  if (auto ser = db_->get(BLOCK_MERKLE_KEYS_CF, serialize(key))) {
+    auto v = DbValue{};
+    deserialize(*ser, v);
+    if (v.deleted) {
+      return std::nullopt;
+    }
     auto rv = MerkleValue{};
-    rv.data = std::move(*val);
+    rv.data = std::move(v.data);
     rv.block_id = block_id;
     return rv;
   }
@@ -359,7 +397,13 @@ void BlockMerkleCategory::multiGet(const std::vector<Buffer>& versioned_keys,
     const auto& slice = slices[i];
     const auto version = versions[i];
     if (status.ok()) {
-      values.push_back(MerkleValue{{version, slice.ToString()}});
+      auto v = DbValue{};
+      deserialize(slice, v);
+      if (v.deleted) {
+        values.push_back(std::nullopt);
+      } else {
+        values.push_back(MerkleValue{{version, v.data}});
+      }
     } else if (status.IsNotFound()) {
       values.push_back(std::nullopt);
     } else {
@@ -511,6 +555,41 @@ void BlockMerkleCategory::deleteGenesisBlock(BlockId block_id, const BlockMerkle
   deleteStaleData(out.state_root_version, batch);
 }
 
+void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_id,
+                                                   const BlockMerkleOutput& out,
+                                                   NativeWriteBatch& batch) {
+  for (const auto& [key, _] : out.keys) {
+    (void)_;
+    const auto hashed_key = KeyHash{hash(key)};
+    const auto versioned_key = serializeThreadLocal(VersionedKey{hashed_key, block_id});
+    // Find the previous version of the key and set it as a last version. If not found, then this is
+    // the only version of the key and we can remove the latest version index too.
+    auto iter = db_->getIterator(BLOCK_MERKLE_KEYS_CF);
+    iter.seekAtMost(versioned_key);
+    ConcordAssert(iter);
+    iter.prev();
+    if (iter) {
+      auto prev_key = VersionedKey{};
+      deserialize(iter.keyView(), prev_key);
+      if (prev_key.key_hash == hashed_key) {
+        // Preserve the deleted flag from the value into the version index.
+        auto deleted = Deleted{};
+        deserialize(iter.valueView(), deleted);
+        putLatestKeyVersion(batch, hashed_key.value, TaggedVersion(deleted.value, prev_key.version));
+      } else {
+        // This is the only version of the key - remove the latest version index too.
+        batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key.value);
+      }
+    } else {
+      // No previous keys means this is the only version of the key - remove the latest version index too.
+      batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key.value);
+    }
+    // Remove the value for the key at `block_id`.
+    batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
+  }
+  removeMerkleNodes(batch, block_id, out.state_root_version);
+}
+
 std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> BlockMerkleCategory::getLatestVersions(
     const BlockMerkleOutput& out) {
   std::vector<Hash> hashed_keys;
@@ -635,10 +714,6 @@ uint64_t BlockMerkleCategory::getLatestTreeVersion() const {
   }
   return 0;
 }
-
-void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_Id,
-                                                   const BlockMerkleOutput& out,
-                                                   NativeWriteBatch& batch) {}
 
 sparse_merkle::BatchedInternalNode BlockMerkleCategory::Reader::get_latest_root() const {
   if (auto latest_root_key = db_.get(BLOCK_MERKLE_INTERNAL_NODES_CF, rootKey(0))) {
