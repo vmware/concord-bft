@@ -93,6 +93,9 @@ class BlockMerkleCategory {
   //   In any event, blocks that aren't synced shouldn't even be eligible for pruning at an even higher level.
   void deleteLastReachableBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
 
+  //
+  // Accessors useful for tests or tools
+  //
   uint64_t getLatestTreeVersion() const;
   uint64_t getLastDeletedTreeVersion() const;
 
@@ -113,7 +116,11 @@ class BlockMerkleCategory {
   // Retrieve the value of all active keys so we can recalculate the root hash for the modified block.
   // Write the updated block to the merkle tree.
   // Also write corrsponding active key indexes and pruned block index to their respective column families.
-  void writePrunedBlock(BlockId, std::vector<KeyHash>&& active_keys, storage::rocksdb::NativeWriteBatch&);
+  //
+  // Return the serialized `BlockMerkleValue` so we only update the tree once in `deleteGenesisBlock`.
+  concordUtils::Sliver writePrunedBlock(BlockId,
+                                        std::vector<KeyHash>&& active_keys,
+                                        storage::rocksdb::NativeWriteBatch&);
 
   // When a block gets pruned, any keys that are still `active` (latest version of a key) are
   // tracked in a `PrunedBlock`. PrunedBlocks are kept in their own column family. Additionally, a
@@ -141,8 +148,10 @@ class BlockMerkleCategory {
   // deleted in this step. Final deletion from the database only occurs when the overwriting block
   // is itself pruned. This tradeoff is made to defer work to the pruning process and not cause
   // block addition to slow down.
-  void rewriteAlreadyPrunedBlocks(std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys,
-                                  storage::rocksdb::NativeWriteBatch& batch);
+  //
+  // Returns added blocks and deleted keys so we only update the tree a single time in `deleteGenesisBlock`.
+  std::pair<SetOfKeyValuePairs, KeysVector> rewriteAlreadyPrunedBlocks(
+      std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, storage::rocksdb::NativeWriteBatch& batch);
 
   // When a genesis block is pruned, we must delete all data that is stale as of `tree_version`.
   //
