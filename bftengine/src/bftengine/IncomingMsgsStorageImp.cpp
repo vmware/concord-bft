@@ -77,10 +77,10 @@ void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
   }
 }
 
-void IncomingMsgsStorageImp::pushExternalMsg(char* msg, size_t size) {
+void IncomingMsgsStorageImp::pushExternalMsgRaw(char* msg, size_t& size) {
   size_t actualSize = 0;
   MessageBase* mb = MessageBase::deserializeMsg(msg, size, actualSize);
-  pushExternalMsg(std::make_unique<MessageBase>(mb));
+  pushExternalMsg(std::unique_ptr<MessageBase>(mb));
 }
 
 // can be called by any thread

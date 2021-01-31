@@ -42,7 +42,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   void pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
 
   // Can be called by any thread. Msg must represent valid message
-  void pushExternalMsg(char* msg, size_t size) override;
+  void pushExternalMsgRaw(char* msg, size_t& Ssize) override;
 
   // Can be called by any thread
   void pushInternalMsg(InternalMessage&& msg) override;

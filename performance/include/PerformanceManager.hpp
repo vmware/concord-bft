@@ -34,6 +34,7 @@ class PerformanceManager {
     return enabled(t);
   }
 
+
   // slow down methods
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &kvpairs) {
@@ -44,6 +45,13 @@ class PerformanceManager {
   template <SlowdownPhase T>
   SlowDownResult Delay() {
     if (slowdownManager_) return slowdownManager_->Delay<T>();
+    return SlowDownResult{};
+  }
+
+  template <SlowdownPhase T>
+  SlowDownResult Delay(void *&msg, size_t &&size, std::function<void(char *, size_t &)> &&f) {
+    if (slowdownManager_)
+      return slowdownManager_->Delay<T>(msg, size, std::forward<std::function<void(char *, size_t &)>>(f));
     return SlowDownResult{};
   }
 

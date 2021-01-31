@@ -1019,8 +1019,10 @@ template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   metric_received_full_commit_proofs_.Get().Inc();
 
-  char *buf = new char[msg->sizeNeededForObjAndMsgInLocalBuffer()];
-  std::function<size_t(char *&, const MessageBase *)> f = MessageBase::serializeMsg;
+  pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>(
+      (void *&)msg,
+      msg->sizeNeededForObjAndMsgInLocalBuffer(),
+      std::bind(&IncomingMsgsStorage::pushExternalMsgRaw, &getIncomingMsgsStorage(), _1, _2));
 
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_full_commit_proof_msg");
