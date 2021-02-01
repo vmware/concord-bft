@@ -27,8 +27,6 @@
 
 namespace bft::communication {
 
-class TlsTcpImpl;
-
 typedef boost::asio::ssl::stream<boost::asio::ip::tcp::socket> SSL_SOCKET;
 
 class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnection> {
@@ -146,7 +144,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Return true along with the actual node id if verification succeeds, (false, 0) if not.
   std::pair<bool, NodeNum> checkCertificate(X509* cert,
                                             std::string connectionType,
-                                            std::string subject,
+                                            const std::string& subject,
                                             std::optional<NodeNum> expected_peer_id);
 
   logging::Logger logger_;

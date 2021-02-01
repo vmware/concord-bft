@@ -15,8 +15,6 @@
 #include "assertUtils.hpp"
 #include "TlsTcpImpl.h"
 
-using concord::diagnostics::TimeRecorder;
-
 namespace bft::communication {
 
 int TlsTCPCommunication::TlsTcpImpl::Start() {
@@ -225,7 +223,7 @@ void TlsTCPCommunication::TlsTcpImpl::onConnectionAuthenticated(std::shared_ptr<
   // discard it. In this case it was likely that connecting end of the connection thinks there is
   // something wrong. This is a vector for a denial of service attack on the accepting side. We can
   // track the number of connections from the node and mark it malicious if necessary.
-  TimeRecorder scoped_timer(*histograms_.on_connection_authenticated);
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.on_connection_authenticated);
   auto& queue = write_queues_.at(conn->getPeerId().value());
   {
     std::lock_guard<std::mutex> lock(connections_guard_);
@@ -333,7 +331,7 @@ void TlsTCPCommunication::TlsTcpImpl::resolve(NodeNum i) {
   });
 }
 
-void TlsTCPCommunication::TlsTcpImpl::connect(NodeNum i, boost::asio::ip::tcp::endpoint endpoint) {
+void TlsTCPCommunication::TlsTcpImpl::connect(NodeNum i, const boost::asio::ip::tcp::endpoint& endpoint) {
   auto [it, inserted] = connecting_.emplace(i, boost::asio::ip::tcp::socket(io_service_));
   ConcordAssert(inserted);
   status_->num_connecting = connecting_.size();
