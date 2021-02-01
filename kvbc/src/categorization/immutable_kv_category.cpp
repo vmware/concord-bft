@@ -16,17 +16,21 @@
 #include "assertUtils.hpp"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
+#include "rocksdb/details.h"
 
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace concord::kvbc::categorization::detail {
+
+using concord::storage::rocksdb::detail::toSlice;
 
 // root_hash = h(h(k1) || h(v1) || h(k2) || h(v2) || ... || h(kn) || h(vn))
 void updateTagHash(const std::string &tag,
@@ -96,7 +100,10 @@ ImmutableOutput ImmutableKeyValueCategory::add(BlockId block_id,
     }
 
     // Persist the key-value.
-    batch.put(cf_, key, serializeThreadLocal(ImmutableDbValue{block_id, std::move(value.data)}));
+    const auto header =
+        toSlice(serializeThreadLocal(ImmutableDbValueHeader{block_id, static_cast<std::uint32_t>(value.data.size())}));
+    const auto slices = std::array<::rocksdb::Slice, 2>{header, toSlice(value.data)};
+    batch.put(cf_, key, slices);
 
     // Move the key and the tags to the update info and (optionally) update hashes per tag.
     auto &key_tags = update_info.tagged_keys.emplace(std::move(key), std::vector<std::string>{}).first->second;

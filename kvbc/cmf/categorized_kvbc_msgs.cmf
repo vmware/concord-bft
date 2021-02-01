@@ -129,25 +129,30 @@ Msg Deleted 4005 {
     bool value
 }
 
-# Used for efficiently *writing* a DbValue to RocksDB
-# Values may be large and we want avoid having to copy the string into a vector during serialization.
-# If we just serialize the header we can pass both as slices to RocksDB to prevent an extra copy.
-# On reads we retrieve a DbValue.
-#
-# This takes advantage of the fact that CMF serializes string size as a uint32. If that ever
-# changes we must change this as well.
-Msg DbValueHeader 4006 {
-    bool deleted
-    uint32 value_size
-}
-
-Msg ImmutableDbValue 4007 {
+Msg ImmutableDbValue 4006 {
     uint64 block_id
     string data
 }
 
+# Headers that are use used for efficiently *writing* a DbValue and ImmutableDbValue to RocksDB.
+# Values may be large and we want avoid having to copy the string into a vector during serialization.
+# If we just serialize the header we can pass both as slices to RocksDB to prevent an extra copy.
+# On reads we retrieve DbValue and ImmutableDbValue, respectively.
+#
+# This takes advantage of the fact that CMF serializes string size as a uint32. If that ever
+# changes we must change these as well.
+Msg DbValueHeader 4007 {
+    bool deleted
+    uint32 value_size
+}
+
+Msg ImmutableDbValueHeader 4008 {
+    uint64 block_id
+    uint32 value_size
+}
+
 # Used to deserialize the version only from an ImmutableDbValue.
-Msg ImmutableDbVersion 4008 {
+Msg ImmutableDbVersion 4009 {
     uint64 block_id
 }
 
