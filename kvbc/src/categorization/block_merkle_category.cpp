@@ -84,6 +84,7 @@ std::vector<uint8_t> rootKey(uint64_t version) {
   return serialize(toBatchedInternalNodeKey(sparse_merkle::InternalNodeKey::root(v)));
 }
 
+// A key used in tree_.update()
 Sliver merkleKey(BlockId block_id) {
   auto block_key = serialize(BlockKey{block_id});
   return Sliver::copy((const char*)block_key.data(), block_key.size());
@@ -513,8 +514,8 @@ PrunedBlock BlockMerkleCategory::getPrunedBlock(const Buffer& block_key) {
   return pruned;
 }
 
-void BlockMerkleCategory::rewriteAlreadyPrunedBlocks(std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys,
-                                                     NativeWriteBatch& batch) {
+std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPrunedBlocks(
+    std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, NativeWriteBatch& batch) {
   auto merkle_blocks_to_rewrite = SetOfKeyValuePairs{};
   auto merkle_blocks_to_delete = KeysVector{};
   for (auto& [block_id, keys] : deleted_keys) {
@@ -537,21 +538,22 @@ void BlockMerkleCategory::rewriteAlreadyPrunedBlocks(std::unordered_map<BlockId,
       batch.put(BLOCK_MERKLE_PRUNED_BLOCKS_CF, block_key, new_pruned);
     }
   }
-  auto update_batch = tree_.update(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
-  putMerkleNodes(batch, std::move(update_batch));
+  return std::make_pair(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
 }
 
 void BlockMerkleCategory::deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput& out, NativeWriteBatch& batch) {
   auto [hashed_keys, latest_versions] = getLatestVersions(out);
   auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
-  rewriteAlreadyPrunedBlocks(overwritten_active_keys_from_pruned_blocks, batch);
+  auto [block_adds, block_removes] = rewriteAlreadyPrunedBlocks(overwritten_active_keys_from_pruned_blocks, batch);
   auto active_keys = deleteInactiveKeys(block_id, std::move(hashed_keys), latest_versions, batch);
   if (active_keys.empty()) {
-    auto update_batch = tree_.remove({merkleKey(block_id)});
-    putMerkleNodes(batch, std::move(update_batch));
+    block_removes.push_back(merkleKey(block_id));
   } else {
-    writePrunedBlock(block_id, std::move(active_keys), batch);
+    auto merkle_value = writePrunedBlock(block_id, std::move(active_keys), batch);
+    block_adds.emplace(merkleKey(block_id), merkle_value);
   }
+  auto update_batch = tree_.update(block_adds, block_removes);
+  putMerkleNodes(batch, std::move(update_batch));
   deleteStaleData(out.state_root_version, batch);
 }
 
@@ -695,15 +697,14 @@ MerkleBlockValue BlockMerkleCategory::computeRootHash(BlockId block_id,
   return merkle_value;
 }
 
-void BlockMerkleCategory::writePrunedBlock(BlockId block_id,
-                                           std::vector<KeyHash>&& active_keys,
-                                           NativeWriteBatch& batch) {
+Sliver BlockMerkleCategory::writePrunedBlock(BlockId block_id,
+                                             std::vector<KeyHash>&& active_keys,
+                                             NativeWriteBatch& batch) {
   static constexpr bool write_active_keys = true;
   auto merkle_value = computeRootHash(block_id, active_keys, write_active_keys, batch);
-  auto update_batch = tree_.update({{merkleKey(block_id), merkleValue(merkle_value)}});
-  putMerkleNodes(batch, std::move(update_batch));
   auto block_key = serialize(BlockVersion{block_id});
   batch.put(BLOCK_MERKLE_PRUNED_BLOCKS_CF, block_key, serialize(PrunedBlock{std::move(active_keys)}));
+  return merkleValue(merkle_value);
 }
 
 uint64_t BlockMerkleCategory::getLatestTreeVersion() const {

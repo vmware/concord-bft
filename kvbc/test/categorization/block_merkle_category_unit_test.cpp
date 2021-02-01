@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
@@ -35,6 +36,103 @@ using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
 using namespace concord::kvbc::categorization::detail;
 using namespace std::literals;
+
+const std::string key1 = "key1"s;
+const std::string key2 = "key2"s;
+const std::string key3 = "key3"s;
+const std::string key4 = "key4"s;
+const std::string key5 = "key5"s;
+const std::string val1 = "val1"s;
+const std::string val2 = "val2"s;
+const std::string val3 = "val3"s;
+const std::string val4 = "val4"s;
+const std::string val5 = "val5"s;
+const Hash hashed_key1 = hash(key1);
+const Hash hashed_key2 = hash(key2);
+const Hash hashed_key3 = hash(key3);
+const Hash hashed_key4 = hash(key4);
+const Hash hashed_key5 = hash(key5);
+
+using KvPairs = std::vector<std::pair<std::string, std::string>>;
+
+// Return all key-value pairs in the column family `cf`
+KvPairs getAll(const std::string &cf, std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  auto all = KvPairs{};
+  auto iter = db->getIterator(cf);
+  iter.first();
+  while (iter) {
+    all.emplace_back(iter.key(), iter.value());
+    iter.next();
+  }
+  return all;
+}
+
+KvPairs getAllLeaves(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  return getAll(BLOCK_MERKLE_LEAF_NODES_CF, db);
+}
+
+KvPairs getAllInternalNodes(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  return getAll(BLOCK_MERKLE_INTERNAL_NODES_CF, db);
+}
+
+KvPairs getAllStale(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
+  return getAll(BLOCK_MERKLE_STALE_CF, db);
+}
+
+StaleKeys getStale(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db, TreeVersion version) {
+  auto ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(version));
+  auto stale = StaleKeys{};
+  deserialize(*ser_stale, stale);
+  return stale;
+}
+
+// Keys returned by a sparse_merkle::UpdateBatch are always hashed versions of string keys. However,
+// the keys in the block merkle are simply BlockIds. We therefore want to brute force reverse the
+// hashes to figure out the block id.
+BlockId hashToBlockId(const KeyHash &key_hash, BlockId max_block_id) {
+  for (auto i = 1u; i <= max_block_id; i++) {
+    if (hash(serialize(BlockKey{i})) == key_hash.value) {
+      return i;
+    }
+  }
+  throw std::invalid_argument("Key does not correspond to a block id: " +
+                              sparse_merkle::Hash(key_hash.value).toString());
+}
+
+// A leaf key is a pair of block id and tree version at its most basic
+struct LeafKey {
+  BlockId block_id;
+  uint64_t tree_version;
+  bool operator==(const LeafKey &other) const {
+    return block_id == other.block_id && tree_version == other.tree_version;
+  }
+  bool operator<(const LeafKey &other) const {
+    if (block_id < other.block_id) return true;
+    if (block_id > other.block_id) return false;
+    return tree_version < other.tree_version;
+  }
+};
+
+std::set<LeafKey> deserializeLeafKeys(const KvPairs &kv_pairs, BlockId max_block_id) {
+  auto leaf_keys = std::set<LeafKey>{};
+  for (const auto &[k, v] : kv_pairs) {
+    (void)v;
+    auto key = VersionedKey{};
+    deserialize(k, key);
+    leaf_keys.insert(LeafKey{hashToBlockId(key.key_hash, max_block_id), key.version});
+  }
+  return leaf_keys;
+}
+
+std::set<LeafKey> deserializeLeafKeys(const std::vector<std::vector<uint8_t>> &serialized, BlockId max_block_id) {
+  auto leaf_keys = std::set<LeafKey>{};
+  for (const auto &ser : serialized) {
+    auto key = VersionedKey{};
+    deserialize(ser, key);
+    leaf_keys.insert(LeafKey{hashToBlockId(key.key_hash, max_block_id), key.version});
+  }
+  return leaf_keys;
+}
 
 class block_merkle_category : public Test {
   void SetUp() override {
@@ -52,24 +150,15 @@ class block_merkle_category : public Test {
     return output;
   }
 
+  void deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput &out) {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(block_id, out, batch);
+    db->write(std::move(batch));
+  }
+
  protected:
   std::shared_ptr<NativeClient> db;
   BlockMerkleCategory cat;
-  std::string key1 = "key1"s;
-  std::string key2 = "key2"s;
-  std::string key3 = "key3"s;
-  std::string key4 = "key4"s;
-  std::string key5 = "key5"s;
-  std::string val1 = "val1"s;
-  std::string val2 = "val2"s;
-  std::string val3 = "val3"s;
-  std::string val4 = "val4"s;
-  std::string val5 = "val5"s;
-  Hash hashed_key1 = hash(key1);
-  Hash hashed_key2 = hash(key2);
-  Hash hashed_key3 = hash(key3);
-  Hash hashed_key4 = hash(key4);
-  Hash hashed_key5 = hash(key5);
 };
 
 TEST_F(block_merkle_category, empty_updates) {
@@ -262,21 +351,17 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   // Create the first block and read its stale keys
   auto update = BlockMerkleInput{{{key1, val1}, {key2, val2}, {key3, val3}, {key4, val4}, {key5, val5}}};
   const auto block_out1 = add(1, std::move(update));
-  auto ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{1}));
-  auto stale = StaleKeys{};
-  deserialize(*ser_stale, stale);
 
   // There's no stale keys on the first block creation, since nothing existed before the first block.
+  auto stale = getStale(db, TreeVersion{1});
   ASSERT_EQ(0, stale.internal_keys.size());
   ASSERT_EQ(0, stale.leaf_keys.size());
 
   // Create the second block and read its stale keys
   const auto block_out2 = add(2, BlockMerkleInput{{{key2, "new_val"s}}, {{key3, key5}}});
-  ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{2}));
-  stale = StaleKeys{};
-  deserialize(*ser_stale, stale);
 
   // Adding a new block adds stale internal keys, but no stale leaf keys, as blocks aren't deleted.
+  stale = getStale(db, TreeVersion{2});
   ASSERT_LT(0, stale.internal_keys.size());
   ASSERT_EQ(0, stale.leaf_keys.size());
 
@@ -284,13 +369,19 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   ASSERT_EQ(0, cat.getLastDeletedTreeVersion());
   ASSERT_EQ(2, cat.getLatestTreeVersion());
 
+  // Block @ TreeVersion notation
+  // block 1 @ 1
+  // block 2 @ 2
+  auto max_block_id = 2;
+  auto expected = std::set({LeafKey{1, 1}, LeafKey{2, 2}});
+  auto leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  ASSERT_EQ(expected, leaf_keys);
+
   // Pruning the first block causes key2, key3, and key5 from version 1 to be deleted.
   // Keys 1 and 4 are still active at version 1 and so remain in the database.
 
   // No tree nodes will get deleted though, as none are stale.
-  auto batch = db->getBatch();
-  cat.deleteGenesisBlock(1, block_out1, batch);
-  db->write(std::move(batch));
+  deleteGenesisBlock(1, block_out1);
   ASSERT_FALSE(cat.get(key2, 1));
   ASSERT_FALSE(cat.get(key3, 1));
   ASSERT_FALSE(cat.get(key5, 1));
@@ -301,23 +392,38 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   // A new tree version gets created as a result of the block deletion.
   ASSERT_EQ(3, cat.getLatestTreeVersion());
 
-  // There are stale leaf keys as of block deletion
-  ser_stale = db->get(BLOCK_MERKLE_STALE_CF, serialize(TreeVersion{3}));
-  stale = StaleKeys{};
-  deserialize(*ser_stale, stale);
+  // block1 @ 1 - marked stale as of 3
+  // block 2 @ 2
+  // block 1 @ 3 -- written here
+  expected = std::set({LeafKey{1, 1}, LeafKey{2, 2}, LeafKey{1, 3}});
+  auto expected_stale = std::set({LeafKey{1, 1}});
+  leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  stale = getStale(db, TreeVersion{3});
+  ASSERT_EQ(expected, leaf_keys);
+  ASSERT_EQ(expected_stale, deserializeLeafKeys(stale.leaf_keys, max_block_id));
+
+  // There are stale internal keys as of block deletion
   ASSERT_LT(0, stale.internal_keys.size());
-  ASSERT_LT(0, stale.leaf_keys.size());
 
   // Deleting Block2 causes there to still be active keys.
-  batch = db->getBatch();
-  cat.deleteGenesisBlock(2, block_out2, batch);
-  db->write(std::move(batch));
+  deleteGenesisBlock(2, block_out2);
   ASSERT_TRUE(cat.getLatest(key1));
   ASSERT_TRUE(cat.getLatest(key2));
   ASSERT_FALSE(cat.getLatest(key3));
   ASSERT_TRUE(cat.getLatest(key4));
   ASSERT_FALSE(cat.getLatest(key5));
   ASSERT_EQ(2, cat.getLastDeletedTreeVersion());
+
+  // block1 @ 1 - marked stale as of 3
+  // block 2 @ 2 -- marked stale as of 4
+  // block 1 @ 3
+  // block 2 @ 4 -- written here
+  expected = std::set({LeafKey{1, 1}, LeafKey{2, 2}, LeafKey{1, 3}, LeafKey{2, 4}});
+  expected_stale = std::set({LeafKey{2, 2}});
+  leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  stale = getStale(db, TreeVersion{4});
+  ASSERT_EQ(expected, leaf_keys);
+  ASSERT_EQ(expected_stale, deserializeLeafKeys(stale.leaf_keys, max_block_id));
 
   // A new tree version gets created as a result of the block deletion.
   ASSERT_EQ(4, cat.getLatestTreeVersion());
@@ -331,6 +437,18 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   ASSERT_FALSE(cat.getLatest(key5));
   ASSERT_EQ(2, cat.getLastDeletedTreeVersion());
   ASSERT_EQ(5, cat.getLatestTreeVersion());
+
+  // block1 @ 1 - marked stale as of 3
+  // block 2 @ 2 -- marked stale as of 4
+  // block 1 @ 3
+  // block 2 @ 4
+  // block 3 @ 5 -- written here
+  max_block_id = 3;
+  expected = std::set({LeafKey{1, 1}, LeafKey{2, 2}, LeafKey{1, 3}, LeafKey{2, 4}, LeafKey{3, 5}});
+  leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  stale = getStale(db, TreeVersion{5});
+  ASSERT_EQ(expected, leaf_keys);
+  ASSERT_EQ(0, stale.leaf_keys.size());
 
   // We still see tombstones for keys 1, 2, 4
   ASSERT_TRUE(cat.getLatestVersion(key1)->deleted);
@@ -358,11 +476,19 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   ASSERT_FALSE(db->get(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(KeyHash{hashed_key5})));
 
   // Deleting block 3 triggers all tree versions up to 5 to be removed
-  batch = db->getBatch();
-  cat.deleteGenesisBlock(3, block_out3, batch);
-  db->write(std::move(batch));
+  deleteGenesisBlock(3, block_out3);
   ASSERT_EQ(5, cat.getLastDeletedTreeVersion());
   ASSERT_EQ(6, cat.getLatestTreeVersion());
+
+  // block 1 @ 3 -- marked stale as of 6
+  // block 2 @ 4 -- marked stale as of 6
+  // block 3 @ 5 -- marked stale as of 6
+  expected = std::set({LeafKey{1, 3}, LeafKey{2, 4}, LeafKey{3, 5}});
+  expected_stale = expected;
+  leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  stale = getStale(db, TreeVersion{6});
+  ASSERT_EQ(expected, leaf_keys);
+  ASSERT_EQ(expected_stale, deserializeLeafKeys(stale.leaf_keys, max_block_id));
 
   // There are no more latest versions for any keys.
   ASSERT_FALSE(cat.getLatestVersion(key1));
@@ -387,6 +513,30 @@ TEST_F(block_merkle_category, stale_node_creation_and_deletion) {
   ASSERT_FALSE(db->get(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(KeyHash{hashed_key4})));
   ASSERT_FALSE(db->get(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(KeyHash{hashed_key3})));
   ASSERT_FALSE(db->get(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(KeyHash{hashed_key5})));
+
+  // Adding another block so we can prune it and garbage collect all old stale leaves.
+  const auto block_out4 = add(4, BlockMerkleInput{});
+
+  // block 1 @ 3 -- marked stale as of 6
+  // block 2 @ 4 -- marked stale as of 6
+  // block 3 @ 5 -- marked stale as of 6
+  // block 4 @ 7 -- written here
+  max_block_id = 4;
+  expected = std::set({LeafKey{1, 3}, LeafKey{2, 4}, LeafKey{3, 5}, LeafKey{4, 7}});
+  leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  stale = getStale(db, TreeVersion{7});
+  ASSERT_EQ(expected, leaf_keys);
+  ASSERT_EQ(0, stale.leaf_keys.size());
+
+  deleteGenesisBlock(4, block_out4);
+
+  // block 4 @ 7
+  expected = std::set({LeafKey{4, 7}});
+  expected_stale = expected;
+  leaf_keys = deserializeLeafKeys(getAllLeaves(db), max_block_id);
+  stale = getStale(db, TreeVersion{8});
+  ASSERT_EQ(expected, leaf_keys);
+  ASSERT_EQ(expected_stale, deserializeLeafKeys(stale.leaf_keys, max_block_id));
 }
 
 // Prune several nodes in a row. Then add some new blocks. Then prune the rest of the nodes. Make
@@ -408,12 +558,10 @@ TEST_F(block_merkle_category, prune_many_nodes) {
     ASSERT_TRUE(cat.get(key1, i));
   }
 
-  // Prune the first 500 blocks. This will create at least another 500 deleted tree versions after the last initial tree
-  // version/block_id.
+  // Prune the first 500 blocks. This will create at least another 500 deleted tree versions after the last initial
+  // tree version/block_id.
   for (auto i = 1u; i <= 500; i++) {
-    auto batch = db->getBatch();
-    cat.deleteGenesisBlock(i, out[i - 1], batch);
-    db->write(std::move(batch));
+    deleteGenesisBlock(i, out[i - 1]);
   }
   auto tree_version_after_first_500_deletes = cat.getLatestTreeVersion();
   ASSERT_LE(1501, tree_version_after_first_500_deletes);
@@ -436,18 +584,14 @@ TEST_F(block_merkle_category, prune_many_nodes) {
 
   // Prune up to block 1001.
   for (auto i = 501u; i <= 1001; i++) {
-    auto batch = db->getBatch();
-    cat.deleteGenesisBlock(i, out[i - 1], batch);
-    db->write(std::move(batch));
+    deleteGenesisBlock(i, out[i - 1]);
   }
 
   ASSERT_EQ(1001, cat.getLastDeletedTreeVersion());
 
   // Now prune block 1002. This will prune all tree versions created from the first 500 prunes in addition to the
   // version created by block 1002.
-  auto batch = db->getBatch();
-  cat.deleteGenesisBlock(1002, last_out, batch);
-  db->write(std::move(batch));
+  deleteGenesisBlock(1002, last_out);
 
   // We deleted the intermediate versions from the first 500 prunes, plus the version from the latest block.
   ASSERT_EQ(tree_version_after_first_500_deletes + 1, cat.getLastDeletedTreeVersion());
@@ -464,31 +608,6 @@ TEST_F(block_merkle_category, prune_many_nodes) {
   ASSERT_FALSE(db->get(BLOCK_MERKLE_ACTIVE_KEYS_FROM_PRUNED_BLOCKS_CF, serialize(KeyHash{hashed_key1})));
   ASSERT_FALSE(cat.getLatest(key1));
   ASSERT_FALSE(cat.getLatestVersion(key1));
-}
-
-// Return all key-value pairs in the column family `cf`
-std::vector<std::pair<std::string, std::string>> getAll(const std::string &cf,
-                                                        std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
-  auto all = std::vector<std::pair<std::string, std::string>>{};
-  auto iter = db->getIterator(cf);
-  iter.first();
-  while (iter) {
-    all.emplace_back(iter.key(), iter.value());
-    iter.next();
-  }
-  return all;
-}
-
-auto getAllLeaves(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
-  return getAll(BLOCK_MERKLE_LEAF_NODES_CF, db);
-}
-
-auto getAllInternalNodes(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
-  return getAll(BLOCK_MERKLE_INTERNAL_NODES_CF, db);
-}
-
-auto getAllStale(std::shared_ptr<concord::storage::rocksdb::NativeClient> &db) {
-  return getAll(BLOCK_MERKLE_STALE_CF, db);
 }
 
 TEST_F(block_merkle_category, delete_last_reachable) {
