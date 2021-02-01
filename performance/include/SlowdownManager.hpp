@@ -23,6 +23,7 @@
 #include "sliver.hpp"
 #include <queue>
 #include <mutex>
+#include <condition_variable>
 #include <functional>
 #include "Logger.hpp"
 
@@ -239,6 +240,7 @@ class AddKeysPolicy : public BasePolicy {
         concordUtils::Sliver k{key_data, keySize_};
         concordUtils::Sliver v{value_data, valueSize_};
         set.insert({k, v});
+        outRes.totalValueSize += v.size();
       } else if (key_data) {
         concordUtils::Sliver k{key_data, keySize_};
         set.insert({k, concordUtils::Sliver{}});
@@ -272,7 +274,7 @@ class MessageDelayPolicy : public BasePolicy {
         : msgSize{size}, absReturnTime{absTime}, callback{cb} {
       // must copy data since it is deleted by the end of the Replica handling
       msg = new char[size];
-      memcpy(msg, msgData, size);
+      memcpy((void *)msg, (const void *)msgData, size);
     };
 
     virtual ~DelayInfo() { delete[] msg; }
@@ -280,17 +282,21 @@ class MessageDelayPolicy : public BasePolicy {
     DelayInfo(const DelayInfo &other) = delete;
     DelayInfo &operator=(const DelayInfo &other) = delete;
 
-    DelayInfo &operator=(const DelayInfo &&other) {
+    DelayInfo &operator=(DelayInfo &&other) {
       if (this != &other) {
-        this->msg = other.msg;
-        this->msgSize = other.msgSize;
-        this->absReturnTime = other.absReturnTime;
-        this->callback = other.callback;
+        delete[] msg;
+        msg = other.msg;
+        msgSize = other.msgSize;
+        absReturnTime = other.absReturnTime;
+        callback = other.callback;
+        other.msg = nullptr;
+        other.callback = nullptr;
+        other.msgSize = 0;
       }
       return *this;
     }
 
-    DelayInfo(const DelayInfo &&other) { *this = std::move(other); }
+    DelayInfo(DelayInfo &&other) { *this = std::move(other); }
   };
 
   class Compare {
@@ -303,22 +309,40 @@ class MessageDelayPolicy : public BasePolicy {
 
   void timer() {
     while (!done_) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(poll_time_ms_));
-      std::lock_guard<std::mutex> lg(lock_);
+      std::unique_lock<std::mutex> ul(lock_);
+      if (delayQueue_.empty()) {
+        cv_.wait(ul, [&]() { return done_ || !delayQueue_.empty(); });
+      }
       while (!delayQueue_.empty()) {
+        // this is the only way to use move with priority queue since there are no iterators there and top() returns
+        // const &
         auto delayedMsg = std::move(const_cast<DelayInfo &>(delayQueue_.top()));
-        if (std::chrono::steady_clock::now() < delayedMsg.absReturnTime) break;
-        if (delayedMsg.callback) delayedMsg.callback(delayedMsg.msg, delayedMsg.msgSize);
+        if (std::chrono::steady_clock::now() < delayedMsg.absReturnTime) {
+          // since we move the top message for checking delay, the one in the Q is NULLed.
+          // if this message is not ready to be re-delivered, return it to the Q and remove the invalid one from the top
+          delayQueue_.pop();
+          delayQueue_.push(std::move(delayedMsg));
+          break;
+        }
+        if (delayedMsg.callback) {
+          delayedMsg.callback(delayedMsg.msg, delayedMsg.msgSize);
+        }
         delayQueue_.pop();
       }
+      std::this_thread::sleep_for(std::chrono::milliseconds(poll_time_ms_));
+    }
+  }
+
+  explicit MessageDelayPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), delay_dur_ms_{c->GetMessageDelayDuration()}, poll_time_ms_{c->GetMessageDelayPollTime()} {
+    if (delay_dur_ms_) {
+      pollingThread_ = std::make_shared<std::thread>(&MessageDelayPolicy::timer, this);
     }
   }
 
  public:
-  explicit MessageDelayPolicy(SlowdownPolicyConfig *c)
-      : delay_dur_ms_{c->GetMessageDelayDuration()}, poll_time_ms_{c->GetMessageDelayPollTime()} {
-    if (delay_dur_ms_) pollingThread_ = std::make_shared<std::thread>(&MessageDelayPolicy::timer, this);
-  }
+  MessageDelayPolicy(MessageDelayPolicy &other) = delete;
+  MessageDelayPolicy &operator=(MessageDelayPolicy &other) = delete;
 
   void Slowdown(char *msg,
                 size_t &size,
@@ -326,21 +350,33 @@ class MessageDelayPolicy : public BasePolicy {
                 SlowDownResult &outRes) override {
     using namespace std::chrono;
     if (delay_dur_ms_) {
-      std::lock_guard<std::mutex> lg(lock_);
+      std::unique_lock<std::mutex> lg(lock_);
       delayQueue_.emplace(msg, size, steady_clock::now() + milliseconds(delay_dur_ms_), cback);
+      cv_.notify_all();
     }
     outRes.totalMessageDelayDuration += delay_dur_ms_;
   }
 
   virtual ~MessageDelayPolicy() {
-    done_ = false;
+    done_ = true;
+    cv_.notify_all();
     if (pollingThread_ && pollingThread_->joinable()) pollingThread_->join();
   }
+
+  static std::shared_ptr<MessageDelayPolicy> instance(SlowdownPolicyConfig *c, logging::Logger &logger) {
+    static std::shared_ptr<MessageDelayPolicy> inst =
+        std::shared_ptr<MessageDelayPolicy>(new MessageDelayPolicy(c, logger));
+    return inst;
+  }
+
+  MessageDelayPolicy(MessageDelayPolicy const &) = delete;
+  void operator=(MessageDelayPolicy const &) = delete;
 
  private:
   uint delay_dur_ms_;
   uint poll_time_ms_;
   std::mutex lock_;
+  std::condition_variable cv_;
   std::priority_queue<DelayInfo, std::vector<DelayInfo>, Compare> delayQueue_;
   std::shared_ptr<std::thread> pollingThread_;
   bool done_ = false;
@@ -356,6 +392,13 @@ class SlowdownManager {
     }
     outRes.phase = phase;
     return it->second;
+  }
+
+  void DelayInternal(
+      SlowdownPhase phase, char *msg, size_t size, std::function<void(char *, size_t &)> &&f, SlowDownResult &res) {
+    auto policies = GetPolicies(phase, res);
+    for (auto &policy : policies)
+      policy->Slowdown(msg, size, std::forward<std::function<void(char *, size_t &)>>(f), res);
   }
 
   void DelayInternal(SlowdownPhase phase, SlowDownResult &res) {
@@ -382,6 +425,18 @@ class SlowdownManager {
 
   void DelayImp(cons_process_fullcommit_msg, SlowDownResult &res) {
     DelayInternal(SlowdownPhase::ConsensusFullCommitMsgProcess, res);
+  }
+
+  void DelayImp(cons_process_fullcommit_msg,
+                char *msg,
+                size_t size,
+                std::function<void(char *, size_t &)> &&f,
+                SlowDownResult &res) {
+    DelayInternal(SlowdownPhase::ConsensusFullCommitMsgProcess,
+                  msg,
+                  size,
+                  std::forward<std::function<void(char *, size_t &)>>(f),
+                  res);
   }
 
   void DelayImp(storage_before_merkle_tree, concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &res) {
@@ -433,6 +488,9 @@ class SlowdownManager {
           case SlowdownPolicyType::AddKeys:
             policies.push_back(make_shared<AddKeysPolicy>(p.get(), logger_));
             break;
+          case SlowdownPolicyType::MessageDelay:
+            policies.push_back(MessageDelayPolicy::instance(p.get(), logger_));
+            break;
           default:
             throw runtime_error("unsupported policy");
         }
@@ -462,8 +520,10 @@ class SlowdownManager {
   }
 
   template <SlowdownPhase T>
-  SlowDownResult Delay(void *&msg, size_t size, std::function<void(char *, size_t &)> &&f) {
+  SlowDownResult Delay(char *msg, size_t size, std::function<void(char *, size_t &)> &&f) {
     SlowDownResult res;
+    auto t = phase_tag<T>();
+    DelayImp(t, msg, size, std::forward<std::function<void(char *, size_t &)>>(f), res);
     return res;
   }
 
@@ -497,7 +557,7 @@ class SlowdownManager {
   }
 
   template <SlowdownPhase T>
-  SlowDownResult Delay(void *&msg, size_t size, std::function<void(char *, size_t &)> &&f) {
+  SlowDownResult Delay(char *msg, size_t size, std::function<void(char *, size_t &)> &&f) {
     return SlowDownResult();
   }
 

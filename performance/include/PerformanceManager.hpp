@@ -20,7 +20,7 @@ class PerformanceManager {
  public:
   PerformanceManager() = default;
   explicit PerformanceManager(std::shared_ptr<SlowdownConfiguration> &config) {
-    slowdownManager_ = std::make_shared<SlowdownManager>(config);
+    if (!slowdownManager_) slowdownManager_ = std::make_shared<SlowdownManager>(config);
   }
   template <typename T>
   struct type {};
@@ -33,7 +33,6 @@ class PerformanceManager {
     auto t = type<T>{};
     return enabled(t);
   }
-
 
   // slow down methods
   template <SlowdownPhase T>
@@ -49,7 +48,7 @@ class PerformanceManager {
   }
 
   template <SlowdownPhase T>
-  SlowDownResult Delay(void *&msg, size_t &&size, std::function<void(char *, size_t &)> &&f) {
+  SlowDownResult Delay(char *msg, size_t &&size, std::function<void(char *, size_t &)> &&f) {
     if (slowdownManager_)
       return slowdownManager_->Delay<T>(msg, size, std::forward<std::function<void(char *, size_t &)>>(f));
     return SlowDownResult{};
