@@ -142,7 +142,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   bool isRunning() const;
   ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const;
   void setReceiver(NodeNum nodeId, IReceiver *receiver);
-  int sendAsyncMessage(const NodeNum destination, std::shared_ptr<OutgoingMsg> &msg);
+  int sendAsyncMessage(const NodeNum destination, const std::shared_ptr<OutgoingMsg> &msg);
   int getMaxMessageSize();
 
  private:

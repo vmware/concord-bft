@@ -47,7 +47,7 @@ class MockComm : public bft::communication::ICommunication {
     return 0;
   }
 
-  std::set<NodeNum> send(const std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
     (void)dests;
     (void)msg;
     return {};

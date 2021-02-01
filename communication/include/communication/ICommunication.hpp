@@ -54,10 +54,16 @@ class ICommunication {
 
   // Sends a message on the underlying communication layer to a given
   // destination node. Asynchronous (non-blocking) method.
+  // The function takes ownership of the buffer provided.
   // Returns 0 on success.
-  virtual int sendAsyncMessage(NodeNum destNode, std::vector<uint8_t>&& msg) = 0;
+  virtual int send(NodeNum destNode, std::vector<uint8_t>&& msg) = 0;
 
-  virtual std::set<NodeNum> multiSendMessage(const std::set<NodeNum> dests, std::vector<uint8_t>&& msg) = 0;
+  // Sends a message to all nodes in dests set.
+  // The function takes ownership of the buffer provided.
+  // The return value is a set<NodeNum>.
+  //    On success the set is empty.
+  //    On failure it contains the NodeNum-s of the destinations for which the message sending has failed.
+  virtual std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) = 0;
 
   virtual void setReceiver(NodeNum receiverNum, IReceiver* receiver) = 0;
 
