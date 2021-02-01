@@ -135,8 +135,8 @@ class PlainUDPCommunication : public ICommunication {
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int sendAsyncMessage(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> multiSendMessage(const std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
@@ -161,8 +161,8 @@ class PlainTCPCommunication : public ICommunication {
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int sendAsyncMessage(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> multiSendMessage(const std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
@@ -185,8 +185,8 @@ class TlsTCPCommunication : public ICommunication {
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
-  int sendAsyncMessage(NodeNum destNode, std::vector<uint8_t> &&msg) override;
-  std::set<NodeNum> multiSendMessage(const std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 

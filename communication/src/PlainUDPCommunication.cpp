@@ -399,12 +399,12 @@ ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(NodeNum node)
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
-int PlainUDPCommunication::sendAsyncMessage(NodeNum destNode, std::vector<uint8_t> &&msg) {
+int PlainUDPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
   auto m = std::make_shared<std::vector<uint8_t>>(std::move(msg));
   return _ptrImpl->sendAsyncMessage(destNode, m);
 }
 
-std::set<NodeNum> PlainUDPCommunication::multiSendMessage(const std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
+std::set<NodeNum> PlainUDPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
   std::set<NodeNum> failed_nodes;
   auto m = std::make_shared<std::vector<uint8_t>>(std::move(msg));
   for (auto &d : dests) {

@@ -87,13 +87,13 @@ Reply Client::send(const MatchConfig& match_config,
   while (std::chrono::steady_clock::now() < end) {
     bft::client::Msg msg(orig_msg);  // create copy here due to the loop
     if (primary_ && !read_only) {
-      communication_->sendAsyncMessage(primary_.value().val, std::move(msg));
+      communication_->send(primary_.value().val, std::move(msg));
     } else {
       std::set<bft::communication::NodeNum> dests;
       for (const auto& d : match_config.quorum.destinations) {
         dests.emplace(d.val);
       }
-      communication_->multiSendMessage(dests, std::move(msg));
+      communication_->send(dests, std::move(msg));
     }
 
     if (auto reply = wait()) {

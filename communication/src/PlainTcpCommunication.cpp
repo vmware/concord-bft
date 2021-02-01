@@ -37,6 +37,8 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <boost/date_time/posix_time/posix_time_duration.hpp>
 
+#include "assertUtils.hpp"
+
 using namespace std;
 using namespace boost::asio;
 using namespace boost::asio::ip;
@@ -848,10 +850,18 @@ ConnectionStatus PlainTCPCommunication::getCurrentConnectionStatus(const NodeNum
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
-int PlainTCPCommunication::sendAsyncMessage(const NodeNum destNode,
-                                            const char *const message,
-                                            const size_t messageLength) {
-  return _ptrImpl->sendAsyncMessage(destNode, message, messageLength);
+int PlainTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
+  return _ptrImpl->sendAsyncMessage(destNode, (char *)msg.data(), msg.size());
+}
+
+std::set<NodeNum> PlainTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
+  std::set<NodeNum> failed_nodes;
+  for (auto &d : dests) {
+    if (_ptrImpl->sendAsyncMessage(d, (char *)msg.data(), msg.size()) != 0) {
+      failed_nodes.insert(d);
+    }
+  }
+  return failed_nodes;
 }
 
 void PlainTCPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {
