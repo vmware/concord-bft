@@ -105,7 +105,7 @@ struct Recorders {
   using Recorder = concord::diagnostics::Recorder;
   using Unit = concord::diagnostics::Unit;
 
-  Recorders(std::string selfId, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
+  Recorders(const std::string& selfId, int64_t max_msg_size, int64_t max_queue_size_in_bytes)
       : write_queue_size_in_bytes(
             MAKE_SHARED_RECORDER("write_queue_size_in_bytes", 1, max_queue_size_in_bytes, 3, Unit::BYTES)),
         sent_msg_size(MAKE_SHARED_RECORDER("sent_msg_size", 1, max_msg_size, 3, Unit::BYTES)),

@@ -21,8 +21,6 @@
 #include "TlsTcpImpl.h"
 #include "TlsDiagnostics.h"
 
-using concord::diagnostics::TimeRecorder;
-
 namespace bft::communication {
 
 void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_read) {
@@ -134,7 +132,7 @@ void AsyncTlsConnection::readMsg() {
                read_timer_.cancel(_ec);
                tlsTcpImpl_.histograms_.received_msg_size->record(bytes_transferred);
                {
-                 TimeRecorder scoped_timer(*tlsTcpImpl_.histograms_.read_enqueue_time);
+                 concord::diagnostics::TimeRecorder scoped_timer(*tlsTcpImpl_.histograms_.read_enqueue_time);
                  receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred);
                }
                if (tlsTcpImpl_.config_.statusCallback && tlsTcpImpl_.isReplica(peer_id_.value())) {
@@ -384,7 +382,7 @@ bool AsyncTlsConnection::verifyCertificateServer(bool preverified, boost::asio::
 
 std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert,
                                                               std::string connectionType,
-                                                              std::string subject,
+                                                              const std::string& subject,
                                                               std::optional<NodeNum> expectedPeerId) {
   // First, perform a basic sanity test, in order to eliminate a disk read if the certificate is
   // unknown.
