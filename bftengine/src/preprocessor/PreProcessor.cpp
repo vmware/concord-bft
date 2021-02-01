@@ -115,9 +115,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientId + i] = make_shared<RequestState>();
-  }
-  // Allocate a buffer for the pre-execution result per client * batch
-  for (uint16_t id = 0; id < numOfReqEntries; id++) {
+    // Allocate a buffer for the pre-execution result per client * batch
     preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
