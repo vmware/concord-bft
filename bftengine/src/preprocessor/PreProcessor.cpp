@@ -111,10 +111,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                         myReplica.getReplicaConfig().replicaPrivateKey,
                                         myReplica.getReplicaConfig().publicKeysOfReplicas);
   const uint16_t numOfReqEntries = numOfClients_ * batchSize_;
-  const uint16_t firstClientId = numOfReplicas_;
+  const uint16_t firstClientRequestId = numOfReplicas_ * batchSize_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
-    ongoingRequests_[firstClientId + i] = make_shared<RequestState>();
+    ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
     // Allocate a buffer for the pre-execution result per client * batch
     preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
@@ -122,7 +122,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   if (!numOfThreads) numOfThreads = numOfReqEntries;
   threadPool_.start(numOfThreads);
   LOG_INFO(logger(),
-           KVLOG(firstClientId,
+           KVLOG(numOfReplicas_,
                  numOfClients_,
                  batchingEnabled_,
                  batchSize_,
@@ -300,6 +300,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
+  LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId, senderId, arrivedInBatch, msgOffsetInBatch));
   bool registerSucceeded = false;
   {
     const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, msgOffsetInBatch)];
