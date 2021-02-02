@@ -76,8 +76,26 @@ class BlockMerkleCategory {
 
   // Delete the given block ID as a last reachable one.
   // Precondition: The given block ID must be the last reachable one.
+  // Precondition: We cannot call deleteLastReachable on a pruned block.
+  //   Pruning a block is a one way operation for many reasons including:
+  //     1. Deleting old tree versions as a result of prior prunings
+  //     2. Creating new block versions for a leaf + Pruned block + active keys
+  //       Reversing step 1 is impossible. Reversing step 2 can be very expensive (for active keys).
+  //
+  //   The kv_blockchain code *must* ensure `deleteLastReachable` is not called on pruned blocks. This
+  //   isn't onerous for the caller, and actually it doesn't really make any sense to do so anyway. In
+  //   short, even without explicit protection in the caller this should be next to impossible to
+  //   happen for the following reasons:
+  //     * Blocks are pruned after creation on the order of days, weeks, or months
+  //     * DeleteLastReachable will only delete blocks that have not been synced in the concord-bft
+  //       internal metadata and during which a restart happened. This happens on the order of
+  //        microseconds to milliseconds.
+  //   In any event, blocks that aren't synced shouldn't even be eligible for pruning at an even higher level.
   void deleteLastReachableBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
 
+  //
+  // Accessors useful for tests or tools
+  //
   uint64_t getLatestTreeVersion() const;
   uint64_t getLastDeletedTreeVersion() const;
 
@@ -98,7 +116,11 @@ class BlockMerkleCategory {
   // Retrieve the value of all active keys so we can recalculate the root hash for the modified block.
   // Write the updated block to the merkle tree.
   // Also write corrsponding active key indexes and pruned block index to their respective column families.
-  void writePrunedBlock(BlockId, std::vector<KeyHash>&& active_keys, storage::rocksdb::NativeWriteBatch&);
+  //
+  // Return the serialized `BlockMerkleValue` so we only update the tree once in `deleteGenesisBlock`.
+  concordUtils::Sliver writePrunedBlock(BlockId,
+                                        std::vector<KeyHash>&& active_keys,
+                                        storage::rocksdb::NativeWriteBatch&);
 
   // When a block gets pruned, any keys that are still `active` (latest version of a key) are
   // tracked in a `PrunedBlock`. PrunedBlocks are kept in their own column family. Additionally, a
@@ -126,16 +148,18 @@ class BlockMerkleCategory {
   // deleted in this step. Final deletion from the database only occurs when the overwriting block
   // is itself pruned. This tradeoff is made to defer work to the pruning process and not cause
   // block addition to slow down.
-  void rewriteAlreadyPrunedBlocks(std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys,
-                                  storage::rocksdb::NativeWriteBatch& batch);
+  //
+  // Returns added blocks and deleted keys so we only update the tree a single time in `deleteGenesisBlock`.
+  std::pair<SetOfKeyValuePairs, KeysVector> rewriteAlreadyPrunedBlocks(
+      std::unordered_map<BlockId, std::vector<KeyHash>>& deleted_keys, storage::rocksdb::NativeWriteBatch& batch);
 
   // When a genesis block is pruned, we must delete all data that is stale as of `tree_version`.
   //
   // This includes data that may be written in prior tree versions as a result of prior pruning
   // operations that generate new tree versions and stale data, but not new blocks. There can be a
   // large amount of these prior versions, as each pruned block generates a new tree version. If we
-  // prune X blocks in a row before we add a new block, Y, then when we prune Block Y, we will have
-  // to lookup all the indexes for those pruned X tree versions and delete the internal and leaf
+  // prune N blocks in a row before we add a new block, X, then when we prune Block X, we will have
+  // to lookup all the indexes for those pruned N tree versions and delete the internal and leaf
   // nodes in the indexes.
   void deleteStaleData(uint64_t tree_version, storage::rocksdb::NativeWriteBatch&);
 

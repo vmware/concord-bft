@@ -17,13 +17,17 @@
 #include "categorization/blockchain.h"
 #include "categorization/column_families.h"
 #include "categorization/details.h"
+#include "rocksdb/details.h"
 
 #include <rocksdb/slice.h>
 #include <rocksdb/status.h>
 
+#include <cstdint>
 #include <utility>
 
 namespace concord::kvbc::categorization::detail {
+
+using concord::storage::rocksdb::detail::toSlice;
 
 using namespace std::literals;
 
@@ -72,7 +76,7 @@ void VersionedKeyValueCategory::addDeletes(BlockId block_id,
 
     updateLatestKeyVersion(versioned_key.value, TaggedVersion{deleted, block_id}, batch);
 
-    putValue(versioned_key, DbValue{deleted, ""s}, batch);
+    putValue(versioned_key, deleted, ""sv, batch);
 
     addKeyToUpdateInfo(std::move(versioned_key.value), deleted, stale_on_update, out);
   }
@@ -113,7 +117,7 @@ void VersionedKeyValueCategory::addUpdates(BlockId block_id,
 
     updateLatestKeyVersion(versioned_key.value, TaggedVersion{deleted, block_id}, batch);
 
-    putValue(versioned_key, DbValue{deleted, std::move(value.data)}, batch);
+    putValue(versioned_key, deleted, value.data, batch);
 
     addKeyToUpdateInfo(std::move(versioned_key.value), deleted, value.stale_on_update, out);
   }
@@ -130,11 +134,12 @@ void VersionedKeyValueCategory::updateLatestKeyVersion(const std::string &key,
 }
 
 void VersionedKeyValueCategory::putValue(const VersionedRawKey &key,
-                                         const DbValue &value,
+                                         bool deleted,
+                                         std::string_view value,
                                          storage::rocksdb::NativeWriteBatch &batch) {
-  // Make sure serializeThreadLocal() is called with different types. Since it is a template, that ensures we will get
-  // references to different buffers. Doing so avoids copying.
-  batch.put(values_cf_, serializeThreadLocal(key), serializeThreadLocal(value));
+  const auto header = toSlice(serializeThreadLocal(DbValueHeader{deleted, static_cast<std::uint32_t>(value.size())}));
+  const auto slices = std::array<::rocksdb::Slice, 2>{header, toSlice(value)};
+  batch.put(values_cf_, serializeThreadLocal(key), slices);
 }
 
 void VersionedKeyValueCategory::addKeyToUpdateInfo(std::string &&key,

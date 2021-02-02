@@ -103,54 +103,66 @@ struct Recorder {
 template <bool IsAtomic = false>
 class TimeRecorder {
  public:
-  TimeRecorder(Recorder& recorder) : start_(std::chrono::steady_clock::now()), recorder_(recorder) {}
+  TimeRecorder(Recorder& recorder) : start_(std::chrono::steady_clock::now()), recorder_(&recorder), record_(true) {}
+  TimeRecorder() : start_(std::chrono::steady_clock::time_point::min()), recorder_(nullptr), record_(false) {}
+  TimeRecorder(TimeRecorder&& rhs) : start_(rhs.start_), recorder_(rhs.recorder_), record_(rhs.record_) {
+    rhs.recorder_ = nullptr;
+    rhs.record_ = false;
+  }
+  TimeRecorder& operator=(TimeRecorder&& rhs) {
+    start_ = rhs.start_;
+    recorder_ = rhs.recorder_;
+    record_ = rhs.record;
+    rhs.recorder_ = nullptr;
+    rhs.record_ = false;
+  }
 
   // In some cases we don't want to record on destruction.
   void doNotRecord() { record_ = false; }
 
   ~TimeRecorder() {
     if (!record_) return;
-    switch (recorder_.unit) {
+    switch (recorder_->unit) {
       case Unit::NANOSECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start_);
         if constexpr (IsAtomic) {
-          recorder_.recordAtomic(interval.count());
+          recorder_->recordAtomic(interval.count());
         } else {
-          recorder_.record(interval.count());
+          recorder_->record(interval.count());
         }
       } break;
       case Unit::MICROSECONDS: {
         auto interval =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_);
         if constexpr (IsAtomic) {
-          recorder_.recordAtomic(interval.count());
+          recorder_->recordAtomic(interval.count());
         } else {
-          recorder_.record(interval.count());
+          recorder_->record(interval.count());
         }
       } break;
       case Unit::MILLISECONDS: {
         auto interval =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_);
         if constexpr (IsAtomic) {
-          recorder_.recordAtomic(interval.count());
+          recorder_->recordAtomic(interval.count());
         } else {
-          recorder_.record(interval.count());
+          recorder_->record(interval.count());
         }
       } break;
       case Unit::SECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_);
         if constexpr (IsAtomic) {
-          recorder_.recordAtomic(interval.count());
+          recorder_->recordAtomic(interval.count());
         } else {
-          recorder_.record(interval.count());
+          recorder_->record(interval.count());
         }
       } break;
       case Unit::MINUTES: {
         auto interval = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - start_);
         if constexpr (IsAtomic) {
-          recorder_.recordAtomic(interval.count());
+          recorder_->recordAtomic(interval.count());
         } else {
-          recorder_.record(interval.count());
+          recorder_->record(interval.count());
         }
       } break;
       default:
@@ -162,13 +174,14 @@ class TimeRecorder {
 
  private:
   std::chrono::steady_clock::time_point start_;
-  Recorder& recorder_;
-  bool record_ = true;
+  Recorder* recorder_;
+  bool record_;
 };
 
 // This is a wrapper around an unordered_map that records the durations of asynchronous actions.
 // It's useful when the timing being recorded can't tracked in a single scope, and there are
 // multiple outstanding requests that need timing, such as consensus slots.
+// We allow atomic operations on the elements of the unordered_map, but the map itself is not thread safe.
 template <typename Key, bool IsAtomic = false>
 class AsyncTimeRecorderMap {
  public:

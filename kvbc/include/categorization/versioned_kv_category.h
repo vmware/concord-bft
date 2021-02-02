@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -96,7 +97,7 @@ class VersionedKeyValueCategory {
 
   void updateLatestKeyVersion(const std::string &key, TaggedVersion version, storage::rocksdb::NativeWriteBatch &);
 
-  void putValue(const VersionedRawKey &, const DbValue &, storage::rocksdb::NativeWriteBatch &);
+  void putValue(const VersionedRawKey &, bool deleted, std::string_view value, storage::rocksdb::NativeWriteBatch &);
 
   void addKeyToUpdateInfo(std::string &&key, bool deleted, bool stale_on_update, VersionedOutput &);
 
