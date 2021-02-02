@@ -10,12 +10,14 @@
 // file.
 
 #include "RequestProcessingState.hpp"
+#include "sparse_merkle/base_types.h"
 
 namespace preprocessor {
 
 using namespace std;
 using namespace chrono;
 using namespace concord::util;
+using namespace concord::kvbc::sparse_merkle;
 
 uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
 PreProcessorRecorder *RequestProcessingState::preProcessorHistograms_ = nullptr;
@@ -161,10 +163,14 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
+      const auto &primaryHash =
+          Hash(SHA3_256().digest(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size())).toString();
+      const auto &hashPassedConsensus =
+          Hash(SHA3_256().digest(itOfChosenHash->first.data(), itOfChosenHash->first.size())).toString();
       LOG_WARN(logger(),
                "Primary replica pre-processing result hash: "
-                   << primaryPreProcessResultHash_.data() << " is different from one passed the consensus: "
-                   << itOfChosenHash->first.data() << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
+                   << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus
+                   << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }

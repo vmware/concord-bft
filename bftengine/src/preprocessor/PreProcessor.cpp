@@ -554,10 +554,12 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetIn
     lock_guard<mutex> lock(reqEntry->mutex);
     if (reqEntry->reqProcessingStatePtr) {
       reqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
-      SCOPED_MDC_CID(reqEntry->reqProcessingStatePtr->getReqCid());
+      const auto &cid = reqEntry->reqProcessingStatePtr->getReqCid();
+      SCOPED_MDC_CID(cid);
+      LOG_WARN(
+          logger(),
+          "Pre-processing consensus not reached; cancel request" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
       releaseClientPreProcessRequest(reqEntry, CANCEL);
-      LOG_WARN(logger(),
-               "Pre-processing consensus not reached - cancel request" << KVLOG(reqSeqNum, clientId, reqOffsetInBatch));
     }
   }
 }
