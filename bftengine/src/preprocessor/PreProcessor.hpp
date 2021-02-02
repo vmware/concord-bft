@@ -44,6 +44,7 @@ struct ClientRequestState {
 typedef std::shared_ptr<ClientRequestState> ClientRequestStateSharedPtr;
 typedef std::unordered_map<uint16_t, ClientRequestStateSharedPtr> OngoingReqMap;  // clientId -> ClientRequestState map
 
+using TimeRecorder = concord::diagnostics::TimeRecorder<true>;  // use atomic recorder
 //**************** Class PreProcessor ****************//
 
 // This class is responsible for the coordination of pre-execution activities on both - primary and non-primary
@@ -114,7 +115,8 @@ class PreProcessor {
   const char *getPreProcessResultBuffer(uint16_t clientId) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
-                                      bool isRetry);
+                                      bool isRetry,
+                                      TimeRecorder &&time_recorder = TimeRecorder());
   uint32_t launchReqPreProcessing(uint16_t clientId,
                                   const std::string &cid,
                                   ReqId reqSeqNum,
@@ -184,7 +186,7 @@ class PreProcessor {
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
   PreProcessorRecorder histograms_;
-  concord::diagnostics::AsyncTimeRecorderMap<std::string> preExecuteDuration_;
+  std::shared_ptr<concord::diagnostics::Recorder> recorder_;
   ViewNum lastViewNum_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
@@ -198,7 +200,8 @@ class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
   AsyncPreProcessJob(PreProcessor &preProcessor,
                      const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                      bool isPrimary,
-                     bool isRetry);
+                     bool isRetry,
+                     TimeRecorder &&time_recorder);
   virtual ~AsyncPreProcessJob() = default;
 
   void execute() override;
@@ -209,6 +212,7 @@ class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
   PreProcessRequestMsgSharedPtr preProcessReqMsg_;
   bool isPrimary_ = false;
   bool isRetry_ = false;
+  TimeRecorder time_recorder_;
 };
 
 }  // namespace preprocessor
