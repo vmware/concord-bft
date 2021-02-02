@@ -42,6 +42,7 @@ ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
 apt-get ${APT_GET_FLAGS} install \
     libboost-filesystem1.65-dev \
     libboost-system1.65-dev \
+    libboost-program-options1.65-dev \
     libboost1.65-dev \
     libbz2-dev \
     libgmp3-dev \
