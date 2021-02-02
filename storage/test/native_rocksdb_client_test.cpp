@@ -101,24 +101,6 @@ TEST_F(native_rocksdb_test, creating_a_family_with_options) {
   ASSERT_EQ(optsOut.write_buffer_size, originalBufferSize + 1);
 }
 
-TEST_F(native_rocksdb_test, db_options_are_persisted) {
-  db.reset();
-
-  const auto maxOpenFiles = 42;
-  auto optionsIn = NativeClient::UserOptions{};
-  optionsIn.dbOptions.max_open_files = maxOpenFiles;
-  db = TestRocksDb::createNative(optionsIn);
-
-  // Make sure it is correctly set.
-  ASSERT_EQ(db->options().max_open_files, maxOpenFiles);
-
-  db.reset();
-  db = TestRocksDb::createNative(NativeClient::ExistingOptions{});
-
-  // Make sure it is persisted after reopening the DB.
-  ASSERT_EQ(db->options().max_open_files, maxOpenFiles);
-}
-
 TEST_F(native_rocksdb_test, family_options_are_persisted) {
   const auto cf = "cf"s;
   auto optsIn = ::rocksdb::ColumnFamilyOptions{};
