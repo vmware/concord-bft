@@ -445,8 +445,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isInternalNoop);
   void startConsensusProcess(PrePrepareMsg* pp);
-  void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::SLOW);
-  void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath = CommitPath::SLOW);
+  void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::OPTIMISTIC_FAST);
+  void bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt,
+                                                       CommitPath firstPath = CommitPath::OPTIMISTIC_FAST);
   bool isSeqNumToStopAt(SeqNum seq_num);
 
   // 5 years
