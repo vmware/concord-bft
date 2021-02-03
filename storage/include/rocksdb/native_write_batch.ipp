@@ -13,8 +13,9 @@
 
 #pragma once
 
-#include "details.h"
 #ifdef USE_ROCKSDB
+
+#include "details.h"
 
 namespace concord::storage::rocksdb {
 

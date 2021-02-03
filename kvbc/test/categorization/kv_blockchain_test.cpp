@@ -308,18 +308,23 @@ TEST_F(categorized_kvbc, delete_block) {
     ASSERT_THROW(block_chain.deleteBlock(2), std::logic_error);
   }
 
-  // call delete last block directly
-  block_chain.deleteLastReachableBlock();
-  ASSERT_EQ(block_chain.getLastReachableBlockId(), 0);
-  ASSERT_EQ(block_chain.getGenesisBlockId(), 0);
+  // Cannot delete the only block as last reachable.
+  ASSERT_THROW(block_chain.deleteLastReachableBlock(), std::logic_error);
 
-  ASSERT_FALSE(block_chain.getLatestVersion("versioned", "ver_key2"));
-  ASSERT_FALSE(block_chain.getLatest("versioned", "ver_key2"));
-  ASSERT_FALSE(block_chain.get("versioned", "ver_key2", 2));
+  ASSERT_EQ(block_chain.getLastReachableBlockId(), 2);
+  ASSERT_EQ(block_chain.getGenesisBlockId(), 2);
 
-  ASSERT_FALSE(block_chain.getLatestVersion("immutable", "immutable_key2"));
-  ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key2"));
-  ASSERT_FALSE(block_chain.get("immutable", "immutable_key2", 2));
+  ASSERT_TRUE(block_chain.getLatestVersion("merkle", "merkle_key2"));
+  ASSERT_TRUE(block_chain.getLatest("merkle", "merkle_key2"));
+  ASSERT_TRUE(block_chain.get("merkle", "merkle_key2", 2));
+
+  ASSERT_TRUE(block_chain.getLatestVersion("versioned", "ver_key2"));
+  ASSERT_TRUE(block_chain.getLatest("versioned", "ver_key2"));
+  ASSERT_TRUE(block_chain.get("versioned", "ver_key2", 2));
+
+  ASSERT_TRUE(block_chain.getLatestVersion("immutable", "immutable_key2"));
+  ASSERT_TRUE(block_chain.getLatest("immutable", "immutable_key2"));
+  ASSERT_TRUE(block_chain.get("immutable", "immutable_key2", 2));
 
   // Block 1 has been deleted as genesis, expect its versioned and merkle data to still be there. Immutable data should
   // be deleted.
@@ -358,9 +363,6 @@ TEST_F(categorized_kvbc, delete_block) {
     ASSERT_FALSE(block_chain.getLatest("immutable", "immutable_key1"));
     ASSERT_FALSE(block_chain.get("immutable", "immutable_key1", 1));
   }
-
-  // Block chain is empty
-  ASSERT_THROW(block_chain.deleteLastReachableBlock(), std::runtime_error);
 }
 
 TEST_F(categorized_kvbc, get_last_and_genesis_block) {

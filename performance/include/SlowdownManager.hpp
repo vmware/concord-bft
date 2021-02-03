@@ -196,6 +196,7 @@ class SleepPolicy : public BasePolicy {
       : BasePolicy(logger), sleepDuration_{c->GetSleepDuration()} {}
 
   void Slowdown(SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_, "Sleep slowdown, duration: " << sleepDuration_);
     if (sleepDuration_ == 0) return;
     std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration_));
     outRes.totalSleepDuration += sleepDuration_;
