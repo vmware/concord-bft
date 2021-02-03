@@ -48,6 +48,10 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
                                                   ControlHandlerStateManagerReservedPagesIndex,
                                                   ControlHandlerStateManagerNumOfReservedPages> {
  public:
+  static ControlStateManager& instance(IReservedPages* rp = nullptr) {
+    static ControlStateManager instance_(rp);
+    return instance_;
+  }
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
 
@@ -58,15 +62,16 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
 
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
-  ControlStateManager(IReservedPages* reserved_pages);
-  ControlStateManager& operator=(const ControlStateManager&) = delete;
-  ControlStateManager(const ControlStateManager&) = delete;
-  ~ControlStateManager() {}
 
   void disable() { enabled_ = false; }
   void enable() { enabled_ = true; }
 
  private:
+  ControlStateManager(IReservedPages* reserved_pages);
+  ControlStateManager& operator=(const ControlStateManager&) = delete;
+  ControlStateManager(const ControlStateManager&) = delete;
+  ~ControlStateManager() = default;
+
   IReservedPages* reserved_pages_;
   std::string scratchPage_;
   bool enabled_ = true;

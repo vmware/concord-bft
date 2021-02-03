@@ -142,7 +142,6 @@ class ReplicaImp : public IReplica,
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_;
-  std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
 
   // 5 Minutes
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
