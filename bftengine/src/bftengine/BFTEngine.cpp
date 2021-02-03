@@ -205,7 +205,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  MetadataStorage *metadataStorage,
                                                  std::shared_ptr<concord::performance::PerformanceManager> pm) {
   bool dummy;
-  return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy);
+  return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy, pm);
 }
 IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaConfig,
                                                    IStateTransfer *stateTransfer,

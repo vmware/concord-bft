@@ -13,6 +13,7 @@
 #pragma once
 
 #include "storage_factory_interface.h"
+#include "PerformanceManager.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"
@@ -25,7 +26,10 @@ namespace concord::kvbc::v1DirectKeyValue {
 #ifdef USE_ROCKSDB
 class RocksDBStorageFactory : public IStorageFactory {
  public:
-  RocksDBStorageFactory(const std::string &dbPath) : dbPath_{dbPath} {}
+  RocksDBStorageFactory(const std::string &dbPath,
+                        const std::shared_ptr<concord::performance::PerformanceManager> &pm =
+                            std::make_shared<concord::performance::PerformanceManager>())
+      : dbPath_{dbPath}, pm_{pm} {}
 
  public:
   DatabaseSet newDatabaseSet() const override;
@@ -34,6 +38,7 @@ class RocksDBStorageFactory : public IStorageFactory {
 
  private:
   const std::string dbPath_;
+  std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 #endif
 
