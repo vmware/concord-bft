@@ -280,7 +280,10 @@ void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg 
 }
 
 bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
-  ConcordAssert(isCurrentPrimary());
+  if (!isCurrentPrimary()) {
+    LOG_WARN(GL, "Called in a non-primary replica; won't send PrePrepareMsgs!");
+    return false;
+  }
 
   if (!currentViewIsActive()) {
     LOG_INFO(GL, "View " << getCurrentView() << " is not active yet. Won't send PrePrepareMsg-s.");
