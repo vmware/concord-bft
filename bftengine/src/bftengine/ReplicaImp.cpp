@@ -557,13 +557,10 @@ void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumTo
 }
 
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
-  // There might be a race condition between the time the replica starts to the time the controlStateManager is
-  // initiated.
-  if (!controlStateManager_) return false;
-  if (controlStateManager_->getPruningProcessStatus()) return true;
+  if (ControlStateManager::instance().getPruningProcessStatus()) return true;
   if (seqNumToStopAt_ > 0 && seq_num == seqNumToStopAt_) return true;
   if (seqNumToStopAt_ > 0 && seq_num > seqNumToStopAt_) return false;
-  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     seqNumToStopAt_ = seq_num_to_stop_at.value();
     if (seqNumToStopAt_ == seq_num) return true;
@@ -2664,7 +2661,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
-  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
     if (getRequestsHandler()->getControlHandlers()) {
@@ -2677,7 +2674,7 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     // We want that when the replicas resume, they won't have the wedge point in their reserved pages (otherwise they
     // will simply try to wedge again). Yet, as the reserved pages are transferred via ST we can cleat this data only in
     // an n/n checkpoint that is about to be wedged because we know that there is no ST going on now.
-    controlStateManager_->clearCheckpointToStopAt();
+    ControlStateManager::instance().clearCheckpointToStopAt();
   }
 }
 
@@ -2766,7 +2763,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     tryToSendPrePrepareMsg();
   }
 
-  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
   // Below we handle the case of removing a node. Note that when removing nodes we cannot assume we will have n/n
   // checkpoint because some of the replicas may not be responsive. For that we also mark that we got to a stable (n-f)
@@ -2783,7 +2780,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       getRequestsHandler()->getControlHandlers()->onStableCheckpoint();
     }
     // Mark the metadata storage for deletion if we need to
-    auto seq_num_to_remove_metadata_storage = controlStateManager_->getEraseMetadataFlag();
+    auto seq_num_to_remove_metadata_storage = ControlStateManager::instance().getEraseMetadataFlag();
     // We would want to set this flag only when we sure that the replica needs to remove the metadata.
     if (seq_num_to_remove_metadata_storage.has_value() &&
         seq_num_to_remove_metadata_storage.value() == newStableSeqNum) {
@@ -4066,14 +4063,13 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       }
     }
   }
-  if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
+  if (ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     // If, following the last execution, we discover that we need to jump to the
     // next checkpoint, the primary sends noop commands until filling the working window.
-    bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
-    stopAtNextCheckpoint_ = true;
+    bringTheSystemToCheckpointBySendingNoopCommands(ControlStateManager::instance().getCheckpointToStopAt().value());
   }
-  if (controlStateManager_->getCheckpointToStopAt().has_value() &&
-      lastExecutedSeqNum == controlStateManager_->getCheckpointToStopAt()) {
+  if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
+      lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
     // We are about to stop execution. To avoid VC we now clear all pending requests
     clientsManager->clearAllPendingRequests();
   }
