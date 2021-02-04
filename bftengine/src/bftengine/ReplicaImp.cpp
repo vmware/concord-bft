@@ -280,15 +280,22 @@ void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg 
 }
 
 bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
+  if (!isCurrentPrimary()) {
+    LOG_WARN(GL, "Called in a non-primary replica; won't send PrePrepareMsgs!");
+    return false;
+  }
+
+  if (!currentViewIsActive()) {
+    LOG_INFO(GL, "View " << getCurrentView() << " is not active yet. Won't send PrePrepareMsg-s.");
+    return false;
+  }
+
   if (isSeqNumToStopAt(lastExecutedSeqNum)) {
     LOG_INFO(GL,
              "Not sending PrePrepareMsg because system is stopped at checkpoint pending control state operation "
              "(upgrade, etc...)");
     return false;
   }
-
-  ConcordAssert(isCurrentPrimary());
-  ConcordAssert(currentViewIsActive());
 
   if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
     LOG_INFO(GL,
