@@ -18,6 +18,7 @@ namespace bftEngine::impl {
 ///////////////////////////REPLICA KEY STORE//////////////////////////////////
 
 bool ReplicaKeyStore::push(const KeyExchangeMsg& kem, const uint64_t& sn) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   if (keys_.size() >= numOfKeysLimit_) {
     LOG_ERROR(KEY_EX_LOG, "Keys limit for replica exceeds, limit " << numOfKeysLimit_);
     return false;
@@ -74,6 +75,7 @@ bool ReplicaKeyStore::rotate(const uint64_t& chknum) {
   }
   // if somehow rotation wasn't performed on desired checkpoint.
   ConcordAssertLT(seqNumsSinceKeyExchangeMsg, checkPointsForRotation_ * seqNumsPerChkPoint_);
+  SCOPED_MDC_SEQ_NUM(std::to_string(keys_[1].seqnum));
   LOG_DEBUG(KEY_EX_LOG,
             "Key rotation for replica " << keys_[1].msg.repID << " recieved on seqnum " << keys_[1].seqnum
                                         << " rotated on " << chekPointSeqNum);
@@ -166,6 +168,7 @@ void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID)
 }
 
 bool ClusterKeyStore::push(const KeyExchangeMsg& kem, const uint64_t& sn) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   if (kem.repID >= clusterKeys_.size()) {
     LOG_ERROR(KEY_EX_LOG, "Replica id is out of range " << kem.repID);
     return false;
