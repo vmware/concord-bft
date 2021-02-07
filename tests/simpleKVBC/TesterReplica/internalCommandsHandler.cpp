@@ -121,12 +121,12 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
 
   if (writeReq->header.type == WEDGE) {
     LOG_INFO(m_logger, "A wedge command has been called" << KVLOG(sequenceNum));
-    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
+    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(sequenceNum);
   }
   if (writeReq->header.type == ADD_REMOVE_NODE) {
     LOG_INFO(m_logger, "An add_remove_node command has been called" << KVLOG(sequenceNum));
-    controlStateManager_->setStopAtNextCheckpoint(sequenceNum);
-    controlStateManager_->setEraseMetadataFlag(sequenceNum);
+    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(sequenceNum);
+    bftEngine::ControlStateManager::instance().setEraseMetadataFlag(sequenceNum);
   }
 
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
@@ -353,10 +353,6 @@ bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
     LOG_ERROR(m_logger, "Illegal message received: requestHeader->type=" << requestHeader->type);
     return false;
   }
-}
-void InternalCommandsHandler::setControlStateManager(
-    std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) {
-  controlStateManager_ = controlStateManager;
 }
 
 void InternalCommandsHandler::setPerformanceManager(

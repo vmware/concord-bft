@@ -555,13 +555,14 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message
 void SimpleClientImp::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
 
 void SimpleClientImp::sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size) {
+  std::vector<uint8_t> msg(data, data + size);
   if (sendToAll) {
     LOG_DEBUG(logger_, "Send request to all replicas" << KVLOG(clientId_, pendingRequest_[0]->requestSeqNum()));
-    for (uint16_t r : replicas_) communication_->sendAsyncMessage(r, data, size);
+    communication_->send(std::set<NodeNum>(replicas_.begin(), replicas_.end()), std::move(msg));
   } else {
     LOG_DEBUG(logger_, "Send request to primary replica" << KVLOG(clientId_, pendingRequest_[0]->requestSeqNum()));
     pm_->Delay<concord::performance::SlowdownPhase::BftClientBeforeSendPrimary>();
-    communication_->sendAsyncMessage(knownPrimaryReplica_, data, size);
+    communication_->send(knownPrimaryReplica_, std::move(msg));
   }
 }
 

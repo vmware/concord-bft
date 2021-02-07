@@ -125,7 +125,7 @@ class TlsTCPCommunication::TlsTcpImpl {
         "tls" + std::to_string(config.selfId), "TlsTcpImpl status", [this]() { return status_->status(); });
     registrar.status.registerHandler(handler);
     write_queues_.reserve(config_.nodes.size() - 1);
-    for (const auto node : config_.nodes) {
+    for (const auto &node : config_.nodes) {
       if (node.first != config_.selfId) {
         NodeNum id = node.first;
         write_queues_.try_emplace(id, id, histograms_);
@@ -142,7 +142,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   bool isRunning() const;
   ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const;
   void setReceiver(NodeNum nodeId, IReceiver *receiver);
-  int sendAsyncMessage(const NodeNum destination, const char *const msg, const size_t msg_len);
+  int sendAsyncMessage(const NodeNum destination, const std::shared_ptr<OutgoingMsg> &msg);
   int getMaxMessageSize();
 
  private:
@@ -168,7 +168,7 @@ class TlsTCPCommunication::TlsTcpImpl {
   // Replicas only connect to replicas with smaller node ids.
   // This method is called at startup and also on a periodic timer tick.
   void connect();
-  void connect(NodeNum, boost::asio::ip::tcp::endpoint);
+  void connect(NodeNum, const boost::asio::ip::tcp::endpoint &);
 
   // Start a steady_timer in order to trigger needed `connect` operations.
   void startConnectTimer();

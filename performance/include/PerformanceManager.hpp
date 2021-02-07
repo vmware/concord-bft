@@ -20,9 +20,20 @@ class PerformanceManager {
  public:
   PerformanceManager() = default;
   explicit PerformanceManager(std::shared_ptr<SlowdownConfiguration> &config) {
-    slowdownManager_ = std::make_shared<SlowdownManager>(config);
+    if (!slowdownManager_) slowdownManager_ = std::make_shared<SlowdownManager>(config);
   }
-#ifdef USE_SLOWDOWN
+  template <typename T>
+  struct type {};
+  typedef type<SlowdownManager> slowdown;
+
+  bool enabled(slowdown) { return slowdownManager_ && slowdownManager_->isEnabled(); }
+
+  template <typename T>
+  bool isEnabled() {
+    auto t = type<T>{};
+    return enabled(t);
+  }
+
   // slow down methods
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &kvpairs) {
@@ -35,18 +46,13 @@ class PerformanceManager {
     if (slowdownManager_) return slowdownManager_->Delay<T>();
     return SlowDownResult{};
   }
-#else
-  // slow down methods
-  template <SlowdownPhase T>
-  void Delay(concord::kvbc::SetOfKeyValuePairs &kvpairs) {
-    if (slowdownManager_) slowdownManager_->Delay<T>(kvpairs);
-  }
 
   template <SlowdownPhase T>
-  void Delay() {
-    if (slowdownManager_) slowdownManager_->Delay<T>();
+  SlowDownResult Delay(char *msg, size_t &&size, std::function<void(char *, size_t &)> &&f) {
+    if (slowdownManager_)
+      return slowdownManager_->Delay<T>(msg, size, std::forward<std::function<void(char *, size_t &)>>(f));
+    return SlowDownResult{};
   }
-#endif
 
  private:
   std::shared_ptr<SlowdownManager> slowdownManager_ = nullptr;

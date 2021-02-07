@@ -33,6 +33,7 @@ class IncomingMsgsStorage {
   virtual bool isRunning() const = 0;
 
   virtual void pushExternalMsg(std::unique_ptr<MessageBase> msg) = 0;
+  virtual void pushExternalMsgRaw(char* msg, size_t& size) = 0;
   virtual void pushInternalMsg(InternalMessage&& msg) = 0;
 };
 

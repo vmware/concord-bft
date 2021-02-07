@@ -50,7 +50,6 @@ Status ReplicaImp::start() {
   } else {
     createReplicaAndSyncState();
   }
-  m_replicaPtr->setControlStateManager(controlStateManager_);
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
@@ -65,7 +64,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   bool erasedMetaData;
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
+      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
   if (erasedMetaData) isNewStorage = true;
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
@@ -189,10 +188,7 @@ BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
   return lastDeletedBlock;
 }
 
-void ReplicaImp::set_command_handler(ICommandsHandler *handler) {
-  m_cmdHandler = handler;
-  m_cmdHandler->setControlStateManager(controlStateManager_);
-}
+void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
 
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,
@@ -252,8 +248,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
-
-  controlStateManager_ = std::make_shared<bftEngine::ControlStateManager>(m_stateTransfer);
+  bftEngine::ControlStateManager::instance(m_stateTransfer);
 }
 
 ReplicaImp::~ReplicaImp() {

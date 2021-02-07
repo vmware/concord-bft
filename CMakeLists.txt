@@ -33,6 +33,9 @@ option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
 # Default LEAKCHECK to FALSE
 option(LEAKCHECK "Enable Address and Leak Sanitizers" FALSE)
 
+# Default THREADCHECK to FALSE
+option(THREADCHECK "Enable Thread Sanitizer" FALSE)
+
 # Default BUILD_COMM_TCP_TLS to FALSE
 option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" FALSE)
 
@@ -75,9 +78,16 @@ string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
 string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 string(APPEND CMAKE_CXX_FLAGS " -fno-omit-frame-pointer")
+if(LEAKCHECK AND THREADCHECK)
+    message(FATAL_ERROR "Cannot have both Thread and Address/Leak Sanitizers Enabled")
+endif()
 if(LEAKCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=leak -fsanitize=address")
-    message("Address and Leak Sanitizers Enabled")
+    message("-- Address and Leak Sanitizers Enabled")
+endif()
+if(THREADCHECK)
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread")
+    message("-- Thread Sanitizer Enabled")
 endif()
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors

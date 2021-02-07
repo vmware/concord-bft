@@ -17,9 +17,15 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <cstring>
 #include "Helper.hpp"
 #include "kv_types.hpp"
 #include "sliver.hpp"
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+#include "Logger.hpp"
 
 namespace concord::performance {
 
@@ -35,7 +41,7 @@ enum class SlowdownPhase : uint16_t {
   StorageBeforeDbWrite
 };
 
-enum class SlowdownPolicyType { BusyWait, AddKeys, Sleep };
+enum class SlowdownPolicyType { BusyWait, AddKeys, Sleep, MessageDelay };
 
 struct SlowDownResult {
   SlowdownPhase phase = SlowdownPhase::None;
@@ -43,6 +49,7 @@ struct SlowDownResult {
   uint totalValueSize = 0;
   uint totalWaitDuration = 0;
   uint totalSleepDuration = 0;
+  uint totalMessageDelayDuration = 0;
 
   friend std::ostream &operator<<(std::ostream &os, const SlowDownResult &r);
 };
@@ -50,7 +57,7 @@ struct SlowDownResult {
 inline std::ostream &operator<<(std::ostream &os, const SlowDownResult &r) {
   os << "phase: " << (uint)r.phase << ", totalWaitDuration: " << r.totalWaitDuration
      << ", totalSleepDuration: " << r.totalSleepDuration << ", totalKeyCount: " << r.totalKeyCount
-     << ",totalValueSize: " << r.totalValueSize;
+     << ",totalValueSize: " << r.totalValueSize << ", totalMessageDelayDuration:" << r.totalMessageDelayDuration;
   return os;
 }
 
@@ -61,6 +68,9 @@ struct SlowdownPolicyConfig {
   virtual uint16_t GetItemCount() { return 0; }
   virtual uint16_t GetKeySize() { return 0; }
   virtual uint16_t GetValueSize() { return 0; }
+  virtual uint16_t GetMessageDelayDuration() { return 0; }
+  virtual uint16_t GetMessageDelayPollTime() { return 0; }
+
   virtual ~SlowdownPolicyConfig() = default;
 
   explicit SlowdownPolicyConfig(SlowdownPolicyType t) : type{t} {}
@@ -108,6 +118,20 @@ struct AddKeysPolicyConfig : SlowdownPolicyConfig {
   uint16_t GetValueSize() override { return value_size; }
 };
 
+struct MessageDelayPolicyConfig : SlowdownPolicyConfig {
+  uint16_t delay_ms;
+  uint16_t poll_ms;
+
+  MessageDelayPolicyConfig(uint16_t delay_dur, uint16_t poll_milli)
+      : SlowdownPolicyConfig(SlowdownPolicyType::MessageDelay), delay_ms{delay_dur}, poll_ms{poll_milli} {}
+
+  uint16_t GetMessageDelayDuration() override { return delay_ms; }
+  uint16_t GetMessageDelayPollTime() override { return poll_ms; }
+
+  MessageDelayPolicyConfig() = delete;
+  virtual ~MessageDelayPolicyConfig() = default;
+};
+
 #ifdef USE_SLOWDOWN
 
 template <SlowdownPhase e>
@@ -123,24 +147,36 @@ typedef phase_tag<SlowdownPhase::PostExecBeforeConflictResolution> post_exec_bef
 
 class BasePolicy {
  public:
-  BasePolicy() = default;
+  explicit BasePolicy(logging::Logger &logger) : logger_{logger} {}
   virtual void Slowdown(SlowDownResult &outRes) {}
   virtual void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) {}
+  virtual void Slowdown(char *msg,
+                        size_t &size,
+                        std::function<void(char *, size_t &)> &&cback,
+                        SlowDownResult &outRes) {}
   virtual ~BasePolicy() = default;
+
+ protected:
+  logging::Logger logger_;
 };
 
 class BusyWaitPolicy : public BasePolicy {
  public:
-  explicit BusyWaitPolicy(SlowdownPolicyConfig *c)
-      : sleepTime_{c->GetSleepDuration()}, waitTime_{c->GetBusyWaitTime()} {}
+  explicit BusyWaitPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), sleepTime_{c->GetSleepDuration()}, waitTime_{c->GetBusyWaitTime()} {}
 
   void Slowdown(SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_, "BusyWait slowdown, duration: " << waitTime_ << ", sleepTime: " << sleepTime_);
     if (waitTime_ == 0) return;
+    done_ = false;
     auto s = std::chrono::steady_clock::now();
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s).count() <
-           waitTime_)
+    while (!done_) {
       std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime_));
-    outRes.totalSleepDuration += sleepTime_;
+      outRes.totalSleepDuration += sleepTime_;
+      done_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s).count() >=
+              waitTime_;
+    }
+
     outRes.totalWaitDuration += waitTime_;
   }
 
@@ -151,13 +187,16 @@ class BusyWaitPolicy : public BasePolicy {
  private:
   uint sleepTime_;
   uint waitTime_;
+  volatile bool done_ = false;
 };
 
 class SleepPolicy : public BasePolicy {
  public:
-  explicit SleepPolicy(SlowdownPolicyConfig *c) : sleepDuration_{c->GetSleepDuration()} {}
+  explicit SleepPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), sleepDuration_{c->GetSleepDuration()} {}
 
   void Slowdown(SlowDownResult &outRes) override {
+    LOG_DEBUG(logger_, "Sleep slowdown, duration: " << sleepDuration_);
     if (sleepDuration_ == 0) return;
     std::this_thread::sleep_for(std::chrono::milliseconds(sleepDuration_));
     outRes.totalSleepDuration += sleepDuration_;
@@ -173,51 +212,40 @@ class SleepPolicy : public BasePolicy {
 
 class AddKeysPolicy : public BasePolicy {
  public:
-  explicit AddKeysPolicy(SlowdownPolicyConfig *c)
-      : keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {
-    prgState_.a = std::chrono::steady_clock::now().time_since_epoch().count();
-    data_.reserve(keyCount_ * 10);
-    for (uint i = 0; i < keyCount_ * 10; ++i) {
-      std::vector<uint64_t> key;
-      uint size = 0;
-      while (size < c->GetKeySize()) {
-        auto t = xorshift64(&prgState_);
-        key.push_back(t);
-        size += sizeof(uint64_t);
-      }
-
-      size = 0;
-      std::vector<uint64_t> value;
-      while (size < c->GetValueSize()) {
-        auto t = xorshift64(&prgState_);
-        value.push_back(t);
-        size += sizeof(uint64_t);
-      }
-      totalValueSize_ += size;
-
-      auto *key_data = new uint64_t[key.size()];
-      std::copy(key.begin(), key.end(), key_data);
-      concordUtils::Sliver k{(const char *)key_data, key.size() * sizeof(uint64_t)};
-
-      if (valueSize_ > 0) {
-        auto *value_data = new uint64_t[value.size()];
-        std::copy(value.begin(), value.end(), value_data);
-        concordUtils::Sliver v{(const char *)value_data, value.size() * sizeof(uint64_t)};
-        data_.emplace_back(k, v);
-      } else {
-        data_.emplace_back(k, concordUtils::Sliver{});
-      }
-    }
-  }
+  explicit AddKeysPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), keyCount_{c->GetItemCount()}, keySize_{c->GetKeySize()}, valueSize_{c->GetValueSize()} {}
 
   void Slowdown(concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &outRes) override {
-    for (uint i = 0; i < keyCount_;) {
-      auto ind = std::rand() % data_.size();
-      auto key = data_[ind].first;
-      if (set.find(key) != set.end()) continue;
-      ++i;
-      set[key] = data_[ind].second;
-      outRes.totalValueSize += data_[ind].second.size();
+    LOG_DEBUG(logger_,
+              "Addkeys slowdown, count: " << keyCount_ << ", ksize: " << keySize_ << ", vsize: " << valueSize_);
+    for (uint i = 0; i < keyCount_; ++i) {
+      char *key_data = nullptr;
+      char *value_data = nullptr;
+      if (keySize_) {
+        key_data = new char[keySize_];
+        uint64_t v = counter_.fetch_add(1);
+        memcpy(key_data, &(v), sizeof(v));
+        for (uint j = sizeof(v); j < keySize_; ++j) {
+          key_data[j] = j;
+        }
+      }
+      if (valueSize_) {
+        value_data = new char[valueSize_];
+        value_data[0] = i;
+        for (uint j = 1; j < valueSize_; ++j) {
+          value_data[j] = j;
+        }
+      }
+
+      if (key_data && value_data) {
+        concordUtils::Sliver k{key_data, keySize_};
+        concordUtils::Sliver v{value_data, valueSize_};
+        set.insert({k, v});
+        outRes.totalValueSize += v.size();
+      } else if (key_data) {
+        concordUtils::Sliver k{key_data, keySize_};
+        set.insert({k, concordUtils::Sliver{}});
+      }
     }
 
     outRes.totalKeyCount += keyCount_;
@@ -226,12 +254,133 @@ class AddKeysPolicy : public BasePolicy {
   virtual ~AddKeysPolicy() = default;
 
  private:
+  std::atomic<uint64_t> counter_ = 0;
   uint keyCount_ = 0;
   uint keySize_ = 0;
   uint valueSize_ = 0;
-  uint totalValueSize_ = 0;
-  std::vector<concord::kvbc::KeyValuePair> data_;
-  xorshift64_state prgState_{};
+};
+
+class MessageDelayPolicy : public BasePolicy {
+ private:
+  struct DelayInfo {
+    char *msg = nullptr;
+    size_t msgSize = 0;
+    std::chrono::steady_clock::time_point absReturnTime;  // absolute time in future to "end" the delay
+    std::function<void(char *, size_t &)> callback = nullptr;
+
+    DelayInfo(char *msgData,
+              size_t &size,
+              std::chrono::steady_clock::time_point &&absTime,
+              std::function<void(char *, size_t &)> &cb)
+        : msgSize{size}, absReturnTime{absTime}, callback{cb} {
+      // must copy data since it is deleted by the end of the Replica handling
+      msg = new char[size];
+      memcpy((void *)msg, (const void *)msgData, size);
+    };
+
+    virtual ~DelayInfo() { delete[] msg; }
+
+    DelayInfo(const DelayInfo &other) = delete;
+    DelayInfo &operator=(const DelayInfo &other) = delete;
+
+    DelayInfo &operator=(DelayInfo &&other) {
+      if (this != &other) {
+        delete[] msg;
+        msg = other.msg;
+        msgSize = other.msgSize;
+        absReturnTime = other.absReturnTime;
+        callback = other.callback;
+        other.msg = nullptr;
+        other.callback = nullptr;
+        other.msgSize = 0;
+      }
+      return *this;
+    }
+
+    DelayInfo(DelayInfo &&other) { *this = std::move(other); }
+  };
+
+  class Compare {
+   public:
+    bool operator()(DelayInfo &a, DelayInfo &b) {
+      if (a.absReturnTime > b.absReturnTime) return true;
+      return false;
+    }
+  };
+
+  void timer() {
+    while (!done_) {
+      std::unique_lock<std::mutex> ul(lock_);
+      if (delayQueue_.empty()) {
+        cv_.wait(ul, [&]() { return done_ || !delayQueue_.empty(); });
+      }
+      while (!delayQueue_.empty()) {
+        // this is the only way to use move with priority queue since there are no iterators there and top() returns
+        // const &
+        auto delayedMsg = std::move(const_cast<DelayInfo &>(delayQueue_.top()));
+        if (std::chrono::steady_clock::now() < delayedMsg.absReturnTime) {
+          // since we move the top message for checking delay, the one in the Q is NULLed.
+          // if this message is not ready to be re-delivered, return it to the Q and remove the invalid one from the top
+          delayQueue_.pop();
+          delayQueue_.push(std::move(delayedMsg));
+          break;
+        }
+        if (delayedMsg.callback) {
+          delayedMsg.callback(delayedMsg.msg, delayedMsg.msgSize);
+        }
+        delayQueue_.pop();
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(poll_time_ms_));
+    }
+  }
+
+  explicit MessageDelayPolicy(SlowdownPolicyConfig *c, logging::Logger &logger)
+      : BasePolicy(logger), delay_dur_ms_{c->GetMessageDelayDuration()}, poll_time_ms_{c->GetMessageDelayPollTime()} {
+    if (delay_dur_ms_) {
+      pollingThread_ = std::make_shared<std::thread>(&MessageDelayPolicy::timer, this);
+    }
+  }
+
+ public:
+  MessageDelayPolicy(MessageDelayPolicy &other) = delete;
+  MessageDelayPolicy &operator=(MessageDelayPolicy &other) = delete;
+
+  void Slowdown(char *msg,
+                size_t &size,
+                std::function<void(char *, size_t &)> &&cback,
+                SlowDownResult &outRes) override {
+    using namespace std::chrono;
+    if (delay_dur_ms_) {
+      std::unique_lock<std::mutex> lg(lock_);
+      delayQueue_.emplace(msg, size, steady_clock::now() + milliseconds(delay_dur_ms_), cback);
+      cv_.notify_all();
+    }
+    outRes.totalMessageDelayDuration += delay_dur_ms_;
+  }
+
+  virtual ~MessageDelayPolicy() {
+    done_ = true;
+    cv_.notify_all();
+    if (pollingThread_ && pollingThread_->joinable()) pollingThread_->join();
+  }
+
+  static std::shared_ptr<MessageDelayPolicy> instance(SlowdownPolicyConfig *c, logging::Logger &logger) {
+    static std::shared_ptr<MessageDelayPolicy> inst =
+        std::shared_ptr<MessageDelayPolicy>(new MessageDelayPolicy(c, logger));
+    return inst;
+  }
+
+  MessageDelayPolicy(MessageDelayPolicy const &) = delete;
+  void operator=(MessageDelayPolicy const &) = delete;
+
+ private:
+  uint delay_dur_ms_;
+  uint poll_time_ms_;
+  std::mutex lock_;
+  std::condition_variable cv_;
+  std::priority_queue<DelayInfo, std::vector<DelayInfo>, Compare> delayQueue_;
+  std::shared_ptr<std::thread> pollingThread_;
+  bool done_ = false;
 };
 
 class SlowdownManager {
@@ -244,6 +393,13 @@ class SlowdownManager {
     }
     outRes.phase = phase;
     return it->second;
+  }
+
+  void DelayInternal(
+      SlowdownPhase phase, char *msg, size_t size, std::function<void(char *, size_t &)> &&f, SlowDownResult &res) {
+    auto policies = GetPolicies(phase, res);
+    for (auto &policy : policies)
+      policy->Slowdown(msg, size, std::forward<std::function<void(char *, size_t &)>>(f), res);
   }
 
   void DelayInternal(SlowdownPhase phase, SlowDownResult &res) {
@@ -270,6 +426,18 @@ class SlowdownManager {
 
   void DelayImp(cons_process_fullcommit_msg, SlowDownResult &res) {
     DelayInternal(SlowdownPhase::ConsensusFullCommitMsgProcess, res);
+  }
+
+  void DelayImp(cons_process_fullcommit_msg,
+                char *msg,
+                size_t size,
+                std::function<void(char *, size_t &)> &&f,
+                SlowDownResult &res) {
+    DelayInternal(SlowdownPhase::ConsensusFullCommitMsgProcess,
+                  msg,
+                  size,
+                  std::forward<std::function<void(char *, size_t &)>>(f),
+                  res);
   }
 
   void DelayImp(storage_before_merkle_tree, concord::kvbc::SetOfKeyValuePairs &set, SlowDownResult &res) {
@@ -313,13 +481,16 @@ class SlowdownManager {
       for (auto &p : it.second) {
         switch (p->type) {
           case SlowdownPolicyType::Sleep:
-            policies.push_back(make_shared<SleepPolicy>(p.get()));
+            policies.push_back(make_shared<SleepPolicy>(p.get(), logger_));
             break;
           case SlowdownPolicyType::BusyWait:
-            policies.push_back(make_shared<BusyWaitPolicy>(p.get()));
+            policies.push_back(make_shared<BusyWaitPolicy>(p.get(), logger_));
             break;
           case SlowdownPolicyType::AddKeys:
-            policies.push_back(make_shared<AddKeysPolicy>(p.get()));
+            policies.push_back(make_shared<AddKeysPolicy>(p.get(), logger_));
+            break;
+          case SlowdownPolicyType::MessageDelay:
+            policies.push_back(MessageDelayPolicy::instance(p.get(), logger_));
             break;
           default:
             throw runtime_error("unsupported policy");
@@ -327,9 +498,11 @@ class SlowdownManager {
       }
       config_[it.first] = policies;
     }
+
+    LOG_DEBUG(logger_, "SlowdownManager initialized with " << config_.size() << " phases");
   }
 
-  SlowdownManager() = default;
+  SlowdownManager() { LOG_DEBUG(logger_, "SlowdownManager initialized with no policies"); };
 
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &set) {
@@ -347,10 +520,21 @@ class SlowdownManager {
     return res;
   }
 
+  template <SlowdownPhase T>
+  SlowDownResult Delay(char *msg, size_t size, std::function<void(char *, size_t &)> &&f) {
+    SlowDownResult res;
+    auto t = phase_tag<T>();
+    DelayImp(t, msg, size, std::forward<std::function<void(char *, size_t &)>>(f), res);
+    return res;
+  }
+
   ~SlowdownManager() = default;
+
+  bool isEnabled() { return true; }
 
  private:
   std::unordered_map<SlowdownPhase, std::vector<std::shared_ptr<BasePolicy>>> config_;
+  logging::Logger logger_ = logging::getLogger("concord.bft.slowdown");
 };
 
 #else
@@ -363,15 +547,27 @@ class SlowdownManager {
 
   template <SlowdownPhase T>
   SlowDownResult Delay(concord::kvbc::SetOfKeyValuePairs &set) {
+    LOG_DEBUG(logger_, "slowdown was not built !!!");
     return SlowDownResult();
   }
 
   template <SlowdownPhase T>
   SlowDownResult Delay() {
+    LOG_DEBUG(logger_, "slowdown was not built !!!");
     return SlowDownResult();
   }
 
+  template <SlowdownPhase T>
+  SlowDownResult Delay(char *msg, size_t size, std::function<void(char *, size_t &)> &&f) {
+    return SlowDownResult();
+  }
+
+  bool isEnabled() { return false; }
+
   ~SlowdownManager() {}
+
+ private:
+  logging::Logger logger_ = logging::getLogger("concord.bft.slowdown");
 };
 
 #endif

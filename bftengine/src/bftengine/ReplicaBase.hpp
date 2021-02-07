@@ -62,11 +62,6 @@ class ReplicaBase {
 
   std::shared_ptr<concordMetrics::Aggregator> getAggregator() const { return aggregator_; }
 
-  void setControlStateManager(std::shared_ptr<ControlStateManager> controlStateManager) {
-    controlStateManager_ = controlStateManager;
-  }
-  std::shared_ptr<ControlStateManager> getControlStateManager() { return controlStateManager_; }
-
   virtual void start();
   virtual void stop();
   SeqNum getLastExecutedSequenceNum() const { return lastExecutedSeqNum; }
@@ -123,11 +118,6 @@ class ReplicaBase {
   Timers::Handle debugStatTimer_;
   Timers::Handle metricsTimer_;
   concordUtil::Timers& timers_;
-
-  ///////////////////////////////////////////////////
-  // ControlStateManger
-  std::shared_ptr<ControlStateManager> controlStateManager_;
-  bool stopAtNextCheckpoint_ = false;
 };
 
 }  // namespace bftEngine::impl

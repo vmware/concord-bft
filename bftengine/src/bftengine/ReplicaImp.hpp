@@ -365,6 +365,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void tryToAskForMissingInfo();
 
+  void tryToRemovePendingRequestsForSeqNum(SeqNum seqNum);
+
   void sendPreparePartial(SeqNumInfo&);
 
   void sendCommitPartial(SeqNum);  // TODO(GG): the argument should be a ref to SeqNumInfo

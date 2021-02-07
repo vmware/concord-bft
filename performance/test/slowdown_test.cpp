@@ -19,6 +19,8 @@
 #include <iterator>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <condition_variable>
 #include <ReplicaImp.h>
 #include <communication/ICommunication.hpp>
 #include <ReplicaConfig.hpp>
@@ -41,11 +43,16 @@ class MockComm : public bft::communication::ICommunication {
 
   bool isRunning() const override { return true; }
 
-  int sendAsyncMessage(NodeNum destNode, const char* const message, size_t messageLength) override {
+  int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
     (void)destNode;
-    (void)message;
-    (void)messageLength;
+    (void)msg;
     return 0;
+  }
+
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
+    (void)dests;
+    (void)msg;
+    return {};
   }
 
   void setReceiver(NodeNum receiverNum, IReceiver* receiver) override {
@@ -57,6 +64,18 @@ class MockComm : public bft::communication::ICommunication {
 
   int Stop() override { return 0; }
 };
+
+TEST(slowdown_test, enabled_disabled) {
+  PerformanceManager pm;
+  EXPECT_FALSE(pm.isEnabled<SlowdownManager>());
+  auto sm = std::make_shared<SlowdownConfiguration>();
+  PerformanceManager pm1(sm);
+#ifdef USE_SLOWDOWN
+  EXPECT_TRUE(pm1.isEnabled<SlowdownManager>());
+#else
+  EXPECT_FALSE(pm1.isEnabled<SlowdownManager>());
+#endif
+}
 
 TEST(slowdown_test, empty_configuration) {
   PerformanceManager pm;
@@ -77,38 +96,77 @@ TEST(slowdown_test, simple_configuration) {
   policies.push_back(std::make_shared<SleepPolicyConfig>(sp));
   (*sm)[SlowdownPhase::BftClientBeforeSendPrimary] = policies;
   PerformanceManager pm(sm);
+  EXPECT_TRUE(pm.isEnabled<SlowdownManager>());
   SlowDownResult res = pm.Delay<SlowdownPhase::BftClientBeforeSendPrimary>();
   EXPECT_EQ(res.phase, SlowdownPhase::BftClientBeforeSendPrimary);
   EXPECT_EQ(res.totalWaitDuration, bp.wait_duration_ms);
-  EXPECT_EQ(res.totalSleepDuration, bp.sleep_duration_ms + sp.sleep_duration_ms);
+  auto expectedSleepDur = bp.sleep_duration_ms ? bp.wait_duration_ms / bp.sleep_duration_ms * bp.sleep_duration_ms : 0;
+  EXPECT_GE(res.totalSleepDuration, sp.sleep_duration_ms + expectedSleepDur);
   EXPECT_EQ(res.totalKeyCount, 0);
   EXPECT_EQ(res.totalValueSize, 0);
 }
 
 TEST(slowdown_test, hybrid_configuration) {
   auto sm = std::make_shared<SlowdownConfiguration>();
-  BusyWaitPolicyConfig bp(100, 30);
+  BusyWaitPolicyConfig bp(200, 50);
   SleepPolicyConfig sp(40);
   AddKeysPolicyConfig ap(10, 200, 3000);
+  MessageDelayPolicyConfig mp(100, 20);
   std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies;
   policies.push_back(std::make_shared<BusyWaitPolicyConfig>(bp));
   policies.push_back(std::make_shared<SleepPolicyConfig>(sp));
   policies.push_back(std::make_shared<AddKeysPolicyConfig>(ap));
+  std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies1;
+  policies1.push_back(std::make_shared<MessageDelayPolicyConfig>(mp));
   sm->insert({SlowdownPhase::StorageBeforeDbWrite, policies});
   sm->insert({SlowdownPhase::StorageBeforeKVBC, policies});
+  sm->insert({SlowdownPhase::ConsensusFullCommitMsgProcess, policies1});
   PerformanceManager pm(sm);
+  EXPECT_TRUE(pm.isEnabled<SlowdownManager>());
   concord::kvbc::SetOfKeyValuePairs set;
+  auto s = std::chrono::steady_clock::now();
   SlowDownResult res = pm.Delay<SlowdownPhase::StorageBeforeDbWrite>(set);
+  auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - s).count();
+  EXPECT_GE(dur, bp.wait_duration_ms + sp.sleep_duration_ms);
   EXPECT_EQ(res.phase, SlowdownPhase::StorageBeforeDbWrite);
   EXPECT_EQ(res.totalWaitDuration, bp.wait_duration_ms);
-  EXPECT_EQ(res.totalSleepDuration, bp.sleep_duration_ms + sp.sleep_duration_ms);
+  auto expectedSleepDur = bp.sleep_duration_ms ? bp.wait_duration_ms / bp.sleep_duration_ms * bp.sleep_duration_ms : 0;
+  EXPECT_GE(res.totalSleepDuration, expectedSleepDur + sp.sleep_duration_ms);
   EXPECT_EQ(res.totalKeyCount, 10);
   EXPECT_EQ(set.size(), 10);
   EXPECT_GE(res.totalValueSize, 10 * 3000);
-  auto size = set.size();
-  EXPECT_EQ(set.size(), 10);
+  set.clear();
+  EXPECT_EQ(set.size(), 0);
   pm.Delay<SlowdownPhase::StorageBeforeKVBC>(set);
-  EXPECT_EQ(set.size(), size + 10);
+  EXPECT_EQ(set.size(), 10);
+
+  char data[10];
+  for (int i = 0; i < 10; ++i) data[i] = 'd';
+  bool called = false;
+  std::mutex m;
+  std::condition_variable cv;
+  auto t1 = [](char* d, size_t s, char exp) {
+    for (size_t i = 0; i < s; ++i) {
+      EXPECT_EQ(d[i], exp);
+    }
+  };
+  auto t = [&](char* d, size_t& size) {
+    std::lock_guard<std::mutex> lg(m);
+    called = true;
+    EXPECT_EQ(size, 10);
+    t1(d, size, 'd');
+    cv.notify_all();
+  };
+  auto now = std::chrono::steady_clock::now();
+  res = pm.Delay<SlowdownPhase::ConsensusFullCommitMsgProcess>(data, size_t{10}, std::move(t));
+  {
+    std::unique_lock<std::mutex> ul(m);
+    if (!called) cv.wait(ul, [&]() { return called; });
+  }
+  EXPECT_GE(std::chrono::steady_clock::now() - now, std::chrono::milliseconds{mp.GetMessageDelayDuration()});
+  EXPECT_TRUE(called);
+  EXPECT_EQ(res.totalMessageDelayDuration, mp.GetMessageDelayDuration());
+  t1(data, 10, 'd');
 }
 
 TEST(slowdown_test, add_keys_configuration) {

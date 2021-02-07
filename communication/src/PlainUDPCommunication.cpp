@@ -238,11 +238,11 @@ class PlainUDPCommunication::PlainUdpImpl {
     return ConnectionStatus::Disconnected;
   }
 
-  int sendAsyncMessage(const NodeNum &destNode, const char *const message, const size_t &messageLength) {
-    int error = 0;
+  int sendAsyncMessage(const NodeNum &destNode, std::shared_ptr<std::vector<uint8_t>> msg) {
+    ssize_t error = 0;
 
-    if (messageLength > MAX_UDP_PAYLOAD_SIZE) {
-      LOG_ERROR(_logger, "Error, exceeded UDP payload size limit, message length: " << std::to_string(messageLength));
+    if (msg->size() > MAX_UDP_PAYLOAD_SIZE) {
+      LOG_ERROR(_logger, "Error, exceeded UDP payload size limit, message length: " << std::to_string(msg->size()));
       return -1;
     }
 
@@ -251,25 +251,24 @@ class PlainUDPCommunication::PlainUdpImpl {
     const Addr *to = &nodes2addresses[destNode];
 
     ConcordAssert((to != NULL) && "The destination endpoint does not exist!");
-    ConcordAssert((messageLength > 0) && "The message length must be positive!");
-    ConcordAssert((message != NULL) && "No message provided!");
+    ConcordAssert((msg->size() > 0) && "The message length must be positive!");
 
     LOG_DEBUG(_logger,
-              " Sending " << messageLength << " bytes to " << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
+              " Sending " << msg->size() << " bytes to " << destNode << " (" << inet_ntoa(to->sin_addr) << ":"
                           << ntohs(to->sin_port));
 
-    error = sendto(udpSockFd, message, messageLength, 0, (struct sockaddr *)to, sizeof(Addr));
+    error = sendto(udpSockFd, msg->data(), msg->size(), 0, (struct sockaddr *)to, sizeof(Addr));
 
     if (error < 0) {
       /** -1 return value means underlying socket error. */
       LOG_INFO(_logger, "Error while sending: " << concordUtils::errnoString(errno));
-    } else if (error < (int)messageLength) {
+    } else if (error < (ssize_t)msg->size()) {
       /** Mesage was partially sent. Unclear why this would happen, perhaps
        * due to oversized messages (?). */
       LOG_INFO(_logger, "Sent %d out of %d bytes!");
     }
 
-    if (error == (ssize_t)messageLength) {
+    if (error == (ssize_t)msg->size()) {
       if (statusCallback) {
         PeerConnectivityStatus pcs{};
         pcs.peerId = selfId;
@@ -400,8 +399,20 @@ ConnectionStatus PlainUDPCommunication::getCurrentConnectionStatus(NodeNum node)
   return _ptrImpl->getCurrentConnectionStatus(node);
 }
 
-int PlainUDPCommunication::sendAsyncMessage(NodeNum destNode, const char *const message, size_t messageLength) {
-  return _ptrImpl->sendAsyncMessage(destNode, message, messageLength);
+int PlainUDPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
+  auto m = std::make_shared<std::vector<uint8_t>>(std::move(msg));
+  return _ptrImpl->sendAsyncMessage(destNode, m);
+}
+
+std::set<NodeNum> PlainUDPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
+  std::set<NodeNum> failed_nodes;
+  auto m = std::make_shared<std::vector<uint8_t>>(std::move(msg));
+  for (auto &d : dests) {
+    if (_ptrImpl->sendAsyncMessage(d, m) != 0) {
+      failed_nodes.insert(d);
+    }
+  }
+  return failed_nodes;
 }
 
 void PlainUDPCommunication::setReceiver(NodeNum receiverNum, IReceiver *receiver) {

@@ -49,10 +49,6 @@ class ReplicaInternal : public IReplica {
 
   void restartForDebug(uint32_t delayMillis) override;
 
-  void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) override {
-    replica_->setControlStateManager(controlStateManager);
-  }
-
  private:
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
@@ -205,7 +201,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  MetadataStorage *metadataStorage,
                                                  std::shared_ptr<concord::performance::PerformanceManager> pm) {
   bool dummy;
-  return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy);
+  return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy, pm);
 }
 IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaConfig,
                                                    IStateTransfer *stateTransfer,

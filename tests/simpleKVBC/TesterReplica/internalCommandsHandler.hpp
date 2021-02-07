@@ -55,8 +55,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) override;
 
-  void setControlStateManager(std::shared_ptr<bftEngine::ControlStateManager> controlStateManager) override;
-
   void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) override;
 
  private:
@@ -109,7 +107,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
-  std::shared_ptr<bftEngine::ControlStateManager> controlStateManager_;
   std::shared_ptr<InternalControlHandlers> controlHandlers_;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
 };

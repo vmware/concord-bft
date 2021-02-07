@@ -272,15 +272,22 @@ void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg 
 }
 
 bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
+  if (!isCurrentPrimary()) {
+    LOG_WARN(GL, "Called in a non-primary replica; won't send PrePrepareMsgs!");
+    return false;
+  }
+
+  if (!currentViewIsActive()) {
+    LOG_INFO(GL, "View " << getCurrentView() << " is not active yet. Won't send PrePrepareMsg-s.");
+    return false;
+  }
+
   if (isSeqNumToStopAt(lastExecutedSeqNum)) {
     LOG_INFO(GL,
              "Not sending PrePrepareMsg because system is stopped at checkpoint pending control state operation "
              "(upgrade, etc...)");
     return false;
   }
-
-  ConcordAssert(isCurrentPrimary());
-  ConcordAssert(currentViewIsActive());
 
   if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
     LOG_INFO(GL,
@@ -541,13 +548,10 @@ void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumTo
 }
 
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
-  // There might be a race condition between the time the replica starts to the time the controlStateManager is
-  // initiated.
-  if (!controlStateManager_) return false;
-  if (controlStateManager_->getPruningProcessStatus()) return true;
+  if (ControlStateManager::instance().getPruningProcessStatus()) return true;
   if (seqNumToStopAt_ > 0 && seq_num == seqNumToStopAt_) return true;
   if (seqNumToStopAt_ > 0 && seq_num > seqNumToStopAt_) return false;
-  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     seqNumToStopAt_ = seq_num_to_stop_at.value();
     if (seqNumToStopAt_ == seq_num) return true;
@@ -1008,8 +1012,12 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
-  metric_received_full_commit_proofs_.Get().Inc();
+  pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>(
+      (char *)msg,
+      msg->sizeNeededForObjAndMsgInLocalBuffer(),
+      std::bind(&IncomingMsgsStorage::pushExternalMsgRaw, &getIncomingMsgsStorage(), _1, _2));
 
+  metric_received_full_commit_proofs_.Get().Inc();
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_full_commit_proof_msg");
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -2648,7 +2656,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
-  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
     if (getRequestsHandler()->getControlHandlers()) {
@@ -2661,7 +2669,7 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     // We want that when the replicas resume, they won't have the wedge point in their reserved pages (otherwise they
     // will simply try to wedge again). Yet, as the reserved pages are transferred via ST we can cleat this data only in
     // an n/n checkpoint that is about to be wedged because we know that there is no ST going on now.
-    controlStateManager_->clearCheckpointToStopAt();
+    ControlStateManager::instance().clearCheckpointToStopAt();
   }
 }
 
@@ -2750,7 +2758,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     tryToSendPrePrepareMsg();
   }
 
-  auto seq_num_to_stop_at = controlStateManager_->getCheckpointToStopAt();
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
   // Below we handle the case of removing a node. Note that when removing nodes we cannot assume we will have n/n
   // checkpoint because some of the replicas may not be responsive. For that we also mark that we got to a stable (n-f)
@@ -2767,7 +2775,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       getRequestsHandler()->getControlHandlers()->onStableCheckpoint();
     }
     // Mark the metadata storage for deletion if we need to
-    auto seq_num_to_remove_metadata_storage = controlStateManager_->getEraseMetadataFlag();
+    auto seq_num_to_remove_metadata_storage = ControlStateManager::instance().getEraseMetadataFlag();
     // We would want to set this flag only when we sure that the replica needs to remove the metadata.
     if (seq_num_to_remove_metadata_storage.has_value() &&
         seq_num_to_remove_metadata_storage.value() == newStableSeqNum) {
@@ -3998,7 +4006,24 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       free(req.outReply);
       send(replyMsg.get(), req.clientId);
     }
-    clientsManager->removePendingRequestOfClient(req.clientId, req.requestSequenceNum);
+  }
+}
+
+void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(seqNum));
+  SeqNumInfo &seqNumInfo = mainLog->get(seqNum);
+  PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
+  if (prePrepareMsg == nullptr) return;
+  LOG_INFO(GL, "clear pending requests" << KVLOG(seqNum));
+
+  RequestsIterator reqIter(prePrepareMsg);
+  char *requestBody = nullptr;
+  while (reqIter.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    if (!clientsManager->isValidClient(req.clientProxyId())) continue;
+    auto clientId = req.clientProxyId();
+    LOG_DEBUG(GL, "removing pending requests for client" << KVLOG(clientId));
+    clientsManager->removePendingRequestOfClient(clientId, req.requestSeqNum());
   }
 }
 
@@ -4009,6 +4034,8 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
   consensus_times_.end(seqNumber);
+  // First of all, we remove the pending request before the execution, to prevent long execution from affecting VC
+  tryToRemovePendingRequestsForSeqNum(seqNumber);
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SCOPED_MDC_SEQ_NUM(std::to_string(nextExecutedSeqNum));
@@ -4046,14 +4073,13 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       }
     }
   }
-  if (!stopAtNextCheckpoint_ && controlStateManager_->getCheckpointToStopAt().has_value()) {
+  if (ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     // If, following the last execution, we discover that we need to jump to the
     // next checkpoint, the primary sends noop commands until filling the working window.
-    bringTheSystemToCheckpointBySendingNoopCommands(controlStateManager_->getCheckpointToStopAt().value());
-    stopAtNextCheckpoint_ = true;
+    bringTheSystemToCheckpointBySendingNoopCommands(ControlStateManager::instance().getCheckpointToStopAt().value());
   }
-  if (controlStateManager_->getCheckpointToStopAt().has_value() &&
-      lastExecutedSeqNum == controlStateManager_->getCheckpointToStopAt()) {
+  if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
+      lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
     // We are about to stop execution. To avoid VC we now clear all pending requests
     clientsManager->clearAllPendingRequests();
   }
