@@ -89,6 +89,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
@@ -104,7 +105,8 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         Launch concurrent requests from different clients in parallel. Ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME) 
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
@@ -123,6 +125,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
         client.config = client.config._replace(
@@ -158,6 +161,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
         client.config = client.config._replace(
@@ -189,6 +193,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         await trio.sleep(5)
+        await bft_network.init_preexec_count()
 
         clients = bft_network.clients.values()
         for client in clients:
@@ -228,6 +233,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         '''
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         read_client = bft_network.random_client()
         submit_clients = bft_network.random_clients(MAX_CONCURRENCY)
