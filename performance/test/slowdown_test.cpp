@@ -19,6 +19,8 @@
 #include <iterator>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <condition_variable>
 #include <ReplicaImp.h>
 #include <communication/ICommunication.hpp>
 #include <ReplicaConfig.hpp>
@@ -109,12 +111,16 @@ TEST(slowdown_test, hybrid_configuration) {
   BusyWaitPolicyConfig bp(200, 50);
   SleepPolicyConfig sp(40);
   AddKeysPolicyConfig ap(10, 200, 3000);
+  MessageDelayPolicyConfig mp(100, 20);
   std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies;
   policies.push_back(std::make_shared<BusyWaitPolicyConfig>(bp));
   policies.push_back(std::make_shared<SleepPolicyConfig>(sp));
   policies.push_back(std::make_shared<AddKeysPolicyConfig>(ap));
+  std::vector<std::shared_ptr<SlowdownPolicyConfig>> policies1;
+  policies1.push_back(std::make_shared<MessageDelayPolicyConfig>(mp));
   sm->insert({SlowdownPhase::StorageBeforeDbWrite, policies});
   sm->insert({SlowdownPhase::StorageBeforeKVBC, policies});
+  sm->insert({SlowdownPhase::ConsensusFullCommitMsgProcess, policies1});
   PerformanceManager pm(sm);
   EXPECT_TRUE(pm.isEnabled<SlowdownManager>());
   concord::kvbc::SetOfKeyValuePairs set;
@@ -133,6 +139,34 @@ TEST(slowdown_test, hybrid_configuration) {
   EXPECT_EQ(set.size(), 0);
   pm.Delay<SlowdownPhase::StorageBeforeKVBC>(set);
   EXPECT_EQ(set.size(), 10);
+
+  char data[10];
+  for (int i = 0; i < 10; ++i) data[i] = 'd';
+  bool called = false;
+  std::mutex m;
+  std::condition_variable cv;
+  auto t1 = [](char* d, size_t s, char exp) {
+    for (size_t i = 0; i < s; ++i) {
+      EXPECT_EQ(d[i], exp);
+    }
+  };
+  auto t = [&](char* d, size_t& size) {
+    std::lock_guard<std::mutex> lg(m);
+    called = true;
+    EXPECT_EQ(size, 10);
+    t1(d, size, 'd');
+    cv.notify_all();
+  };
+  auto now = std::chrono::steady_clock::now();
+  res = pm.Delay<SlowdownPhase::ConsensusFullCommitMsgProcess>(data, size_t{10}, std::move(t));
+  {
+    std::unique_lock<std::mutex> ul(m);
+    if (!called) cv.wait(ul, [&]() { return called; });
+  }
+  EXPECT_GE(std::chrono::steady_clock::now() - now, std::chrono::milliseconds{mp.GetMessageDelayDuration()});
+  EXPECT_TRUE(called);
+  EXPECT_EQ(res.totalMessageDelayDuration, mp.GetMessageDelayDuration());
+  t1(data, 10, 'd');
 }
 
 TEST(slowdown_test, add_keys_configuration) {
