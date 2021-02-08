@@ -426,14 +426,14 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
     return nullptr;
   }
   prePrepareMsg->finishAddingRequests();
-  LOG_DEBUG(GL,
-            KVLOG(prePrepareMsg->seqNumber(),
-                  prePrepareMsg->getCid(),
-                  maxSpaceForReqs,
-                  requiredRequestsSize,
-                  prePrepareMsg->requestsSize(),
-                  requiredRequestsNum,
-                  prePrepareMsg->numberOfRequests()));
+  LOG_INFO(GL,
+           KVLOG(prePrepareMsg->seqNumber(),
+                 prePrepareMsg->getCid(),
+                 maxSpaceForReqs,
+                 requiredRequestsSize,
+                 prePrepareMsg->requestsSize(),
+                 requiredRequestsNum,
+                 prePrepareMsg->numberOfRequests()));
   return prePrepareMsg;
 }
 
