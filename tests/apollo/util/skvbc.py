@@ -221,6 +221,10 @@ class SimpleKVBCProtocol:
             assert {key: val} == kv_reply, \
                 f'Could not read original key-value in the case of n={config.n}, f={config.f}, c={config.c}.'
 
+    async def wait_for_liveness(self):
+        key, value = await self.write_known_kv()
+        await self.assert_kv_write_executed(key, value)
+
     async def prime_for_state_transfer(
             self, stale_nodes,
             checkpoints_num=2,
