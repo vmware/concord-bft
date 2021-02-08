@@ -221,6 +221,20 @@ class SimpleKVBCProtocol:
             assert {key: val} == kv_reply, \
                 f'Could not read original key-value in the case of n={config.n}, f={config.f}, c={config.c}.'
 
+    async def wait_for_liveness(self):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=5):
+                    try:
+                        key, value = await self.write_known_kv()
+                        await self.assert_kv_write_executed(key, value)
+                    except (trio.TooSlowError, AssertionError) as e:
+                        pass
+                    else:
+                        # success
+                        return
+                    await trio.sleep(0.1)
+
     async def prime_for_state_transfer(
             self, stale_nodes,
             checkpoints_num=2,

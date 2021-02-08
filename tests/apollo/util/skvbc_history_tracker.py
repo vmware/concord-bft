@@ -1039,6 +1039,30 @@ class SkvbcTracker:
             self.status.record_client_timeout(client_id)
             return
 
+    async def wait_for_liveness(self):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=5):
+                    try:
+                        config = self.bft_network.config
+                        # Write a KV pair with a known value
+                        known_key = self.skvbc.unique_random_key()
+                        known_val = self.skvbc.random_value()
+                        known_kv = [(known_key, known_val)]
+                        client = self.bft_network.random_client()
+                        await self.write_and_track_known_kv(known_kv, client)
+                        kv_reply = await self.read_and_track_known_kv(known_key, client)
+                        print("READ REPLY: {}".format(kv_reply))
+                        assert {known_key: known_val} == kv_reply, \
+                            f'Expected key-value: {known_kv}; Actual key-value: {kv_reply} - ' \
+                            f'in the case of n={config.n}, f={config.f}, c={config.c}.'
+                    except (trio.TooSlowError, AssertionError) as e:
+                        pass
+                    else:
+                        # success
+                        return
+                    await trio.sleep(0.1)
+
     async def tracked_prime_for_state_transfer(
             self, stale_nodes,
             num_of_checkpoints_to_add=2,
