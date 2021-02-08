@@ -37,6 +37,8 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   uint32_t numberOfRequiredReservedPages() const;
 
+  std::set<NodeIdType> getInvalidClients();
+
   void clearReservedPages();
 
   void loadInfoFromReservedPages();
@@ -104,6 +106,8 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   NodeIdType highestIdOfNonInternalClient_{0};
 
   std::map<NodeIdType, uint16_t> clientIdToIndex_;
+
+  std::set<NodeIdType> invalidClients;
 
   struct ClientInfo {
     // requests

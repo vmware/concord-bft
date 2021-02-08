@@ -104,6 +104,8 @@ void ClientsManager::init(IStateTransfer* stateTransfer) {
 
 uint32_t ClientsManager::numberOfRequiredReservedPages() const { return requiredNumberOfPages_; }
 
+std::set<NodeIdType> ClientsManager::getInvalidClients() { return invalidClients; }
+
 void ClientsManager::clearReservedPages() {
   for (uint32_t i = 0; i < requiredNumberOfPages_; i++) stateTransfer_->zeroReservedPage(resPageOffset() + i);
 }
