@@ -75,6 +75,7 @@ std::string KeyManager::generateCid() {
 // Key exchange msg for replica has been recieved:
 // update the replica public key store.
 std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   if (kemsg.op == KeyExchangeMsg::HAS_KEYS) {
     LOG_INFO(KEY_EX_LOG, "Has key query arrived, returning " << std::boolalpha << keysExchanged << std::noboolalpha);
     if (!keysExchanged && keyExchangeOnStart_) return std::string(KeyExchangeMsg::hasKeysFalseReply);
@@ -100,6 +101,7 @@ std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
 
 // Once the set contains all replicas the crypto system is being updated and the gate is open.
 void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   // For some reason we recieved a key for a replica that already exchanged it's key.
   if (keyStore_.exchangedReplicas.find(kemsg.repID) != keyStore_.exchangedReplicas.end()) {
     LOG_DEBUG(KEY_EX_LOG, "Replica [" << kemsg.repID << "] already exchanged initial key");
