@@ -144,8 +144,6 @@ DBAdapter::DBAdapter(const std::shared_ptr<IDBClient> &db,
       lastReachableBlockId_{loadLastReachableBlockId()},
       latestSTTempBlockId_{loadLatestTempSTBlockId()},
       smTree_{std::make_shared<Reader>(*this)},
-      commitSizeSummary_{concordMetrics::StatisticsFactory::get().createSummary(
-          "merkleTreeCommitSizeSummary", {{0.25, 0.1}, {0.5, 0.1}, {0.75, 0.1}, {0.9, 0.1}})},
       nonProvableKeySet_{nonProvableKeySet},
       pm_{pm} {
   if (!nonProvableKeySet_.empty()) {
@@ -440,7 +438,6 @@ SetOfKeyValuePairs DBAdapter::lastReachableBlockDbUpdates(const SetOfKeyValuePai
     sizeOfUpdatesInBytes += kv.first.length() + kv.second.length();
   }
   histograms.dba_size_of_updates->record(sizeOfUpdatesInBytes);
-  commitSizeSummary_->Observe(sizeOfUpdatesInBytes);
   return dbUpdates;
 }
 
@@ -584,7 +581,6 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
 
     return;
   }
-  commitSizeSummary_->Observe(block.length());
   // If not adding the next block, treat as a temporary state transfer block.
   const auto status = db_->put(DBKeyManipulator::generateSTTempBlockKey(blockId), block);
   if (!status.isOK()) {
