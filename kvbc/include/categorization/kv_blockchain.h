@@ -84,6 +84,9 @@ class KeyValueBlockchain {
   // Get a map from category ID -> type for all known categories in the blockchain.
   const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return categorires_types_; }
 
+  std::shared_ptr<concord::storage::rocksdb::NativeClient> db() { return native_client_; }
+  std::shared_ptr<const concord::storage::rocksdb::NativeClient> db() const { return native_client_; }
+
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
