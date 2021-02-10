@@ -51,6 +51,83 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
+    # @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @unittest.skip("Disabled due to BC-6816")
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_constant_load
+    async def test_missed_two_view_changes(self, bft_network, skvbc, constant_load):
+        """
+        The purpose of this test is to verify that if a Replica's View is behind the peers by more than 1
+        it manages to catch up properly and to join and participate in the View its peers are working in.
+        1) Start all replicas and store the current View they are in.
+        2) Stop Replica 2 which we will later bring back
+        3) Isolate Replica 0 and verify View Change happens
+        4) Isolate Replica 1 and verify View Change happens. This time we are going to go to View = 3,
+           because we previously stopped Replica 2.
+        5) Start Replica 2.
+        6) Verify Fast Path of execution is restored.
+        """
+
+        late_replica = 2
+        connected_replica = 3  # This Replica will always be connected to the peers during the test.
+        num_req = 10
+
+        async def write_req():
+            for _ in range(num_req):
+                await skvbc.write_known_kv()
+
+        bft_network.start_all_replicas()
+        await write_req()
+
+        current_view = await bft_network.wait_for_view(
+            replica_id=0,
+            err_msg="Make sure view is stable after all replicas are started."
+        )
+
+        bft_network.stop_replica(late_replica)
+
+        for isolated_replica, views_to_advance in [(0, 1), (1, 2)]:
+            with net.ReplicaSubsetTwoWayIsolatingAdversary(bft_network, {isolated_replica}) as adversary:
+                adversary.interfere()
+                try:
+                    client = bft_network.random_client()
+                    client.primary = None
+                    for _ in range(5):
+                        msg = skvbc.write_req(
+                            [], [(skvbc.random_key(), skvbc.random_value())], 0)
+                        await client.write(msg)
+                except:
+                    pass
+
+                # Wait for View Change initiation to happen
+                with trio.fail_after(60):
+                    while True:
+                        view_of_connected_replica = await self._get_gauge(connected_replica, bft_network, "currentActiveView")
+                        if view_of_connected_replica == current_view + views_to_advance:
+                            break
+                        await trio.sleep(0.2)
+
+            view = await bft_network.wait_for_view(
+                replica_id=connected_replica,
+                expected=lambda v: v > current_view,
+                err_msg=f"Make sure current View is higher than {current_view}"
+            )
+            current_view = view
+
+        constant_load.cancel()
+        bft_network.start_replica(late_replica)
+
+        # Make sure the current view is stable
+        await bft_network.wait_for_view(
+            replica_id=0,
+            expected=lambda v: v == current_view,
+            err_msg="Make sure view is stable after all Replicas are connected."
+        )
+
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: write_req(), threshold=num_req)
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
