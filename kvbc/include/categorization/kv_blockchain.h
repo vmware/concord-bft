@@ -81,6 +81,9 @@ class KeyValueBlockchain {
   // Get the updates that were used to create `block_id`.
   std::optional<Updates> getBlockUpdates(BlockId block_id) const;
 
+  // Get a map from category ID -> type for all known categories in the blockchain.
+  const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return categorires_types_; }
+
  private:
   BlockId addBlock(CategoryInput&& category_updates, concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
@@ -97,7 +100,7 @@ class KeyValueBlockchain {
   void instantiateCategories();
   // insert a new category into the categories column family and instantiate it.
   bool insertCategoryMapping(const std::string& cat_id,
-                             const detail::CATEGORY_TYPE type,
+                             const CATEGORY_TYPE type,
                              concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
   const Category& getCategory(const std::string& cat_id) const;
@@ -161,7 +164,7 @@ class KeyValueBlockchain {
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   CategoriesMap categorires_;
-  std::map<std::string, detail::CATEGORY_TYPE> categorires_types_;
+  std::map<std::string, CATEGORY_TYPE> categorires_types_;
   detail::Blockchain block_chain_;
   detail::Blockchain::StateTransfer state_transfer_block_chain_;
 

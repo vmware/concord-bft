@@ -49,21 +49,21 @@ void KeyValueBlockchain::instantiateCategories() {
       LOG_FATAL(CAT_BLOCK_LOG, "Category type value of [" << itr.key() << "] is invalid (bigger than one).");
       ConcordAssertEQ(itr.valueView().size(), 1);
     }
-    auto cat_type = static_cast<detail::CATEGORY_TYPE>(itr.valueView()[0]);
+    auto cat_type = static_cast<CATEGORY_TYPE>(itr.valueView()[0]);
     switch (cat_type) {
-      case detail::CATEGORY_TYPE::block_merkle:
+      case CATEGORY_TYPE::block_merkle:
         categorires_.emplace(itr.key(), detail::BlockMerkleCategory{native_client_});
-        categorires_types_[itr.key()] = detail::CATEGORY_TYPE::block_merkle;
+        categorires_types_[itr.key()] = CATEGORY_TYPE::block_merkle;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type BlockMerkleCategory");
         break;
-      case detail::CATEGORY_TYPE::immutable:
+      case CATEGORY_TYPE::immutable:
         categorires_.emplace(itr.key(), detail::ImmutableKeyValueCategory{itr.key(), native_client_});
-        categorires_types_[itr.key()] = detail::CATEGORY_TYPE::immutable;
+        categorires_types_[itr.key()] = CATEGORY_TYPE::immutable;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type ImmutableKeyValueCategory");
         break;
-      case detail::CATEGORY_TYPE::versioned_kv:
+      case CATEGORY_TYPE::versioned_kv:
         categorires_.emplace(itr.key(), detail::VersionedKeyValueCategory{itr.key(), native_client_});
-        categorires_types_[itr.key()] = detail::CATEGORY_TYPE::versioned_kv;
+        categorires_types_[itr.key()] = CATEGORY_TYPE::versioned_kv;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type VersionedKeyValueCategory");
         break;
       default:
@@ -419,7 +419,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
 // Updates per category
 
 bool KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id,
-                                               const detail::CATEGORY_TYPE type,
+                                               const CATEGORY_TYPE type,
                                                concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   // check if we know this category type already
   if (categorires_types_.count(cat_id) == 1) {
@@ -440,7 +440,7 @@ BlockMerkleOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                             BlockMerkleInput&& updates,
                                                             concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   // if true means that category is new and we should create an instance of it.
-  if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::block_merkle, write_batch)) {
+  if (insertCategoryMapping(category_id, CATEGORY_TYPE::block_merkle, write_batch)) {
     if (const auto [_, inserted] = categorires_.try_emplace(category_id, detail::BlockMerkleCategory{native_client_});
         !inserted) {
       (void)_;
@@ -462,7 +462,7 @@ VersionedOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                           VersionedInput&& updates,
                                                           concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   // if true means that category is new and we should create an instance of it.
-  if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::versioned_kv, write_batch)) {
+  if (insertCategoryMapping(category_id, CATEGORY_TYPE::versioned_kv, write_batch)) {
     if (const auto [_, inserted] =
             categorires_.try_emplace(category_id, detail::VersionedKeyValueCategory{category_id, native_client_});
         !inserted) {
@@ -485,7 +485,7 @@ ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                           ImmutableInput&& updates,
                                                           concord::storage::rocksdb::NativeWriteBatch& write_batch) {
   // if true means that category is new and we should create an instance of it.
-  if (insertCategoryMapping(category_id, detail::CATEGORY_TYPE::immutable, write_batch)) {
+  if (insertCategoryMapping(category_id, CATEGORY_TYPE::immutable, write_batch)) {
     if (const auto [_, inserted] =
             categorires_.try_emplace(category_id, detail::ImmutableKeyValueCategory{category_id, native_client_});
         !inserted) {

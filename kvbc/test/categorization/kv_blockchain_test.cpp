@@ -624,17 +624,13 @@ TEST_F(categorized_kvbc, creation_of_category_type_cf) {
 TEST_F(categorized_kvbc, instantiation_of_categories) {
   auto wb = db->getBatch();
   db->createColumnFamily(detail::CAT_ID_TYPE_CF);
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle2"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::block_merkle)));
   wb.put(
-      detail::CAT_ID_TYPE_CF, std::string("imm"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::immutable)));
+      detail::CAT_ID_TYPE_CF, std::string("merkle2"), std::string(1, static_cast<char>(CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("imm"), std::string(1, static_cast<char>(CATEGORY_TYPE::immutable)));
   wb.put(detail::CAT_ID_TYPE_CF,
          std::string("versioned_kv"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::versioned_kv)));
+         std::string(1, static_cast<char>(CATEGORY_TYPE::versioned_kv)));
 
   db->write(std::move(wb));
 
@@ -661,9 +657,7 @@ TEST_F(categorized_kvbc, instantiation_of_categories) {
 TEST_F(categorized_kvbc, throw_on_non_exist_category_type) {
   KeyValueBlockchain block_chain{db, true};
   auto wb = db->getBatch();
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::end_of_types)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::end_of_types)));
   db->write(std::move(wb));
 
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
@@ -679,9 +673,7 @@ TEST_F(categorized_kvbc, throw_on_non_exist_category) {
 TEST_F(categorized_kvbc, get_category) {
   db->createColumnFamily(detail::CAT_ID_TYPE_CF);
   auto wb = db->getBatch();
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::block_merkle)));
   db->write(std::move(wb));
   KeyValueBlockchain block_chain{db, true};
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
@@ -773,7 +765,7 @@ TEST_F(categorized_kvbc, validate_category_creation_on_add) {
 
   auto type = db->get(detail::CAT_ID_TYPE_CF, std::string("imm"));
   ASSERT_TRUE(type.has_value());
-  ASSERT_EQ(static_cast<detail::CATEGORY_TYPE>((*type)[0]), detail::CATEGORY_TYPE::immutable);
+  ASSERT_EQ(static_cast<CATEGORY_TYPE>((*type)[0]), CATEGORY_TYPE::immutable);
 }
 
 TEST_F(categorized_kvbc, compare_raw_blocks) {
