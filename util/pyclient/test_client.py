@@ -39,7 +39,7 @@ class SimpleTest(unittest.TestCase):
         cls.serverbin = os.path.join(cls.builddir,"tests/simpleTest/server")
         os.chdir(cls.testdir)
         cls.generateKeys()
-        cls.config = bft_config.Config(4, 1, 0, 4096, 1000, 50, "")
+        cls.config = bft_config.Config(4, 1, 0, 4096, 2000, 50, "")
         cls.replicas = [bft_config.Replica(id=i,
                                            ip="127.0.0.1",
                                            port=bft_config.bft_msg_port_from_node_id(i),
@@ -183,7 +183,7 @@ class SimpleTest(unittest.TestCase):
         config = self.config._replace(retry_timeout_milli=500)
         with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
             await udp_client.sendSync(self.writeRequest(1), False)
-            single_read_q = bft_client.MofNQuorum([0], 1)
+            single_read_q = bft_client.MofNQuorum([0, 1, 2, 3], 1)
             read = await udp_client.sendSync(self.readRequest(), True, m_of_n_quorum=single_read_q)
             self.assertEqual(1, self.read_val(read))
 
