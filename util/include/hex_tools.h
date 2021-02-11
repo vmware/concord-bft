@@ -34,4 +34,7 @@ std::string bufferToHex(const std::uint8_t *data, size_t size);
 // Converts a sliver into a hex string.
 std::string sliverToHex(const Sliver &sliver);
 
+// Converts a byte vector into a hex string
+std::string vectorToHex(const std::vector<std::uint8_t> &data);
+
 }  // namespace concordUtils

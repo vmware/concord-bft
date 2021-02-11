@@ -1,1 +1,1 @@
-add_subdirectory(sparse_merkle_db)
+add_subdirectory(db_editor)

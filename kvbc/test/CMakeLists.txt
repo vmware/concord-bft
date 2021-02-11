@@ -125,7 +125,19 @@ add_test(sparse_merkle_db_editor_test sparse_merkle_db_editor_test)
 target_link_libraries(sparse_merkle_db_editor_test PUBLIC
     GTest::Main
     GTest::GTest
-    lib_sparse_merkle_db_editor
+    lib_db_editor
+    util
+    kvbc
+    stdc++fs
+)
+
+add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
+add_test(kv_blockchain_db_editor_test kv_blockchain_db_editor_test)
+
+target_link_libraries(kv_blockchain_db_editor_test PUBLIC
+    GTest::Main
+    GTest::GTest
+    lib_db_editor
     util
     kvbc
     stdc++fs

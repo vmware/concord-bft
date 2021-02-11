@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -13,78 +13,21 @@
 
 #pragma once
 
-#include "json_output.hpp"
-
-#include <assertUtils.hpp>
-#include "hex_tools.h"
-#include "merkle_tree_block.h"
+#include "db_editor_common.hpp"
 #include "merkle_tree_db_adapter.h"
-#include "storage/db_types.h"
-#include "rocksdb/client.h"
-#include "sliver.hpp"
 
-#include <algorithm>
-#include <cstdlib>
-#include <exception>
-#include <iostream>
-#include <iterator>
-#include <map>
-#include <memory>
-#include <optional>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <variant>
-#include <vector>
-
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
-
-namespace concord::kvbc::tools::sparse_merkle_db {
-
-using namespace std::string_literals;
-using concordUtils::toJson;
+namespace concord::kvbc::tools::db_editor {
 
 inline const auto kToolName = "sparse_merkle_db_editor"s;
 
-template <typename Tag>
-struct Arguments {
-  std::vector<std::string> values;
-};
-
-struct CommandLineArgumentsTag {};
-struct CommandArgumentsTag {};
-
-using CommandArguments = Arguments<CommandArgumentsTag>;
-using CommandLineArguments = Arguments<CommandArgumentsTag>;
-
 static const auto NON_PROVABLE_KEYS = std::unordered_set<concordUtils::Sliver>{
     concordUtils::Sliver(new char[1]{0x20}, sizeof(char)), concordUtils::Sliver(new char[1]{0x22}, sizeof(char))};
-
-inline auto toBlockId(const std::string &s) {
-  if (s.find_first_not_of("0123456789") != std::string::npos) {
-    throw std::invalid_argument{"Invalid BLOCK-ID: " + s};
-  }
-  return kvbc::BlockId{std::stoull(s, nullptr)};
-}
 
 inline v2MerkleTree::DBAdapter getAdapter(
     const std::string &path,
     bool read_only = false,
     const std::unordered_set<Key> &non_provable_keys = std::unordered_set<Key>{}) {
-  if (!fs::exists(path) || !fs::is_directory(path)) {
-    throw std::invalid_argument{"RocksDB directory path doesn't exist at " + path};
-  }
-
-  std::shared_ptr<storage::IDBClient> db{std::make_shared<storage::rocksdb::Client>(path)};
-  db->init(read_only);
+  std::shared_ptr<storage::IDBClient> db = getDBClient(path, read_only);
 
   // Currently, we have no way of telling if a RocksDB database exists at 'path' as RocksDB will create an
   // empty one if it doesn't. Therefore, until the below-mentioned RocksDB issue is fixed, we just check if
@@ -390,24 +333,6 @@ inline std::string usage() {
   return ret;
 }
 
-inline constexpr auto kMinCmdLineArguments = 3ull;
-
-inline CommandLineArguments command_line_arguments(int argc, char *argv[]) {
-  auto cmd_line_args = CommandLineArguments{};
-  for (auto i = 0; i < argc; ++i) {
-    cmd_line_args.values.push_back(argv[i]);
-  }
-  return cmd_line_args;
-}
-
-inline CommandArguments command_arguments(const CommandLineArguments &cmd_line_args) {
-  auto cmd_args = CommandArguments{};
-  for (auto i = kMinCmdLineArguments; i < cmd_line_args.values.size(); ++i) {
-    cmd_args.values.push_back(cmd_line_args.values[i]);
-  }
-  return cmd_args;
-}
-
 inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std::ostream &err) {
   if (cmd_line_args.values.size() < kMinCmdLineArguments) {
     err << usage();
@@ -434,4 +359,4 @@ inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std
   return EXIT_SUCCESS;
 }
 
-}  // namespace concord::kvbc::tools::sparse_merkle_db
+}  // namespace concord::kvbc::tools::db_editor

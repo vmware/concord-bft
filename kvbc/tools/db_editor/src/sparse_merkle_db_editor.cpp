@@ -15,6 +15,6 @@
 
 #include <iostream>
 
-using namespace concord::kvbc::tools::sparse_merkle_db;
+using namespace concord::kvbc::tools::db_editor;
 
 int main(int argc, char *argv[]) { return run(command_line_arguments(argc, argv), std::cout, std::cerr); }
