@@ -24,6 +24,7 @@
 #include "kv_types.hpp"
 #include "categorization/types.h"
 #include "thread_pool.hpp"
+#include "Metrics.hpp"
 
 namespace concord::kvbc::categorization {
 
@@ -178,6 +179,12 @@ class KeyValueBlockchain {
 
   // currently we are operating with single thread
   util::ThreadPool thread_pool_{1};
+
+  // metrics
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  concordMetrics::Component metrics_;
+  concordMetrics::CounterHandle num_of_deleted_blocks_;
+  concordMetrics::CounterHandle num_of_deleted_keys_;
 
  public:
   struct KeyValueBlockchain_tester {
