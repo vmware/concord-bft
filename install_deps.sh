@@ -137,6 +137,8 @@ wget ${WGET_FLAGS} \
     tar -xzf v6.8.1.tar.gz && \
     rm v6.8.1.tar.gz && \
     cd rocksdb-6.8.1 && \
+    EXTRA_CXXFLAGS="-fno-omit-frame-pointer -g " \
+    EXTRA_CFLAGS="-fno-omit-frame-pointer -g " \
     PORTABLE=1 make -j$(nproc) USE_RTTI=1 shared_lib && \
     PORTABLE=1 make install-shared && \
     cd ${HOME} && \
