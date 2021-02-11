@@ -201,6 +201,11 @@ class KeyValueBlockchain {
 
     const VersionedRawBlock& getLastRawBlocked(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
   };  // namespace concord::kvbc::categorization
+
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    metrics_.UpdateAggregator();
+  }
   friend struct KeyValueBlockchain_tester;
 };
 

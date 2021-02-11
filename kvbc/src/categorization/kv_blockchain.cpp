@@ -44,6 +44,7 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
   linkSTChainFrom(getLastReachableBlockId() + 1);
+  metrics_.Register();
 }
 
 void KeyValueBlockchain::instantiateCategories() {
@@ -351,7 +352,7 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 
   block_chain_.deleteBlock(last_id, write_batch);
 
-  // Iterate over groups and call corresponding deleteGenesisBlock,
+  // Iterate over groups and call corresponding deleteLastReachableBlock,
   // Each group is responsible to put its deletes into the batch
   for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
     std::visit(
