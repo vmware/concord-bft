@@ -108,7 +108,7 @@ class SimpleTest(unittest.TestCase):
     def stopServers(self):
         """Stop all processes in self.procs"""
         for p in self.procs:
-            p.kill()
+            p.terminate()
             p.wait()
 
     def testReadWrittenValue(self):
