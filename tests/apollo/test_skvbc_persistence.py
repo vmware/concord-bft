@@ -30,8 +30,7 @@ def start_replica_cmd(builddir, replica_id):
     Return a command that starts an skvbc replica when passed to
     subprocess.Popen.
 
-    The replica is started with a short view change timeout and with RocksDB
-    persistence enabled (-p).
+    The replica is started with a short view change timeout.
 
     Note each arguments is an element in a list.
     """
@@ -43,9 +42,7 @@ def start_replica_cmd(builddir, replica_id):
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
-            "-v", viewChangeTimeoutMilli,
-            "-p",
-            "-t", os.environ.get('STORAGE_TYPE')
+            "-v", viewChangeTimeoutMilli
             ]
 
 

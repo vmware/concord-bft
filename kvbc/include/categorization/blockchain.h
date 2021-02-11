@@ -73,6 +73,20 @@ class Blockchain {
     return RawBlock(block.value(), native_client_, categorires);
   }
 
+  std::optional<Hash> parentDigest(BlockId block_id) const {
+    const auto block_ser = native_client_->getSlice(detail::BLOCKS_CF, Block::generateKey(block_id));
+    if (!block_ser) {
+      return std::nullopt;
+    }
+    auto digest = ParentDigest{};
+    deserialize(*block_ser, digest);
+    return digest.value;
+  }
+
+  bool hasBlock(BlockId block_id) const {
+    return native_client_->getSlice(detail::BLOCKS_CF, Block::generateKey(block_id)).has_value();
+  }
+
   /////////////////////// State transfer Block chain ///////////////////////
   class StateTransfer {
    public:
@@ -126,6 +140,20 @@ class Blockchain {
         return std::optional<RawBlock>{};
       }
       return RawBlock::deserialize(raw_block_ser.value());
+    }
+
+    std::optional<Hash> parentDigest(BlockId block_id) const {
+      const auto raw_block_ser = native_client_->getSlice(detail::ST_CHAIN_CF, Block::generateKey(block_id));
+      if (!raw_block_ser) {
+        return std::nullopt;
+      }
+      auto digest = ParentDigest{};
+      deserialize(*raw_block_ser, digest);
+      return digest.value;
+    }
+
+    bool hasBlock(BlockId block_id) const {
+      return native_client_->getSlice(detail::ST_CHAIN_CF, Block::generateKey(block_id)).has_value();
     }
 
     void updateLastId(const BlockId id) {

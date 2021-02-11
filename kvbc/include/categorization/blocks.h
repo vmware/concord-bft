@@ -122,4 +122,7 @@ struct RawBlock {
   RawBlockData data;
 };
 
+inline bool operator==(const RawBlock& l, const RawBlock& r) { return l.data == r.data; }
+inline bool operator!=(const RawBlock& l, const RawBlock& r) { return !(l == r); }
+
 }  // namespace concord::kvbc::categorization

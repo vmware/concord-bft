@@ -507,13 +507,14 @@ TEST_F(categorized_kvbc, get_raw_block) {
     ASSERT_TRUE(block_chain.getLastStatetransferBlockId().has_value());
     ASSERT_EQ(block_chain.getLastStatetransferBlockId().value(), 5);
 
-    ASSERT_THROW(block_chain.getRawBlock(3), std::runtime_error);
-    ASSERT_THROW(block_chain.getRawBlock(6), std::runtime_error);
+    ASSERT_FALSE(block_chain.getRawBlock(3));
+    ASSERT_FALSE(block_chain.getRawBlock(6));
   }
 
   {
     auto rb = block_chain.getRawBlock(5);
-    ASSERT_EQ(std::get<BlockMerkleInput>(rb.data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
+    ASSERT_TRUE(rb);
+    ASSERT_EQ(std::get<BlockMerkleInput>(rb->data.updates.kv["merkle"]).kv["merkle_key3"], "merkle_value3");
   }
 
   // E.L not yet possible
@@ -523,7 +524,7 @@ TEST_F(categorized_kvbc, get_raw_block) {
   //   "merkle_value1");
   // }
 
-  { ASSERT_THROW(block_chain.getRawBlock(0), std::runtime_error); }
+  { ASSERT_FALSE(block_chain.getRawBlock(0)); }
 }
 
 TEST_F(categorized_kvbc, link_state_transfer_chain) {
@@ -623,17 +624,13 @@ TEST_F(categorized_kvbc, creation_of_category_type_cf) {
 TEST_F(categorized_kvbc, instantiation_of_categories) {
   auto wb = db->getBatch();
   db->createColumnFamily(detail::CAT_ID_TYPE_CF);
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle2"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::block_merkle)));
   wb.put(
-      detail::CAT_ID_TYPE_CF, std::string("imm"), std::string(1, static_cast<char>(detail::CATEGORY_TYPE::immutable)));
+      detail::CAT_ID_TYPE_CF, std::string("merkle2"), std::string(1, static_cast<char>(CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("imm"), std::string(1, static_cast<char>(CATEGORY_TYPE::immutable)));
   wb.put(detail::CAT_ID_TYPE_CF,
          std::string("versioned_kv"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::versioned_kv)));
+         std::string(1, static_cast<char>(CATEGORY_TYPE::versioned_kv)));
 
   db->write(std::move(wb));
 
@@ -660,9 +657,7 @@ TEST_F(categorized_kvbc, instantiation_of_categories) {
 TEST_F(categorized_kvbc, throw_on_non_exist_category_type) {
   KeyValueBlockchain block_chain{db, true};
   auto wb = db->getBatch();
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::end_of_types)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::end_of_types)));
   db->write(std::move(wb));
 
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
@@ -678,9 +673,7 @@ TEST_F(categorized_kvbc, throw_on_non_exist_category) {
 TEST_F(categorized_kvbc, get_category) {
   db->createColumnFamily(detail::CAT_ID_TYPE_CF);
   auto wb = db->getBatch();
-  wb.put(detail::CAT_ID_TYPE_CF,
-         std::string("merkle"),
-         std::string(1, static_cast<char>(detail::CATEGORY_TYPE::block_merkle)));
+  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::block_merkle)));
   db->write(std::move(wb));
   KeyValueBlockchain block_chain{db, true};
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
@@ -714,7 +707,8 @@ TEST_F(categorized_kvbc, get_block_data) {
 
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
     auto reconstructed_updates = block_chain.getBlockUpdates(1);
-    ASSERT_TRUE(up_before_move == reconstructed_updates);
+    ASSERT_TRUE(reconstructed_updates);
+    ASSERT_EQ(up_before_move, *reconstructed_updates);
   }
   // Add block2
   {
@@ -746,12 +740,13 @@ TEST_F(categorized_kvbc, get_block_data) {
     auto up_before_move = updates;
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
     auto reconstructed_updates = block_chain.getBlockUpdates(2);
-    ASSERT_TRUE(up_before_move == reconstructed_updates);
+    ASSERT_TRUE(reconstructed_updates);
+    ASSERT_EQ(up_before_move, *reconstructed_updates);
   }
 
   // try to get updates
-  ASSERT_THROW(block_chain.getBlockUpdates(889), std::runtime_error);
-  ASSERT_THROW(block_chain.getBlockUpdates(887), std::runtime_error);
+  ASSERT_FALSE(block_chain.getBlockUpdates(889));
+  ASSERT_FALSE(block_chain.getBlockUpdates(887));
 }
 
 TEST_F(categorized_kvbc, validate_category_creation_on_add) {
@@ -770,7 +765,7 @@ TEST_F(categorized_kvbc, validate_category_creation_on_add) {
 
   auto type = db->get(detail::CAT_ID_TYPE_CF, std::string("imm"));
   ASSERT_TRUE(type.has_value());
-  ASSERT_EQ(static_cast<detail::CATEGORY_TYPE>((*type)[0]), detail::CATEGORY_TYPE::immutable);
+  ASSERT_EQ(static_cast<CATEGORY_TYPE>((*type)[0]), CATEGORY_TYPE::immutable);
 }
 
 TEST_F(categorized_kvbc, compare_raw_blocks) {
@@ -786,8 +781,9 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
   ASSERT_EQ(last_raw.first, 1);
   ASSERT_TRUE(last_raw.second.has_value());
   auto raw_from_api = block_chain.getRawBlock(1);
+  ASSERT_TRUE(raw_from_api);
   auto last_raw_imm_data = std::get<ImmutableInput>(last_raw.second.value().updates.kv["imm"]);
-  auto raw_from_api_imm_data = std::get<ImmutableInput>(raw_from_api.data.updates.kv["imm"]);
+  auto raw_from_api_imm_data = std::get<ImmutableInput>(raw_from_api->data.updates.kv["imm"]);
   std::vector<std::string> vec{"0", "1"};
   ASSERT_EQ(last_raw_imm_data.kv["key"].data, "val");
   ASSERT_EQ(last_raw_imm_data.kv["key"].tags, vec);
@@ -822,7 +818,7 @@ TEST_F(categorized_kvbc, single_read_with_version) {
     ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
   }
 
-  ASSERT_THROW(block_chain.get("non_exist", "key", 1), std::runtime_error);
+  ASSERT_NO_THROW(block_chain.get("non_exist", "key", 1));
   ASSERT_FALSE(block_chain.get("merkle", "non_exist", 1).has_value());
   ASSERT_FALSE(block_chain.get("versioned", "non_exist", 1).has_value());
   ASSERT_FALSE(block_chain.get("immutable", "non_exist", 1).has_value());
@@ -1529,6 +1525,74 @@ TEST_F(categorized_kvbc, multi_get_latest_version) {
     ASSERT_FALSE(versions[1].value().deleted);
     ASSERT_EQ(versions[1].value().version, 1);
   }
+}
+
+TEST_F(categorized_kvbc, updates_append_single_key_value_non_existent_category) {
+  auto updates = Updates{};
+
+  ASSERT_FALSE(updates.appendKeyValue<BlockMerkleUpdates>("non-existent", "k", "v"));
+  ASSERT_FALSE(updates.appendKeyValue<VersionedUpdates>("non-existent", "k", VersionedUpdates::Value{"v", false}));
+  ASSERT_FALSE(updates.appendKeyValue<ImmutableUpdates>(
+      "non-existent", "k", ImmutableUpdates::ImmutableValue{"v", {"t1", "t2"}}));
+
+  ASSERT_EQ(updates.size(), 0);
+  ASSERT_TRUE(updates.empty());
+}
+
+TEST_F(categorized_kvbc, updates_append_single_key_value) {
+  auto updates = Updates{};
+
+  {
+    auto merkle_updates = BlockMerkleUpdates{};
+    merkle_updates.addUpdate("mk1", "mv1");
+    updates.add("merkle", std::move(merkle_updates));
+  }
+
+  {
+    auto ver_updates = VersionedUpdates{};
+    ver_updates.addUpdate("vk1", "vv1");
+    updates.add("versioned", std::move(ver_updates));
+  }
+
+  {
+    auto immutable_updates = ImmutableUpdates{};
+    immutable_updates.addUpdate("ik1", {"iv1", {"t1", "t2"}});
+    updates.add("immutable", std::move(immutable_updates));
+  }
+
+  // Before appending single key-values.
+  ASSERT_EQ(updates.size(), 3);
+  ASSERT_FALSE(updates.empty());
+
+  // Append single key-values.
+  ASSERT_TRUE(updates.appendKeyValue<BlockMerkleUpdates>("merkle", "mk2", "mv2"));
+  ASSERT_TRUE(updates.appendKeyValue<VersionedUpdates>("versioned", "vk2", VersionedUpdates::Value{"vv2", false}));
+  ASSERT_TRUE(updates.appendKeyValue<ImmutableUpdates>(
+      "immutable", "ik2", ImmutableUpdates::ImmutableValue{"iv2", {"t1", "t2"}}));
+
+  // After appending single key-values.
+  ASSERT_EQ(updates.size(), 6);
+  ASSERT_FALSE(updates.empty());
+
+  auto expected = Updates{};
+  {
+    auto merkle_updates = BlockMerkleUpdates{};
+    merkle_updates.addUpdate("mk1", "mv1");
+    merkle_updates.addUpdate("mk2", "mv2");
+    expected.add("merkle", std::move(merkle_updates));
+
+    auto ver_updates = VersionedUpdates{};
+    ver_updates.addUpdate("vk1", "vv1");
+    ver_updates.addUpdate("vk2", "vv2");
+    expected.add("versioned", std::move(ver_updates));
+
+    auto immutable_updates = ImmutableUpdates{};
+    immutable_updates.addUpdate("ik1", {"iv1", {"t1", "t2"}});
+    immutable_updates.addUpdate("ik2", {"iv2", {"t1", "t2"}});
+    expected.add("immutable", std::move(immutable_updates));
+  }
+
+  ASSERT_EQ(updates, expected);
 }
 
 }  // end namespace

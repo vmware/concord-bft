@@ -41,12 +41,12 @@ class InternalControlHandlers : public bftEngine::ControlHandlers {
 };
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
-  InternalCommandsHandler(concord::kvbc::ILocalKeyValueStorageReadOnly *storage,
-                          concord::kvbc::IBlocksAppender *blocksAppender,
+  InternalCommandsHandler(concord::kvbc::IReader *storage,
+                          concord::kvbc::IBlockAdder *blocksAdder,
                           concord::kvbc::IBlockMetadata *blockMetadata,
                           logging::Logger &logger)
       : m_storage(storage),
-        m_blocksAppender(blocksAppender),
+        m_blockAdder(blocksAdder),
         m_blockMetadata(blockMetadata),
         m_logger(logger),
         controlHandlers_(std::make_shared<InternalControlHandlers>()) {}
@@ -92,16 +92,21 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                                         uint32_t &specificReplicaInfoSize);
   bool executeGetLastBlockCommand(uint32_t requestSize, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
-  void addMetadataKeyValue(concord::storage::SetOfKeyValuePairs &updates, uint64_t sequenceNum) const;
+  void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;
 
   std::shared_ptr<bftEngine::ControlHandlers> getControlHandlers() override { return controlHandlers_; }
 
  private:
   static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
+  std::optional<std::string> get(const std::string &key, concord::kvbc::BlockId blockId) const;
+  std::string getAtMost(const std::string &key, concord::kvbc::BlockId blockId) const;
+  std::string getLatest(const std::string &key) const;
+  std::optional<concord::kvbc::BlockId> getLatestVersion(const std::string &key) const;
+  std::optional<std::map<std::string, std::string>> getBlockUpdates(concord::kvbc::BlockId blockId) const;
 
  private:
-  concord::kvbc::ILocalKeyValueStorageReadOnly *m_storage;
-  concord::kvbc::IBlocksAppender *m_blocksAppender;
+  concord::kvbc::IReader *m_storage;
+  concord::kvbc::IBlockAdder *m_blockAdder;
   concord::kvbc::IBlockMetadata *m_blockMetadata;
   logging::Logger &m_logger;
   size_t m_readsCounter = 0;

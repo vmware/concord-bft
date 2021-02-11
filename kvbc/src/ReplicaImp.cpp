@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <exception>
+#include <string_view>
 #include <utility>
 #include "assertUtils.hpp"
 #include "communication/CommDefs.hpp"
@@ -22,6 +23,7 @@
 #include "replica_state_sync.h"
 #include "sliver.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
+#include "rocksdb/native_client.h"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -67,9 +69,9 @@ void ReplicaImp::createReplicaAndSyncState() {
       replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
   if (erasedMetaData) isNewStorage = true;
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
-  if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
+  if (!replicaConfig_.isReadOnly && !isNewStorage && !m_stateTransfer->isCollectingState()) {
     uint64_t removedBlocksNum = replicaStateSync_->execute(
-        logger, *m_bcDbAdapter, getLastReachableBlockNum(), m_replicaPtr->getLastExecutedSequenceNum());
+        logger, *m_kvBlockchain, getLastReachableBlockNum(), m_replicaPtr->getLastExecutedSequenceNum());
     LOG_INFO(logger,
              "createReplicaAndSyncState: removedBlocksNum = "
                  << removedBlocksNum << ", new m_lastBlock = " << getLastBlockNum()
@@ -89,103 +91,89 @@ Status ReplicaImp::stop() {
 
 ReplicaImp::RepStatus ReplicaImp::getReplicaStatus() const { return m_currentRepStatus; }
 
-const ILocalKeyValueStorageReadOnly &ReplicaImp::getReadOnlyStorage() { return *this; }
+const IReader &ReplicaImp::getReadOnlyStorage() const { return *this; }
 
-Status ReplicaImp::addBlockToIdleReplica(const SetOfKeyValuePairs &updates) {
+BlockId ReplicaImp::addBlockToIdleReplica(categorization::Updates &&updates) {
   if (getReplicaStatus() != IReplica::RepStatus::Idle) {
-    return Status::IllegalOperation("");
+    throw std::logic_error{"addBlockToIdleReplica() called on a non-idle replica"};
   }
 
-  BlockId d;
-  return addBlockInternal(updates, d);
-}
-
-Status ReplicaImp::get(const Sliver &key, Sliver &outValue) const {
-  // TODO(GG): check legality of operation (the method should be invoked from
-  // the replica's internal thread)
-
-  TimeRecorder scoped_timer(*histograms_.get_value);
-  BlockId dummy;
-  return getInternal(getLastBlockNum(), key, outValue, dummy);
-}
-
-Status ReplicaImp::get(BlockId readVersion, const Sliver &key, Sliver &outValue, BlockId &outBlock) const {
-  // TODO(GG): check legality of operation (the method should be invoked from
-  // the replica's internal thread)
-
-  TimeRecorder scoped_timer(*histograms_.get_block);
-  return getInternal(readVersion, key, outValue, outBlock);
-}
-
-Status ReplicaImp::getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockData) const {
-  // TODO(GG): check legality of operation (the method should be invoked from
-  // the replica's internal thread)
-
-  try {
-    TimeRecorder scoped_timer(*histograms_.get_block_data);
-    Sliver block = getBlockInternal(blockId);
-    outBlockData = m_bcDbAdapter->getBlockData(block);
-  } catch (const NotFoundException &e) {
-    LOG_ERROR(logger, e.what());
-    return Status::NotFound("todo");
-  }
-
-  return Status::OK();
-}
-
-Status ReplicaImp::mayHaveConflictBetween(const Sliver &key, BlockId fromBlock, BlockId toBlock, bool &outRes) const {
-  // TODO(GG): add assert or print warning if fromBlock==0 (all keys have a
-  // conflict in block 0)
-
-  TimeRecorder scoped_timer(*histograms_.may_have_conflict_between);
-  // we conservatively assume that we have a conflict
-  outRes = true;
-
-  Sliver dummy;
-  BlockId block = 0;
-  Status s = getInternal(toBlock, key, dummy, block);
-  if (s.isOK() && block < fromBlock) {
-    outRes = false;
-  }
-
-  return s;
-}
-
-Status ReplicaImp::addBlock(const SetOfKeyValuePairs &updates,
-                            BlockId &outBlockId,
-                            const concordUtils::SpanWrapper & /*parent_span*/) {
-  // TODO(GG): check legality of operation (the method should be invoked from
-  // the replica's internal thread)
-
-  // TODO(GG): what do we want to do with several identical keys in the same
-  // block?
-
-  TimeRecorder scoped_timer(*histograms_.add_block);
-  return addBlockInternal(updates, outBlockId);
+  return m_kvBlockchain->addBlock(std::move(updates));
 }
 
 void ReplicaImp::deleteGenesisBlock() {
-  const auto genesisBlock = m_bcDbAdapter->getGenesisBlockId();
+  const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
   if (genesisBlock == 0) {
     throw std::logic_error{"Cannot delete the genesis block from an empty blockchain"};
   }
-  m_bcDbAdapter->deleteBlock(genesisBlock);
+  m_kvBlockchain->deleteBlock(genesisBlock);
 }
 
 BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
-  const auto genesisBlock = m_bcDbAdapter->getGenesisBlockId();
+  const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
   if (genesisBlock == 0) {
     throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
   } else if (until <= genesisBlock) {
     throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
   }
 
-  const auto lastBlock = getLastBlock();
-  const auto lastDeletedBlock = std::min(lastBlock, until - 1);
+  const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
+  const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
   for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
-    m_bcDbAdapter->deleteBlock(i);
+    ConcordAssert(m_kvBlockchain->deleteBlock(i));
   }
   return lastDeletedBlock;
+}
+
+BlockId ReplicaImp::add(categorization::Updates &&updates) { return m_kvBlockchain->addBlock(std::move(updates)); }
+
+std::optional<categorization::Value> ReplicaImp::get(const std::string &category_id,
+                                                     const std::string &key,
+                                                     BlockId block_id) const {
+  return m_kvBlockchain->get(category_id, key, block_id);
+}
+
+std::optional<categorization::Value> ReplicaImp::getLatest(const std::string &category_id,
+                                                           const std::string &key) const {
+  return m_kvBlockchain->getLatest(category_id, key);
+}
+
+void ReplicaImp::multiGet(const std::string &category_id,
+                          const std::vector<std::string> &keys,
+                          const std::vector<BlockId> &versions,
+                          std::vector<std::optional<categorization::Value>> &values) const {
+  return m_kvBlockchain->multiGet(category_id, keys, versions, values);
+}
+
+void ReplicaImp::multiGetLatest(const std::string &category_id,
+                                const std::vector<std::string> &keys,
+                                std::vector<std::optional<categorization::Value>> &values) const {
+  return m_kvBlockchain->multiGetLatest(category_id, keys, values);
+}
+
+std::optional<categorization::TaggedVersion> ReplicaImp::getLatestVersion(const std::string &category_id,
+                                                                          const std::string &key) const {
+  return m_kvBlockchain->getLatestVersion(category_id, key);
+}
+
+void ReplicaImp::multiGetLatestVersion(const std::string &category_id,
+                                       const std::vector<std::string> &keys,
+                                       std::vector<std::optional<categorization::TaggedVersion>> &versions) const {
+  return m_kvBlockchain->multiGetLatestVersion(category_id, keys, versions);
+}
+
+std::optional<categorization::Updates> ReplicaImp::getBlockUpdates(BlockId block_id) const {
+  return m_kvBlockchain->getBlockUpdates(block_id);
+}
+
+BlockId ReplicaImp::getGenesisBlockId() const { return m_kvBlockchain->getGenesisBlockId(); }
+
+BlockId ReplicaImp::getLastBlockId() const {
+  const auto lastSt = m_kvBlockchain->getLastStatetransferBlockId();
+  if (lastSt) {
+    return *lastSt;
+  }
+  return m_kvBlockchain->getLastReachableBlockId();
 }
 
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
@@ -197,6 +185,9 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
                        const std::shared_ptr<concord::performance::PerformanceManager> &pm)
     : logger(logging::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
+      m_dbSet{storageFactory->newDatabaseSet()},
+      m_bcDbAdapter{std::move(m_dbSet.dbAdapter)},
+      m_metadataDBClient{m_dbSet.metadataDBClient},
       m_ptrComm(comm),
       replicaConfig_(replicaConfig),
       aggregator_(aggregator),
@@ -240,11 +231,12 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   }
 #endif
 
-  auto dbSet = storageFactory->newDatabaseSet();
-  m_bcDbAdapter = std::move(dbSet.dbAdapter);
-  dbSet.dataDBClient->setAggregator(aggregator);
-  dbSet.metadataDBClient->setAggregator(aggregator);
-  m_metadataDBClient = dbSet.metadataDBClient;
+  if (!replicaConfig.isReadOnly) {
+    const auto linkStChain = true;
+    m_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain);
+  }
+  m_dbSet.dataDBClient->setAggregator(aggregator);
+  m_dbSet.metadataDBClient->setAggregator(aggregator);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
@@ -259,40 +251,38 @@ ReplicaImp::~ReplicaImp() {
   }
 }
 
-Status ReplicaImp::addBlockInternal(const SetOfKeyValuePairs &updates, BlockId &outBlockId) {
-  auto data = updates;
-  pm_->Delay<concord::performance::SlowdownPhase::StorageBeforeKVBC>(data);
-  outBlockId = m_bcDbAdapter->addBlock(data);
-  return Status::OK();
-}
-
-Status ReplicaImp::getInternal(BlockId readVersion, const Key &key, Sliver &outValue, BlockId &outBlock) const {
-  const auto clear = [&outValue, &outBlock]() {
-    outValue = Sliver{};
-    outBlock = 0;
-  };
-
-  try {
-    std::tie(outValue, outBlock) = m_bcDbAdapter->getValue(key, readVersion);
-  } catch (const NotFoundException &) {
-    clear();
-  } catch (const std::exception &e) {
-    clear();
-    return Status::GeneralError(std::string{"getInternal() failed to get value due to a DBAdapter error: "} + e.what());
-  } catch (...) {
-    clear();
-    return Status::GeneralError("getInternal() failed to get value due to an unknown DBAdapter error");
-  }
-
-  return Status::OK();
-}
-
 /*
  * This method can't return false by current insertBlockInternal impl.
  * It is used only by State Transfer to synchronize state between replicas.
  */
-bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const uint32_t blockSize) {
-  Sliver block = Sliver::copy(block_data, blockSize);
+bool ReplicaImp::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+  if (replicaConfig_.isReadOnly) {
+    return putBlockToObjectStore(blockId, blockData, blockSize);
+  }
+
+  auto view = std::string_view{blockData, blockSize};
+  const auto rawBlock = categorization::RawBlock::deserialize(view);
+  if (m_kvBlockchain->hasBlock(blockId)) {
+    const auto existingRawBlock = m_kvBlockchain->getRawBlock(blockId);
+    if (rawBlock != existingRawBlock) {
+      LOG_ERROR(logger,
+                "found existing (and different) block ID[" << blockId << "] when receiving from state transfer");
+
+      // TODO consider assert?
+      m_kvBlockchain->deleteBlock(blockId);
+      throw std::runtime_error(
+          __PRETTY_FUNCTION__ +
+          std::string("found existing (and different) block when receiving state transfer, block ID: ") +
+          std::to_string(blockId));
+    }
+  } else {
+    m_kvBlockchain->addRawBlock(rawBlock, blockId);
+  }
+  return true;
+}
+
+bool ReplicaImp::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+  Sliver block = Sliver::copy(blockData, blockSize);
 
   if (m_bcDbAdapter->hasBlock(blockId)) {
     // if we already have a block with the same ID
@@ -316,6 +306,24 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *block_data, const 
   return true;
 }
 
+uint64_t ReplicaImp::getLastReachableBlockNum() const {
+  if (replicaConfig_.isReadOnly) {
+    return m_bcDbAdapter->getLastReachableBlockId();
+  }
+  return m_kvBlockchain->getLastReachableBlockId();
+}
+
+uint64_t ReplicaImp::getLastBlockNum() const {
+  if (replicaConfig_.isReadOnly) {
+    return m_bcDbAdapter->getLatestBlockId();
+  }
+  const auto last = m_kvBlockchain->getLastStatetransferBlockId();
+  if (last) {
+    return *last;
+  }
+  return m_kvBlockchain->getLastReachableBlockId();
+}
+
 RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
 
 /*
@@ -323,6 +331,20 @@ RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const { return m_bcDbAdap
  * The caller is the owner of the memory
  */
 bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+  if (replicaConfig_.isReadOnly) {
+    return getBlockFromObjectStore(blockId, outBlock, outBlockSize);
+  }
+  const auto rawBlock = m_kvBlockchain->getRawBlock(blockId);
+  if (!rawBlock) {
+    throw NotFoundException{"Raw block not found: " + std::to_string(blockId)};
+  }
+  const auto &ser = categorization::RawBlock::serialize(*rawBlock);
+  *outBlockSize = ser.size();
+  std::memcpy(outBlock, ser.data(), *outBlockSize);
+  return true;
+}
+
+bool ReplicaImp::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
   try {
     RawBlock block = getBlockInternal(blockId);
     *outBlockSize = block.length();
@@ -334,17 +356,36 @@ bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSi
   }
 }
 
-bool ReplicaImp::hasBlock(BlockId blockId) const { return m_bcDbAdapter->hasBlock(blockId); }
+bool ReplicaImp::hasBlock(BlockId blockId) const {
+  if (replicaConfig_.isReadOnly) {
+    return m_bcDbAdapter->hasBlock(blockId);
+  }
+  return m_kvBlockchain->hasBlock(blockId);
+}
 
 bool ReplicaImp::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
+  if (replicaConfig_.isReadOnly) {
+    return getPrevDigestFromObjectStoreBlock(blockId, outPrevBlockDigest);
+  }
+  ConcordAssert(blockId > 0);
+  const auto parent_digest = m_kvBlockchain->parentDigest(blockId);
+  ConcordAssert(parent_digest.has_value());
+  static_assert(parent_digest->size() == BLOCK_DIGEST_SIZE);
+  static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, parent_digest->data(), BLOCK_DIGEST_SIZE);
+  return true;
+}
+
+bool ReplicaImp::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
+                                                   bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) {
   ConcordAssert(blockId > 0);
   try {
-    RawBlock result = getBlockInternal(blockId);
-    auto parentDigest = m_bcDbAdapter->getParentDigest(result);
+    const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
+    const auto rawBlock = categorization::RawBlock::deserialize(rawBlockSer);
     ConcordAssert(outPrevBlockDigest != nullptr);
-    static_assert(parentDigest.size() == BLOCK_DIGEST_SIZE);
+    static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
     static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
-    memcpy(outPrevBlockDigest, parentDigest.data(), BLOCK_DIGEST_SIZE);
+    memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
     return true;
   } catch (const NotFoundException &e) {
     LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());

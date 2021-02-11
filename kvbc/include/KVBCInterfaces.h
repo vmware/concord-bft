@@ -100,11 +100,11 @@ class IReplica {
 
   // Used to read from storage, only when a replica is Idle. Useful for
   // initialization and maintenance.
-  virtual const concord::kvbc::ILocalKeyValueStorageReadOnly& getReadOnlyStorage() = 0;
+  virtual const concord::kvbc::IReader& getReadOnlyStorage() const = 0;
 
   // Used to append blocks to storage, only when a replica is Idle. Useful
   // for initialization and maintenance.
-  virtual Status addBlockToIdleReplica(const concord::kvbc::SetOfKeyValuePairs& updates) = 0;
+  virtual concord::kvbc::BlockId addBlockToIdleReplica(concord::kvbc::categorization::Updates&& updates) = 0;
 
   /// TODO(IG) the following methods are probably temp solution,
   /// need to split interfaces implementations to differrent modules

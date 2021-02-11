@@ -29,7 +29,7 @@ Blockchain::Blockchain(const std::shared_ptr<concord::storage::rocksdb::NativeCl
   auto genesis_blockId = loadGenesisBlockId();
   if (genesis_blockId) {
     genesis_block_id_ = genesis_blockId.value();
-    LOG_INFO(CAT_BLOCK_LOG, "Genesis block as loaded from storage " << last_reachable_block_id_);
+    LOG_INFO(CAT_BLOCK_LOG, "Genesis block as loaded from storage " << genesis_block_id_);
   }
 }
 
