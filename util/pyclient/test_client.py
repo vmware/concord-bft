@@ -31,7 +31,7 @@ def verify_system_is_ready_before_starting(async_fn):
         config = bft_config.Config(4, 1, 0, 4096, 5000, 500, "")
         class_object = args[0]
         with bft_client.UdpClient(config, class_object.replicas, None) as udp_client:
-            await udp_client.sendSync(class_object.writeRequest(1), False)
+            await udp_client.sendSync(class_object.writeRequest(1989), False)
         return await async_fn(*args, **kwargs)
     return sys_ready_wrapper
 
