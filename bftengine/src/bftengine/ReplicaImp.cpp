@@ -4023,6 +4023,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
 }
 
 void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
+  if (lastExecutedSeqNum >= seqNum) return;
   SCOPED_MDC_SEQ_NUM(std::to_string(seqNum));
   SeqNumInfo &seqNumInfo = mainLog->get(seqNum);
   PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
