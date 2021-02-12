@@ -28,7 +28,7 @@ def verify_system_is_ready_before_starting(async_fn):
     """ Decorator for running a coroutine (async_fn) with trio. """
     @wraps(async_fn)
     async def sys_ready_wrapper(*args, **kwargs):
-        config = bft_config.Config(4, 1, 0, 4096, 5000, 500, "")
+        config = bft_config.Config(4, 1, 0, 4096, 10000, 500, "")
         class_object = args[0]
         with bft_client.UdpClient(config, class_object.replicas, None) as udp_client:
             await udp_client.sendSync(class_object.writeRequest(1989), False)
@@ -176,7 +176,7 @@ class SimpleTest(unittest.TestCase):
     async def _testPrimaryWrite(self):
        # Try to guarantee we don't retry accidentally
        config = self.config._replace(retry_timeout_milli=500)
-       with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
+       with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            self.assertEqual(None, udp_client.primary)
            await udp_client.sendSync(self.writeRequest(1), False)
            # We know the servers are up once the write completes
