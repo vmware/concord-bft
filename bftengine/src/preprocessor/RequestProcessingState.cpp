@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -10,12 +10,14 @@
 // file.
 
 #include "RequestProcessingState.hpp"
+#include "sparse_merkle/base_types.h"
 
 namespace preprocessor {
 
 using namespace std;
 using namespace chrono;
 using namespace concord::util;
+using namespace concord::kvbc::sparse_merkle;
 
 uint16_t RequestProcessingState::numOfRequiredEqualReplies_ = 0;
 PreProcessorRecorder *RequestProcessingState::preProcessorHistograms_ = nullptr;
@@ -33,12 +35,14 @@ void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRec
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                uint16_t clientId,
+                                               uint16_t reqOffsetInBatch,
                                                const string &cid,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg)
     : numOfReplicas_(numOfReplicas),
       clientId_(clientId),
+      reqOffsetInBatch_(reqOffsetInBatch),
       cid_(cid),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),
@@ -159,10 +163,14 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
+      const auto &primaryHash =
+          Hash(SHA3_256().digest(primaryPreProcessResultHash_.data(), primaryPreProcessResultHash_.size())).toString();
+      const auto &hashPassedConsensus =
+          Hash(SHA3_256().digest(itOfChosenHash->first.data(), itOfChosenHash->first.size())).toString();
       LOG_WARN(logger(),
                "Primary replica pre-processing result hash: "
-                   << primaryPreProcessResultHash_.data() << " is different from one passed the consensus: "
-                   << itOfChosenHash->first.data() << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
+                   << primaryHash << " is different from one passed the consensus: " << hashPassedConsensus
+                   << KVLOG(reqSeqNum_) << "; retry pre-processing on primary replica");
       retrying_ = true;
       return RETRY_PRIMARY;
     }
