@@ -73,7 +73,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   // void removeEarlierOrEqualPendingRequests(NodeIdType clientId, ReqId reqSeqNum);
 
   void removePendingRequestOfClient(NodeIdType clientId);
-
+  void removePendingForExecutionRequestOfClient(NodeIdType clientId);
   void clearAllPendingRequests();
 
   Time infoOfEarliestPendingRequest(std::string& cid) const;
@@ -110,7 +110,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
     ReqId currentPendingRequest;
     Time timeOfCurrentPendingRequest;
     std::string cid;
-
+    bool waitsForExecution;
     // replies
     ReqId lastSeqNumberOfReply;
     Time latestReplyTime;

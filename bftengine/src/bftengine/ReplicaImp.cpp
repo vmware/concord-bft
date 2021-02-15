@@ -4030,6 +4030,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       free(req.outReply);
       send(replyMsg.get(), req.clientId);
     }
+    if (clientsManager->isValidClient(req.clientId))
+      clientsManager->removePendingForExecutionRequestOfClient(req.clientId);
   }
 }
 

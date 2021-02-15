@@ -133,6 +133,7 @@ void ClientsManager::loadInfoFromReservedPages() {
     if (ci.currentPendingRequest != 0 && (ci.currentPendingRequest <= replyHeader->reqSeqNum)) {
       ci.currentPendingRequest = 0;
       ci.timeOfCurrentPendingRequest = MinTime;
+      ci.waitsForExecution = false;
       ci.cid = std::string();
     }
   }
@@ -265,7 +266,7 @@ bool ClientsManager::noPendingAndRequestCanBecomePending(NodeIdType clientId, Re
   uint16_t idx = clientIdToIndex_.at(clientId);
   const ClientInfo& c = indexToClientInfo_.at(idx);
 
-  if (c.currentPendingRequest != 0) return false;  // if has pending request
+  if (c.currentPendingRequest != 0 || c.waitsForExecution == true) return false;  // if has pending request
 
   if (reqSeqNum <= c.lastSeqNumberOfReply) return false;  // if already executed a later/equivalent request
 
@@ -290,6 +291,7 @@ void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, con
   c.currentPendingRequest = reqSeqNum;
   c.timeOfCurrentPendingRequest = getMonotonicTime();
   c.cid = cid;
+  c.waitsForExecution = true;
 }
 
 /*
@@ -344,11 +346,18 @@ void ClientsManager::removePendingRequestOfClient(NodeIdType clientId) {
   }
 }
 
+void ClientsManager::removePendingForExecutionRequestOfClient(NodeIdType clientId) {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  ClientInfo& c = indexToClientInfo_.at(idx);
+  c.waitsForExecution = false;
+}
+
 void ClientsManager::clearAllPendingRequests() {
   for (ClientInfo& c : indexToClientInfo_) {
     c.currentPendingRequest = 0;
     c.timeOfCurrentPendingRequest = MinTime;
     c.cid = std::string();
+    c.waitsForExecution = false;
   }
 
   ConcordAssert(indexToClientInfo_[0].currentPendingRequest == 0);  // TODO(GG): debug
