@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -10,28 +10,27 @@
 // file.
 
 #include <queue>
-#include <thread>
+#include <unordered_map>
 #include <mutex>
 #include <cmath>
 #include <condition_variable>
-#include <memory>
 #include <SimpleClient.hpp>
 
 #include "ClientMsgs.hpp"
 #include "OpenTracing.hpp"
-#include "SimpleClient.hpp"
 #include "assertUtils.hpp"
 #include "TimeUtils.hpp"
-#include "messages/MessageBase.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "messages/ClientPreProcessRequestMsg.hpp"
+#include "messages/ClientBatchRequestMsg.hpp"
 #include "messages/MsgsCertificate.hpp"
 #include "DynamicUpperLimitWithSimpleFilter.hpp"
 #include "Logger.hpp"
 
+using namespace std;
 using namespace std::chrono;
 using namespace bft::communication;
+using namespace preprocessor;
 
 namespace bftEngine {
 namespace impl {
@@ -54,7 +53,11 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
                               char* replyBuffer,
                               uint32_t& actualReplyLength,
                               const std::string& cid,
-                              const std::string& span_context) override;
+                              const std::string& spanContext) override;
+
+  OperationResult sendBatch(const deque<ClientRequest>& clientRequests,
+                            deque<ClientReply>& clientReplies,
+                            const std::string& cid) override;
 
   // IReceiver methods
   void onNewMessage(NodeNum sourceNode, const char* const message, size_t messageLength) override;
@@ -74,10 +77,20 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
 
  protected:
   bool isSystemReady() const;
-  void sendPendingRequest();
+  void sendPendingRequest(bool isBatch, const std::string& cid);
   void onMessageFromReplica(MessageBase* msg);
-  void onRetransmission();
+  void onRetransmission(bool isBatch, const std::string& cid);
   void reset();
+  bool allRequiredRepliesReceived();
+  void sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size);
+  OperationResult isBatchValid(uint64_t requestsNbr, uint64_t repliesNbr);
+  OperationResult isBatchRequestValid(const ClientRequest& req);
+  OperationResult preparePendingRequestsFromBatch(const deque<ClientRequest>& clientRequests, uint64_t& maxTimeToWait);
+  void verifySendRequestPrerequisites();
+  tuple<bool, bool> pendingRequestProcessing(bool isBatch,
+                                             const Time& beginTime,
+                                             uint64_t reqTimeoutMilli,
+                                             const std::string& cid);
 
  protected:
   static const uint32_t maxLegalMsgSize_ = 64 * 1024;  // TODO(GG): ???
@@ -91,13 +104,15 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
   const std::set<uint16_t> replicas_;
   ICommunication* const communication_;
 
-  MsgsCertificate<ClientReplyMsg, false, false, true, SimpleClientImp> replysCertificate_;
+  // SeqNumber -> MsgsCertificate
+  typedef MsgsCertificate<ClientReplyMsg, false, false, true, SimpleClientImp> Certificate;
+  std::unordered_map<uint64_t, std::unique_ptr<Certificate>> replysCertificate_;
 
   std::mutex lock_;  // protects _msgQueue and pendingRequest
   std::condition_variable condVar_;
 
   std::queue<MessageBase*> msgQueue_;
-  ClientRequestMsg* pendingRequest_ = nullptr;
+  std::deque<ClientRequestMsg*> pendingRequest_;
 
   Time timeOfLastTransmission_ = MinTime;
   uint16_t numberOfTransmissions_ = 0;
@@ -135,27 +150,35 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
   ConcordAssert(replyMsg != nullptr);
   ConcordAssert(replyMsg->type() == REPLY_MSG_TYPE);
 
-  LOG_DEBUG(logger_,
-            "Client " << clientId_ << " received ClientReplyMsg with seqNum=" << replyMsg->reqSeqNum()
-                      << " sender=" << replyMsg->senderId() << "size=" << replyMsg->size()
-                      << " primaryId=" << (int)replyMsg->currentPrimaryId() << " hash=" << replyMsg->debugHash());
+  LOG_DEBUG(
+      logger_,
+      "Received ClientReplyMsg" << KVLOG(
+          clientId_, replyMsg->reqSeqNum(), replyMsg->senderId(), replyMsg->size(), (int)replyMsg->currentPrimaryId()));
 
-  if (replyMsg->reqSeqNum() != pendingRequest_->requestSeqNum()) {
+  bool pendingReqFound = false;
+  for (auto const& m : pendingRequest_) {
+    if (m->requestSeqNum() == replyMsg->reqSeqNum()) {
+      pendingReqFound = true;
+      break;
+    }
+  }
+  if (!pendingReqFound) {
     delete msg;
     return;
   }
 
-  replysCertificate_.addMsg(replyMsg, replyMsg->senderId());
-
-  if (replysCertificate_.isInconsistent()) {
-    // TODO(GG): print .....
-    replysCertificate_.resetAndFree();
+  auto iter = replysCertificate_.find(replyMsg->reqSeqNum());
+  if (iter == std::cend(replysCertificate_)) {
+    auto cert = std::make_unique<Certificate>(numberOfReplicas_, fVal_, numberOfRequiredReplicas_, clientId_);
+    iter = replysCertificate_.insert(std::make_pair(replyMsg->reqSeqNum(), std::move(cert))).first;
   }
+  iter->second->addMsg(replyMsg, replyMsg->senderId());
+  if (iter->second->isInconsistent()) iter->second->resetAndFree();
 }
 
-void SimpleClientImp::onRetransmission() {
+void SimpleClientImp::onRetransmission(bool isBatch, const std::string& cid) {
   client_metrics_.retransmissions.Get().Inc();
-  sendPendingRequest();
+  sendPendingRequest(isBatch, cid);
 }
 
 // in this version we assume that the set of replicas is 0,1,2,...,numberOfReplicas (TODO(GG): should be changed to
@@ -180,7 +203,6 @@ SimpleClientImp::SimpleClientImp(ICommunication* communication,
       cVal_{cVal},
       replicas_{generateSetOfReplicas_helpFunc(numberOfReplicas_)},
       communication_{communication},
-      replysCertificate_(numberOfReplicas_, fVal, numberOfRequiredReplicas_, clientId),
       limitOfExpectedOperationTime_(p.clientInitialRetryTimeoutMilli,
                                     p.numberOfStandardDeviationsToTolerate,
                                     p.clientMaxRetryTimeoutMilli,
@@ -195,7 +217,6 @@ SimpleClientImp::SimpleClientImp(ICommunication* communication,
       pm_{pm} {
   ConcordAssert(fVal_ >= 1);
 
-  pendingRequest_ = nullptr;
   timeOfLastTransmission_ = MinTime;
   numberOfTransmissions_ = 0;
   primaryReplicaIsKnown_ = false;
@@ -204,173 +225,291 @@ SimpleClientImp::SimpleClientImp(ICommunication* communication,
   communication_->setReceiver(clientId_, this);
 }
 
-SimpleClientImp::~SimpleClientImp() {
-  ConcordAssert(replysCertificate_.isEmpty());
+SimpleClientImp::~SimpleClientImp() {}
+
+bool SimpleClientImp::allRequiredRepliesReceived() {
+  if (replysCertificate_.empty()) return false;
+  for (auto& elem : replysCertificate_) {
+    if (!elem.second->isComplete()) {
+      LOG_DEBUG(logger_, "Not all replies received" << KVLOG(clientId_));
+      return false;
+    }
+  }
+  LOG_DEBUG(logger_, "All replies received" << KVLOG(clientId_));
+  return true;
+}
+
+void SimpleClientImp::verifySendRequestPrerequisites() {
+  ConcordAssert(replysCertificate_.empty());
   ConcordAssert(msgQueue_.empty());
-  ConcordAssert(pendingRequest_ == nullptr);
+  ConcordAssert(pendingRequest_.empty());
   ConcordAssert(timeOfLastTransmission_ == MinTime);
   ConcordAssert(numberOfTransmissions_ == 0);
+}
+
+tuple<bool, bool> SimpleClientImp::pendingRequestProcessing(bool isBatch,
+                                                            const Time& beginTime,
+                                                            uint64_t reqTimeoutMilli,
+                                                            const std::string& cid) {
+  bool requestCommitted = false;
+  bool requestTimedOut = false;
+  auto predicate = [this] { return !msgQueue_.empty(); };
+  static const chrono::milliseconds timersRes(timersResolutionMilli_);
+  while (true) {
+    queue<MessageBase*> newMsgs;
+    bool hasData = false;
+    {
+      unique_lock<std::mutex> mlock(lock_);
+      hasData = condVar_.wait_for(mlock, timersRes, predicate);
+      if (hasData) msgQueue_.swap(newMsgs);
+    }
+    if (hasData) {
+      while (!newMsgs.empty()) {
+        MessageBase* msg = newMsgs.front();
+        onMessageFromReplica(msg);
+        newMsgs.pop();
+      }
+    }
+    if (allRequiredRepliesReceived()) {
+      requestCommitted = true;
+      break;
+    }
+    const Time currTime = getMonotonicTime();
+    if (reqTimeoutMilli != INFINITE_TIMEOUT &&
+        (uint64_t)duration_cast<milliseconds>(currTime - beginTime).count() > reqTimeoutMilli) {
+      requestTimedOut = true;
+      break;
+    }
+    if ((uint64_t)duration_cast<milliseconds>(currTime - timeOfLastTransmission_).count() >
+        limitOfExpectedOperationTime_.upperLimit()) {
+      onRetransmission(isBatch, cid);
+    }
+  }
+  return {requestCommitted, requestTimedOut};
 }
 
 OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                                              const char* request,
-                                             uint32_t lengthOfRequest,
+                                             uint32_t lenOfRequest,
                                              uint64_t reqSeqNum,
-                                             uint64_t timeoutMilli,
-                                             uint32_t lengthOfReplyBuffer,
+                                             uint64_t reqTimeoutMilli,
+                                             uint32_t lenOfReplyBuffer,
                                              char* replyBuffer,
                                              uint32_t& actualReplyLength,
                                              const std::string& cid,
-                                             const std::string& span_context) {
+                                             const std::string& spanContext) {
   bool isReadOnly = flags & READ_ONLY_REQ;
   bool isPreProcessRequired = flags & PRE_PROCESS_REQ;
   const std::string msgCid = cid.empty() ? std::to_string(reqSeqNum) + "-" + std::to_string(clientId_) : cid;
-  // TODO(GG): check params ...
+  const auto& maxRetransmissionTimeout = limitOfExpectedOperationTime_.upperLimit();
   LOG_DEBUG(logger_,
-            "Client " << clientId_ << " - sends request " << reqSeqNum << " (isRO=" << isReadOnly
-                      << ", isPreProcess=" << isPreProcessRequired << " , request size=" << lengthOfRequest
-                      << ", retransmissionMilli=" << limitOfExpectedOperationTime_.upperLimit()
-                      << ", timeout=" << timeoutMilli << ", has span context=" << !span_context.empty());
+            KVLOG(clientId_,
+                  reqSeqNum,
+                  msgCid,
+                  isReadOnly,
+                  isPreProcessRequired,
+                  lenOfRequest,
+                  reqTimeoutMilli,
+                  maxRetransmissionTimeout,
+                  spanContext.empty()));
   ConcordAssert(!(isReadOnly && isPreProcessRequired));
 
-  if (!communication_->isRunning()) {
-    communication_->Start();  // TODO(GG): patch ................ change
-  }
-
+  if (!communication_->isRunning()) communication_->Start();
   if (!isReadOnly && !isSystemReady()) {
     LOG_WARN(logger_,
-             "The system is not ready yet to handle requests. Reject reqSeqNum="
-                 << reqSeqNum << " clientId=" << clientId_ << " cid=" << cid << " timeout=" << timeoutMilli);
+             "The system is not ready yet to handle requests => reject"
+                 << KVLOG(reqSeqNum, clientId_, cid, reqTimeoutMilli));
     reset();
     return NOT_READY;
   }
-
-  ConcordAssert(replysCertificate_.isEmpty());
-  ConcordAssert(msgQueue_.empty());
-  ConcordAssert(pendingRequest_ == nullptr);
-  ConcordAssert(timeOfLastTransmission_ == MinTime);
-  ConcordAssert(numberOfTransmissions_ == 0);
-
-  static const std::chrono::milliseconds timersRes(timersResolutionMilli_);
-
+  verifySendRequestPrerequisites();
   const Time beginTime = getMonotonicTime();
-
   ClientRequestMsg* reqMsg;
-  concordUtils::SpanContext ctx{span_context};
+  concordUtils::SpanContext ctx{spanContext};
   if (isPreProcessRequired)
-    reqMsg = new preprocessor::ClientPreProcessRequestMsg(
-        clientId_, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
+    reqMsg = new ClientPreProcessRequestMsg(clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
   else
-    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lengthOfRequest, request, timeoutMilli, msgCid, ctx);
-  pendingRequest_ = reqMsg;
+    reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
+  pendingRequest_.push_back(reqMsg);
+  sendPendingRequest(false, cid);
 
-  sendPendingRequest();
-
-  bool requestTimeout = false;
-  bool requestCommitted = false;
-
-  // collect metrics and update them
-  client_metrics_.retransmissionTimer.Get().Set(limitOfExpectedOperationTime_.upperLimit());
+  client_metrics_.retransmissionTimer.Get().Set(maxRetransmissionTimeout);
   metrics_.UpdateAggregator();
 
-  // protect against spurious wakeups
-  auto predicate = [this] { return !msgQueue_.empty(); };
-  while (true) {
-    std::queue<MessageBase*> newMsgs;
-    bool hasData = false;
-    {
-      std::unique_lock<std::mutex> mlock(lock_);
-      hasData = condVar_.wait_for(mlock, timersRes, predicate);
-      if (hasData) msgQueue_.swap(newMsgs);
-    }
-
-    if (hasData) {
-      while (!newMsgs.empty()) {
-        if (replysCertificate_.isComplete()) {
-          delete newMsgs.front();
-        } else {
-          MessageBase* msg = newMsgs.front();
-          onMessageFromReplica(msg);
-        }
-        newMsgs.pop();
-      }
-
-      if (replysCertificate_.isComplete()) {
-        requestCommitted = true;
-        break;
-      }
-    }
-
-    const Time currTime = getMonotonicTime();
-
-    // If client defined timeout for the request expired?
-    if (timeoutMilli != INFINITE_TIMEOUT &&
-        (uint64_t)duration_cast<milliseconds>(currTime - beginTime).count() > timeoutMilli) {
-      requestTimeout = true;
-      break;
-    }
-
-    if ((uint64_t)duration_cast<milliseconds>(currTime - timeOfLastTransmission_).count() >
-        limitOfExpectedOperationTime_.upperLimit()) {
-      onRetransmission();
-    }
-  }
-
+  auto [requestCommitted, requestTimedOut] = pendingRequestProcessing(false, beginTime, reqTimeoutMilli, cid);
   if (requestCommitted) {
-    ConcordAssert(replysCertificate_.isComplete());
-
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
-
     LOG_DEBUG(logger_,
-              "Client " << clientId_ << " - request " << reqSeqNum
-                        << " has committed "
-                           "(isRO="
-                        << isReadOnly << ", isPreProcess=" << isPreProcessRequired
-                        << ", request size=" << lengthOfRequest
-                        << ",  retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit() << ") ");
+              "Request has committed" << KVLOG(
+                  clientId_, reqSeqNum, isReadOnly, isPreProcessRequired, (int)maxRetransmissionTimeout));
 
-    ClientReplyMsg* correctReply = replysCertificate_.bestCorrectMsg();
-
+    const auto& elem = replysCertificate_.find(reqSeqNum);
+    ClientReplyMsg* correctReply = elem->second->bestCorrectMsg();
     primaryReplicaIsKnown_ = true;
     knownPrimaryReplica_ = correctReply->currentPrimaryId();
-
-    if (correctReply->replyLength() <= lengthOfReplyBuffer) {
+    OperationResult res = SUCCESS;
+    if (correctReply->replyLength() <= lenOfReplyBuffer) {
       memcpy(replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
       actualReplyLength = correctReply->replyLength();
-      reset();
-      return SUCCESS;
-    } else {
-      reset();
-      return BUFFER_TOO_SMALL;
-    }
-  } else if (requestTimeout) {
+    } else
+      res = BUFFER_TOO_SMALL;
+    reset();
+    return res;
+  } else if (requestTimedOut) {
     LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << " timeout");
-
-    if (timeoutMilli >= limitOfExpectedOperationTime_.upperLimit()) {
-      LOG_DEBUG(logger_, "Client " << clientId_ << " request :" << reqSeqNum << ", primary is set to UNKNOWN");
+    if (reqTimeoutMilli >= maxRetransmissionTimeout) {
+      LOG_DEBUG(logger_, "Primary is set to UNKNOWN" << KVLOG(clientId_, reqSeqNum));
       primaryReplicaIsKnown_ = false;
-      limitOfExpectedOperationTime_.add(timeoutMilli);
+      limitOfExpectedOperationTime_.add(reqTimeoutMilli);
     }
-
     reset();
     return TIMEOUT;
   }
-
   ConcordAssert(false);
-  return SUCCESS;
+}
+
+OperationResult SimpleClientImp::isBatchRequestValid(const ClientRequest& req) {
+  OperationResult res = SUCCESS;
+  if (req.flags & READ_ONLY_REQ) {
+    LOG_ERROR(logger_, "Read-only requests could not be sent in a batch" << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    res = INVALID_REQUEST;
+  } else if (!(req.flags & PRE_PROCESS_REQ)) {
+    LOG_ERROR(logger_,
+              "Requests batching is supported only for requests intended for pre-processing"
+                  << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    res = INVALID_REQUEST;
+  }
+  if (res != SUCCESS) reset();
+  return res;
+}
+
+OperationResult SimpleClientImp::isBatchValid(uint64_t requestsNbr, uint64_t repliesNbr) {
+  if (!communication_->isRunning()) communication_->Start();
+  OperationResult res = SUCCESS;
+  if (!requestsNbr) {
+    LOG_ERROR(logger_, "An empty request list specified");
+    res = INVALID_REQUEST;
+  } else if (requestsNbr != repliesNbr) {
+    LOG_ERROR(logger_,
+              "The number of requests is not equal to the number of replies" << KVLOG(requestsNbr, repliesNbr));
+    res = INVALID_REQUEST;
+  } else if (!isSystemReady()) {
+    LOG_WARN(logger_, "The system is not ready yet to handle requests => reject" << KVLOG(clientId_));
+    res = NOT_READY;
+  }
+  if (res != SUCCESS) reset();
+  return res;
+}
+
+OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<ClientRequest>& clientRequests,
+                                                                 uint64_t& maxTimeToWait) {
+  OperationResult res = SUCCESS;
+  ClientRequestMsg* reqMsg = nullptr;
+  const auto& maxRetransmissionTimeout = limitOfExpectedOperationTime_.upperLimit();
+  for (auto& req : clientRequests) {
+    res = isBatchRequestValid(req);
+    if (res != SUCCESS) return res;
+    const auto& cid = req.cid.empty() ? to_string(req.reqSeqNum) + "-" + to_string(clientId_) : req.cid;
+    if (maxTimeToWait != INFINITE_TIMEOUT) {
+      if (req.timeoutMilli != INFINITE_TIMEOUT)
+        maxTimeToWait += req.timeoutMilli;
+      else
+        maxTimeToWait = INFINITE_TIMEOUT;
+    }
+    LOG_DEBUG(logger_,
+              KVLOG(clientId_,
+                    req.reqSeqNum,
+                    cid,
+                    req.lengthOfRequest,
+                    req.timeoutMilli,
+                    maxRetransmissionTimeout,
+                    req.span_context.empty()));
+    concordUtils::SpanContext ctx{req.span_context};
+    reqMsg = new ClientRequestMsg(clientId_,
+                                  req.flags,
+                                  req.reqSeqNum,
+                                  req.lengthOfRequest,
+                                  (char*)req.request.data(),
+                                  req.timeoutMilli,
+                                  cid,
+                                  ctx);
+    pendingRequest_.push_back(reqMsg);
+  }
+  return res;
+}
+
+OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientRequests,
+                                           deque<ClientReply>& clientReplies,
+                                           const std::string& cid) {
+  LOG_DEBUG(logger_, KVLOG(clientId_, clientRequests.size(), cid));
+  OperationResult res = isBatchValid(clientRequests.size(), clientReplies.size());
+  if (res != SUCCESS) return res;
+  verifySendRequestPrerequisites();
+
+  uint64_t maxTimeToWait = 0;
+  res = preparePendingRequestsFromBatch(clientRequests, maxTimeToWait);
+  if (res != SUCCESS) return res;
+
+  const Time beginTime = getMonotonicTime();
+  sendPendingRequest(true, cid);
+
+  const auto& maxRetransmissionTimeout = limitOfExpectedOperationTime_.upperLimit();
+  client_metrics_.retransmissionTimer.Get().Set(maxRetransmissionTimeout);
+  metrics_.UpdateAggregator();
+
+  auto [requestCommitted, requestTimedOut] = pendingRequestProcessing(true, beginTime, maxTimeToWait, cid);
+  if (requestCommitted) {
+    uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
+    limitOfExpectedOperationTime_.add(durationMilli);
+    string reqCid;
+    for (auto& reply : replysCertificate_) {
+      ClientReplyMsg* correctReply = reply.second->bestCorrectMsg();
+      const auto reqSeqNum = correctReply->reqSeqNum();
+      for (const auto& req : clientRequests)
+        if (req.reqSeqNum == reqSeqNum) reqCid = req.cid;
+      ClientReply* givenReply = nullptr;
+      for (auto& rep : clientReplies)
+        if (rep.cid == reqCid) givenReply = &rep;
+      ConcordAssertNE(givenReply, nullptr);
+      LOG_DEBUG(logger_, KVLOG(clientId_, reqSeqNum, reqCid) << " has committed");
+      primaryReplicaIsKnown_ = true;
+      knownPrimaryReplica_ = correctReply->currentPrimaryId();
+      if (correctReply->replyLength() <= givenReply->lengthOfReplyBuffer) {
+        memcpy(givenReply->replyBuffer, correctReply->replyBuf(), correctReply->replyLength());
+        givenReply->actualReplyLength = correctReply->replyLength();
+      } else {
+        reset();
+        return BUFFER_TOO_SMALL;
+      }
+    }
+    reset();
+    return SUCCESS;
+  } else if (requestTimedOut) {
+    LOG_DEBUG(logger_, "Batch timed out" << KVLOG(clientId_, pendingRequest_[0]->requestSeqNum(), maxTimeToWait));
+    if (maxTimeToWait >= maxRetransmissionTimeout) {
+      LOG_DEBUG(logger_, KVLOG(clientId_, pendingRequest_[0]->requestSeqNum()) << " primary is set to UNKNOWN");
+      primaryReplicaIsKnown_ = false;
+      limitOfExpectedOperationTime_.add(maxTimeToWait);
+    }
+    reset();
+    return TIMEOUT;
+  }
+  ConcordAssert(false);
 }
 
 void SimpleClientImp::reset() {
-  replysCertificate_.resetAndFree();
+  LOG_DEBUG(logger_, KVLOG(clientId_, replysCertificate_.size()));
+  for (auto& elem : replysCertificate_) elem.second->resetAndFree();
+  replysCertificate_.clear();
 
   std::queue<MessageBase*> newMsgs;
   {
     std::unique_lock<std::mutex> mlock(lock_);
     msgQueue_.swap(newMsgs);
 
-    delete pendingRequest_;
-    pendingRequest_ = nullptr;
+    for (auto const& msg : pendingRequest_) delete msg;
+    pendingRequest_.clear();
   }
 
   while (!newMsgs.empty()) {
@@ -398,7 +537,7 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message
 
   std::unique_lock<std::mutex> mlock(lock_);
   {
-    if (pendingRequest_ == nullptr) return;
+    if (pendingRequest_.empty()) return;
 
     // create msg object
     MessageBase::Header* msgBody = (MessageBase::Header*)std::malloc(messageLength);
@@ -407,47 +546,57 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message
 
     msgQueue_.push(pMsg);  // TODO(GG): handle overflow
   }
-  // no need to notify within the lock
   condVar_.notify_one();
 }
 
 void SimpleClientImp::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
 
-void SimpleClientImp::sendPendingRequest() {
-  ConcordAssert(pendingRequest_ != nullptr);
+void SimpleClientImp::sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size) {
+  std::vector<uint8_t> msg(data, data + size);
+  if (sendToAll) {
+    LOG_DEBUG(logger_, "Send request to all replicas" << KVLOG(clientId_, pendingRequest_[0]->requestSeqNum()));
+    communication_->send(std::set<NodeNum>(replicas_.begin(), replicas_.end()), std::move(msg));
+  } else {
+    LOG_DEBUG(logger_, "Send request to primary replica" << KVLOG(clientId_, pendingRequest_[0]->requestSeqNum()));
+    pm_->Delay<concord::performance::SlowdownPhase::BftClientBeforeSendPrimary>();
+    communication_->send(knownPrimaryReplica_, std::move(msg));
+  }
+}
+
+void SimpleClientImp::sendPendingRequest(bool isBatch, const std::string& cid) {
+  ConcordAssert(!pendingRequest_.empty());
 
   timeOfLastTransmission_ = getMonotonicTime();
   numberOfTransmissions_++;
 
   const bool resetReplies = (numberOfTransmissions_ % clientPeriodicResetThresh_ == 0);
-
-  const bool sendToAll = pendingRequest_->isReadOnly() || !primaryReplicaIsKnown_ ||
+  const bool readOnly = pendingRequest_.front()->isReadOnly();
+  const bool sendToAll = readOnly || !primaryReplicaIsKnown_ ||
                          (numberOfTransmissions_ == clientSendsRequestToAllReplicasFirstThresh_) ||
                          (numberOfTransmissions_ > clientSendsRequestToAllReplicasFirstThresh_ &&
                           (numberOfTransmissions_ % clientSendsRequestToAllReplicasPeriodThresh_ == 0)) ||
                          resetReplies;
 
-  if (numberOfTransmissions_ && !(numberOfTransmissions_ % 10))
-    LOG_DEBUG(logger_,
-              "Client " << clientId_ << " sends request " << pendingRequest_->requestSeqNum() << " isRO="
-                        << pendingRequest_->isReadOnly() << ", request size=" << (size_t)pendingRequest_->size()
-                        << ", retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit()
-                        << ", numberOfTransmissions=" << numberOfTransmissions_ << ", resetReplies=" << resetReplies
-                        << ", sendToAll=" << sendToAll);
+  LOG_DEBUG(logger_,
+            "Client " << clientId_ << " sends request " << pendingRequest_.front()->requestSeqNum()
+                      << " isRO=" << readOnly << ", request size=" << (size_t)pendingRequest_.front()->size()
+                      << ", retransmissionMilli=" << (int)limitOfExpectedOperationTime_.upperLimit()
+                      << ", numberOfTransmissions=" << numberOfTransmissions_ << ", resetReplies=" << resetReplies
+                      << ", sendToAll=" << sendToAll);
 
   if (resetReplies) {
-    replysCertificate_.resetAndFree();
-    // TODO(GG): print ....
+    LOG_DEBUG(logger_, "Resetting replies" << KVLOG(clientId_, pendingRequest_.front()->requestSeqNum()));
+    for (auto& elem : replysCertificate_) elem.second->resetAndFree();
+    replysCertificate_.clear();
   }
 
-  std::vector<uint8_t> msg(pendingRequest_->body(), pendingRequest_->body() + pendingRequest_->size());
-  if (sendToAll) {
-    communication_->send(std::set<NodeNum>(replicas_.begin(), replicas_.end()), std::move(msg));
-  } else {
-    pm_->Delay<concord::performance::SlowdownPhase::BftClientBeforeSendPrimary>();
-    communication_->send(knownPrimaryReplica_, std::move(msg));
-    // TODO(GG): handle errors (print and/or ....)
-  }
+  if (!isBatch) return sendRequestToAllOrToPrimary(sendToAll, pendingRequest_[0]->body(), pendingRequest_[0]->size());
+
+  uint32_t batchBufSize = 0;
+  for (auto const& msg : pendingRequest_) batchBufSize += msg->size();
+  ClientBatchRequestMsg* batchMsg = new ClientBatchRequestMsg(clientId_, pendingRequest_, batchBufSize, cid);
+  sendRequestToAllOrToPrimary(sendToAll, batchMsg->body(), batchMsg->size());
+  delete batchMsg;
 }
 
 // SeqNumberGeneratorForClientRequestsImp, generates unique, monotonically increasing, sequence number.

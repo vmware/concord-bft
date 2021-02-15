@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use
 // this product except in compliance with the Apache 2.0 License.
@@ -41,7 +41,7 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
   header->reqSeqNum = config.sequence_number;
   header->requestLength = request.size();
   header->timeoutMilli = config.timeout.count();
-  header->cid_length = config.correlation_id.size();
+  header->cidLength = config.correlation_id.size();
 
   auto* position = msg.data() + header_size;
 

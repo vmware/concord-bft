@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -13,13 +13,23 @@
 
 #include <cstdint>
 
-#define REQUEST_MSG_TYPE (700)
-#define REPLY_MSG_TYPE (800)
 #define PRE_PROCESS_REQUEST_MSG_TYPE (500)
+#define REQUEST_MSG_TYPE (700)
+#define BATCH_REQUEST_MSG_TYPE (750)
+#define REPLY_MSG_TYPE (800)
 
 namespace bftEngine {
 
 #pragma pack(push, 1)
+
+struct ClientBatchRequestMsgHeader {
+  uint16_t msgType;  // always == BATCH_REQUEST_MSG_TYPE
+  uint32_t cidSize;
+  uint16_t clientId;
+  uint32_t numOfMessagesInBatch;
+  uint32_t dataSize;
+};
+
 struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
   uint32_t spanContextSize = 0u;
@@ -28,7 +38,7 @@ struct ClientRequestMsgHeader {
   uint64_t reqSeqNum;
   uint32_t requestLength;
   uint64_t timeoutMilli;
-  uint32_t cid_length = 0;
+  uint32_t cidLength = 0;
   // followed by the request (security information, such as signatures, should be part of the request)
 
   // TODO(GG): idOfClientProxy is not needed here

@@ -83,6 +83,8 @@ Status ClientImp::invokeCommandSynch(const char* request,
       return Status::GeneralError("Command timed out");
     case BUFFER_TOO_SMALL:
       return Status::InvalidArgument("Specified output buffer is too small");
+    case INVALID_REQUEST:
+      return Status::InvalidArgument("Request is invalid");
   }
   return Status::GeneralError("Unknown error");
 }
