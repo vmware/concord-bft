@@ -183,8 +183,9 @@ class KeyValueBlockchain {
   // metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   concordMetrics::Component metrics_;
-  concordMetrics::CounterHandle num_of_deleted_blocks_;
-  concordMetrics::CounterHandle num_of_deleted_keys_;
+  concordMetrics::CounterHandle versioned_num_of_deletes_keys_;
+  concordMetrics::CounterHandle immuteable_num_of_deleted_keys_;
+  concordMetrics::CounterHandle merkle_num_of_deleted_keys_;
 
  public:
   struct KeyValueBlockchain_tester {

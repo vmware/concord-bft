@@ -31,8 +31,9 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
       block_chain_{native_client_},
       state_transfer_block_chain_{native_client_},
       metrics_{concordMetrics::Component("kv_blockchain", std::make_shared<concordMetrics::Aggregator>())},
-      num_of_deleted_blocks_{metrics_.RegisterCounter("numOfDeletedBlocks")},
-      num_of_deleted_keys_{metrics_.RegisterCounter("numOfDeletedkeys")} {
+      versioned_num_of_deletes_keys_{metrics_.RegisterCounter("numOfVersionedKeysDeleted")},
+      immuteable_num_of_deleted_keys_{metrics_.RegisterCounter("numOfImmutableKeysDeleted")},
+      merkle_num_of_deleted_keys_{metrics_.RegisterCounter("numOfMerkleKeysDeleted")} {
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
   }
@@ -277,11 +278,9 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
     throw std::logic_error{"Deleting the only block in the system is not supported"};
   } else if (block_id == last_reachable_block_id) {
     deleteLastReachableBlock();
-    num_of_deleted_blocks_.Get().Inc();
     return true;
   } else if (block_id == genesis_block_id) {
     deleteGenesisBlock();
-    num_of_deleted_blocks_.Get().Inc();
     return true;
   } else {
     throw std::invalid_argument{"Cannot delete blocks in the middle of the blockchain"};
@@ -381,7 +380,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const ImmutableOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
+  immuteable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
   std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
       .deleteGenesisBlock(block_id, updates_info, batch);
 }
@@ -390,7 +389,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const VersionedOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
+  versioned_num_of_deletes_keys_.Get().Inc(updates_info.keys.size());
   std::get<detail::VersionedKeyValueCategory>(getCategory(category_id))
       .deleteGenesisBlock(block_id, updates_info, batch);
 }
@@ -399,7 +398,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const BlockMerkleOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
+  merkle_num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
   std::get<detail::BlockMerkleCategory>(getCategory(category_id)).deleteGenesisBlock(block_id, updates_info, batch);
 }
 
@@ -407,7 +406,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const ImmutableOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
+  immuteable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
   std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
@@ -416,7 +415,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const VersionedOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
+  versioned_num_of_deletes_keys_.Get().Inc(updates_info.keys.size());
   std::get<detail::VersionedKeyValueCategory>(getCategory(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
@@ -425,7 +424,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const BlockMerkleOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
+  merkle_num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
   std::get<detail::BlockMerkleCategory>(getCategory(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
