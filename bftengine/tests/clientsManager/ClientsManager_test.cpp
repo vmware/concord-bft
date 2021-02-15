@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -32,7 +32,7 @@ TEST(ClientsManager, reservedPagesPerClient) {
 
 TEST(ClientsManager, constructor) {
   std::set<bftEngine::impl::NodeIdType> clset{1, 4, 50, 7};
-  bftEngine::impl::ClientsManager cm{2, clset, 1024, 1024};
+  bftEngine::impl::ClientsManager cm{clset};
   ASSERT_EQ(50, cm.getHighestIdOfNonInternalClient());
   auto i = 0;
   for (auto id : clset) {
@@ -46,7 +46,7 @@ TEST(ClientsManager, constructor) {
 // and are identifed as internal clients
 TEST(ClientsManager, initInternalClientInfo) {
   std::set<bftEngine::impl::NodeIdType> clset{1, 4, 50, 7};
-  bftEngine::impl::ClientsManager cm{2, clset, 1024, 1024};
+  bftEngine::impl::ClientsManager cm{clset};
   auto firstIntClId = cm.getHighestIdOfNonInternalClient() + 1;
   auto FirstIntIdx = cm.getIndexOfClient(cm.getHighestIdOfNonInternalClient()) + 1;
   auto numRep = 7;
