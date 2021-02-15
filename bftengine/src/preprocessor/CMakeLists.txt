@@ -14,6 +14,7 @@ set(preprocessor_source_files
     PreProcessor.cpp
     RequestProcessingState.cpp
     messages/ClientPreProcessRequestMsg.cpp
+    messages/ClientBatchRequestMsg.cpp
     messages/PreProcessRequestMsg.cpp
     messages/PreProcessReplyMsg.cpp)
 

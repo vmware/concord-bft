@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -24,7 +24,7 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 33, "ClientRequestMsgHeader size is 21B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 33, "ClientRequestMsgHeader size is 33B");
 
   // TODO(GG): more asserts
 
@@ -71,7 +71,9 @@ class ClientRequestMsg : public MessageBase {
                  uint8_t flags,
                  uint64_t reqTimeoutMilli,
                  const std::string& cid);
-};  // namespace bftEngine::impl
+};
+
+typedef std::unique_ptr<ClientRequestMsg> ClientRequestMsgUniquePtr;
 
 template <>
 inline size_t sizeOfHeader<ClientRequestMsg>() {
