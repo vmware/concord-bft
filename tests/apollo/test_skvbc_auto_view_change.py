@@ -34,11 +34,8 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-a", autoPrimaryRotationTimeoutMilli,
-            "-p" if os.environ.get('BUILD_ROCKSDB_STORAGE', "").lower()
-                    in set(["true", "on"])
-                 else "",
-            "-t", os.environ.get('STORAGE_TYPE')]
+            "-a", autoPrimaryRotationTimeoutMilli
+            ]
 
 
 class SkvbcAutoViewChangeTest(unittest.TestCase):

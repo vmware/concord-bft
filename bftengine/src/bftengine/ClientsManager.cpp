@@ -260,7 +260,18 @@ void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, con
   LOG_DEBUG(GL, "Added request" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
 }
 
-void ClientsManager::removePendingRequestOfClient(NodeIdType clientId, ReqId reqSeqNum) {
+void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum) {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  const auto& reqIt = requestsInfo.find(reqSeqNum);
+  if (reqIt != requestsInfo.end()) {
+    reqIt->second.committed = true;
+    LOG_DEBUG(GL, "Marked committed" << KVLOG(clientId, reqSeqNum));
+  }
+  LOG_ERROR(GL, "Request not found" << KVLOG(clientId, reqSeqNum));
+}
+
+void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
@@ -280,7 +291,8 @@ Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   RequestInfo earliestPendingReqInfo{MaxTime, std::string()};
   for (const ClientInfo& clientInfo : indexToClientInfo_) {
     for (const auto& req : clientInfo.requestsInfo) {
-      if (req.second.time != MinTime && earliestTime > req.second.time) {
+      // Don't take into account already committed requests
+      if ((req.second.time != MinTime) && (earliestTime > req.second.time) && (!req.second.committed)) {
         earliestPendingReqInfo = req.second;
         earliestTime = earliestPendingReqInfo.time;
       }

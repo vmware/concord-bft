@@ -56,7 +56,9 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid);
 
-  void removePendingRequestOfClient(NodeIdType clientId, ReqId reqSequenceNum);
+  void markRequestAsCommitted(NodeIdType clientId, ReqId reqSequenceNum);
+
+  void removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum);
 
   void clearAllPendingRequests();
 
@@ -97,6 +99,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
     Time time;
     std::string cid;
+    bool committed = false;
   };
 
   struct ClientInfo {

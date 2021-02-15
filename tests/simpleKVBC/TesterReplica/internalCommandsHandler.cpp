@@ -17,19 +17,54 @@
 #include "sliver.hpp"
 #include "kv_types.hpp"
 #include "block_metadata.hpp"
+#include "sha_hash.hpp"
 #include <unistd.h>
 #include <algorithm>
+#include <variant>
 
 using namespace BasicRandomTests;
 using namespace bftEngine;
+using namespace concord::kvbc::categorization;
 
-using concordUtils::Status;
 using concordUtils::Sliver;
 using concord::kvbc::BlockId;
 using concord::kvbc::KeyValuePair;
 using concord::storage::SetOfKeyValuePairs;
 
+using Hasher = concord::util::SHA3_256;
+using Hash = Hasher::Digest;
+
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
+static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
+static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
+
+template <typename Span>
+static Hash hash(const Span &span) {
+  return Hasher{}.digest(span.data(), span.size());
+}
+
+static const std::string &keyHashToCategory(const Hash &keyHash) {
+  // If the most significant bit of a key's hash is set, use the VersionedKeyValueCategory. Otherwise, use the
+  // BlockMerkleCategory.
+  if (keyHash[0] & 0x80) {
+    return VERSIONED_KV_CAT_ID;
+  }
+  return BLOCK_MERKLE_CAT_ID;
+}
+
+static const std::string &keyToCategory(const std::string &key) { return keyHashToCategory(hash(key)); }
+
+static void add(std::string &&key,
+                std::string &&value,
+                VersionedUpdates &verUpdates,
+                BlockMerkleUpdates &merkleUpdates) {
+  const auto &cat = keyToCategory(key);
+  if (cat == VERSIONED_KV_CAT_ID) {
+    verUpdates.addUpdate(std::move(key), std::move(value));
+    return;
+  }
+  merkleUpdates.addUpdate(std::move(key), std::move(value));
+}
 
 void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
                                       const std::string &batchCid,
@@ -68,16 +103,90 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
   }
 }
 
-void InternalCommandsHandler::addMetadataKeyValue(SetOfKeyValuePairs &updates, uint64_t sequenceNum) const {
-  Sliver metadataKey = m_blockMetadata->getKey();
-  Sliver metadataValue = m_blockMetadata->serialize(sequenceNum);
-  updates.insert(KeyValuePair(metadataKey, metadataValue));
+void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uint64_t sequenceNum) const {
+  updates.addUpdate(std::string{concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr},
+                    m_blockMetadata->serialize(sequenceNum));
 }
 
 Sliver InternalCommandsHandler::buildSliverFromStaticBuf(char *buf) {
   char *newBuf = new char[KV_LEN];
   memcpy(newBuf, buf, KV_LEN);
   return Sliver(newBuf, KV_LEN);
+}
+
+std::optional<std::string> InternalCommandsHandler::get(const std::string &key, BlockId blockId) const {
+  const auto v = m_storage->get(keyToCategory(key), key, blockId);
+  if (!v) {
+    return std::nullopt;
+  }
+  return std::visit([](const auto &v) { return v.data; }, *v);
+}
+
+std::string InternalCommandsHandler::getAtMost(const std::string &key, BlockId current) const {
+  if (m_storage->getLastBlockId() == 0 || m_storage->getGenesisBlockId() == 0 || current == 0) {
+    return std::string(KV_LEN, '\0');
+  }
+
+  auto value = std::string(KV_LEN, '\0');
+  do {
+    const auto v = get(key, current);
+    if (v) {
+      value = *v;
+      break;
+    }
+    --current;
+  } while (current);
+  return value;
+}
+
+std::string InternalCommandsHandler::getLatest(const std::string &key) const {
+  const auto v = m_storage->getLatest(keyToCategory(key), key);
+  if (!v) {
+    return std::string(KV_LEN, '\0');
+  }
+  return std::visit([](const auto &v) { return v.data; }, *v);
+}
+
+std::optional<BlockId> InternalCommandsHandler::getLatestVersion(const std::string &key) const {
+  const auto v = m_storage->getLatestVersion(keyToCategory(key), key);
+  if (!v) {
+    return std::nullopt;
+  }
+  // We never delete keys in TesterReplica at that stage.
+  ConcordAssert(!v->deleted);
+  return v->version;
+}
+
+std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBlockUpdates(
+    concord::kvbc::BlockId blockId) const {
+  const auto updates = m_storage->getBlockUpdates(blockId);
+  if (!updates) {
+    return std::nullopt;
+  }
+
+  auto ret = std::map<std::string, std::string>{};
+
+  {
+    const auto verUpdates = updates->categoryUpdates(VERSIONED_KV_CAT_ID);
+    if (verUpdates) {
+      const auto &u = std::get<VersionedInput>(verUpdates->get());
+      for (const auto &[key, valueWithFlags] : u.kv) {
+        ret[key] = valueWithFlags.data;
+      }
+    }
+  }
+
+  {
+    const auto merkleUpdates = updates->categoryUpdates(BLOCK_MERKLE_CAT_ID);
+    if (merkleUpdates) {
+      const auto &u = std::get<BlockMerkleInput>(merkleUpdates->get());
+      for (const auto &[key, value] : u.kv) {
+        ret[key] = value;
+      }
+    }
+  }
+
+  return ret;
 }
 
 bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
@@ -141,27 +250,31 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
   }
 
   SimpleKey *readSetArray = writeReq->readSetArray();
-  BlockId currBlock = m_storage->getLastBlock();
+  BlockId currBlock = m_storage->getLastBlockId();
 
   // Look for conflicts
   bool hasConflict = false;
   for (size_t i = 0; !hasConflict && i < writeReq->numOfKeysInReadSet; i++) {
-    m_storage->mayHaveConflictBetween(
-        buildSliverFromStaticBuf(readSetArray[i].key), writeReq->readVersion + 1, currBlock, hasConflict);
+    const auto key = std::string(readSetArray[i].key, KV_LEN);
+    const auto latest_ver = getLatestVersion(key);
+    hasConflict = (latest_ver && latest_ver > writeReq->readVersion);
   }
 
   if (!hasConflict) {
     SimpleKV *keyValArray = writeReq->keyValueArray();
-    SetOfKeyValuePairs updates;
+    Updates updates;
+    VersionedUpdates verUpdates;
+    BlockMerkleUpdates merkleUpdates;
     for (size_t i = 0; i < writeReq->numOfWrites; i++) {
-      KeyValuePair keyValue(buildSliverFromStaticBuf(keyValArray[i].simpleKey.key),
-                            buildSliverFromStaticBuf(keyValArray[i].simpleValue.value));
-      updates.insert(keyValue);
+      add(std::string(keyValArray[i].simpleKey.key, KV_LEN),
+          std::string(keyValArray[i].simpleValue.value, KV_LEN),
+          verUpdates,
+          merkleUpdates);
     }
-    addMetadataKeyValue(updates, sequenceNum);
-    BlockId newBlockId = 0;
-    Status addSuccess = m_blocksAppender->addBlock(updates, newBlockId);
-    ConcordAssert(addSuccess.isOK());
+    addMetadataKeyValue(verUpdates, sequenceNum);
+    updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
+    updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
+    const auto newBlockId = m_blockAdder->add(std::move(updates));
     ConcordAssert(newBlockId == currBlock + 1);
   }
 
@@ -195,15 +308,15 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   }
 
   auto block_id = req->block_id;
-  SetOfKeyValuePairs outBlockData;
-  if (!m_storage->getBlockData(block_id, outBlockData).isOK()) {
-    LOG_ERROR(m_logger, "GetBlockData: Failed to retrieve block %" << block_id);
+  const auto updates = getBlockUpdates(block_id);
+  if (!updates) {
+    LOG_ERROR(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
     return false;
   }
 
   // Each block contains a single metadata key holding the sequence number
   const int numMetadataKeys = 1;
-  auto numOfElements = outBlockData.size() - numMetadataKeys;
+  auto numOfElements = updates->size() - numMetadataKeys;
   size_t replySize = SimpleReply_Read::getSize(numOfElements);
   LOG_INFO(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
   if (maxReplySize < replySize) {
@@ -217,13 +330,11 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(
   pReply->header.type = READ;
   pReply->numOfItems = numOfElements;
 
-  const Sliver metadataKey = m_blockMetadata->getKey();
-
   auto i = 0;
-  for (const auto &kv : outBlockData) {
-    if (kv.first != metadataKey) {
-      memcpy(pReply->items[i].simpleKey.key, kv.first.data(), KV_LEN);
-      memcpy(pReply->items[i].simpleValue.value, kv.second.data(), KV_LEN);
+  for (const auto &[key, value] : *updates) {
+    if (key != concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr) {
+      memcpy(pReply->items[i].simpleKey.key, key.data(), KV_LEN);
+      memcpy(pReply->items[i].simpleValue.value, value.data(), KV_LEN);
       ++i;
     }
   }
@@ -261,17 +372,13 @@ bool InternalCommandsHandler::executeReadCommand(
   SimpleKV *replyItems = reply->items;
   for (size_t i = 0; i < numOfItems; i++) {
     memcpy(replyItems->simpleKey.key, readKeys->key, KV_LEN);
-    Sliver value;
-    BlockId outBlock = 0;
-    if (!m_storage->get(readReq->readVersion, buildSliverFromStaticBuf(readKeys->key), value, outBlock).isOK()) {
-      LOG_ERROR(m_logger, "Read: Failed to get keys for readVersion = %" << readReq->readVersion);
-      return false;
+    auto value = std::string(KV_LEN, '\0');
+    if (readReq->readVersion > m_storage->getLastBlockId()) {
+      value = getLatest(std::string(readKeys->key, KV_LEN));
+    } else {
+      value = getAtMost(std::string(readKeys->key, KV_LEN), readReq->readVersion);
     }
-
-    if (value.length() > 0)
-      memcpy(replyItems->simpleValue.value, value.data(), KV_LEN);
-    else
-      memset(replyItems->simpleValue.value, 0, KV_LEN);
+    memcpy(replyItems->simpleValue.value, value.data(), KV_LEN);
     ++readKeys;
     ++replyItems;
   }
@@ -324,7 +431,7 @@ bool InternalCommandsHandler::executeGetLastBlockCommand(uint32_t requestSize,
 
   auto *reply = (SimpleReply_GetLastBlock *)(outReply);
   reply->header.type = GET_LAST_BLOCK;
-  reply->latestBlock = m_storage->getLastBlock();
+  reply->latestBlock = m_storage->getLastBlockId();
   ++m_getLastBlockCounter;
   LOG_INFO(m_logger,
            "GetLastBlock message handled; getLastBlockCounter=" << m_getLastBlockCounter

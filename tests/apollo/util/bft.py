@@ -165,11 +165,9 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         num_ro_replicas=num_ro_replicas)
                     async with trio.open_nursery() as background_nursery:
                         with BftTestNetwork.new(config, background_nursery) as bft_network:
-                            storage_type = os.environ.get("STORAGE_TYPE")
-                            bft_network.current_test = async_fn.__name__ + "_" + storage_type \
-                                                                        + "_n=" + str(bft_config['n']) \
-                                                                        + "_f=" + str(bft_config['f']) \
-                                                                        + "_c=" + str(bft_config['c'])
+                            bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
+                                                                         + "_f=" + str(bft_config['f']) \
+                                                                         + "_c=" + str(bft_config['c'])
                             with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
                                 if rotate_keys:
                                     await bft_network.do_key_exchange()

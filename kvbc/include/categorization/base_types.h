@@ -115,4 +115,6 @@ inline bool operator==(const TaggedVersion &lhs, const TaggedVersion &rhs) {
   return (lhs.deleted == rhs.deleted && lhs.version == rhs.version);
 }
 
+enum class CATEGORY_TYPE : char { block_merkle = 0, immutable = 1, versioned_kv = 2, end_of_types };
+
 }  // namespace concord::kvbc::categorization

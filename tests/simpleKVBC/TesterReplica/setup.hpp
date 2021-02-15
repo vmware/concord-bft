@@ -44,18 +44,12 @@ class TestSetup {
   std::shared_ptr<concord::performance::PerformanceManager> GetPerformanceManager() { return pm_; }
 
  private:
-  enum class StorageType {
-    V1DirectKeyValue,
-    V2MerkleTree,
-  };
-
   TestSetup(const bftEngine::ReplicaConfig& config,
             std::unique_ptr<bft::communication::ICommunication> comm,
             logging::Logger logger,
             uint16_t metricsPort,
             bool usePersistentStorage,
             const std::string& s3ConfigFile,
-            StorageType storageType,
             const std::string& logPropsFile)
       : replicaConfig_(config),
         communication_(std::move(comm)),
@@ -63,21 +57,19 @@ class TestSetup {
         metricsServer_(metricsPort),
         usePersistentStorage_(usePersistentStorage),
         s3ConfigFile_(s3ConfigFile),
-        storageType_(storageType),
         logPropsFile_(logPropsFile),
         pm_{std::make_shared<concord::performance::PerformanceManager>()} {}
+
   TestSetup() = delete;
 #ifdef USE_S3_OBJECT_STORE
   concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
 #endif
-  std::unique_ptr<IStorageFactory> GetInMemStorageFactory() const;
   const bftEngine::ReplicaConfig& replicaConfig_;
   std::unique_ptr<bft::communication::ICommunication> communication_;
   logging::Logger logger_;
   concordMetrics::Server metricsServer_;
   bool usePersistentStorage_;
   std::string s3ConfigFile_;
-  StorageType storageType_;
   std::string logPropsFile_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };

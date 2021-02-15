@@ -21,6 +21,19 @@ import trio
 
 import bft_client
 import bft_config
+from functools import wraps
+
+
+def verify_system_is_ready_before_starting(async_fn):
+    """ Decorator for running a coroutine (async_fn) with trio. """
+    @wraps(async_fn)
+    async def sys_ready_wrapper(*args, **kwargs):
+        config = bft_config.Config(4, 1, 0, 4096, 10000, 500, "")
+        class_object = args[0]
+        with bft_client.UdpClient(config, class_object.replicas, None) as udp_client:
+            await udp_client.sendSync(class_object.writeRequest(1989), False)
+        return await async_fn(*args, **kwargs)
+    return sys_ready_wrapper
 
 # This requires python 3.5 for subprocess.run
 class SimpleTest(unittest.TestCase):
@@ -47,6 +60,8 @@ class SimpleTest(unittest.TestCase):
                         for i in range(0,4)]
 
         print("Running tests in {}".format(cls.testdir))
+
+
 
     @classmethod
     def tearDownClass(self):
@@ -93,7 +108,7 @@ class SimpleTest(unittest.TestCase):
     def stopServers(self):
         """Stop all processes in self.procs"""
         for p in self.procs:
-            p.kill()
+            p.terminate()
             p.wait()
 
     def testReadWrittenValue(self):
@@ -106,6 +121,7 @@ class SimpleTest(unittest.TestCase):
         finally:
             self.stopServers()
 
+    @verify_system_is_ready_before_starting
     async def _testReadWrittenValue(self):
        val = 999
        with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
@@ -156,10 +172,11 @@ class SimpleTest(unittest.TestCase):
         finally:
             self.stopServers()
 
+    @verify_system_is_ready_before_starting
     async def _testPrimaryWrite(self):
        # Try to guarantee we don't retry accidentally
        config = self.config._replace(retry_timeout_milli=500)
-       with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
+       with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            self.assertEqual(None, udp_client.primary)
            await udp_client.sendSync(self.writeRequest(1), False)
            # We know the servers are up once the write completes
@@ -179,11 +196,12 @@ class SimpleTest(unittest.TestCase):
            self.assertEqual(2, self.read_val(read))
            self.assertNotEqual(None, udp_client.primary)
 
+    @verify_system_is_ready_before_starting
     async def _testMofNQuorum(self):
         config = self.config._replace(retry_timeout_milli=500)
-        with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
+        with bft_client.UdpClient(config, self.replicas, None) as udp_client:
             await udp_client.sendSync(self.writeRequest(1), False)
-            single_read_q = bft_client.MofNQuorum([0], 1)
+            single_read_q = bft_client.MofNQuorum([0, 1, 2, 3], 1)
             read = await udp_client.sendSync(self.readRequest(), True, m_of_n_quorum=single_read_q)
             self.assertEqual(1, self.read_val(read))
 

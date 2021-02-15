@@ -14,49 +14,16 @@
 #include <vector>
 
 namespace concord::kvbc {
-/**
- *
- */
-class ILocalKeyValueStorageReadOnly {
- public:
-  // convenience where readVersion==latest, and block is not needed?
-  virtual concordUtils::Status get(const Key &key, Value &outValue) const = 0;
-  virtual concordUtils::Status get(BlockId readVersion, const Key &key, Value &outValue, BlockId &outBlock) const = 0;
 
-  // Returns the genesis block ID. If the blockchain is empty, 0 is returned.
-  // Throws on errors.
-  virtual BlockId getGenesisBlock() const = 0;
-  virtual BlockId getLastBlock() const = 0;
-  virtual concordUtils::Status getBlockData(BlockId blockId, SetOfKeyValuePairs &outBlockData) const = 0;
-  // TODO(GG): explain motivation
-  virtual concordUtils::Status mayHaveConflictBetween(const Key &key,
-                                                      BlockId fromBlock,
-                                                      BlockId toBlock,
-                                                      bool &outRes) const = 0;
-
-  virtual ~ILocalKeyValueStorageReadOnly() = default;
-};
-
-/**
- *
- */
-class IBlocksAppender {
- public:
-  virtual concordUtils::Status addBlock(const SetOfKeyValuePairs &updates,
-                                        BlockId &outBlockId,
-                                        const concordUtils::SpanWrapper &parent_span = concordUtils::SpanWrapper{}) = 0;
-
-  virtual ~IBlocksAppender() = default;
-};
-
-// Categorized interfaces follow. Non-categorized interfaces will be deprecated after full integration of categorized
-// ones.
+// Concord and Concord-BFT internal category that is used for various kinds of metadata.
+// The type of the internal category is VersionedKeyValueCategory.
+inline const auto kConcordInternalCategoryId = "concord_internal";
 
 // Add blocks to the key-value blockchain.
 class IBlockAdder {
  public:
   // Add a block from the given categorized updates and return its ID.
-  virtual BlockId add(categorization::Updates &&, const concordUtils::SpanWrapper &parent_span) = 0;
+  virtual BlockId add(categorization::Updates &&) = 0;
 
   virtual ~IBlockAdder() = default;
 };
@@ -65,6 +32,9 @@ class IBlockAdder {
 //
 // Output vector parameters to multi* calls can contain more values than requested. This is an optimization, in order to
 // reduce memory allocations. Users are encouraged to reuse a single vector instance.
+//
+// If the given category doesn't exist, all get* calls will return std::nullopt. In case of multiGet* calls, the
+// returned vectors will be filled with std::nullopts.
 class IReader {
  public:
   // Get the value of a key in `category_id` at `block_id`.
@@ -84,13 +54,13 @@ class IReader {
   virtual void multiGet(const std::string &category_id,
                         const std::vector<std::string> &keys,
                         const std::vector<BlockId> &versions,
-                        std::vector<std::optional<Value>> &values) const = 0;
+                        std::vector<std::optional<categorization::Value>> &values) const = 0;
 
   // Get the latest values of a list of keys in `category_id`.
   // If a key is missing or is deleted, then std::nullopt is returned for it.
   virtual void multiGetLatest(const std::string &category_id,
                               const std::vector<std::string> &keys,
-                              std::vector<std::optional<Value>> &values) const = 0;
+                              std::vector<std::optional<categorization::Value>> &values) const = 0;
 
   // Get the latest version of `key` in `category_id`.
   // Return std::nullopt if the key doesn't exist or is deleted.
@@ -101,10 +71,11 @@ class IReader {
   // If a key is missing, then std::nullopt is returned for its version.
   virtual void multiGetLatestVersion(const std::string &category_id,
                                      const std::vector<std::string> &keys,
-                                     std::vector<std::optional<categorization::TaggedVersion>> &versions) const;
+                                     std::vector<std::optional<categorization::TaggedVersion>> &versions) const = 0;
 
   // Get the updates that were used to create `block_id`.
-  virtual categorization::Updates getBlockUpdates(BlockId block_id) const = 0;
+  // Return std::nullopt if this block doesn't exist.
+  virtual std::optional<categorization::Updates> getBlockUpdates(BlockId block_id) const = 0;
 
   // Get the current genesis block ID in the system.
   virtual BlockId getGenesisBlockId() const = 0;

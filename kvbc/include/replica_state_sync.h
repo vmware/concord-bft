@@ -19,6 +19,8 @@
 #include "Logger.hpp"
 #include "db_adapter_interface.h"
 
+#include "categorization/kv_blockchain.h"
+
 namespace concord::kvbc {
 
 class IBlockMetadata;
@@ -29,7 +31,7 @@ class ReplicaStateSync {
 
   // Synchronizes replica state and returns a number of deleted blocks.
   virtual uint64_t execute(logging::Logger& logger,
-                           IDbAdapter& bcDBAdapter,
+                           categorization::KeyValueBlockchain& blockchain,
                            BlockId lastReachableBlockId,
                            uint64_t lastExecutedSeqNum) = 0;
 };

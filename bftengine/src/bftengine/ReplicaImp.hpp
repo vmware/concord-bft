@@ -127,6 +127,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ClientsManager* clientsManager = nullptr;
   std::shared_ptr<InternalBFTClient> internalBFTClient_;
 
+  size_t numInvalidClients = 0;
+  size_t numValidNoOps = 0;
+
   // buffer used to store replies
   char* replyBuffer = nullptr;
 

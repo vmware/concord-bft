@@ -26,7 +26,7 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
   ~ReplicaStateSyncImp() override = default;
 
   uint64_t execute(logging::Logger& logger,
-                   IDbAdapter& bcDBAdapter,
+                   categorization::KeyValueBlockchain& blockchain,
                    BlockId lastReachableBlockId,
                    uint64_t lastExecutedSeqNum) override;
 
