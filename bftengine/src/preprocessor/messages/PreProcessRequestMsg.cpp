@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -17,6 +17,7 @@ namespace preprocessor {
 
 PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            uint16_t clientId,
+                                           uint16_t reqOffsetInBatch,
                                            uint64_t reqSeqNum,
                                            uint64_t reqRetryId,
                                            uint32_t reqLength,
@@ -25,7 +26,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            const concordUtils::SpanContext& span_context)
     : MessageBase(
           senderId, MsgCode::PreProcessRequest, span_context.data().size(), (sizeof(Header) + reqLength + cid.size())) {
-  setParams(senderId, clientId, reqSeqNum, reqRetryId, reqLength);
+  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, reqLength);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
@@ -48,10 +49,15 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void PreProcessRequestMsg::setParams(
-    NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t reqLength) {
+void PreProcessRequestMsg::setParams(NodeIdType senderId,
+                                     uint16_t clientId,
+                                     uint16_t reqOffsetInBatch,
+                                     ReqId reqSeqNum,
+                                     uint64_t reqRetryId,
+                                     uint32_t reqLength) {
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
+  msgBody()->reqOffsetInBatch = reqOffsetInBatch;
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->reqRetryId = reqRetryId;
   msgBody()->requestLength = reqLength;

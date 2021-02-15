@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -26,6 +26,7 @@ class PreProcessReplyMsg : public MessageBase {
                      preprocessor::PreProcessorRecorder* histograms,
                      NodeIdType senderId,
                      uint16_t clientId,
+                     uint16_t reqOffsetInBatch,
                      uint64_t reqSeqNum,
                      uint64_t reqRetryId);
 
@@ -38,6 +39,7 @@ class PreProcessReplyMsg : public MessageBase {
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   const uint16_t clientId() const { return msgBody()->clientId; }
+  const uint16_t reqOffsetInBatch() const { return msgBody()->reqOffsetInBatch; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   const uint32_t replyLength() const { return msgBody()->replyLength; }
@@ -56,6 +58,7 @@ class PreProcessReplyMsg : public MessageBase {
     SeqNum reqSeqNum;
     NodeIdType senderId;
     uint16_t clientId;
+    uint16_t reqOffsetInBatch;
     uint8_t status;
     uint8_t resultsHash[concord::util::SHA3_256::SIZE_IN_BYTES];
     uint32_t replyLength;
@@ -70,7 +73,8 @@ class PreProcessReplyMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId);
+  void setParams(
+      NodeIdType senderId, uint16_t clientId, uint16_t reqOffsetInBatch, ReqId reqSeqNum, uint64_t reqRetryId);
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
