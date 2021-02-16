@@ -1595,6 +1595,86 @@ TEST_F(categorized_kvbc, updates_append_single_key_value) {
   ASSERT_EQ(updates, expected);
 }
 
+TEST_F(categorized_kvbc, versioned_updates_deletes_order) {
+  auto updates = VersionedUpdates{};
+  updates.addDelete("k2");
+  updates.addDelete("k1");
+
+  // getData() sorts deletes.
+  {
+    const auto& data = updates.getData();
+    ASSERT_EQ(2, data.deletes.size());
+    ASSERT_EQ("k1", data.deletes[0]);
+    ASSERT_EQ("k2", data.deletes[1]);
+  }
+
+  // Subsequent deletes are also sorted.
+  {
+    updates.addDelete("k0");
+    const auto& data = updates.getData();
+    ASSERT_EQ(3, data.deletes.size());
+    ASSERT_EQ("k0", data.deletes[0]);
+    ASSERT_EQ("k1", data.deletes[1]);
+    ASSERT_EQ("k2", data.deletes[2]);
+  }
+}
+
+TEST_F(categorized_kvbc, block_merkle_updates_deletes_order) {
+  auto updates = BlockMerkleUpdates{};
+  updates.addDelete("k2");
+  updates.addDelete("k1");
+
+  // getData() sorts deletes.
+  {
+    const auto& data = updates.getData();
+    ASSERT_EQ(2, data.deletes.size());
+    ASSERT_EQ("k1", data.deletes[0]);
+    ASSERT_EQ("k2", data.deletes[1]);
+  }
+
+  // Subsequent deletes are also sorted.
+  {
+    updates.addDelete("k0");
+    const auto& data = updates.getData();
+    ASSERT_EQ(3, data.deletes.size());
+    ASSERT_EQ("k0", data.deletes[0]);
+    ASSERT_EQ("k1", data.deletes[1]);
+    ASSERT_EQ("k2", data.deletes[2]);
+  }
+}
+
+TEST_F(categorized_kvbc, deletes_ordered_on_add_to_updates) {
+  auto merkle_updates = BlockMerkleUpdates{};
+  merkle_updates.addDelete("mk2");
+  merkle_updates.addDelete("mk1");
+
+  auto ver_updates = VersionedUpdates{};
+  ver_updates.addDelete("vk2");
+  ver_updates.addDelete("vk1");
+
+  auto updates = Updates{};
+  updates.add("merkle", std::move(merkle_updates));
+  updates.add("versioned", std::move(ver_updates));
+
+  const auto cat_updates = updates.categoryUpdates().kv;
+  for (const auto& [cat_id, cat_update] : cat_updates) {
+    (void)cat_id;
+    if (std::holds_alternative<BlockMerkleInput>(cat_update)) {
+      const auto& in = std::get<BlockMerkleInput>(cat_update);
+      ASSERT_EQ(2, in.deletes.size());
+      ASSERT_EQ("mk1", in.deletes[0]);
+      ASSERT_EQ("mk2", in.deletes[1]);
+    } else if (std::holds_alternative<VersionedInput>(cat_update)) {
+      const auto& in = std::get<VersionedInput>(cat_update);
+      ASSERT_EQ(2, in.deletes.size());
+      ASSERT_EQ("vk1", in.deletes[0]);
+      ASSERT_EQ("vk2", in.deletes[1]);
+    } else {
+      FAIL();
+    }
+  }
+}
+
 }  // end namespace
 
 int main(int argc, char** argv) {

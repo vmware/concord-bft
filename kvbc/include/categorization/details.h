@@ -17,6 +17,7 @@
 #include "categorized_kvbc_msgs.cmf.hpp"
 #include "rocksdb/native_client.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -89,6 +90,11 @@ inline bool createColumnFamilyIfNotExisting(const std::string &cf, storage::rock
     return true;
   }
   return false;
+}
+
+inline void sortAndRemoveDuplicates(std::vector<std::string> &vec) {
+  std::sort(vec.begin(), vec.end());
+  vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
 }
 
 }  // namespace concord::kvbc::categorization::detail

@@ -14,6 +14,7 @@
 #pragma once
 
 #include "assertUtils.hpp"
+#include "details.h"
 #include "kv_types.hpp"
 #include "categorized_kvbc_msgs.cmf.hpp"
 
@@ -107,11 +108,7 @@ struct VersionedUpdates {
   }
 
   void addDelete(std::string&& key) {
-    if (const auto [itr, inserted] = unique_deletes_.insert(key); !inserted) {
-      *itr;  // disable unused variable
-      // Log warn
-      return;
-    }
+    deletes_sorted_and_duplicates_removed = false;
     data_.deletes.emplace_back(std::move(key));
   }
 
@@ -119,11 +116,22 @@ struct VersionedUpdates {
 
   std::size_t size() const { return data_.kv.size(); }
 
-  const VersionedInput& getData() const { return data_; }
+  const VersionedInput& getData() const {
+    sortAndRemoveDuplicateDeletes();
+    return data_;
+  }
 
  private:
-  VersionedInput data_;
-  std::set<std::string> unique_deletes_;
+  void sortAndRemoveDuplicateDeletes() const {
+    if (!deletes_sorted_and_duplicates_removed) {
+      detail::sortAndRemoveDuplicates(data_.deletes);
+      deletes_sorted_and_duplicates_removed = true;
+    }
+  }
+
+ private:
+  mutable VersionedInput data_;
+  mutable bool deletes_sorted_and_duplicates_removed{false};
   friend struct Updates;
 };
 
@@ -144,21 +152,28 @@ struct BlockMerkleUpdates {
   void addUpdate(std::string&& key, std::string&& val) { data_.kv[std::move(key)] = std::move(val); }
 
   void addDelete(std::string&& key) {
-    if (const auto [itr, inserted] = unique_deletes_.insert(key); !inserted) {
-      *itr;  // disable unused variable
-      // Log warn
-      return;
-    }
+    deletes_sorted_and_duplicates_removed = false;
     data_.deletes.emplace_back(std::move(key));
   }
 
-  const BlockMerkleInput& getData() const { return data_; }
+  const BlockMerkleInput& getData() const {
+    sortAndRemoveDuplicateDeletes();
+    return data_;
+  }
 
   std::size_t size() const { return data_.kv.size(); }
 
  private:
-  BlockMerkleInput data_;
-  std::set<std::string> unique_deletes_;
+  void sortAndRemoveDuplicateDeletes() const {
+    if (!deletes_sorted_and_duplicates_removed) {
+      detail::sortAndRemoveDuplicates(data_.deletes);
+      deletes_sorted_and_duplicates_removed = true;
+    }
+  }
+
+ private:
+  mutable BlockMerkleInput data_;
+  mutable bool deletes_sorted_and_duplicates_removed{false};
   friend struct Updates;
 };
 
@@ -168,6 +183,7 @@ struct Updates {
   Updates(CategoryInput&& updates) : category_updates_{std::move(updates)} {}
   void add(const std::string& category_id, BlockMerkleUpdates&& updates) {
     block_merkle_size += updates.size();
+    updates.sortAndRemoveDuplicateDeletes();
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
@@ -178,6 +194,7 @@ struct Updates {
 
   void add(const std::string& category_id, VersionedUpdates&& updates) {
     versioned_kv_size += updates.size();
+    updates.sortAndRemoveDuplicateDeletes();
     if (const auto [itr, inserted] = category_updates_.kv.try_emplace(category_id, std::move(updates.data_));
         !inserted) {
       (void)itr;  // disable unused variable
