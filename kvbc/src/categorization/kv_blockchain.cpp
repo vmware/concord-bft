@@ -30,10 +30,11 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
     : native_client_{native_client},
       block_chain_{native_client_},
       state_transfer_block_chain_{native_client_},
-      metrics_{concordMetrics::Component("kv_blockchain", std::make_shared<concordMetrics::Aggregator>())},
-      versioned_num_of_deletes_keys_{metrics_.RegisterCounter("numOfVersionedKeysDeleted")},
-      immuteable_num_of_deleted_keys_{metrics_.RegisterCounter("numOfImmutableKeysDeleted")},
-      merkle_num_of_deleted_keys_{metrics_.RegisterCounter("numOfMerkleKeysDeleted")} {
+      delete_metrics_comp_{
+          concordMetrics::Component("kv_blockchain_deletes", std::make_shared<concordMetrics::Aggregator>())},
+      versioned_num_of_deletes_keys_{delete_metrics_comp_.RegisterCounter("numOfVersionedKeysDeleted")},
+      immuteable_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfImmutableKeysDeleted")},
+      merkle_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfMerkleKeysDeleted")} {
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
   }
@@ -45,7 +46,7 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // is getValue() that returns keys from the blockchain only and ignores keys in the temporary state
   // transfer chain.
   linkSTChainFrom(getLastReachableBlockId() + 1);
-  metrics_.Register();
+  delete_metrics_comp_.Register();
 }
 
 void KeyValueBlockchain::instantiateCategories() {
@@ -264,6 +265,9 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
   if (latest_block_id == 0 || block_id > latest_block_id) {
     return false;
   }
+
+  // Lets update the delete metrics component
+  delete_metrics_comp_.UpdateAggregator();
 
   const auto last_reachable_block_id = block_chain_.getLastReachableBlockId();
 
