@@ -322,7 +322,7 @@ bool KeyManager::KeysView::load() {
   }
   auto str = secStore->load();
   if (str.empty()) {
-    LOG_ERROR(KEY_EX_LOG, "Got empty string from loader");
+    LOG_WARN(KEY_EX_LOG, "Got empty string from loader. This is expected on first startup with an empty database");
     return false;
   }
   std::stringstream ss;
