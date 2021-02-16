@@ -3038,10 +3038,10 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t diffMilli3 = duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
 
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
-      LOG_INFO(VC_LOG,
-               "Ask to leave view=" << curView << " (" << diffMilli3
-                                    << " ms after the earliest pending client request)."
-                                    << KVLOG(cidOfEarliestPendingRequest));
+      LOG_INFO(
+          VC_LOG,
+          "Ask to leave view=" << curView << " (" << diffMilli3 << " ms after the earliest pending client request)."
+                               << KVLOG(cidOfEarliestPendingRequest, lastViewThatTransferredSeqNumbersFullyExecuted));
 
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
           config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
@@ -3066,7 +3066,10 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       LOG_INFO(VC_LOG,
                "Unable to activate the last agreed view (despite receiving 2f+2c+1 view change msgs). "
                "State transfer hasn't kicked-in for a while either. Asking to leave the current view: "
-                   << KVLOG(curView, timeSinceLastAgreedViewMilli, timeSinceLastStateTransferMilli));
+                   << KVLOG(curView,
+                            timeSinceLastAgreedViewMilli,
+                            timeSinceLastStateTransferMilli,
+                            lastViewThatTransferredSeqNumbersFullyExecuted));
 
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(ReplicaAsksToLeaveViewMsg::create(
           config_.getreplicaId(), curView, ReplicaAsksToLeaveViewMsg::Reason::NewPrimaryGetInChargeTimeout));
@@ -3908,6 +3911,12 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
   if (lastViewThatTransferredSeqNumbersFullyExecuted < curView &&
       (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+    LOG_INFO(VC_LOG,
+             "Rebuilding of previous View's Working Window complete. "
+                 << KVLOG(curView,
+                          lastViewThatTransferredSeqNumbersFullyExecuted,
+                          lastExecutedSeqNum,
+                          maxSeqNumTransferredFromPrevViews));
     lastViewThatTransferredSeqNumbersFullyExecuted = curView;
     if (ps_) {
       ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
