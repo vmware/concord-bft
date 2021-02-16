@@ -46,9 +46,6 @@ void updateTagHash(const std::string &tag,
 }
 
 void finishTagHashes(std::map<std::string, Hasher> &tag_hashers, ImmutableOutput &update_info) {
-  if (tag_hashers.empty()) {
-    return;
-  }
   auto tag_root_hashes = std::map<std::string, Hash>{};
   for (auto &[tag, hasher] : tag_hashers) {
     tag_root_hashes[tag] = hasher.finish();

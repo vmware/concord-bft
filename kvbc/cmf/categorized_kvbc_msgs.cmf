@@ -54,12 +54,22 @@ Msg VersionedKeyFlags 1002 {
 
 Msg VersionedOutput 1003 {
     map string VersionedKeyFlags keys
+
+    # - If nullopt, no root calculation was requested in the input.
+    # - If it contains a value, root calculation was requested in the input.
+    #   Furthermore, if there weren't any keys in the input, the hash value
+    #   will be equal to the hash of an empty string.
     optional fixedlist uint8 32 root_hash
 }
 
 Msg ImmutableOutput 1004 {
     # key -> [tag1, tag2...]
     map string list string tagged_keys
+
+    # - If nullopt, no tag root calculation was requested in the input.
+    # - If it contains a value, root calculation was requested in the input.
+    #   Furthermore, if no tags were provided for any of the keys or there were
+    #   no keys at all in the input, the map itself will be empty.
     optional map string fixedlist uint8 32 tag_root_hashes
 }
 

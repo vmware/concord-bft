@@ -88,7 +88,8 @@ TEST_F(immutable_kv_category, empty_updates) {
     auto batch = db->getBatch();
     const auto update_info = cat.add(1, std::move(update), batch);
     ASSERT_EQ(batch.count(), 0);
-    ASSERT_FALSE(update_info.tag_root_hashes);
+    ASSERT_TRUE(update_info.tag_root_hashes);
+    ASSERT_TRUE(update_info.tag_root_hashes->empty());
     ASSERT_TRUE(update_info.tagged_keys.empty());
   }
 }
@@ -110,6 +111,16 @@ TEST_F(immutable_kv_category, calculate_root_hash_toggle) {
     update.kv["k"] = ImmutableValueUpdate{"v", {"t"}};
     const auto update_info = cat.add(1, std::move(update), batch);
     ASSERT_FALSE(update_info.tag_root_hashes);
+  }
+
+  {
+    auto update = ImmutableInput{};
+    update.calculate_root_hash = true;
+    update.kv["k1"] = ImmutableValueUpdate{"v1", {}};
+    update.kv["k2"] = ImmutableValueUpdate{"v2", {}};
+    const auto update_info = cat.add(1, std::move(update), batch);
+    ASSERT_TRUE(update_info.tag_root_hashes);
+    ASSERT_TRUE(update_info.tag_root_hashes->empty());
   }
 }
 

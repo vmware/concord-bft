@@ -73,11 +73,8 @@ void VersionedKeyValueCategory::addDeletes(BlockId block_id,
   const auto stale_on_update = false;
   for (auto &&key : keys) {
     auto versioned_key = VersionedRawKey{std::move(key), block_id};
-
     updateLatestKeyVersion(versioned_key.value, TaggedVersion{deleted, block_id}, batch);
-
     putValue(versioned_key, deleted, ""sv, batch);
-
     addKeyToUpdateInfo(std::move(versioned_key.value), deleted, stale_on_update, out);
   }
 }
@@ -94,10 +91,6 @@ void VersionedKeyValueCategory::addUpdates(BlockId block_id,
                                            std::map<std::string, ValueWithFlags> &&updates,
                                            VersionedOutput &out,
                                            storage::rocksdb::NativeWriteBatch &batch) {
-  if (updates.empty()) {
-    return;
-  }
-
   auto hasher = Hasher{};
   hasher.init();
   const auto deleted = false;
@@ -114,11 +107,8 @@ void VersionedKeyValueCategory::addUpdates(BlockId block_id,
     }
 
     auto versioned_key = VersionedRawKey{std::move(key), block_id};
-
     updateLatestKeyVersion(versioned_key.value, TaggedVersion{deleted, block_id}, batch);
-
     putValue(versioned_key, deleted, value.data, batch);
-
     addKeyToUpdateInfo(std::move(versioned_key.value), deleted, value.stale_on_update, out);
   }
 

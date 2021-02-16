@@ -89,7 +89,11 @@ TEST_F(versioned_kv_category, empty_updates) {
     auto batch = db->getBatch();
     const auto out = cat.add(1, std::move(in), batch);
     ASSERT_EQ(batch.count(), 0);
-    ASSERT_FALSE(out.root_hash);
+    ASSERT_TRUE(out.root_hash);
+    // Expect the empty SHA3-256 hash.
+    ASSERT_THAT(*out.root_hash, ContainerEq(Hash{0xa7, 0xff, 0xc6, 0xf8, 0xbf, 0x1e, 0xd7, 0x66, 0x51, 0xc1, 0x47,
+                                                 0x56, 0xa0, 0x61, 0xd6, 0x62, 0xf5, 0x80, 0xff, 0x4d, 0xe4, 0x3b,
+                                                 0x49, 0xfa, 0x82, 0xd8, 0x0a, 0x4b, 0x80, 0xf8, 0x43, 0x4a}));
     ASSERT_TRUE(out.keys.empty());
   }
 }
