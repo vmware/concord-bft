@@ -64,4 +64,6 @@ std::string bufferToHex(const std::uint8_t *data, size_t size) {
 
 std::string sliverToHex(const Sliver &sliver) { return bufferToHex(sliver.data(), sliver.length()); }
 
+std::string vectorToHex(const std::vector<std::uint8_t> &data) { return bufferToHex(data.data(), data.size()); }
+
 }  // namespace concordUtils

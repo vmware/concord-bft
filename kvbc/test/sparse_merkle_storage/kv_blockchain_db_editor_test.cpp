@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -12,34 +12,51 @@
 // file.
 
 #include "db_editor_tests_base.h"
-#include "sparse_merkle_db_editor.hpp"
+#include "kv_blockchain_db_editor.hpp"
 
 namespace {
 
 using namespace concord::kvbc::tools::db_editor;
 
 const auto kTestName = kToolName + "_test";
+const auto kCategoryMerkle = "merkle"s;
+const auto kCategoryVersioned = "versioned"s;
+const auto kCategoryImmutable = "immutable"s;
 
 class DbEditorTests : public DbEditorTestsBase {
  public:
   void CreateBlockchain(std::size_t db_id, BlockId blocks, std::optional<BlockId> mismatch_at = std::nullopt) override {
     auto db = TestRocksDb::create(db_id);
-    auto adapter = DBAdapter{db};
+    auto adapter = KeyValueBlockchain{concord::storage::rocksdb::NativeClient::fromIDBClient(db), true};
 
     const auto mismatch_kv = std::make_pair(getSliver(std::numeric_limits<unsigned>::max()), getSliver(42));
 
     for (auto i = 1u; i <= blocks; ++i) {
-      auto updates = SetOfKeyValuePairs{};
+      Updates updates;
+      BlockMerkleUpdates merkle_updates;
+      VersionedUpdates ver_updates;
+      ImmutableUpdates immutable_updates;
       if (empty_block_id_ != i) {
         for (auto j = 0u; j < num_keys_; ++j) {
-          updates[getSliver((j + i - 1) * kv_multiplier_)] = getSliver((j + i - 1) * 2 * kv_multiplier_);
+          merkle_updates.addUpdate(getSliver((j + i - 1) * kv_multiplier_).toString(),
+                                   getSliver((j + i - 1) * 2 * kv_multiplier_).toString());
+          ver_updates.addUpdate("vkey"s + std::to_string((j + i - 1) * kv_multiplier_),
+                                "vval"s + std::to_string((j + i - 1) * 2 * kv_multiplier_));
         }
       }
+
       // Add a key to simulate a mismatch.
       if (mismatch_at.has_value() && *mismatch_at == i) {
-        updates.insert(mismatch_kv);
+        merkle_updates.addUpdate(mismatch_kv.first.toString(), mismatch_kv.second.toString());
+        ver_updates.addUpdate(mismatch_kv.first.toString(), mismatch_kv.second.toString());
       }
-      ASSERT_NO_THROW(adapter.addBlock(updates));
+      updates.add(kCategoryMerkle, std::move(merkle_updates));
+      updates.add(kCategoryVersioned, std::move(ver_updates));
+      if (i == 1u) {
+        immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+        updates.add("immutable", std::move(immutable_updates));
+      }
+      ASSERT_NO_THROW(adapter.addBlock(std::move(updates)));
     }
 
     const auto status = db->multiPut(generateMetadataAndStateTransfer());
@@ -47,13 +64,16 @@ class DbEditorTests : public DbEditorTestsBase {
   }
 
   void DeleteBlocksUntil(std::size_t db_id, BlockId until_block_id) override {
-    auto db = TestRocksDb::create(db_id);
-    auto adapter = DBAdapter{db};
+    auto db = TestRocksDb::createNative(db_id);
+    auto adapter = KeyValueBlockchain{db, true};
 
     for (auto i = 1ull; i < until_block_id; ++i) {
       adapter.deleteBlock(i);
     }
   }
+
+ protected:
+  static constexpr unsigned num_categories_{2};
 };
 
 TEST_F(DbEditorTests, no_arguments) {
@@ -347,13 +367,48 @@ TEST_F(DbEditorTests, compare_to_non_existent_other_dir) {
   ASSERT_THAT(err_.str(), HasSubstr("RocksDB directory path doesn't exist at"));
 }
 
+TEST_F(DbEditorTests, get_last_state_transfer_block_id_na) {
+  ASSERT_EQ(
+      EXIT_SUCCESS,
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getLastStateTransferBlockID"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_EQ("{\n  \"lastStateTransferBlockID\": \"n/a\"\n}\n", out_.str());
+}
+
 TEST_F(DbEditorTests, get_block_info) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getBlockInfo", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_THAT(out_.str(), HasSubstr("  \"sparseMerkleRootHash\": \"0x"));
   ASSERT_THAT(out_.str(), HasSubstr("  \"parentBlockDigest\": \"0x"));
-  ASSERT_THAT(out_.str(), HasSubstr("  \"keyValueCount\": \"" + std::to_string(num_keys_) + '\"'));
+  ASSERT_THAT(out_.str(),
+              HasSubstr("  \"keyValueTotalCount\": \"" + std::to_string(num_keys_ * num_categories_) + '\"'));
+  ASSERT_THAT(out_.str(), HasSubstr("  \"categoriesCount\": \"" + std::to_string(num_categories_) + '\"'));
+  ASSERT_THAT(
+      out_.str(),
+      HasSubstr("    \"" + kCategoryMerkle + "\": {\n      \"keyValueCount\": \"" + std::to_string(num_keys_) + '\"'));
+  ASSERT_THAT(out_.str(),
+              HasSubstr("    \"" + kCategoryVersioned + "\": {\n      \"keyValueCount\": \"" +
+                        std::to_string(num_keys_) + '\"'));
+  ASSERT_THAT(out_.str(),
+              Not(HasSubstr("    \"" + kCategoryImmutable + "\": {\n      \"keyValueCount\": \"" +
+                            std::to_string(num_keys_) + '\"')));
+}
+
+TEST_F(DbEditorTests, get_block_info_with_immutable) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getBlockInfo", "1"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("  \"parentBlockDigest\": \"0x"));
+  ASSERT_THAT(out_.str(),
+              HasSubstr("  \"keyValueTotalCount\": \"" + std::to_string(num_keys_ * num_categories_ + 1) + '\"'));
+  ASSERT_THAT(out_.str(), HasSubstr("  \"categoriesCount\": \"" + std::to_string(num_categories_ + 1) + '\"'));
+  ASSERT_THAT(
+      out_.str(),
+      HasSubstr("    \"" + kCategoryMerkle + "\": {\n      \"keyValueCount\": \"" + std::to_string(num_keys_) + '\"'));
+  ASSERT_THAT(out_.str(),
+              HasSubstr("    \"" + kCategoryVersioned + "\": {\n      \"keyValueCount\": \"" +
+                        std::to_string(num_keys_) + '\"'));
+  ASSERT_THAT(out_.str(), HasSubstr("    \"" + kCategoryImmutable + "\": {\n      \"keyValueCount\": \"1\""));
 }
 
 TEST_F(DbEditorTests, get_block_info_missing_block_id) {
@@ -368,11 +423,11 @@ TEST_F(DbEditorTests, get_block_key_values) {
       EXIT_SUCCESS,
       run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getBlockKeyValues", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_THAT(out_.str(), StartsWith("{\n  \"0x"));
+  ASSERT_THAT(out_.str(), StartsWith("{\n\"" + kCategoryMerkle + "\": {\n  \"0x"));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x0000003c\": \"0x00000078\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x00000028\": \"0x00000050\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x00000032\": \"0x00000064\""));
-  ASSERT_THAT(out_.str(), EndsWith("\"\n}\n"));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
 TEST_F(DbEditorTests, get_empty_block_key_values) {
@@ -383,7 +438,7 @@ TEST_F(DbEditorTests, get_empty_block_key_values) {
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n}\n", out_.str());
+  ASSERT_EQ("{\n\"" + kCategoryMerkle + "\": {\n},\n\"" + kCategoryVersioned + "\": {\n}\n}\n", out_.str());
 }
 
 TEST_F(DbEditorTests, get_block_key_values_missing_block_id) {
@@ -397,113 +452,162 @@ TEST_F(DbEditorTests, get_block_key_values_missing_block_id) {
 TEST_F(DbEditorTests, get_value_latest) {
   ASSERT_EQ(
       EXIT_SUCCESS,
-      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "0x00000028"}}, out_, err_));
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "0x00000028"}},
+          out_,
+          err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"blockVersion\": \"5\",\n  \"value\": \"0x00000050\"\n}\n", out_.str());
+  ASSERT_EQ("{\n  \"value\": \"0x00000050\"\n}\n", out_.str());
 }
 
 TEST_F(DbEditorTests, get_value_with_block_version) {
-  ASSERT_EQ(
-      EXIT_SUCCESS,
-      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "0x00000028", "5"}}, out_, err_));
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "0x00000028", "5"}},
+                out_,
+                err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"blockVersion\": \"5\",\n  \"value\": \"0x00000050\"\n}\n", out_.str());
+  ASSERT_EQ("{\n  \"value\": \"0x00000050\"\n}\n", out_.str());
+}
+
+TEST_F(DbEditorTests, get_value_with_block_version_non_existent) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{kTestName,
+                                      rocksDbPath(main_path_db_id_),
+                                      "getValue",
+                                      kCategoryMerkle,
+                                      "0x00000028",
+                                      std::to_string(num_blocks_ + 1)}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: "));
 }
 
 TEST_F(DbEditorTests, get_value_key_without_0x) {
-  ASSERT_EQ(
-      EXIT_SUCCESS,
-      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "00000028", "5"}}, out_, err_));
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "00000028", "5"}},
+                out_,
+                err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"blockVersion\": \"5\",\n  \"value\": \"0x00000050\"\n}\n", out_.str());
+  ASSERT_EQ("{\n  \"value\": \"0x00000050\"\n}\n", out_.str());
 }
 
 TEST_F(DbEditorTests, get_value_empty_key) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "", "5"}}, out_, err_));
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "", "5"}},
+                out_,
+                err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: "));
   ASSERT_THAT(err_.str(), Not(HasSubstr("Invalid hex string:")));
 }
 
 TEST_F(DbEditorTests, get_value_with_version_0) {
-  ASSERT_EQ(
-      EXIT_FAILURE,
-      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "0x00000028", "0"}}, out_, err_));
+  ASSERT_EQ(EXIT_FAILURE,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "0x00000028", "0"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: "));
+}
+
+TEST_F(DbEditorTests, get_value_wrong_category) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryVersioned, "0x00000028"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: "));
+}
+
+TEST_F(DbEditorTests, get_value_non_existant_category) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getValue", "non_existant_category", "0x00000028"}},
+                out_,
+                err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: "));
 }
 
 TEST_F(DbEditorTests, get_value_missing_key) {
-  ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue"}}, out_, err_));
+  ASSERT_EQ(
+      EXIT_FAILURE,
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle}}, out_, err_));
   ASSERT_TRUE(out_.str().empty());
-  ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Missing HEX-KEY argument"));
+  ASSERT_THAT(err_.str(),
+              StartsWith("Failed to execute command [getValue], reason: Missing CATEGORY and HEX-KEY arguments"));
 }
 
 TEST_F(DbEditorTests, get_value_invalid_key_size) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "0xabc"}}, out_, err_));
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "0xabc"}},
+                out_,
+                err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: 0xabc"));
 }
 
 TEST_F(DbEditorTests, get_value_invalid_key_chars_at_start) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "0xjj"}}, out_, err_));
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "0xjj"}},
+                out_,
+                err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: 0xjj"));
 }
 
 TEST_F(DbEditorTests, get_value_invalid_key_chars_at_end) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "0xabcx"}}, out_, err_));
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "0xabcx"}},
+                out_,
+                err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: 0xabcx"));
 }
 
 TEST_F(DbEditorTests, get_value_invalid_key_chars_no_0x) {
   ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", "abck"}}, out_, err_));
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getValue", kCategoryMerkle, "abck"}},
+                out_,
+                err_));
   ASSERT_TRUE(out_.str().empty());
   ASSERT_THAT(err_.str(), StartsWith("Failed to execute command [getValue], reason: Invalid hex string: abck"));
 }
 
-TEST_F(DbEditorTests, get_genesis_block_id_empty_db) {
-  // Create an empty DB that exists on disk.
-  TestRocksDb::create(empty_path_db_id_);
-
-  ASSERT_EQ(EXIT_FAILURE,
-            run(CommandLineArguments{{kTestName, rocksDbPath(empty_path_db_id_), "getGenesisBlockID"}}, out_, err_));
-  ASSERT_TRUE(out_.str().empty());
-  ASSERT_THAT(err_.str(), HasSubstr("RocksDB database is empty at path"));
+TEST_F(DbEditorTests, get_categories) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_EQ("{\n  \"" + kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle +
+                "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
+            out_.str());
 }
 
-TEST_F(DbEditorTests, compare_to_empty_main_db) {
-  // Create an empty DB that exists on disk.
-  TestRocksDb::create(empty_path_db_id_);
-
-  ASSERT_EQ(EXIT_FAILURE,
-            run(
-                CommandLineArguments{
-                    {kTestName, rocksDbPath(empty_path_db_id_), "compareTo", rocksDbPath(other_path_db_id_)}},
-                out_,
-                err_));
-  ASSERT_TRUE(out_.str().empty());
-  ASSERT_THAT(err_.str(), HasSubstr("RocksDB database is empty at path"));
+TEST_F(DbEditorTests, get_categories_by_block_with_immutable) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories", "1"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_EQ("{\n  \"" + kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle +
+                "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
+            out_.str());
 }
 
-TEST_F(DbEditorTests, compare_to_empty_other_db) {
-  // Create an empty DB that exists on disk.
-  TestRocksDb::create(empty_path_db_id_);
-
+TEST_F(DbEditorTests, get_categories_by_block_no_immutable) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories", "3"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
   ASSERT_EQ(
-      EXIT_FAILURE,
-      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "compareTo", rocksDbPath(empty_path_db_id_)}},
-          out_,
-          err_));
-  ASSERT_TRUE(out_.str().empty());
-  ASSERT_THAT(err_.str(), HasSubstr("RocksDB database is empty at path"));
+      "{\n  \"" + kCategoryMerkle + "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
+      out_.str());
 }
 
 TEST_F(DbEditorTests, remove_metadata) {
@@ -515,7 +619,7 @@ TEST_F(DbEditorTests, remove_metadata) {
   const auto adapter = getAdapter(rocksDbPath(main_path_db_id_));
   const auto& kvp = generateMetadataAndStateTransfer();
   for (const auto& kv : kvp) {
-    ASSERT_TRUE(adapter.getDb()->has(kv.first).isNotFound());
+    ASSERT_TRUE(adapter.db()->asIDBClient()->has(kv.first).isNotFound());
   }
 
   ASSERT_NO_THROW(adapter.getRawBlock(5));
