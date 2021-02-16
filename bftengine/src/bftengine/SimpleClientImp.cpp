@@ -106,7 +106,7 @@ class SimpleClientImp : public SimpleClient, public IReceiver {
 
   // SeqNumber -> MsgsCertificate
   typedef MsgsCertificate<ClientReplyMsg, false, false, true, SimpleClientImp> Certificate;
-  std::unordered_map<uint64_t, std::unique_ptr<Certificate>> replysCertificate_;
+  std::unordered_map<uint64_t, std::unique_ptr<Certificate>> replyCertificates_;
 
   std::mutex lock_;  // protects _msgQueue and pendingRequest
   std::condition_variable condVar_;
@@ -167,10 +167,10 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
     return;
   }
 
-  auto iter = replysCertificate_.find(replyMsg->reqSeqNum());
-  if (iter == std::cend(replysCertificate_)) {
+  auto iter = replyCertificates_.find(replyMsg->reqSeqNum());
+  if (iter == std::cend(replyCertificates_)) {
     auto cert = std::make_unique<Certificate>(numberOfReplicas_, fVal_, numberOfRequiredReplicas_, clientId_);
-    iter = replysCertificate_.insert(std::make_pair(replyMsg->reqSeqNum(), std::move(cert))).first;
+    iter = replyCertificates_.insert(std::make_pair(replyMsg->reqSeqNum(), std::move(cert))).first;
   }
   iter->second->addMsg(replyMsg, replyMsg->senderId());
   if (iter->second->isInconsistent()) iter->second->resetAndFree();
@@ -228,8 +228,8 @@ SimpleClientImp::SimpleClientImp(ICommunication* communication,
 SimpleClientImp::~SimpleClientImp() {}
 
 bool SimpleClientImp::allRequiredRepliesReceived() {
-  if (replysCertificate_.empty()) return false;
-  for (auto& elem : replysCertificate_) {
+  if (replyCertificates_.empty()) return false;
+  for (auto& elem : replyCertificates_) {
     if (!elem.second->isComplete()) {
       LOG_DEBUG(logger_, "Not all replies received" << KVLOG(clientId_));
       return false;
@@ -240,7 +240,7 @@ bool SimpleClientImp::allRequiredRepliesReceived() {
 }
 
 void SimpleClientImp::verifySendRequestPrerequisites() {
-  ConcordAssert(replysCertificate_.empty());
+  ConcordAssert(replyCertificates_.empty());
   ConcordAssert(msgQueue_.empty());
   ConcordAssert(pendingRequest_.empty());
   ConcordAssert(timeOfLastTransmission_ == MinTime);
@@ -253,14 +253,14 @@ tuple<bool, bool> SimpleClientImp::pendingRequestProcessing(bool isBatch,
                                                             const std::string& cid) {
   bool requestCommitted = false;
   bool requestTimedOut = false;
-  auto predicate = [this] { return !msgQueue_.empty(); };
+  auto msgQueueNonEmpty = [this] { return !msgQueue_.empty(); };
   static const chrono::milliseconds timersRes(timersResolutionMilli_);
   while (true) {
     queue<MessageBase*> newMsgs;
     bool hasData = false;
     {
       unique_lock<std::mutex> mlock(lock_);
-      hasData = condVar_.wait_for(mlock, timersRes, predicate);
+      hasData = condVar_.wait_for(mlock, timersRes, msgQueueNonEmpty);
       if (hasData) msgQueue_.swap(newMsgs);
     }
     if (hasData) {
@@ -344,7 +344,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
               "Request has committed" << KVLOG(
                   clientId_, reqSeqNum, isReadOnly, isPreProcessRequired, (int)maxRetransmissionTimeout));
 
-    const auto& elem = replysCertificate_.find(reqSeqNum);
+    const auto& elem = replyCertificates_.find(reqSeqNum);
     ClientReplyMsg* correctReply = elem->second->bestCorrectMsg();
     primaryReplicaIsKnown_ = true;
     knownPrimaryReplica_ = correctReply->currentPrimaryId();
@@ -372,7 +372,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
 OperationResult SimpleClientImp::isBatchRequestValid(const ClientRequest& req) {
   OperationResult res = SUCCESS;
   if (req.flags & READ_ONLY_REQ) {
-    LOG_ERROR(logger_, "Read-only requests could not be sent in a batch" << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    LOG_ERROR(logger_, "Read-only requests cannot be sent in a batch" << KVLOG(req.reqSeqNum, clientId_, req.cid));
     res = INVALID_REQUEST;
   } else if (!(req.flags & PRE_PROCESS_REQ)) {
     LOG_ERROR(logger_,
@@ -463,7 +463,7 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
     uint64_t durationMilli = duration_cast<milliseconds>(getMonotonicTime() - beginTime).count();
     limitOfExpectedOperationTime_.add(durationMilli);
     string reqCid;
-    for (auto& reply : replysCertificate_) {
+    for (auto& reply : replyCertificates_) {
       ClientReplyMsg* correctReply = reply.second->bestCorrectMsg();
       const auto reqSeqNum = correctReply->reqSeqNum();
       for (const auto& req : clientRequests)
@@ -499,9 +499,9 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
 }
 
 void SimpleClientImp::reset() {
-  LOG_DEBUG(logger_, KVLOG(clientId_, replysCertificate_.size()));
-  for (auto& elem : replysCertificate_) elem.second->resetAndFree();
-  replysCertificate_.clear();
+  LOG_DEBUG(logger_, KVLOG(clientId_, replyCertificates_.size()));
+  for (auto& elem : replyCertificates_) elem.second->resetAndFree();
+  replyCertificates_.clear();
 
   std::queue<MessageBase*> newMsgs;
   {
@@ -586,8 +586,8 @@ void SimpleClientImp::sendPendingRequest(bool isBatch, const std::string& cid) {
 
   if (resetReplies) {
     LOG_DEBUG(logger_, "Resetting replies" << KVLOG(clientId_, pendingRequest_.front()->requestSeqNum()));
-    for (auto& elem : replysCertificate_) elem.second->resetAndFree();
-    replysCertificate_.clear();
+    for (auto& elem : replyCertificates_) elem.second->resetAndFree();
+    replyCertificates_.clear();
   }
 
   if (!isBatch) return sendRequestToAllOrToPrimary(sendToAll, pendingRequest_[0]->body(), pendingRequest_[0]->size());

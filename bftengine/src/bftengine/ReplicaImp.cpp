@@ -230,7 +230,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         return;
       } else {
         LOG_INFO(GL,
-                 "ClientRequestMsg is ignored because: request is old, or primary is current working on it"
+                 "ClientRequestMsg is ignored because: request is old, or primary is currently working on it"
                      << KVLOG(clientId, reqSeqNum));
       }
     } else {  // not the current primary

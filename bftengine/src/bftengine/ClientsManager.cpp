@@ -112,7 +112,7 @@ void ClientsManager::loadInfoFromReservedPages() {
   }
 }
 
-bool ClientsManager::isReplySentToClientForRequest(NodeIdType clientId, ReqId reqSeqNum) {
+bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
   const auto& elem = repliesInfo.find(reqSeqNum);
@@ -214,7 +214,9 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
   }
 
   if (r->reqSeqNum() != requestSeqNum) {
-    LOG_WARN(GL, "Reserved page contains reply for the different request: " << r->reqSeqNum() << " => ignore");
+    LOG_INFO(GL,
+             "The reserved page contains a reply for a different request, so the current request gets ignored"
+                 << KVLOG(r->reqSeqNum(), requestSeqNum));
     delete r;
     return nullptr;
   }
@@ -236,7 +238,7 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
   }
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
-    LOG_DEBUG(GL, "The request has been executing right now" << KVLOG(clientId, reqSeqNum));
+    LOG_DEBUG(GL, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
     return false;
   }
   const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;

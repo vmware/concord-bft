@@ -565,7 +565,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetIn
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch) {
-  ClientRequestMsgUniquePtr clientRequestMsg;
+  std::unique_ptr<ClientRequestMsg> clientRequestMsg;
   const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, reqOffsetInBatch)];
   {
     concord::diagnostics::TimeRecorder scoped_timer(*histograms_.finalizePreProcessing);
@@ -740,6 +740,11 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPrePro
 }
 
 const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, uint16_t reqOffsetInBatch) const {
+  // Pre-allocated buffers scheme:
+  // |first client's first buffer|...|first client's last buffer|......
+  // |last client's first buffer|...|last client's last buffer|
+  // The first client id starts after the last replica id.
+  // The number of buffers per client comes from the configuration parameter clientMiniBatchingMaxMsgsNbr.
   const auto bufferOffset = clientId - numOfReplicas_ + reqOffsetInBatch;
   return preProcessResultBuffers_[bufferOffset].data();
 }

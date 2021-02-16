@@ -32,7 +32,7 @@
 namespace preprocessor {
 
 struct RequestState {
-  std::mutex mutex;  // Define a mutex per client to avoid contentions between clients
+  std::mutex mutex;  // Define a mutex per request to avoid contentions
   RequestProcessingStateUniquePtr reqProcessingStatePtr;
   // A list of requests passed a pre-processing consensus used for a non-determinism detection at later stage.
   static const uint8_t reqProcessingHistoryHeight = 30;

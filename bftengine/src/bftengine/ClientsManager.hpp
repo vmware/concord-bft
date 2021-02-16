@@ -40,7 +40,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   // TODO(GG): make sure that ReqId is based on time (and ignore requests with time that does
   // not make sense (too high) - this will prevent some potential attacks)
-  bool isReplySentToClientForRequest(NodeIdType clientId, ReqId reqSeqNum);
+  bool hasReply(NodeIdType clientId, ReqId reqSeqNum);
 
   bool isValidClient(NodeIdType clientId) const;
 

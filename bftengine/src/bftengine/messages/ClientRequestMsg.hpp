@@ -73,8 +73,6 @@ class ClientRequestMsg : public MessageBase {
                  const std::string& cid);
 };
 
-typedef std::unique_ptr<ClientRequestMsg> ClientRequestMsgUniquePtr;
-
 template <>
 inline size_t sizeOfHeader<ClientRequestMsg>() {
   return sizeof(ClientRequestMsgHeader);
