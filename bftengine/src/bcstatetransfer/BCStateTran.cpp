@@ -26,6 +26,7 @@
 #include "BCStateTran.hpp"
 #include "STDigest.hpp"
 #include "InMemoryDataStore.hpp"
+#include "json_output.hpp"
 
 #include "DBDataStore.hpp"
 #include "storage/db_interface.h"
@@ -35,7 +36,10 @@
 // TODO(GG): for debugging - remove
 // #define DEBUG_SEND_CHECKPOINTS_IN_REVERSE_ORDER (1)
 
+#define getName(var) #var
+
 using std::tie;
+using concordUtils::toPair;
 using std::chrono::steady_clock;
 using std::chrono::duration_cast;
 using std::chrono::milliseconds;
@@ -670,28 +674,36 @@ void BCStateTran::onTimerImp() {
 
 std::string BCStateTran::getStatus() {
   std::ostringstream oss;
-  auto state = getFetchingState();
+  std::unordered_map<std::string, std::string> result, nested_data;
+  result.insert(toPair("Fetching State", stateName(getFetchingState())));
+  result.insert(toPair(getName(lastMsgSeqNum_), lastMsgSeqNum_));
+  result.insert(toPair("cacheOfVirtualBlockForResPages Size", cacheOfVirtualBlockForResPages.size()));
+
   auto current_source = sourceSelector_.currentReplica();
   auto preferred_replicas = sourceSelector_.preferredReplicasToString();
 
-  oss << "Fetching state: " << stateName(state) << std::endl;
-  oss << KVLOG(lastMsgSeqNum_, cacheOfVirtualBlockForResPages.size()) << std::endl << std::endl;
-  oss << "Last Msg Sequence Numbers (Replica ID: SeqNum):" << std::endl;
   for (auto &[id, seq_num] : lastMsgSeqNumOfReplicas_) {
-    oss << "  " << id << ": " << seq_num << std::endl;
+    nested_data.insert(toPair(std::to_string(id), seq_num));
   }
-  oss << std::endl << std::endl;
 
-  oss << "Cache Of virtual blocks for reserved pages:" << std::endl;
+  result.insert(toPair("Last Msg Sequence Numbers (Replica ID: SeqNum)",
+                       concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  nested_data.clear();
+
   for (auto entry : cacheOfVirtualBlockForResPages) {
     auto vblockDescriptor = entry.first;
-    oss << "  " << KVLOG(vblockDescriptor.checkpointNum, vblockDescriptor.lastCheckpointKnownToRequester) << std::endl;
+    nested_data.insert(
+        toPair(std::to_string(vblockDescriptor.checkpointNum), vblockDescriptor.lastCheckpointKnownToRequester));
   }
-  oss << std::endl << std::endl;
+  result.insert(toPair("Cache Of virtual blocks for reserved pages",
+                       concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+  nested_data.clear();
 
   if (isFetching()) {
     oss << KVLOG(current_source, preferred_replicas, nextRequiredBlock_, totalSizeOfPendingItemDataMsgs) << std::endl;
   }
+
+  oss << concordUtils::kContainerToJson(result);
   return oss.str();
 }
 
