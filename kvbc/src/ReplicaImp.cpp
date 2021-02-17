@@ -340,6 +340,7 @@ bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSi
   }
   const auto &ser = categorization::RawBlock::serialize(*rawBlock);
   *outBlockSize = ser.size();
+  LOG_DEBUG(logger, KVLOG(blockId, *outBlockSize));
   std::memcpy(outBlock, ser.data(), *outBlockSize);
   return true;
 }
