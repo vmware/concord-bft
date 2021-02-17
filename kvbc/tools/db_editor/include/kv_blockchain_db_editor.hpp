@@ -301,6 +301,38 @@ struct GetCategories {
   }
 };
 
+struct GetCategoryBlockID {
+  const bool read_only = true;
+  std::string description() const {
+    return "getCategories CATEGORY-ID [BLOCK-VERSION]\n"
+           "  Returns the latest blockID that contains the givenb category, started from BLOCK-VERSION. If "
+           "BLOCK-VERSION is not set, we start from the lastReachableBlock";
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    if (args.values.empty()) {
+      throw NotFoundException{"No Category ID was given"};
+    }
+    auto latestBlockID = adapter.getLastReachableBlockId();
+    if (args.values.size() == 2) {
+      latestBlockID = toBlockId(args.values[1]);
+    }
+    auto cat = args.values.front();
+    std::map<std::string, std::string> cat_updates_map;
+    BlockId relevantBlockId = adapter.getGenesisBlockId();
+    for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
+      auto updates = adapter.getBlockUpdates(block);
+      if (updates->categoryUpdates().kv.count(cat)) {
+        relevantBlockId = block;
+        cat_updates_map = getKVStr(updates->categoryUpdates().kv.at(cat));
+      }
+    }
+    std::map<std::string, std::string> out{
+        {"blockID", std::to_string(relevantBlockId)}, {"category", cat}, {"updates", toJson(cat_updates_map)}};
+    return toJson(out);
+  }
+};
+
 struct GetValue {
   const bool read_only = true;
   std::string description() const {
@@ -440,6 +472,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetBlockInfo,
                              GetBlockKeyValues,
                              GetCategories,
+                             GetCategoryBlockID,
                              GetValue,
                              CompareTo,
                              RemoveMetadata>;
@@ -453,6 +486,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getCategories", GetCategories{}),
+    std::make_pair("getCategoryBlockID", GetCategoryBlockID{}),
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
