@@ -23,7 +23,8 @@ CONCORD_BFT_CMAKE_FLAGS:= \
 			-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 			-DOMIT_TEST_OUTPUT=OFF \
 			-DKEEP_APOLLO_LOGS=TRUE \
-			-DBUILD_SLOWDOWN=FALSE
+			-DBUILD_SLOWDOWN=FALSE \
+			-DBUILD_KVBC_BENCH=FALSE \ # Should only run this with -DCMAKE_BUILD_TYPE=Release
 
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.

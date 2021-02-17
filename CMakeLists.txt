@@ -48,6 +48,9 @@ option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
 # Build Slowdown framework
 option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
 
+# Build KVBC Benchmarking tool
+option(BUILD_KVBC_BENCH "BUILD kvbcbench" FALSE)
+
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
     math(EXPR COMM_MODULES "${COMM_MODULES}+1")

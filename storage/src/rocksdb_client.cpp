@@ -11,6 +11,9 @@
  * navigate through the RocksDB Database.
  */
 
+#include <rocksdb/db.h>
+#include <rocksdb/options.h>
+#include <stdexcept>
 #ifdef USE_ROCKSDB
 
 #include <rocksdb/client.h>
@@ -114,6 +117,82 @@ void Client::Options::applyOptimizations() {
   db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 }
 
+// Create a RocksDB client by loading all options from a user defined file.
+//
+// Throws `std::invalid_argument` if the file does not exist or it cannot be opened.
+void Client::initDBFromFile(bool readOnly, const Options &user_options) {
+  auto db_options = ::rocksdb::Options{};
+  auto cf_descs = std::vector<::rocksdb::ColumnFamilyDescriptor>{};
+  auto status =
+      ::rocksdb::LoadOptionsFromFile(user_options.filepath, ::rocksdb::Env::Default(), &db_options, &cf_descs);
+  if (!status.ok()) {
+    const auto msg = "Failed to find RocksDB config file [" + user_options.filepath + "], reason: " + status.ToString();
+    LOG_ERROR(logger(), msg);
+    throw std::invalid_argument{msg};
+  }
+  // Add specific global options
+  db_options.IncreaseParallelism(static_cast<int>(std::thread::hardware_concurrency()));
+  db_options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
+  db_options.statistics = ::rocksdb::CreateDBStatistics();
+  db_options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptTimeForMutex);
+
+  // Some options, notably pointers, are not configurable via the config file. We set them in code here.
+  user_options.completeInit(db_options, cf_descs);
+
+  openRocksDB(readOnly, db_options, cf_descs);
+
+  initialized_ = true;
+  storage_metrics_.setMetricsDataSources(db_options.sst_file_manager, db_options.statistics);
+}
+
+// Create column family handles and call the appropriate RocksDB open functions.
+void Client::openRocksDB(bool readOnly,
+                         const ::rocksdb::Options &db_options,
+                         std::vector<::rocksdb::ColumnFamilyDescriptor> &cf_descs) {
+  ::rocksdb::Status s;
+  auto raw_cf_handles = std::vector<::rocksdb::ColumnFamilyHandle *>{};
+  auto unique_cf_handles = std::map<std::string, CfUniquePtr>{};
+  // Ensure that we always delete column family handles, including error returns from the open calls.
+  const auto raw_to_unique_cf_handles = [this](const auto &raw_cf_handles) {
+    auto ret = std::map<std::string, CfUniquePtr>{};
+    for (auto cf_handle : raw_cf_handles) {
+      ret[cf_handle->GetName()] = CfUniquePtr{cf_handle, CfDeleter{this}};
+    }
+    return ret;
+  };
+
+  if (cf_descs.empty()) {
+    // Make sure we always get a handle for the default column family. Use the DB options to configure it.
+    cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{::rocksdb::kDefaultColumnFamilyName, db_options});
+  } else if (comparator_) {
+    // Make sure we always set the user-supplied comparator for the default family.
+    for (auto &cf_desc : cf_descs) {
+      if (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName) {
+        cf_desc.options.comparator = comparator_.get();
+      }
+    }
+  }
+
+  if (readOnly) {
+    ::rocksdb::DB *db;
+    s = ::rocksdb::DB::OpenForReadOnly(db_options, m_dbPath, cf_descs, &raw_cf_handles, &db);
+    unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);
+    if (!s.ok())
+      throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
+                               s.ToString());
+    dbInstance_.reset(db);
+  } else {
+    ::rocksdb::TransactionDBOptions txn_options;
+    s = ::rocksdb::TransactionDB::Open(db_options, txn_options, m_dbPath, cf_descs, &raw_cf_handles, &txn_db_);
+    unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);
+    if (!s.ok())
+      throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
+                               s.ToString());
+    dbInstance_.reset(txn_db_->GetBaseDB());
+  }
+  cf_handles_ = std::move(unique_cf_handles);
+}
+
 /**
  * @brief Opens a RocksDB database connection.
  *
@@ -127,8 +206,11 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
     return;
   }
 
+  if (userOptions) {
+    return initDBFromFile(readOnly, *userOptions);
+  }
+
   Options options;
-  ::rocksdb::DB *db;
   std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
 
   auto cf_names = std::vector<std::string>{};
@@ -148,100 +230,53 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
   // Reference: https://github.com/facebook/rocksdb/blob/v6.8.1/db/db_impl/db_impl.cc#L2187
   auto incompletelyCreatedColumnFamilies = std::vector<std::string>{};
 
-  if (userOptions.has_value()) {
-    options = *userOptions;
-    for (const auto &cf_name : cf_names) {
-      cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{cf_name, ::rocksdb::ColumnFamilyOptions{}});
-    }
-  } else {
-    // Try to read the stored options configuration file
-    // Note that if we recover, then rocksdb should have its option configuration file stored in the rocksdb directory.
-    // Thus, we don't need to persist our custom configuration file.
-    auto s_opt = ::rocksdb::LoadLatestOptions(m_dbPath, ::rocksdb::Env::Default(), &options.db_options, &cf_descs);
-    if (!s_opt.ok()) {
-      const char kPathSeparator =
+  // Try to read the stored options configuration file
+  // Note that if we recover, then rocksdb should have its option configuration file stored in the rocksdb directory.
+  // Thus, we don't need to persist our custom configuration file.
+  auto s_opt = ::rocksdb::LoadLatestOptions(m_dbPath, ::rocksdb::Env::Default(), &options.db_options, &cf_descs);
+  if (!s_opt.ok()) {
+    const char kPathSeparator =
 #ifdef _WIN32
-          '\\';
+        '\\';
 #else
-          '/';
+        '/';
 #endif
-      // If we couldn't read the stored configuration file, try to read the default configuration file.
-      s_opt = ::rocksdb::LoadOptionsFromFile(m_dbPath + kPathSeparator + default_opt_config_name,
-                                             ::rocksdb::Env::Default(),
-                                             &options.db_options,
-                                             &cf_descs);
-    }
-    if (!s_opt.ok()) {
-      // If we couldn't read the stored configuration and not the default configuration file, then create
-      // one.
-      options.db_options.create_if_missing = true;
-    }
-    options.db_options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
-    options.db_options.statistics = ::rocksdb::CreateDBStatistics();
-    options.db_options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptTimeForMutex);
+    // If we couldn't read the stored configuration file, try to read the default configuration file.
+    s_opt = ::rocksdb::LoadOptionsFromFile(
+        m_dbPath + kPathSeparator + default_opt_config_name, ::rocksdb::Env::Default(), &options.db_options, &cf_descs);
+  }
+  if (!s_opt.ok()) {
+    // If we couldn't read the stored configuration and not the default configuration file, then create
+    // one.
+    options.db_options.create_if_missing = true;
+  }
+  options.db_options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
+  options.db_options.statistics = ::rocksdb::CreateDBStatistics();
+  options.db_options.statistics->set_stats_level(::rocksdb::StatsLevel::kExceptTimeForMutex);
 
-    // Fill any missing column family descriptors. That may happen as there can be a mismatch between the column
-    // families in the DB and the ones in the options file due to the non-atomic way of creating a column family in
-    // terms of DB and options file.
-    for (const auto &cf_name : cf_names) {
-      auto it = std::find_if(
-          cf_descs.begin(), cf_descs.end(), [&cf_name](const auto &cf_desc) { return cf_name == cf_desc.name; });
-      if (it == cf_descs.end()) {
-        // Open with default options and mark as incompletely created.
-        cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{cf_name, ::rocksdb::ColumnFamilyOptions{}});
-        incompletelyCreatedColumnFamilies.push_back(cf_name);
-      }
+  // Fill any missing column family descriptors. That may happen as there can be a mismatch between the column
+  // families in the DB and the ones in the options file due to the non-atomic way of creating a column family in
+  // terms of DB and options file.
+  for (const auto &cf_name : cf_names) {
+    auto it = std::find_if(
+        cf_descs.begin(), cf_descs.end(), [&cf_name](const auto &cf_desc) { return cf_name == cf_desc.name; });
+    if (it == cf_descs.end()) {
+      // Open with default options and mark as incompletely created.
+      cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{cf_name, ::rocksdb::ColumnFamilyOptions{}});
+      incompletelyCreatedColumnFamilies.push_back(cf_name);
     }
+  }
 
-    // If a comparator is passed, use it. If not, use the default one.
-    if (comparator_) {
-      options.db_options.comparator = comparator_.get();
-    }
+  // If a comparator is passed, use it. If not, use the default one.
+  if (comparator_) {
+    options.db_options.comparator = comparator_.get();
   }
 
   if (applyOptimizations) {
     options.applyOptimizations();
   }
 
-  ::rocksdb::Status s;
-  auto raw_cf_handles = std::vector<::rocksdb::ColumnFamilyHandle *>{};
-  auto unique_cf_handles = std::map<std::string, CfUniquePtr>{};
-  // Ensure that we always delete column family handles, including error returns from the open calls.
-  const auto raw_to_unique_cf_handles = [this](const auto &raw_cf_handles) {
-    auto ret = std::map<std::string, CfUniquePtr>{};
-    for (auto cf_handle : raw_cf_handles) {
-      ret[cf_handle->GetName()] = CfUniquePtr{cf_handle, CfDeleter{this}};
-    }
-    return ret;
-  };
-  if (cf_descs.empty()) {
-    // Make sure we always get a handle for the default column family. Use the DB options to configure it.
-    cf_descs.push_back(::rocksdb::ColumnFamilyDescriptor{::rocksdb::kDefaultColumnFamilyName, options.db_options});
-  } else if (comparator_) {
-    // Make sure we always set the user-supplied comparator for the default family.
-    for (auto &cf_desc : cf_descs) {
-      if (cf_desc.name == ::rocksdb::kDefaultColumnFamilyName) {
-        cf_desc.options.comparator = comparator_.get();
-      }
-    }
-  }
-  if (readOnly) {
-    s = ::rocksdb::DB::OpenForReadOnly(options.db_options, m_dbPath, cf_descs, &raw_cf_handles, &db);
-    unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);
-    if (!s.ok())
-      throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
-                               s.ToString());
-    dbInstance_.reset(db);
-  } else {
-    s = ::rocksdb::TransactionDB::Open(
-        options.db_options, options.txn_options, m_dbPath, cf_descs, &raw_cf_handles, &txn_db_);
-    unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);
-    if (!s.ok())
-      throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
-                               s.ToString());
-    dbInstance_.reset(txn_db_->GetBaseDB());
-  }
-  cf_handles_ = std::move(unique_cf_handles);
+  openRocksDB(readOnly, options.db_options, cf_descs);
 
   // If an incomplete column family is empty (i.e. has no keys), drop it so that user code can re-create it with the
   // correct options. Otherwise, warn and continue.

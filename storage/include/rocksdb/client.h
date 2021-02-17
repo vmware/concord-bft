@@ -111,9 +111,14 @@ class Client : public concord::storage::IDBClient {
 
  private:
   struct Options {
-    ::rocksdb::Options db_options;
-    ::rocksdb::TransactionDBOptions txn_options;
+    std::string filepath;
 
+    // Any RocksDB customization that cannot be completed in an init file can be done here.
+    std::function<void(::rocksdb::Options&, std::vector<::rocksdb::ColumnFamilyDescriptor>&)> completeInit;
+
+    // These are for backwards compatibility. Users of the nativeClient should use `filepath` and `completeInit`
+    // instead.
+    ::rocksdb::Options db_options;
     void applyOptimizations();
   };
 
@@ -122,6 +127,10 @@ class Client : public concord::storage::IDBClient {
   // If Options are not provided, try to load them from an options file.
   // If `applyOptimizations` is set, apply optimizations on top of the provided or the loaded ones.
   void initDB(bool readOnly, const std::optional<Options>&, bool applyOptimizations);
+  void initDBFromFile(bool readOnly, const Options& user_options);
+  void openRocksDB(bool readOnly,
+                   const ::rocksdb::Options& db_options,
+                   std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs);
   concordUtils::Status launchBatchJob(::rocksdb::WriteBatch& _batchJob);
   concordUtils::Status get(const concordUtils::Sliver& _key, std::string& _value) const;
   bool keyIsBefore(const concordUtils::Sliver& _lhs, const concordUtils::Sliver& _rhs) const;

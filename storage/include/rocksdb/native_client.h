@@ -49,8 +49,10 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
  public:
   // User-supplied options.
   struct UserOptions {
-    ::rocksdb::Options dbOptions;
-    ::rocksdb::TransactionDBOptions txnOptions;
+    std::string filepath;
+
+    // Any RocksDB customization that cannot be completed in an init file can be done here.
+    std::function<void(::rocksdb::Options &, std::vector<::rocksdb::ColumnFamilyDescriptor> &)> completeInit;
   };
 
   // Default RocksDB options.

@@ -60,9 +60,7 @@ inline std::shared_ptr<NativeClient> NativeClient::fromIDBClient(const std::shar
 
 inline NativeClient::NativeClient(const std::string &path, bool readOnly, const DefaultOptions &)
     : client_{std::make_shared<Client>(path)} {
-  auto options = Client::Options{};
-  options.db_options.create_if_missing = true;
-  client_->initDB(readOnly, options, applyOptimizationsOnDefaultOpts_);
+  client_->initDB(readOnly, std::nullopt, applyOptimizationsOnDefaultOpts_);
 }
 
 inline NativeClient::NativeClient(const std::string &path, bool readOnly, const ExistingOptions &)
@@ -72,9 +70,8 @@ inline NativeClient::NativeClient(const std::string &path, bool readOnly, const 
 
 inline NativeClient::NativeClient(const std::string &path, bool readOnly, const UserOptions &userOpts)
     : client_{std::make_shared<Client>(path)} {
-  auto options = Client::Options{userOpts.dbOptions, userOpts.txnOptions};
-  options.db_options.create_if_missing = true;
-  client_->initDB(readOnly, options, applyOptimizationsOnDefaultOpts_);
+  auto options = Client::Options{userOpts.filepath, userOpts.completeInit};
+  client_->initDBFromFile(readOnly, options);
 }
 
 inline NativeClient::NativeClient(const std::shared_ptr<Client> &client) : client_{client} {}
