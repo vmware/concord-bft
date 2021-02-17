@@ -24,7 +24,7 @@ import bft_config
 from functools import wraps
 
 
-def verify_system_is_ready_before_starting(async_fn):
+def verify_system_is_ready(async_fn):
     """ Decorator for running a coroutine (async_fn) with trio. """
     @wraps(async_fn)
     async def sys_ready_wrapper(*args, **kwargs):
@@ -42,6 +42,17 @@ class SimpleTest(unittest.TestCase):
 
     Use n=4, f=1, c=0
     """
+    @classmethod
+    def startServers(cls):
+        """Start all 4 simpleTestServers"""
+        cls.procs = [subprocess.Popen([cls.serverbin, str(i)], close_fds=True)
+                      for i in range(0, 4)]
+    @classmethod
+    def stopServers(cls):
+        """Stop all processes in self.procs"""
+        for p in cls.procs:
+            p.terminate()
+            p.wait()
 
     @classmethod
     def setUpClass(cls):
@@ -60,13 +71,15 @@ class SimpleTest(unittest.TestCase):
                         for i in range(0,4)]
 
         print("Running tests in {}".format(cls.testdir))
+        cls.startServers()
 
 
 
     @classmethod
-    def tearDownClass(self):
-        shutil.rmtree(self.testdir)
-        os.chdir(self.origdir)
+    def tearDownClass(cls):
+        cls.stopServers()
+        shutil.rmtree(cls.testdir)
+        os.chdir(cls.origdir)
 
     @classmethod
     def generateKeys(cls):
@@ -95,33 +108,16 @@ class SimpleTest(unittest.TestCase):
         trio.run(self._testTimeout, write, False)
 
     async def _testTimeout(self, msg, read_only):
-       config = self.config._replace(req_timeout_milli=100)
+       config = self.config._replace(req_timeout_milli=0)
        with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            with self.assertRaises(trio.TooSlowError):
                await udp_client.sendSync(msg, read_only)
 
-    def startServers(self):
-        """Start all 4 simpleTestServers"""
-        self.procs = [subprocess.Popen([self.serverbin, str(i)], close_fds=True)
-                for i in range(0, 4)]
-
-    def stopServers(self):
-        """Stop all processes in self.procs"""
-        for p in self.procs:
-            p.terminate()
-            p.wait()
-
     def testReadWrittenValue(self):
         """Write a value and then read it"""
-        self.startServers()
-        try:
-            trio.run(self._testReadWrittenValue)
-        except:
-            raise
-        finally:
-            self.stopServers()
+        trio.run(self._testReadWrittenValue)
 
-    @verify_system_is_ready_before_starting
+    @verify_system_is_ready
     async def _testReadWrittenValue(self):
        val = 999
        with bft_client.UdpClient(self.config, self.replicas, None) as udp_client:
@@ -138,81 +134,60 @@ class SimpleTest(unittest.TestCase):
 
     async def _testRetry(self):
         """Start servers after a delay in parallel with a write request"""
-        try:
-            async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.startServersWithDelay)
-                nursery.start_soon(self.writeWithRetryAssert)
-        except:
-            raise
-        finally:
-            self.stopServers()
+        await self.writeWithRetryAssert()
 
     async def writeWithRetryAssert(self):
         """Issue a write and ensure that a retry occurs"""
-        config = self.config._replace(req_timeout_milli=5000)
-        val = 1
+        config = self.config._replace(retry_timeout_milli=0)
+        val = 2
         with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            self.assertEqual(udp_client.retries, 0)
-           await udp_client.sendSync(self.writeRequest(val), False)
+           try:
+            await udp_client.sendSync(self.writeRequest(val), False)
+           except(trio.TooSlowError):
+               pass
            self.assertTrue(udp_client.retries > 0)
 
-    async def startServersWithDelay(self):
-        # Retry timeout is 50ms
-        # This guarantees we wait at least one retry with high probability
-        await trio.sleep(.250)
-        self.startServers()
-
+    @verify_system_is_ready
     def testPrimaryWrite(self):
         """Test that we learn the primary and using it succeeds."""
-        self.startServers()
-        try:
-            trio.run(self._testPrimaryWrite)
-        except:
-            raise
-        finally:
-            self.stopServers()
+        trio.run(self._testPrimaryWrite)
 
-    @verify_system_is_ready_before_starting
+    @verify_system_is_ready
     async def _testPrimaryWrite(self):
        # Try to guarantee we don't retry accidentally
        config = self.config._replace(retry_timeout_milli=500)
        with bft_client.UdpClient(config, self.replicas, None) as udp_client:
            self.assertEqual(None, udp_client.primary)
-           await udp_client.sendSync(self.writeRequest(1), False)
+           await udp_client.sendSync(self.writeRequest(3), False)
            # We know the servers are up once the write completes
            self.assertNotEqual(None, udp_client.primary)
            sent = udp_client.msgs_sent
            read = await udp_client.sendSync(self.readRequest(), True)
            sent += 4
            self.assertEqual(sent, udp_client.msgs_sent)
-           self.assertEqual(1, self.read_val(read))
+           self.assertEqual(3, self.read_val(read))
            self.assertNotEqual(None, udp_client.primary)
-           await udp_client.sendSync(self.writeRequest(2), False)
+           await udp_client.sendSync(self.writeRequest(4), False)
            sent += 1 # Only send to the primary
            self.assertEqual(sent, udp_client.msgs_sent)
            read = await udp_client.sendSync(self.readRequest(), True)
            sent += 4
            self.assertEqual(sent, udp_client.msgs_sent)
-           self.assertEqual(2, self.read_val(read))
+           self.assertEqual(4, self.read_val(read))
            self.assertNotEqual(None, udp_client.primary)
 
-    @verify_system_is_ready_before_starting
+    @verify_system_is_ready
     async def _testMofNQuorum(self):
         config = self.config._replace(retry_timeout_milli=500)
         with bft_client.UdpClient(config, self.replicas, None) as udp_client:
-            await udp_client.sendSync(self.writeRequest(1), False)
+            await udp_client.sendSync(self.writeRequest(5), False)
             single_read_q = bft_client.MofNQuorum([0, 1, 2, 3], 1)
             read = await udp_client.sendSync(self.readRequest(), True, m_of_n_quorum=single_read_q)
-            self.assertEqual(1, self.read_val(read))
+            self.assertEqual(5, self.read_val(read))
 
     def testMonNQuorum(self):
-        self.startServers()
-        try:
-            trio.run(self._testMofNQuorum)
-        except:
-            raise
-        finally:
-            self.stopServers()
+        trio.run(self._testMofNQuorum)
 
 
 if __name__ == '__main__':
