@@ -256,6 +256,8 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg(msg);
 
   SCOPED_MDC_CID(clientPreProcessReqMsg->getCid());
+  SCOPED_MDC_SEQ_NUM(std::to_string(clientPreProcessReqMsg->requestSeqNum()));
+
   const NodeIdType &senderId = clientPreProcessReqMsg->senderId();
   const NodeIdType &clientId = clientPreProcessReqMsg->clientProxyId();
   const ReqId &reqSeqNum = clientPreProcessReqMsg->requestSeqNum();
@@ -321,6 +323,8 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
 template <>
 void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   SCOPED_MDC_CID(msg->getCid());
+  SCOPED_MDC_SEQ_NUM(std::to_string(msg->reqSeqNum()));
+
   PreProcessRequestMsgSharedPtr preProcessReqMsg(msg);
   const NodeIdType &senderId = preProcessReqMsg->senderId();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
@@ -446,6 +450,8 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
                                             NodeIdType clientId,
                                             SeqNum reqSeqNum) {
   SCOPED_MDC_CID(cid);
+  SCOPED_MDC_SEQ_NUM(std::to_string(reqSeqNum));
+
   switch (result) {
     case NONE:      // No action required - pre-processing has been already completed
     case CONTINUE:  // Not enough equal hashes collected
@@ -781,11 +787,13 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
   uint32_t actualResultBufLen = launchReqPreProcessing(
       clientId, cid, reqSeqNum, preProcessReqMsg->requestLength(), preProcessReqMsg->requestBuf(), span_context);
+  SCOPED_MDC_CID(cid);
+  SCOPED_MDC_SEQ_NUM(std::to_string(reqSeqNum));
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId, actualResultBufLen);
     return;
   }
-  SCOPED_MDC_CID(cid);
+
   LOG_DEBUG(logger(), "Request pre-processed" << KVLOG(isPrimary, reqSeqNum, clientId));
   if (isPrimary) {
     pm_->Delay<concord::performance::SlowdownPhase::PreProcessorAfterPreexecPrimary>();
