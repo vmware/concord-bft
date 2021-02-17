@@ -304,7 +304,7 @@ struct GetCategories {
 struct GetCategoryBlockID {
   const bool read_only = true;
   std::string description() const {
-    return "getCategories CATEGORY-ID [BLOCK-VERSION]\n"
+    return "getCategoryBlockID CATEGORY-ID [BLOCK-VERSION]\n"
            "  Returns the latest blockID that contains the givenb category, started from BLOCK-VERSION. If "
            "BLOCK-VERSION is not set, we start from the lastReachableBlock";
   }
