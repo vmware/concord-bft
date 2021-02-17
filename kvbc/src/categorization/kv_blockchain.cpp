@@ -33,7 +33,7 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
       delete_metrics_comp_{
           concordMetrics::Component("kv_blockchain_deletes", std::make_shared<concordMetrics::Aggregator>())},
       versioned_num_of_deletes_keys_{delete_metrics_comp_.RegisterCounter("numOfVersionedKeysDeleted")},
-      immuteable_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfImmutableKeysDeleted")},
+      immutable_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfImmutableKeysDeleted")},
       merkle_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfMerkleKeysDeleted")} {
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
@@ -384,7 +384,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const ImmutableOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  immuteable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
+  immutable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
   std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
       .deleteGenesisBlock(block_id, updates_info, batch);
 }
@@ -410,7 +410,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const ImmutableOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  immuteable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
+  immutable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
   std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
