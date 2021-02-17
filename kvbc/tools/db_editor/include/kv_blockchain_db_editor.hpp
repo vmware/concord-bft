@@ -301,10 +301,10 @@ struct GetCategories {
   }
 };
 
-struct GetCategoryBlockID {
+struct GetLatestCategoryInfo {
   const bool read_only = true;
   std::string description() const {
-    return "getCategoryBlockID CATEGORY-ID [BLOCK-VERSION]\n"
+    return "getLatestCategoryInfo CATEGORY-ID [BLOCK-VERSION]\n"
            "  Returns the latest blockID that contains the givenb category, started from BLOCK-VERSION. If "
            "BLOCK-VERSION is not set, we start from the lastReachableBlock";
   }
@@ -325,6 +325,11 @@ struct GetCategoryBlockID {
       if (updates->categoryUpdates().kv.count(cat)) {
         relevantBlockId = block;
         cat_updates_map = getKVStr(updates->categoryUpdates().kv.at(cat));
+      }
+    }
+    if (relevantBlockId == adapter.getGenesisBlockId()) {
+      if (!adapter.getBlockUpdates(relevantBlockId)->categoryUpdates().kv.count(cat)) {
+        throw NotFoundException{"Couldn't find category id in any block in the given range"};
       }
     }
     std::map<std::string, std::string> out{
@@ -472,7 +477,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetBlockInfo,
                              GetBlockKeyValues,
                              GetCategories,
-                             GetCategoryBlockID,
+                             GetLatestCategoryInfo,
                              GetValue,
                              CompareTo,
                              RemoveMetadata>;
@@ -486,7 +491,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getCategories", GetCategories{}),
-    std::make_pair("getCategoryBlockID", GetCategoryBlockID{}),
+    std::make_pair("getCategoryBlockID", GetLatestCategoryInfo{}),
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
