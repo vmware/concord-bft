@@ -182,7 +182,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,
                        std::unique_ptr<IStorageFactory> storageFactory,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                       const std::shared_ptr<concord::performance::PerformanceManager> &pm)
+                       const std::shared_ptr<concord::performance::PerformanceManager> &pm,
+                       std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories)
     : logger(logging::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
       m_dbSet{storageFactory->newDatabaseSet()},
@@ -233,7 +234,15 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
 
   if (!replicaConfig.isReadOnly) {
     const auto linkStChain = true;
-    m_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain);
+    auto [it, inserted] =
+        kvbc_categories.insert(std::make_pair(kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv));
+    if (!inserted && it->second != categorization::CATEGORY_TYPE::versioned_kv) {
+      const auto msg = "Invalid Concord internal category type: " + categorization::categoryStringType(it->second);
+      LOG_ERROR(logger, msg);
+      throw std::invalid_argument{msg};
+    }
+    m_kvBlockchain.emplace(
+        storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain, kvbc_categories);
     m_kvBlockchain->setAggregator(aggregator);
   }
   m_dbSet.dataDBClient->setAggregator(aggregator);

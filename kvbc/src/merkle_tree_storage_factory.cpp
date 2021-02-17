@@ -16,18 +16,55 @@
 #include "memorydb/client.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "rocksdb/client.h"
+#include "rocksdb/native_client.h"
+
+#include <rocksdb/filter_policy.h>
+#include <rocksdb/statistics.h>
+#include <rocksdb/table.h>
+
+#include <vector>
 
 namespace concord::kvbc::v2MerkleTree {
 #ifdef USE_ROCKSDB
+
+std::shared_ptr<rocksdb::Statistics> completeRocksDBConfiguration(
+    ::rocksdb::Options& db_options, std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs) {
+  static constexpr size_t CACHE_SIZE = 1024 * 1024 * 1024 * 4ul;  // 4 GB
+  auto table_options = ::rocksdb::BlockBasedTableOptions{};
+  table_options.block_cache = ::rocksdb::NewLRUCache(CACHE_SIZE);
+  table_options.filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
+  db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+
+  // Use the same block cache and table options for all column familes for now.
+  for (auto& d : cf_descs) {
+    auto* cf_table_options =
+        reinterpret_cast<::rocksdb::BlockBasedTableOptions*>(d.options.table_factory->GetOptions());
+    cf_table_options->block_cache = table_options.block_cache;
+    cf_table_options->filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
+  }
+  return db_options.statistics;
+}
+
 RocksDBStorageFactory::RocksDBStorageFactory(const std::string& dbPath,
                                              const std::unordered_set<concord::kvbc::Key>& nonProvableKeySet,
                                              const std::shared_ptr<concord::performance::PerformanceManager>& pm)
     : dbPath_{dbPath}, nonProvableKeySet_{nonProvableKeySet}, pm_{pm} {}
 
+RocksDBStorageFactory::RocksDBStorageFactory(const std::string& dbPath,
+                                             const std::string& dbConfPath,
+                                             const std::shared_ptr<concord::performance::PerformanceManager>& pm)
+    : dbPath_{dbPath}, dbConfPath_{dbConfPath}, pm_{pm} {}
+
 IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
   auto ret = IStorageFactory::DatabaseSet{};
-  ret.dataDBClient = std::make_shared<storage::rocksdb::Client>(dbPath_);
-  ret.dataDBClient->init();
+  if (!dbConfPath_) {
+    ret.dataDBClient = std::make_shared<storage::rocksdb::Client>(dbPath_);
+    ret.dataDBClient->init();
+  } else {
+    auto opts = storage::rocksdb::NativeClient::UserOptions{*dbConfPath_, completeRocksDBConfiguration};
+    auto db = storage::rocksdb::NativeClient::newClient(dbPath_, false, opts);
+    ret.dataDBClient = db->asIDBClient();
+  }
   ret.metadataDBClient = ret.dataDBClient;
   ret.dbAdapter = std::make_unique<DBAdapter>(ret.dataDBClient, true, nonProvableKeySet_, pm_);
   return ret;

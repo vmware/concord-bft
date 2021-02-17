@@ -27,7 +27,12 @@ class DbEditorTests : public DbEditorTestsBase {
  public:
   void CreateBlockchain(std::size_t db_id, BlockId blocks, std::optional<BlockId> mismatch_at = std::nullopt) override {
     auto db = TestRocksDb::create(db_id);
-    auto adapter = KeyValueBlockchain{concord::storage::rocksdb::NativeClient::fromIDBClient(db), true};
+    auto adapter =
+        KeyValueBlockchain{concord::storage::rocksdb::NativeClient::fromIDBClient(db),
+                           true,
+                           std::map<std::string, CATEGORY_TYPE>{{kCategoryMerkle, CATEGORY_TYPE::block_merkle},
+                                                                {kCategoryVersioned, CATEGORY_TYPE::versioned_kv},
+                                                                {kCategoryImmutable, CATEGORY_TYPE::immutable}}};
 
     const auto mismatch_kv = std::make_pair(getSliver(std::numeric_limits<unsigned>::max()), getSliver(42));
 
