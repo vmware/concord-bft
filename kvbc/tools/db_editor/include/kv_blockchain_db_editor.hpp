@@ -301,12 +301,12 @@ struct GetCategories {
   }
 };
 
-struct GetLatestCategoryInfo {
+struct GetLatestCategoryUpdates {
   const bool read_only = true;
   std::string description() const {
-    return "getLatestCategoryInfo CATEGORY-ID [BLOCK-VERSION]\n"
-           "  Returns the latest blockID that contains the givenb category, started from BLOCK-VERSION. If "
-           "BLOCK-VERSION is not set, we start from the lastReachableBlock";
+    return "getLatestCategoryInfo CATEGORY-ID [BLOCK-VERSION-TO]\n"
+           "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
+           "BLOCK-VERSION is not set, we start from the lastReachableBlock.";
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -314,7 +314,7 @@ struct GetLatestCategoryInfo {
       throw NotFoundException{"No Category ID was given"};
     }
     auto latestBlockID = adapter.getLastReachableBlockId();
-    if (args.values.size() == 2) {
+    if (args.values.size() >= 2) {
       latestBlockID = toBlockId(args.values[1]);
     }
     auto cat = args.values.front();
@@ -477,7 +477,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetBlockInfo,
                              GetBlockKeyValues,
                              GetCategories,
-                             GetLatestCategoryInfo,
+                             GetLatestCategoryUpdates,
                              GetValue,
                              CompareTo,
                              RemoveMetadata>;
@@ -491,7 +491,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getCategories", GetCategories{}),
-    std::make_pair("getCategoryBlockID", GetLatestCategoryInfo{}),
+    std::make_pair("getLatestCategoryUpdates", GetLatestCategoryUpdates{}),
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
