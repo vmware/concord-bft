@@ -1054,10 +1054,6 @@ class SkvbcTracker:
                         client = self.bft_network.random_client()
                         write_count += 1
                         await self.write_and_track_known_kv(known_kv, client)
-                        kv_reply = await self.read_and_track_known_kv(known_key, client)
-                        assert {known_key: known_val} == kv_reply, \
-                            f'Expected key-value: {known_kv}; Actual key-value: {kv_reply} - ' \
-                            f'in the case of n={config.n}, f={config.f}, c={config.c}.'
                     except (trio.TooSlowError, AssertionError) as e:
                         pass
                     else:
