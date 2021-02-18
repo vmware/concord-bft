@@ -13,6 +13,7 @@
 import time
 from enum import Enum
 from util import skvbc as kvbc, eliot_logging as log
+from util import bft
 import trio
 import random
 from functools import wraps
@@ -1040,9 +1041,10 @@ class SkvbcTracker:
             return
 
     async def wait_for_liveness(self):
+        write_count = 0;
         with trio.fail_after(seconds=30):
             while True:
-                with trio.move_on_after(seconds=5):
+                with trio.move_on_after(seconds=2 * bft.REQ_TIMEOUT_MILLI/1000):
                     try:
                         config = self.bft_network.config
                         # Write a KV pair with a known value
@@ -1050,9 +1052,9 @@ class SkvbcTracker:
                         known_val = self.skvbc.random_value()
                         known_kv = [(known_key, known_val)]
                         client = self.bft_network.random_client()
+                        write_count += 1
                         await self.write_and_track_known_kv(known_kv, client)
                         kv_reply = await self.read_and_track_known_kv(known_key, client)
-                        print("READ REPLY: {}".format(kv_reply))
                         assert {known_key: known_val} == kv_reply, \
                             f'Expected key-value: {known_kv}; Actual key-value: {kv_reply} - ' \
                             f'in the case of n={config.n}, f={config.f}, c={config.c}.'
@@ -1060,8 +1062,9 @@ class SkvbcTracker:
                         pass
                     else:
                         # success
-                        return
+                        return write_count
                     await trio.sleep(0.1)
+        return write_count
 
     async def tracked_prime_for_state_transfer(
             self, stale_nodes,

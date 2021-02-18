@@ -135,7 +135,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         and no view-change was triggered.
         """
         bft_network.start_all_replicas()
-        await tracker.wait_for_liveness()
+        liveness_write_count = await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
@@ -147,7 +147,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         await tracker.send_tracked_write(client, 2, long_exec=True)
 
         last_block = await tracker.get_last_block_id(client)
-        self.assertEqual(last_block, 2)  # +1 due to write in liveness check
+        self.assertEqual(last_block, 1 + liveness_write_count)  # 1 + write in liveness check
 
         await bft_network.assert_successful_pre_executions_count(0, 1)
 
@@ -356,7 +356,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         This test validates that pre-execution and normal execution coexist correctly.
         """
         bft_network.start_all_replicas()
-        await skvbc.wait_for_liveness()
+        await trio.sleep(2)
+        # await skvbc.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         num_preexecution_requests = 200
