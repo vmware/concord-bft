@@ -22,7 +22,6 @@ from util import skvbc as kvbc
 import util.bft_network_partitioning as net
 import util.eliot_logging as log
 
-SKVBC_INIT_GRACE_TIME = 2
 NUM_OF_SEQ_WRITES = 100
 NUM_OF_PARALLEL_WRITES = 1000
 MAX_CONCURRENCY = 10
@@ -100,7 +99,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Use a random client to launch one pre-process request in time and ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         for i in range(NUM_OF_SEQ_WRITES):
@@ -117,7 +116,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Launch concurrent requests from different clients in parallel. Ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
@@ -136,7 +135,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         and no view-change was triggered.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
@@ -148,7 +147,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         await tracker.send_tracked_write(client, 2, long_exec=True)
 
         last_block = await tracker.get_last_block_id(client)
-        self.assertEqual(last_block, 1)
+        self.assertEqual(last_block, 2)  # +1 due to write in liveness check
 
         await bft_network.assert_successful_pre_executions_count(0, 1)
 
@@ -178,10 +177,10 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         5) Run a short write using the "long" client (fails because the long client is not freed in the pre-processor)
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
         await bft_network.init_preexec_count()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.wait_for_liveness()
 
         write_set = [(skvbc.random_key(), skvbc.random_value()),
                      (skvbc.random_key(), skvbc.random_value())]
@@ -249,7 +248,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         concurrently with a constant system load in the background.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await skvbc.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         write_set = [(skvbc.random_key(), skvbc.random_value()),
@@ -325,7 +324,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Final block length should match submitted transactions count exactly.
         '''
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         read_client = bft_network.random_client()
@@ -357,7 +356,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         This test validates that pre-execution and normal execution coexist correctly.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await skvbc.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         num_preexecution_requests = 200
@@ -386,7 +385,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Isolate the from the other replicas, wait for view change and ensure the system is still able to make progress
         '''
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
             read_client = bft_network.random_client()
@@ -416,7 +415,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Drop 5% of the packets in the network and make sure the system is able to make progress
         '''
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
         with net.PacketDroppingAdversary(bft_network, drop_rate_percentage=5) as adversary:
             read_client = bft_network.random_client()
@@ -443,7 +442,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         c = bft_network.config.c
 
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
         with net.ReplicaSubsetIsolatingAdversary(bft_network, bft_network.random_set_of_replicas(f, without={0}))\
                 as adversary:
@@ -476,7 +475,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         isolated_replicas.add(initial_primary)
 
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             read_client = bft_network.random_client()
@@ -513,7 +512,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         isolated_replicas_take_1 = bft_network.random_set_of_replicas(f, without={initial_primary})
 
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
         read_client = bft_network.random_client()
 
@@ -547,7 +546,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Launch pre-process conflicting request and make sure that conflicting requests are not committed
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         read_client = bft_network.random_client()
@@ -574,7 +573,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         Launch pre-process conflicting request and make sure that conflicting requests are not committed
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await tracker.wait_for_liveness()
         await bft_network.init_preexec_count()
 
         n = bft_network.config.n

@@ -1129,7 +1129,7 @@ class BftTestNetwork:
             total_pre_exec_requests_executed = 0
             with trio.fail_after(5):
                 while pre_proc_req < num_requests or \
-                        total_pre_exec_requests_executed != num_requests:
+                        total_pre_exec_requests_executed < num_requests:
                     key1 = ["preProcessor", "Counters", "preProcReqSentForFurtherProcessing"]
                     pre_proc_req = await self.metrics.get(replica_id, *key1) - self.initial_preexec_sent
                     key2 = ["replica", "Counters", "totalPreExecRequestsExecuted"]
