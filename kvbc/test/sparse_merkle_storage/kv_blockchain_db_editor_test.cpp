@@ -435,6 +435,64 @@ TEST_F(DbEditorTests, get_block_key_values) {
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
+TEST_F(DbEditorTests, get_latest_category_updates_merkle) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getEarliestCategoryUpdates", kCategoryMerkle}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), StartsWith("{\n  \"blockID\":"));
+  ASSERT_THAT(out_.str(), HasSubstr("\"category\": \"" + kCategoryMerkle + "\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"0x00000000\": \"0x00000000\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"0x0000000a\": \"0x00000014\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"0x00000014\": \"0x00000028\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
+
+TEST_F(DbEditorTests, get_latest_category_updates_immutable) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getEarliestCategoryUpdates", kCategoryImmutable}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), StartsWith("{\n  \"blockID\":"));
+  ASSERT_THAT(out_.str(), HasSubstr("\"category\": \"" + kCategoryImmutable + "\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"0x696d6d757461626c655f6b657931\": \"0x696d6d757461626c655f76616c31\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
+
+TEST_F(DbEditorTests, get_latest_category_updates_versioned) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getEarliestCategoryUpdates", kCategoryVersioned}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), StartsWith("{\n  \"blockID\":"));
+  ASSERT_THAT(out_.str(), HasSubstr("\"category\": \"" + kCategoryVersioned + "\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"0x766b657930\": \"0x7676616c30\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
+
+TEST_F(DbEditorTests, get_category_earliest_stale_immutable) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(
+                CommandLineArguments{
+                    {kTestName, rocksDbPath(main_path_db_id_), "getCategoryEarliestStale", kCategoryImmutable}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), StartsWith("{\n  \"blockID\":"));
+  ASSERT_THAT(out_.str(), HasSubstr("\"category\": \"" + kCategoryImmutable + "\""));
+  ASSERT_THAT(out_.str(), HasSubstr("[\"0x696d6d757461626c655f6b657931\"]"));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
+
 TEST_F(DbEditorTests, get_empty_block_key_values) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(

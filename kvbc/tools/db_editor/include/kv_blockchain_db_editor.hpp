@@ -301,12 +301,12 @@ struct GetCategories {
   }
 };
 
-struct GetLatestCategoryUpdates {
+struct GetEarliestCategoryUpdates {
   const bool read_only = true;
   std::string description() const {
-    return "getLatestCategoryInfo CATEGORY-ID [BLOCK-VERSION-TO]\n"
+    return "GetEarliestCategoryUpdates CATEGORY-ID [BLOCK-VERSION-TO]\n"
            "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
-           "BLOCK-VERSION is not set, we start from the lastReachableBlock.";
+           "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -325,6 +325,7 @@ struct GetLatestCategoryUpdates {
       if (updates->categoryUpdates().kv.count(cat)) {
         relevantBlockId = block;
         cat_updates_map = getKVStr(updates->categoryUpdates().kv.at(cat));
+        break;
       }
     }
     if (relevantBlockId == adapter.getGenesisBlockId()) {
@@ -334,6 +335,70 @@ struct GetLatestCategoryUpdates {
     }
     std::map<std::string, std::string> out{
         {"blockID", std::to_string(relevantBlockId)}, {"category", cat}, {"updates", toJson(cat_updates_map)}};
+    return toJson(out);
+  }
+};
+
+inline std::string getStaleKeysStr(const std::variant<BlockMerkleInput, VersionedInput, ImmutableInput> &val) {
+  std::vector<std::string> keys;
+  return std::visit(
+      [&keys](auto &&arg) {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, BlockMerkleInput>) {
+          keys = arg.deletes;
+        } else if constexpr (std::is_same_v<T, VersionedInput>) {
+          keys = arg.deletes;
+        } else if constexpr (std::is_same_v<T, ImmutableInput>) {
+          for (auto &[k, v] : arg.kv) {
+            keys.push_back(k);
+          }
+        }
+        std::string strKeys;
+        strKeys += "[";
+        for (auto &k : keys) {
+          strKeys += "\"" + concordUtils::bufferToHex(k.data(), k.size()) + "\"" + ",";
+        }
+        strKeys.erase(strKeys.size() - 1);
+        strKeys += "]";
+        return strKeys;
+      },
+      val);
+}
+
+struct GetCategoryEarliestStale {
+  const bool read_only = true;
+  std::string description() const {
+    return "GetCategoryEarliestStale CATEGORY-ID [BLOCK-VERSION-TO]\n"
+           "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
+           "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    if (args.values.empty()) {
+      throw NotFoundException{"No Category ID was given"};
+    }
+    auto latestBlockID = adapter.getLastReachableBlockId();
+    if (args.values.size() >= 2) {
+      latestBlockID = toBlockId(args.values[1]);
+    }
+    auto cat = args.values.front();
+    std::map<std::string, std::string> cat_updates_map;
+    BlockId relevantBlockId = adapter.getGenesisBlockId();
+    std::string stale_keys;
+    for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
+      auto updates = adapter.getBlockUpdates(block);
+      if (updates->categoryUpdates().kv.count(cat)) {
+        stale_keys = getStaleKeysStr(updates->categoryUpdates().kv.at(cat));
+        if (stale_keys.empty()) continue;
+        relevantBlockId = block;
+        break;
+      }
+    }
+    if (stale_keys.empty()) {
+      throw NotFoundException{"Couldn't find stale keys for category id in any block in the given range"};
+    }
+    std::map<std::string, std::string> out{
+        {"blockID", std::to_string(relevantBlockId)}, {"category", cat}, {"stale_keys", stale_keys}};
     return toJson(out);
   }
 };
@@ -477,7 +542,8 @@ using Command = std::variant<GetGenesisBlockID,
                              GetBlockInfo,
                              GetBlockKeyValues,
                              GetCategories,
-                             GetLatestCategoryUpdates,
+                             GetEarliestCategoryUpdates,
+                             GetCategoryEarliestStale,
                              GetValue,
                              CompareTo,
                              RemoveMetadata>;
@@ -491,7 +557,8 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getBlockInfo", GetBlockInfo{}),
     std::make_pair("getBlockKeyValues", GetBlockKeyValues{}),
     std::make_pair("getCategories", GetCategories{}),
-    std::make_pair("getLatestCategoryUpdates", GetLatestCategoryUpdates{}),
+    std::make_pair("getEarliestCategoryUpdates", GetEarliestCategoryUpdates{}),
+    std::make_pair("getCategoryEarliestStale", GetCategoryEarliestStale{}),
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
