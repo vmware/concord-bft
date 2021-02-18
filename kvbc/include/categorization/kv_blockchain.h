@@ -24,6 +24,7 @@
 #include "kv_types.hpp"
 #include "categorization/types.h"
 #include "thread_pool.hpp"
+#include "Metrics.hpp"
 
 namespace concord::kvbc::categorization {
 
@@ -179,6 +180,13 @@ class KeyValueBlockchain {
   // currently we are operating with single thread
   util::ThreadPool thread_pool_{1};
 
+  // metrics
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  concordMetrics::Component delete_metrics_comp_;
+  concordMetrics::CounterHandle versioned_num_of_deletes_keys_;
+  concordMetrics::CounterHandle immutable_num_of_deleted_keys_;
+  concordMetrics::CounterHandle merkle_num_of_deleted_keys_;
+
  public:
   struct KeyValueBlockchain_tester {
     void instantiateCategories(KeyValueBlockchain& kvbc) { kvbc.instantiateCategories(); }
@@ -194,6 +202,11 @@ class KeyValueBlockchain {
 
     const VersionedRawBlock& getLastRawBlocked(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
   };  // namespace concord::kvbc::categorization
+
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    delete_metrics_comp_.UpdateAggregator();
+  }
   friend struct KeyValueBlockchain_tester;
 };
 

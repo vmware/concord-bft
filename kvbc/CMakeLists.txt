@@ -29,7 +29,7 @@ if (BUILD_ROCKSDB_STORAGE)
                                 src/categorization/block_merkle_category.cpp)
 
 endif (BUILD_ROCKSDB_STORAGE)
-target_link_libraries(kvbc PUBLIC corebft )
+target_link_libraries(kvbc PUBLIC corebft util)
 target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs)
 
 

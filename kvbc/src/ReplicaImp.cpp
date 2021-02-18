@@ -234,6 +234,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     const auto linkStChain = true;
     m_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain);
+    m_kvBlockchain->setAggregator(aggregator);
   }
   m_dbSet.dataDBClient->setAggregator(aggregator);
   m_dbSet.metadataDBClient->setAggregator(aggregator);
