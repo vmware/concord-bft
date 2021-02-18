@@ -350,6 +350,7 @@ inline std::string getStaleKeysStr(const std::variant<BlockMerkleInput, Versione
           keys = arg.deletes;
         } else if constexpr (std::is_same_v<T, ImmutableInput>) {
           for (auto &[k, v] : arg.kv) {
+            (void)v;
             keys.push_back(k);
           }
         }
