@@ -876,7 +876,7 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
   LOG_INFO(logger(),
            "Pre-processing completed by a non-primary replica"
-               << KVLOG(clientId, reqOffsetInBatch, reqSeqNum, cid, reqRetryId, myReplica_.currentPrimary()));
+               << KVLOG(reqSeqNum, clientId, reqOffsetInBatch, reqSeqNum, cid, reqRetryId, myReplica_.currentPrimary()));
 }
 
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
