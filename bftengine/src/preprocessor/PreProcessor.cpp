@@ -208,23 +208,23 @@ bool PreProcessor::checkClientMsgCorrectness(
   if (myReplica_.isCollectingState()) {
     LOG_INFO(logger(),
              "Ignore ClientPreProcessRequestMsg as the replica is collecting missing state from other replicas"
-                 << KVLOG(reqSeqNum));
+                 << KVLOG(reqSeqNum, clientId));
     return false;
   }
   if (isReadOnly) {
-    LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as it is signed as read-only" << KVLOG(reqSeqNum));
+    LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as it is signed as read-only" << KVLOG(reqSeqNum, clientId));
     return false;
   }
   const bool &invalidClient = !myReplica_.isValidClient(clientId);
   const bool &sentFromReplicaToNonPrimary = myReplica_.isIdOfReplica(senderId) && !myReplica_.isCurrentPrimary();
   if (invalidClient || sentFromReplicaToNonPrimary) {
-    LOG_WARN(
-        logger(),
-        "Ignore ClientPreProcessRequestMsg as invalid" << KVLOG(reqSeqNum, invalidClient, sentFromReplicaToNonPrimary));
+    LOG_WARN(logger(),
+             "Ignore ClientPreProcessRequestMsg as invalid"
+                 << KVLOG(reqSeqNum, clientId, invalidClient, sentFromReplicaToNonPrimary));
     return false;
   }
   if (!myReplica_.currentViewIsActive()) {
-    LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as current view is inactive" << KVLOG(reqSeqNum));
+    LOG_INFO(logger(), "Ignore ClientPreProcessRequestMsg as current view is inactive" << KVLOG(reqSeqNum, clientId));
     return false;
   }
   return true;
@@ -649,24 +649,24 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
   if (givenReq) {
     const auto &clientId = givenReq->getClientId();
     const auto &reqOffsetInBatch = givenReq->getReqOffsetInBatch();
-    SeqNum requestSeqNum = givenReq->getReqSeqNum();
+    SeqNum reqSeqNum = givenReq->getReqSeqNum();
     if (result == COMPLETE) {
       if (reqEntry->reqProcessingHistory.size() >= reqEntry->reqProcessingHistoryHeight) {
         auto &removeFromHistoryReq = reqEntry->reqProcessingHistory.front();
         SCOPED_MDC_CID(removeFromHistoryReq->getReqCid());
-        requestSeqNum = removeFromHistoryReq->getReqSeqNum();
-        LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId, reqOffsetInBatch) << " removed from the history");
+        reqSeqNum = removeFromHistoryReq->getReqSeqNum();
+        LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId, reqOffsetInBatch) << " removed from the history");
         removeFromHistoryReq.reset();
         reqEntry->reqProcessingHistory.pop_front();
       }
       SCOPED_MDC_CID(givenReq->getReqCid());
-      LOG_DEBUG(logger(), KVLOG(requestSeqNum, clientId, reqOffsetInBatch) << " released and moved to the history");
+      LOG_DEBUG(logger(), KVLOG(reqSeqNum, clientId, reqOffsetInBatch) << " released and moved to the history");
       // No need to keep whole messages in the memory => release them before archiving
       givenReq->releaseResources();
       reqEntry->reqProcessingHistory.push_back(move(givenReq));
     } else {  // No consensus reached => release request
       SCOPED_MDC_CID(givenReq->getReqCid());
-      LOG_INFO(logger(), KVLOG(requestSeqNum, clientId, reqOffsetInBatch) << " no consensus reached, request released");
+      LOG_INFO(logger(), KVLOG(reqSeqNum, clientId, reqOffsetInBatch) << " no consensus reached, request released");
       givenReq.reset();
     }
     preProcessorMetrics_.preProcInFlyRequestsNum.Get().Dec();
@@ -763,7 +763,7 @@ void PreProcessor::sendPreProcessRequestToAllReplicas(const PreProcessRequestMsg
       // sendMsg works asynchronously, so we can launch it sequentially here
       LOG_DEBUG(logger(),
                 "Sending PreProcessRequestMsg clientId: " << preProcessReqMsg->clientId()
-                                                          << ", requestSeqNum: " << preProcessReqMsg->reqSeqNum()
+                                                          << ", reqSeqNum: " << preProcessReqMsg->reqSeqNum()
                                                           << ", to the replica: " << destId);
       sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
     }
