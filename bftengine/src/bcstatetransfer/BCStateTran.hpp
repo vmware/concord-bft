@@ -435,7 +435,7 @@ class BCStateTran : public IStateTransfer {
   std::optional<uint64_t> first_collected_block_num_;
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
-  void logCollectingStatus(const uint64_t firstRequiredBlock);
+  std::string logsForCollectingStatus(const uint64_t firstRequiredBlock);
   void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize);
   void startCollectingStats();
 

@@ -700,8 +700,17 @@ std::string BCStateTran::getStatus() {
   nested_data.clear();
 
   if (isFetching()) {
-    oss << KVLOG(current_source, preferred_replicas, nextRequiredBlock_, totalSizeOfPendingItemDataMsgs) << std::endl;
+    nested_data.insert(toPair(getName(current_source), current_source));
+    nested_data.insert(toPair(getName(preferred_replicas), preferred_replicas));
+    nested_data.insert(toPair(getName(nextRequiredBlock_), nextRequiredBlock_));
+    nested_data.insert(toPair(getName(totalSizeOfPendingItemDataMsgs), totalSizeOfPendingItemDataMsgs));
+    result.insert(toPair("Fetching State Details",
+                         concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+
+    result.insert(toPair("Collecting Details", logsForCollectingStatus(psd_->getFirstRequiredBlock())));
   }
+
+  result.insert(toPair("General StateTransfer Metrics", metrics_component_.ToJson()));
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
@@ -2007,11 +2016,11 @@ void BCStateTran::reportCollectingStatus(const uint64_t firstRequiredBlock, cons
     metrics_.prev_win_bytes_collected_.Get().Set(prev_win_bytes_results.num_processed_items_);
     metrics_.prev_win_bytes_throughtput_.Get().Set(prev_win_bytes_results.throughput_);
 
-    logCollectingStatus(firstRequiredBlock);
+    LOG_INFO(getLogger(), logsForCollectingStatus(firstRequiredBlock));
   }
 }
 
-void BCStateTran::logCollectingStatus(const uint64_t firstRequiredBlock) {
+std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlock) {
   std::ostringstream oss;
   const DataStore::CheckpointDesc fetched_cp = psd_->getCheckpointBeingFetched();
   auto blocks_overall_r = blocks_collected_.getOverallResults();
@@ -2047,7 +2056,7 @@ void BCStateTran::logCollectingStatus(const uint64_t firstRequiredBlock) {
       << ")"
       << "]" << std::endl;
 
-  LOG_INFO(getLogger(), oss.str().c_str());
+  return oss.str().c_str();
 }
 
 void BCStateTran::processData() {
