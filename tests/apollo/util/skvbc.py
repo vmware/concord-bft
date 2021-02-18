@@ -18,6 +18,7 @@ import trio
 from collections import namedtuple
 from util.skvbc_exceptions import BadReplyError
 from util import eliot_logging as log
+from util import bft
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
@@ -224,7 +225,7 @@ class SimpleKVBCProtocol:
     async def wait_for_liveness(self):
         with trio.fail_after(seconds=30):
             while True:
-                with trio.move_on_after(seconds=5):
+                with trio.move_on_after(seconds=2 * bft.REQ_TIMEOUT_MILLI/1000):
                     try:
                         key, value = await self.write_known_kv()
                         await self.assert_kv_write_executed(key, value)
