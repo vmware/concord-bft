@@ -26,6 +26,7 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 
 import bft_client
 
+SKVBC_INIT_GRACE_TIME = 2
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -90,6 +91,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         late_replicas = bft_network.random_set_of_replicas(1, {initial_prim})
         on_time_replicas = bft_network.all_replicas(without=late_replicas)
         bft_network.start_replicas(on_time_replicas)
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
