@@ -304,7 +304,7 @@ struct GetCategories {
 struct GetEarliestCategoryUpdates {
   const bool read_only = true;
   std::string description() const {
-    return "GetEarliestCategoryUpdates CATEGORY-ID [BLOCK-VERSION-TO]\n"
+    return "getEarliestCategoryUpdates CATEGORY-ID [BLOCK-VERSION-TO]\n"
            "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
            "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
   }
@@ -354,6 +354,7 @@ inline std::string getStaleKeysStr(const std::variant<BlockMerkleInput, Versione
             keys.push_back(k);
           }
         }
+        if (keys.empty()) return std::string();
         std::string strKeys;
         strKeys += "[";
         for (auto &k : keys) {
@@ -369,7 +370,7 @@ inline std::string getStaleKeysStr(const std::variant<BlockMerkleInput, Versione
 struct GetCategoryEarliestStale {
   const bool read_only = true;
   std::string description() const {
-    return "GetCategoryEarliestStale CATEGORY-ID [BLOCK-VERSION-TO]\n"
+    return "getCategoryEarliestStale CATEGORY-ID [BLOCK-VERSION-TO]\n"
            "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
            "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
   }
