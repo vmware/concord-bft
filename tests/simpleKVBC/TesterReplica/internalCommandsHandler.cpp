@@ -35,8 +35,6 @@ using Hasher = concord::util::SHA3_256;
 using Hash = Hasher::Digest;
 
 const uint64_t LONG_EXEC_CMD_TIME_IN_SEC = 11;
-static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
-static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
 
 template <typename Span>
 static Hash hash(const Span &span) {

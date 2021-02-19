@@ -32,7 +32,15 @@ class KeyValueBlockchain {
   using VersionedRawBlock = std::pair<BlockId, std::optional<categorization::RawBlockData>>;
 
  public:
-  KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client, bool link_st_chain);
+  // Creates a key-value blockchain.
+  // If `category_types` is nullopt, the persisted categories in storage will be used.
+  // If `category_types` has a value, it should contain all persisted categories in storage at a minimum. New ones will
+  // be created and persisted.
+  // Users are required to pass a value for `category_types` on first construction (i.e. a new blockchain) in order to
+  // specify the categories in use. Failure to do so will generate an exception.
+  KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
+                     bool link_st_chain,
+                     const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types = std::nullopt);
   /////////////////////// Add Block ///////////////////////
 
   BlockId addBlock(Updates&& updates);
@@ -83,7 +91,7 @@ class KeyValueBlockchain {
   std::optional<Updates> getBlockUpdates(BlockId block_id) const;
 
   // Get a map from category ID -> type for all known categories in the blockchain.
-  const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return categorires_types_; }
+  const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return category_types_; }
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> db() { return native_client_; }
   std::shared_ptr<const concord::storage::rocksdb::NativeClient> db() const { return native_client_; }
@@ -100,16 +108,21 @@ class KeyValueBlockchain {
 
   /////////////////////// Categories operations ///////////////////////
 
+  void initNewBlockchainCategories(const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types);
+  void initExistingBlockchainCategories(const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types);
   // iterate over the categories column family and instantiate the stored categories.
-  void instantiateCategories();
+  void loadCategories();
   // insert a new category into the categories column family and instantiate it.
-  bool insertCategoryMapping(const std::string& cat_id,
-                             const CATEGORY_TYPE type,
-                             concord::storage::rocksdb::NativeWriteBatch& write_batch);
+  void insertCategoryMapping(const std::string& cat_id, const CATEGORY_TYPE type);
+  void addNewCategory(const std::string& cat_id, CATEGORY_TYPE type);
 
-  const Category& getCategory(const std::string& cat_id) const;
-  Category& getCategory(const std::string& cat_id);
-  bool hasCategory(const std::string& cat_id) const;
+  // Return nullptr if the category doesn't exist.
+  const Category* getCategoryPtr(const std::string& cat_id) const;
+  Category* getCategoryPtr(const std::string& cat_id);
+
+  // Throw if the category doesn't exist.
+  const Category& getCategoryRef(const std::string& cat_id) const;
+  Category& getCategoryRef(const std::string& cat_id);
 
   /////////////////////// deletes ///////////////////////
 
@@ -167,8 +180,8 @@ class KeyValueBlockchain {
   /////////////////////// Members ///////////////////////
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
-  CategoriesMap categorires_;
-  std::map<std::string, CATEGORY_TYPE> categorires_types_;
+  CategoriesMap categories_;
+  std::map<std::string, CATEGORY_TYPE> category_types_;
   detail::Blockchain block_chain_;
   detail::Blockchain::StateTransfer state_transfer_block_chain_;
 
@@ -189,13 +202,11 @@ class KeyValueBlockchain {
 
  public:
   struct KeyValueBlockchain_tester {
-    void instantiateCategories(KeyValueBlockchain& kvbc) { kvbc.instantiateCategories(); }
-    const auto& getCategories(KeyValueBlockchain& kvbc) { return kvbc.categorires_; }
+    void loadCategories(KeyValueBlockchain& kvbc) { kvbc.loadCategories(); }
+    const auto& getCategories(KeyValueBlockchain& kvbc) { return kvbc.categories_; }
 
-    const std::
-        variant<detail::ImmutableKeyValueCategory, detail::BlockMerkleCategory, detail::VersionedKeyValueCategory>&
-        getCategory(const std::string& cat_id, KeyValueBlockchain& kvbc) const {
-      return kvbc.getCategory(cat_id);
+    const Category& getCategory(const std::string& cat_id, KeyValueBlockchain& kvbc) const {
+      return kvbc.getCategoryRef(cat_id);
     }
 
     detail::Blockchain& getBlockchain(KeyValueBlockchain& kvbc) { return kvbc.block_chain_; }

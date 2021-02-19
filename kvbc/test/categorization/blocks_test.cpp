@@ -71,7 +71,8 @@ TEST_F(categorized_kvbc, serialization_and_desirialization_of_block) {
 }
 
 TEST_F(categorized_kvbc, reconstruct_merkle_updates) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{
+      db, true, std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle}}};
   KeyValueBlockchain::KeyValueBlockchain_tester tester{};
 
   // Add block1
@@ -160,7 +161,10 @@ TEST_F(categorized_kvbc, fail_reconstruct_merkle_updates) {
 }
 
 TEST_F(categorized_kvbc, reconstruct_immutable_updates) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{
+      db,
+      true,
+      std::map<std::string, CATEGORY_TYPE>{{"imm", CATEGORY_TYPE::immutable}, {"imm2", CATEGORY_TYPE::immutable}}};
   KeyValueBlockchain::KeyValueBlockchain_tester tester{};
 
   // Add block1
@@ -233,7 +237,7 @@ TEST_F(categorized_kvbc, reconstruct_immutable_updates) {
 }
 
 TEST_F(categorized_kvbc, fail_reconstruct_immutable_updates) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db, true, std::map<std::string, CATEGORY_TYPE>{{"imm", CATEGORY_TYPE::immutable}}};
   KeyValueBlockchain::KeyValueBlockchain_tester tester{};
 
   // Add block1
@@ -263,7 +267,10 @@ TEST_F(categorized_kvbc, fail_reconstruct_immutable_updates) {
 }
 
 TEST_F(categorized_kvbc, reconstruct_versioned_kv_updates) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"ver", CATEGORY_TYPE::versioned_kv},
+                                                                      {"ver2", CATEGORY_TYPE::versioned_kv}}};
   KeyValueBlockchain::KeyValueBlockchain_tester tester{};
 
   // Add block1

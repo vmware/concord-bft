@@ -26,7 +26,8 @@ void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
 }
 
 KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::rocksdb::NativeClient>& native_client,
-                                       bool link_st_chain)
+                                       bool link_st_chain,
+                                       const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types)
     : native_client_{native_client},
       block_chain_{native_client_},
       state_transfer_block_chain_{native_client_},
@@ -38,7 +39,14 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
   }
-  instantiateCategories();
+
+  loadCategories();
+  if (category_types_.empty()) {
+    initNewBlockchainCategories(category_types);
+  } else {
+    initExistingBlockchainCategories(category_types);
+  }
+
   if (!link_st_chain) return;
   // Make sure that if linkSTChainFrom() has been interrupted (e.g. a crash or an abnormal shutdown), all DBAdapter
   // methods will return the correct values. For example, if state transfer had completed and linkSTChainFrom() was
@@ -49,7 +57,50 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   delete_metrics_comp_.Register();
 }
 
-void KeyValueBlockchain::instantiateCategories() {
+void KeyValueBlockchain::initNewBlockchainCategories(
+    const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types) {
+  if (!category_types) {
+    const auto msg = "Category types needed when constructing a KeyValueBlockchain for a new blockchain";
+    LOG_ERROR(CAT_BLOCK_LOG, msg);
+    throw std::invalid_argument{msg};
+  }
+  // Add all categories passed by the user.
+  for (const auto& [category_id, type] : *category_types) {
+    addNewCategory(category_id, type);
+  }
+}
+
+void KeyValueBlockchain::initExistingBlockchainCategories(
+    const std::optional<std::map<std::string, CATEGORY_TYPE>>& category_types) {
+  if (!category_types) {
+    return;
+  }
+
+  // Make sure the user passed all existing categories on disk with their correct types.
+  for (const auto& [category_id, type] : category_types_) {
+    auto it = category_types->find(category_id);
+    if (it == category_types->cend()) {
+      const auto msg =
+          "Category ID [" + category_id + "] exists on disk, but is missing from the given category types parameter";
+      LOG_ERROR(CAT_BLOCK_LOG, msg);
+      throw std::invalid_argument{msg};
+    } else if (it->second != type) {
+      const auto msg = "Category ID [" + category_id + "] parameter with type [" + categoryStringType(it->second) +
+                       "] differs from type on disk [" + categoryStringType(type) + "]";
+      LOG_ERROR(CAT_BLOCK_LOG, msg);
+      throw std::invalid_argument{msg};
+    }
+  }
+
+  // If the user passed a new category, add it.
+  for (const auto& [category_id, type] : *category_types) {
+    if (category_types_.find(category_id) == category_types_.cend()) {
+      addNewCategory(category_id, type);
+    }
+  }
+}
+
+void KeyValueBlockchain::loadCategories() {
   auto itr = native_client_->getIterator(detail::CAT_ID_TYPE_CF);
   itr.first();
   while (itr) {
@@ -60,22 +111,22 @@ void KeyValueBlockchain::instantiateCategories() {
     auto cat_type = static_cast<CATEGORY_TYPE>(itr.valueView()[0]);
     switch (cat_type) {
       case CATEGORY_TYPE::block_merkle:
-        categorires_.emplace(itr.key(), detail::BlockMerkleCategory{native_client_});
-        categorires_types_[itr.key()] = CATEGORY_TYPE::block_merkle;
+        categories_.emplace(itr.key(), detail::BlockMerkleCategory{native_client_});
+        category_types_[itr.key()] = CATEGORY_TYPE::block_merkle;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type BlockMerkleCategory");
         break;
       case CATEGORY_TYPE::immutable:
-        categorires_.emplace(itr.key(), detail::ImmutableKeyValueCategory{itr.key(), native_client_});
-        categorires_types_[itr.key()] = CATEGORY_TYPE::immutable;
+        categories_.emplace(itr.key(), detail::ImmutableKeyValueCategory{itr.key(), native_client_});
+        category_types_[itr.key()] = CATEGORY_TYPE::immutable;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type ImmutableKeyValueCategory");
         break;
       case CATEGORY_TYPE::versioned_kv:
-        categorires_.emplace(itr.key(), detail::VersionedKeyValueCategory{itr.key(), native_client_});
-        categorires_types_[itr.key()] = CATEGORY_TYPE::versioned_kv;
+        categories_.emplace(itr.key(), detail::VersionedKeyValueCategory{itr.key(), native_client_});
+        category_types_[itr.key()] = CATEGORY_TYPE::versioned_kv;
         LOG_INFO(CAT_BLOCK_LOG, "Created category [" << itr.key() << "] as type VersionedKeyValueCategory");
         break;
       default:
-        throw std::runtime_error("couldn't find the type of " + itr.key());
+        ConcordAssert(false);
         break;
     }
     itr.next();
@@ -160,42 +211,57 @@ std::future<BlockDigest> KeyValueBlockchain::computeParentBlockDigest(const Bloc
 
 /////////////////////// Readers ///////////////////////
 
-const Category& KeyValueBlockchain::getCategory(const std::string& cat_id) const {
-  auto it = categorires_.find(cat_id);
-  if (it == categorires_.cend()) {
-    throw std::runtime_error{"Category does not exist = " + cat_id};
+const Category* KeyValueBlockchain::getCategoryPtr(const std::string& cat_id) const {
+  auto it = categories_.find(cat_id);
+  if (it == categories_.cend()) {
+    return nullptr;
   }
-  return it->second;
+  return &it->second;
 }
 
-Category& KeyValueBlockchain::getCategory(const std::string& cat_id) {
-  auto it = categorires_.find(cat_id);
-  if (it == categorires_.end()) {
-    throw std::runtime_error{"Category does not exist = " + cat_id};
+Category* KeyValueBlockchain::getCategoryPtr(const std::string& cat_id) {
+  auto it = categories_.find(cat_id);
+  if (it == categories_.end()) {
+    return nullptr;
   }
-  return it->second;
+  return &it->second;
 }
 
-bool KeyValueBlockchain::hasCategory(const std::string& cat_id) const { return (categorires_.count(cat_id) != 0); }
+const Category& KeyValueBlockchain::getCategoryRef(const std::string& cat_id) const {
+  const auto category = getCategoryPtr(cat_id);
+  if (!category) {
+    throw std::runtime_error{"Category does not exist = " + cat_id};
+  }
+  return *category;
+}
+
+Category& KeyValueBlockchain::getCategoryRef(const std::string& cat_id) {
+  const auto category = getCategoryPtr(cat_id);
+  if (!category) {
+    throw std::runtime_error{"Category does not exist = " + cat_id};
+  }
+  return *category;
+}
 
 std::optional<Value> KeyValueBlockchain::get(const std::string& category_id,
                                              const std::string& key,
                                              BlockId block_id) const {
-  if (!hasCategory(category_id)) {
+  const auto category = getCategoryPtr(category_id);
+  if (!category) {
     return std::nullopt;
   }
   std::optional<Value> ret;
-  std::visit([&key, &block_id, &ret](const auto& category) { ret = category.get(key, block_id); },
-             getCategory(category_id));
+  std::visit([&key, &block_id, &ret](const auto& category) { ret = category.get(key, block_id); }, *category);
   return ret;
 }
 
 std::optional<Value> KeyValueBlockchain::getLatest(const std::string& category_id, const std::string& key) const {
-  if (!hasCategory(category_id)) {
+  const auto category = getCategoryPtr(category_id);
+  if (!category) {
     return std::nullopt;
   }
   std::optional<Value> ret;
-  std::visit([&key, &ret](const auto& category) { ret = category.getLatest(key); }, getCategory(category_id));
+  std::visit([&key, &ret](const auto& category) { ret = category.getLatest(key); }, *category);
   return ret;
 }
 
@@ -203,32 +269,34 @@ void KeyValueBlockchain::multiGet(const std::string& category_id,
                                   const std::vector<std::string>& keys,
                                   const std::vector<BlockId>& versions,
                                   std::vector<std::optional<Value>>& values) const {
-  if (!hasCategory(category_id)) {
+  const auto category = getCategoryPtr(category_id);
+  if (!category) {
     nullopts(values, keys.size());
     return;
   }
   std::visit([&keys, &versions, &values](const auto& category) { category.multiGet(keys, versions, values); },
-             getCategory(category_id));
+             *category);
 }
 
 void KeyValueBlockchain::multiGetLatest(const std::string& category_id,
                                         const std::vector<std::string>& keys,
                                         std::vector<std::optional<Value>>& values) const {
-  if (!hasCategory(category_id)) {
+  const auto category = getCategoryPtr(category_id);
+  if (!category) {
     nullopts(values, keys.size());
     return;
   }
-  std::visit([&keys, &values](const auto& category) { category.multiGetLatest(keys, values); },
-             getCategory(category_id));
+  std::visit([&keys, &values](const auto& category) { category.multiGetLatest(keys, values); }, *category);
 }
 
 std::optional<categorization::TaggedVersion> KeyValueBlockchain::getLatestVersion(const std::string& category_id,
                                                                                   const std::string& key) const {
-  if (!hasCategory(category_id)) {
+  const auto category = getCategoryPtr(category_id);
+  if (!category) {
     return std::nullopt;
   }
   std::optional<categorization::TaggedVersion> ret;
-  std::visit([&key, &ret](const auto& category) { ret = category.getLatestVersion(key); }, getCategory(category_id));
+  std::visit([&key, &ret](const auto& category) { ret = category.getLatestVersion(key); }, *category);
   return ret;
 }
 
@@ -236,12 +304,12 @@ void KeyValueBlockchain::multiGetLatestVersion(
     const std::string& category_id,
     const std::vector<std::string>& keys,
     std::vector<std::optional<categorization::TaggedVersion>>& versions) const {
-  if (!hasCategory(category_id)) {
+  const auto category = getCategoryPtr(category_id);
+  if (!category) {
     nullopts(versions, keys.size());
     return;
   }
-  std::visit([&keys, &versions](const auto& catagory) { catagory.multiGetLatestVersion(keys, versions); },
-             getCategory(category_id));
+  std::visit([&keys, &versions](const auto& catagory) { catagory.multiGetLatestVersion(keys, versions); }, *category);
 }
 
 std::optional<Updates> KeyValueBlockchain::getBlockUpdates(BlockId block_id) const {
@@ -385,7 +453,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const ImmutableOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
   immutable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
-  std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
+  std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
       .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
@@ -394,7 +462,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const VersionedOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
   versioned_num_of_deletes_keys_.Get().Inc(updates_info.keys.size());
-  std::get<detail::VersionedKeyValueCategory>(getCategory(category_id))
+  std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
       .deleteGenesisBlock(block_id, updates_info, batch);
 }
 
@@ -403,7 +471,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const BlockMerkleOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
   merkle_num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
-  std::get<detail::BlockMerkleCategory>(getCategory(category_id)).deleteGenesisBlock(block_id, updates_info, batch);
+  std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).deleteGenesisBlock(block_id, updates_info, batch);
 }
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
@@ -411,7 +479,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const ImmutableOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
   immutable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
-  std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
+  std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
 
@@ -420,7 +488,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const VersionedOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
   versioned_num_of_deletes_keys_.Get().Inc(updates_info.keys.size());
-  std::get<detail::VersionedKeyValueCategory>(getCategory(category_id))
+  std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
 
@@ -429,46 +497,54 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const BlockMerkleOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
   merkle_num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
-  std::get<detail::BlockMerkleCategory>(getCategory(category_id))
+  std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
 
 // Updates per category
 
-bool KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id,
-                                               const CATEGORY_TYPE type,
-                                               concord::storage::rocksdb::NativeWriteBatch& write_batch) {
+void KeyValueBlockchain::insertCategoryMapping(const std::string& cat_id, const CATEGORY_TYPE type) {
   // check if we know this category type already
-  if (categorires_types_.count(cat_id) == 1) {
-    return false;
+  ConcordAssertEQ(category_types_.count(cat_id), 0);
+
+  // cache the type in memory and store it in DB
+  const auto inserted = category_types_.try_emplace(cat_id, type).second;
+  if (!inserted) {
+    LOG_FATAL(CAT_BLOCK_LOG, "Category [" << cat_id << "] already exists in type map");
+    ConcordAssert(false);
   }
-  // new category
-  // cache the type in mem and store it in db.
-  if (const auto [itr, inserted] = categorires_types_.try_emplace(cat_id, type); !inserted) {
-    (void)itr;
-    throw std::runtime_error{"Failed to insert new category"};
+  native_client_->put(detail::CAT_ID_TYPE_CF, cat_id, std::string(1, static_cast<char>(type)));
+}
+
+void KeyValueBlockchain::addNewCategory(const std::string& cat_id, CATEGORY_TYPE type) {
+  insertCategoryMapping(cat_id, type);
+  auto inserted = false;
+  switch (type) {
+    case CATEGORY_TYPE::block_merkle:
+      inserted = categories_.try_emplace(cat_id, detail::BlockMerkleCategory{native_client_}).second;
+      break;
+    case CATEGORY_TYPE::immutable:
+      inserted = categories_.try_emplace(cat_id, detail::ImmutableKeyValueCategory{cat_id, native_client_}).second;
+      break;
+    case CATEGORY_TYPE::versioned_kv:
+      inserted = categories_.try_emplace(cat_id, detail::VersionedKeyValueCategory{cat_id, native_client_}).second;
+      break;
+    default:
+      ConcordAssert(false);
   }
-  write_batch.put(detail::CAT_ID_TYPE_CF, cat_id, std::string(1, static_cast<char>(type)));
-  return true;
+  if (!inserted) {
+    LOG_FATAL(CAT_BLOCK_LOG, "Category [" << cat_id << "] already exists in categories map");
+    ConcordAssert(false);
+  }
 }
 
 BlockMerkleOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                             const std::string& category_id,
                                                             BlockMerkleInput&& updates,
                                                             concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  // if true means that category is new and we should create an instance of it.
-  if (insertCategoryMapping(category_id, CATEGORY_TYPE::block_merkle, write_batch)) {
-    if (const auto [_, inserted] = categorires_.try_emplace(category_id, detail::BlockMerkleCategory{native_client_});
-        !inserted) {
-      (void)_;
-      LOG_FATAL(CAT_BLOCK_LOG, "Category already exists = " << category_id);
-      ConcordAssert(false);
-    }
-  }
-
-  auto itr = categorires_.find(category_id);
-  if (itr == categorires_.end()) {
-    throw std::runtime_error{"Category is not present in memory = " + category_id};
+  auto itr = categories_.find(category_id);
+  if (itr == categories_.end()) {
+    throw std::runtime_error{"Category does not exist = " + category_id};
   }
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the BlockMerkleCategory");
   return std::get<detail::BlockMerkleCategory>(itr->second).add(block_id, std::move(updates), write_batch);
@@ -478,20 +554,9 @@ VersionedOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                           const std::string& category_id,
                                                           VersionedInput&& updates,
                                                           concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  // if true means that category is new and we should create an instance of it.
-  if (insertCategoryMapping(category_id, CATEGORY_TYPE::versioned_kv, write_batch)) {
-    if (const auto [_, inserted] =
-            categorires_.try_emplace(category_id, detail::VersionedKeyValueCategory{category_id, native_client_});
-        !inserted) {
-      (void)_;
-      LOG_FATAL(CAT_BLOCK_LOG, "Category already exists = " << category_id);
-      ConcordAssert(false);
-    }
-  }
-
-  auto itr = categorires_.find(category_id);
-  if (itr == categorires_.end()) {
-    throw std::runtime_error{"Category is not present in memory = " + category_id};
+  auto itr = categories_.find(category_id);
+  if (itr == categories_.end()) {
+    throw std::runtime_error{"Category does not exist = " + category_id};
   }
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the VersionedKeyValueCategory");
   return std::get<detail::VersionedKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
@@ -501,19 +566,9 @@ ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
                                                           const std::string& category_id,
                                                           ImmutableInput&& updates,
                                                           concord::storage::rocksdb::NativeWriteBatch& write_batch) {
-  // if true means that category is new and we should create an instance of it.
-  if (insertCategoryMapping(category_id, CATEGORY_TYPE::immutable, write_batch)) {
-    if (const auto [_, inserted] =
-            categorires_.try_emplace(category_id, detail::ImmutableKeyValueCategory{category_id, native_client_});
-        !inserted) {
-      (void)_;
-      LOG_FATAL(CAT_BLOCK_LOG, "Category already exists = " << category_id);
-      ConcordAssert(false);
-    }
-  }
-  auto itr = categorires_.find(category_id);
-  if (itr == categorires_.end()) {
-    throw std::runtime_error{"Category is not present in memory = " + category_id};
+  auto itr = categories_.find(category_id);
+  if (itr == categories_.end()) {
+    throw std::runtime_error{"Category does not exist = " + category_id};
   }
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the ImmutableKeyValueCategory");
   return std::get<detail::ImmutableKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
@@ -552,7 +607,7 @@ std::optional<RawBlock> KeyValueBlockchain::getRawBlock(const BlockId& block_id)
     return state_transfer_block_chain_.getRawBlock(block_id);
   }
   // Try from the blockchain itself
-  return block_chain_.getRawBlock(block_id, categorires_);
+  return block_chain_.getRawBlock(block_id, categories_);
 }
 
 std::optional<Hash> KeyValueBlockchain::parentDigest(BlockId block_id) const {

@@ -53,7 +53,12 @@ TEST_F(categorized_kvbc, merkle_update) {
 // The block structure is then inserted into the DB.
 // we test that the block that is written to DB contains the expected data.
 TEST_F(categorized_kvbc, add_blocks) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
   // Add block1
   {
     Updates updates;
@@ -179,7 +184,11 @@ TEST_F(categorized_kvbc, add_blocks) {
 }
 
 TEST_F(categorized_kvbc, delete_block) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
   // Add block1
   {
     Updates updates;
@@ -366,7 +375,10 @@ TEST_F(categorized_kvbc, delete_block) {
 }
 
 TEST_F(categorized_kvbc, get_last_and_genesis_block) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"ver", CATEGORY_TYPE::versioned_kv}}};
   detail::Blockchain block_chain_imp{db};
   // Add block1
   {
@@ -403,7 +415,11 @@ TEST_F(categorized_kvbc, get_last_and_genesis_block) {
 }
 
 TEST_F(categorized_kvbc, add_raw_block) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned_kv", CATEGORY_TYPE::versioned_kv},
+                                                                      {"ver", CATEGORY_TYPE::versioned_kv}}};
   ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
 
   // Add block1
@@ -477,7 +493,10 @@ TEST_F(categorized_kvbc, add_raw_block) {
 }
 
 TEST_F(categorized_kvbc, get_raw_block) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned_kv", CATEGORY_TYPE::versioned_kv}}};
 
   ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
 
@@ -528,7 +547,12 @@ TEST_F(categorized_kvbc, get_raw_block) {
 }
 
 TEST_F(categorized_kvbc, link_state_transfer_chain) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"ver", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_kv", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
   detail::Blockchain block_chain_imp{db};
 
   ASSERT_FALSE(block_chain_imp.loadLastReachableBlockId().has_value());
@@ -617,7 +641,8 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
 }
 
 TEST_F(categorized_kvbc, creation_of_category_type_cf) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{
+      db, true, std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle}}};
   ASSERT_TRUE(db->hasColumnFamily(detail::CAT_ID_TYPE_CF));
 }
 
@@ -655,19 +680,21 @@ TEST_F(categorized_kvbc, instantiation_of_categories) {
 }
 
 TEST_F(categorized_kvbc, throw_on_non_exist_category_type) {
-  KeyValueBlockchain block_chain{db, true};
-  auto wb = db->getBatch();
-  wb.put(detail::CAT_ID_TYPE_CF, std::string("merkle"), std::string(1, static_cast<char>(CATEGORY_TYPE::end_of_types)));
-  db->write(std::move(wb));
+  KeyValueBlockchain block_chain{
+      db, true, std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle}}};
+  db->put(detail::CAT_ID_TYPE_CF,
+          std::string("merkle-wrong-type"),
+          std::string(1, static_cast<char>(CATEGORY_TYPE::end_of_types)));
 
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
-  ASSERT_THROW(tester.instantiateCategories(block_chain), std::runtime_error);
+  ASSERT_DEATH(tester.loadCategories(block_chain), "");
 }
 
 TEST_F(categorized_kvbc, throw_on_non_exist_category) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{
+      db, true, std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle}}};
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
-  ASSERT_THROW(tester.getCategory("merkle", block_chain), std::runtime_error);
+  ASSERT_THROW(tester.getCategory("non-existent", block_chain), std::runtime_error);
 }
 
 TEST_F(categorized_kvbc, get_category) {
@@ -681,7 +708,12 @@ TEST_F(categorized_kvbc, get_category) {
 }
 
 TEST_F(categorized_kvbc, get_block_data) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -749,8 +781,8 @@ TEST_F(categorized_kvbc, get_block_data) {
   ASSERT_FALSE(block_chain.getBlockUpdates(887));
 }
 
-TEST_F(categorized_kvbc, validate_category_creation_on_add) {
-  KeyValueBlockchain block_chain{db, true};
+TEST_F(categorized_kvbc, validate_category_creation) {
+  KeyValueBlockchain block_chain{db, true, std::map<std::string, CATEGORY_TYPE>{{"imm", CATEGORY_TYPE::immutable}}};
   ImmutableUpdates imm_up;
   imm_up.addUpdate("key", {"val", {"0", "1"}});
   Updates up;
@@ -769,7 +801,7 @@ TEST_F(categorized_kvbc, validate_category_creation_on_add) {
 }
 
 TEST_F(categorized_kvbc, compare_raw_blocks) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db, true, std::map<std::string, CATEGORY_TYPE>{{"imm", CATEGORY_TYPE::immutable}}};
   ImmutableUpdates imm_up;
   imm_up.addUpdate("key", {"val", {"0", "1"}});
   Updates up;
@@ -794,7 +826,12 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
 }
 
 TEST_F(categorized_kvbc, single_read_with_version) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -884,7 +921,12 @@ TEST_F(categorized_kvbc, single_read_with_version) {
 }
 
 TEST_F(categorized_kvbc, single_get_latest) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -962,7 +1004,12 @@ TEST_F(categorized_kvbc, single_get_latest) {
 }
 
 TEST_F(categorized_kvbc, multi_read_with_version) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -1037,8 +1084,8 @@ TEST_F(categorized_kvbc, multi_read_with_version) {
     std::vector<BlockId> bad_size{3, 4, 2, 1};
     std::vector<std::optional<categorization::Value>> values;
     ASSERT_DEATH(block_chain.multiGet("merkle", merkle_keys, bad_size, values), "");
-    // #0 -> merkle_value1 | #1 -> not exist | #2 -> merkle_value3 | #3 merkle_key4 -> not exist | #4 -> update | #5 ->
-    // not exist(deleted)
+    // #0 -> merkle_value1 | #1 -> not exist | #2 -> merkle_value3 | #3 merkle_key4 -> not exist | #4 -> update | #5
+    // -> not exist(deleted)
     std::vector<BlockId> versions{1, 2, 2, 1, 3, 2};
     block_chain.multiGet("merkle", merkle_keys, versions, values);
     ASSERT_FALSE(values[1].has_value());
@@ -1058,8 +1105,8 @@ TEST_F(categorized_kvbc, multi_read_with_version) {
     std::vector<BlockId> bad_size{3};
     std::vector<std::optional<categorization::Value>> values;
     ASSERT_DEATH(block_chain.multiGet("versioned", keys, bad_size, values), "");
-    // #0 -> ver_val1 | #1 -> update | #2 -> not exist | #3-> ver_val2 | #4 -> not exist(deleted) |#5 -> ver_val3 |#6 ->
-    // not exist | #7 -> not exist
+    // #0 -> ver_val1 | #1 -> update | #2 -> not exist | #3-> ver_val2 | #4 -> not exist(deleted) |#5 -> ver_val3
+    // |#6 -> not exist | #7 -> not exist
     std::vector<BlockId> versions{1, 2, 3, 1, 2, 2, 12, 1};
     block_chain.multiGet("versioned", keys, versions, values);
     ASSERT_FALSE(values[2].has_value());
@@ -1111,7 +1158,12 @@ TEST_F(categorized_kvbc, multi_read_with_version) {
 }
 
 TEST_F(categorized_kvbc, multi_read_latest) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -1300,7 +1352,12 @@ TEST_F(categorized_kvbc, multi_read_latest) {
 }
 
 TEST_F(categorized_kvbc, single_get_latest_version) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -1404,7 +1461,12 @@ TEST_F(categorized_kvbc, single_get_latest_version) {
 }
 
 TEST_F(categorized_kvbc, multi_get_latest_version) {
-  KeyValueBlockchain block_chain{db, true};
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable}}};
 
   // Add block1
   {
@@ -1525,6 +1587,110 @@ TEST_F(categorized_kvbc, multi_get_latest_version) {
     ASSERT_FALSE(versions[1].value().deleted);
     ASSERT_EQ(versions[1].value().version, 1);
   }
+}
+
+TEST_F(categorized_kvbc, pass_same_categories_on_construction) {
+  const auto categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                               {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                               {"immutable", CATEGORY_TYPE::immutable}};
+  {
+    auto blockchain = KeyValueBlockchain{db, true, categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), categories);
+  }
+
+  {
+    auto blockchain = KeyValueBlockchain{db, true, categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), categories);
+  }
+}
+
+TEST_F(categorized_kvbc, no_categories_on_construction) {
+  const auto categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                               {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                               {"immutable", CATEGORY_TYPE::immutable}};
+  {
+    auto blockchain = KeyValueBlockchain{db, true, categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), categories);
+  }
+
+  {
+    auto blockchain = KeyValueBlockchain{db, true};
+    ASSERT_EQ(blockchain.blockchainCategories(), categories);
+  }
+}
+
+TEST_F(categorized_kvbc, pass_additional_categories_on_construction) {
+  const auto initial_categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                       {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                       {"immutable", CATEGORY_TYPE::immutable}};
+
+  const auto all_categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                   {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                   {"versioned2", CATEGORY_TYPE::versioned_kv},
+                                                                   {"immutable", CATEGORY_TYPE::immutable}};
+  {
+    auto blockchain = KeyValueBlockchain{db, true, initial_categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), initial_categories);
+  }
+
+  {
+    auto blockchain = KeyValueBlockchain{db, true, all_categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), all_categories);
+  }
+
+  // Make sure additional categories are persisted.
+  {
+    auto blockchain = KeyValueBlockchain{db, true};
+    ASSERT_EQ(blockchain.blockchainCategories(), all_categories);
+  }
+}
+
+TEST_F(categorized_kvbc, missing_categories_on_construction) {
+  const auto persisted_categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                         {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                         {"immutable", CATEGORY_TYPE::immutable}};
+
+  const auto missing_categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                       {"versioned2", CATEGORY_TYPE::versioned_kv},
+                                                                       {"immutable", CATEGORY_TYPE::immutable}};
+  {
+    auto blockchain = KeyValueBlockchain{db, true, persisted_categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), persisted_categories);
+  }
+
+  { ASSERT_THROW(KeyValueBlockchain(db, true, missing_categories), std::invalid_argument); }
+
+  // Make sure no additional categories are persisted when throwing.
+  {
+    auto blockchain = KeyValueBlockchain{db, true};
+    ASSERT_EQ(blockchain.blockchainCategories(), persisted_categories);
+  }
+}
+
+TEST_F(categorized_kvbc, changed_category_type_on_construction) {
+  const auto persisted_categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                         {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                         {"immutable", CATEGORY_TYPE::immutable}};
+
+  const auto wrongly_typed_categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                             {"versioned", CATEGORY_TYPE::block_merkle},
+                                                                             {"immutable", CATEGORY_TYPE::immutable}};
+  {
+    auto blockchain = KeyValueBlockchain{db, true, persisted_categories};
+    ASSERT_EQ(blockchain.blockchainCategories(), persisted_categories);
+  }
+
+  { ASSERT_THROW(KeyValueBlockchain(db, true, wrongly_typed_categories), std::invalid_argument); }
+
+  // Make sure no additional categories are persisted when throwing.
+  {
+    auto blockchain = KeyValueBlockchain{db, true};
+    ASSERT_EQ(blockchain.blockchainCategories(), persisted_categories);
+  }
+}
+
+TEST_F(categorized_kvbc, no_categories_on_first_construction) {
+  ASSERT_THROW(KeyValueBlockchain(db, true), std::invalid_argument);
 }
 
 TEST_F(categorized_kvbc, updates_append_single_key_value_non_existent_category) {

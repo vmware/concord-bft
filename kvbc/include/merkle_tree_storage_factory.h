@@ -31,6 +31,11 @@ class RocksDBStorageFactory : public IStorageFactory {
       const std::shared_ptr<concord::performance::PerformanceManager>& pm =
           std::make_shared<concord::performance::PerformanceManager>());
 
+  RocksDBStorageFactory(const std::string& dbPath,
+                        const std::string& dbConfPath,
+                        const std::shared_ptr<concord::performance::PerformanceManager>& pm =
+                            std::make_shared<concord::performance::PerformanceManager>());
+
  public:
   DatabaseSet newDatabaseSet() const override;
   std::unique_ptr<storage::IMetadataKeyManipulator> newMetadataKeyManipulator() const override;
@@ -38,6 +43,7 @@ class RocksDBStorageFactory : public IStorageFactory {
 
  private:
   const std::string dbPath_;
+  const std::optional<std::string> dbConfPath_;
   const std::unordered_set<concord::kvbc::Key> nonProvableKeySet_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };

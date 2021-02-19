@@ -117,4 +117,17 @@ inline bool operator==(const TaggedVersion &lhs, const TaggedVersion &rhs) {
 
 enum class CATEGORY_TYPE : char { block_merkle = 0, immutable = 1, versioned_kv = 2, end_of_types };
 
+inline std::string categoryStringType(CATEGORY_TYPE t) {
+  switch (t) {
+    case CATEGORY_TYPE::block_merkle:
+      return "block_merkle";
+    case CATEGORY_TYPE::immutable:
+      return "immutable";
+    case CATEGORY_TYPE::versioned_kv:
+      return "versioned_kv";
+    default:
+      ConcordAssert(false);
+  }
+}
+
 }  // namespace concord::kvbc::categorization
