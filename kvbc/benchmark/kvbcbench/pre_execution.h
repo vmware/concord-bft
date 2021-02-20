@@ -17,6 +17,7 @@
 #include <thread>
 
 #include "categorization/block_merkle_category.h"
+#include "categorization/kv_blockchain.h"
 #include "input.h"
 
 namespace concord::kvbc::bench {
@@ -31,8 +32,8 @@ class PreExecutionSimulator {
  public:
   PreExecutionSimulator(const PreExecConfig& config,
                         const ReadKeys& read_keys,
-                        categorization::detail::BlockMerkleCategory& cat)
-      : config_(config), read_keys_(read_keys), cat_(cat) {}
+                        categorization::KeyValueBlockchain& kvbc)
+      : config_(config), read_keys_(read_keys), kvbc_(kvbc) {}
 
   void start() {
     std::cout << "Starting Simulated Pre-Execution Reads" << std::endl;
@@ -47,7 +48,7 @@ class PreExecutionSimulator {
           values.clear();
           auto start = randomKeyIter();
           std::copy(start, start + config_.num_block_merkle_keys_to_read, std::back_inserter(read_keys));
-          cat_.multiGetLatest(read_keys, values);
+          kvbc_.multiGetLatest(kCategoryMerkle, read_keys, values);
           std::this_thread::sleep_for(config_.delay);
         }
       });
@@ -73,8 +74,8 @@ class PreExecutionSimulator {
 
   const PreExecConfig config_;
   const ReadKeys& read_keys_;
-  // TODO: Replace this with kv_blockchain for more general reads
-  categorization::detail::BlockMerkleCategory& cat_;
+
+  categorization::KeyValueBlockchain& kvbc_;
 };
 
 }  // namespace concord::kvbc::bench
