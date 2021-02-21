@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -22,7 +22,7 @@ namespace bftEngine::impl {
 static uint16_t getSender(const ClientRequestMsgHeader* r) { return r->idOfClientProxy; }
 
 static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r) {
-  return (sizeof(ClientRequestMsgHeader) + r->spanContextSize + r->requestLength + r->cid_length);
+  return (sizeof(ClientRequestMsgHeader) + r->spanContextSize + r->requestLength + r->cidLength);
 }
 
 uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
@@ -66,7 +66,7 @@ bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY
 void ClientRequestMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
   if (size() < sizeof(ClientRequestMsgHeader) ||
-      size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + msgBody()->cid_length + spanContextSize()))
+      size() < (sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + msgBody()->cidLength + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
@@ -81,12 +81,12 @@ void ClientRequestMsg::setParams(NodeIdType sender,
   msgBody()->reqSeqNum = reqSeqNum;
   msgBody()->requestLength = requestLength;
   msgBody()->flags = flags;
-  msgBody()->cid_length = cid.size();
+  msgBody()->cidLength = cid.size();
 }
 
 std::string ClientRequestMsg::getCid() const {
   return std::string(body() + sizeof(ClientRequestMsgHeader) + msgBody()->requestLength + spanContextSize(),
-                     msgBody()->cid_length);
+                     msgBody()->cidLength);
 }
 
 }  // namespace bftEngine::impl

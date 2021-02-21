@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -69,6 +69,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(autoPrimaryRotationEnabled, bool, false, "if automatic primary rotation is enabled");
   CONFIG_PARAM(autoPrimaryRotationTimerMillisec, uint16_t, 0, "timeout for automatic primary rotation");
   CONFIG_PARAM(preExecutionFeatureEnabled, bool, false, "enables the pre-execution feature");
+  CONFIG_PARAM(clientMiniBatchingEnabled, bool, false, "enables the client-mini-batch feature");
+  CONFIG_PARAM(clientMiniBatchingMaxMsgsNbr, uint16_t, 10, "Maximum messages number in one mini-batch");
   CONFIG_PARAM(preExecReqStatusCheckTimerMillisec,
                uint64_t,
                5000,
@@ -163,6 +165,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, autoPrimaryRotationTimerMillisec);
 
     serialize(outStream, preExecutionFeatureEnabled);
+    serialize(outStream, clientMiniBatchingEnabled);
+    serialize(outStream, clientMiniBatchingMaxMsgsNbr);
     serialize(outStream, preExecReqStatusCheckTimerMillisec);
     serialize(outStream, preExecConcurrencyLevel);
     serialize(outStream, batchingPolicy);
@@ -210,6 +214,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, autoPrimaryRotationTimerMillisec);
 
     deserialize(inStream, preExecutionFeatureEnabled);
+    deserialize(inStream, clientMiniBatchingEnabled);
+    deserialize(inStream, clientMiniBatchingMaxMsgsNbr);
     deserialize(inStream, preExecReqStatusCheckTimerMillisec);
     deserialize(inStream, preExecConcurrencyLevel);
     deserialize(inStream, batchingPolicy);
@@ -290,7 +296,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
   os << ", ";
-  os << KVLOG(rc.keyViewFilePath);
+  os << KVLOG(rc.clientMiniBatchingEnabled, rc.clientMiniBatchingMaxMsgsNbr, rc.keyViewFilePath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 

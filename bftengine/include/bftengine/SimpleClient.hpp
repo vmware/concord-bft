@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -14,7 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <set>
+#include <queue>
 #include <chrono>
 #include <memory>
 
@@ -45,7 +45,25 @@ enum ClientMsgFlag : uint8_t {
   EMPTY_CLIENT_REQ = 0x10
 };
 
-enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL };
+enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
+
+struct ClientRequest {
+  uint8_t flags = 0;
+  std::vector<uint8_t> request;
+  uint32_t lengthOfRequest = 0;
+  uint64_t reqSeqNum = 0;
+  uint64_t timeoutMilli = 0;
+  std::string cid;
+  std::string span_context;
+};
+
+struct ClientReply {
+  uint32_t lengthOfReplyBuffer = 0;
+  char* replyBuffer = nullptr;
+  uint32_t actualReplyLength = 0;
+  std::string cid;
+  std::string span_context;
+};
 
 class SimpleClient {
  public:
@@ -86,7 +104,12 @@ class SimpleClient {
                                       char* replyBuffer,
                                       uint32_t& actualReplyLength,
                                       const std::string& cid = "",
-                                      const std::string& span_context = "") = 0;
+                                      const std::string& spanContext = "") = 0;
+
+  // To be used only for write requests
+  virtual OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
+                                    std::deque<ClientReply>& clientReplies,
+                                    const std::string& cid) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);

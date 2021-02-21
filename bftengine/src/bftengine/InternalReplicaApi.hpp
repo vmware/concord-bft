@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -39,7 +39,7 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual ReplicaId currentPrimary() const = 0;
   virtual bool isCurrentPrimary() const = 0;
   virtual bool currentViewIsActive() const = 0;
-  virtual ReqId seqNumberOfLastReplyToClient(NodeIdType clientId) const = 0;
+  virtual bool isReplyAlreadySentToClient(NodeIdType clientId, ReqId reqSeqNum) const = 0;
   virtual bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const = 0;
   virtual SeqNum getPrimaryLastUsedSeqNum() const = 0;
   virtual uint64_t getRequestsInQueue() const = 0;

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -46,6 +46,7 @@ class MsgCode {
     PreProcessReply,
 
     ClientRequest = 700,
+    ClientBatchRequest = 750,
     ClientReply = 800,
 
   };

@@ -77,7 +77,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         writeset_values = skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
-    @unittest.skip("for future use")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -87,6 +86,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
@@ -94,7 +94,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
 
         await bft_network.assert_successful_pre_executions_count(0, NUM_OF_SEQ_WRITES * BATCH_SIZE)
 
-    @unittest.skip("for future use")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -103,7 +102,8 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         Launch concurrent requests from different clients in parallel. Ensure that created blocks are as expected.
         """
         bft_network.start_all_replicas()
-        await trio.sleep(SKVBC_INIT_GRACE_TIME) 
+        await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
@@ -112,7 +112,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
 
         await bft_network.assert_successful_pre_executions_count(0, wr * BATCH_SIZE)
 
-    @unittest.skip("for future use")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -123,6 +122,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
         client.config = client.config._replace(
@@ -148,7 +148,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
                                                 err_msg="Make sure the view did not change.")
                 await trio.sleep(seconds=5)
 
-    @unittest.skip("for future use")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @with_constant_load
@@ -159,6 +158,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
         client.config = client.config._replace(
@@ -180,7 +180,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
                                         expected=lambda v: v == initial_primary,
                                         err_msg="Make sure the view did not change.")
 
-    @unittest.skip("for future use")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -191,6 +190,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         await trio.sleep(5)
+        await bft_network.init_preexec_count()
 
         clients = bft_network.clients.values()
         for client in clients:
@@ -219,7 +219,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
                                             err_msg="Make sure view change has been triggered.")
             await tracker.send_tracked_write_batch(client, 2, BATCH_SIZE)
 
-    @unittest.skip("for future use")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -231,6 +230,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         '''
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
+        await bft_network.init_preexec_count()
 
         read_client = bft_network.random_client()
         submit_clients = bft_network.random_clients(MAX_CONCURRENCY)
@@ -245,7 +245,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
 
         log.log_message(message_type=f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
         log.log_message(message_type=f"Total of {num_of_requests} write pre-exec tx, "
-              f"concurrently submitted through {len(submit_clients)} clients.")
+                                     f"concurrently submitted through {len(submit_clients)} clients.")
         log.log_message(message_type=f"Finished at block {final_block_count}.")
         self.assertTrue(wr >= num_of_requests)
 

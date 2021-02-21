@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -22,6 +22,7 @@ class PreProcessRequestMsg : public MessageBase {
  public:
   PreProcessRequestMsg(NodeIdType senderId,
                        uint16_t clientId,
+                       uint16_t reqOffsetInBatch,
                        uint64_t reqSeqNum,
                        uint64_t reqRetryId,
                        uint32_t reqLength,
@@ -35,6 +36,7 @@ class PreProcessRequestMsg : public MessageBase {
   char* requestBuf() const { return body() + sizeof(Header) + spanContextSize(); }
   const uint32_t requestLength() const { return msgBody()->requestLength; }
   const uint16_t clientId() const { return msgBody()->clientId; }
+  const uint16_t reqOffsetInBatch() const { return msgBody()->reqOffsetInBatch; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   std::string getCid() const;
@@ -47,6 +49,7 @@ class PreProcessRequestMsg : public MessageBase {
     MessageBase::Header header;
     SeqNum reqSeqNum;
     uint16_t clientId;
+    uint16_t reqOffsetInBatch;
     NodeIdType senderId;
     uint32_t requestLength;
     uint32_t cidLength;
@@ -59,7 +62,12 @@ class PreProcessRequestMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(NodeIdType senderId, uint16_t clientId, ReqId reqSeqNum, uint64_t reqRetryId, uint32_t reqLength);
+  void setParams(NodeIdType senderId,
+                 uint16_t clientId,
+                 uint16_t reqOffsetInBatch,
+                 ReqId reqSeqNum,
+                 uint64_t reqRetryId,
+                 uint32_t reqLength);
 
  private:
   Header* msgBody() const { return ((Header*)msgBody_); }

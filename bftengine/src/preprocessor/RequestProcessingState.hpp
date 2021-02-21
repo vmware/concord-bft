@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -30,6 +30,7 @@ class RequestProcessingState {
  public:
   RequestProcessingState(uint16_t numOfReplicas,
                          uint16_t clientId,
+                         uint16_t reqOffsetInBatch,
                          const std::string& cid,
                          ReqId reqSeqNum,
                          ClientPreProcessReqMsgUniquePtr clientReqMsg,
@@ -42,6 +43,7 @@ class RequestProcessingState {
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   const PreProcessRequestMsgSharedPtr& getPreProcessRequest() const { return preProcessRequestMsg_; }
   const auto getClientId() const { return clientId_; }
+  const auto getReqOffsetInBatch() const { return reqOffsetInBatch_; }
   const SeqNum getReqSeqNum() const { return reqSeqNum_; }
   PreProcessingResult definePreProcessingConsensusResult();
   const char* getPrimaryPreProcessedResult() const { return primaryPreProcessResult_; }
@@ -81,6 +83,7 @@ class RequestProcessingState {
   // the RequestProcessingState objects.
   const uint16_t numOfReplicas_;
   const uint16_t clientId_;
+  const uint16_t reqOffsetInBatch_;
   const std::string cid_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
