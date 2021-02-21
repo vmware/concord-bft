@@ -373,13 +373,13 @@ struct GetCategoryEarliestStale {
     std::string keys_as_string;
     for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
       stale_keys = adapter.getBlockStaleKeys(block);
-      if (stale_keys.count(cat)) {
+      if (stale_keys.count(cat) && !stale_keys[cat].empty()) {
         relevantBlockId = block;
         keys_as_string = getStaleKeysStr(stale_keys[cat]);
         break;
       }
     }
-    if (stale_keys.empty()) {
+    if (keys_as_string.empty()) {
       throw NotFoundException{"Couldn't find stale keys for category id in any block in the given range"};
     }
     std::map<std::string, std::string> out{
