@@ -541,6 +541,35 @@ std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPru
   return std::make_pair(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
 }
 
+std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) {
+  std::vector<Hash> hash_stale_keys;
+  auto [hashed_keys, latest_versions] = getLatestVersions(out);
+  for (auto i = 0u; i < hashed_keys.size(); i++) {
+    auto& tagged_version = latest_versions[i];
+    auto& hashed_key = hashed_keys[i];
+    ConcordAssert(tagged_version.has_value());
+    ConcordAssertLE(block_id, tagged_version->version);
+
+    if (block_id == tagged_version->version) {
+      if (tagged_version->deleted) {
+        // The latest version is a tombstone. We can delete the key and version.
+        hash_stale_keys.push_back(hashed_key);
+      }
+    } else {
+      // block_id < tagged_version->version
+      // The key has been overwritten. Delete it.
+      hash_stale_keys.push_back(hashed_key);
+    }
+  }
+  std::vector<std::string> stale_keys;
+  for (auto& key : out.keys) {
+    if (std::find(hash_stale_keys.begin(), hash_stale_keys.end(), hash(key.first)) != hash_stale_keys.end()) {
+      stale_keys.push_back(key.first);
+    }
+  }
+  return stale_keys;
+}
+
 void BlockMerkleCategory::deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput& out, NativeWriteBatch& batch) {
   auto [hashed_keys, latest_versions] = getLatestVersions(out);
   auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);

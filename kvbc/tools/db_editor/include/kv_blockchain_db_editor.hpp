@@ -339,32 +339,16 @@ struct GetEarliestCategoryUpdates {
   }
 };
 
-inline std::string getStaleKeysStr(const std::variant<BlockMerkleInput, VersionedInput, ImmutableInput> &val) {
-  std::vector<std::string> keys;
-  return std::visit(
-      [&keys](auto &&arg) {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, BlockMerkleInput>) {
-          keys = arg.deletes;
-        } else if constexpr (std::is_same_v<T, VersionedInput>) {
-          keys = arg.deletes;
-        } else if constexpr (std::is_same_v<T, ImmutableInput>) {
-          for (auto &[k, v] : arg.kv) {
-            (void)v;
-            keys.push_back(k);
-          }
-        }
-        if (keys.empty()) return std::string();
-        std::string strKeys;
-        strKeys += "[";
-        for (auto &k : keys) {
-          strKeys += "\"" + concordUtils::bufferToHex(k.data(), k.size()) + "\"" + ",";
-        }
-        strKeys.erase(strKeys.size() - 1);
-        strKeys += "]";
-        return strKeys;
-      },
-      val);
+inline std::string getStaleKeysStr(std::vector<std::string> stale_keys) {
+  if (stale_keys.empty()) return std::string();
+  std::string strKeys;
+  strKeys += "[";
+  for (auto &k : stale_keys) {
+    strKeys += "\"" + concordUtils::bufferToHex(k.data(), k.size()) + "\"" + ",";
+  }
+  strKeys.erase(strKeys.size() - 1);
+  strKeys += "]";
+  return strKeys;
 }
 
 struct GetCategoryEarliestStale {
@@ -375,7 +359,7 @@ struct GetCategoryEarliestStale {
            "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
     if (args.values.empty()) {
       throw NotFoundException{"No Category ID was given"};
     }
@@ -384,15 +368,14 @@ struct GetCategoryEarliestStale {
       latestBlockID = toBlockId(args.values[1]);
     }
     auto cat = args.values.front();
-    std::map<std::string, std::string> cat_updates_map;
     BlockId relevantBlockId = adapter.getGenesisBlockId();
-    std::string stale_keys;
+    std::unordered_map<std::string, std::vector<std::string>> stale_keys;
+    std::string keys_as_string;
     for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
-      auto updates = adapter.getBlockUpdates(block);
-      if (updates->categoryUpdates().kv.count(cat)) {
-        stale_keys = getStaleKeysStr(updates->categoryUpdates().kv.at(cat));
-        if (stale_keys.empty()) continue;
+      stale_keys = adapter.getBlockStaleKeys(block);
+      if (stale_keys.count(cat)) {
         relevantBlockId = block;
+        keys_as_string = getStaleKeysStr(stale_keys[cat]);
         break;
       }
     }
@@ -400,7 +383,7 @@ struct GetCategoryEarliestStale {
       throw NotFoundException{"Couldn't find stale keys for category id in any block in the given range"};
     }
     std::map<std::string, std::string> out{
-        {"blockID", std::to_string(relevantBlockId)}, {"category", cat}, {"stale_keys", stale_keys}};
+        {"blockID", std::to_string(relevantBlockId)}, {"category", cat}, {"stale_keys", keys_as_string}};
     return toJson(out);
   }
 };

@@ -170,6 +170,21 @@ std::unordered_map<BlockId, std::vector<std::string>> VersionedKeyValueCategory:
   return found;
 }
 
+std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId block_id, const VersionedOutput &out) {
+  std::vector<std::string> stale_keys_;
+  for (const auto &[key, flags] : out.keys) {
+    const auto latest = getLatestVersion(key);
+    ConcordAssert(latest.has_value());
+    ConcordAssertEQ(latest->deleted, flags.deleted);
+
+    // Note: Deleted keys cannot be marked as stale on update.
+    if (flags.stale_on_update || flags.deleted || latest->version > block_id) {
+      stale_keys_.push_back(key);
+    }
+  }
+  return stale_keys_;
+}
+
 void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
                                                    const VersionedOutput &out,
                                                    storage::rocksdb::NativeWriteBatch &batch) {

@@ -48,6 +48,7 @@ class ImmutableKeyValueCategory {
   // Adding keys that already exist in this category is undefined behavior.
   ImmutableOutput add(BlockId, ImmutableInput &&, storage::rocksdb::NativeWriteBatch &);
 
+  std::vector<std::string> getBlockStaleKeys(BlockId, const ImmutableOutput &);
   // Delete the genesis block. Implemented by directly calling deleteBlock().
   void deleteGenesisBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
 
