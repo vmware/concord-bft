@@ -254,7 +254,8 @@ void removeMerkleNodes(NativeWriteBatch& batch, BlockId block_id, uint64_t tree_
 std::vector<KeyHash> deleteInactiveKeys(BlockId block_id,
                                         std::vector<Hash>&& hashed_keys,
                                         const std::vector<std::optional<TaggedVersion>>& latest_versions,
-                                        NativeWriteBatch& batch) {
+                                        NativeWriteBatch& batch,
+                                        size_t& deletes_counter) {
   std::vector<KeyHash> active_keys;
   for (auto i = 0u; i < hashed_keys.size(); i++) {
     auto& tagged_version = latest_versions[i];
@@ -268,6 +269,7 @@ std::vector<KeyHash> deleteInactiveKeys(BlockId block_id,
         auto versioned_key = serialize(VersionedKey{KeyHash{hashed_key}, block_id});
         batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
         batch.del(BLOCK_MERKLE_LATEST_KEY_VERSION_CF, hashed_key);
+        deletes_counter++;
       } else {
         active_keys.push_back(KeyHash{hashed_key});
       }
@@ -276,6 +278,7 @@ std::vector<KeyHash> deleteInactiveKeys(BlockId block_id,
       // The key has been overwritten. Delete it.
       auto versioned_key = serialize(VersionedKey{KeyHash{hashed_key}, block_id});
       batch.del(BLOCK_MERKLE_KEYS_CF, versioned_key);
+      deletes_counter++;
     }
   }
   return active_keys;
@@ -570,11 +573,17 @@ std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id
   return stale_keys;
 }
 
-void BlockMerkleCategory::deleteGenesisBlock(BlockId block_id, const BlockMerkleOutput& out, NativeWriteBatch& batch) {
+size_t BlockMerkleCategory::deleteGenesisBlock(BlockId block_id,
+                                               const BlockMerkleOutput& out,
+                                               NativeWriteBatch& batch) {
   auto [hashed_keys, latest_versions] = getLatestVersions(out);
   auto overwritten_active_keys_from_pruned_blocks = findActiveKeysFromPrunedBlocks(hashed_keys);
+  size_t num_of_deletes = 0;
+  for (auto& kv : overwritten_active_keys_from_pruned_blocks) {
+    num_of_deletes += kv.second.size();
+  }
   auto [block_adds, block_removes] = rewriteAlreadyPrunedBlocks(overwritten_active_keys_from_pruned_blocks, batch);
-  auto active_keys = deleteInactiveKeys(block_id, std::move(hashed_keys), latest_versions, batch);
+  auto active_keys = deleteInactiveKeys(block_id, std::move(hashed_keys), latest_versions, batch, num_of_deletes);
   if (active_keys.empty()) {
     block_removes.push_back(merkleKey(block_id));
   } else {
@@ -584,6 +593,7 @@ void BlockMerkleCategory::deleteGenesisBlock(BlockId block_id, const BlockMerkle
   auto update_batch = tree_.update(block_adds, block_removes);
   putMerkleNodes(batch, std::move(update_batch));
   deleteStaleData(out.state_root_version, batch);
+  return num_of_deletes;
 }
 
 void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_id,

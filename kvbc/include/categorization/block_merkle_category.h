@@ -73,7 +73,7 @@ class BlockMerkleCategory {
   std::vector<std::string> getBlockStaleKeys(BlockId, const BlockMerkleOutput&) const;
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
-  void deleteGenesisBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
+  std::size_t deleteGenesisBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
 
   // Delete the given block ID as a last reachable one.
   // Precondition: The given block ID must be the last reachable one.

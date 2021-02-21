@@ -490,26 +490,27 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const ImmutableOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  immutable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
-  std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
-      .deleteGenesisBlock(block_id, updates_info, batch);
+  auto num_of_deletes = std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
+                            .deleteGenesisBlock(block_id, updates_info, batch);
+  immutable_num_of_deleted_keys_.Get().Inc(num_of_deletes);
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const VersionedOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  versioned_num_of_deletes_keys_.Get().Inc(updates_info.keys.size());
-  std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
-      .deleteGenesisBlock(block_id, updates_info, batch);
+  auto num_of_deletes = std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
+                            .deleteGenesisBlock(block_id, updates_info, batch);
+  versioned_num_of_deletes_keys_.Get().Inc(num_of_deletes);
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             const std::string& category_id,
                                             const BlockMerkleOutput& updates_info,
                                             storage::rocksdb::NativeWriteBatch& batch) {
-  merkle_num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
-  std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).deleteGenesisBlock(block_id, updates_info, batch);
+  auto num_of_deletes = std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
+                            .deleteGenesisBlock(block_id, updates_info, batch);
+  merkle_num_of_deleted_keys_.Get().Inc(num_of_deletes);
 }
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
