@@ -470,21 +470,21 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
                                                           const ImmutableOutput& updates_info) {
-  return std::get<detail::ImmutableKeyValueCategory>(getCategory(category_id))
+  return std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
       .getBlockStaleKeys(block_id, updates_info);
 }
 
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
                                                           const VersionedOutput& updates_info) {
-  return std::get<detail::VersionedKeyValueCategory>(getCategory(category_id))
+  return std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
       .getBlockStaleKeys(block_id, updates_info);
 }
 
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
                                                           const BlockMerkleOutput& updates_info) {
-  return std::get<detail::BlockMerkleCategory>(getCategory(category_id)).getBlockStaleKeys(block_id, updates_info);
+  return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getBlockStaleKeys(block_id, updates_info);
 }
 
 // Deletes per category
