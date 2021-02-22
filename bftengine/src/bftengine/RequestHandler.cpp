@@ -1,13 +1,29 @@
-#include <RequestHandler.h>
-#include <KeyManager.h>
+// Concord
+//
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0 License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
+#include "RequestHandler.h"
+#include "KeyManager.h"
+
 #include <sstream>
+
+using concord::messages::ReconfigurationRequest;
+using concord::messages::ReconfigurationResponse;
 
 namespace bftEngine {
 
-void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue &requests,
-                             const std::string &batchCid,
-                             concordUtils::SpanWrapper &parent_span) {
-  for (auto &req : requests) {
+void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
+                             const std::string& batchCid,
+                             concordUtils::SpanWrapper& parent_span) {
+  for (auto& req : requests) {
     if (req.flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
@@ -23,17 +39,26 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue &requests,
     } else if (req.flags & READ_ONLY_FLAG) {
       // Backward compatible with read only flag prior BC-5126
       req.flags = READ_ONLY_FLAG;
+    } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
+      ReconfigurationRequest rreq;
+      deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
+      ReconfigurationResponse rres = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum);
+      // Serialize response
+      std::vector<uint8_t> serialized_response;
+      concord::messages::serialize(serialized_response, rres);
+      if (serialized_response.size() <= req.maxReplySize) {
+        std::copy(serialized_response.begin(), serialized_response.end(), req.outReply);
+        req.outActualReplySize = serialized_response.size();
+      } else {
+        std::string error("Reconfiguration response is too large");
+        LOG_ERROR(GL, error);
+        std::copy(error.cbegin(), error.cend(), std::back_inserter(rres.additional_data));
+        req.outActualReplySize = 0;
+      }
+      req.outExecutionStatus = 0;  // stop further processing of this request
     }
   }
   return userRequestsHandler_->execute(requests, batchCid, parent_span);
-}
-
-void RequestHandler::onFinishExecutingReadWriteRequests() {
-  userRequestsHandler_->onFinishExecutingReadWriteRequests();
-}
-
-std::shared_ptr<ControlHandlers> RequestHandler::getControlHandlers() {
-  return userRequestsHandler_->getControlHandlers();
 }
 
 }  // namespace bftEngine
