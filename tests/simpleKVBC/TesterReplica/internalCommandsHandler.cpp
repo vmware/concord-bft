@@ -403,7 +403,8 @@ bool InternalCommandsHandler::executeHaveYouStoppedReadCommand(uint32_t requestS
   }
   auto *reply = (SimpleReply_HaveYouStopped *)(outReply);
   reply->header.type = WEDGE;
-  reply->stopped = controlHandlers_->haveYouStopped(readReq->n_of_n_stop);
+  reply->stopped = readReq->n_of_n_stop == 1 ? IControlHandler::instance()->isOnNOutOfNCheckpoint()
+                                             : IControlHandler::instance()->isOnStableCheckpoint();
   LOG_INFO(m_logger, "HaveYouStopped message handled");
   return true;
 }
