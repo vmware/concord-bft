@@ -435,7 +435,7 @@ TEST_F(DbEditorTests, get_block_key_values) {
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
-TEST_F(DbEditorTests, get_latest_category_updates_merkle) {
+TEST_F(DbEditorTests, get_earliest_category_updates_merkle) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(
                 CommandLineArguments{
@@ -451,7 +451,7 @@ TEST_F(DbEditorTests, get_latest_category_updates_merkle) {
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
-TEST_F(DbEditorTests, get_latest_category_updates_immutable) {
+TEST_F(DbEditorTests, get_earliest_category_updates_immutable) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(
                 CommandLineArguments{
@@ -461,11 +461,12 @@ TEST_F(DbEditorTests, get_latest_category_updates_immutable) {
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), StartsWith("{\n  \"blockID\":"));
   ASSERT_THAT(out_.str(), HasSubstr("\"category\": \"" + kCategoryImmutable + "\""));
+  // Assert that we have the immutable_key1 and its value in the blockchain
   ASSERT_THAT(out_.str(), HasSubstr("\"0x696d6d757461626c655f6b657931\": \"0x696d6d757461626c655f76616c31\""));
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
-TEST_F(DbEditorTests, get_latest_category_updates_versioned) {
+TEST_F(DbEditorTests, get_earliest_category_updates_versioned) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(
                 CommandLineArguments{

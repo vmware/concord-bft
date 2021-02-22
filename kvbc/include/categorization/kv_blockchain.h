@@ -102,7 +102,9 @@ class KeyValueBlockchain {
   // Get the updates that were used to create `block_id`.
   std::optional<Updates> getBlockUpdates(BlockId block_id) const;
 
-  std::unordered_map<std::string, std::vector<std::string>> getBlockStaleKeys(BlockId block_id);
+  // Get a map of category_id and stale keys for `block_id`
+  std::map<std::string, std::vector<std::string>> getBlockStaleKeys(BlockId block_id);
+
   // Get a map from category ID -> type for all known categories in the blockchain.
   const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return category_types_; }
 

@@ -305,8 +305,10 @@ struct GetEarliestCategoryUpdates {
   const bool read_only = true;
   std::string description() const {
     return "getEarliestCategoryUpdates CATEGORY-ID [BLOCK-VERSION-TO]\n"
-           "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
-           "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
+           "  Returns the first blockID and a category updates that contains the given category in the "
+           "[genesisBlockID, BLOCK-VERSION-TO] range.\n"
+           "If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
+           "Note that this method performs linear search which may take time on gig blockchains";
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -339,7 +341,7 @@ struct GetEarliestCategoryUpdates {
   }
 };
 
-inline std::string getStaleKeysStr(std::vector<std::string> stale_keys) {
+inline std::string getStaleKeysStr(const std::vector<std::string> &stale_keys) {
   if (stale_keys.empty()) return std::string();
   std::string strKeys;
   strKeys += "[";
@@ -355,8 +357,10 @@ struct GetCategoryEarliestStale {
   const bool read_only = true;
   std::string description() const {
     return "getCategoryEarliestStale CATEGORY-ID [BLOCK-VERSION-TO]\n"
-           "  Returns the latest blockID that contains the given category, started from BLOCK-VERSION-TO. If "
-           "BLOCK-VERSION-TO is not set, we start from the lastReachableBlock.";
+           "  Returns the first blockID and a list of stale keys for this blockID a given category has in the "
+           "[genesisBlockID, BLOCK-VERSION-TO] range.\n"
+           "If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
+           "Note that this method performs linear search which may take time on gig blockchains";
   }
 
   std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -369,7 +373,7 @@ struct GetCategoryEarliestStale {
     }
     auto cat = args.values.front();
     BlockId relevantBlockId = adapter.getGenesisBlockId();
-    std::unordered_map<std::string, std::vector<std::string>> stale_keys;
+    std::map<std::string, std::vector<std::string>> stale_keys;
     std::string keys_as_string;
     for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
       stale_keys = adapter.getBlockStaleKeys(block);

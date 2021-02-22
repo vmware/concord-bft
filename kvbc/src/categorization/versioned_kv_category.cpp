@@ -176,6 +176,7 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
     const auto latest = getLatestVersion(key);
     ConcordAssert(latest.has_value());
     ConcordAssertEQ(latest->deleted, flags.deleted);
+    ConcordAssertLE(block_id, latest->version);
 
     // Note: Deleted keys cannot be marked as stale on update.
     if (flags.stale_on_update || flags.deleted || latest->version > block_id) {

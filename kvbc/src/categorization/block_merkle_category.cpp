@@ -552,12 +552,12 @@ std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id
 
     if (block_id == tagged_version->version) {
       if (tagged_version->deleted) {
-        // The latest version is a tombstone. We can delete the key and version.
+        // The latest version is a tombstone.
         hash_stale_keys.push_back(hashed_key);
       }
     } else {
       // block_id < tagged_version->version
-      // The key has been overwritten. Delete it.
+      // The key has been overwritten.
       hash_stale_keys.push_back(hashed_key);
     }
   }

@@ -320,7 +320,7 @@ std::optional<Updates> KeyValueBlockchain::getBlockUpdates(BlockId block_id) con
   return Updates{std::move(raw->data.updates)};
 }
 
-std::unordered_map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStaleKeys(BlockId block_id) {
+std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStaleKeys(BlockId block_id) {
   // Get block node from storage
   auto block = block_chain_.getBlock(block_id);
   if (!block) {
@@ -328,9 +328,7 @@ std::unordered_map<std::string, std::vector<std::string>> KeyValueBlockchain::ge
     throw std::runtime_error{msg};
   }
 
-  std::unordered_map<std::string, std::vector<std::string>> stale_keys;
-  // Iterate over groups and call corresponding deleteGenesisBlock,
-  // Each group is responsible to put its deletes into the batch
+  std::map<std::string, std::vector<std::string>> stale_keys;
   for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
     stale_keys[category_id] =
         std::visit([&block_id, category_id = category_id, this](
