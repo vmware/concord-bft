@@ -308,7 +308,7 @@ struct GetEarliestCategoryUpdates {
            "  Returns the first blockID and a category updates that contains the given category in the "
            "[genesisBlockID, BLOCK-VERSION-TO] range.\n"
            "If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
-           "Note that this method performs linear search which may take time on gig blockchains";
+           "Note that this method performs linear search which may take time on big blockchains";
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -360,7 +360,7 @@ struct GetCategoryEarliestStale {
            "  Returns the first blockID and a list of stale keys for this blockID a given category has in the "
            "[genesisBlockID, BLOCK-VERSION-TO] range.\n"
            "If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
-           "Note that this method performs linear search which may take time on gig blockchains";
+           "Note that this method performs linear search which may take time on big blockchains";
   }
 
   std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
