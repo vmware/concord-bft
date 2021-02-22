@@ -170,7 +170,8 @@ std::unordered_map<BlockId, std::vector<std::string>> VersionedKeyValueCategory:
   return found;
 }
 
-std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId block_id, const VersionedOutput &out) {
+std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId block_id,
+                                                                      const VersionedOutput &out) const {
   std::vector<std::string> stale_keys_;
   for (const auto &[key, flags] : out.keys) {
     const auto latest = getLatestVersion(key);

@@ -320,7 +320,7 @@ std::optional<Updates> KeyValueBlockchain::getBlockUpdates(BlockId block_id) con
   return Updates{std::move(raw->data.updates)};
 }
 
-std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStaleKeys(BlockId block_id) {
+std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStaleKeys(BlockId block_id) const {
   // Get block node from storage
   auto block = block_chain_.getBlock(block_id);
   if (!block) {
@@ -467,21 +467,21 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
 
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
-                                                          const ImmutableOutput& updates_info) {
+                                                          const ImmutableOutput& updates_info) const {
   return std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
       .getBlockStaleKeys(block_id, updates_info);
 }
 
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
-                                                          const VersionedOutput& updates_info) {
+                                                          const VersionedOutput& updates_info) const {
   return std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
       .getBlockStaleKeys(block_id, updates_info);
 }
 
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
-                                                          const BlockMerkleOutput& updates_info) {
+                                                          const BlockMerkleOutput& updates_info) const {
   return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getBlockStaleKeys(block_id, updates_info);
 }
 

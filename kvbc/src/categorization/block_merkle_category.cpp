@@ -541,7 +541,7 @@ std::pair<SetOfKeyValuePairs, KeysVector> BlockMerkleCategory::rewriteAlreadyPru
   return std::make_pair(merkle_blocks_to_rewrite, merkle_blocks_to_delete);
 }
 
-std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) {
+std::vector<std::string> BlockMerkleCategory::getBlockStaleKeys(BlockId block_id, const BlockMerkleOutput& out) const {
   std::vector<Hash> hash_stale_keys;
   auto [hashed_keys, latest_versions] = getLatestVersions(out);
   for (auto i = 0u; i < hashed_keys.size(); i++) {
@@ -622,7 +622,7 @@ void BlockMerkleCategory::deleteLastReachableBlock(BlockId block_id,
 }
 
 std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> BlockMerkleCategory::getLatestVersions(
-    const BlockMerkleOutput& out) {
+    const BlockMerkleOutput& out) const {
   std::vector<Hash> hashed_keys;
   hashed_keys.reserve(out.keys.size());
   for (auto& [key, _] : out.keys) {

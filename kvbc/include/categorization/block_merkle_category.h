@@ -70,7 +70,7 @@ class BlockMerkleCategory {
                              std::vector<std::optional<TaggedVersion>>& versions) const;
   void multiGetLatestVersion(const std::vector<Hash>& keys, std::vector<std::optional<TaggedVersion>>& versions) const;
 
-  std::vector<std::string> getBlockStaleKeys(BlockId, const BlockMerkleOutput&);
+  std::vector<std::string> getBlockStaleKeys(BlockId, const BlockMerkleOutput&) const;
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
   void deleteGenesisBlock(BlockId, const BlockMerkleOutput&, storage::rocksdb::NativeWriteBatch&);
@@ -174,7 +174,7 @@ class BlockMerkleCategory {
 
   // Retrieve the latest versions for all raw keys in a block and return them along with the hashed keys.
   std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> getLatestVersions(
-      const BlockMerkleOutput& out);
+      const BlockMerkleOutput& out) const;
 
   // Return a map from block id to all hashed keys that were still active in previously pruned blocks.
   //
