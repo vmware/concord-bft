@@ -29,8 +29,9 @@
 
 #include "categorization/base_types.h"
 #include "categorization/column_families.h"
+#include "categorization/updates.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
-#include "categorization/block_merkle_category.h"
+#include "categorization/kv_blockchain.h"
 #include "performance_handler.h"
 #include "rocksdb/native_client.h"
 #include "diagnostics.h"
@@ -52,10 +53,12 @@ using categorization::TaggedVersion;
 // threaad and atomically swapping when needed by block addition. For now we keep it simple.
 static constexpr size_t MAX_MEMORY_SIZE_FOR_KV_DEFAULT = 1024 * 1024 * 1024;  // 1GB
 
-po::variables_map parseArgs(int argc, char** argv) {
+std::pair<po::options_description, po::variables_map> parseArgs(int argc, char** argv) {
   auto desc = po::options_description("Allowed options");
   // clang-format off
   desc.add_options()
+    ("help", "show usage")
+
     ("rocksdb-path",
      po::value<std::string>()->default_value("./rocksdbdata"s),
      "The location of the rocksdb data directory")
@@ -81,7 +84,7 @@ po::variables_map parseArgs(int argc, char** argv) {
      "Size of a block merkle key in bytes")
 
     ("block-merkle-value-size",
-    po::value<size_t>()->default_value(1024),
+    po::value<size_t>()->default_value(700),
     "Size of a block merkle value in bytes")
 
     ("max-total-block-merkle-read-keys",
@@ -108,7 +111,7 @@ po::variables_map parseArgs(int argc, char** argv) {
 
   auto config = po::variables_map{};
   po::store(po::parse_command_line(argc, argv, desc), config);
-  return config;
+  return std::make_pair(desc, config);
 }
 
 void printHistograms() {
@@ -155,7 +158,7 @@ PreExecConfig preExecConfig(const po::variables_map& config, const ReadKeys& blo
 
 void addBlocks(const po::variables_map& config,
                std::shared_ptr<storage::rocksdb::NativeClient>& db,
-               categorization::detail::BlockMerkleCategory& cat,
+               categorization::KeyValueBlockchain& kvbc,
                std::vector<BlockMerkleInput>& input,
                std::vector<string>& read_keys,
                std::shared_ptr<diagnostics::Recorder>& add_block_recorder,
@@ -179,22 +182,23 @@ void addBlocks(const po::variables_map& config,
       diagnostics::TimeRecorder<> guard(*conflict_detection_recorder);
       // Simulate a conflict detection check
       auto versions = std::vector<std::optional<TaggedVersion>>{};
-      cat.multiGetLatestVersion(conflict_keys, versions);
+      kvbc.multiGetLatestVersion(kCategoryMerkle, conflict_keys, versions);
     }
 
     {
       diagnostics::TimeRecorder<> guard(*add_block_recorder);
-      auto batch = db->getBatch();
+      auto updates = categorization::Updates{};
 
       // Unfortunately we must copy if total_blocks > number of input blocks generated.
       if (total_blocks > input_blocks) {
         auto block = input[(i - 1) % input_blocks];
-        cat.add(i, std::move(block), batch);
+        updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(block)));
+        kvbc.addBlock(std::move(updates));
       } else {
         auto&& block = std::move(input[i - 1]);
-        cat.add(i, std::move(block), batch);
+        updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(block)));
+        kvbc.addBlock(std::move(updates));
       }
-      db->write(std::move(batch));
     }
   }
 }
@@ -209,13 +213,17 @@ int main(int argc, char** argv) {
   DEFINE_SHARED_RECORDER(add_block_recorder, 1, 500000, 3, diagnostics::Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(conflict_detection_recorder, 1, 100000, 3, diagnostics::Unit::MICROSECONDS);
   registrar.perf.registerComponent("bench", {add_block_recorder, conflict_detection_recorder});
-
-  // Start the diagnostics server
   concord::diagnostics::Server diagnostics_server;
-  diagnostics_server.start(registrar, INADDR_ANY, 6888);
 
   try {
-    auto config = parseArgs(argc, argv);
+    auto [desc, config] = parseArgs(argc, argv);
+
+    if (config.count("help")) {
+      cout << desc << endl;
+      return 1;
+    }
+
+    diagnostics_server.start(registrar, INADDR_ANY, 6888);
 
     cout << "Starting Input Data Generation..." << endl;
     auto start = std::chrono::steady_clock::now();
@@ -230,17 +238,23 @@ int main(int argc, char** argv) {
     };
     auto opts = storage::rocksdb::NativeClient::UserOptions{"kvbcbench_rocksdb_opts.ini", completeInit};
     auto db = storage::rocksdb::NativeClient::newClient(config["rocksdb-path"].as<std::string>(), false, opts);
-    auto cat = kvbc::categorization::detail::BlockMerkleCategory{db};
+    auto kvbc = kvbc::categorization::KeyValueBlockchain(
+        db,
+        false,
+        std::map<std::string, kvbc::categorization::CATEGORY_TYPE>{
+            {kCategoryMerkle, kvbc::categorization::CATEGORY_TYPE::block_merkle},
+            {kCategoryImmutable, kvbc::categorization::CATEGORY_TYPE::immutable},
+            {kCategoryVersioned, kvbc::categorization::CATEGORY_TYPE::versioned_kv}});
 
     auto pre_exec_config = preExecConfig(config, input.block_merkle_read_keys);
-    auto pre_exec_sim = PreExecutionSimulator(pre_exec_config, input.block_merkle_read_keys, cat);
+    auto pre_exec_sim = PreExecutionSimulator(pre_exec_config, input.block_merkle_read_keys, kvbc);
     pre_exec_sim.start();
 
     cout << "Starting to Add Blocks..." << endl;
     start = std::chrono::steady_clock::now();
     addBlocks(config,
               db,
-              cat,
+              kvbc,
               input.block_merkle_input,
               input.block_merkle_read_keys,
               add_block_recorder,
@@ -255,12 +269,12 @@ int main(int argc, char** argv) {
 
     cout << "Avg. Throughput = " << config["total-blocks"].as<size_t>() / (add_block_duration / 1000.0) << " blocks/s"
          << endl;
-
   } catch (exception& e) {
     diagnostics_server.stop();
-    cerr << e.what() << "\n";
+    cerr << e.what() << endl;
     return -1;
   }
+
   diagnostics_server.stop();
   return 0;
 }

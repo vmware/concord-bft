@@ -13,10 +13,18 @@
 
 #pragma once
 
+#include <future>
+#include <iostream>
+#include <random>
+#include <thread>
 #include <vector>
 #include <boost/program_options/variables_map.hpp>
 
 #include "categorized_kvbc_msgs.cmf.hpp"
+
+const std::string kCategoryMerkle = "block_merkle";
+const std::string kCategoryVersioned = "ver_test";
+const std::string kCategoryImmutable = "imm_test";
 
 namespace concord::kvbc::bench {
 
@@ -29,7 +37,7 @@ struct InputData {
   ReadKeys block_merkle_read_keys;
 };
 
-InputData createBlockInput(const po::variables_map& config) {
+inline InputData createBlockInput(const po::variables_map& config) {
   auto total_blocks = config["total-blocks"].as<size_t>();
   auto key_size = config["block-merkle-key-size"].as<size_t>();
   auto value_size = config["block-merkle-value-size"].as<size_t>();
