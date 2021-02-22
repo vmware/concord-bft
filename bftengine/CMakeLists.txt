@@ -94,7 +94,6 @@ target_include_directories(corebft PUBLIC include/simplestatetransfer)
 target_include_directories(corebft PUBLIC include/metadatastorage)
 target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
-target_include_directories(corebft PRIVATE util/include)
 target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(corebft PUBLIC ${perf_include}/performance/include)
 target_link_libraries(corebft PUBLIC
@@ -104,7 +103,8 @@ target_link_libraries(corebft PUBLIC
   concordbft_storage
   preprocessor
   bftcommunication
-  diagnostics)
+  diagnostics
+  concordbft_reconfiguration)
 
 
 target_include_directories(bftclient PUBLIC include/bftengine)
