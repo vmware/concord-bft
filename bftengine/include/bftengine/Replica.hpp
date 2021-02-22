@@ -23,22 +23,26 @@
 #include "MetadataStorage.hpp"
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
-#include "ControlStateManager.hpp"
-#include "../../../performance/include/PerformanceManager.hpp"
+#include "PerformanceManager.hpp"
+
+namespace concord::reconfiguration {
+class IReconfigurationHandler;
+class IPruningHandler;
+}  // namespace concord::reconfiguration
 
 namespace bftEngine {
-
 // Possible values for 'flags' parameter
 enum MsgFlag : uint8_t {
   EMPTY_FLAGS = 0x0,
   READ_ONLY_FLAG = 0x1,
   PRE_PROCESS_FLAG = 0x2,
   HAS_PRE_PROCESSED_FLAG = 0x4,
-  KEY_EXCHANGE_FLAG = 0x8,
-  EMPTY_CLIENT_FLAG = 0x10
+  KEY_EXCHANGE_FLAG = 0x8,  // TODO [TK] use reconfig_flag
+  EMPTY_CLIENT_FLAG = 0x10,
+  RECONFIG_FLAG = 0x20
 };
 
-// The ControlHandlers is a group of method that enables the userRequestHandler to perform infrastructure
+// The IControlHandler is a group of methods that enables the userRequestHandler to perform infrastructure
 // changes in the system.
 // For example, assuming we want to upgrade the system to new software version, then:
 // 1. We need to bring the system to a stable state (bft responsibility)
@@ -50,12 +54,19 @@ enum MsgFlag : uint8_t {
 // 2. Key exchange
 // 3. Change DB scheme
 // and basically any management action that is handled by the layer that uses concord-bft.
-class ControlHandlers {
+class IControlHandler {
  public:
+  static const std::shared_ptr<IControlHandler> instance(IControlHandler *ch = nullptr) {
+    static const std::shared_ptr<IControlHandler> ch_(ch);
+    return ch_;
+  }
   virtual void onSuperStableCheckpoint() = 0;
   virtual void onStableCheckpoint() = 0;
   virtual bool onPruningProcess() = 0;
-  virtual ~ControlHandlers() {}
+  virtual bool isOnNOutOfNCheckpoint() const = 0;
+  virtual bool isOnStableCheckpoint() const = 0;
+  virtual void setOnPruningProcess(bool inProcess) = 0;
+  virtual ~IControlHandler() = default;
 };
 
 class IRequestsHandler {
@@ -63,7 +74,7 @@ class IRequestsHandler {
   struct ExecutionRequest {
     uint16_t clientId = 0;
     uint64_t executionSequenceNum = 0;
-    uint8_t flags = 0;
+    uint8_t flags = 0;  // copy of ClientRequestMsg flags
     uint32_t requestSize = 0;
     const char *request;
     uint32_t maxReplySize = 0;
@@ -81,9 +92,20 @@ class IRequestsHandler {
                        concordUtils::SpanWrapper &parent_span) = 0;
 
   virtual void onFinishExecutingReadWriteRequests() {}
-  virtual ~IRequestsHandler() {}
 
-  virtual std::shared_ptr<ControlHandlers> getControlHandlers() = 0;
+  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {
+    return reconfig_handler_;
+  }
+  void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) {
+    reconfig_handler_ = rh;
+  }
+  std::shared_ptr<concord::reconfiguration::IPruningHandler> getPruningHandler() const { return pruning_handler_; }
+  void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) { pruning_handler_ = ph; }
+  virtual ~IRequestsHandler() = default;
+
+ protected:
+  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> reconfig_handler_;
+  std::shared_ptr<concord::reconfiguration::IPruningHandler> pruning_handler_;
 };
 
 class IReplica {
