@@ -25,6 +25,9 @@
 #include <chrono>
 #include <thread>
 
+static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
+static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
+
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::kvbc::IReader *storage,
