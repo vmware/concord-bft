@@ -118,6 +118,14 @@ ImmutableOutput ImmutableKeyValueCategory::add(BlockId block_id,
   }
   return update_info;
 }
+std::vector<std::string> ImmutableKeyValueCategory::getBlockStaleKeys(BlockId,
+                                                                      const ImmutableOutput &updates_info) const {
+  std::vector<std::string> stale_keys;
+  for (auto &kv : updates_info.tagged_keys) {
+    stale_keys.push_back(kv.first);
+  }
+  return stale_keys;
+}
 
 void ImmutableKeyValueCategory::deleteGenesisBlock(BlockId,
                                                    const ImmutableOutput &updates_info,
@@ -282,5 +290,4 @@ std::optional<KeyValueProof> ImmutableKeyValueCategory::getProof(const std::stri
 
   return proof;
 }
-
 }  // namespace concord::kvbc::categorization::detail

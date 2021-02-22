@@ -64,6 +64,18 @@ class KeyValueBlockchain {
   std::optional<Hash> parentDigest(BlockId block_id) const;
   bool hasBlock(BlockId block_id) const;
 
+  std::vector<std::string> getStaleKeys(BlockId block_id,
+                                        const std::string& category_id,
+                                        const ImmutableOutput& updates_info) const;
+
+  std::vector<std::string> getStaleKeys(BlockId block_id,
+                                        const std::string& category_id,
+                                        const VersionedOutput& updates_info) const;
+
+  std::vector<std::string> getStaleKeys(BlockId block_id,
+                                        const std::string& category_id,
+                                        const BlockMerkleOutput& updates_info) const;
+
   /////////////////////// Read interface ///////////////////////
 
   // Gets the value of a key by the exact blockVersion.
@@ -89,6 +101,9 @@ class KeyValueBlockchain {
 
   // Get the updates that were used to create `block_id`.
   std::optional<Updates> getBlockUpdates(BlockId block_id) const;
+
+  // Get a map of category_id and stale keys for `block_id`
+  std::map<std::string, std::vector<std::string>> getBlockStaleKeys(BlockId block_id) const;
 
   // Get a map from category ID -> type for all known categories in the blockchain.
   const std::map<std::string, CATEGORY_TYPE>& blockchainCategories() const { return category_types_; }

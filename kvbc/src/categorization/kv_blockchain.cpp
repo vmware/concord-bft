@@ -320,6 +320,24 @@ std::optional<Updates> KeyValueBlockchain::getBlockUpdates(BlockId block_id) con
   return Updates{std::move(raw->data.updates)};
 }
 
+std::map<std::string, std::vector<std::string>> KeyValueBlockchain::getBlockStaleKeys(BlockId block_id) const {
+  // Get block node from storage
+  auto block = block_chain_.getBlock(block_id);
+  if (!block) {
+    const auto msg = "Failed to get block node for block ID = " + std::to_string(block_id);
+    throw std::runtime_error{msg};
+  }
+
+  std::map<std::string, std::vector<std::string>> stale_keys;
+  for (auto&& [category_id, update_info] : block.value().data.categories_updates_info) {
+    stale_keys[category_id] =
+        std::visit([&block_id, category_id = category_id, this](
+                       const auto& update_info) { return getStaleKeys(block_id, category_id, update_info); },
+                   update_info);
+  }
+  return stale_keys;
+}
+
 /////////////////////// Delete block ///////////////////////
 bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
   // Deleting blocks that don't exist is not an error.
@@ -445,6 +463,26 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
     // Decrement the last reachable block ID cache.
     block_chain_.setLastReachableBlockId(last_id - 1);
   }
+}
+
+std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
+                                                          const std::string& category_id,
+                                                          const ImmutableOutput& updates_info) const {
+  return std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
+      .getBlockStaleKeys(block_id, updates_info);
+}
+
+std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
+                                                          const std::string& category_id,
+                                                          const VersionedOutput& updates_info) const {
+  return std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
+      .getBlockStaleKeys(block_id, updates_info);
+}
+
+std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
+                                                          const std::string& category_id,
+                                                          const BlockMerkleOutput& updates_info) const {
+  return std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id)).getBlockStaleKeys(block_id, updates_info);
 }
 
 // Deletes per category

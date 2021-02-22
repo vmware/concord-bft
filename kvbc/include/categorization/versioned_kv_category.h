@@ -46,6 +46,7 @@ class VersionedKeyValueCategory {
 
   VersionedOutput add(BlockId, VersionedInput &&, storage::rocksdb::NativeWriteBatch &);
 
+  std::vector<std::string> getBlockStaleKeys(BlockId, const VersionedOutput &) const;
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
   void deleteGenesisBlock(BlockId, const VersionedOutput &, storage::rocksdb::NativeWriteBatch &);
