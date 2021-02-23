@@ -43,6 +43,7 @@
 #include "messages/InternalMessage.hpp"
 #include "KeyManager.h"
 #include "CryptoManager.hpp"
+#include "ControlHandler.hpp"
 
 #include <string>
 #include <type_traits>
@@ -2677,12 +2678,11 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
-    if (getRequestsHandler()->getControlHandlers()) {
-      metric_on_call_back_of_super_stable_cp_.Get().Set(1);
-      // TODO: With state transfered replica, this maight be called twice. Consider to clean the reserved page at the
-      // end of this method
-      getRequestsHandler()->getControlHandlers()->onSuperStableCheckpoint();
-    }
+
+    metric_on_call_back_of_super_stable_cp_.Get().Set(1);
+    // TODO: With state transfered replica, this might be called twice. Consider to clean the reserved page at the
+    // end of this method
+    IControlHandler::instance()->onSuperStableCheckpoint();
     // Now, we know that the inmemory var in controlStateManager_ is set to the correct point.
     // We want that when the replicas resume, they won't have the wedge point in their reserved pages (otherwise they
     // will simply try to wedge again). Yet, as the reserved pages are transferred via ST we can cleat this data only in
@@ -2789,9 +2789,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     LOG_INFO(GL,
              "Informing control state manager that consensus should be stopped (without n/n replicas): " << KVLOG(
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
-    if (getRequestsHandler()->getControlHandlers()) {
-      getRequestsHandler()->getControlHandlers()->onStableCheckpoint();
-    }
+    IControlHandler::instance()->onStableCheckpoint();
     // Mark the metadata storage for deletion if we need to
     auto seq_num_to_remove_metadata_storage = ControlStateManager::instance().getEraseMetadataFlag();
     // We would want to set this flag only when we sure that the replica needs to remove the metadata.
@@ -3615,6 +3613,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   if (currentViewIsActive()) {
     time_in_active_view_.start();
   }
+
+  // Instantiate IControlHandler.
+  // If an application instantiation has already taken a place this will have no effect.
+  IControlHandler::instance(new ControlHandler);
 
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
 }
