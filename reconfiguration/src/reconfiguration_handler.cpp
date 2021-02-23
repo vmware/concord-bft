@@ -29,12 +29,12 @@ bool ReconfigurationHandler::handle(const WedgeStatusRequest& req, WedgeStatusRe
   return true;
 }
 
-bool ReconfigurationHandler::handle(const GetVersionCommand&) { return false; }
+bool ReconfigurationHandler::handle(const GetVersionCommand&) { return true; }
 
 bool ReconfigurationHandler::handle(const DownloadCommand&) { return true; }
 
-bool ReconfigurationHandler::handle(const UpgradeCommand&) { return false; }
+bool ReconfigurationHandler::handle(const UpgradeCommand&) { return true; }
 
-bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest&) const { return false; }
+bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest&) const { return true; }
 
 }  // namespace concord::reconfiguration
