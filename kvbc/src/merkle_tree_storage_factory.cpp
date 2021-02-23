@@ -28,10 +28,11 @@ namespace concord::kvbc::v2MerkleTree {
 #ifdef USE_ROCKSDB
 
 std::shared_ptr<rocksdb::Statistics> completeRocksDBConfiguration(
-    ::rocksdb::Options& db_options, std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs) {
-  static constexpr size_t CACHE_SIZE = 1024 * 1024 * 1024 * 4ul;  // 4 GB
+    ::rocksdb::Options& db_options,
+    std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs,
+    std::size_t rocksdbLruCacheBytes) {
   auto table_options = ::rocksdb::BlockBasedTableOptions{};
-  table_options.block_cache = ::rocksdb::NewLRUCache(CACHE_SIZE);
+  table_options.block_cache = ::rocksdb::NewLRUCache(rocksdbLruCacheBytes);
   table_options.filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
   db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
@@ -52,8 +53,9 @@ RocksDBStorageFactory::RocksDBStorageFactory(const std::string& dbPath,
 
 RocksDBStorageFactory::RocksDBStorageFactory(const std::string& dbPath,
                                              const std::string& dbConfPath,
+                                             std::size_t rocksdbLruCacheBytes,
                                              const std::shared_ptr<concord::performance::PerformanceManager>& pm)
-    : dbPath_{dbPath}, dbConfPath_{dbConfPath}, pm_{pm} {}
+    : dbPath_{dbPath}, dbConfPath_{dbConfPath}, rocksdbLruCacheBytes_{rocksdbLruCacheBytes}, pm_{pm} {}
 
 IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
   auto ret = IStorageFactory::DatabaseSet{};
@@ -61,7 +63,13 @@ IStorageFactory::DatabaseSet RocksDBStorageFactory::newDatabaseSet() const {
     ret.dataDBClient = std::make_shared<storage::rocksdb::Client>(dbPath_);
     ret.dataDBClient->init();
   } else {
-    auto opts = storage::rocksdb::NativeClient::UserOptions{*dbConfPath_, completeRocksDBConfiguration};
+    const auto rocksdbLruCacheBytes = rocksdbLruCacheBytes_;
+    auto opts = storage::rocksdb::NativeClient::UserOptions{
+        *dbConfPath_,
+        [rocksdbLruCacheBytes](::rocksdb::Options& db_options,
+                               std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs) {
+          completeRocksDBConfiguration(db_options, cf_descs, rocksdbLruCacheBytes);
+        }};
     auto db = storage::rocksdb::NativeClient::newClient(dbPath_, false, opts);
     ret.dataDBClient = db->asIDBClient();
   }
