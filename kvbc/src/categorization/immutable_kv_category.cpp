@@ -127,10 +127,11 @@ std::vector<std::string> ImmutableKeyValueCategory::getBlockStaleKeys(BlockId,
   return stale_keys;
 }
 
-void ImmutableKeyValueCategory::deleteGenesisBlock(BlockId,
-                                                   const ImmutableOutput &updates_info,
-                                                   storage::rocksdb::NativeWriteBatch &batch) {
+size_t ImmutableKeyValueCategory::deleteGenesisBlock(BlockId,
+                                                     const ImmutableOutput &updates_info,
+                                                     storage::rocksdb::NativeWriteBatch &batch) {
   deleteBlock(updates_info, batch);
+  return updates_info.tagged_keys.size();
 }
 
 void ImmutableKeyValueCategory::deleteLastReachableBlock(BlockId,

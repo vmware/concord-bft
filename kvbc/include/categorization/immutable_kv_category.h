@@ -51,7 +51,7 @@ class ImmutableKeyValueCategory {
   std::vector<std::string> getBlockStaleKeys(BlockId, const ImmutableOutput &) const;
 
   // Delete the genesis block. Implemented by directly calling deleteBlock().
-  void deleteGenesisBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
+  std::size_t deleteGenesisBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);
 
   // Delete the last reachable block. Implemented by directly calling deleteBlock().
   void deleteLastReachableBlock(BlockId, const ImmutableOutput &, storage::rocksdb::NativeWriteBatch &);

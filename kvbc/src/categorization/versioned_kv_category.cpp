@@ -187,14 +187,16 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
   return stale_keys_;
 }
 
-void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
-                                                   const VersionedOutput &out,
-                                                   storage::rocksdb::NativeWriteBatch &batch) {
+size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
+                                                     const VersionedOutput &out,
+                                                     storage::rocksdb::NativeWriteBatch &batch) {
+  size_t number_of_deletes{0};
   // Delete active keys from previously pruned genesis blocks.
   for (const auto &[block_id, keys] : activeKeysFromPrunedBlocks(out.keys)) {
     for (const auto &key : keys) {
       batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
       batch.del(active_cf_, key);
+      number_of_deletes++;
     }
   }
 
@@ -207,6 +209,7 @@ void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
     if (flags.stale_on_update) {
       // This key is marked stale-on-update and, therefore, we can remove its value at `block_id`.
       batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
+      number_of_deletes++;
       // If there are no new versions of a key that was marked as stale-on-update at `block_id`, remove the latest
       // version too.
       if (latest->version == block_id) {
@@ -217,14 +220,17 @@ void VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
       // version.
       batch.del(latest_ver_cf_, key);
       batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
+      number_of_deletes++;
     } else if (latest->version > block_id) {
       // If this key is stale as of `block_id` (meaning it has a newer version), we can remove its value at `block_id`.
       batch.del(values_cf_, serializeThreadLocal(VersionedRawKey{key, block_id}));
+      number_of_deletes++;
     } else {
       // This key is active. Indicate that in the active column family.
       batch.put(active_cf_, key, serializeThreadLocal(BlockVersion{block_id}));
     }
   }
+  return number_of_deletes;
 }
 
 void VersionedKeyValueCategory::deleteLastReachableBlock(BlockId block_id,
