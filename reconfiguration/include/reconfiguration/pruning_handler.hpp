@@ -23,10 +23,10 @@ namespace concord::reconfiguration {
 class PruningHandler : public IPruningHandler {
  public:
   bool handle(const concord::messages::LatestPrunableBlockRequest&, concord::messages::LatestPrunableBlock&) override {
-    return false;
+    return true;
   }
-  bool handle(const concord::messages::PruneStatusRequest&, concord::messages::PruneStatus&) override { return false; }
-  bool handle(const concord::messages::PruneRequest&, kvbc::BlockId&) override { return false; }
+  bool handle(const concord::messages::PruneStatusRequest&, concord::messages::PruneStatus&) override { return true; }
+  bool handle(const concord::messages::PruneRequest&, kvbc::BlockId&) override { return true; }
 
  protected:
   logging::Logger getLogger() {
