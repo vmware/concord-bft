@@ -13,12 +13,16 @@
 
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "json_output.hpp"
 
 #include <stdexcept>
+
+#define getName(var) #var
 
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
+using concordUtils::toPair;
 
 template <typename T>
 void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
@@ -596,6 +600,18 @@ void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, RawBlock
   native_client_->write(std::move(write_batch));
 
   block_chain_.setAddedBlockId(new_block_id);
+}
+
+std::string KeyValueBlockchain::getPruningStatus() {
+  std::ostringstream oss;
+  std::unordered_map<std::string, std::string> result;
+
+  result.insert(toPair(getName(versioned_num_of_deletes_keys_), versioned_num_of_deletes_keys_.Get().Get()));
+  result.insert(toPair(getName(immutable_num_of_deleted_keys_), immutable_num_of_deleted_keys_.Get().Get()));
+  result.insert(toPair(getName(merkle_num_of_deleted_keys_), merkle_num_of_deleted_keys_.Get().Get()));
+
+  oss << concordUtils::kContainerToJson(result);
+  return oss.str();
 }
 
 }  // namespace concord::kvbc::categorization

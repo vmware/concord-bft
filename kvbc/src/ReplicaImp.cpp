@@ -242,6 +242,11 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   bftEngine::ControlStateManager::instance(m_stateTransfer);
+
+  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  concord::diagnostics::StatusHandler handler(
+      "pruning", "Pruning Status", [this]() { return m_kvBlockchain->getPruningStatus(); });
+  registrar.status.registerHandler(handler);
 }
 
 ReplicaImp::~ReplicaImp() {
