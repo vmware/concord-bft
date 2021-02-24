@@ -158,9 +158,10 @@ BlockId KeyValueBlockchain::addBlock(CategoryInput&& category_updates,
   // Per category updates
   for (auto&& [category_id, update] : category_updates.kv) {
     std::visit(
-        [&new_block, category_id = category_id, &write_batch, this](auto&& update) {
+        [&new_block, category_id = category_id, &write_batch, &last_raw_block, this](auto&& update) {
           auto block_updates =
               handleCategoryUpdates(new_block.id(), category_id, std::forward<decltype(update)>(update), write_batch);
+          addRootHash(category_id, last_raw_block, block_updates);
           new_block.add(category_id, std::move(block_updates));
         },
         std::move(update));

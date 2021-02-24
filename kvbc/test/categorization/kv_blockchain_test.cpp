@@ -809,7 +809,7 @@ TEST_F(categorized_kvbc, compare_raw_blocks) {
   block_chain.addBlock(std::move(up));
 
   KeyValueBlockchain::KeyValueBlockchain_tester tester;
-  auto last_raw = tester.getLastRawBlocked(block_chain);
+  auto last_raw = tester.getLastRawBlock(block_chain);
   ASSERT_EQ(last_raw.first, 1);
   ASSERT_TRUE(last_raw.second.has_value());
   auto raw_from_api = block_chain.getRawBlock(1);
@@ -1838,6 +1838,188 @@ TEST_F(categorized_kvbc, deletes_ordered_on_add_to_updates) {
     } else {
       FAIL();
     }
+  }
+}
+
+// Test root hash calculation and the determinism if the raw block data
+TEST_F(categorized_kvbc, root_hash) {
+  KeyValueBlockchain block_chain{db,
+                                 true,
+                                 std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                                      {"merkle2", CATEGORY_TYPE::block_merkle},
+                                                                      {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                                      {"versioned_2", CATEGORY_TYPE::versioned_kv},
+                                                                      {"immutable", CATEGORY_TYPE::immutable},
+                                                                      {"immutable2", CATEGORY_TYPE::immutable},
+                                                                      {"immutable3", CATEGORY_TYPE::immutable}}};
+  // Add block1
+  std::string prev_digest;
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key1", "ver_val1");
+    ver_updates.addUpdate("ver_key2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    // Do not calculate root hash
+    VersionedUpdates ver_updates2;
+    ver_updates2.calculateRootHash(false);
+    ver_updates2.addUpdate("ver_key_2_1", "ver_val1");
+    ver_updates2.addUpdate("ver_key_2_2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned_2", std::move(ver_updates2));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)1);
+
+    auto rb = block_chain.getRawBlock(1);
+    ASSERT_TRUE(rb.has_value());
+    ASSERT_EQ(rb->data.block_merkle_root_hash.size(), 1);
+    ASSERT_EQ(rb->data.block_merkle_root_hash.count("merkle"), 1);
+    ASSERT_EQ(rb->data.versioned_root_hash.size(), 1);
+    ASSERT_EQ(rb->data.versioned_root_hash.count("versioned"), 1);
+    ASSERT_TRUE(rb->data.immutable_root_hashes.empty());
+    KeyValueBlockchain::KeyValueBlockchain_tester tester;
+    auto cached_rb = tester.getLastRawBlock(block_chain).second;
+    ASSERT_TRUE(cached_rb.has_value());
+    const auto& ser_rb = categorization::detail::serializeThreadLocal(rb->data);
+    std::string str_rb(ser_rb.begin(), ser_rb.end());
+    const auto& ser_cached_rb = categorization::detail::serializeThreadLocal(*cached_rb);
+    std::string str_cached_rb(ser_cached_rb.begin(), ser_cached_rb.end());
+    ASSERT_EQ(std::hash<std::string>{}(str_rb), std::hash<std::string>{}(str_cached_rb));
+    prev_digest = str_cached_rb;
+  }
+
+  // Add block2
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key2_1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key2_2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    VersionedUpdates ver_updates;
+    ver_updates.calculateRootHash(true);
+    ver_updates.addUpdate("ver_key2_1", "ver_val1");
+    ver_updates.addUpdate("ver_key2_2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned", std::move(ver_updates));
+
+    VersionedUpdates ver_updates2;
+    ver_updates2.calculateRootHash(true);
+    ver_updates2.addUpdate("ver_key2_2_1", "ver_val1");
+    ver_updates2.addUpdate("ver_key2_2_2", VersionedUpdates::Value{"ver_val2", true});
+    updates.add("versioned_2", std::move(ver_updates2));
+
+    ImmutableUpdates immutable_updates;
+    immutable_updates.calculateRootHash(true);
+    immutable_updates.addUpdate("immutable_key1", {"immutable_val1", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)2);
+
+    auto rb = block_chain.getRawBlock(2);
+    ASSERT_TRUE(rb.has_value());
+    ASSERT_EQ(rb->data.block_merkle_root_hash.size(), 1);
+    ASSERT_EQ(rb->data.block_merkle_root_hash.count("merkle"), 1);
+    ASSERT_EQ(rb->data.versioned_root_hash.size(), 2);
+    ASSERT_EQ(rb->data.versioned_root_hash.count("versioned_2"), 1);
+
+    ASSERT_EQ(rb->data.immutable_root_hashes.size(), 1);
+    ASSERT_EQ(rb->data.immutable_root_hashes.count("immutable"), 1);
+    const auto& imm_map = rb->data.immutable_root_hashes["immutable"];
+    ASSERT_EQ(imm_map.size(), 2);
+    ASSERT_EQ(imm_map.count("1"), 1);
+    ASSERT_EQ(imm_map.count("2"), 1);
+
+    KeyValueBlockchain::KeyValueBlockchain_tester tester;
+    auto cached_rb = tester.getLastRawBlock(block_chain).second;
+    ASSERT_TRUE(cached_rb.has_value());
+    const auto& ser_rb = categorization::detail::serializeThreadLocal(rb->data);
+    std::string str_rb(ser_rb.begin(), ser_rb.end());
+    const auto& ser_cached_rb = categorization::detail::serializeThreadLocal(*cached_rb);
+    std::string str_cached_rb(ser_cached_rb.begin(), ser_cached_rb.end());
+    ASSERT_EQ(std::hash<std::string>{}(str_rb), std::hash<std::string>{}(str_cached_rb));
+    ASSERT_NE(std::hash<std::string>{}(str_rb), std::hash<std::string>{}(prev_digest));
+  }
+
+  // Add block3
+  {
+    Updates updates;
+    BlockMerkleUpdates merkle_updates;
+    merkle_updates.addUpdate("merkle_key3_1", "merkle_value1");
+    merkle_updates.addUpdate("merkle_key3_2", "merkle_value2");
+    updates.add("merkle", std::move(merkle_updates));
+
+    BlockMerkleUpdates merkle_updates2;
+    merkle_updates2.addUpdate("merkle_key3_2_1", "merkle_value1");
+    merkle_updates2.addUpdate("merkle_key3_2_2", "merkle_value2");
+    updates.add("merkle2", std::move(merkle_updates2));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)3);
+
+    auto rb = block_chain.getRawBlock(3);
+    ASSERT_TRUE(rb.has_value());
+    ASSERT_EQ(rb->data.block_merkle_root_hash.size(), 2);
+    ASSERT_EQ(rb->data.block_merkle_root_hash.count("merkle"), 1);
+    ASSERT_EQ(rb->data.block_merkle_root_hash.count("merkle2"), 1);
+
+    ASSERT_EQ(rb->data.versioned_root_hash.size(), 0);
+    ASSERT_EQ(rb->data.immutable_root_hashes.size(), 0);
+
+    KeyValueBlockchain::KeyValueBlockchain_tester tester;
+    auto cached_rb = tester.getLastRawBlock(block_chain).second;
+    ASSERT_TRUE(cached_rb.has_value());
+    const auto& ser_rb = categorization::detail::serializeThreadLocal(rb->data);
+    std::string str_rb(ser_rb.begin(), ser_rb.end());
+    const auto& ser_cached_rb = categorization::detail::serializeThreadLocal(*cached_rb);
+    std::string str_cached_rb(ser_cached_rb.begin(), ser_cached_rb.end());
+    ASSERT_EQ(std::hash<std::string>{}(str_rb), std::hash<std::string>{}(str_cached_rb));
+  }
+
+  // Add block4
+  {
+    Updates updates;
+    ImmutableUpdates immutable_updates;
+    immutable_updates.calculateRootHash(true);
+    immutable_updates.addUpdate("immutable_key4_1", {"immutable_val1", {"1", "2"}});
+    updates.add("immutable", std::move(immutable_updates));
+
+    ImmutableUpdates immutable_updates2;
+    immutable_updates2.calculateRootHash(false);
+    immutable_updates2.addUpdate("immutable_key4_2", {"immutable_val1", {"1", "2"}});
+    updates.add("immutable2", std::move(immutable_updates2));
+
+    ImmutableUpdates immutable_updates3;
+    immutable_updates3.calculateRootHash(true);
+    immutable_updates3.addUpdate("immutable_key4_3", {"immutable_val1", {}});
+    updates.add("immutable3", std::move(immutable_updates3));
+
+    ASSERT_EQ(block_chain.addBlock(std::move(updates)), (BlockId)4);
+
+    auto rb = block_chain.getRawBlock(4);
+    ASSERT_EQ(rb->data.immutable_root_hashes.size(), 2);
+    ASSERT_EQ(rb->data.immutable_root_hashes.count("immutable3"), 1);
+
+    const auto& imm_map = rb->data.immutable_root_hashes["immutable"];
+    ASSERT_EQ(imm_map.size(), 2);
+    ASSERT_EQ(imm_map.count("1"), 1);
+    ASSERT_EQ(imm_map.count("2"), 1);
+
+    const auto& imm_map2 = rb->data.immutable_root_hashes["immutable3"];
+    ASSERT_EQ(imm_map2.size(), 0);
+
+    KeyValueBlockchain::KeyValueBlockchain_tester tester;
+    auto cached_rb = tester.getLastRawBlock(block_chain).second;
+    ASSERT_TRUE(cached_rb.has_value());
+    const auto& ser_rb = categorization::detail::serializeThreadLocal(rb->data);
+    std::string str_rb(ser_rb.begin(), ser_rb.end());
+    const auto& ser_cached_rb = categorization::detail::serializeThreadLocal(*cached_rb);
+    std::string str_cached_rb(ser_cached_rb.begin(), ser_cached_rb.end());
+    ASSERT_EQ(std::hash<std::string>{}(str_rb), std::hash<std::string>{}(str_cached_rb));
   }
 }
 

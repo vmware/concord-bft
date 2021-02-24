@@ -92,7 +92,10 @@ Msg BlockData 2001 {
 Msg RawBlockData 2005 {
     fixedlist uint8 32 parent_digest
     CategoryInput updates
-    map string optional fixedlist uint8 32 category_root_hash
+    map string fixedlist uint8 32 block_merkle_root_hash
+    map string fixedlist uint8 32 versioned_root_hash 
+    map string map string fixedlist uint8 32 immutable_root_hashes
+
 }
 
 # Used to deserialize the parent_digest only from RawBlockData and BlockData.

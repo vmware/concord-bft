@@ -254,12 +254,12 @@ TEST_F(categorized_kvbc, get_st_block) {
     categorization::RawBlock rb;
     std::array<uint8_t, 32> arr{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
                                 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'};
-    rb.data.category_root_hash["merkle"] = arr;
+    rb.data.block_merkle_root_hash["merkle"] = arr;
     auto wb = db->getBatch();
     st_block_chain.addBlock(100, rb, wb);
     db->write(std::move(wb));
     auto db_rb = st_block_chain.getRawBlock(100);
-    ASSERT_EQ(db_rb.value().data.category_root_hash["merkle"], arr);
+    ASSERT_EQ(db_rb.value().data.block_merkle_root_hash["merkle"], arr);
   }
 }
 

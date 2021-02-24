@@ -47,6 +47,7 @@ BlockMerkleInput RawBlock::getUpdates(const std::string& category_id,
                                       const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
                                       const CategoriesMap& categorires) {
   ConcordAssert(categorires.count(category_id) == 1);
+  addRootHash(category_id, data, update_info);
   BlockMerkleInput data;
   const auto& cat = std::get<detail::BlockMerkleCategory>(categorires.at(category_id));
   for (auto& [key, flag] : update_info.keys) {
@@ -74,6 +75,7 @@ VersionedInput RawBlock::getUpdates(const std::string& category_id,
                                     const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
                                     const CategoriesMap& categorires) {
   ConcordAssert(categorires.count(category_id) == 1);
+  addRootHash(category_id, data, update_info);
   VersionedInput data;
   data.calculate_root_hash = update_info.root_hash.has_value();
   const auto& cat = std::get<detail::VersionedKeyValueCategory>(categorires.at(category_id));
@@ -104,6 +106,7 @@ ImmutableInput RawBlock::getUpdates(const std::string& category_id,
                                     const std::shared_ptr<storage::rocksdb::NativeClient>& native_client,
                                     const CategoriesMap& categorires) {
   ConcordAssert(categorires.count(category_id) == 1);
+  addRootHash(category_id, data, update_info);
   ImmutableInput data;
   data.calculate_root_hash = update_info.tag_root_hashes.has_value();
   const auto& cat = std::get<detail::ImmutableKeyValueCategory>(categorires.at(category_id));
