@@ -49,7 +49,7 @@ class Throughput {
   bool report(uint64_t items_processed = 1);
 
   struct Results {
-    uint64_t elapsed_time_ms_;
+    uint64_t elapsed_time_us_;
     uint64_t throughput_ = 0ull;  // items per sec
     uint64_t num_processed_items_ = 0ull;
   };

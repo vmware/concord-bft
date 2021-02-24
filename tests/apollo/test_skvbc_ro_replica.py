@@ -168,7 +168,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         except KeyError:
                             continue
                         else:
-                            if lastStableSeqNum >= 150:
+                            if lastStableSeqNum >= 15:
                                 #enough requests
                                 log.log_message(message_type="Consensus: lastStableSeqNum:" + str(lastStableSeqNum))
                                 nursery.cancel_scope.cancel()
@@ -185,7 +185,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                         continue
                     else:
                         # success!
-                        if lastExecutedSeqNum >= 150:
+                        if lastExecutedSeqNum >= 15:
                             log.log_message(message_type="Replica " + str(ro_replica_id) + ": lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
 
@@ -219,7 +219,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
                             continue
                         else:
                             # success!
-                            if lastExecutedSeqNum >= 150:
+                            if lastExecutedSeqNum >= 15:
                                 log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                                 nursery.cancel_scope.cancel()
 
@@ -325,10 +325,10 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
             assert_state_transfer_not_started=False
         )
 
-        await self._wait_for_st(bft_network, ro_replica_id, 150)
+        await self._wait_for_st(bft_network, ro_replica_id, 15)
 
 
-    async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=150):
+    async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=15):
         # TODO replace the below function with the library function:
         # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
         # initial_nodes=bft_network.all_replicas(),

@@ -97,8 +97,8 @@ void testInit() {
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   const SeqNum checkpointSeqNum0 = 0;
-  const SeqNum checkpointSeqNum1 = 150;
-  const SeqNum checkpointSeqNum2 = 300;
+  const SeqNum checkpointSeqNum1 = 15;
+  const SeqNum checkpointSeqNum2 = 30;
 
   ReplicaId sender = 3;
   Digest stateDigest;
@@ -145,18 +145,18 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
   CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
   PrePrepareMsg prePrepareNullMsg(sender, view, prePrepareMsgSeqNum, firstPath, 0);
 
-  const SeqNum slowStartedSeqNum = 144;
+  const SeqNum slowStartedSeqNum = 14;
   bool slowStarted = true;
 
-  const SeqNum prePrepareFullSeqNum = 101;
+  const SeqNum prePrepareFullSeqNum = 10;
   PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
 
-  const SeqNum fullCommitProofSeqNum = 160;
+  const SeqNum fullCommitProofSeqNum = 16;
   FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, nullptr, 0);
 
   const bool forceCompleted = true;
 
-  const SeqNum commitFullSeqNum = 240;
+  const SeqNum commitFullSeqNum = 24;
   CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, sender, nullptr, 0);
 
   if (toSet) {
@@ -225,7 +225,7 @@ void testWindows(bool init) {
 }
 
 void testWindowsAdvance() {
-  const SeqNum moveToSeqNum = 150;
+  const SeqNum moveToSeqNum = 15;
   persistentStorageImp->beginWriteTran();
   persistentStorageImp->setLastStableSeqNum(moveToSeqNum);
   persistentStorageImp->endWriteTran();
