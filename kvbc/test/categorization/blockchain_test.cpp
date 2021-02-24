@@ -167,7 +167,7 @@ TEST_F(categorized_kvbc, fail_get_raw) {
 TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
   detail::Blockchain::StateTransfer st_block_chain{db};
 
-  ASSERT_FALSE(st_block_chain.getLastBlockId().has_value());
+  ASSERT_FALSE(st_block_chain.getLastBlockId() > 0);
 
   // Add raw block 100
   {
@@ -176,7 +176,7 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.addBlock(100, rb, wb);
     db->write(std::move(wb));
     st_block_chain.loadLastBlockId();
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 100);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 100);
   }
   // delete non-existing
   {
@@ -184,7 +184,7 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.deleteBlock(101, wb);
     db->write(std::move(wb));
     st_block_chain.updateLastIdAfterDeletion(101);
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 100);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 100);
   }
   // Add raw block 300
   {
@@ -193,7 +193,7 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.addBlock(300, rb, wb);
     db->write(std::move(wb));
     st_block_chain.loadLastBlockId();
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 300);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 300);
   }
   // Add raw block 200
   {
@@ -202,7 +202,7 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.addBlock(200, rb, wb);
     db->write(std::move(wb));
     st_block_chain.loadLastBlockId();
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 300);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 300);
   }
   // Add raw block 1
   {
@@ -211,7 +211,7 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.addBlock(1, rb, wb);
     db->write(std::move(wb));
     st_block_chain.loadLastBlockId();
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 300);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 300);
   }
   // delete raw block 200
   {
@@ -219,7 +219,7 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.deleteBlock(200, wb);
     db->write(std::move(wb));
     st_block_chain.updateLastIdAfterDeletion(200);
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 300);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 300);
   }
   // delete raw block 300
   {
@@ -227,28 +227,28 @@ TEST_F(categorized_kvbc, load_and_delete_st_blocks) {
     st_block_chain.deleteBlock(300, wb);
     db->write(std::move(wb));
     st_block_chain.updateLastIdAfterDeletion(300);
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 100);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 100);
   }
   {
     auto wb = db->getBatch();
     st_block_chain.deleteBlock(100, wb);
     db->write(std::move(wb));
     st_block_chain.updateLastIdAfterDeletion(100);
-    ASSERT_EQ(st_block_chain.getLastBlockId().value(), 1);
+    ASSERT_EQ(st_block_chain.getLastBlockId(), 1);
   }
   {
     auto wb = db->getBatch();
     st_block_chain.deleteBlock(1, wb);
     db->write(std::move(wb));
     st_block_chain.updateLastIdAfterDeletion(1);
-    ASSERT_FALSE(st_block_chain.getLastBlockId().has_value());
+    ASSERT_FALSE(st_block_chain.getLastBlockId() > 0);
   }
 }
 
 TEST_F(categorized_kvbc, get_st_block) {
   detail::Blockchain::StateTransfer st_block_chain{db};
 
-  ASSERT_FALSE(st_block_chain.getLastBlockId().has_value());
+  ASSERT_FALSE(st_block_chain.getLastBlockId() > 0);
 
   {
     categorization::RawBlock rb;

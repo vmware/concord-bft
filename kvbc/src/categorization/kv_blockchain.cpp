@@ -141,8 +141,8 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
   auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
-  block_chain_.setAddedBlockId(block_id);
   native_client_->write(std::move(write_batch));
+  block_chain_.setAddedBlockId(block_id);
   return block_id;
 }
 
@@ -668,9 +668,9 @@ bool KeyValueBlockchain::hasBlock(BlockId block_id) const {
 // tries to remove blocks form the state transfer chain to the blockchain
 void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
   const auto last_block_id = state_transfer_block_chain_.getLastBlockId();
-  if (!last_block_id) return;
+  if (last_block_id == 0) return;
 
-  for (auto i = block_id; i <= last_block_id.value(); ++i) {
+  for (auto i = block_id; i <= last_block_id; ++i) {
     auto raw_block = state_transfer_block_chain_.getRawBlock(i);
     if (!raw_block) {
       return;
