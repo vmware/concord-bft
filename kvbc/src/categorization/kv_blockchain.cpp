@@ -609,6 +609,8 @@ std::string KeyValueBlockchain::getPruningStatus() {
   result.insert(toPair(getName(versioned_num_of_deletes_keys_), versioned_num_of_deletes_keys_.Get().Get()));
   result.insert(toPair(getName(immutable_num_of_deleted_keys_), immutable_num_of_deleted_keys_.Get().Get()));
   result.insert(toPair(getName(merkle_num_of_deleted_keys_), merkle_num_of_deleted_keys_.Get().Get()));
+  result.insert(toPair(getName(getGenesisBlockId()), getGenesisBlockId()));
+  result.insert(toPair(getName(getLastReachableBlockId()), getLastReachableBlockId()));
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
