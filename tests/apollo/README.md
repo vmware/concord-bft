@@ -265,3 +265,18 @@ A log file will be generated for each test under his name.
     ```shell script
     eliot-tree <log_file_name> --end <YYYY-MM-DDT hh:mm:ss>
     ```
+
+### Using perf to generate stack samples and flame graphs
+
+In order to make performance analysis by stack sampling, the following environment
+variables have to be provided to the selected test suite:
+
+* KEEP_APOLLO_LOGS=true 
+    True is the default value for this variable, this will create a separate folder for each test to
+    store the logs of replicas and if specified also the perf.data with stack samples from the replica
+    specified with the next parameter. 
+* PERF_REPLICA=r
+    This variable specifies which replica id (r) perf will be attached to in order to generate samples.
+* PERF_SAMPLES=s
+    This variable is optional and specifies the sampling rate (s). If not provided we sample at 1000 hertz.
+
