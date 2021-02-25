@@ -59,7 +59,10 @@ class KeyValueBlockchain {
   /////////////////////// Info ///////////////////////
   BlockId getGenesisBlockId() const { return block_chain_.getGenesisBlockId(); }
   BlockId getLastReachableBlockId() const { return block_chain_.getLastReachableBlockId(); }
-  std::optional<BlockId> getLastStatetransferBlockId() const { return state_transfer_block_chain_.getLastBlockId(); }
+  std::optional<BlockId> getLastStatetransferBlockId() const {
+    if (state_transfer_block_chain_.getLastBlockId() == 0) return std::nullopt;
+    return state_transfer_block_chain_.getLastBlockId();
+  }
 
   std::optional<Hash> parentDigest(BlockId block_id) const;
   bool hasBlock(BlockId block_id) const;

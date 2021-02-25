@@ -97,8 +97,8 @@ class Blockchain {
                  "Created [" << detail::ST_CHAIN_CF << "] column family for the state transfer blockchain");
       }
       loadLastBlockId();
-      if (last_block_id_) {
-        LOG_INFO(CAT_BLOCK_LOG, "State transfer last block id: " << last_block_id_.value());
+      if (last_block_id_ > 0) {
+        LOG_INFO(CAT_BLOCK_LOG, "State transfer last block id: " << last_block_id_);
       }
     }
 
@@ -107,10 +107,10 @@ class Blockchain {
     }
 
     void updateLastIdAfterDeletion(const BlockId id) {
-      if (!last_block_id_.has_value() || last_block_id_.value() != id) {
+      if (last_block_id_ == 0 || last_block_id_ != id) {
         return;
       }
-      last_block_id_.reset();
+      last_block_id_ = 0;
       loadLastBlockId();
       return;
     }
@@ -120,7 +120,7 @@ class Blockchain {
       auto max_db_key = Block::generateKey(MAX_BLOCK_ID);
       itr.seekAtMost(max_db_key);
       if (!itr) {
-        last_block_id_.reset();
+        last_block_id_ = 0;
         return;
       }
       BlockKey key{};
@@ -128,7 +128,7 @@ class Blockchain {
       last_block_id_ = key.block_id;
     }
 
-    std::optional<BlockId> getLastBlockId() const { return last_block_id_; }
+    BlockId getLastBlockId() const { return last_block_id_; }
 
     void addBlock(const BlockId id, const RawBlock& block, storage::rocksdb::NativeWriteBatch& wb) const {
       wb.put(detail::ST_CHAIN_CF, Block::generateKey(id), RawBlock::serialize(block));
@@ -157,29 +157,30 @@ class Blockchain {
     }
 
     void updateLastId(const BlockId id) {
-      if (last_block_id_.has_value() && last_block_id_.value() >= id) {
+      if (last_block_id_ >= id) {
         return;
       }
       last_block_id_ = id;
     }
 
-    void resetChain() { last_block_id_.reset(); }
+    void resetChain() { last_block_id_ = 0; }
 
    private:
-    std::optional<BlockId> last_block_id_;
+    // if last_block_id_ is 0 it means no ST chain
+    std::atomic<BlockId> last_block_id_;
     std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
   };
 
   BlockId getLatestBlockId(const Blockchain::StateTransfer& st_chain) const {
-    if (st_chain.getLastBlockId().has_value()) {
-      return st_chain.getLastBlockId().value();
+    if (st_chain.getLastBlockId() > 0) {
+      return st_chain.getLastBlockId();
     }
     return getLastReachableBlockId();
   }
 
  private:
-  BlockId last_reachable_block_id_{0};
-  BlockId genesis_block_id_{0};
+  std::atomic<BlockId> last_reachable_block_id_{0};
+  std::atomic<BlockId> genesis_block_id_{0};
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
 };
 

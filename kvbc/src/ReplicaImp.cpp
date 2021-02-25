@@ -168,13 +168,7 @@ std::optional<categorization::Updates> ReplicaImp::getBlockUpdates(BlockId block
 
 BlockId ReplicaImp::getGenesisBlockId() const { return m_kvBlockchain->getGenesisBlockId(); }
 
-BlockId ReplicaImp::getLastBlockId() const {
-  const auto lastSt = m_kvBlockchain->getLastStatetransferBlockId();
-  if (lastSt) {
-    return *lastSt;
-  }
-  return m_kvBlockchain->getLastReachableBlockId();
-}
+BlockId ReplicaImp::getLastBlockId() const { return m_kvBlockchain->getLastReachableBlockId(); }
 
 void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
 
