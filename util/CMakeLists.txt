@@ -29,7 +29,6 @@ target_include_directories(util PUBLIC include)
 
 target_link_libraries(util_shared PUBLIC Threads::Threads)
 target_include_directories(util_shared PUBLIC include)
-target_include_directories(util_shared PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 
 if (USE_OPENTRACING)
   if (NOT DEFINED OPENTRACING_INCLUDE_DIR)

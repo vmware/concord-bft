@@ -130,6 +130,7 @@ include(CTest)
 #
 add_subdirectory(logging)
 add_subdirectory(util)
+add_subdirectory(secretsmanager)
 add_subdirectory(threshsign)
 add_subdirectory(communication)
 add_subdirectory(kvbc)
