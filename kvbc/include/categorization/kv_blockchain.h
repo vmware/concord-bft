@@ -229,7 +229,7 @@ class KeyValueBlockchain {
 
     detail::Blockchain& getBlockchain(KeyValueBlockchain& kvbc) { return kvbc.block_chain_; }
 
-    const VersionedRawBlock& getLastRawBlocked(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
+    const VersionedRawBlock& getLastRawBlock(KeyValueBlockchain& kvbc) { return kvbc.last_raw_block_; }
   };  // namespace concord::kvbc::categorization
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {

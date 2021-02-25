@@ -122,6 +122,21 @@ struct RawBlock {
   RawBlockData data;
 };
 
+inline void addRootHash(const std::string& category_id, RawBlockData& data, const BlockMerkleOutput& update_info) {
+  data.block_merkle_root_hash[category_id] = update_info.root_hash;
+}
+
+// If optional is null do not include in the raw block
+inline void addRootHash(const std::string& category_id, RawBlockData& data, const VersionedOutput& update_info) {
+  if (!update_info.root_hash) return;
+  data.versioned_root_hash[category_id] = update_info.root_hash.value();
+}
+
+inline void addRootHash(const std::string& category_id, RawBlockData& data, const ImmutableOutput& update_info) {
+  if (!update_info.tag_root_hashes) return;
+  data.immutable_root_hashes[category_id] = update_info.tag_root_hashes.value();
+}
+
 inline bool operator==(const RawBlock& l, const RawBlock& r) { return l.data == r.data; }
 inline bool operator!=(const RawBlock& l, const RawBlock& r) { return !(l == r); }
 
