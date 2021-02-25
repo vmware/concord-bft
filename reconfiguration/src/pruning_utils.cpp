@@ -22,7 +22,6 @@ std::string &operator<<(std::string &buf, const concord::messages::LatestPrunabl
   return buf;
 }
 }  // namespace details
-RSAPruningSigner::RSAPruningSigner() : signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey.c_str()} {}
 
 void RSAPruningSigner::Sign(concord::messages::LatestPrunableBlock &block) const {
   std::ostringstream oss;
@@ -46,11 +45,11 @@ std::string RSAPruningSigner::GetSignatureBuffer() const {
   const auto sign_len = signer_.signatureLength();
   return std::string(sign_len, '\0');
 }
+RSAPruningSigner::RSAPruningSigner(const string &key) : signer_{key.c_str()} {}
 
-RSAPruningVerifier::RSAPruningVerifier() {
+RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>> &replicasPublicKeys) {
   auto i = 0u;
-  auto &replicas_rsa_pkeys_ = bftEngine::ReplicaConfig::instance().publicKeysOfReplicas;
-  for (auto &[idx, pkey] : replicas_rsa_pkeys_) {
+  for (auto &[idx, pkey] : replicasPublicKeys) {
     replicas_.push_back(Replica{idx, pkey.c_str()});
     const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
     if (!ins_res.second) {

@@ -66,8 +66,7 @@ class RSAPruningSigner {
  public:
   // Construct by passing the configuration for the node the signer is running
   // on.
-  RSAPruningSigner();
-
+  RSAPruningSigner(const std::string &key);
   // Sign() methods sign the passed message and store the signature in the
   // 'signature' field of the message. An exception is thrown on error.
   //
@@ -93,8 +92,7 @@ class RSAPruningSigner {
 class RSAPruningVerifier {
  public:
   // Construct by passing the system configuration.
-  RSAPruningVerifier();
-
+  RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>> &replicasPublicKeys);
   // Verify() methods verify that the message comes from the advertised sender.
   // Methods return true on successful verification and false on unsuccessful.
   // An exception is thrown on error.

@@ -89,11 +89,10 @@ class PruningHandler : public IPruningHandler {
                  kvbc::IBlocksDeleter &,
                  bftEngine::IStateTransfer &,
                  bool run_async = false);
-  bool Handle(const concord::messages::LatestPrunableBlockRequest &, concord::messages::LatestPrunableBlock &) const;
-  std::optional<kvbc::BlockId> Handle(const concord::messages::PruneRequest &, bool read_only) const;
-  bool Handle(concord::messages::PruneStatus &, bool read_only, opentracing::Span &parent_span);
-
-  static std::string LastAgreedPrunableBlockIdKey();
+  bool handle(const concord::messages::LatestPrunableBlockRequest &, concord::messages::LatestPrunableBlock &) override;
+  bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &) override;
+  bool handle(const concord::messages::PruneStatusRequest &, concord::messages::PruneStatus &) override;
+  static std::string LastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
 
  private:
   kvbc::BlockId LatestBasedOnNumBlocksConfig() const;
@@ -119,8 +118,8 @@ class PruningHandler : public IPruningHandler {
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
   std::uint32_t duration_to_keep_minutes_{0};
-  static const std::string last_agreed_prunable_block_id_key_;
   bool run_async_{false};
+  static const std::string last_agreed_prunable_block_id_key_;
   mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;

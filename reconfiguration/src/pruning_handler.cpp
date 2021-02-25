@@ -25,6 +25,8 @@ PruningHandler::PruningHandler(const kvbc::IReader& ro_storage,
                                bftEngine::IStateTransfer& state_transfer,
                                bool run_async)
     : logger_{logging::getLogger("concord.pruning")},
+      signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
+      verifier_{bftEngine::ReplicaConfig::instance().publicKeysOfReplicas},
       ro_storage_{ro_storage},
       blocks_adder_{blocks_adder},
       blocks_deleter_{blocks_deleter},
@@ -47,8 +49,8 @@ PruningHandler::PruningHandler(const kvbc::IReader& ro_storage,
       [this](uint64_t checkpoint_number) { PruneOnStateTransferCompletion(checkpoint_number); });
 }
 
-bool PruningHandler::Handle(const concord::messages::LatestPrunableBlockRequest& request,
-                            concord::messages::LatestPrunableBlock& latest_prunable_block) const {
+bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
+                            concord::messages::LatestPrunableBlock& latest_prunable_block) {
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
 
@@ -60,17 +62,12 @@ bool PruningHandler::Handle(const concord::messages::LatestPrunableBlockRequest&
   return true;
 }
 
-std::optional<kvbc::BlockId> PruningHandler::Handle(const concord::messages::PruneRequest& request,
-                                                    bool read_only) const {
-  if (read_only) {
-    LOG_WARN(logger_, "PruningHandler ignoring PruneRequest in a read-only command");
-    return {};
-  }
-
+bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc::BlockId& bid) {
   if (!pruning_enabled_) {
     const auto msg = "PruningHandler pruning is disabled, returning an error on PruneRequest";
     LOG_WARN(logger_, msg);
-    return {};
+    bid = 0;
+    return false;
   }
 
   const auto sender = request.sender;
@@ -84,7 +81,8 @@ std::optional<kvbc::BlockId> PruningHandler::Handle(const concord::messages::Pru
                     "on the grounds that some non-empty subset of those "
                     "LatestPrunableBlock messages did not bear correct signatures "
                     "from the claimed replicas.");
-    return {};
+    bid = 0;
+    return false;
   }
 
   const auto latest_prunable_block_id = AgreedPrunableBlockId(request);
@@ -93,7 +91,8 @@ std::optional<kvbc::BlockId> PruningHandler::Handle(const concord::messages::Pru
   PersistLastAgreedPrunableBlockId(latest_prunable_block_id);
   // Execute actual pruning.
   PruneThroughBlockId(latest_prunable_block_id);
-  return latest_prunable_block_id;
+  bid = latest_prunable_block_id;
+  return true;
 }
 
 kvbc::BlockId PruningHandler::LatestBasedOnNumBlocksConfig() const {
@@ -110,7 +109,7 @@ kvbc::BlockId PruningHandler::LatestBasedOnTimeRangeConfig() const {
    * The user may ovveride this method to have time based search.
    */
   const auto last_block_id = ro_storage_.getLastBlockId();
-  LOG_WARN(logger_, "time based pruning is not supported by default");
+  if (duration_to_keep_minutes_ > 0) LOG_WARN(logger_, "time based pruning is not supported by default");
   return last_block_id;
 }
 
@@ -203,12 +202,8 @@ void PruningHandler::PruneOnStateTransferCompletion(uint64_t) const noexcept {
   }
 }
 
-bool PruningHandler::Handle(concord::messages::PruneStatus& prune_status,
-                            bool read_only,
-                            opentracing::Span& parent_span) {
-  if (!read_only) {
-    return false;
-  }
+bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
+                            concord::messages::PruneStatus& prune_status) {
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   std::lock_guard lock(pruning_status_lock_);
   prune_status.last_pruned_block =

@@ -15,3 +15,6 @@ target_link_libraries(concordbft_reconfiguration PUBLIC
 
 
 add_subdirectory(cmf)
+if (BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
