@@ -217,7 +217,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
     replicaConfig_.get<uint32_t>("concord.bft.st.sourceReplicaReplacementTimeoutMs", 15000),
-    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 250),
+    replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 1000),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
     replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly)
