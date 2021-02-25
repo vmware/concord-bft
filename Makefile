@@ -11,7 +11,7 @@ CONCORD_BFT_CONTAINER_SHELL:=/bin/bash
 CONCORD_BFT_CONTAINER_CC:=clang
 CONCORD_BFT_CONTAINER_CXX:=clang++
 CONCORD_BFT_CMAKE_FLAGS:= \
-			-DCMAKE_BUILD_TYPE=Debug \
+			-DCMAKE_BUILD_TYPE=Release \
 			-DBUILD_TESTING=ON \
 			-DBUILD_COMM_TCP_PLAIN=FALSE \
 			-DBUILD_COMM_TCP_TLS=TRUE\
@@ -24,7 +24,7 @@ CONCORD_BFT_CMAKE_FLAGS:= \
 			-DOMIT_TEST_OUTPUT=OFF \
 			-DKEEP_APOLLO_LOGS=TRUE \
 			-DBUILD_SLOWDOWN=FALSE \
-			-DBUILD_KVBC_BENCH=FALSE \ # Should only run this with -DCMAKE_BUILD_TYPE=Release
+			-DBUILD_KVBC_BENCH=TRUE \ # Should only run this with -DCMAKE_BUILD_TYPE=Release
 
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.
