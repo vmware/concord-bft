@@ -188,3 +188,15 @@ wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz 
     echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
     ldconfig -v && \
     rm -rf /usr/local/src/openssl-${OPENSSL_VER}
+
+cd ${HOME}
+git clone https://github.com/nlohmann/json && \
+    cd json && \
+    git checkout v3.7.3 && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../.. && \
+    rm -r json
