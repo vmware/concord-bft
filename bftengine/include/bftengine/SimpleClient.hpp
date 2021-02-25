@@ -61,6 +61,7 @@ struct ClientReply {
   uint32_t lengthOfReplyBuffer = 0;
   char* replyBuffer = nullptr;
   uint32_t actualReplyLength = 0;
+  OperationResult opResult = SUCCESS;
   std::string cid;
   std::string span_context;
 };
@@ -109,7 +110,7 @@ class SimpleClient {
   // To be used only for write requests
   virtual OperationResult sendBatch(const std::deque<ClientRequest>& clientRequests,
                                     std::deque<ClientReply>& clientReplies,
-                                    const std::string& cid) = 0;
+                                    const std::string& batchCid) = 0;
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     if (aggregator) metrics_.SetAggregator(aggregator);
