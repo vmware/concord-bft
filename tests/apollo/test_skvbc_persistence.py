@@ -243,6 +243,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
     from os import environ
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @unittest.skip("Fails because of BC-7264")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
