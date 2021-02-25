@@ -963,7 +963,7 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                   msg.lastRequiredBlock,
                   msg.lastKnownChunkInLastRequiredBlock));
 
-  sourceSelector_.setSendTime(getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getLogger(), getMonotonicTimeMilli());
   fetch_block_msg_latency_rec_.start(lastMsgSeqNum_);
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchBlocksMsg), sourceSelector_.currentReplica());
@@ -993,7 +993,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
                   msg.requiredCheckpointNum,
                   msg.lastKnownChunk));
 
-  sourceSelector_.setSendTime(getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getLogger(), getMonotonicTimeMilli());
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchResPagesMsg), sourceSelector_.currentReplica());
 }
@@ -1277,6 +1277,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     outMsg->totalNumberOfChunksInBlock = numOfChunksInNextBlock;
     outMsg->chunkNumber = nextChunk;
     outMsg->dataSize = chunkSize;
+    outMsg->lastInBatch = ((numOfSentChunks + 1) >= config_.maxNumberOfChunksInBatch);
     memcpy(outMsg->data, pRawChunk, chunkSize);
 
     LOG_DEBUG(getLogger(),
@@ -1285,7 +1286,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
                                                outMsg->blockNumber,
                                                outMsg->totalNumberOfChunksInBlock,
                                                outMsg->chunkNumber,
-                                               outMsg->dataSize));
+                                               outMsg->dataSize,
+                                               outMsg->lastInBatch));
 
     metrics_.sent_item_data_msg_.Get().Inc();
     replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
@@ -1521,7 +1523,8 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   const uint16_t MaxNumOfChunksInBlock =
       (fs == FetchingState::GettingMissingBlocks) ? maxNumOfChunksInAppBlock_ : maxNumOfChunksInVBlock_;
 
-  LOG_DEBUG(getLogger(), KVLOG(m->blockNumber, m->totalNumberOfChunksInBlock, m->chunkNumber, m->dataSize));
+  LOG_DEBUG(getLogger(),
+            KVLOG(m->blockNumber, m->totalNumberOfChunksInBlock, m->chunkNumber, m->dataSize, m->lastInBatch));
 
   // if msg is invalid
   if (msgLen < m->size() || m->requestMsgSeqNum == 0 || m->blockNumber == 0 || m->totalNumberOfChunksInBlock == 0 ||
@@ -1599,6 +1602,9 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
   bool added = false;
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
+
+  // set fetchingTimeStamp_ while ignoring added flag - source is responsive
+  sourceSelector_.setFetchingTimeStamp(getLogger(), getMonotonicTimeMilli());
 
   if (added) {
     LOG_DEBUG(getLogger(),
@@ -1778,7 +1784,8 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
                                    int16_t &outLastChunkInRequiredBlock,
                                    char *outBlock,
                                    uint32_t &outBlockSize,
-                                   bool isVBLock) {
+                                   bool isVBLock,
+                                   bool &outLastInBatch) {
   ConcordAssertGE(requiredBlock, 1);
 
   const uint32_t maxSize = (isVBLock ? maxVBlockSize_ : config_.maxBlockSize);
@@ -1865,6 +1872,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
 
     if (currentChunk == totalNumberOfChunks) {
       outBlockSize = currentPos;
+      outLastInBatch = msg->lastInBatch;
       return true;
     }
   }
@@ -2109,13 +2117,15 @@ void BCStateTran::processData() {
 
     int16_t lastChunkInRequiredBlock = 0;
     uint32_t actualBlockSize = 0;
+    bool lastInBatch = false;
 
     const bool newBlock = getNextFullBlock(nextRequiredBlock_,
                                            badDataFromCurrentSourceReplica,
                                            lastChunkInRequiredBlock,
                                            buffer_,
                                            actualBlockSize,
-                                           !isGettingBlocks);
+                                           !isGettingBlocks,
+                                           lastInBatch);
     bool newBlockIsValid = false;
 
     if (newBlock && isGettingBlocks) {
@@ -2156,6 +2166,13 @@ void BCStateTran::processData() {
                                     reinterpret_cast<StateTransferDigest *>(&digestOfNextRequiredBlock));
         nextRequiredBlock_--;
         g.txn()->setLastRequiredBlock(nextRequiredBlock_);
+        if (lastInBatch) {
+          //  last block in batch - send another FetchBlocksMsg since we havn't reach yet to firstRequiredBlock
+          ConcordAssertEQ(psd_->getLastRequiredBlock(), nextRequiredBlock_);
+          LOG_DEBUG(getLogger(), "Sending FetchBlocksMsg: lastInBatch is true");
+          sendFetchBlocksMsg(psd_->getFirstRequiredBlock(), nextRequiredBlock_, 0);
+          break;
+        }
       } else {
         // this is the last block we need
         g.txn()->setFirstRequiredBlock(0);
@@ -2236,15 +2253,16 @@ void BCStateTran::processData() {
     //////////////////////////////////////////////////////////////////////////
     // if we don't have new full block/vblock (but we did not detect a problem)
     //////////////////////////////////////////////////////////////////////////
-    else if (!badDataFromCurrentSourceReplica && isGettingBlocks) {
-      if (newSourceReplica || sourceSelector_.retransmissionTimeoutExpired(currTime)) {
-        ConcordAssertEQ(psd_->getLastRequiredBlock(), nextRequiredBlock_);
-        sendFetchBlocksMsg(psd_->getFirstRequiredBlock(), nextRequiredBlock_, lastChunkInRequiredBlock);
-      }
-      break;
-    } else if (!badDataFromCurrentSourceReplica && !isGettingBlocks) {
-      if (newSourceReplica || sourceSelector_.retransmissionTimeoutExpired(currTime)) {
-        sendFetchResPagesMsg(lastChunkInRequiredBlock);
+    else if (!badDataFromCurrentSourceReplica) {
+      bool retransmissionTimeoutExpired = sourceSelector_.retransmissionTimeoutExpired(currTime);
+      if (newSourceReplica || retransmissionTimeoutExpired) {
+        if (isGettingBlocks) {
+          ConcordAssertEQ(psd_->getLastRequiredBlock(), nextRequiredBlock_);
+          LOG_DEBUG(getLogger(), "Sending FetchBlocksMsg: " << KVLOG(newSourceReplica, retransmissionTimeoutExpired));
+          sendFetchBlocksMsg(psd_->getFirstRequiredBlock(), nextRequiredBlock_, lastChunkInRequiredBlock);
+        } else {
+          sendFetchResPagesMsg(lastChunkInRequiredBlock);
+        }
       }
       break;
     }

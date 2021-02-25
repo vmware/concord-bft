@@ -21,7 +21,10 @@ bool SourceSelector::hasSource() const { return currentReplica_ != NO_REPLICA &&
 
 void SourceSelector::setSourceSelectionTime(uint64_t currTimeMilli) { sourceSelectionTimeMilli_ = currTimeMilli; }
 
-void SourceSelector::setSendTime(uint64_t currTimeMilli) { sendTimeMilli_ = currTimeMilli; }
+void SourceSelector::setFetchingTimeStamp(logging::Logger &logger, uint64_t currTimeMilli) {
+  fetchingTimeStamp_ = currTimeMilli;
+  LOG_DEBUG(logger, KVLOG(fetchingTimeStamp_));
+}
 
 void SourceSelector::removeCurrentReplica() {
   preferredReplicas_.erase(currentReplica_);
@@ -34,12 +37,12 @@ void SourceSelector::reset() {
   preferredReplicas_.clear();
   currentReplica_ = NO_REPLICA;
   sourceSelectionTimeMilli_ = 0;
-  sendTimeMilli_ = 0;
+  fetchingTimeStamp_ = 0;
 }
 
 bool SourceSelector::isReset() const {
   return preferredReplicas_.empty() && currentReplica_ == NO_REPLICA && sourceSelectionTimeMilli_ == 0 &&
-         sendTimeMilli_ == 0;
+         fetchingTimeStamp_ == 0;
 }
 
 bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const {
@@ -48,7 +51,9 @@ bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const 
 }
 
 uint64_t SourceSelector::timeSinceSendMilli(uint64_t currTimeMilli) const {
-  return ((currentReplica_ == NO_REPLICA) || (currTimeMilli < sendTimeMilli_)) ? 0 : (currTimeMilli - sendTimeMilli_);
+  return ((currentReplica_ == NO_REPLICA) || (currTimeMilli < fetchingTimeStamp_))
+             ? 0
+             : (currTimeMilli - fetchingTimeStamp_);
 }
 
 uint64_t SourceSelector::timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const {

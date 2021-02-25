@@ -156,6 +156,7 @@ struct ItemDataMsg : public BCStateTranBaseMsg {
   uint16_t chunkNumber;
 
   uint32_t dataSize;
+  uint8_t lastInBatch;
   char data[1];
 
   uint32_t size() const { return sizeof(ItemDataMsg) - 1 + dataSize; }

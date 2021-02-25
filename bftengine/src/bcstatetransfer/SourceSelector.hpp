@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <sstream>
 
+#include "Logger.hpp"
 #include "assertUtils.hpp"
 
 namespace bftEngine {
@@ -53,8 +54,8 @@ class SourceSelector {
   // Reset the source selection time without actually changing the source
   void setSourceSelectionTime(uint64_t currTimeMilli);
 
-  // Reset the time since last transmission
-  void setSendTime(uint64_t currTimeMilli);
+  // Set the latest time of last sent transmission of FetchResPagesMsg or last received ItemDataMsg
+  void setFetchingTimeStamp(logging::Logger &logger, uint64_t currTimeMilli);
 
   // Create a list of ids of the form "0, 1, 4"
   std::string preferredReplicasToString() const;
@@ -79,7 +80,7 @@ class SourceSelector {
   std::set<uint16_t> preferredReplicas_;
   uint16_t currentReplica_ = NO_REPLICA;
   uint64_t sourceSelectionTimeMilli_ = 0;
-  uint64_t sendTimeMilli_ = 0;
+  uint64_t fetchingTimeStamp_ = 0;
   std::set<uint16_t> allOtherReplicas_;
   std::mt19937 randomGen_;
   uint32_t retransmissionTimeoutMilli_;
