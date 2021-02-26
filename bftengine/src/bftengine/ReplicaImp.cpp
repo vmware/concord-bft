@@ -2266,7 +2266,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(curView);
 
-  LOG_INFO(VC_LOG, KVLOG(curView, nextView, wasInPrevViewNumber));
+  LOG_INFO(VC_LOG, "Moving to higher view: " << KVLOG(curView, nextView, wasInPrevViewNumber));
 
   ViewChangeMsg *pVC = nullptr;
 
@@ -2570,6 +2570,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
