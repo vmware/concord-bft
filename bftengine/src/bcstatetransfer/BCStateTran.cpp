@@ -36,7 +36,7 @@
 // TODO(GG): for debugging - remove
 // #define DEBUG_SEND_CHECKPOINTS_IN_REVERSE_ORDER (1)
 
-#define getName(var) #var
+#define STRPAIR(var) toPair(#var, var)
 
 using std::tie;
 using concordUtils::toPair;
@@ -676,7 +676,7 @@ std::string BCStateTran::getStatus() {
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result, nested_data;
   result.insert(toPair("fetchingState", stateName(getFetchingState())));
-  result.insert(toPair(getName(lastMsgSeqNum_), lastMsgSeqNum_));
+  result.insert(STRPAIR(lastMsgSeqNum_));
   result.insert(toPair("cacheOfVirtualBlockForResPagesSize", cacheOfVirtualBlockForResPages.size()));
 
   auto current_source = sourceSelector_.currentReplica();
@@ -700,10 +700,10 @@ std::string BCStateTran::getStatus() {
   nested_data.clear();
 
   if (isFetching()) {
-    nested_data.insert(toPair(getName(current_source), current_source));
-    nested_data.insert(toPair(getName(preferred_replicas), preferred_replicas));
-    nested_data.insert(toPair(getName(nextRequiredBlock_), nextRequiredBlock_));
-    nested_data.insert(toPair(getName(totalSizeOfPendingItemDataMsgs), totalSizeOfPendingItemDataMsgs));
+    nested_data.insert(STRPAIR(current_source));
+    nested_data.insert(STRPAIR(preferred_replicas));
+    nested_data.insert(STRPAIR(nextRequiredBlock_));
+    nested_data.insert(STRPAIR(totalSizeOfPendingItemDataMsgs));
     result.insert(toPair("FetchingStateDetails",
                          concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
 
