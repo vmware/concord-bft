@@ -50,6 +50,7 @@ int TlsTCPCommunication::TlsTcpImpl::Start() {
 }
 
 int TlsTCPCommunication::TlsTcpImpl::Stop() {
+  LOG_INFO(logger_, "io thread stopping: isReplica() = " << isReplica());
   status_->reset();
   std::lock_guard<std::mutex> l(io_thread_guard_);
   if (!io_thread_) return 0;
@@ -58,30 +59,32 @@ int TlsTCPCommunication::TlsTcpImpl::Stop() {
     io_thread_->join();
     io_thread_.reset(nullptr);
   }
+  LOG_INFO(logger_, "io thread stopped: isReplica() = " << isReplica());
 
   acceptor_.close();
   accepting_socket_.close();
+  LOG_INFO(logger_, "acceptor closed: isReplica() = " << isReplica());
   for (auto& [_, sock] : connecting_) {
     (void)_;  // unused variable hack
     sock.close();
   }
-  for (auto& [_, conn] : connected_waiting_for_handshake_) {
-    (void)_;  // unused variable hack
+  for (auto& [id, conn] : connected_waiting_for_handshake_) {
+    LOG_INFO(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
     syncCloseConnection(conn);
   }
 
-  for (auto& [_, conn] : accepted_waiting_for_handshake_) {
-    (void)_;  // unused variable hack
+  for (auto& [id, conn] : accepted_waiting_for_handshake_) {
+    LOG_INFO(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
     syncCloseConnection(conn);
   }
 
-  for (auto& [_, conn] : connections_) {
-    (void)_;  // unused variable hack
+  for (auto& [id, conn] : connections_) {
+    LOG_INFO(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
     syncCloseConnection(conn);
   }
 
-  for (auto& [_, write_queue] : write_queues_) {
-    (void)_;  // unused variable hack
+  for (auto& [id, write_queue] : write_queues_) {
+    LOG_INFO(logger_, "Closing connection from: " << config_.selfId << ", to: " << id);
     write_queue.clear();
   }
 
@@ -213,8 +216,11 @@ void TlsTCPCommunication::TlsTcpImpl::closeConnection(std::shared_ptr<AsyncTlsCo
 }
 
 void TlsTCPCommunication::TlsTcpImpl::syncCloseConnection(std::shared_ptr<AsyncTlsConnection>& conn) {
-  boost::system::error_code _;
-  conn->getSocket().shutdown(_);
+  boost::system::error_code ec;
+  conn->getSocket().shutdown(ec);
+  if (ec) {
+    LOG_WARN(logger_, "SSL shutdown failed: " << ec.message());
+  }
   conn->getSocket().lowest_layer().close();
 }
 
@@ -337,7 +343,7 @@ void TlsTCPCommunication::TlsTcpImpl::connect(NodeNum i, const boost::asio::ip::
   status_->num_connecting = connecting_.size();
   it->second.async_connect(endpoint, [this, i, endpoint](const auto& error_code) {
     if (error_code) {
-      LOG_WARN(logger_, "Failed to connect to node " << i << ": " << endpoint);
+      LOG_WARN(logger_, "Failed to connect to node " << i << ": " << endpoint << " : " << error_code.message());
       connecting_.at(i).close();
       connecting_.erase(i);
       status_->num_connecting = connecting_.size();
