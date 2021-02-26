@@ -235,6 +235,11 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     const auto linkStChain = true;
     m_kvBlockchain.emplace(storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain);
     m_kvBlockchain->setAggregator(aggregator);
+
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    concord::diagnostics::StatusHandler handler(
+        "pruning", "Pruning Status", [this]() { return m_kvBlockchain->getPruningStatus(); });
+    registrar.status.registerHandler(handler);
   }
   m_dbSet.dataDBClient->setAggregator(aggregator);
   m_dbSet.metadataDBClient->setAggregator(aggregator);
@@ -242,11 +247,6 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   bftEngine::ControlStateManager::instance(m_stateTransfer);
-
-  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-  concord::diagnostics::StatusHandler handler(
-      "pruning", "Pruning Status", [this]() { return m_kvBlockchain->getPruningStatus(); });
-  registrar.status.registerHandler(handler);
 }
 
 ReplicaImp::~ReplicaImp() {

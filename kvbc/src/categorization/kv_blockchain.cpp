@@ -13,6 +13,7 @@
 
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "bftengine/ControlStateManager.hpp"
 #include "json_output.hpp"
 
 #include <stdexcept>
@@ -611,6 +612,7 @@ std::string KeyValueBlockchain::getPruningStatus() {
   result.insert(toPair(getName(merkle_num_of_deleted_keys_), merkle_num_of_deleted_keys_.Get().Get()));
   result.insert(toPair(getName(getGenesisBlockId()), getGenesisBlockId()));
   result.insert(toPair(getName(getLastReachableBlockId()), getLastReachableBlockId()));
+  result.insert(toPair("isPruningInProgress", bftEngine::ControlStateManager::instance().getPruningProcessStatus()));
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
