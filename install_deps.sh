@@ -200,3 +200,14 @@ git clone https://github.com/nlohmann/json && \
     make install && \
     cd ../.. && \
     rm -r json
+
+cd ${HOME}
+# cpp-httplib requires cmake 3.14, while bionic ships with 3.10
+# the lib is header only so instead of compiling the header is 
+# copied to /usr/local/include
+git clone https://github.com/yhirose/cpp-httplib && \
+    cd cpp-httplib && \
+    git checkout v0.7.1 && \
+    cp httplib.h /usr/local/include/ && \
+    cd .. && \
+    rm -rf cpp-httplib
