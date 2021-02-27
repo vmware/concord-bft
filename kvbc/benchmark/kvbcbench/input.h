@@ -55,8 +55,8 @@ inline size_t blockSize(const po::variables_map& config) {
 
   // Immutable config
   auto num_adds_immutable = config["num-immutable-keys-add"].as<size_t>() * batch_size;
-  auto key_size_immutable = config["immutable-key-size"].as<size_t>() * batch_size;
-  auto value_size_immutable = config["immutable-value-size"].as<size_t>() * batch_size;
+  auto key_size_immutable = config["immutable-key-size"].as<size_t>();
+  auto value_size_immutable = config["immutable-value-size"].as<size_t>();
 
   // Versioned KV config
   auto key_size_versioned = config["versioned-key-size"].as<size_t>();
@@ -270,6 +270,9 @@ inline auto makeImmutableUpdateGenerator(const po::variables_map& config) {
 
 inline InputData createBlockInput(const po::variables_map& config) {
   auto num_blocks = numBlocks(config);
+  std::cout << "Generated Input Data for " << num_blocks << " blocks, with block size = " << blockSize(config)
+            << " bytes." << std::endl;
+
   auto data = InputData{};
 
   // Create BlockMerkle Input
