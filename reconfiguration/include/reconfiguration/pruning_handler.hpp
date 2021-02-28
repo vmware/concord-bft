@@ -19,24 +19,6 @@
 #include "OpenTracing.hpp"
 #include "pruning_utils.hpp"
 namespace concord::reconfiguration::pruning {
-
-class DefaultPruningHandler : public IPruningHandler {
-  bool handle(const concord::messages::LatestPrunableBlockRequest &,
-              concord::messages::LatestPrunableBlock &) override {
-    LOG_ERROR(logger_, "Not implemented");
-    return false;
-  };
-  bool handle(const concord::messages::PruneStatusRequest &, concord::messages::PruneStatus &) override {
-    LOG_ERROR(logger_, "Not implemented");
-    return false;
-  }
-  bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &) override {
-    LOG_ERROR(logger_, "Not implemented");
-    return false;
-  }
-
-  logging::Logger logger_ = logging::getLogger("concord.pruning");
-};
 class PruningHandler : public IPruningHandler {
   // This class implements the KVB pruning state machine. Main functionalities
   // include executing pruning based on configuration policy and replica states as
