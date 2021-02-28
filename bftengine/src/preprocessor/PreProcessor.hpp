@@ -118,7 +118,7 @@ class PreProcessor {
                                     uint64_t reqRetryId,
                                     const std::string &cid,
                                     const std::string &ongoingCid);
-  const char *getPreProcessResultBuffer(uint16_t clientId, uint16_t reqOffsetInBatch) const;
+  const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
   const uint16_t getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
@@ -180,8 +180,8 @@ class PreProcessor {
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
   const uint16_t numOfClients_;
-  const bool batchingEnabled_;
-  const uint16_t batchSize_;
+  const bool clientBatchingEnabled_;
+  const uint16_t clientMaxBatchSize_;
   util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   PreProcessResultBuffers preProcessResultBuffers_;

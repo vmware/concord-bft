@@ -85,8 +85,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
                     myReplica_.getReplicaConfig().numOfClientProxies),
-      batchingEnabled_(myReplica.getReplicaConfig().clientMiniBatchingEnabled),
-      batchSize_(batchingEnabled_ ? myReplica.getReplicaConfig().clientMiniBatchingMaxMsgsNbr : 1),
+      clientBatchingEnabled_(myReplica.getReplicaConfig().clientMiniBatchingEnabled),
+      clientMaxBatchSize_(clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientMiniBatchingMaxMsgsNbr : 1),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -110,8 +110,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                                         numOfReplicas_ + numOfClients_,
                                         myReplica.getReplicaConfig().replicaPrivateKey,
                                         myReplica.getReplicaConfig().publicKeysOfReplicas);
-  const uint16_t numOfReqEntries = numOfClients_ * batchSize_;
-  const uint16_t firstClientRequestId = numOfReplicas_ * batchSize_;
+  const uint16_t numOfReqEntries = numOfClients_ * clientMaxBatchSize_;
+  const uint16_t firstClientRequestId = numOfReplicas_ * clientMaxBatchSize_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
@@ -124,8 +124,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   LOG_INFO(logger(),
            KVLOG(numOfReplicas_,
                  numOfClients_,
-                 batchingEnabled_,
-                 batchSize_,
+                 numOfReqEntries,
+                 firstClientRequestId,
+                 clientBatchingEnabled_,
+                 clientMaxBatchSize_,
                  maxPreExecResultSize_,
                  preExecReqStatusCheckPeriodMilli_,
                  numOfThreads));
@@ -231,7 +233,7 @@ bool PreProcessor::checkClientMsgCorrectness(
 }
 
 bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg) {
-  if (!batchingEnabled_) {
+  if (!clientBatchingEnabled_) {
     LOG_ERROR(logger(),
               "Batching functionality is disabled => reject message"
                   << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
@@ -264,7 +266,7 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                 const string &ongoingCid) {
   auto replyMsg = make_shared<PreProcessReplyMsg>(
       sigManager_, &histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
-  replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqOffsetInBatch), 0, cid, STATUS_REJECT);
+  replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch), 0, cid, STATUS_REJECT);
   LOG_DEBUG(
       logger(),
       KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
@@ -739,18 +741,25 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPrePro
   }
 }
 
-const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, uint16_t reqOffsetInBatch) const {
+const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
+                                                    ReqId reqSeqNum,
+                                                    uint16_t reqOffsetInBatch) const {
   // Pre-allocated buffers scheme:
   // |first client's first buffer|...|first client's last buffer|......
   // |last client's first buffer|...|last client's last buffer|
-  // The first client id starts after the last replica id.
+  // First client id starts after the last replica id.
+  // First buffer offset = numOfReplicas_ * batchSize_
   // The number of buffers per client comes from the configuration parameter clientMiniBatchingMaxMsgsNbr.
-  const auto bufferOffset = clientId - numOfReplicas_ + reqOffsetInBatch;
+  const auto bufferOffset = (clientId - numOfReplicas_) * clientMaxBatchSize_ + reqOffsetInBatch;
+  LOG_DEBUG(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
   return preProcessResultBuffers_[bufferOffset].data();
 }
 
 const uint16_t PreProcessor::getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const {
-  return clientId * batchSize_ + reqOffsetInBatch;
+  // Index for ongoing requests starts from the first_client_id * batchSize_, e.g 28 * 10 = 280 (not from 0)
+  const auto ongoingReqIndex = clientId * clientMaxBatchSize_ + reqOffsetInBatch;
+  LOG_DEBUG(logger(), KVLOG(clientId, reqOffsetInBatch, ongoingReqIndex));
+  return ongoingReqIndex;
 }
 
 // Primary replica: ask all replicas to pre-process the request
@@ -798,14 +807,14 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   SCOPED_MDC_CID(cid);
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(reqSeqNum, clientId, reqOffsetInBatch, reqSeqNum));
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
-  accumulatedRequests.push_back(
-      bftEngine::IRequestsHandler::ExecutionRequest{clientId,
-                                                    reqSeqNum,
-                                                    PRE_PROCESS_FLAG,
-                                                    reqLength,
-                                                    reqBuf,
-                                                    maxPreExecResultSize_,
-                                                    (char *)getPreProcessResultBuffer(clientId, reqOffsetInBatch)});
+  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
+      clientId,
+      reqSeqNum,
+      PRE_PROCESS_FLAG,
+      reqLength,
+      reqBuf,
+      maxPreExecResultSize_,
+      (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch)});
   requestsHandler_.execute(accumulatedRequests, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
@@ -832,8 +841,9 @@ PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusR
   const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, reqOffsetInBatch)];
   lock_guard<mutex> lock(reqEntry->mutex);
   if (reqEntry->reqProcessingStatePtr) {
-    reqEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(getPreProcessResultBuffer(clientId, reqOffsetInBatch),
-                                                               resultBufLen);
+    reqEntry->reqProcessingStatePtr->handlePrimaryPreProcessed(
+        getPreProcessResultBuffer(clientId, reqEntry->reqProcessingStatePtr->getReqSeqNum(), reqOffsetInBatch),
+        resultBufLen);
     return reqEntry->reqProcessingStatePtr->definePreProcessingConsensusResult();
   }
   return NONE;
@@ -870,7 +880,7 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
   setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
   auto replyMsg = make_shared<PreProcessReplyMsg>(
       sigManager_, &histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
-  replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqOffsetInBatch), resBufLen, cid, STATUS_GOOD);
+  replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch), resBufLen, cid, STATUS_GOOD);
   // Release the request before sending a reply to the primary to be able accepting new messages
   releaseClientPreProcessRequestSafe(clientId, reqOffsetInBatch, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());
