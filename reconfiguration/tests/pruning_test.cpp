@@ -650,7 +650,7 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
 
   // Make sure the state machine has added the last agreed prunable block ID
   // key.
-  auto output = storage.getLatest(kConcordInternalCategoryId, PruningHandler::LastAgreedPrunableBlockIdKey());
+  auto output = storage.getLatest(kConcordInternalCategoryId, PruningHandler::lastAgreedPrunableBlockIdKey());
   auto blockIdFromStorage =
       concordUtils::fromBigEndianBuffer<BlockId>(std::get<VersionedValue>(output.value()).data.c_str());
   ASSERT_EQ(latest_prunable_block_id, blockIdFromStorage);
@@ -676,7 +676,7 @@ TEST_F(test_rocksdb, sm_prune_on_startup) {
   const auto last_agreed_prunable_block_id = BlockId{storage.getLastBlockId() - num_blocks_to_keep};
 
   concord::kvbc::categorization::VersionedUpdates versioned_updates;
-  versioned_updates.addUpdate(PruningHandler::LastAgreedPrunableBlockIdKey(),
+  versioned_updates.addUpdate(PruningHandler::lastAgreedPrunableBlockIdKey(),
                               concordUtils::toBigEndianStringBuffer(last_agreed_prunable_block_id));
   versioned_updates.calculateRootHash(false);
 
@@ -702,7 +702,7 @@ TEST_F(test_rocksdb, sm_already_pruned_on_startup) {
   const auto last_agreed_prunable_block_id = BlockId{storage.getLastBlockId() - num_blocks_to_keep};
 
   concord::kvbc::categorization::VersionedUpdates versioned_updates;
-  versioned_updates.addUpdate(PruningHandler::LastAgreedPrunableBlockIdKey(),
+  versioned_updates.addUpdate(PruningHandler::lastAgreedPrunableBlockIdKey(),
                               concordUtils::toBigEndianStringBuffer(last_agreed_prunable_block_id));
   versioned_updates.calculateRootHash(false);
 
@@ -738,7 +738,7 @@ TEST_F(test_rocksdb, sm_prune_on_state_transfer_complete) {
   // pruning has been executed on other replicas and state transfer completes,
   // bringing in a block that contains the last agreed prunable block ID.
   concord::kvbc::categorization::VersionedUpdates versioned_updates;
-  versioned_updates.addUpdate(PruningHandler::LastAgreedPrunableBlockIdKey(),
+  versioned_updates.addUpdate(PruningHandler::lastAgreedPrunableBlockIdKey(),
                               concordUtils::toBigEndianStringBuffer(last_agreed_prunable_block_id));
   versioned_updates.calculateRootHash(false);
 

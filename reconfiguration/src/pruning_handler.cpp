@@ -40,13 +40,13 @@ PruningHandler::PruningHandler(const kvbc::IReader& ro_storage,
   // pruned. That might be violated if there was a crash during pruning itself.
   // Therefore, call it every time on startup to ensure no old blocks are
   // present before we allow the system to proceed.
-  PruneThroughLastAgreedBlockId();
+  pruneThroughLastAgreedBlockId();
 
   // If a replica has missed Prune commands for whatever reason, we still need
   // to execute them. We do that by saving pruning data in the state and later
   // using it to prune relevant blocks when we receive it from state transfer.
   state_transfer.addOnTransferringCompleteCallback(
-      [this](uint64_t checkpoint_number) { PruneOnStateTransferCompletion(checkpoint_number); });
+      [this](uint64_t checkpoint_number) { pruneOnStateTransferCompletion(checkpoint_number); });
 }
 
 bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
@@ -55,7 +55,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   // smaller block range.
 
   const auto latest_prunable_block_id =
-      pruning_enabled_ ? std::min(LatestBasedOnNumBlocksConfig(), LatestBasedOnTimeRangeConfig()) : 0;
+      pruning_enabled_ ? std::min(latestBasedOnNumBlocksConfig(), latestBasedOnTimeRangeConfig()) : 0;
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
   signer_.Sign(latest_prunable_block);
@@ -85,17 +85,17 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc
     return false;
   }
 
-  const auto latest_prunable_block_id = AgreedPrunableBlockId(request);
+  const auto latest_prunable_block_id = agreedPrunableBlockId(request);
   // Make sure we have persisted the agreed prunable block ID before proceeding.
   // Rationale is that we want to be able to pick up in case of a crash.
-  PersistLastAgreedPrunableBlockId(latest_prunable_block_id);
+  persistLastAgreedPrunableBlockId(latest_prunable_block_id);
   // Execute actual pruning.
-  PruneThroughBlockId(latest_prunable_block_id);
+  pruneThroughBlockId(latest_prunable_block_id);
   bid = latest_prunable_block_id;
   return true;
 }
 
-kvbc::BlockId PruningHandler::LatestBasedOnNumBlocksConfig() const {
+kvbc::BlockId PruningHandler::latestBasedOnNumBlocksConfig() const {
   const auto last_block_id = ro_storage_.getLastBlockId();
   if (last_block_id < num_blocks_to_keep_) {
     return 0;
@@ -103,7 +103,7 @@ kvbc::BlockId PruningHandler::LatestBasedOnNumBlocksConfig() const {
   return last_block_id - num_blocks_to_keep_;
 }
 
-kvbc::BlockId PruningHandler::LatestBasedOnTimeRangeConfig() const {
+kvbc::BlockId PruningHandler::latestBasedOnTimeRangeConfig() const {
   /*
    * Currently time records are not saved by concordbft layer.
    * The user may ovveride this method to have time based search.
@@ -113,7 +113,7 @@ kvbc::BlockId PruningHandler::LatestBasedOnTimeRangeConfig() const {
   return last_block_id;
 }
 
-kvbc::BlockId PruningHandler::AgreedPrunableBlockId(const concord::messages::PruneRequest& prune_request) const {
+kvbc::BlockId PruningHandler::agreedPrunableBlockId(const concord::messages::PruneRequest& prune_request) const {
   const auto latest_prunable_blocks = prune_request.latest_prunable_block;
   const auto begin = std::cbegin(latest_prunable_blocks);
   const auto end = std::cend(latest_prunable_blocks);
@@ -121,7 +121,7 @@ kvbc::BlockId PruningHandler::AgreedPrunableBlockId(const concord::messages::Pru
   return std::min_element(begin, end, [](const auto& a, const auto& b) { return (a.block_id < b.block_id); })->block_id;
 }
 
-std::optional<kvbc::BlockId> PruningHandler::LastAgreedPrunableBlockId() const {
+std::optional<kvbc::BlockId> PruningHandler::lastAgreedPrunableBlockId() const {
   auto opt_val = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, last_agreed_prunable_block_id_key_);
   // if it's not found return nullopt, if any other error occurs storage throws.
   if (!opt_val) {
@@ -131,7 +131,7 @@ std::optional<kvbc::BlockId> PruningHandler::LastAgreedPrunableBlockId() const {
   return concordUtils::fromBigEndianBuffer<kvbc::BlockId>(val.data.data());
 }
 
-void PruningHandler::PersistLastAgreedPrunableBlockId(kvbc::BlockId block_id) const {
+void PruningHandler::persistLastAgreedPrunableBlockId(kvbc::BlockId block_id) const {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::string{last_agreed_prunable_block_id_key_},
                         concordUtils::toBigEndianStringBuffer(block_id));
@@ -144,7 +144,7 @@ void PruningHandler::PersistLastAgreedPrunableBlockId(kvbc::BlockId block_id) co
   }
 }
 
-void PruningHandler::PruneThroughBlockId(kvbc::BlockId block_id) const {
+void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
   const auto genesis_block_id = ro_storage_.getGenesisBlockId();
   if (block_id >= genesis_block_id) {
     bftEngine::ControlStateManager::instance().setPruningProcess(true);
@@ -178,16 +178,16 @@ void PruningHandler::PruneThroughBlockId(kvbc::BlockId block_id) const {
   }
 }
 
-void PruningHandler::PruneThroughLastAgreedBlockId() const {
-  const auto last_agreed = LastAgreedPrunableBlockId();
+void PruningHandler::pruneThroughLastAgreedBlockId() const {
+  const auto last_agreed = lastAgreedPrunableBlockId();
   if (last_agreed.has_value()) {
-    PruneThroughBlockId(*last_agreed);
+    pruneThroughBlockId(*last_agreed);
   }
 }
 
-void PruningHandler::PruneOnStateTransferCompletion(uint64_t) const noexcept {
+void PruningHandler::pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept {
   try {
-    PruneThroughLastAgreedBlockId();
+    pruneThroughLastAgreedBlockId();
   } catch (const std::exception& e) {
     LOG_FATAL(logger_,
               "PruningHandler stopping replica due to failure to prune blocks on "

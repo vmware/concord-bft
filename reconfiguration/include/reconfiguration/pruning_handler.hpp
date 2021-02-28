@@ -74,21 +74,21 @@ class PruningHandler : public IPruningHandler {
   bool handle(const concord::messages::LatestPrunableBlockRequest &, concord::messages::LatestPrunableBlock &) override;
   bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &) override;
   bool handle(const concord::messages::PruneStatusRequest &, concord::messages::PruneStatus &) override;
-  static std::string LastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
+  static std::string lastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
 
  private:
-  kvbc::BlockId LatestBasedOnNumBlocksConfig() const;
-  kvbc::BlockId LatestBasedOnTimeRangeConfig() const;
+  kvbc::BlockId latestBasedOnNumBlocksConfig() const;
+  kvbc::BlockId latestBasedOnTimeRangeConfig() const;
 
-  kvbc::BlockId AgreedPrunableBlockId(const concord::messages::PruneRequest &) const;
+  kvbc::BlockId agreedPrunableBlockId(const concord::messages::PruneRequest &) const;
   // Returns the last agreed prunable block ID from storage, if existing.
-  std::optional<kvbc::BlockId> LastAgreedPrunableBlockId() const;
-  void PersistLastAgreedPrunableBlockId(kvbc::BlockId block_id) const;
+  std::optional<kvbc::BlockId> lastAgreedPrunableBlockId() const;
+  void persistLastAgreedPrunableBlockId(kvbc::BlockId block_id) const;
   // Prune blocks in the [genesis, block_id] range (both inclusive).
   // Throws on errors.
-  void PruneThroughBlockId(kvbc::BlockId block_id) const;
-  void PruneThroughLastAgreedBlockId() const;
-  void PruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept;
+  void pruneThroughBlockId(kvbc::BlockId block_id) const;
+  void pruneThroughLastAgreedBlockId() const;
+  void pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept;
   logging::Logger logger_;
   RSAPruningSigner signer_;
   RSAPruningVerifier verifier_;
