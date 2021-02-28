@@ -3459,6 +3459,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_on_call_back_of_super_stable_cp_{metrics_.RegisterGauge("OnCallBackOfSuperStableCP", 0)},
       metric_sent_replica_asks_to_leave_view_msg_{metrics_.RegisterGauge("sentReplicaAsksToLeaveViewMsg", 0)},
       metric_bft_batch_size_{metrics_.RegisterGauge("bft_batch_size", 0)},
+      my_id{metrics_.RegisterGauge("my_id", config.replicaId)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
       metric_total_committed_sn_{metrics_.RegisterCounter("total_committed_seqNum")},

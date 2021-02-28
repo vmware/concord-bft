@@ -190,7 +190,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_on_call_back_of_super_stable_cp_;
   GaugeHandle metric_sent_replica_asks_to_leave_view_msg_;
   GaugeHandle metric_bft_batch_size_;
-
+  GaugeHandle my_id;
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
