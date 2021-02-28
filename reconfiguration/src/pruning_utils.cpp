@@ -14,14 +14,6 @@
 #include "bftengine/ReplicaConfig.hpp"
 
 namespace concord::reconfiguration::pruning {
-namespace details {
-std::string &operator<<(std::string &buf, const concord::messages::LatestPrunableBlock &block) {
-  buf << block.replica << block.block_id;
-  buf += std::string(block.signature.begin(), block.signature.end());
-
-  return buf;
-}
-}  // namespace details
 
 void RSAPruningSigner::Sign(concord::messages::LatestPrunableBlock &block) const {
   std::ostringstream oss;
@@ -33,7 +25,7 @@ void RSAPruningSigner::Sign(concord::messages::LatestPrunableBlock &block) const
   const auto res =
       signer_.sign(ser.c_str(), ser.length(), signature.data(), signer_.signatureLength(), actual_sign_len);
   if (!res) {
-    throw PruningRuntimeException{"RSAPruningSigner failed to sign a LatestPrunableBlock message"};
+    throw std::runtime_error{"RSAPruningSigner failed to sign a LatestPrunableBlock message"};
   } else if (actual_sign_len < signature.length()) {
     signature.resize(actual_sign_len);
   }
@@ -53,8 +45,8 @@ RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const 
     replicas_.push_back(Replica{idx, pkey.c_str()});
     const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
     if (!ins_res.second) {
-      throw PruningConfigurationException{"RSAPruningVerifier found duplicate replica principal_id: " +
-                                          std::to_string(replicas_.back().principal_id)};
+      throw std::runtime_error{"RSAPruningVerifier found duplicate replica principal_id: " +
+                               std::to_string(replicas_.back().principal_id)};
     }
 
     const auto &replica = replicas_.back();

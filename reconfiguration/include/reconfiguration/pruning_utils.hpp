@@ -13,7 +13,6 @@
 #pragma once
 
 #include "concord.cmf.hpp"
-#include <boost/endian/buffers.hpp>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
@@ -24,40 +23,6 @@
 #include "bftengine/ControlStateManager.hpp"
 
 namespace concord::reconfiguration::pruning {
-class PruningException : public std::exception {
- public:
-  explicit PruningException(const std::string &what) : msg_{what} {}
-
-  const char *what() const noexcept override { return msg_.c_str(); }
-
- private:
-  std::string msg_;
-};
-
-class PruningConfigurationException : public PruningException {
- public:
-  explicit PruningConfigurationException(const std::string &what) : PruningException{what} {}
-};
-
-class PruningRuntimeException : public PruningException {
- public:
-  explicit PruningRuntimeException(const std::string &what) : PruningException{what} {}
-};
-namespace details {
-template <typename T>
-std::string &operator<<(std::string &buf, T val) {
-  static_assert(std::is_integral_v<T>);
-
-  using buf_t = boost::endian::big_uint64_buf_at;
-  const auto big_endian_val = buf_t{val};
-
-  buf.append(big_endian_val.data(), sizeof(buf_t::value_type));
-  return buf;
-}
-
-std::string &operator<<(std::string &, const concord::messages::LatestPrunableBlock &);
-
-}  // namespace details
 
 // This class signs pruning messages via the replica's private key that it gets
 // through the configuration. Message contents used to generate the signature
