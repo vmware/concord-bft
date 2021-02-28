@@ -104,7 +104,10 @@ class IReplica {
                                       bool &erasedMetadata,
                                       std::shared_ptr<concord::performance::PerformanceManager> sdm);
 
-  static IReplicaPtr createNewRoReplica(const ReplicaConfig &, IStateTransfer *, bft::communication::ICommunication *);
+  static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
+                                        IStateTransfer *,
+                                        bft::communication::ICommunication *,
+                                        IRequestsHandler *);
 
   virtual ~IReplica() = default;
 

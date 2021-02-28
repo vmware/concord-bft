@@ -48,7 +48,7 @@ Status ReplicaImp::start() {
 
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, m_stateTransfer, m_ptrComm);
+    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, m_stateTransfer, m_ptrComm, m_cmdHandler);
   } else {
     createReplicaAndSyncState();
   }

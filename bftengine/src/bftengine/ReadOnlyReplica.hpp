@@ -12,6 +12,8 @@
 #pragma once
 
 #include "ReplicaForStateTransfer.hpp"
+#include "messages/ClientRequestMsg.hpp"
+#include "RequestHandler.h"
 #include "Timers.hpp"
 
 namespace bftEngine::impl {
@@ -26,6 +28,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
                   std::shared_ptr<MsgHandlersRegistrator>,
+                  IRequestsHandler*,
                   concordUtil::Timers& timers);
 
   void start() override;
@@ -48,6 +51,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
 
   template <class T>
   void onMessage(T*);
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
 
  protected:
   // last known stable checkpoint of each peer replica.
@@ -55,7 +59,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
 
   concordUtil::Timers::Handle askForCheckpointMsgTimer_;
-
+  RequestHandler bftRequestsHandler_;
   struct Metrics {
     concordMetrics::CounterHandle received_checkpoint_msg_;
     concordMetrics::CounterHandle sent_ask_for_checkpoint_msg_;

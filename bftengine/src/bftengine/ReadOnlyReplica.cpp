@@ -12,12 +12,14 @@
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
+#include "messages/ClientRequestMsg.hpp"
+#include "messages/ClientReplyMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
+#include "ClientsManager.hpp"
 #include "CheckpointInfo.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "PersistentStorage.hpp"
-#include "ClientsManager.hpp"
 #include "MsgsCommunicator.hpp"
 #include "KeyStore.h"
 
@@ -29,8 +31,10 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
+                                 IRequestsHandler *request_handler,
                                  concordUtil::Timers &timers)
     : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true, timers),
+      bftRequestsHandler_(request_handler),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
@@ -38,6 +42,8 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ClientRequest, bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
   metrics_.Register();
   // must be initialized although is not used by ReadOnlyReplica for proper behavior of StateTransfer
   ClientsManager::setNumResPages(
@@ -78,6 +84,36 @@ void ReadOnlyReplica::sendAskForCheckpointMsg() {
   LOG_INFO(GL, "sending AskForCheckpointMsg");
   auto msg = std::make_unique<AskForCheckpointMsg>(config_.replicaId);
   for (auto id : repsInfo->idsOfPeerReplicas()) send(msg.get(), id);
+}
+
+/*
+ * The read-only replica may get only read request from client and only to get reconfiguration data (such as pruning)
+ * Thus, there is no need to validate the client identity, it will be validate using its public key in the command
+ * handler. Notice that also doesn't need to have a client manager in this case.
+ */
+template <>
+void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
+  const NodeIdType senderId = m->senderId();
+  const NodeIdType clientId = m->clientProxyId();
+  const bool readOnly = m->isReadOnly();
+  const ReqId reqSeqNum = m->requestSeqNum();
+  const uint8_t flags = m->flags();
+
+  SCOPED_MDC_CID(m->getCid());
+  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<8>(flags));
+
+  const auto &span_context = m->spanContext<std::remove_pointer<decltype(m)>::type>();
+  auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
+  span.setTag("rid", config_.getreplicaId());
+  span.setTag("cid", m->getCid());
+  span.setTag("seq_num", reqSeqNum);
+
+  if (readOnly) {
+    executeReadOnlyRequest(span, m);
+  } else {
+    LOG_WARN(GL, "Read-only replica should not get write request from a client");
+  }
+  delete m;
 }
 
 template <>
@@ -124,6 +160,51 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (numRelevant >= config_.fVal + 1) {
     LOG_INFO(GL, "call to startCollectingState()");
     stateTransfer->startCollectingState();
+  }
+}
+void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, ClientRequestMsg *request) {
+  ConcordAssert(request->isReadOnly());
+
+  auto span = concordUtils::startChildSpan("bft_execute_read_only_request", parent_span);
+  // The client should know not to realy on ROR replicas replies to get the current primary
+  ClientReplyMsg reply(0, request->requestSeqNum(), config_.getreplicaId());
+
+  uint16_t clientId = request->clientProxyId();
+
+  int status = 0;
+  bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
+  accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
+                                                                              static_cast<uint64_t>(lastExecutedSeqNum),
+                                                                              request->flags(),
+                                                                              request->requestLength(),
+                                                                              request->requestBuf(),
+                                                                              reply.maxReplyLength(),
+                                                                              reply.replyBuf()});
+  { bftRequestsHandler_.execute(accumulatedRequests, request->getCid(), span); }
+  const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
+  status = single_request.outExecutionStatus;
+  const uint32_t actualReplyLength = single_request.outActualReplySize;
+  const uint32_t actualReplicaSpecificInfoLength = single_request.outReplicaSpecificInfoSize;
+  LOG_DEBUG(GL,
+            "Executed read only request. " << KVLOG(clientId,
+                                                    lastExecutedSeqNum,
+                                                    request->requestLength(),
+                                                    reply.maxReplyLength(),
+                                                    actualReplyLength,
+                                                    actualReplicaSpecificInfoLength,
+                                                    status));
+  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+  if (!status) {
+    if (actualReplyLength > 0) {
+      reply.setReplyLength(actualReplyLength);
+      reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
+      ReplicaBase::send(&reply, clientId);
+    } else {
+      LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
+    }
+
+  } else {
+    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
 }
 
