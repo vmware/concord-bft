@@ -39,10 +39,10 @@ class RSAPruningSigner {
   // behalf of the operator, as the operator's signature is a dedicated-purpose
   // application-level signature rather than a Concord-BFT Principal's RSA
   // signature.
-  void Sign(concord::messages::LatestPrunableBlock &) const;
+  void sign(concord::messages::LatestPrunableBlock &) const;
 
  private:
-  std::string GetSignatureBuffer() const;
+  std::string getSignatureBuffer() const;
 
  private:
   bftEngine::impl::RSASigner signer_;
@@ -68,8 +68,8 @@ class RSAPruningVerifier {
   // operator's signature of the pruning command, as the operator's signature is
   // a dedicated application-level signature rather than one of the Concord-BFT
   // Principal's RSA signatures.
-  bool Verify(const concord::messages::LatestPrunableBlock &) const;
-  bool Verify(const concord::messages::PruneRequest &) const;
+  bool verify(const concord::messages::LatestPrunableBlock &) const;
+  bool verify(const concord::messages::PruneRequest &) const;
 
  private:
   struct Replica {
@@ -77,12 +77,12 @@ class RSAPruningVerifier {
     bftEngine::impl::RSAVerifier verifier;
   };
 
-  bool Verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const;
+  bool verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const;
 
   using ReplicaVector = std::vector<Replica>;
 
   // Get a replica from the replicas vector by its index.
-  const Replica &GetReplica(ReplicaVector::size_type idx) const;
+  const Replica &getReplica(ReplicaVector::size_type idx) const;
 
   // A vector of all the replicas in the system.
   ReplicaVector replicas_;

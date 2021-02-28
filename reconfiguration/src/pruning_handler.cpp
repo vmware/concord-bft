@@ -58,7 +58,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
       pruning_enabled_ ? std::min(latestBasedOnNumBlocksConfig(), latestBasedOnTimeRangeConfig()) : 0;
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
-  signer_.Sign(latest_prunable_block);
+  signer_.sign(latest_prunable_block);
   return true;
 }
 
@@ -72,7 +72,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc
 
   const auto sender = request.sender;
 
-  if (!verifier_.Verify(request)) {
+  if (!verifier_.verify(request)) {
     LOG_WARN(logger_,
              "PruningHandler failed to verify PruneRequest from principal_id "
                  << sender

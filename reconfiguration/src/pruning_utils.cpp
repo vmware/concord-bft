@@ -15,12 +15,12 @@
 
 namespace concord::reconfiguration::pruning {
 
-void RSAPruningSigner::Sign(concord::messages::LatestPrunableBlock &block) const {
+void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock &block) const {
   std::ostringstream oss;
   std::string ser;
   oss << block.replica << block.block_id;
   ser = oss.str();
-  auto signature = GetSignatureBuffer();
+  auto signature = getSignatureBuffer();
   size_t actual_sign_len{0};
   const auto res =
       signer_.sign(ser.c_str(), ser.length(), signature.data(), signer_.signatureLength(), actual_sign_len);
@@ -33,7 +33,7 @@ void RSAPruningSigner::Sign(concord::messages::LatestPrunableBlock &block) const
   block.signature = signature;
 }
 
-std::string RSAPruningSigner::GetSignatureBuffer() const {
+std::string RSAPruningSigner::getSignatureBuffer() const {
   const auto sign_len = signer_.signatureLength();
   return std::string(sign_len, '\0');
 }
@@ -55,7 +55,7 @@ RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const 
   }
 }
 
-bool RSAPruningVerifier::Verify(const concord::messages::LatestPrunableBlock &block) const {
+bool RSAPruningVerifier::verify(const concord::messages::LatestPrunableBlock &block) const {
   // LatestPrunableBlock can only be sent by replicas and not by client proxies.
   if (replica_ids_.find(block.replica) == std::end(replica_ids_)) {
     return false;
@@ -64,10 +64,10 @@ bool RSAPruningVerifier::Verify(const concord::messages::LatestPrunableBlock &bl
   std::string ser;
   oss << block.replica << block.block_id;
   ser = oss.str();
-  return Verify(block.replica, ser, block.signature);
+  return verify(block.replica, ser, block.signature);
 }
 
-bool RSAPruningVerifier::Verify(const concord::messages::PruneRequest &request) const {
+bool RSAPruningVerifier::verify(const concord::messages::PruneRequest &request) const {
   if (request.latest_prunable_block.size() != static_cast<size_t>(replica_ids_.size())) {
     return false;
   }
@@ -85,7 +85,7 @@ bool RSAPruningVerifier::Verify(const concord::messages::PruneRequest &request) 
   // Verify that *all* replicas have responded with valid responses.
   auto replica_ids_to_verify = replica_ids_;
   for (auto &block : request.latest_prunable_block) {
-    if (!Verify(block)) {
+    if (!verify(block)) {
       return false;
     }
     auto it = replica_ids_to_verify.find(block.replica);
@@ -97,16 +97,16 @@ bool RSAPruningVerifier::Verify(const concord::messages::PruneRequest &request) 
   return replica_ids_to_verify.empty();
 }
 
-bool RSAPruningVerifier::Verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const {
+bool RSAPruningVerifier::verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const {
   auto it = principal_to_replica_idx_.find(sender);
   if (it == std::cend(principal_to_replica_idx_)) {
     return false;
   }
 
-  return GetReplica(it->second).verifier.verify(ser.data(), ser.length(), signature.c_str(), signature.length());
+  return getReplica(it->second).verifier.verify(ser.data(), ser.length(), signature.c_str(), signature.length());
 }
 
-const RSAPruningVerifier::Replica &RSAPruningVerifier::GetReplica(ReplicaVector::size_type idx) const {
+const RSAPruningVerifier::Replica &RSAPruningVerifier::getReplica(ReplicaVector::size_type idx) const {
   return replicas_[idx];
 }
 }  // namespace concord::reconfiguration::pruning

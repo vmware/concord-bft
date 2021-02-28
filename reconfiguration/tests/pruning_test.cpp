@@ -326,7 +326,7 @@ void CheckLatestPrunableResp(const concord::messages::LatestPrunableBlock &lates
                              int replica_idx,
                              const RSAPruningVerifier &verifier) {
   ASSERT_EQ(latest_prunable_resp.replica, replica_idx);
-  ASSERT_TRUE(verifier.Verify(latest_prunable_resp));
+  ASSERT_TRUE(verifier.verify(latest_prunable_resp));
 }
 
 // This blockchain contains only versioned keys. TODO: add more categories
@@ -384,7 +384,7 @@ concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
     latest_block.block_id = min_prunable_block_id + i;
 
     const auto block_signer = RSAPruningSigner{pkey};
-    block_signer.Sign(latest_block);
+    block_signer.sign(latest_block);
     i++;
   }
   return prune_req;
@@ -404,9 +404,9 @@ TEST_F(test_rocksdb, sign_verify_correct) {
     concord::messages::LatestPrunableBlock block;
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id;
     block.block_id = LAST_BLOCK_ID;
-    signers[sending_id].Sign(block);
+    signers[sending_id].sign(block);
 
-    ASSERT_TRUE(verifier.Verify(block));
+    ASSERT_TRUE(verifier.verify(block));
   }
 
   // Sign and verify a PruneRequest message.
@@ -417,9 +417,9 @@ TEST_F(test_rocksdb, sign_verify_correct) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].Sign(block);
+      signers[i].sign(block);
     }
-    ASSERT_TRUE(verifier.Verify(request));
+    ASSERT_TRUE(verifier.verify(request));
   }
 }
 TEST_F(test_rocksdb, verify_malformed_messages) {
@@ -437,27 +437,27 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
     concord::messages::LatestPrunableBlock block;
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id;
     block.block_id = LAST_BLOCK_ID;
-    signers[sending_id].Sign(block);
+    signers[sending_id].sign(block);
 
     // Change the replica ID after signing.
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id + 1;
-    ASSERT_FALSE(verifier.Verify(block));
+    ASSERT_FALSE(verifier.verify(block));
 
     // Make sure it works with the correct replica ID.
     block.replica = REPLICA_PRINCIPAL_ID_START + sending_id;
-    ASSERT_TRUE(verifier.Verify(block));
+    ASSERT_TRUE(verifier.verify(block));
 
     // Change the block ID after signing.
     block.block_id = LAST_BLOCK_ID + 1;
-    ASSERT_FALSE(verifier.Verify(block));
+    ASSERT_FALSE(verifier.verify(block));
 
     // Make sure it works with the correct block ID.
     block.block_id = LAST_BLOCK_ID;
-    ASSERT_TRUE(verifier.Verify(block));
+    ASSERT_TRUE(verifier.verify(block));
 
     // Change a single byte from the signature and make sure it doesn't verify.
     block.signature[0] += 1;
-    ASSERT_FALSE(verifier.Verify(block));
+    ASSERT_FALSE(verifier.verify(block));
   }
 
   // Change the sender in PruneRequest after signing and verify.
@@ -468,12 +468,12 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].Sign(block);
+      signers[i].sign(block);
     }
 
     request.sender = request.sender + 1;
 
-    ASSERT_TRUE(verifier.Verify(request));
+    ASSERT_TRUE(verifier.verify(request));
   }
 
   // Verify a PruneRequest with replica_count - 1 latest prunable blocks.
@@ -484,10 +484,10 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].Sign(block);
+      signers[i].sign(block);
     }
 
-    ASSERT_FALSE(verifier.Verify(request));
+    ASSERT_FALSE(verifier.verify(request));
   }
 
   // Change replica in a single latest prunable block message after signing it
@@ -498,11 +498,11 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
-      signers[i].Sign(block);
+      signers[i].sign(block);
     }
     request.latest_prunable_block[0].replica = REPLICA_PRINCIPAL_ID_START + replica_count + 8;
 
-    ASSERT_FALSE(verifier.Verify(request));
+    ASSERT_FALSE(verifier.verify(request));
   }
 }
 TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
