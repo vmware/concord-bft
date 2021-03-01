@@ -44,7 +44,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.viewChangeTimerMillisec = 45 * 1000;
     replicaConfig.statusReportTimerMillisec = 10 * 1000;
     replicaConfig.preExecutionFeatureEnabled = true;
-    replicaConfig.clientMiniBatchingEnabled = true;
+    replicaConfig.clientBatchingEnabled = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
@@ -69,7 +69,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"consensus-batching-flush-period", required_argument, 0, 'z'},
                                           {"consensus-concurrency-level", required_argument, 0, 'y'},
                                           {0, 0, 0, 0}};
-
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");

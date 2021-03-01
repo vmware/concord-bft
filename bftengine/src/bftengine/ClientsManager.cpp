@@ -25,9 +25,8 @@ ClientsManager::ClientsManager(std::set<NodeIdType>& clientsSet)
       sizeOfReservedPage_(ReplicaConfig::instance().getsizeOfReservedPage()),
       indexToClientInfo_(clientsSet.size()),
       maxReplySize_(ReplicaConfig::instance().getmaxReplyMessageSize()),
-      maxNumOfReqsPerClient_(ReplicaConfig::instance().clientMiniBatchingEnabled
-                                 ? ReplicaConfig::instance().clientMiniBatchingMaxMsgsNbr
-                                 : 1) {
+      maxNumOfReqsPerClient_(
+          ReplicaConfig::instance().clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1) {
   ConcordAssert(clientsSet.size() >= 1);
   scratchPage_ = (char*)std::malloc(sizeOfReservedPage_);
   memset(scratchPage_, 0, sizeOfReservedPage_);

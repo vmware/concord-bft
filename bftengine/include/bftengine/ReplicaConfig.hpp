@@ -69,8 +69,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(autoPrimaryRotationEnabled, bool, false, "if automatic primary rotation is enabled");
   CONFIG_PARAM(autoPrimaryRotationTimerMillisec, uint16_t, 0, "timeout for automatic primary rotation");
   CONFIG_PARAM(preExecutionFeatureEnabled, bool, false, "enables the pre-execution feature");
-  CONFIG_PARAM(clientMiniBatchingEnabled, bool, false, "enables the client-mini-batch feature");
-  CONFIG_PARAM(clientMiniBatchingMaxMsgsNbr, uint16_t, 10, "Maximum messages number in one mini-batch");
+  CONFIG_PARAM(clientBatchingEnabled, bool, false, "enables the concord-client-batch feature");
+  CONFIG_PARAM(clientBatchingMaxMsgsNbr, uint16_t, 10, "Maximum messages number in one client batch");
   CONFIG_PARAM(preExecReqStatusCheckTimerMillisec,
                uint64_t,
                5000,
@@ -165,8 +165,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, autoPrimaryRotationTimerMillisec);
 
     serialize(outStream, preExecutionFeatureEnabled);
-    serialize(outStream, clientMiniBatchingEnabled);
-    serialize(outStream, clientMiniBatchingMaxMsgsNbr);
+    serialize(outStream, clientBatchingEnabled);
+    serialize(outStream, clientBatchingMaxMsgsNbr);
     serialize(outStream, preExecReqStatusCheckTimerMillisec);
     serialize(outStream, preExecConcurrencyLevel);
     serialize(outStream, batchingPolicy);
@@ -214,8 +214,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, autoPrimaryRotationTimerMillisec);
 
     deserialize(inStream, preExecutionFeatureEnabled);
-    deserialize(inStream, clientMiniBatchingEnabled);
-    deserialize(inStream, clientMiniBatchingMaxMsgsNbr);
+    deserialize(inStream, clientBatchingEnabled);
+    deserialize(inStream, clientBatchingMaxMsgsNbr);
     deserialize(inStream, preExecReqStatusCheckTimerMillisec);
     deserialize(inStream, preExecConcurrencyLevel);
     deserialize(inStream, batchingPolicy);
@@ -296,7 +296,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
   os << ", ";
-  os << KVLOG(rc.clientMiniBatchingEnabled, rc.clientMiniBatchingMaxMsgsNbr, rc.keyViewFilePath);
+  os << KVLOG(rc.clientBatchingEnabled, rc.clientBatchingMaxMsgsNbr, rc.keyViewFilePath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
