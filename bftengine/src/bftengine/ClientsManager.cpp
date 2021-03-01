@@ -269,7 +269,7 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
     reqIt->second.committed = true;
     LOG_DEBUG(GL, "Marked committed" << KVLOG(clientId, reqSeqNum));
   }
-  LOG_ERROR(GL, "Request not found" << KVLOG(clientId, reqSeqNum));
+  LOG_DEBUG(GL, "Request not found" << KVLOG(clientId, reqSeqNum));
 }
 
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
