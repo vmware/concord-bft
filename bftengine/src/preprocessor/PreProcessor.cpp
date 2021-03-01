@@ -85,8 +85,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
       numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
                     myReplica_.getReplicaConfig().numOfClientProxies),
-      clientBatchingEnabled_(myReplica.getReplicaConfig().clientMiniBatchingEnabled),
-      clientMaxBatchSize_(clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientMiniBatchingMaxMsgsNbr : 1),
+      clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
+      clientMaxBatchSize_(clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
@@ -749,7 +749,7 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
   // |last client's first buffer|...|last client's last buffer|
   // First client id starts after the last replica id.
   // First buffer offset = numOfReplicas_ * batchSize_
-  // The number of buffers per client comes from the configuration parameter clientMiniBatchingMaxMsgsNbr.
+  // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
   const auto bufferOffset = (clientId - numOfReplicas_) * clientMaxBatchSize_ + reqOffsetInBatch;
   LOG_DEBUG(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
   return preProcessResultBuffers_[bufferOffset].data();
