@@ -41,9 +41,14 @@ struct ImmutableUpdates {
   ImmutableUpdates(ImmutableUpdates&& other) = default;
   ImmutableUpdates& operator=(ImmutableUpdates&& other) = default;
 
-  // Do not allow copy
+// Do not allow copy outside of benchmarks.
+#ifndef KVBCBENCH
   ImmutableUpdates(ImmutableUpdates& other) = delete;
-  ImmutableUpdates& operator=(ImmutableUpdates& other) = delete;
+  ImmutableUpdates& operator=(const ImmutableUpdates& other) = delete;
+#else
+  ImmutableUpdates(ImmutableUpdates& other) = default;
+  ImmutableUpdates& operator=(const ImmutableUpdates& other) = default;
+#endif
 
   struct ImmutableValue {
     ImmutableValue(std::string&& val, std::set<std::string>&& tags) {
@@ -86,9 +91,15 @@ struct VersionedUpdates {
   VersionedUpdates(VersionedUpdates&& other) = default;
   VersionedUpdates& operator=(VersionedUpdates&& other) = default;
 
-  // Do not allow copy
+  // Do not allow copy outside of benchmarks.
+#ifndef KVBCBENCH
   VersionedUpdates(const VersionedUpdates& other) = delete;
-  VersionedUpdates& operator=(VersionedUpdates& other) = delete;
+  VersionedUpdates& operator=(const VersionedUpdates& other) = delete;
+#else
+  VersionedUpdates(const VersionedUpdates& other) = default;
+  VersionedUpdates& operator=(const VersionedUpdates& other) = default;
+#endif
+
   struct Value {
     std::string data;
 

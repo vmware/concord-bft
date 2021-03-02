@@ -11,6 +11,8 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 //
 
+#define KVBCBENCH 1
+
 #include <chrono>
 #include <cstddef>
 #include <iostream>
@@ -51,7 +53,7 @@ using categorization::TaggedVersion;
 //
 // This limits overall entropy. We can make it more advanced by generating new keys in a separate
 // threaad and atomically swapping when needed by block addition. For now we keep it simple.
-static constexpr size_t MAX_MEMORY_SIZE_FOR_KV_DEFAULT = 1024 * 1024 * 1024;  // 1GB
+static constexpr size_t MAX_MEMORY_SIZE_FOR_KV_DEFAULT = 1024 * 1024 * 1024 * 4ul;  // 4GB
 
 std::pair<po::options_description, po::variables_map> parseArgs(int argc, char** argv) {
   auto desc = po::options_description("Allowed options");
@@ -59,17 +61,12 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
   desc.add_options()
     ("help", "show usage")
 
+    /*********************************
+     General Config
+     *********************************/
     ("rocksdb-path",
      po::value<std::string>()->default_value("./rocksdbdata"s),
      "The location of the rocksdb data directory")
-
-    ("num-block-merkle-keys-add",
-     po::value<size_t>()->default_value(25),
-     "Number of block merkle keys added to a block")
-
-    ("num-block-merkle-keys-delete",
-     po::value<size_t>()->default_value(5),
-     "Number of block merkle keys to delete in a block")
 
     ("batch-size",
       po::value<size_t>()->default_value(1),
@@ -78,22 +75,6 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
     ("total-blocks",
      po::value<size_t>()->default_value(1000),
      "Number of total blocks to add during the test.")
-
-    ("block-merkle-key-size",
-     po::value<size_t>()->default_value(100),
-     "Size of a block merkle key in bytes")
-
-    ("block-merkle-value-size",
-    po::value<size_t>()->default_value(700),
-    "Size of a block merkle value in bytes")
-
-    ("max-total-block-merkle-read-keys",
-    po::value<size_t>()->default_value(1024*100),
-    "Total number of keys to keep in memory for random reads and conflict detection.")
-
-    ("num-block-merkle-read-keys-per-transaction",
-    po::value<size_t>()->default_value(100),
-    "The number of keys to read during (pre-)execution and conflict detection for the BlockMerkle category")
 
     ("max-memory-for-kv-gen",
     po::value<size_t>()->default_value(MAX_MEMORY_SIZE_FOR_KV_DEFAULT),
@@ -105,7 +86,77 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
 
     ("pre-execution-delay-ms",
     po::value<size_t>()->default_value(50),
-    "Time it takes to run a pre-execution request.");
+    "Time it takes to run a pre-execution request.")
+
+    /*********************************
+     Block Merkle Category Config
+     *********************************/
+    ("num-block-merkle-keys-add",
+     po::value<size_t>()->default_value(12),
+     "Number of block merkle keys added to a block")
+
+    ("num-block-merkle-keys-delete",
+     po::value<size_t>()->default_value(5),
+     "Number of block merkle keys to delete in a block")
+
+    ("block-merkle-key-size",
+     po::value<size_t>()->default_value(100),
+     "Size of a block merkle key in bytes")
+
+    ("block-merkle-value-size",
+    po::value<size_t>()->default_value(500),
+    "Size of a block merkle value in bytes")
+
+    ("max-total-block-merkle-read-keys",
+    po::value<size_t>()->default_value(1024*100),
+    "Total number of keys to keep in memory for random reads and conflict detection.")
+
+    ("num-block-merkle-read-keys-per-transaction",
+    po::value<size_t>()->default_value(50),
+    "The number of keys to read during (pre-)execution and conflict detection for the BlockMerkle category")
+
+    /*********************************
+     Immutable Category Config
+     Note that immutable keys are never read during pre-execution or checked for conflicts.
+     *********************************/
+    ("num-immutable-keys-add",
+     po::value<size_t>()->default_value(4),
+     "Number of immutable keys added to a block")
+
+    ("immutable-key-size",
+     po::value<size_t>()->default_value(100),
+     "Size of a immutable key in bytes")
+
+    ("immutable-value-size",
+    po::value<size_t>()->default_value(1500),
+    "Size of a immutable value in bytes")
+
+    /*********************************
+     Versioned KV Category Config
+     *********************************/
+    ("num-versioned-keys-add",
+     po::value<size_t>()->default_value(10),
+     "Number of versioned keys added to a block")
+
+    ("num-versioned-keys-delete",
+     po::value<size_t>()->default_value(0),
+     "Number of versioned keys to delete in a block")
+
+    ("versioned-key-size",
+     po::value<size_t>()->default_value(100),
+     "Size of a versioned key in bytes")
+
+    ("versioned-value-size",
+    po::value<size_t>()->default_value(500),
+    "Size of a versioned value in bytes")
+
+    ("max-total-versioned-read-keys",
+    po::value<size_t>()->default_value(1024*100),
+    "Total number of versioned keys to keep in memory for random reads and conflict detection.")
+
+    ("num-versioned-read-keys-per-transaction",
+    po::value<size_t>()->default_value(50),
+    "The number of versioned keys to read during (pre-)execution and conflict detection.");
 
   // clang-format on
 
@@ -144,45 +195,61 @@ std::shared_ptr<rocksdb::Statistics> completeRocksdbConfiguration(
   return db_options.statistics;
 }
 
-size_t numVersionsToRead(const po::variables_map& config, size_t num_read_keys) {
+size_t numMerkleVersionsToRead(const po::variables_map& config, size_t num_read_keys) {
   return std::min(config["num-block-merkle-read-keys-per-transaction"].as<size_t>(), num_read_keys);
 }
+size_t numVersionedVersionsToRead(const po::variables_map& config, size_t num_read_keys) {
+  return std::min(config["num-versioned-read-keys-per-transaction"].as<size_t>(), num_read_keys);
+}
 
-PreExecConfig preExecConfig(const po::variables_map& config, const ReadKeys& block_merkle_read_keys) {
+PreExecConfig preExecConfig(const po::variables_map& config,
+                            size_t num_merkle_read_keys,
+                            size_t num_versioned_read_keys) {
   auto pre_exec_config = PreExecConfig{};
   pre_exec_config.concurrency = config["pre-execution-concurrency"].as<size_t>();
   pre_exec_config.delay = std::chrono::milliseconds(config["pre-execution-delay-ms"].as<size_t>());
-  pre_exec_config.num_block_merkle_keys_to_read = numVersionsToRead(config, block_merkle_read_keys.size());
+  pre_exec_config.num_block_merkle_keys_to_read = numMerkleVersionsToRead(config, num_merkle_read_keys);
+  pre_exec_config.num_versioned_keys_to_read = numVersionedVersionsToRead(config, num_versioned_read_keys);
   return pre_exec_config;
 }
 
 void addBlocks(const po::variables_map& config,
                std::shared_ptr<storage::rocksdb::NativeClient>& db,
                categorization::KeyValueBlockchain& kvbc,
-               std::vector<BlockMerkleInput>& input,
-               std::vector<string>& read_keys,
+               InputData& input,
                std::shared_ptr<diagnostics::Recorder>& add_block_recorder,
                std::shared_ptr<diagnostics::Recorder>& conflict_detection_recorder) {
   auto total_blocks = config["total-blocks"].as<size_t>();
-  auto max_memory_for_kv = config["max-memory-for-kv-gen"].as<size_t>();
-  auto num_versions_to_read = numVersionsToRead(config, read_keys.size());
+  auto generated_input_blocks = numBlocks(config);
+  auto num_merkle_versions_to_read = numMerkleVersionsToRead(config, input.block_merkle_read_keys.size());
+  auto num_versioned_versions_to_read = numVersionedVersionsToRead(config, input.ver_read_keys.size());
 
-  const auto input_blocks = input.size();
-  if (total_blocks > input_blocks) {
+  if (total_blocks > generated_input_blocks) {
     std::cout << "More memory needed than allocated. Reusing generated blocks. This requires copying."
-              << KVLOG(total_blocks, input_blocks, max_memory_for_kv);
+              << KVLOG(total_blocks, generated_input_blocks);
   }
 
-  auto max_read_offset = read_keys.size() - num_versions_to_read;
+  auto max_merkle_read_offset = input.block_merkle_read_keys.size() - num_merkle_versions_to_read;
+  auto max_versioned_read_offset = input.ver_read_keys.size() - num_versioned_versions_to_read;
+  auto batch_size = config["batch-size"].as<size_t>();
   for (auto i = 1u; i <= total_blocks; i++) {
-    // Generate a random offset in the read_keys and then create vector to pass in.
-    auto start = read_keys.begin() + (rand() % max_read_offset);
-    auto conflict_keys = std::vector<std::string>(start, start + num_versions_to_read);
-    {
-      diagnostics::TimeRecorder<> guard(*conflict_detection_recorder);
-      // Simulate a conflict detection check
-      auto versions = std::vector<std::optional<TaggedVersion>>{};
-      kvbc.multiGetLatestVersion(kCategoryMerkle, conflict_keys, versions);
+    // We need to read a set of key versions for each request in a block
+    for (auto j = 0u; j <= batch_size; j++) {
+      // Generate a random offset in the read_keys and then create vector to pass in.
+      auto merkle_start = input.block_merkle_read_keys.begin() + (rand() % max_merkle_read_offset);
+      auto merkle_conflict_keys = std::vector<std::string>(merkle_start, merkle_start + num_merkle_versions_to_read);
+      auto versioned_start = input.ver_read_keys.begin() + (rand() % max_versioned_read_offset);
+      auto versioned_conflict_keys =
+          std::vector<std::string>(versioned_start, versioned_start + num_versioned_versions_to_read);
+
+      {
+        diagnostics::TimeRecorder<> guard(*conflict_detection_recorder);
+        // Simulate a conflict detection check
+        auto merkle_versions = std::vector<std::optional<TaggedVersion>>{};
+        auto versioned_versions = std::vector<std::optional<TaggedVersion>>{};
+        kvbc.multiGetLatestVersion(kCategoryMerkle, merkle_conflict_keys, merkle_versions);
+        kvbc.multiGetLatestVersion(kCategoryVersioned, versioned_conflict_keys, versioned_versions);
+      }
     }
 
     {
@@ -190,13 +257,18 @@ void addBlocks(const po::variables_map& config,
       auto updates = categorization::Updates{};
 
       // Unfortunately we must copy if total_blocks > number of input blocks generated.
-      if (total_blocks > input_blocks) {
-        auto block = input[(i - 1) % input_blocks];
-        updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(block)));
+      if (total_blocks > generated_input_blocks) {
+        auto index = (i - 1) % generated_input_blocks;
+        auto merkle_input = input.block_merkle_input[index];
+        auto versioned_updates = input.ver_updates[index];
+        auto immutable_updates = input.imm_updates[index];
+        updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(merkle_input)));
+        updates.add(kCategoryImmutable, std::move(immutable_updates));
+        updates.add(kCategoryVersioned, std::move(versioned_updates));
         kvbc.addBlock(std::move(updates));
       } else {
-        auto&& block = std::move(input[i - 1]);
-        updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(block)));
+        auto&& merkle_input = std::move(input.block_merkle_input[i - 1]);
+        updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(merkle_input)));
         kvbc.addBlock(std::move(updates));
       }
     }
@@ -246,19 +318,13 @@ int main(int argc, char** argv) {
             {kCategoryImmutable, kvbc::categorization::CATEGORY_TYPE::immutable},
             {kCategoryVersioned, kvbc::categorization::CATEGORY_TYPE::versioned_kv}});
 
-    auto pre_exec_config = preExecConfig(config, input.block_merkle_read_keys);
-    auto pre_exec_sim = PreExecutionSimulator(pre_exec_config, input.block_merkle_read_keys, kvbc);
+    auto pre_exec_config = preExecConfig(config, input.block_merkle_read_keys.size(), input.ver_read_keys.size());
+    auto pre_exec_sim = PreExecutionSimulator(pre_exec_config, input.block_merkle_read_keys, input.ver_read_keys, kvbc);
     pre_exec_sim.start();
 
     cout << "Starting to Add Blocks..." << endl;
     start = std::chrono::steady_clock::now();
-    addBlocks(config,
-              db,
-              kvbc,
-              input.block_merkle_input,
-              input.block_merkle_read_keys,
-              add_block_recorder,
-              conflict_detection_recorder);
+    addBlocks(config, db, kvbc, input, add_block_recorder, conflict_detection_recorder);
     end = std::chrono::steady_clock::now();
     auto add_block_duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "Adding blocks completed in = " << add_block_duration / 1000.0 << " seconds" << endl << endl;
