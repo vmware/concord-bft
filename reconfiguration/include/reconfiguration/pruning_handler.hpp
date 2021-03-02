@@ -78,7 +78,7 @@ class PruningHandler : public IPruningHandler {
 
  private:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
-  kvbc::BlockId latestBasedOnTimeRangeConfig() const;
+  virtual kvbc::BlockId latestBasedOnTimeRangeConfig() const;
 
   kvbc::BlockId agreedPrunableBlockId(const concord::messages::PruneRequest &) const;
   // Returns the last agreed prunable block ID from storage, if existing.
