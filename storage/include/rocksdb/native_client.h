@@ -73,6 +73,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Use this native client through the IDBClient interface.
   std::shared_ptr<IDBClient> asIDBClient() const;
 
+  // Return a reference to the underlying db.
+  ::rocksdb::DB &rawDB() const;
+
   // Column family single key read-write interface.
   template <typename KeySpan, typename ValueSpan>
   void put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value);
@@ -157,6 +160,9 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // aware of it.
   void dropColumnFamily(const std::string &cFamily);
 
+  ::rocksdb::ColumnFamilyHandle *defaultColumnFamilyHandle() const;
+  ::rocksdb::ColumnFamilyHandle *columnFamilyHandle(const std::string &cFamily) const;
+
  private:
   NativeClient(const std::string &path, bool readOnly, const DefaultOptions &);
   NativeClient(const std::string &path, bool readOnly, const ExistingOptions &);
@@ -167,8 +173,6 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   NativeClient &operator=(const NativeClient &) = delete;
   NativeClient &operator=(NativeClient &&) = delete;
 
-  ::rocksdb::ColumnFamilyHandle *defaultColumnFamilyHandle() const;
-  ::rocksdb::ColumnFamilyHandle *columnFamilyHandle(const std::string &cFamily) const;
   Client::CfUniquePtr createColumnFamilyHandle(const std::string &cFamily,
                                                const ::rocksdb::ColumnFamilyOptions &options);
 

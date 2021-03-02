@@ -78,6 +78,8 @@ inline NativeClient::NativeClient(const std::shared_ptr<Client> &client) : clien
 
 inline std::shared_ptr<IDBClient> NativeClient::asIDBClient() const { return client_; }
 
+inline ::rocksdb::DB &NativeClient::rawDB() const { return *client_->dbInstance_; }
+
 template <typename KeySpan, typename ValueSpan>
 void NativeClient::put(const std::string &cFamily, const KeySpan &key, const ValueSpan &value) {
   auto s = client_->dbInstance_->Put(

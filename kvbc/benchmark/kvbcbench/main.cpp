@@ -55,6 +55,8 @@ using categorization::TaggedVersion;
 // threaad and atomically swapping when needed by block addition. For now we keep it simple.
 static constexpr size_t MAX_MEMORY_SIZE_FOR_KV_DEFAULT = 1024 * 1024 * 1024 * 4ul;  // 4GB
 
+static constexpr size_t CACHE_SIZE_DEFAULT = 1024 * 1024 * 1024 * 16ul;  // 16 GB
+
 std::pair<po::options_description, po::variables_map> parseArgs(int argc, char** argv) {
   auto desc = po::options_description("Allowed options");
   // clang-format off
@@ -76,6 +78,10 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
      po::value<size_t>()->default_value(1000),
      "Number of total blocks to add during the test.")
 
+    ("stats-dump-period-in-blocks",
+    po::value<size_t>()->default_value(10000),
+    "The number of blocks to output RocksDB statistics.")
+
     ("max-memory-for-kv-gen",
     po::value<size_t>()->default_value(MAX_MEMORY_SIZE_FOR_KV_DEFAULT),
     "Maximum amount of memory to allocate for random kv pairs during key-value generation")
@@ -87,6 +93,10 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
     ("pre-execution-delay-ms",
     po::value<size_t>()->default_value(50),
     "Time it takes to run a pre-execution request.")
+
+    ("rocksdb-cache-size",
+    po::value<size_t>()->default_value(CACHE_SIZE_DEFAULT),
+    "Rocksdb Block Cache size")
 
     /*********************************
      Block Merkle Category Config
@@ -172,11 +182,49 @@ void printHistograms() {
   cout << registrar.perf.toString(data) << endl;
 }
 
+void printRocksDbProperty(std::shared_ptr<storage::rocksdb::NativeClient>& db,
+                          ::rocksdb::ColumnFamilyHandle* cf_handle,
+                          std::string& property) {
+  std::string out;
+  db->rawDB().GetProperty(cf_handle, property, &out);
+  cout << "    " << property << ": " << out << endl;
+}
+
+void printRocksDbProperties(std::shared_ptr<storage::rocksdb::NativeClient>& db,
+                            ::rocksdb::ColumnFamilyHandle* cf_handle) {
+  for (auto& prop : std::array{"rocksdb.block-cache-capacity"s,
+                               "rocksdb.block-cache-usage"s,
+                               "rocksdb.block-cache-pinned-usage"s,
+                               "rocksdb.estimate-table-readers-mem"s,
+                               "rocksdb.cur-size-all-mem-tables"s,
+                               "rocksdb.size-all-mem-tables"s,
+                               "rocksdb.block-cache-pinned-usage"s,
+                               "rocksdb.num-running-compactions"s,
+                               "rocksdb.background-errors"s,
+                               "rocksdb.estimate-num-keys"s,
+                               "rocksdb.estimate-table-readers-mem"s,
+                               "rocksdb.num-snapshots"s,
+                               "rocksdb.num-live-versions"s,
+                               "rocksdb.estimate-live-data-size"s,
+                               "rocksdb.live-sst-files-size"s,
+                               "rocksdb.options-statistics"s,
+                               "rocksdb.stats"s}) {
+    printRocksDbProperty(db, cf_handle, prop);
+  }
+}
+
+void printRocksDbProperties(std::shared_ptr<storage::rocksdb::NativeClient>& db) {
+  cout << "RocksDB Properties: " << endl;
+  for (auto& cf : db->columnFamilies()) {
+    cout << "  Column Family: " << cf << endl;
+    printRocksDbProperties(db, db->columnFamilyHandle(cf));
+  }
+}
+
 std::shared_ptr<rocksdb::Statistics> completeRocksdbConfiguration(
-    ::rocksdb::Options& db_options, std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs) {
-  static constexpr size_t CACHE_SIZE = 1024 * 1024 * 1024 * 4ul;  // 4 GB
+    ::rocksdb::Options& db_options, std::vector<::rocksdb::ColumnFamilyDescriptor>& cf_descs, size_t cache_size) {
   auto table_options = ::rocksdb::BlockBasedTableOptions{};
-  table_options.block_cache = ::rocksdb::NewLRUCache(CACHE_SIZE);
+  table_options.block_cache = ::rocksdb::NewLRUCache(cache_size);
   table_options.filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
   db_options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
@@ -186,11 +234,6 @@ std::shared_ptr<rocksdb::Statistics> completeRocksdbConfiguration(
         reinterpret_cast<::rocksdb::BlockBasedTableOptions*>(d.options.table_factory->GetOptions());
     cf_table_options->block_cache = table_options.block_cache;
     cf_table_options->filter_policy.reset(::rocksdb::NewBloomFilterPolicy(10, false));
-
-    // We never seek on versions
-    if (d.name == categorization::detail::BLOCK_MERKLE_LATEST_KEY_VERSION_CF) {
-      d.options.OptimizeForPointLookup(CACHE_SIZE);
-    }
   }
   return db_options.statistics;
 }
@@ -219,6 +262,7 @@ void addBlocks(const po::variables_map& config,
                InputData& input,
                std::shared_ptr<diagnostics::Recorder>& add_block_recorder,
                std::shared_ptr<diagnostics::Recorder>& conflict_detection_recorder) {
+  auto stats_dump_period_in_blocks = config["stats-dump-period-in-blocks"].as<size_t>();
   auto total_blocks = config["total-blocks"].as<size_t>();
   auto generated_input_blocks = numBlocks(config);
   auto num_merkle_versions_to_read = numMerkleVersionsToRead(config, input.block_merkle_read_keys.size());
@@ -233,6 +277,11 @@ void addBlocks(const po::variables_map& config,
   auto max_versioned_read_offset = input.ver_read_keys.size() - num_versioned_versions_to_read;
   auto batch_size = config["batch-size"].as<size_t>();
   for (auto i = 1u; i <= total_blocks; i++) {
+    // Print Memory Stats every 10k blocks
+    if (i % stats_dump_period_in_blocks == 0) {
+      cout << "Adding Block " << i << endl;
+      printRocksDbProperties(db);
+    }
     // We need to read a set of key versions for each request in a block
     for (auto j = 0u; j <= batch_size; j++) {
       // Generate a random offset in the read_keys and then create vector to pass in.
@@ -305,8 +354,9 @@ int main(int argc, char** argv) {
          << " seconds." << endl;
 
     auto rocksdb_stats = std::shared_ptr<::rocksdb::Statistics>{};
-    auto completeInit = [&rocksdb_stats](auto& db_options, auto& cf_descs) {
-      rocksdb_stats = completeRocksdbConfiguration(db_options, cf_descs);
+    auto rocksdb_cache_size = config["rocksdb-cache-size"].as<size_t>();
+    auto completeInit = [&rocksdb_stats, rocksdb_cache_size](auto& db_options, auto& cf_descs) {
+      rocksdb_stats = completeRocksdbConfiguration(db_options, cf_descs, rocksdb_cache_size);
     };
     auto opts = storage::rocksdb::NativeClient::UserOptions{"kvbcbench_rocksdb_opts.ini", completeInit};
     auto db = storage::rocksdb::NativeClient::newClient(config["rocksdb-path"].as<std::string>(), false, opts);
@@ -331,6 +381,7 @@ int main(int argc, char** argv) {
 
     pre_exec_sim.stop();
 
+    printRocksDbProperties(db);
     printHistograms();
 
     cout << "Avg. Throughput = " << config["total-blocks"].as<size_t>() / (add_block_duration / 1000.0) << " blocks/s"
