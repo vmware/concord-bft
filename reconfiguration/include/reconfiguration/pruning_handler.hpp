@@ -76,7 +76,7 @@ class PruningHandler : public IPruningHandler {
   bool handle(const concord::messages::PruneStatusRequest &, concord::messages::PruneStatus &) override;
   static std::string lastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
 
- private:
+ protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
   virtual kvbc::BlockId latestBasedOnTimeRangeConfig() const;
 
