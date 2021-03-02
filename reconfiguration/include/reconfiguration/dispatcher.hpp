@@ -38,8 +38,12 @@ class Dispatcher {
   concord::messages::ReconfigurationResponse dispatch(const concord::messages::ReconfigurationRequest&,
                                                       uint64_t sequence_num);
 
-  void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h) { reconfig_handlers_.push_back(h); }
-  void addPruningHandler(std::shared_ptr<IPruningHandler> h) { pruning_handlers_.push_back(h); }
+  void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h) {
+    if (h != nullptr) reconfig_handlers_.push_back(h);
+  }
+  void addPruningHandler(std::shared_ptr<IPruningHandler> h) {
+    if (h != nullptr) pruning_handlers_.push_back(h);
+  }
 
  private:
   logging::Logger getLogger() {

@@ -109,6 +109,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(thresholdPublicKey_, std::string, "", "threshold crypto system bootstrap public key");
   std::vector<std::string> thresholdVerificationKeys_;
 
+  // Pruning parameters
+  CONFIG_PARAM(pruningEnabled_, bool, false, "Enable pruning");
+  CONFIG_PARAM(numBlocksToKeep_, uint64_t, 0, "how much blocks to keep while pruning");
+  CONFIG_PARAM(durationToKeppMinutes_, uint64_t, 0, "how old the data to prune");
+
   CONFIG_PARAM(debugPersistentStorageEnabled, bool, false, "whether persistent storage debugging is enabled");
 
   // Messages
@@ -184,6 +189,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, thresholdPublicKey_);
     serialize(outStream, thresholdVerificationKeys_);
 
+    serialize(outStream, pruningEnabled_);
+    serialize(outStream, numBlocksToKeep_);
+    serialize(outStream, durationToKeppMinutes_);
+
     serialize(outStream, debugPersistentStorageEnabled);
     serialize(outStream, maxExternalMessageSize);
     serialize(outStream, maxReplyMessageSize);
@@ -232,6 +241,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, thresholdPrivateKey_);
     deserialize(inStream, thresholdPublicKey_);
     deserialize(inStream, thresholdVerificationKeys_);
+
+    deserialize(inStream, pruningEnabled_);
+    deserialize(inStream, numBlocksToKeep_);
+    deserialize(inStream, durationToKeppMinutes_);
 
     deserialize(inStream, debugPersistentStorageEnabled);
     deserialize(inStream, maxExternalMessageSize);
