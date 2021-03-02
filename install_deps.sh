@@ -99,16 +99,22 @@ git clone https://github.com/google/googletest.git && \
     cd ${HOME} && \
     rm -r googletest
 
+# Here we compile cryptopp and cryptoopp-pem in a single library libcryptopp
+# cryptopp-pem provides PEM parsing for Wei Dai's Crypto++ (cryptopp).
 cd ${HOME}
 wget ${WGET_FLAGS} \
     https://github.com/weidai11/cryptopp/archive/CRYPTOPP_8_2_0.tar.gz && \
     tar -xzf CRYPTOPP_8_2_0.tar.gz && \
     rm CRYPTOPP_8_2_0.tar.gz && \
-    cd cryptopp-CRYPTOPP_8_2_0 && \
+    git clone https://github.com/noloader/cryptopp-pem.git && \
+    cd cryptopp-pem && \
+    git checkout CRYPTOPP_8_2_0 && \
+    cp *.h *.cpp ${HOME}/cryptopp-CRYPTOPP_8_2_0 && \
+    cd ${HOME}/cryptopp-CRYPTOPP_8_2_0 && \
+    rm -r ${HOME}/cryptopp-pem && \
     CXX_FLAGS="-march=x86-64 -mtune=generic" make -j$(nproc) && \
     make install && \
-    cd ${HOME} && \
-    rm -r cryptopp-CRYPTOPP_8_2_0
+    rm -r ${HOME}/cryptopp-CRYPTOPP_8_2_0
 
 cd ${HOME}
 git clone https://github.com/relic-toolkit/relic && \
