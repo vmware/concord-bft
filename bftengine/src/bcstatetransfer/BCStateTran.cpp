@@ -224,7 +224,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       fetch_block_msg_latency_rec_(histograms_.fetch_blocks_msg_latency) {
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
-  ConcordAssertEQ(replicas_.count(config_.myReplicaId), 1);
+  ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
   ConcordAssertGE(config_.maxNumOfReservedPages, 2);
 
   // Register metrics component with the default aggregator.

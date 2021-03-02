@@ -192,7 +192,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     replicaConfig_.replicaId,
     replicaConfig_.fVal,
     replicaConfig_.cVal,
-    (uint16_t)(replicaConfig_.numReplicas + replicaConfig_.numRoReplicas),
+    static_cast<uint16_t>(replicaConfig_.numReplicas),
     replicaConfig_.get("concord.bft.st.pedanticChecks", false),
     replicaConfig_.isReadOnly,
 
