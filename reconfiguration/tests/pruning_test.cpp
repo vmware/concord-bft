@@ -683,9 +683,6 @@ TEST_F(test_rocksdb, sm_prune_on_startup) {
   concord::kvbc::categorization::Updates updates;
   updates.add(kConcordInternalCategoryId, std::move(versioned_updates));
 
-  BlockId blockId;
-  blockId = storage.add(std::move(updates));
-
   blocks_deleter.deleteBlocksUntil(last_agreed_prunable_block_id + 1);
   auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
 }
