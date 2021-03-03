@@ -43,8 +43,10 @@ RequestsBatchingLogic::~RequestsBatchingLogic() {
 void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {
   if (replica_.isCurrentPrimary()) {
     lock_guard<mutex> lock(batchProcessingLock_);
-    LOG_DEBUG(GL, "Batching flush period expired" << KVLOG(batchFlushPeriodMs_));
-    if (replica_.tryToSendPrePrepareMsg(false)) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+    if (replica_.tryToSendPrePrepareMsg(false)) {
+      LOG_INFO(GL, "Batching flush period expired" << KVLOG(batchFlushPeriodMs_));
+      timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+    }
   }
 }
 

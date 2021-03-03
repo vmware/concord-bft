@@ -331,9 +331,9 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
 
 bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
   if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
-    LOG_INFO(GL,
-             "Not sufficient messages size in the primary replica queue to fill a batch"
-                 << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
+    LOG_DEBUG(GL,
+              "Not sufficient messages size in the primary replica queue to fill a batch"
+                  << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
     return false;
   }
   if (!checkSendPrePrepareMsgPrerequisites()) return false;
@@ -348,9 +348,9 @@ bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatch
 
 bool ReplicaImp::tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
-    LOG_INFO(GL,
-             "Not enough messages in the primary replica queue to fill a batch"
-                 << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
+    LOG_DEBUG(GL,
+              "Not enough messages in the primary replica queue to fill a batch"
+                  << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
     return false;
   }
   if (!checkSendPrePrepareMsgPrerequisites()) return false;
@@ -495,11 +495,11 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
 
   if (isInternalNoop) {
-    LOG_INFO(CNSUS, "Sending PrePrepare containing internal NOOP");
+    LOG_INFO(CNSUS, "Sending PrePrepare message containing internal NOOP");
   } else {
     LOG_INFO(CNSUS,
-             "Sending PrePrepare with the following payload of the following correlation ids ["
-                 << pp->getBatchCorrelationIdAsString() << "]");
+             "Sending PrePrepare message" << KVLOG(pp->numberOfRequests())
+                                          << " correlation ids: " << pp->getBatchCorrelationIdAsString());
     consensus_times_.start(primaryLastUsedSeqNum);
   }
 
