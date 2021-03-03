@@ -69,12 +69,6 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   bool executeGetBlockDataCommand(
       uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
-  bool executeHaveYouStoppedReadCommand(uint32_t requestSize,
-                                        const char *request,
-                                        size_t maxReplySize,
-                                        char *outReply,
-                                        uint32_t &outReplySize,
-                                        uint32_t &specificReplicaInfoSize);
   bool executeGetLastBlockCommand(uint32_t requestSize, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;

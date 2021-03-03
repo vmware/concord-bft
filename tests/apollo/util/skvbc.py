@@ -32,8 +32,6 @@ class SimpleKVBCProtocol:
     GET_LAST_BLOCK = 3
     GET_BLOCK_DATA = 4
     LONG_EXEC_WRITE = 5
-    WEDGE = 6
-    ADD_REMOVE_NODE = 7
 
     """
     An implementation of the wire protocol for SimpleKVBC requests.
@@ -50,15 +48,11 @@ class SimpleKVBCProtocol:
         self.keys = self._create_keys()
 
     @classmethod
-    def write_req(cls, readset, writeset, block_id, long_exec=False, wedge_command=False, add_remove_node_command=False):
+    def write_req(cls, readset, writeset, block_id, long_exec=False):
         data = bytearray()
         # A conditional write request type
         if long_exec is True:
             data.append(cls.LONG_EXEC_WRITE)
-        elif wedge_command is True:
-            data.append(cls.WEDGE)
-        elif add_remove_node_command is True:
-            data.append(cls.ADD_REMOVE_NODE)
         else:
             data.append(cls.WRITE)
         # SimpleConditionalWriteHeader
@@ -92,14 +86,6 @@ class SimpleKVBCProtocol:
         return data
 
     @classmethod
-    def get_have_you_stopped_req(cls, n_of_n):
-        with log.start_action(action_type="get_have_you_stopped_req"):
-            data = bytearray()
-            data.append(cls.WEDGE)
-            data.extend(struct.pack("<q", n_of_n))
-            return data
-
-    @classmethod
     def get_block_data_req(cls, block_id):
         data = bytearray()
         data.append(cls.GET_BLOCK_DATA)
@@ -117,13 +103,6 @@ class SimpleKVBCProtocol:
             return cls.parse_get_last_block_reply(data[1:])
         else:
             raise BadReplyError
-
-    @classmethod
-    def parse_rsi_reply(cls, common_data, rsi_data):
-        with log.start_action(action_type="parse_rsi_reply"):
-            reply_type = common_data[0]
-            if reply_type == cls.WEDGE:
-                return cls.parse_have_you_stopped_reply(rsi_data)
 
     @staticmethod
     def parse_write_reply(data):
