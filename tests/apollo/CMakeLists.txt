@@ -1,3 +1,4 @@
+add_subdirectory(util)
 set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE}")
 set(MINIO_BINARY_PATH "$ENV{HOME}/minio")
 

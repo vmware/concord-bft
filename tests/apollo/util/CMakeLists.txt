@@ -1,0 +1,1 @@
+cmf_generate_python(concord_msgs ../../../reconfiguration/cmf/concord.cmf)
