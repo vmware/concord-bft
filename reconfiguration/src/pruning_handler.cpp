@@ -19,10 +19,10 @@ namespace concord::reconfiguration::pruning {
 
 const std::string PruningHandler::last_agreed_prunable_block_id_key_{0x24};
 
-PruningHandler::PruningHandler(std::shared_ptr<kvbc::IReader> ro_storage,
-                               std::shared_ptr<kvbc::IBlockAdder> blocks_adder,
-                               std::shared_ptr<kvbc::IBlocksDeleter> blocks_deleter,
-                               std::shared_ptr<bftEngine::IStateTransfer> state_transfer,
+PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
+                               kvbc::IBlockAdder& blocks_adder,
+                               kvbc::IBlocksDeleter& blocks_deleter,
+                               bftEngine::IStateTransfer& state_transfer,
                                bool run_async)
     : logger_{logging::getLogger("concord.pruning")},
       signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
@@ -45,7 +45,7 @@ PruningHandler::PruningHandler(std::shared_ptr<kvbc::IReader> ro_storage,
   // If a replica has missed Prune commands for whatever reason, we still need
   // to execute them. We do that by saving pruning data in the state and later
   // using it to prune relevant blocks when we receive it from state transfer.
-  state_transfer->addOnTransferringCompleteCallback(
+  state_transfer.addOnTransferringCompleteCallback(
       [this](uint64_t checkpoint_number) { pruneOnStateTransferCompletion(checkpoint_number); });
 }
 
@@ -96,7 +96,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc
 }
 
 kvbc::BlockId PruningHandler::latestBasedOnNumBlocksConfig() const {
-  const auto last_block_id = ro_storage_->getLastBlockId();
+  const auto last_block_id = ro_storage_.getLastBlockId();
   if (last_block_id < num_blocks_to_keep_) {
     return 0;
   }
@@ -108,7 +108,7 @@ kvbc::BlockId PruningHandler::latestBasedOnTimeRangeConfig() const {
    * Currently time records are not saved by concordbft layer.
    * The user may ovveride this method to have time based search.
    */
-  const auto last_block_id = ro_storage_->getLastBlockId();
+  const auto last_block_id = ro_storage_.getLastBlockId();
   if (duration_to_keep_minutes_ > 0) LOG_WARN(logger_, "time based pruning is not supported by default");
   return last_block_id;
 }
@@ -122,7 +122,7 @@ kvbc::BlockId PruningHandler::agreedPrunableBlockId(const concord::messages::Pru
 }
 
 std::optional<kvbc::BlockId> PruningHandler::lastAgreedPrunableBlockId() const {
-  auto opt_val = ro_storage_->getLatest(kvbc::kConcordInternalCategoryId, last_agreed_prunable_block_id_key_);
+  auto opt_val = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, last_agreed_prunable_block_id_key_);
   // if it's not found return nullopt, if any other error occurs storage throws.
   if (!opt_val) {
     return std::nullopt;
@@ -138,14 +138,14 @@ void PruningHandler::persistLastAgreedPrunableBlockId(kvbc::BlockId block_id) co
   concord::kvbc::categorization::Updates updates;
   updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
   try {
-    blocks_adder_->add(std::move(updates));
+    blocks_adder_.add(std::move(updates));
   } catch (...) {
     throw std::runtime_error{"PruningHandler failed to persist last agreed prunable block ID"};
   }
 }
 
 void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
-  const auto genesis_block_id = ro_storage_->getGenesisBlockId();
+  const auto genesis_block_id = ro_storage_.getGenesisBlockId();
   if (block_id >= genesis_block_id) {
     bftEngine::ControlStateManager::instance().setPruningProcess(true);
     // last_scheduled_block_for_pruning_ is being updated only here, thus, once
@@ -154,7 +154,7 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
     last_scheduled_block_for_pruning_ = block_id;
     auto prune = [this](kvbc::BlockId until) {
       try {
-        blocks_deleter_->deleteBlocksUntil(until);
+        blocks_deleter_.deleteBlocksUntil(until);
       } catch (std::exception& e) {
         LOG_FATAL(logger_, e.what());
         std::terminate();

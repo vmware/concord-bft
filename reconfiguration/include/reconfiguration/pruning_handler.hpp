@@ -66,10 +66,10 @@ class PruningHandler : public IPruningHandler {
   // exception if there is an issue with the configuration (for example, if the
   // configuration enables pruning but does not provide a purning operator
   // public key).
-  PruningHandler(std::shared_ptr<kvbc::IReader>,
-                 std::shared_ptr<kvbc::IBlockAdder>,
-                 std::shared_ptr<kvbc::IBlocksDeleter>,
-                 std::shared_ptr<bftEngine::IStateTransfer>,
+  PruningHandler(kvbc::IReader &,
+                 kvbc::IBlockAdder &,
+                 kvbc::IBlocksDeleter &,
+                 bftEngine::IStateTransfer &,
                  bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &, concord::messages::LatestPrunableBlock &) override;
   bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &) override;
@@ -92,9 +92,9 @@ class PruningHandler : public IPruningHandler {
   logging::Logger logger_;
   RSAPruningSigner signer_;
   RSAPruningVerifier verifier_;
-  std::shared_ptr<kvbc::IReader> ro_storage_;
-  std::shared_ptr<kvbc::IBlockAdder> blocks_adder_;
-  std::shared_ptr<kvbc::IBlocksDeleter> blocks_deleter_;
+  kvbc::IReader &ro_storage_;
+  kvbc::IBlockAdder &blocks_adder_;
+  kvbc::IBlocksDeleter &blocks_deleter_;
 
   bool pruning_enabled_{false};
   std::uint64_t replica_id_{0};
