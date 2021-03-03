@@ -30,7 +30,7 @@ namespace {
 
 const uint16_t numOfReplicas_4 = 4;
 const uint16_t numOfReplicas_7 = 7;
-const uint16_t numOfClients = 4;
+const uint16_t numOfInternalClients = 4;
 const uint16_t fVal_4 = 1;
 const uint16_t fVal_7 = 2;
 const uint16_t cVal = 0;
@@ -41,7 +41,7 @@ const uint64_t preExecReqStatusCheckTimerMillisec = 20;
 const uint64_t viewChangeTimerMillisec = 80;
 const uint16_t reqWaitTimeoutMilli = 50;
 const ReqId reqSeqNum = 123456789;
-const uint16_t clientId = 9;
+const uint16_t clientId = 12;
 const string cid = "abcd";
 const concordUtils::SpanContext span;
 const NodeIdType replica_0 = 0;
@@ -276,10 +276,10 @@ void setUpConfiguration_4() {
   replicaConfig.numReplicas = numOfReplicas_4;
   replicaConfig.fVal = fVal_4;
   replicaConfig.cVal = cVal;
-  replicaConfig.numOfClientProxies = numOfClients;
+  replicaConfig.numOfClientProxies = numOfInternalClients;
   replicaConfig.viewChangeTimerMillisec = viewChangeTimerMillisec;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
-  replicaConfig.numOfExternalClients = 5;
+  replicaConfig.numOfExternalClients = 15;
   replicaConfig.clientBatchingEnabled = true;
 
   replicaConfig.publicKeysOfReplicas.insert(pair<uint16_t, const string>(replica_0, publicKey_0));
@@ -291,7 +291,7 @@ void setUpConfiguration_4() {
 
   for (auto i = 0; i < replicaConfig.numReplicas; i++)
     sigManager_[i] = make_shared<SigManager>(
-        i, replicaConfig.numReplicas + numOfClients, privateKeys[i], replicaConfig.publicKeysOfReplicas);
+        i, replicaConfig.numReplicas + numOfInternalClients, privateKeys[i], replicaConfig.publicKeysOfReplicas);
 }
 
 void setUpConfiguration_7() {
@@ -438,7 +438,6 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
   bftEngine::impl::ReplicasInfo replicasInfo(replicaConfig, false, false);
   DummyReplica replica(replicasInfo);
   concordUtil::Timers timers;
-  auto sdm = make_shared<concord::performance::PerformanceManager>();
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
@@ -459,7 +458,6 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   replica.setPrimary(false);
   concordUtil::Timers timers;
   replicaConfig.preExecReqStatusCheckTimerMillisec = preExecReqStatusCheckTimerMillisec;
-  auto sdm = make_shared<concord::performance::PerformanceManager>();
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
@@ -483,7 +481,6 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   replicaConfig.replicaId = replica_1;
 
   concordUtil::Timers timers;
-  auto sdm = make_shared<concord::performance::PerformanceManager>();
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);

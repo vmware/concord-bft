@@ -194,6 +194,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.validate_state_consistency(skvbc, key, val)
         await skvbc.write_known_kv()
 
+    @unittest.skip("Will be re-written")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_remove_nodes(self, bft_network):
@@ -262,6 +263,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             num_of_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(num_of_fast_path, 0)
 
+    @unittest.skip("Will be re-written")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_remove_nodes_with_f_failures(self, bft_network):

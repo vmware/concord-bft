@@ -179,7 +179,7 @@ class PreProcessor {
   const uint32_t maxPreExecResultSize_;
   const std::set<ReplicaId> &idsOfPeerReplicas_;
   const uint16_t numOfReplicas_;
-  const uint16_t numOfClients_;
+  const uint16_t numOfInternalClients_;
   const bool clientBatchingEnabled_;
   const uint16_t clientMaxBatchSize_;
   util::SimpleThreadPool threadPool_;

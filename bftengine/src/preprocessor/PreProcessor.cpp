@@ -83,8 +83,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       maxPreExecResultSize_(myReplica.getReplicaConfig().maxExternalMessageSize),
       idsOfPeerReplicas_(myReplica.getIdsOfPeerReplicas()),
       numOfReplicas_(myReplica.getReplicaConfig().numReplicas + myReplica.getReplicaConfig().numRoReplicas),
-      numOfClients_(myReplica.getReplicaConfig().numOfExternalClients +
-                    myReplica_.getReplicaConfig().numOfClientProxies),
+      numOfInternalClients_(myReplica.getReplicaConfig().numOfClientProxies),
       clientBatchingEnabled_(myReplica.getReplicaConfig().clientBatchingEnabled),
       clientMaxBatchSize_(clientBatchingEnabled_ ? myReplica.getReplicaConfig().clientBatchingMaxMsgsNbr : 1),
       metricsComponent_{concordMetrics::Component("preProcessor", std::make_shared<concordMetrics::Aggregator>())},
@@ -106,12 +105,13 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       pm_{pm} {
   registerMsgHandlers();
   metricsComponent_.Register();
+  const uint16_t numOfExternalClients = myReplica.getReplicaConfig().numOfExternalClients;
   sigManager_ = make_shared<SigManager>(myReplicaId_,
-                                        numOfReplicas_ + numOfClients_,
+                                        numOfReplicas_ + numOfExternalClients,
                                         myReplica.getReplicaConfig().replicaPrivateKey,
                                         myReplica.getReplicaConfig().publicKeysOfReplicas);
-  const uint16_t numOfReqEntries = numOfClients_ * clientMaxBatchSize_;
-  const uint16_t firstClientRequestId = numOfReplicas_ * clientMaxBatchSize_;
+  const uint16_t numOfReqEntries = numOfExternalClients * clientMaxBatchSize_;
+  const uint16_t firstClientRequestId = (numOfReplicas_ + numOfInternalClients_) * clientMaxBatchSize_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
@@ -119,11 +119,17 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
     preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
-  if (!numOfThreads) numOfThreads = numOfReqEntries;
+  if (!numOfThreads) {
+    if (myReplica.getReplicaConfig().numOfExternalClients)
+      numOfThreads = myReplica.getReplicaConfig().numOfExternalClients * clientMaxBatchSize_;
+    else  // For testing purpose
+      numOfThreads = myReplica.getReplicaConfig().numOfClientProxies / numOfReplicas_;
+  }
   threadPool_.start(numOfThreads);
   LOG_INFO(logger(),
            KVLOG(numOfReplicas_,
-                 numOfClients_,
+                 numOfExternalClients,
+                 numOfInternalClients_,
                  numOfReqEntries,
                  firstClientRequestId,
                  clientBatchingEnabled_,
@@ -750,7 +756,8 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
   // First client id starts after the last replica id.
   // First buffer offset = numOfReplicas_ * batchSize_
   // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
-  const auto bufferOffset = (clientId - numOfReplicas_) * clientMaxBatchSize_ + reqOffsetInBatch;
+  const auto bufferOffset =
+      (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
   LOG_DEBUG(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
   return preProcessResultBuffers_[bufferOffset].data();
 }
