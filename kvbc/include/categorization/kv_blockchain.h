@@ -207,6 +207,7 @@ class KeyValueBlockchain {
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
+    delete_metrics_comp_.SetAggregator(aggregator_);
     delete_metrics_comp_.UpdateAggregator();
   }
   friend struct KeyValueBlockchain_tester;
