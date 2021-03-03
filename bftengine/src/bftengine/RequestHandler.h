@@ -20,8 +20,9 @@ namespace bftEngine {
 
 class RequestHandler : public IRequestsHandler {
  public:
-  RequestHandler(IRequestsHandler *userHdlr) : userRequestsHandler_{userHdlr}, reconfig_dispatcher_{reconfig_handler_} {
-    reconfig_handler_ = std::make_shared<concord::reconfiguration::ReconfigurationHandler>();
+  RequestHandler(IRequestsHandler *userHdlr)
+      : userRequestsHandler_{userHdlr},
+        reconfig_dispatcher_{std::make_shared<concord::reconfiguration::ReconfigurationHandler>()} {
     reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
     reconfig_dispatcher_.addPruningHandler(userHdlr->getPruningHandler());
   }

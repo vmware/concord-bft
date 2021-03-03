@@ -36,26 +36,35 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         req.outActualReplySize = 0;
       }
       req.outExecutionStatus = 0;
-    } else if (req.flags & READ_ONLY_FLAG) {
-      // Backward compatible with read only flag prior BC-5126
-      req.flags = READ_ONLY_FLAG;
     } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
-      ReconfigurationResponse rres = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum);
+      ReconfigurationResponse rsi_res = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum);
       // Serialize response
+      ReconfigurationResponse res;
+      res.success = rsi_res.success;
       std::vector<uint8_t> serialized_response;
-      concord::messages::serialize(serialized_response, rres);
-      if (serialized_response.size() <= req.maxReplySize) {
+      concord::messages::serialize(serialized_response, res);
+
+      std::vector<uint8_t> serialized_rsi_response;
+      concord::messages::serialize(serialized_rsi_response, rsi_res);
+      if (serialized_rsi_response.size() + serialized_response.size() <= req.maxReplySize) {
         std::copy(serialized_response.begin(), serialized_response.end(), req.outReply);
-        req.outActualReplySize = serialized_response.size();
+        std::copy(
+            serialized_rsi_response.begin(), serialized_rsi_response.end(), req.outReply + serialized_response.size());
+        req.outActualReplySize = serialized_response.size() + serialized_rsi_response.size();
+        req.outReplicaSpecificInfoSize = serialized_rsi_response.size();
       } else {
         std::string error("Reconfiguration response is too large");
         LOG_ERROR(GL, error);
-        std::copy(error.cbegin(), error.cend(), std::back_inserter(rres.additional_data));
+        std::copy(error.cbegin(), error.cend(), std::back_inserter(rsi_res.additional_data));
         req.outActualReplySize = 0;
       }
       req.outExecutionStatus = 0;  // stop further processing of this request
+    }
+    if (req.flags & READ_ONLY_FLAG) {
+      // Backward compatible with read only flag prior BC-5126
+      req.flags = READ_ONLY_FLAG;
     }
   }
   return userRequestsHandler_->execute(requests, batchCid, parent_span);

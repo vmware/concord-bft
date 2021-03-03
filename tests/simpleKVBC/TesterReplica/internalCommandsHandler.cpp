@@ -226,16 +226,6 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
                << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
 
-  if (writeReq->header.type == WEDGE) {
-    LOG_INFO(m_logger, "A wedge command has been called" << KVLOG(sequenceNum));
-    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(sequenceNum);
-  }
-  if (writeReq->header.type == ADD_REMOVE_NODE) {
-    LOG_INFO(m_logger, "An add_remove_node command has been called" << KVLOG(sequenceNum));
-    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(sequenceNum);
-    bftEngine::ControlStateManager::instance().setEraseMetadataFlag(sequenceNum);
-  }
-
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
     if (!result) ConcordAssert(0);
@@ -385,30 +375,6 @@ bool InternalCommandsHandler::executeReadCommand(
   return true;
 }
 
-bool InternalCommandsHandler::executeHaveYouStoppedReadCommand(uint32_t requestSize,
-                                                               const char *request,
-                                                               size_t maxReplySize,
-                                                               char *outReply,
-                                                               uint32_t &outReplySize,
-                                                               uint32_t &specificReplicaInfoSize) {
-  auto *readReq = (SimpleHaveYouStoppedRequest *)request;
-  LOG_INFO(m_logger, "Execute HaveYouStopped command: type=" << readReq->header.type);
-
-  specificReplicaInfoSize = sizeof(int64_t);
-  outReplySize = sizeof(SimpleReply);
-  outReplySize += specificReplicaInfoSize;
-  if (maxReplySize < outReplySize) {
-    LOG_ERROR(m_logger, "The message is too small: requestSize=" << requestSize << ", minRequestSize=" << outReplySize);
-    return false;
-  }
-  auto *reply = (SimpleReply_HaveYouStopped *)(outReply);
-  reply->header.type = WEDGE;
-  reply->stopped = readReq->n_of_n_stop == 1 ? IControlHandler::instance()->isOnNOutOfNCheckpoint()
-                                             : IControlHandler::instance()->isOnStableCheckpoint();
-  LOG_INFO(m_logger, "HaveYouStopped message handled");
-  return true;
-}
-
 bool InternalCommandsHandler::executeGetLastBlockCommand(uint32_t requestSize,
                                                          size_t maxReplySize,
                                                          char *outReply,
@@ -451,9 +417,6 @@ bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
     return executeGetLastBlockCommand(requestSize, maxReplySize, outReply, outReplySize);
   } else if (requestHeader->type == GET_BLOCK_DATA) {
     return executeGetBlockDataCommand(requestSize, request, maxReplySize, outReply, outReplySize);
-  } else if (requestHeader->type == WEDGE) {
-    return executeHaveYouStoppedReadCommand(
-        requestSize, request, maxReplySize, outReply, outReplySize, specificReplicaInfoOutReplySize);
   } else {
     outReplySize = 0;
     LOG_ERROR(m_logger, "Illegal message received: requestHeader->type=" << requestHeader->type);

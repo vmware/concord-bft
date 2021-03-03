@@ -1,3 +1,4 @@
+add_subdirectory(util)
 set(APOLLO_TEST_ENV "BUILD_ROCKSDB_STORAGE=${BUILD_ROCKSDB_STORAGE}")
 set(MINIO_BINARY_PATH "$ENV{HOME}/minio")
 
@@ -15,6 +16,7 @@ endif()
 
 if(LEAKCHECK)
   # For Leak Sanitizers to report errors we need to shut down processes gracefully
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
 endif()
 
