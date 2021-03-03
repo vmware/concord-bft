@@ -18,8 +18,6 @@
 
 #include <stdexcept>
 
-#define getName(var) #var
-
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
@@ -607,11 +605,14 @@ std::string KeyValueBlockchain::getPruningStatus() {
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result;
 
-  result.insert(toPair(getName(versioned_num_of_deletes_keys_), versioned_num_of_deletes_keys_.Get().Get()));
-  result.insert(toPair(getName(immutable_num_of_deleted_keys_), immutable_num_of_deleted_keys_.Get().Get()));
-  result.insert(toPair(getName(merkle_num_of_deleted_keys_), merkle_num_of_deleted_keys_.Get().Get()));
-  result.insert(toPair(getName(getGenesisBlockId()), getGenesisBlockId()));
-  result.insert(toPair(getName(getLastReachableBlockId()), getLastReachableBlockId()));
+  result.insert(toPair("versioned_num_of_deletes_keys_",
+                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
+  result.insert(toPair("immutable_num_of_deleted_keys_",
+                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
+  result.insert(toPair("merkle_num_of_deleted_keys_",
+                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+  result.insert(toPair("getGenesisBlockId()", getGenesisBlockId()));
+  result.insert(toPair("getLastReachableBlockId()", getLastReachableBlockId()));
   result.insert(toPair("isPruningInProgress", bftEngine::ControlStateManager::instance().getPruningProcessStatus()));
 
   oss << concordUtils::kContainerToJson(result);
