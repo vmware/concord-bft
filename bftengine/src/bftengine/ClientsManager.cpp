@@ -268,6 +268,7 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
   if (reqIt != requestsInfo.end()) {
     reqIt->second.committed = true;
     LOG_DEBUG(GL, "Marked committed" << KVLOG(clientId, reqSeqNum));
+    return;
   }
   LOG_DEBUG(GL, "Request not found" << KVLOG(clientId, reqSeqNum));
 }
