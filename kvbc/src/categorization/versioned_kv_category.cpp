@@ -176,7 +176,6 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
   for (const auto &[key, flags] : out.keys) {
     const auto latest = getLatestVersion(key);
     ConcordAssert(latest.has_value());
-    ConcordAssertEQ(latest->deleted, flags.deleted);
     ConcordAssertLE(block_id, latest->version);
 
     // Note: Deleted keys cannot be marked as stale on update.
@@ -187,10 +186,11 @@ std::vector<std::string> VersionedKeyValueCategory::getBlockStaleKeys(BlockId bl
   return stale_keys_;
 }
 
-size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
-                                                     const VersionedOutput &out,
-                                                     storage::rocksdb::NativeWriteBatch &batch) {
-  size_t number_of_deletes{0};
+std::size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
+                                                          const VersionedOutput &out,
+                                                          storage::rocksdb::NativeWriteBatch &batch) {
+  auto number_of_deletes = std::size_t{0};
+
   // Delete active keys from previously pruned genesis blocks.
   for (const auto &[block_id, keys] : activeKeysFromPrunedBlocks(out.keys)) {
     for (const auto &key : keys) {
@@ -203,7 +203,6 @@ size_t VersionedKeyValueCategory::deleteGenesisBlock(BlockId block_id,
   for (const auto &[key, flags] : out.keys) {
     const auto latest = getLatestVersion(key);
     ConcordAssert(latest.has_value());
-    ConcordAssertEQ(latest->deleted, flags.deleted);
 
     // Note: Deleted keys cannot be marked as stale on update.
     if (flags.stale_on_update) {

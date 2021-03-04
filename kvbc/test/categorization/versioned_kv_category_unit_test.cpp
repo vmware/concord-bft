@@ -673,6 +673,110 @@ TEST_F(versioned_kv_category, delete_genesis_with_deletes) {
   }
 }
 
+TEST_F(versioned_kv_category, delete_genesis_with_update_and_delete_afterwards) {
+  auto out1 = VersionedOutput{};
+  {
+    const auto mark_stale_on_update = false;
+    auto in = VersionedInput{};
+    in.calculate_root_hash = false;
+    in.kv["k"] = ValueWithFlags{"v", mark_stale_on_update};
+    out1 = add(1, std::move(in));
+  }
+
+  auto out2 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = false;
+    in.deletes.push_back("k");
+    out2 = add(2, std::move(in));
+  }
+
+  ASSERT_TRUE(cat.get("k", 1));
+  ASSERT_FALSE(cat.get("k", 2));
+
+  // Delete genesis block 1.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(1, out1, batch);
+    db->write(std::move(batch));
+  }
+
+  // Delete genesis block 2.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(2, out2, batch);
+    db->write(std::move(batch));
+  }
+
+  // Make sure pruning has removed key "k" at block 1.
+  {
+    ASSERT_FALSE(cat.get("k", 1));
+    ASSERT_FALSE(cat.get("k", 2));
+  }
+
+  // Make sure there are no keys left as the latest version (2) of key "k" is a deletion and we prune block 2.
+  {
+    auto values_iter = db->getIterator(values_cf);
+    values_iter.first();
+    ASSERT_FALSE(values_iter);
+
+    auto latest_ver_iter = db->getIterator(latest_ver_cf);
+    latest_ver_iter.first();
+    ASSERT_FALSE(latest_ver_iter);
+
+    auto active_iter = db->getIterator(active_cf_);
+    active_iter.first();
+    ASSERT_FALSE(active_iter);
+  }
+}
+
+TEST_F(versioned_kv_category, delete_genesis_with_delete_and_update_afterwards) {
+  auto out1 = VersionedOutput{};
+  {
+    auto in = VersionedInput{};
+    in.calculate_root_hash = false;
+    in.deletes.push_back("k");
+    out1 = add(1, std::move(in));
+  }
+
+  ASSERT_FALSE(cat.get("k", 1));
+
+  auto out2 = VersionedOutput{};
+  {
+    const auto mark_stale_on_update = false;
+    auto in = VersionedInput{};
+    in.calculate_root_hash = false;
+    in.kv["k"] = ValueWithFlags{"v", mark_stale_on_update};
+    out2 = add(2, std::move(in));
+  }
+
+  // Delete genesis block 1.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(1, out1, batch);
+    db->write(std::move(batch));
+  }
+
+  // Delete genesis block 2.
+  {
+    auto batch = db->getBatch();
+    cat.deleteGenesisBlock(2, out2, batch);
+    db->write(std::move(batch));
+  }
+
+  // Make sure pruning has no effect on keys.
+  {
+    ASSERT_FALSE(cat.get("k", 1));
+    const auto v = cat.get("k", 2);
+    ASSERT_TRUE(v);
+    ASSERT_EQ(asVersioned(v).block_id, 2);
+    ASSERT_EQ(asVersioned(v).data, "v");
+  }
+
+  // Make sure key "k" is present in the active column family as block 2 (its latest version) was pruned.
+  ASSERT_TRUE(db->get(active_cf_, "k"sv));
+}
+
 TEST_F(versioned_kv_category, delete_genesis_with_active_keys) {
   const auto stale_on_update = false;
 
