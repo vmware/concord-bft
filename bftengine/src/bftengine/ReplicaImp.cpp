@@ -261,7 +261,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
+  MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
   if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
@@ -3900,6 +3900,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
   if (lastViewThatTransferredSeqNumbersFullyExecuted < curView &&
       (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+    // we store the old value of the seqNum column so we can return to it after logging the view number
+    auto mdcSeqNum = MDC_GET(MDC_SEQ_NUM_KEY);
+    MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(curView));
+
     LOG_INFO(VC_LOG,
              "Rebuilding of previous View's Working Window complete. "
                  << KVLOG(curView,
@@ -3907,6 +3911,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
                           lastExecutedSeqNum,
                           maxSeqNumTransferredFromPrevViews));
     lastViewThatTransferredSeqNumbersFullyExecuted = curView;
+    MDC_PUT(MDC_SEQ_NUM_KEY, mdcSeqNum);
     if (ps_) {
       ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
     }
