@@ -1869,6 +1869,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
   // construct the block
   uint16_t currentChunk = 0;
   uint32_t currentPos = 0;
+  bool lastInBatch = false;
 
   it = pendingItemDataMsgs.begin();
   while (true) {
@@ -1885,6 +1886,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     memcpy(outBlock + currentPos, msg->data, msg->dataSize);
     currentChunk = msg->chunkNumber;
     currentPos += msg->dataSize;
+    lastInBatch = msg->lastInBatch;
     totalSizeOfPendingItemDataMsgs -= (*it)->dataSize;
     replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(*it));
     it = pendingItemDataMsgs.erase(it);
@@ -1893,7 +1895,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
 
     if (currentChunk == totalNumberOfChunks) {
       outBlockSize = currentPos;
-      outLastInBatch = msg->lastInBatch;
+      outLastInBatch = lastInBatch;
       return true;
     }
   }
