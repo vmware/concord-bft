@@ -1653,7 +1653,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         if (cp->seqNumber() == msgSeqNum && cp->digestOfState() != x->digestOfState()) {
           metric_indicator_of_non_determinism_.Get().Inc();
           LOG_ERROR(GL,
-                    "Detect non determinsm, for checkpoint: " << msgSeqNum << " [replica: " << r << ", digest: "
+                    "Detect non determinism, for checkpoint: " << msgSeqNum << " [replica: " << r << ", digest: "
                                                               << cp->digestOfState() << "] Vs [replica: " << msgSenderId
                                                               << ", digest: " << x->digestOfState() << "]");
         }
