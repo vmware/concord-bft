@@ -3470,7 +3470,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       my_id{metrics_.RegisterGauge("my_id", config.replicaId)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
-      metric_indicator_of_non_determinism_{metrics_.RegisterCounter("metric_indicator_of_non_determinism")},
+      metric_indicator_of_non_determinism_{metrics_.RegisterCounter("indicator_of_non_determinism")},
       metric_total_committed_sn_{metrics_.RegisterCounter("total_committed_seqNum")},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
       metric_received_internal_msgs_{metrics_.RegisterCounter("receivedInternalMsgs")},
