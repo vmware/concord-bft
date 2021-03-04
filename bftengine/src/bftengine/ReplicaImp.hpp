@@ -194,6 +194,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
+  CounterHandle metric_indicator_of_non_determinism_;
   CounterHandle metric_total_committed_sn_;
   CounterHandle metric_slow_path_count_;
   CounterHandle metric_received_internal_msgs_;

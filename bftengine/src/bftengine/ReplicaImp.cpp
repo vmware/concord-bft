@@ -1649,7 +1649,15 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgSenderId] = x;
       LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId));
-
+      for (auto &[r, cp] : tableOfStableCheckpoints) {
+        if (cp->seqNumber() == msgSeqNum && cp->digestOfState() != x->digestOfState()) {
+          metric_indicator_of_non_determinism_.Get().Inc();
+          LOG_ERROR(GL,
+                    "Detect non determinism, for checkpoint: "
+                        << msgSeqNum << " [replica: " << r << ", digest: " << cp->digestOfState()
+                        << "] Vs [replica: " << msgSenderId << ", digest: " << x->digestOfState() << "]");
+        }
+      }
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) {
         uint16_t numRelevant = 0;
         uint16_t numRelevantAboveWindow = 0;
@@ -3462,6 +3470,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       my_id{metrics_.RegisterGauge("my_id", config.replicaId)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
+      metric_indicator_of_non_determinism_{metrics_.RegisterCounter("indicator_of_non_determinism")},
       metric_total_committed_sn_{metrics_.RegisterCounter("total_committed_seqNum")},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
       metric_received_internal_msgs_{metrics_.RegisterCounter("receivedInternalMsgs")},
