@@ -23,6 +23,8 @@ namespace logging {
 
 typedef log4cplus::Logger Logger;
 
+std::string get(const std::string& key);
+
 }  // namespace logging
 
 #define LOG_TRACE(l, s) LOG4CPLUS_TRACE(l, s)
@@ -35,6 +37,7 @@ typedef log4cplus::Logger Logger;
 #define MDC_PUT(k, v) log4cplus::getMDC().put(k, v)
 #define MDC_REMOVE(k) log4cplus::getMDC().remove(k)
 #define MDC_CLEAR log4cplus::getMDC().clear()
+#define MDC_GET(k) logging::get(k)
 
 #define LOG_CONFIGURE_AND_WATCH(config_file, millis) \
   log4cplus::ConfigureAndWatchThread configureThread(config_file, millis)

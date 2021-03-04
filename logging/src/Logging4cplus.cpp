@@ -55,4 +55,10 @@ Logger getLogger(const std::string& name) {
   return log4cplus::Logger::getInstance(name);
 }
 
+std::string get(const std::string& key) {
+  std::string result;
+  log4cplus::getMDC().get(&result, key);
+  return result;
+}
+
 }  // namespace logging
