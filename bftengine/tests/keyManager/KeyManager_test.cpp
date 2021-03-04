@@ -362,7 +362,7 @@ TEST(KeyManager, initialKeyExchange) {
   DummyKeyGen dkg{clusterSize};
   dkg.prv = "private";
   dkg.pub = "public";
-  ReservedPagesMock rpm(clusterSize + 1, true);
+  ReservedPagesMock rpm(5, true);
   concordUtil::Timers timers;
 
   KeyManager::InitData id{};
@@ -423,7 +423,7 @@ TEST(KeyManager, endToEnd) {
   DummyKeyGen dkg{clustersize};
   dkg.prv = "private";
   dkg.pub = "public";
-  ReservedPagesMock rpm(clustersize + 1, true);
+  ReservedPagesMock rpm(5, true);
   concordUtil::Timers timers;
 
   KeyManager::InitData id{};
