@@ -27,31 +27,27 @@
 
 namespace concord::secretsmanager {
 
+struct KeyParams;
+class AES_CBC;
+
 // SecretsManagerEnc handles encryption and decryption of files.
 // The following flow is used for encryption:
-// 1. A random salt is generated
-// 2. The salt and the password (provided by the configuration) are used to derive a secret key and iv. OpenSSL
-//   OPENSSL_EVP_BytesToKey() is used for key derivation (openssl_pass.h).
-// 3. The key is used to encrypt the payload with a supported block cipher (AES256 CBC).
-// 4. The encrypted cipher text and the salt are concatenated.
-//    The contents of the buffer is: Salted__<8 bytes salt><cipher>
-// 5. The buffer is base64 encoded and written to file.
+// 1. SecretData are the input parameters for SecretsManagerEnc. They contain an algorithm name, symmetric key and IV.
+// 2. The key and iv are used to encrypt the payload with a supported block cipher (AES256 CBC).
+// 3. The buffer is base64 encoded and written to file.
 class SecretsManagerEnc : public ISecretsManagerImpl {
-  std::string password_;
-  std::string digest_;
-  std::string algo_;
-  uint32_t key_length_;
-
   const std::set<std::string> supported_encs_{"AES/CBC/PKCS5Padding", "AES/CBC/PKCS7Padding"};
-  const std::set<std::string> supported_digests_{"SHA-256"};
   const uint32_t SALT_SIZE = 8;
 
-  logging::Logger logger = logging::getLogger("concord.bft.secrets-manager-enc");
+  logging::Logger logger_ = logging::getLogger("concord.bft.secrets-manager-enc");
+  std::unique_ptr<KeyParams> key_params_;
+  std::unique_ptr<AES_CBC> enc_algo_;
+
   CryptoPP::BlockingRng rand;
 
   std::optional<std::string> encrypt(const std::string& data);
   std::optional<std::string> decrypt(const std::string& data);
-
+  
  public:
   SecretsManagerEnc(const SecretData& secrets);
 
@@ -67,7 +63,9 @@ class SecretsManagerEnc : public ISecretsManagerImpl {
   std::optional<std::string> decryptFile(const std::ifstream& file) override;
   std::optional<std::string> decryptString(const std::string& input) override;
 
-  ~SecretsManagerEnc() = default;
+  // = default won't work here. The destructor needs to be defined in the cpp due to the forward declarations and
+  // unique_ptr
+  ~SecretsManagerEnc();
 };
 
 }  // namespace concord::secretsmanager

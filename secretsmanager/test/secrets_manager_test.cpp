@@ -31,75 +31,54 @@ Aenean laoreet sit amet augue quis suscipit. Fusce nec consequat mauris. Pellent
 
 Aenean pharetra bibendum dui non accumsan. Vivamus ex tellus, accumsan tincidunt tempus sed, cursus eu mi. Ut feugiat ligula nec egestas tincidunt. Morbi egestas viverra tellus, a. )L0R3M"};
 
-TEST(SecretsManagerEnc, EndToEnd) {
-  // The values below are generated with openssl:
-  // $ openssl enc -base64 -debug -aes-256-cbc -e -in ./sample.txt -md sha256 -pass pass:XaQZrOYEQw -p -out sample.enc
+SecretsManagerEnc getSecretsManager() {
+  SecretData ret;
+  ret.algo = "AES/CBC/PKCS5Padding";
+  ret.key = "15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2";
+  ret.iv = "38106509f6528ff859c366747aa04f21";
+  ret.key_length = 256;
+
+  return SecretsManagerEnc{ret};
+}
+
+TEST(SecretsManager, Internals) {
   const std::string input{"This is a sample text"};
-  const std::vector<uint8_t> salt{0x50, 0x54, 0xB7, 0xAF, 0x35, 0xB8, 0xB6, 0xED};
-  const std::string password{"XaQZrOYEQw"};
-  const std::string salt_prefix{"Salted__"};
-  const std::string encrypted{"U2FsdGVkX19QVLevNbi27WbILeleXn5BkWHg3A80UkcEIDFRQPN1ODx/eqZ3UEA4\n"};
+  const std::string encrypted{"eIetIYAvY5EHsb2F7bDcHH8labEq5jrmyvW7DC2N904=\n"};
 
-  // Derive key from password - openssl style (-pass option)
-  auto key_params = deriveKeyPass(password, salt, 256 / 8, 16);
-
-  {
-    std::stringstream key_str;
-    for (int k : key_params.key) {
-      key_str << std::setfill('0') << std::setw(2) << std::right << std::hex << k;
-    }
-    ASSERT_EQ(key_str.str(), "ba502b2803c6c4270b8530b24b9147fad46fe57931410a49920e5058794133c4");
-  }
-
-  {
-    std::stringstream iv_str;
-    for (int i : key_params.iv) {
-      iv_str << std::setfill('0') << std::setw(2) << std::right << std::hex << i;
-    }
-    ASSERT_EQ(iv_str.str(), "4a72528785658c36aa7e329e9a65174d");
-  }
+  concord::secretsmanager::KeyParams key_params(32, 16);
+  key_params.key = {0x15, 0xEC, 0x11, 0xA0, 0x47, 0xF6, 0x30, 0xCA, 0x00, 0xF6, 0x5C, 0x25, 0xF0, 0xB3, 0xBF, 0xD8,
+                    0x9A, 0x70, 0x54, 0xA5, 0xB9, 0xE2, 0xE3, 0xCD, 0xB6, 0xA7, 0x72, 0xA5, 0x82, 0x51, 0xB4, 0xC2};
+  key_params.iv = {0x38, 0x10, 0x65, 0x09, 0xF6, 0x52, 0x8F, 0xF8, 0x59, 0xC3, 0x66, 0x74, 0x7A, 0xA0, 0x4F, 0x21};
 
   // Encrypt
   AES_CBC e(key_params);
   auto cipher_text = e.encrypt(input);
-  auto cipher_text_encoded = base64Enc(salt, cipher_text);
-
+  auto cipher_text_encoded = base64Enc(cipher_text);
   ASSERT_EQ(cipher_text_encoded, encrypted);
 
   // Decrypt
-  auto dec = base64Dec(cipher_text_encoded);
-  ASSERT_EQ(dec.salt, salt);
-  ASSERT_EQ(dec.cipher_text, cipher_text);
+  auto dec = base64DecNoSalt(cipher_text_encoded);
+  ASSERT_EQ(dec, cipher_text);
 
-  auto plain_text = e.decrypt(dec.cipher_text);
+  auto plain_text = e.decrypt(dec);
   ASSERT_EQ(plain_text, input);
 }
 
-TEST(SecretsManagerEnc, Base64) {
+TEST(SecretsManager, Base64) {
   const std::vector<uint8_t> cipher_text{
       0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
-  const std::vector<uint8_t> bad_salt{0x01, 0x02, 0x03, 0x04};
-  const std::vector<uint8_t> good_salt{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+  const std::string expected_base64_enc{"AAECAwQFBgcICQoLDA0ODw==\n"};
 
-  ASSERT_THROW(base64Enc(bad_salt, cipher_text), std::runtime_error);
+  auto e = base64Enc(cipher_text);
+  ASSERT_EQ(e, expected_base64_enc);
 
-  auto e = base64Enc(good_salt, cipher_text);
-  auto r = base64Dec(e);
-
-  ASSERT_EQ(r.salt, good_salt);
-  ASSERT_EQ(r.cipher_text, cipher_text);
+  auto r = base64DecNoSalt(e);
+  ASSERT_EQ(r, cipher_text);
 }
 
-TEST(SecretsManagerEnc, FileTest) {
+TEST(SecretsManager, FileTest) {
   std::string filename{"/tmp/secrets_manager_unit_test"};
-
-  SecretData ret;
-  ret.algo = "AES/CBC/PKCS5Padding";
-  ret.digest = "SHA-256";
-  ret.key_length = 256;
-  ret.password = "XaQZrOYEQw";
-
-  SecretsManagerEnc sm(ret);
+  auto sm = getSecretsManager();
 
   sm.encryptFile(filename, long_input);
   auto output = sm.decryptFile(filename);
@@ -107,32 +86,35 @@ TEST(SecretsManagerEnc, FileTest) {
   ASSERT_EQ(long_input, output);
 }
 
-TEST(SecretsManagerEnc, EmptyInput) {
-  SecretData ret;
-  ret.algo = "AES/CBC/PKCS5Padding";
-  ret.digest = "SHA-256";
-  ret.key_length = 256;
-  ret.password = "XaQZrOYEQw";
-
-  SecretsManagerEnc sm(ret);
+TEST(SecretsManager, EmptyInput) {
+  auto sm = getSecretsManager();
   auto res = sm.decryptString("");
   ASSERT_FALSE(res.has_value());
 }
 
-TEST(SecretsManagerEnc, NonExistantPath) {
-  SecretData ret;
-  ret.algo = "AES/CBC/PKCS5Padding";
-  ret.digest = "SHA-256";
-  ret.key_length = 256;
-  ret.password = "XaQZrOYEQw";
-
-  SecretsManagerEnc sm(ret);
+TEST(SecretsManager, NonExistantPath) {
+  auto sm = getSecretsManager();
   auto res = sm.decryptFile("/path/which/doesnt/exist");
   ASSERT_FALSE(res.has_value());
 }
 
-TEST(SecretsManagerPlain, NonExistantPath) {
+TEST(SecretsManager, NonExistantPathPlain) {
   SecretsManagerPlain sm;
   auto res = sm.decryptFile("/path/which/doesnt/exist");
   ASSERT_FALSE(res.has_value());
+}
+
+TEST(SecretsManager, FullTest) {
+  const std::string input{"This is a sample text"};
+  const std::string encrypted{"eIetIYAvY5EHsb2F7bDcHH8labEq5jrmyvW7DC2N904=\n"};
+
+  auto sm = getSecretsManager();
+
+  auto ct = sm.encryptString(input);
+  ASSERT_TRUE(ct.has_value());
+  ASSERT_EQ(encrypted, *ct);
+
+  auto pt = sm.decryptString(*ct);
+  ASSERT_TRUE(pt.has_value());
+  ASSERT_EQ(*pt, input);
 }

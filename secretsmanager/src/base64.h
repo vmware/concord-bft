@@ -26,6 +26,8 @@ struct SaltedCipher {
 };
 
 std::string base64Enc(const std::vector<uint8_t>& salt, const std::vector<uint8_t>& cipher_text);
+std::string base64Enc(const std::vector<uint8_t>& cipher_text);
 SaltedCipher base64Dec(const std::string& input);
+std::vector<uint8_t> base64DecNoSalt(const std::string& input);
 
 }  // namespace concord::secretsmanager
