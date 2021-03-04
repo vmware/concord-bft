@@ -613,7 +613,7 @@ class LatestPrunableBlock():
         serializer = CMFSerializer()
         serializer.serialize(self.replica, ['uint64'], None)
         serializer.serialize(self.block_id, ['uint64'], None)
-        serializer.serialize(self.signature, ['string'], None)
+        serializer.serialize(self.signature, ['bytes'], None)
         return serializer.buf
 
     @classmethod
@@ -623,7 +623,7 @@ class LatestPrunableBlock():
         obj = cls()
         obj.replica = deserializer.deserialize(['uint64'], None)
         obj.block_id = deserializer.deserialize(['uint64'], None)
-        obj.signature = deserializer.deserialize(['string'], None)
+        obj.signature = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 
     def __eq__(self, other):

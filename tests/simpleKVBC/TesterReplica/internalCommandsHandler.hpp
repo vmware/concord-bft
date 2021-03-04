@@ -20,6 +20,7 @@
 #include "db_interfaces.h"
 #include "block_metadata.hpp"
 #include "KVBCInterfaces.h"
+#include "reconfiguration/pruning_handler.hpp"
 #include <memory>
 #include "ControlStateManager.hpp"
 #include <chrono>

@@ -38,7 +38,7 @@ Msg LatestPrunableBlockRequest 13 {
 Msg LatestPrunableBlock 14 {
    uint64 replica
    uint64 block_id
-   string signature
+   bytes signature
 }
 
 Msg PruneRequest 15 {
