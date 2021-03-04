@@ -20,10 +20,12 @@ namespace concord::secretsmanager {
 
 // This struct contains the secret parameters needed to initialise the SecretsManagerEnc
 struct SecretData {
-  std::string password;  // Secret used for key generation
-  std::string digest;    // Digest algorithm used for key generaetion
-  std::string algo;      // Encryption algorithm used by SecretsManagerEnc
-  uint32_t key_length;   // The size of the key in bytes
+  std::string key;              // symmetric key (as hex string)
+  std::string iv;               // iv to use with the key (as hex string)
+  std::string algo;             // Encryption algorithm used by SecretsManagerEnc
+  uint32_t key_length;          // key size in bytes
+  std::string additional_info;  // contains extra information needed
+                                // including error reasons when get API errors out
 };
 
 }  // namespace concord::secretsmanager

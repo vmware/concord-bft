@@ -42,6 +42,17 @@ std::string base64Enc(const std::vector<uint8_t>& salt, const std::vector<uint8_
   return output;
 }
 
+std::string base64Enc(const std::vector<uint8_t>& cipher_text) {
+  CryptoPP::Base64Encoder encoder;
+  encoder.Put(cipher_text.data(), cipher_text.size());
+  encoder.MessageEnd();
+  uint64_t output_size = encoder.MaxRetrievable();
+  std::string output(output_size, '0');
+  encoder.Get((unsigned char*)output.data(), output.size());
+
+  return output;
+}
+
 SaltedCipher base64Dec(const std::string& input) {
   std::vector<uint8_t> decoded;
   CryptoPP::StringSource ss(input, true, new CryptoPP::Base64Decoder(new CryptoPP::VectorSink(decoded)));
@@ -66,4 +77,10 @@ SaltedCipher base64Dec(const std::string& input) {
   return result;
 }
 
+std::vector<uint8_t> base64DecNoSalt(const std::string& input) {
+  std::vector<uint8_t> dec;
+  CryptoPP::StringSource ss(input, true, new CryptoPP::Base64Decoder(new CryptoPP::VectorSink(dec)));
+
+  return dec;
+}
 }  // namespace concord::secretsmanager

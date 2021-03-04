@@ -21,15 +21,9 @@
 
 namespace concord::secretsmanager {
 
-SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets) {
-  if (supported_digests_.find(secrets.digest) == supported_digests_.end()) {
-    std::string digests;
-    for (auto& d : supported_digests_) {
-      digests.append(d + " ");
-    }
-    throw std::runtime_error("Unsupported digets " + secrets.digest + "Supported digests: " + digests);
-  }
-
+SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets)
+    : key_params_{std::make_unique<KeyParams>(secrets.key, secrets.iv)},
+      enc_algo_{std::make_unique<AES_CBC>(*key_params_)} {
   if (supported_encs_.find(secrets.algo) == supported_encs_.end()) {
     std::string encs;
     for (auto& e : supported_encs_) {
@@ -37,9 +31,6 @@ SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets) {
     }
     throw std::runtime_error("Unsupported encryption algorithm " + secrets.algo + "Supported encryptions: " + encs);
   }
-
-  password_ = secrets.password;
-  key_length_ = secrets.key_length / 8;  // key is passed in bits
 }
 
 bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::string& input) {
@@ -51,7 +42,7 @@ bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::strin
   try {
     writeFile(file_path, *ct_encoded);
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Error opening file for writing " << file_path << ": " << e.what());
+    LOG_ERROR(logger_, "Error opening file for writing " << file_path << ": " << e.what());
     return false;
   }
 
@@ -65,7 +56,7 @@ std::optional<std::string> SecretsManagerEnc::decryptFile(std::string_view path)
   try {
     data = readFile(path);
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Error opening file for reading " << path << ": " << e.what());
+    LOG_ERROR(logger_, "Error opening file for reading " << path << ": " << e.what());
     return std::nullopt;
   }
 
@@ -77,7 +68,7 @@ std::optional<std::string> SecretsManagerEnc::decryptFile(const std::ifstream& f
   try {
     data = readFile(file);
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Error reading from file stream: " << e.what());
+    LOG_ERROR(logger_, "Error reading from file stream: " << e.what());
     return std::nullopt;
   }
 
@@ -88,33 +79,28 @@ std::optional<std::string> SecretsManagerEnc::decryptString(const std::string& i
 
 std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
   try {
-    auto dec = base64Dec(data);
-    auto key_params = deriveKeyPass(password_, dec.salt, key_length_, AES_CBC::getBlockSize());
-    AES_CBC e(key_params);
-    auto pt = e.decrypt(dec.cipher_text);
+    auto cipher_text = base64DecNoSalt(data);
+    auto pt = enc_algo_->decrypt(cipher_text);
 
     return std::optional<std::string>{pt};
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Decryption error: " << e.what());
+    LOG_ERROR(logger_, "Decryption error: " << e.what());
   }
 
   return std::nullopt;
 }
 
 std::optional<std::string> SecretsManagerEnc::encrypt(const std::string& data) {
-  std::vector<uint8_t> salt(SALT_SIZE);
   try {
-    rand.GenerateBlock(salt.data(), salt.size());
-    auto key_params = deriveKeyPass(password_, salt, key_length_, AES_CBC::getBlockSize());
-    AES_CBC e(key_params);
-
-    auto cipher_text = e.encrypt(data);
-    return std::optional<std::string>{base64Enc(salt, cipher_text)};
+    auto cipher_text = enc_algo_->encrypt(data);
+    return std::optional<std::string>{base64Enc(cipher_text)};
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Encryption error: " << e.what());
+    LOG_ERROR(logger_, "Encryption error: " << e.what());
   }
 
   return std::nullopt;
 }
+
+SecretsManagerEnc::~SecretsManagerEnc() {}
 
 }  // namespace concord::secretsmanager

@@ -9,7 +9,8 @@ set(secretsmanager_source_files
     src/secrets_manager_impl.cpp
     src/base64.cpp
     src/aes.cpp
-    src/openssl_pass.cpp)
+    src/openssl_pass.cpp
+    src/key_params.cpp)
 
 add_library(secretsmanager STATIC 
     ${secretsmanager_source_files})
@@ -18,6 +19,7 @@ add_library(secretsmanager_shared SHARED
 
 target_link_libraries(secretsmanager PUBLIC ${CRYPTOPP_LIBRARIES})
 target_include_directories(secretsmanager PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
+target_include_directories(secretsmanager PRIVATE src)
 
 target_link_libraries(secretsmanager_shared PUBLIC ${CRYPTOPP_LIBRARIES})
 target_include_directories(secretsmanager_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
