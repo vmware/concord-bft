@@ -19,6 +19,7 @@
 #include "base_types.h"
 #include "categorized_kvbc_msgs.cmf.hpp"
 
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <optional>
@@ -46,9 +47,9 @@ class VersionedKeyValueCategory {
 
   VersionedOutput add(BlockId, VersionedInput &&, storage::rocksdb::NativeWriteBatch &);
 
-  std::vector<std::string> getBlockStaleKeys(BlockId, const VersionedOutput &) const;
   // Delete the given block ID as a genesis one.
   // Precondition: The given block ID must be the genesis one.
+  // Return the number of deleted keys from the DB.
   std::size_t deleteGenesisBlock(BlockId, const VersionedOutput &, storage::rocksdb::NativeWriteBatch &);
 
   // Delete the given block ID as a last reachable one.
@@ -86,6 +87,9 @@ class VersionedKeyValueCategory {
   // Get the value of `key` and a proof for it at `block_id`.
   // Return std::nullopt if the key doesn't exist.
   std::optional<KeyValueProof> getProof(BlockId block_id, const std::string &key, const VersionedOutput &) const;
+
+  // Get all stale keys as of `block_id`.
+  std::vector<std::string> getBlockStaleKeys(BlockId block_id, const VersionedOutput &) const;
 
  private:
   void addDeletes(BlockId, std::vector<std::string> &&keys, VersionedOutput &, storage::rocksdb::NativeWriteBatch &);
