@@ -194,26 +194,3 @@ wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz 
     echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
     ldconfig -v && \
     rm -rf /usr/local/src/openssl-${OPENSSL_VER}
-
-cd ${HOME}
-git clone https://github.com/nlohmann/json && \
-    cd json && \
-    git checkout v3.7.3 && \
-    mkdir build && \
-    cd build && \
-    cmake .. && \
-    make -j$(nproc) && \
-    make install && \
-    cd ../.. && \
-    rm -r json
-
-cd ${HOME}
-# cpp-httplib requires cmake 3.14, while bionic ships with 3.10
-# the lib is header only so instead of compiling the header is 
-# copied to /usr/local/include
-git clone https://github.com/yhirose/cpp-httplib && \
-    cd cpp-httplib && \
-    git checkout v0.7.1 && \
-    cp httplib.h /usr/local/include/ && \
-    cd .. && \
-    rm -rf cpp-httplib
