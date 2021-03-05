@@ -1,5 +1,4 @@
 # pthread dependency
-find_package(nlohmann_json REQUIRED)
 find_package(cryptopp REQUIRED)
 
 set(secretsmanager_source_files
