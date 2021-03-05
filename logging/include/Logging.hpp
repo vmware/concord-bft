@@ -120,5 +120,6 @@ class Logger {
 #define MDC_PUT(k, v) logging::Logger::getThreadContext().getMDC().put(k, v);
 #define MDC_REMOVE(k) logging::Logger::getThreadContext().getMDC().remove(k);
 #define MDC_CLEAR logging::Logger::getThreadContext().getMDC().clear();
+#define MDC_GET(k) logging::Logger::getThreadContext().getMDC().get(k)
 
 #define LOG_CONFIGURE_AND_WATCH(config_file, millis) logging::initLogger(config_file)

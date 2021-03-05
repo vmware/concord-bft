@@ -261,7 +261,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
-  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
+  MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
   if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
@@ -2274,7 +2274,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(curView);
 
-  LOG_INFO(VC_LOG, KVLOG(curView, nextView, wasInPrevViewNumber));
+  LOG_INFO(VC_LOG, "Moving to higher view: " << KVLOG(curView, nextView, wasInPrevViewNumber));
 
   ViewChangeMsg *pVC = nullptr;
 
@@ -2578,6 +2578,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
+  SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
@@ -3908,6 +3909,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
   if (lastViewThatTransferredSeqNumbersFullyExecuted < curView &&
       (lastExecutedSeqNum >= maxSeqNumTransferredFromPrevViews)) {
+    // we store the old value of the seqNum column so we can return to it after logging the view number
+    auto mdcSeqNum = MDC_GET(MDC_SEQ_NUM_KEY);
+    MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(curView));
+
     LOG_INFO(VC_LOG,
              "Rebuilding of previous View's Working Window complete. "
                  << KVLOG(curView,
@@ -3915,6 +3920,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
                           lastExecutedSeqNum,
                           maxSeqNumTransferredFromPrevViews));
     lastViewThatTransferredSeqNumbersFullyExecuted = curView;
+    MDC_PUT(MDC_SEQ_NUM_KEY, mdcSeqNum);
     if (ps_) {
       ps_->setLastViewThatTransferredSeqNumbersFullyExecuted(lastViewThatTransferredSeqNumbersFullyExecuted);
     }
