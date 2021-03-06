@@ -679,7 +679,7 @@ void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
     if (!raw_block) {
       return;
     }
-    writeSTLinkTransaction(block_id, *raw_block);
+    writeSTLinkTransaction(i, *raw_block);
   }
   // Linking has fully completed and we should not have any more ST temporary blocks left. Therefore, make sure we don't
   // have any value for the latest ST temporary block ID cache.

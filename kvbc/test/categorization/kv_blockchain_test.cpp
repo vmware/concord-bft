@@ -595,7 +595,7 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
     ASSERT_THROW(block_chain.addRawBlock(rb, 1), std::invalid_argument);
   }
 
-  // Add raw block with a gap form the last reachable
+  // Add raw block with a gap from the last reachable
   {
     categorization::RawBlock rb;
     block_chain.addRawBlock(rb, 5);
@@ -627,6 +627,11 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
   }
   // Link the chains
   {
+    KeyValueBlockchain::KeyValueBlockchain_tester tester;
+    const auto& st_blockchain = tester.getStateTransferBlockchain(block_chain);
+    ASSERT_TRUE(st_blockchain.getRawBlock(6).has_value());
+    ASSERT_TRUE(st_blockchain.getRawBlock(5).has_value());
+    ASSERT_TRUE(st_blockchain.getRawBlock(4).has_value());
     categorization::RawBlock rb;
     BlockMerkleInput merkle_updates;
     merkle_updates.kv["merkle_key3"] = "merkle_value3";
@@ -634,6 +639,9 @@ TEST_F(categorized_kvbc, link_state_transfer_chain) {
     rb.data.updates.kv["merkle"] = merkle_updates;
     block_chain.addRawBlock(rb, 3);
     ASSERT_FALSE(block_chain.getLastStatetransferBlockId().has_value());
+    ASSERT_FALSE(st_blockchain.getRawBlock(6).has_value());
+    ASSERT_FALSE(st_blockchain.getRawBlock(5).has_value());
+    ASSERT_FALSE(st_blockchain.getRawBlock(4).has_value());
 
     ASSERT_EQ(block_chain.getLastReachableBlockId(), 6);
     ASSERT_EQ(block_chain_imp.loadLastReachableBlockId().value(), 6);
