@@ -13,12 +13,15 @@
 
 #include "categorization/kv_blockchain.h"
 #include "bcstatetransfer/SimpleBCStateTransfer.hpp"
+#include "bftengine/ControlStateManager.hpp"
+#include "json_output.hpp"
 
 #include <stdexcept>
 
 namespace concord::kvbc::categorization {
 
 using ::bftEngine::bcst::computeBlockDigest;
+using concordUtils::toPair;
 
 template <typename T>
 void nullopts(std::vector<std::optional<T>>& vec, std::size_t count) {
@@ -691,6 +694,24 @@ void KeyValueBlockchain::writeSTLinkTransaction(const BlockId block_id, RawBlock
   native_client_->write(std::move(write_batch));
 
   block_chain_.setAddedBlockId(new_block_id);
+}
+
+std::string KeyValueBlockchain::getPruningStatus() {
+  std::ostringstream oss;
+  std::unordered_map<std::string, std::string> result;
+
+  result.insert(toPair("versioned_num_of_deletes_keys_",
+                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
+  result.insert(toPair("immutable_num_of_deleted_keys_",
+                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
+  result.insert(toPair("merkle_num_of_deleted_keys_",
+                       aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
+  result.insert(toPair("getGenesisBlockId()", getGenesisBlockId()));
+  result.insert(toPair("getLastReachableBlockId()", getLastReachableBlockId()));
+  result.insert(toPair("isPruningInProgress", bftEngine::ControlStateManager::instance().getPruningProcessStatus()));
+
+  oss << concordUtils::kContainerToJson(result);
+  return oss.str();
 }
 
 }  // namespace concord::kvbc::categorization

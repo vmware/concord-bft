@@ -238,6 +238,11 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
     m_kvBlockchain.emplace(
         storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain, kvbc_categories);
     m_kvBlockchain->setAggregator(aggregator);
+
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    concord::diagnostics::StatusHandler handler(
+        "pruning", "Pruning Status", [this]() { return m_kvBlockchain->getPruningStatus(); });
+    registrar.status.registerHandler(handler);
   }
   m_dbSet.dataDBClient->setAggregator(aggregator);
   m_dbSet.metadataDBClient->setAggregator(aggregator);

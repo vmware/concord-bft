@@ -76,6 +76,6 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   std::string scratchPage_;
   bool enabled_ = true;
   ControlStatePage page_;
-  bool onPruningProcess_ = false;
+  std::atomic_bool onPruningProcess_ = false;
 };
 }  // namespace bftEngine
