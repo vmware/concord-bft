@@ -25,6 +25,7 @@ from functools import wraps
 from datetime import datetime
 from functools import partial
 import inspect
+import time
 
 import trio
 
@@ -171,6 +172,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                             with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
                                 if rotate_keys:
                                     await bft_network.do_key_exchange()
+                                bft_network.test_start_time = time.time()
                                 await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
 
@@ -206,6 +208,11 @@ class BftTestNetwork:
             os.chdir(self.origdir)
             shutil.rmtree(self.testdir, ignore_errors=True)
             shutil.rmtree(self.certdir, ignore_errors=True)
+            if self.test_dir and self.test_start_time:
+                with open(f"{self.test_dir}test_duration.log", 'w+') as log_file:
+                    log_file.write(f"test duration = {time.time() - self.test_start_time} seconds\n")
+            if self.perf_proc:
+                self.perf_proc.wait()
 
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
                  procs, replicas, clients, metrics, client_factory, background_nursery):
@@ -229,6 +236,9 @@ class BftTestNetwork:
         self.open_fds = {}
         self.current_test = ""
         self.background_nursery = background_nursery
+        self.test_dir = None
+        self.test_start_time = None
+        self.perf_proc = None
 
     @classmethod
     def new(cls, config, background_nursery, client_factory=None):
@@ -470,10 +480,10 @@ class BftTestNetwork:
                     now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
                     test_name = f"{now}_{self.current_test}"
 
-                test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
-                test_log = f"{test_dir}stdout_{replica_id}.log"
+                self.test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
+                test_log = f"{self.test_dir}stdout_{replica_id}.log"
 
-                os.makedirs(test_dir, exist_ok=True)
+                os.makedirs(self.test_dir, exist_ok=True)
 
                 stdout_file = open(test_log, 'w+')
                 stderr_file = open(test_log, 'w+')
@@ -496,6 +506,13 @@ class BftTestNetwork:
                                             stdout=stdout_file,
                                             stderr=stderr_file,
                                             close_fds=True)
+
+            replica_for_perf = os.environ.get('PERF_REPLICA', "")
+            if self.test_start_time and replica_for_perf and int(replica_for_perf) == replica_id:
+                perf_samples = os.environ.get('PERF_SAMPLES', "1000")
+                perf_cmd = ["perf", "record", "-F", perf_samples, "-p", f"{self.procs[replica_id].pid}",
+                            "-a", "-g", "-o", f"{self.test_dir}perf.data"]
+                self.perf_proc = subprocess.Popen(perf_cmd, close_fds=True)
 
     def replica_id_from_pid(self, pid):
         """ Return an already-started replica id, according to a given pid """
