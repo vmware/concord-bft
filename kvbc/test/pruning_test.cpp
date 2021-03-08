@@ -19,7 +19,7 @@
 #include "db_interfaces.h"
 #include "endianness.hpp"
 #include "reconfiguration/pruning_utils.hpp"
-#include "reconfiguration/pruning_handler.hpp"
+#include "pruning_handler.hpp"
 
 #include "storage/test/storage_test_common.h"
 

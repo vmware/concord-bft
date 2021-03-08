@@ -15,9 +15,10 @@
 #include "Logger.hpp"
 #include "Replica.hpp"
 #include "concord.cmf.hpp"
-#include "ireconfiguration.hpp"
-#include "OpenTracing.hpp"
-#include "pruning_utils.hpp"
+#include "db_interfaces.h"
+#include "reconfiguration/ireconfiguration.hpp"
+#include "reconfiguration/pruning_utils.hpp"
+
 namespace concord::reconfiguration::pruning {
 class PruningHandler : public IPruningHandler {
   // This class implements the KVB pruning state machine. Main functionalities
