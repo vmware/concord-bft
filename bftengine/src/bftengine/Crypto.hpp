@@ -38,7 +38,8 @@ class CryptographyWrapper {
 class RSASigner {
  public:
   RSASigner(const char* privteKey, const char* randomSeed);
-  RSASigner(const char* privateKey);
+  explicit RSASigner(const char* privateKey);
+  explicit RSASigner(const string& private_key_pem);
   RSASigner(const RSASigner&) = delete;
   RSASigner(RSASigner&&);
   ~RSASigner();
@@ -59,7 +60,8 @@ class RSASigner {
 class RSAVerifier {
  public:
   RSAVerifier(const char* publicKey, const char* randomSeed);
-  RSAVerifier(const char* publicKey);
+  explicit RSAVerifier(const char* publicKey);
+  explicit RSAVerifier(const string& publicKeyPath);
   RSAVerifier(const RSAVerifier&) = delete;
   RSAVerifier(RSAVerifier&&);
   ~RSAVerifier();
