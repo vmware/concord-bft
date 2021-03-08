@@ -364,6 +364,8 @@ struct HistogramData {
 class PerformanceHandler {
  public:
   void registerComponent(const std::string& name, const std::vector<std::shared_ptr<Recorder>>&);
+  void unRegisterComponent(const std::string& name);
+  bool isRegisteredComponent(const std::string& name);
 
   // List all components
   std::string list() const;
