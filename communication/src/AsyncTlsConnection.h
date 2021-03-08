@@ -20,6 +20,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/filesystem.hpp>
 
 #include "Logger.hpp"
 #include "communication/CommDefs.hpp"
@@ -146,6 +147,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                                             std::string connectionType,
                                             const std::string& subject,
                                             std::optional<NodeNum> expected_peer_id);
+
+  const std::string decryptPK(const boost::filesystem::path& path);
 
   logging::Logger logger_;
   boost::asio::io_service& io_service_;

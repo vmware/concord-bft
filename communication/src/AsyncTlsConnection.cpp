@@ -13,13 +13,14 @@
 #include <regex>
 
 #include <arpa/inet.h>
-#include <boost/filesystem.hpp>
 #include <chrono>
 #include <optional>
 
 #include "AsyncTlsConnection.h"
 #include "TlsTcpImpl.h"
 #include "TlsDiagnostics.h"
+#include "secrets_manager_enc.h"
+#include "secrets_manager_plain.h"
 
 namespace bft::communication {
 
@@ -278,7 +279,8 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
   try {
     ssl_context_.use_certificate_chain_file((path / "client.cert").string());
-    ssl_context_.use_private_key_file((path / "pk.pem").string(), boost::asio::ssl::context::pem);
+    const std::string pk = decryptPK(path);
+    ssl_context_.use_private_key(boost::asio::const_buffer(pk.c_str(), pk.size()), boost::asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
     ConcordAssert(false);
@@ -319,7 +321,8 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   try {
     ssl_context_.use_certificate_chain_file((path / fs::path("server.cert")).string());
-    ssl_context_.use_private_key_file((path / fs::path("pk.pem")).string(), boost::asio::ssl::context::pem);
+    const std::string pk = decryptPK(path);
+    ssl_context_.use_private_key(boost::asio::const_buffer(pk.c_str(), pk.size()), boost::asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
     ConcordAssert(false);
@@ -464,6 +467,34 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
             "X509_cmp failed at node: " << tlsTcpImpl_.config_.selfId << ", type: " << connectionType
                                         << ", peer: " << remotePeerId << " res=" << res);
   return std::make_pair(false, remotePeerId);
+}
+
+using namespace concord::secretsmanager;
+
+inline static std::unique_ptr<ISecretsManagerImpl> secrets_manager_;
+
+const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& path) {
+  namespace fs = boost::filesystem;
+  std::string pkpath;
+
+  if (tlsTcpImpl_.config_.secretData) {
+    pkpath = (path / fs::path("pk.pem.enc")).string();
+    if (secrets_manager_ == nullptr) {
+      secrets_manager_.reset(new SecretsManagerEnc(tlsTcpImpl_.config_.secretData.value()));
+    }
+  } else {
+    pkpath = (path / fs::path("pk.pem")).string();
+    if (secrets_manager_ == nullptr) {
+      secrets_manager_.reset(new SecretsManagerPlain());
+    }
+  }
+
+  auto decBuf = secrets_manager_->decryptFile(pkpath);
+  if (!decBuf) {
+    throw std::runtime_error("Error decrypting " + pkpath);
+  }
+
+  return *decBuf;
 }
 
 }  // namespace bft::communication
