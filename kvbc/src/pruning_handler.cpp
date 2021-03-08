@@ -11,7 +11,7 @@
 // file.
 
 #include <endianness.hpp>
-#include "reconfiguration/pruning_handler.hpp"
+#include "pruning_handler.hpp"
 #include "reconfiguration/pruning_utils.hpp"
 #include "categorization/versioned_kv_category.h"
 

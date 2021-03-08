@@ -223,4 +223,11 @@ if (BUILD_ROCKSDB_STORAGE)
         kvbc
         stdc++fs
     )
+    add_executable(pruning_test pruning_test.cpp)
+    add_test(pruning_test pruning_test)
+    target_link_libraries(pruning_test
+            GTest::GTest
+            corebft
+            kvbc
+            stdc++fs)
 endif (BUILD_ROCKSDB_STORAGE)
