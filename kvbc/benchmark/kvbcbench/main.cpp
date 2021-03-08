@@ -42,11 +42,9 @@
 #include "pre_execution.h"
 
 using namespace std;
-namespace po = boost::program_options;
 
 namespace concord::kvbc::bench {
 
-using categorization::BlockMerkleInput;
 using categorization::TaggedVersion;
 
 // Since we generate all keys up front we need to prevent explosive memory growth.
