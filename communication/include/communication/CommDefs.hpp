@@ -24,6 +24,7 @@
 
 #include "communication/ICommunication.hpp"
 #include "communication/StatusInfo.h"
+#include "secret_data.h"
 
 namespace bft::communication {
 typedef struct sockaddr_in Addr;
@@ -108,6 +109,8 @@ struct TlsTcpConfig : PlainTcpConfig {
   // https://www.openssl.org/docs/man1.0.2/man1/ciphers.html
   std::string cipherSuite;
 
+  std::optional<concord::secretsmanager::SecretData> secretData;
+
   TlsTcpConfig(std::string host,
                uint16_t port,
                uint32_t bufLength,
@@ -116,11 +119,13 @@ struct TlsTcpConfig : PlainTcpConfig {
                NodeNum _selfId,
                std::string certRootPath,
                std::string ciphSuite,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr,
+               std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
       : PlainTcpConfig(
             move(host), port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
         certificatesRootPath{std::move(certRootPath)},
-        cipherSuite{std::move(ciphSuite)} {
+        cipherSuite{std::move(ciphSuite)},
+        secretData{std::move(decryptionSecretData)} {
     commType = CommType::TlsTcp;
   }
 };

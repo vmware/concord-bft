@@ -24,6 +24,13 @@ target_link_libraries(bftcommunication PUBLIC util)
 target_include_directories(bftcommunication_shared PUBLIC include)
 target_link_libraries(bftcommunication_shared PUBLIC util_shared)
 
+target_include_directories(bftcommunication PUBLIC ../secretsmanager/include)
+target_include_directories(bftcommunication_shared PUBLIC ../secretsmanager/include)
+if(${BUILD_COMM_TCP_TLS})
+    target_link_libraries(bftcommunication PUBLIC secretsmanager)
+    target_link_libraries(bftcommunication_shared PUBLIC secretsmanager_shared)
+endif()
+
 if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
     set(Boost_USE_STATIC_LIBS OFF) # find all kind of libs
     set(Boost_USE_MULTITHREADED ON)

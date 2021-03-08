@@ -181,6 +181,13 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
   std::unordered_map<NodeNum, NodeInfo> nodes =
       SetUpNodes(is_replica, id, ip, port, num_of_clients, num_of_replicas, config_file_name);
 
+  // private key decryption configuration for tests
+  concord::secretsmanager::SecretData secretData;
+  secretData.algo = "AES/CBC/PKCS5Padding";
+  secretData.digest = "SHA-256";
+  secretData.key_length = 256;
+  secretData.password = "XaQZrOYEQw";
+
   // need to move the default cipher suite to the config file
   TlsTcpConfig retVal(default_listen_ip_,
                       port,
@@ -189,6 +196,8 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
                       num_of_replicas - 1,
                       id,
                       cert_root_path,
-                      "ECDHE-ECDSA-AES256-GCM-SHA384");
+                      "ECDHE-ECDSA-AES256-GCM-SHA384",
+                      nullptr,
+                      secretData);
   return retVal;
 }

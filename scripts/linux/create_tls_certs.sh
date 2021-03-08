@@ -48,6 +48,14 @@ while [ $i -le $last_node_id ]; do
    openssl req -new -key $clientDir/pk.pem -nodes -days 365 -x509 \
         -subj "/C=NA/ST=NA/L=NA/O=NA/OU=${i}/CN=node${i}cli" -out $clientDir/client.cert
 
+   openssl enc -base64 -aes-256-cbc -e -in $serverDir/pk.pem -md sha256 -pass pass:XaQZrOYEQw \
+         -p -out $serverDir/pk.pem.enc 2>/dev/null
+   openssl enc -base64 -aes-256-cbc -e -in $clientDir/pk.pem -md sha256 -pass pass:XaQZrOYEQw \
+         -p -out $clientDir/pk.pem.enc 2>/dev/null
+
+   # rm $serverDir/pk.pem
+   # rm $clientDir/pk.pem
+
    (( i=i+1 ))
 done
 
