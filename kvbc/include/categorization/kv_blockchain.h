@@ -212,7 +212,6 @@ class KeyValueBlockchain {
   util::ThreadPool thread_pool_{1};
 
   // metrics
-  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   concordMetrics::Component delete_metrics_comp_;
   concordMetrics::CounterHandle versioned_num_of_deletes_keys_;
   concordMetrics::CounterHandle immutable_num_of_deleted_keys_;
@@ -235,8 +234,7 @@ class KeyValueBlockchain {
   };  // namespace concord::kvbc::categorization
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
-    aggregator_ = aggregator;
-    delete_metrics_comp_.UpdateAggregator();
+    delete_metrics_comp_.SetAggregator(aggregator);
   }
   friend struct KeyValueBlockchain_tester;
 };
