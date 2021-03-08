@@ -17,7 +17,6 @@
 #include <type_traits>
 #include <unordered_set>
 #include <bftengine/IStateTransfer.hpp>
-#include <db_interfaces.h>
 #include <future>
 #include "Crypto.hpp"
 #include "bftengine/ControlStateManager.hpp"

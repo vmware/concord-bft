@@ -12,7 +12,6 @@
 
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
-#include "reconfiguration/pruning_handler.hpp"
 #include "Replica.hpp"
 #pragma once
 
