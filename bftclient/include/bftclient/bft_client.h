@@ -23,27 +23,14 @@
 #include "msg_receiver.h"
 #include "exception.h"
 #include "metrics.h"
+#include "diagnostics.h"
+#include "bftengine/Crypto.hpp"
 
 namespace bft::client {
 
 class Client {
  public:
-  Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config)
-      : communication_(std::move(comm)),
-        config_(config),
-        quorum_converter_(config_.all_replicas, config_.f_val, config_.c_val),
-        expected_commit_time_ms_(config_.retry_timeout_config.initial_retry_timeout.count(),
-                                 config_.retry_timeout_config.number_of_standard_deviations_to_tolerate,
-                                 config_.retry_timeout_config.max_retry_timeout.count(),
-                                 config_.retry_timeout_config.min_retry_timeout.count(),
-                                 config_.retry_timeout_config.samples_per_evaluation,
-                                 config_.retry_timeout_config.samples_until_reset,
-                                 config_.retry_timeout_config.max_increasing_factor,
-                                 config_.retry_timeout_config.max_decreasing_factor),
-        metrics_(config.id) {
-    communication_->setReceiver(config_.id.val, &receiver_);
-    communication_->Start();
-  }
+  Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config);
 
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     metrics_.setAggregator(aggregator);
@@ -77,6 +64,14 @@ class Client {
   MatchConfig writeConfigToMatchConfig(const WriteConfig&);
   MatchConfig readConfigToMatchConfig(const ReadConfig&);
 
+  // This function creates a ClientRequestMsg or a ClientPreProcessRequestMsg depending upon config.
+  //
+  // Since both of these are just instances of a `ClientRequestMsgHeader` followed by the message
+  // data, we construct them here, rather than relying on the type constructors embedded into the
+  // bftEngine impl. This allows us to not have to link with the bftengine library, and also allows us
+  // to return the messages as vectors with proper RAII based memory management.
+  Msg createClientMsg(const RequestConfig& req_config, Msg&& request, bool read_only, uint16_t client_id);
+
   MsgReceiver receiver_;
 
   std::unique_ptr<bft::communication::ICommunication> communication_;
@@ -97,6 +92,30 @@ class Client {
   bftEngine::impl::DynamicUpperLimitWithSimpleFilter<uint64_t> expected_commit_time_ms_;
 
   Metrics metrics_;
+
+  // Transaction RSA signer
+  std::optional<bftEngine::impl::RSASigner> transaction_signer_;
+
+  // 1 second
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;
+  struct Recorders {
+    using Recorder = concord::diagnostics::Recorder;
+    Recorders(ClientId client_id) : component_name_("bft_client_" + std::to_string(client_id.val)) {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent(component_name_, {sign_duration});
+    }
+    DEFINE_SHARED_RECORDER(sign_duration, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+
+    ~Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.unRegisterComponent(component_name_);
+    }
+
+   private:
+    std::string component_name_;
+  };
+
+  std::unique_ptr<Recorders> histograms_;
 };
 
 }  // namespace bft::client
