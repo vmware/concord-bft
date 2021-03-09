@@ -223,6 +223,8 @@ class KeyValueBlockchain {
     void loadCategories(KeyValueBlockchain& kvbc) { kvbc.loadCategories(); }
     const auto& getCategories(KeyValueBlockchain& kvbc) { return kvbc.categories_; }
 
+    const auto& getStateTransferBlockchain(KeyValueBlockchain& kvbc) { return kvbc.state_transfer_block_chain_; }
+
     const Category& getCategory(const std::string& cat_id, KeyValueBlockchain& kvbc) const {
       return kvbc.getCategoryRef(cat_id);
     }
