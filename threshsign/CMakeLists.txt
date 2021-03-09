@@ -76,8 +76,8 @@ string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
         PUBLIC
-        ${RELIC_STATIC_LIBRARY}
-        ${GMP_STATIC_LIBRARY}
+        ${RELIC_LIBRARY}
+        ${GMP_LIBRARY}
         ${CRYPTOPP_STATIC_LIBRARY})
 endfunction()
 
@@ -130,9 +130,9 @@ get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
     set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES ${RELIC_INCLUDE_DIRS})
 endif()
-find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+find_library(RELIC_LIBRARY NAMES "librelic.so")
 
-find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+find_library(GMP_LIBRARY NAMES "libgmp.so")
 
 find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
