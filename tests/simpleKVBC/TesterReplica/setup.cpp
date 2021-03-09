@@ -37,7 +37,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   try {
     // used to get info from parsing the key file
     bftEngine::ReplicaConfig& replicaConfig = bftEngine::ReplicaConfig::instance();
-    replicaConfig.numOfClientProxies = 100;
+    replicaConfig.numOfClientProxies = 0;
     replicaConfig.numOfExternalClients = 30;
     replicaConfig.concurrencyLevel = 3;
     replicaConfig.debugStatisticsEnabled = true;
@@ -154,16 +154,18 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     TestCommConfig testCommConfig(logger);
     testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
     uint16_t numOfReplicas = (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1);
+    auto numOfClients =
+        replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
 
 #ifdef USE_COMM_PLAIN_TCP
-    bft::communication::PlainTcpConfig conf = testCommConfig.GetTCPConfig(
-        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
+    bft::communication::PlainTcpConfig conf =
+        testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
     bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
-        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile, certRootPath);
+        true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
 #else
-    bft::communication::PlainUdpConfig conf = testCommConfig.GetUDPConfig(
-        true, replicaConfig.replicaId, replicaConfig.numOfClientProxies, numOfReplicas, commConfigFile);
+    bft::communication::PlainUdpConfig conf =
+        testCommConfig.GetUDPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #endif
 
     std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
