@@ -31,6 +31,20 @@ void PerformanceHandler::registerComponent(const std::string& name,
   components_.insert({name, std::move(histograms)});
 }
 
+void PerformanceHandler::unRegisterComponent(const std::string& name) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (components_.count(name) == 0) {
+    LOG_FATAL(DIAG_LOGGER, "Component does not exist: " << name);
+    std::terminate();
+  }
+  components_.erase(name);
+}
+
+bool PerformanceHandler::isRegisteredComponent(const std::string& name) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  return components_.count(name) > 0;
+}
+
 std::string PerformanceHandler::list() const {
   std::lock_guard<std::mutex> guard(mutex_);
   std::string output;

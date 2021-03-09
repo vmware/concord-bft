@@ -11,10 +11,18 @@
 // LICENSE file.
 
 #include <cstring>
+#include <cstdlib>
 #include <set>
 #include <thread>
 #include <vector>
+#include <iostream>
+#include <ctime>
 
+#include <cryptopp/dll.h>
+#include <cryptopp/rsa.h>
+#include <cryptopp/osrng.h>
+#include <cryptopp/base64.h>
+#include <cryptopp/files.h>
 #include "gtest/gtest.h"
 
 #include "bftengine/ClientMsgs.hpp"
@@ -22,34 +30,187 @@
 #include "bftclient/fake_comm.h"
 #include "msg_receiver.h"
 
+using namespace std;
 using namespace bft::client;
 using namespace bft::communication;
+using namespace CryptoPP;
+using namespace bftEngine::impl;
+using namespace bftEngine;
+using namespace placeholders;
+using namespace concord::secretsmanager;
 
-ClientConfig test_config{
-    ClientId{5}, {ReplicaId{0}, ReplicaId{1}, ReplicaId{2}, ReplicaId{3}}, 1, 0, RetryTimeoutConfig{}};
+constexpr char KEYS_BASE_PARENT_PATH[] = "/tmp/";
+constexpr char KEYS_BASE_PATH[] = "/tmp/transaction_signing_keys";
+constexpr char PRIV_KEY_NAME[] = "privkey.pem";
+constexpr char PUB_KEY_NAME[] = "pubkey.pem";
+constexpr char ENC_PRIV_KEY_NAME[] = "privkey.enc";
+constexpr char ENC_PRIV_KEY_PASSWORD[] = "XaQZrOYEQw";
+constexpr char KEYS_GEN_SCRIPT_PATH[] =
+    "/concord-bft//scripts/linux/create_concord_clients_transaction_signing_keys.sh";
 
-// Just print all received messages from a client
-#include <iostream>
-void PrintBehavior(const MsgFromClient& msg, IReceiver* client_receiver) {
-  std::cout << "Received message for " << msg.destination.val << std::endl;
-}
+class ClientApiTestFixture : public ::testing::Test {
+ public:
+  ClientConfig test_config_ = {
+      ClientId{5}, {ReplicaId{0}, ReplicaId{1}, ReplicaId{2}, ReplicaId{3}}, 1, 0, RetryTimeoutConfig{}, nullopt};
 
-TEST(client_api_tests, print_received_messages_and_timeout) {
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(PrintBehavior));
-  Client client(std::move(comm), test_config);
+  // Just print all received messages from a client
+  void PrintBehavior(const MsgFromClient& msg, IReceiver* client_receiver) {
+    cout << "Received message for " << msg.destination.val << endl;
+  }
+};
+
+// parametrzied fixture
+class ClientApiTestParametrizedFixture : public ClientApiTestFixture,
+                                         public testing::WithParamInterface<tuple<bool, bool, string>> {
+ public:
+  static void SetUpTestSuite() { srand(time(NULL)); }
+  void SetUp() {
+    string cmd;
+    cmd += "rm -rf " + string(KEYS_BASE_PATH);
+    ASSERT_EQ(0, system(cmd.c_str()));
+  }
+
+  // validate signature, then print all received messages from a client
+  void PrintAndVerifySignature(const MsgFromClient& msg,
+                               IReceiver* client_receiver,
+                               bool sig_verification_success_expected,
+                               bool corrupt_request) {
+    auto sig_len = transaction_verifier_->signatureLength();
+    auto request = msg.data.data();
+    auto request_size = msg.data.size();
+    auto signature_data = request + request_size - sig_len;
+    const ClientRequestMsgHeader* request_header = reinterpret_cast<const ClientRequestMsgHeader*>(request);
+    auto request_data = request + sizeof(ClientRequestMsgHeader) + request_header->spanContextSize;
+    if (corrupt_request) {
+      if (rand() % 9 < 5)
+        request_data--;  // corrupt the request data
+      else
+        signature_data--;  // corrupt the signature
+    }
+    bool sig_verification_result = transaction_verifier_->verify(reinterpret_cast<const char*>(request_data),
+                                                                 request_header->requestLength,
+                                                                 reinterpret_cast<const char*>(signature_data),
+                                                                 sig_len);
+    ASSERT_EQ(sig_verification_result, sig_verification_success_expected);
+    PrintBehavior(msg, client_receiver);
+    if (sig_verification_result)
+      cout << "Verified Signature on message for " << msg.destination.val << endl;
+    else
+      cout << "Signature verification failed as expected on message for " << msg.destination.val << endl;
+  }
+
+  void PrintAndVerifySignatureBehavior(const MsgFromClient& msg, IReceiver* client_receiver) {
+    PrintAndVerifySignature(msg, client_receiver, true, false);  // expect verification success
+  }
+
+  void PrintAndFailVerifySignatureBehavior(const MsgFromClient& msg, IReceiver* client_receiver) {
+    PrintAndVerifySignature(msg, client_receiver, false, corrupt_request_);  // expect verification failure
+  }
+
+  void GenerateKeyPair(
+      string& out) {  // ASSERT_ macros cannot be used in non-void functions - transfer output as a paramter
+    ostringstream cmd;
+
+    cmd << KEYS_GEN_SCRIPT_PATH << " -n 1 -r " << PRIV_KEY_NAME << " -u " << PUB_KEY_NAME << " -o "
+        << KEYS_BASE_PARENT_PATH;
+    ASSERT_EQ(0, system(cmd.str().c_str()));
+    out = string(KEYS_BASE_PATH) + "/1/";  // return keypair path for a single participant
+  }
+
+  SecretData GetSecretData() {
+    SecretData sd;
+    sd.algo = "AES/CBC/PKCS5Padding";
+    sd.digest = "SHA-256";
+    sd.key_length = 256;
+    sd.password = ENC_PRIV_KEY_PASSWORD;
+    return sd;
+  }
+
+  void EncryptPrivKey(SecretData& out, const string& priv_key_file_path) {
+    ostringstream encrypted_file_path, cmd;
+
+    encrypted_file_path << KEYS_BASE_PATH << "/1/" << ENC_PRIV_KEY_NAME;
+    cmd << "openssl enc -base64 -debug -aes-256-cbc -e -in " << priv_key_file_path
+        << " -md sha256 -pass pass:" << ENC_PRIV_KEY_PASSWORD << " -p -out " << encrypted_file_path.str();
+    ASSERT_EQ(0, system(cmd.str().c_str()));
+
+    out = GetSecretData();  // return secret data
+  }
+
+  unique_ptr<RSAVerifier> transaction_verifier_;
+  bool corrupt_request_ = false;
+};
+
+// Parameterized test - see INSTANTIATE_TEST_CASE_P for input vector
+TEST_P(ClientApiTestParametrizedFixture, print_received_messages_and_timeout) {
+  bool sign_transaction = get<0>(GetParam());
+  bool is_priv_key_encrypted = get<1>(GetParam());
+  const string& scenario = get<2>(GetParam());
+
+  if (sign_transaction) {
+    // generate keypair, set test_config_ with path for the actual client code to load the RSASigner
+    ostringstream file_path;
+    string keypair_path;
+
+    GenerateKeyPair(keypair_path);
+    file_path << keypair_path << PRIV_KEY_NAME;
+    test_config_.transaction_signing_private_key_file_path = file_path.str();
+    if (is_priv_key_encrypted) {
+      // encrypt the private key
+      ostringstream encrypted_file_path;
+      SecretData sd;
+
+      encrypted_file_path << keypair_path << ENC_PRIV_KEY_NAME;
+      test_config_.transaction_signing_private_key_file_path = encrypted_file_path.str();
+      EncryptPrivKey(sd, file_path.str());
+      test_config_.secrets_manager_config = sd;
+    }
+
+    // initialize the test's RSAVerifier
+    string public_key_full_path({keypair_path + PUB_KEY_NAME});
+    transaction_verifier_ = unique_ptr<RSAVerifier>(new RSAVerifier(public_key_full_path));
+  }
+  unique_ptr<FakeCommunication> comm;
+  if (sign_transaction) {
+    if (scenario == "happy_flow")
+      comm = make_unique<FakeCommunication>(
+          bind(&ClientApiTestParametrizedFixture::PrintAndVerifySignatureBehavior, this, _1, _2));
+    else if (scenario == "corrupt_in_dest") {
+      comm = make_unique<FakeCommunication>(
+          bind(&ClientApiTestParametrizedFixture::PrintAndFailVerifySignatureBehavior, this, _1, _2));
+      corrupt_request_ = true;
+    }
+  } else
+    comm = make_unique<FakeCommunication>(bind(&ClientApiTestParametrizedFixture::PrintBehavior, this, _1, _2));
+
+  ASSERT_TRUE(comm);
+  Client client(move(comm), test_config_);
   ReadConfig read_config{RequestConfig{false, 1}, All{}};
   read_config.request.timeout = 500ms;
   ASSERT_THROW(client.send(read_config, Msg({1, 2, 3, 4, 5})), TimeoutException);
   client.stop();
 }
 
+// 1st element - sign transaction
+// 2nd element - is private key encrypted
+// 3rd element - negative scenario string
+// The comma at the end is due to a bug in gtest 3.09 - https://github.com/google/googletest/issues/2271 - see last
+// comment
+typedef tuple<bool, bool, string> ClientApiTestParametrizedFixtureInput;
+INSTANTIATE_TEST_CASE_P(ClientApiTest,
+                        ClientApiTestParametrizedFixture,
+                        ::testing::Values(ClientApiTestParametrizedFixtureInput(false, false, "happy_flow"),
+                                          ClientApiTestParametrizedFixtureInput(true, false, "happy_flow"),
+                                          ClientApiTestParametrizedFixtureInput(true, true, "happy_flow"),
+                                          ClientApiTestParametrizedFixtureInput(true, false, "corrupt_in_dest")), );
+
 Msg replyFromRequest(const MsgFromClient& request) {
-  const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(request.data.data());
-  std::string reply_data = "world";
-  auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);
+  const auto* req_header = reinterpret_cast<const ClientRequestMsgHeader*>(request.data.data());
+  string reply_data = "world";
+  auto reply_header_size = sizeof(ClientReplyMsgHeader);
   Msg reply(reply_header_size + reply_data.size());
 
-  auto* reply_header = reinterpret_cast<bftEngine::ClientReplyMsgHeader*>(reply.data());
+  auto* reply_header = reinterpret_cast<ClientReplyMsgHeader*>(reply.data());
   reply_header->currentPrimaryId = 0;
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = 0;
@@ -58,18 +219,18 @@ Msg replyFromRequest(const MsgFromClient& request) {
   reply_header->spanContextSize = 0;
 
   // Copy the reply data;
-  std::memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
+  memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
 
   return reply;
 }
 
 Msg replyFromRequestWithRSI(const MsgFromClient& request, const Msg& rsi) {
-  const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(request.data.data());
-  std::string reply_data = "world";
-  auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);
+  const auto* req_header = reinterpret_cast<const ClientRequestMsgHeader*>(request.data.data());
+  string reply_data = "world";
+  auto reply_header_size = sizeof(ClientReplyMsgHeader);
   Msg reply(reply_header_size + reply_data.size() + rsi.size());
 
-  auto* reply_header = reinterpret_cast<bftEngine::ClientReplyMsgHeader*>(reply.data());
+  auto* reply_header = reinterpret_cast<ClientReplyMsgHeader*>(reply.data());
   reply_header->currentPrimaryId = 0;
   reply_header->msgType = REPLY_MSG_TYPE;
   reply_header->replicaSpecificInfoLength = rsi.size();
@@ -78,10 +239,10 @@ Msg replyFromRequestWithRSI(const MsgFromClient& request, const Msg& rsi) {
   reply_header->spanContextSize = 0;
 
   // Copy the reply data;
-  std::memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
+  memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
 
   // Copy the RSI data
-  std::memcpy(reply.data() + reply_header_size + reply_data.size(), rsi.data(), rsi.size());
+  memcpy(reply.data() + reply_header_size + reply_data.size(), rsi.data(), rsi.size());
 
   return reply;
 }
@@ -89,6 +250,7 @@ Msg replyFromRequestWithRSI(const MsgFromClient& request, const Msg& rsi) {
 // Wait for a single retry then return all replies
 class RetryBehavior {
  public:
+  RetryBehavior(set<ReplicaId>& all_replicas) : not_heard_from_yet(all_replicas){};
   void operator()(const MsgFromClient& msg, IReceiver* client_receiver) {
     not_heard_from_yet.erase(msg.destination);
     if (not_heard_from_yet.empty()) {
@@ -98,12 +260,12 @@ class RetryBehavior {
   }
 
  private:
-  std::set<ReplicaId> not_heard_from_yet = test_config.all_replicas;
+  set<ReplicaId> not_heard_from_yet;
 };
 
-TEST(client_api_tests, receive_reply_after_retry_timeout) {
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(RetryBehavior{}));
-  Client client(std::move(comm), test_config);
+TEST_F(ClientApiTestFixture, receive_reply_after_retry_timeout) {
+  unique_ptr<FakeCommunication> comm(new FakeCommunication(RetryBehavior{test_config_.all_replicas}));
+  Client client(move(comm), test_config_);
   ReadConfig read_config{RequestConfig{false, 1}, All{}};
   read_config.request.timeout = 1s;
   auto reply = client.send(read_config, Msg({'h', 'e', 'l', 'l', 'o'}));
@@ -117,9 +279,9 @@ TEST(client_api_tests, receive_reply_after_retry_timeout) {
 
 static constexpr NodeNum bad_replica_id = 0xbad1d;
 
-TEST(client_api_tests, test_ignore_reply_from_wrong_replica) {
-  std::atomic<bool> sent_reply_from_wrong_replica = false;
-  std::atomic<bool> sent_reply_from_correct_replica = false;
+TEST_F(ClientApiTestFixture, test_ignore_reply_from_wrong_replica) {
+  atomic<bool> sent_reply_from_wrong_replica = false;
+  atomic<bool> sent_reply_from_correct_replica = false;
   auto WrongReplicaBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
     auto reply = replyFromRequest(msg);
     if (!sent_reply_from_wrong_replica) {
@@ -135,8 +297,8 @@ TEST(client_api_tests, test_ignore_reply_from_wrong_replica) {
     }
   };
 
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(WrongReplicaBehavior));
-  Client client(std::move(comm), test_config);
+  unique_ptr<FakeCommunication> comm(new FakeCommunication(WrongReplicaBehavior));
+  Client client(move(comm), test_config_);
   ReadConfig read_config{RequestConfig{false, 1}, All{{ReplicaId{1}}}};
   read_config.request.timeout = 1s;
   auto reply = client.send(read_config, Msg({'h', 'e', 'l', 'l', 'o'}));
@@ -149,12 +311,12 @@ TEST(client_api_tests, test_ignore_reply_from_wrong_replica) {
   client.stop();
 }
 
-TEST(client_api_tests, primary_gets_learned_on_successful_write_and_cleared_on_timeout) {
+TEST_F(ClientApiTestFixture, primary_gets_learned_on_successful_write_and_cleared_on_timeout) {
   // Writes should initially go to all replicas
-  std::atomic<bool> quorum_of_replies_sent = false;
+  atomic<bool> quorum_of_replies_sent = false;
 
   auto WriteBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
-    static std::set<ReplicaId> not_heard_from_yet = test_config.all_replicas;
+    static set<ReplicaId> not_heard_from_yet = test_config_.all_replicas;
     auto reply = replyFromRequest(msg);
     // Check for linearizable quorum
     if (not_heard_from_yet.size() != 1) {
@@ -166,8 +328,8 @@ TEST(client_api_tests, primary_gets_learned_on_successful_write_and_cleared_on_t
     }
   };
 
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
-  Client client(std::move(comm), test_config);
+  unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
+  Client client(move(comm), test_config_);
   WriteConfig config{RequestConfig{false, 1}, LinearizableQuorum{}};
   config.request.timeout = 500ms;
   auto reply = client.send(config, Msg({'h', 'e', 'l', 'l', 'o'}));
@@ -181,14 +343,14 @@ TEST(client_api_tests, primary_gets_learned_on_successful_write_and_cleared_on_t
   client.stop();
 }
 
-TEST(client_api_tests, write_f_plus_one) {
+TEST_F(ClientApiTestFixture, write_f_plus_one) {
   auto WriteBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
     auto reply = replyFromRequest(msg);
     client_receiver->onNewMessage((NodeNum)msg.destination.val, (const char*)reply.data(), reply.size());
   };
 
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
-  Client client(std::move(comm), test_config);
+  unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
+  Client client(move(comm), test_config_);
   // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
   WriteConfig config{RequestConfig{false, 1}, ByzantineSafeQuorum{}};
   config.request.timeout = 500ms;
@@ -200,8 +362,8 @@ TEST(client_api_tests, write_f_plus_one) {
   client.stop();
 }
 
-TEST(client_api_tests, write_f_plus_one_get_differnt_rsi) {
-  std::map<ReplicaId, Msg> rsi = {{ReplicaId{0}, {0}}, {ReplicaId{1}, {1}}};
+TEST_F(ClientApiTestFixture, write_f_plus_one_get_differnt_rsi) {
+  map<ReplicaId, Msg> rsi = {{ReplicaId{0}, {0}}, {ReplicaId{1}, {1}}};
   auto WriteBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
     if (msg.destination.val == 0 || msg.destination.val == 1) {
       auto reply = replyFromRequestWithRSI(msg, rsi[msg.destination]);
@@ -209,8 +371,8 @@ TEST(client_api_tests, write_f_plus_one_get_differnt_rsi) {
     }
   };
 
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
-  Client client(std::move(comm), test_config);
+  unique_ptr<FakeCommunication> comm(new FakeCommunication(WriteBehavior));
+  Client client(move(comm), test_config_);
   // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
   WriteConfig config{RequestConfig{false, 1}, ByzantineSafeQuorum{}};
   config.request.timeout = 500ms;

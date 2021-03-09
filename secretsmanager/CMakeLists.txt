@@ -1,3 +1,5 @@
+cmake_minimum_required (VERSION 3.2)
+project(secretsmanager VERSION 0.1.0.0 LANGUAGES CXX)
 # pthread dependency
 find_package(cryptopp REQUIRED)
 

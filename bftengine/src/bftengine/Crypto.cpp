@@ -12,6 +12,11 @@
 // TODO(GG): clean and review this file
 
 #include <set>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <cryptopp/dll.h>
+#include <cryptopp/pem.h>
+#pragma GCC diagnostic pop
 
 #include "Crypto.hpp"
 
@@ -137,7 +142,8 @@ DigestUtil::Context::~Context() {
 
 class RSASigner::Impl {
  public:
-  Impl(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey) {}
+  Impl(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey){};
+  Impl(RSA::PrivateKey& privateKey) : rand(sGlobalRandGen), priv(privateKey){};
 
   size_t signatureLength() const { return priv.SignatureLength(); }
 
@@ -162,7 +168,8 @@ class RSASigner::Impl {
 
 class RSAVerifier::Impl {
  public:
-  Impl(BufferedTransformation& publicKey) : pub(publicKey) {}
+  Impl(BufferedTransformation& publicKey) : pub(publicKey){};
+  Impl(RSA::PublicKey& publicKey) : pub(publicKey){};
 
   size_t signatureLength() const { return pub.SignatureLength(); }
 
@@ -178,6 +185,13 @@ class RSAVerifier::Impl {
 RSASigner::RSASigner(const char* privateKey) {
   StringSource s(privateKey, true, new HexDecoder);
   impl = std::make_unique<Impl>(s);
+}
+
+RSASigner::RSASigner(const string& private_key_pem) {
+  StringSource ss(private_key_pem, true);
+  RSA::PrivateKey priv_key;
+  PEM_Load(ss, priv_key);
+  impl = std::make_unique<Impl>(priv_key);
 }
 
 RSASigner::RSASigner(RSASigner&&) = default;
@@ -199,6 +213,13 @@ bool RSASigner::sign(const char* inBuffer,
 RSAVerifier::RSAVerifier(const char* publicKey) {
   StringSource s(publicKey, true, new HexDecoder);
   impl = std::make_unique<Impl>(s);
+}
+
+RSAVerifier::RSAVerifier(const string& publicKeyPath) {
+  FileSource fs(publicKeyPath.c_str(), true);
+  RSA::PublicKey pub_key;
+  PEM_Load(fs, pub_key);
+  impl = std::make_unique<Impl>(pub_key);
 }
 
 RSAVerifier::RSAVerifier(RSAVerifier&&) = default;

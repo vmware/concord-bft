@@ -12,29 +12,73 @@
 #include "bftclient/bft_client.h"
 #include "bftengine/ClientMsgs.hpp"
 #include "assertUtils.hpp"
+#include "secrets_manager_enc.h"
+#include "secrets_manager_plain.h"
+
+using namespace concord::diagnostics;
+using namespace concord::secretsmanager;
+using namespace bftEngine;
+using namespace bftEngine::impl;
 
 namespace bft::client {
 
-// This function creates a ClientRequestMsg or a ClientPreProcessRequestMsg depending upon config.
-//
-// Since both of these are just instances of a `ClientRequestMsgHeader` followed by the message
-// data, we construct them here, rather than relying on the type constructors embedded into the
-// bftEngine impl. This allows us to not have to link with the bftengine library, and also allows us
-// to return the messages as vectors with proper RAII based memory management.
-Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {
+Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config)
+    : communication_(std::move(comm)),
+      config_(config),
+      quorum_converter_(config_.all_replicas, config_.f_val, config_.c_val),
+      expected_commit_time_ms_(config_.retry_timeout_config.initial_retry_timeout.count(),
+                               config_.retry_timeout_config.number_of_standard_deviations_to_tolerate,
+                               config_.retry_timeout_config.max_retry_timeout.count(),
+                               config_.retry_timeout_config.min_retry_timeout.count(),
+                               config_.retry_timeout_config.samples_per_evaluation,
+                               config_.retry_timeout_config.samples_until_reset,
+                               config_.retry_timeout_config.max_increasing_factor,
+                               config_.retry_timeout_config.max_decreasing_factor),
+      metrics_(config.id),
+      histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))) {
+  // secrets_manager_config can be set only if transaction_signing_private_key_file_path is set
+  if (config.secrets_manager_config) ConcordAssert(config.transaction_signing_private_key_file_path != std::nullopt);
+  if (config.transaction_signing_private_key_file_path) {
+    // transaction signing is enabled
+    auto file_path = config.transaction_signing_private_key_file_path.value();
+    std::optional<std::string> key_plaintext;
+
+    if (config.secrets_manager_config) {
+      SecretsManagerEnc sme(config.secrets_manager_config.value());
+      key_plaintext = sme.decryptFile(file_path);
+    } else {
+      // private key file is in plain text, use secrets manager plain to read the file
+      SecretsManagerPlain smp;
+      key_plaintext = smp.decryptFile(file_path);
+    }
+    if (!key_plaintext) throw InvalidPrivateKeyException(file_path, config.secrets_manager_config != std::nullopt);
+    transaction_signer_ = RSASigner(key_plaintext.value());
+  }
+  communication_->setReceiver(config_.id.val, &receiver_);
+  communication_->Start();
+}
+
+Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {
   uint8_t flags = read_only ? READ_ONLY_REQ : EMPTY_FLAGS_REQ;
-  if (config.pre_execute) {
+  size_t expected_sig_len = 0;
+  bool write_req_with_pre_exec = !read_only && config.pre_execute;
+
+  if (write_req_with_pre_exec) {  // read_only messages are never pre-executed
     flags |= PRE_PROCESS_REQ;
   }
   if (config.key_exchange) {
     flags |= KEY_EXCHANGE_REQ;
   }
 
-  auto header_size = sizeof(bftEngine::ClientRequestMsgHeader);
-
-  Msg msg(header_size + request.size() + config.correlation_id.size() + config.span_context.size());
-  bftEngine::ClientRequestMsgHeader* header = reinterpret_cast<bftEngine::ClientRequestMsgHeader*>(msg.data());
-  header->msgType = config.pre_execute ? PRE_PROCESS_REQUEST_MSG_TYPE : REQUEST_MSG_TYPE;
+  auto header_size = sizeof(ClientRequestMsgHeader);
+  auto msg_size = header_size + request.size() + config.correlation_id.size() + config.span_context.size();
+  if (transaction_signer_) {
+    expected_sig_len = transaction_signer_->signatureLength();
+    msg_size += expected_sig_len;
+  }
+  Msg msg(msg_size);
+  ClientRequestMsgHeader* header = reinterpret_cast<ClientRequestMsgHeader*>(msg.data());
+  header->msgType = write_req_with_pre_exec ? PRE_PROCESS_REQUEST_MSG_TYPE : REQUEST_MSG_TYPE;
   header->spanContextSize = config.span_context.size();
   header->idOfClientProxy = client_id;
   header->flags = flags;
@@ -55,6 +99,19 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
 
   // Copy the correlation ID
   std::memcpy(position, config.correlation_id.data(), config.correlation_id.size());
+
+  if (transaction_signer_) {
+    // Sign the request data, add the signature at the end of the request
+    TimeRecorder scoped_timer(*histograms_->sign_duration);
+    size_t actualSigSize = 0;
+    position += config.correlation_id.size();
+    transaction_signer_->sign(reinterpret_cast<const char*>(request.data()),
+                              request.size(),
+                              reinterpret_cast<char*>(position),
+                              expected_sig_len,
+                              actualSigSize);
+    ConcordAssert(expected_sig_len == actualSigSize);
+  }
 
   return msg;
 }
@@ -81,7 +138,7 @@ Reply Client::send(const MatchConfig& match_config,
   metrics_.updateAggregator();
   outstanding_request_ = Matcher(match_config);
   receiver_.activate(request_config.max_reply_size);
-  auto orig_msg = makeClientMsg(request_config, std::move(request), read_only, config_.id.val);
+  auto orig_msg = createClientMsg(request_config, std::move(request), read_only, config_.id.val);
   auto start = std::chrono::steady_clock::now();
   auto end = start + request_config.timeout;
   while (std::chrono::steady_clock::now() < end) {
