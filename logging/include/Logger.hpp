@@ -48,6 +48,7 @@ class ScopedMdc {
 
  private:
   const std::string key_;
+  const std::string last_value_;
 };
 
 }  // namespace logging

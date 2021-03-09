@@ -16,8 +16,15 @@
 
 namespace logging {
 
-ScopedMdc::ScopedMdc(const std::string& key, const std::string& val) : key_{key} { MDC_PUT(key, val); }
-ScopedMdc::~ScopedMdc() { MDC_REMOVE(key_); }
+ScopedMdc::ScopedMdc(const std::string& key, const std::string& val) : key_{key}, last_value_(MDC_GET(key)) {
+  MDC_PUT(key, val);
+}
+ScopedMdc::~ScopedMdc() {
+  MDC_REMOVE(key_);
+  if (!last_value_.empty()) {
+    MDC_PUT(key_, last_value_);
+  }
+}
 
 }  // namespace logging
 
