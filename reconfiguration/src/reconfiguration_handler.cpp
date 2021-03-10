@@ -37,4 +37,13 @@ bool ReconfigurationHandler::handle(const UpgradeCommand&) { return true; }
 
 bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest&) const { return true; }
 
+bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusCommand&,
+                                    concord::messages::DownloadStatus&) {
+  return true;
+}
+bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd) { return true; }
+bool ReconfigurationHandler::handle(const concord::messages::InstallStatusCommand& cmd,
+                                    concord::messages::InstallStatusResponse& response) {
+  return true;
+}
 }  // namespace concord::reconfiguration

@@ -38,7 +38,7 @@ Msg LatestPrunableBlockRequest 13 {
 Msg LatestPrunableBlock 14 {
    uint64 replica
    uint64 block_id
-   string signature
+   bytes signature
 }
 
 Msg PruneRequest 15 {
@@ -60,6 +60,19 @@ Msg GetVersionCommand 19 {
   bytes place_holder
 }
 
+Msg InstallCommand 20 {
+    string version
+}
+
+Msg InstallStatusCommand 21 {
+    string version
+}
+
+Msg InstallStatusResponse 22 {
+    string version
+    bool in_progress
+    bool install_completed
+}
 
 Msg ReconfigurationRequest 1 {
   bytes signature
@@ -74,6 +87,8 @@ Msg ReconfigurationRequest 1 {
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest
+    InstallCommand
+    InstallStatusCommand
   } command
   bytes additional_data
 }
@@ -85,6 +100,7 @@ Msg ReconfigurationResponse 2 {
     LatestPrunableBlock
     PruneStatus
     DownloadStatus
+    InstallStatusResponse
   } response
   bytes additional_data
 }

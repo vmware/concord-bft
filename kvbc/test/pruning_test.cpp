@@ -372,7 +372,7 @@ void InitBlockchainStorage(std::size_t replica_count,
 }
 
 concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
-                                                      std::map<uint64_t, std::string> private_keys,
+                                                      const std::map<uint64_t, std::string> &private_keys,
                                                       BlockId min_prunable_block_id = LAST_BLOCK_ID) {
   concord::messages::PruneRequest prune_req;
   prune_req.sender = client_idx;
@@ -395,8 +395,9 @@ TEST_F(test_rocksdb, sign_verify_correct) {
   uint64_t client_proxy_count = 4;
   const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
   std::vector<RSAPruningSigner> signers;
+  signers.reserve(replica_count);
   for (auto i = 0; i < replica_count; ++i) {
-    signers.push_back(RSAPruningSigner{private_keys_of_replicas[i]});
+    signers.emplace_back(RSAPruningSigner{private_keys_of_replicas[i]});
   }
 
   // Sign and verify a LatestPrunableBlock message.
@@ -428,8 +429,9 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   const auto sending_id = 1;
   const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
   std::vector<RSAPruningSigner> signers;
+  signers.reserve(replica_count);
   for (auto i = 0; i < replica_count; ++i) {
-    signers.push_back(RSAPruningSigner{private_keys_of_replicas[i]});
+    signers.emplace_back(RSAPruningSigner{private_keys_of_replicas[i]});
   }
 
   // Break verification of LatestPrunableBlock messages.

@@ -1,3 +1,5 @@
+find_package(CMFC REQUIRED)
+add_subdirectory(cmf)
 
 add_library(concordbft_reconfiguration
         src/reconfiguration_handler.cpp
@@ -11,6 +13,8 @@ target_link_libraries(concordbft_reconfiguration PUBLIC
  util
 )
 
-
 add_subdirectory(cmf)
+if (BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 

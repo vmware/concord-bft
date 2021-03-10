@@ -30,6 +30,10 @@ Msg makeClientMsg(const RequestConfig& config, Msg&& request, bool read_only, ui
     flags |= KEY_EXCHANGE_REQ;
   }
 
+  if (config.reconfiguration) {
+    flags |= RECONFIG_FLAG;
+  }
+
   auto header_size = sizeof(bftEngine::ClientRequestMsgHeader);
 
   Msg msg(header_size + request.size() + config.correlation_id.size() + config.span_context.size());

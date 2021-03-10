@@ -39,7 +39,7 @@ class Status {
   statusType type;
   std::string message;
 
-  Status(statusType t, std::string msg) : type(t), message(move(msg)) {}
+  Status(statusType t, const std::string& msg) : type(t), message(msg) {}
 
   std::string messagePrefix() const {
     switch (type) {

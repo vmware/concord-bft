@@ -27,6 +27,9 @@ class ReconfigurationHandler : public IReconfigurationHandler {
   bool handle(const concord::messages::GetVersionCommand&) override;
   bool handle(const concord::messages::DownloadCommand&) override;
   bool handle(const concord::messages::UpgradeCommand&) override;
+  bool handle(const concord::messages::DownloadStatusCommand&, concord::messages::DownloadStatus&) override;
+  bool handle(const concord::messages::InstallCommand& cmd) override;
+  bool handle(const concord::messages::InstallStatusCommand& cmd, concord::messages::InstallStatusResponse&) override;
   bool verifySignature(const concord::messages::ReconfigurationRequest&) const override;
 
  protected:

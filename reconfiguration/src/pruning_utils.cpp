@@ -30,7 +30,7 @@ void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock &block) const
     signature.resize(actual_sign_len);
   }
 
-  block.signature = signature;
+  block.signature = std::vector<uint8_t>(signature.begin(), signature.end());
 }
 
 std::string RSAPruningSigner::getSignatureBuffer() const {
@@ -64,7 +64,8 @@ bool RSAPruningVerifier::verify(const concord::messages::LatestPrunableBlock &bl
   std::string ser;
   oss << block.replica << block.block_id;
   ser = oss.str();
-  return verify(block.replica, ser, block.signature);
+  std::string sig_str(block.signature.begin(), block.signature.end());
+  return verify(block.replica, ser, sig_str);
 }
 
 bool RSAPruningVerifier::verify(const concord::messages::PruneRequest &request) const {
