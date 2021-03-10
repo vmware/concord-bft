@@ -37,6 +37,7 @@ using concord::storage::rocksdb::NativeClient;
 using concord::kvbc::BlockId;
 using namespace concord::kvbc;
 using namespace concord::kvbc::categorization;
+using namespace concord::kvbc::pruning;
 using namespace concord::reconfiguration::pruning;
 
 namespace {

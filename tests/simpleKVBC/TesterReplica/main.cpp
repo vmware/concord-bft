@@ -23,7 +23,6 @@
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"
-#include "reconfiguration/pruning_handler.hpp"
 #endif
 
 #include <memory>
@@ -54,8 +53,6 @@ void run_replica(int argc, char** argv) {
   if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
   auto cmdHandler = std::make_unique<InternalCommandsHandler>(replica.get(), replica.get(), blockMetadata, logger);
-  cmdHandler->setPruningHandler(std::make_shared<concord::reconfiguration::pruning::PruningHandler>(
-      *replica, *replica, *replica, replica->getStateTransfer()));
   replica->set_command_handler(cmdHandler.get());
   replica->start();
 

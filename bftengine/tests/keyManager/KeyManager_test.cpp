@@ -261,7 +261,7 @@ TEST(ReplicaKeyStore, rotate) {
 // }
 
 TEST(ClusterKeyStore, push) {
-  ReservedPagesMock rpm(8, true);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), true);
   ClusterKeyStore cks{7, &rpm, 4094};
   {
     KeyExchangeMsg kem;
@@ -304,7 +304,7 @@ TEST(ClusterKeyStore, push) {
 }
 
 TEST(ClusterKeyStore, rotate) {
-  ReservedPagesMock rpm(8, true);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), true);
   ClusterKeyStore cks{7, &rpm, 4094};
 
   KeyExchangeMsg kem;
@@ -362,7 +362,7 @@ TEST(KeyManager, initialKeyExchange) {
   DummyKeyGen dkg{clusterSize};
   dkg.prv = "private";
   dkg.pub = "public";
-  ReservedPagesMock rpm(5, true);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), true);
   concordUtil::Timers timers;
 
   KeyManager::InitData id{};
@@ -423,7 +423,7 @@ TEST(KeyManager, endToEnd) {
   DummyKeyGen dkg{clustersize};
   dkg.prv = "private";
   dkg.pub = "public";
-  ReservedPagesMock rpm(5, true);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), true);
   concordUtil::Timers timers;
 
   KeyManager::InitData id{};
@@ -552,7 +552,7 @@ TEST(KeyManager, endToEnd) {
 }
 
 TEST(ClusterKeyStore, dirty_first_load) {
-  ReservedPagesMock rpm(5, false);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), false);
   ClusterKeyStore cks{4, &rpm, 4094};
 
   for (int i = 0; i < 4; i++) {
@@ -561,7 +561,7 @@ TEST(ClusterKeyStore, dirty_first_load) {
 }
 
 TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
-  ReservedPagesMock rpm(5, false);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), false);
   ClusterKeyStore cks{4, &rpm, 4094};
 
   KeyExchangeMsg kem;
@@ -605,7 +605,7 @@ TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
 }
 
 TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
-  ReservedPagesMock rpm(5, false);
+  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages(), false);
   ClusterKeyStore cks{4, &rpm, 4094};
 
   KeyExchangeMsg kem;

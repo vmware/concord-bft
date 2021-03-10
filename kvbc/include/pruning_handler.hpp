@@ -19,8 +19,8 @@
 #include "reconfiguration/ireconfiguration.hpp"
 #include "reconfiguration/pruning_utils.hpp"
 
-namespace concord::reconfiguration::pruning {
-class PruningHandler : public IPruningHandler {
+namespace concord::kvbc::pruning {
+class PruningHandler : public reconfiguration::IPruningHandler {
   // This class implements the KVB pruning state machine. Main functionalities
   // include executing pruning based on configuration policy and replica states as
   // well as providing read-only information to the operator node.
@@ -91,8 +91,8 @@ class PruningHandler : public IPruningHandler {
   void pruneThroughLastAgreedBlockId() const;
   void pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept;
   logging::Logger logger_;
-  RSAPruningSigner signer_;
-  RSAPruningVerifier verifier_;
+  reconfiguration::pruning::RSAPruningSigner signer_;
+  reconfiguration::pruning::RSAPruningVerifier verifier_;
   kvbc::IReader &ro_storage_;
   kvbc::IBlockAdder &blocks_adder_;
   kvbc::IBlocksDeleter &blocks_deleter_;
@@ -107,4 +107,4 @@ class PruningHandler : public IPruningHandler {
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
 };
-}  // namespace concord::reconfiguration::pruning
+}  // namespace concord::kvbc::pruning

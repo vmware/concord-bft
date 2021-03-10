@@ -11,11 +11,13 @@
 // file.
 
 #include <endianness.hpp>
+#include <future>
+#include "bftengine/ControlStateManager.hpp"
 #include "pruning_handler.hpp"
-#include "reconfiguration/pruning_utils.hpp"
 #include "categorization/versioned_kv_category.h"
+#include "reconfiguration/pruning_utils.hpp"
 
-namespace concord::reconfiguration::pruning {
+namespace concord::kvbc::pruning {
 
 const std::string PruningHandler::last_agreed_prunable_block_id_key_{0x24};
 
@@ -211,4 +213,4 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
   return true;
 }
-}  // namespace concord::reconfiguration::pruning
+}  // namespace concord::kvbc::pruning
