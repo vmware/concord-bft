@@ -3139,7 +3139,7 @@ void ReplicaImp::onReportAboutLateReplica(ReplicaId reportedReplica, SeqNum seqN
 }
 
 ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
-                       IRequestsHandler *requestsHandler,
+                       shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<PersistentStorage> persistentStorage,
@@ -3401,7 +3401,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 }
 
 ReplicaImp::ReplicaImp(const ReplicaConfig &config,
-                       IRequestsHandler *requestsHandler,
+                       shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<PersistentStorage> persistentStorage,
@@ -3430,7 +3430,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
 
 ReplicaImp::ReplicaImp(bool firstTime,
                        const ReplicaConfig &config,
-                       IRequestsHandler *requestsHandler,
+                       shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
                        SigManager *sigMgr,
                        ReplicasInfo *replicasInfo,
@@ -3439,12 +3439,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> &pm)
-    : ReplicaForStateTransfer(config, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
+    : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
       replyBuffer{(char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader))},
-      bftRequestsHandler_{requestsHandler},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
@@ -3765,7 +3764,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               reply.replyBuf()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
-    bftRequestsHandler_.execute(accumulatedRequests, request->getCid(), span);
+    bftRequestsHandler_->execute(accumulatedRequests, request->getCid(), span);
   }
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
@@ -3951,7 +3950,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
   if (ps_) ps_->endWriteTran();
 
-  if (numOfRequests > 0) bftRequestsHandler_.onFinishExecutingReadWriteRequests();
+  if (numOfRequests > 0) bftRequestsHandler_->onFinishExecutingReadWriteRequests();
 
   sendCheckpointIfNeeded();
 
@@ -4012,7 +4011,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
       TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-      bftRequestsHandler_.execute(accumulatedRequests, ppMsg->getCid(), span);
+      bftRequestsHandler_->execute(accumulatedRequests, ppMsg->getCid(), span);
     }
   } else {
     LOG_DEBUG(
@@ -4023,7 +4022,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       singleRequest.push_back(req);
       {
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-        bftRequestsHandler_.execute(singleRequest, ppMsg->getCid(), span);
+        bftRequestsHandler_->execute(singleRequest, ppMsg->getCid(), span);
       }
       req = singleRequest.at(0);
       singleRequest.clear();

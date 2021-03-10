@@ -85,6 +85,7 @@ class IRequestsHandler {
     int outExecutionStatus = 1;
   };
 
+  static std::shared_ptr<IRequestsHandler> createRequestsHandler(IRequestsHandler *userReqHandler);
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,
@@ -100,7 +101,9 @@ class IRequestsHandler {
     reconfig_handler_ = rh;
   }
   std::shared_ptr<concord::reconfiguration::IPruningHandler> getPruningHandler() const { return pruning_handler_; }
-  void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) { pruning_handler_ = ph; }
+  virtual void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) {
+    pruning_handler_ = ph;
+  }
   virtual ~IRequestsHandler() = default;
 
  protected:
@@ -112,21 +115,24 @@ class IReplica {
  public:
   using IReplicaPtr = std::unique_ptr<IReplica>;
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
-                                      IRequestsHandler *,
+                                      std::shared_ptr<IRequestsHandler>,
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
                                       std::shared_ptr<concord::performance::PerformanceManager> sdm =
                                           std::make_shared<concord::performance::PerformanceManager>());
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
-                                      IRequestsHandler *,
+                                      std::shared_ptr<IRequestsHandler>,
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
                                       bool &erasedMetadata,
                                       std::shared_ptr<concord::performance::PerformanceManager> sdm);
 
-  static IReplicaPtr createNewRoReplica(const ReplicaConfig &, IStateTransfer *, bft::communication::ICommunication *);
+  static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
+                                        std::shared_ptr<IRequestsHandler>,
+                                        IStateTransfer *,
+                                        bft::communication::ICommunication *);
 
   virtual ~IReplica() = default;
 
@@ -139,7 +145,7 @@ class IReplica {
   virtual void stop() = 0;
 
   // TODO(GG) : move the following methods to an "advanced interface"
-  virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> a) = 0;
+  virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator>) = 0;
   virtual void restartForDebug(uint32_t delayMillis) = 0;  // for debug only.
 };
 
