@@ -167,8 +167,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
-  SeqNum seqNumToStopAt_ = 0;
-
   ReplicasAskedToLeaveViewInfo complainedReplicas;
 
   shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
