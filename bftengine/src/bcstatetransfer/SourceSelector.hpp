@@ -30,17 +30,17 @@ static const uint16_t NO_REPLICA = UINT16_MAX;
 // preferred, as well as data that helps to select a current source replica.
 class SourceSelector {
  public:
-  SourceSelector(std::set<uint16_t> allOtherReplicas,
+  SourceSelector(std::set<uint16_t> &&potentialSrcReplicas,
                  uint32_t retransmissionTimeoutMilli,
                  uint32_t sourceReplicaReplacementTimeoutMilli)
-      : allOtherReplicas_(std::move(allOtherReplicas)),
+      : potentialSrcReplicas_(std::move(potentialSrcReplicas)),
         randomGen_(std::random_device()()),
         retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
         sourceReplacementTimeoutMilli_(sourceReplicaReplacementTimeoutMilli) {}
 
   bool hasSource() const;
   void removeCurrentReplica();
-  void setAllReplicasAsPreferred();
+  void SetPotentialSrcReplicasAsPreferred();
   void reset();
   bool isReset() const;
   bool retransmissionTimeoutExpired(uint64_t currTimeMilli) const;
@@ -77,11 +77,11 @@ class SourceSelector {
   uint64_t timeSinceSendMilli(uint64_t currTimeMilli) const;
   void selectSource(uint64_t currTimeMilli);
 
-  std::set<uint16_t> preferredReplicas_;
   uint16_t currentReplica_ = NO_REPLICA;
   uint64_t sourceSelectionTimeMilli_ = 0;
   uint64_t fetchingTimeStamp_ = 0;
-  std::set<uint16_t> allOtherReplicas_;
+  std::set<uint16_t> preferredReplicas_;
+  const std::set<uint16_t> potentialSrcReplicas_;
   std::mt19937 randomGen_;
   uint32_t retransmissionTimeoutMilli_;
   uint32_t sourceReplacementTimeoutMilli_;

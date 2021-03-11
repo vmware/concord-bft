@@ -41,7 +41,8 @@ Config TestConfig() {
       1,                  // myReplicaId
       1,                  // fVal
       0,                  // cVal
-      4,                  // numReplicas
+      4,                  // numConsensusReplicas
+      0,                  // numRoReplicas
       false,              // pedanticChecks
       false,              // isReadOnly
       128,                // maxChunkSize

@@ -131,9 +131,12 @@ static uint16_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
 
 // Here we assume that the set of replicas is 0,1,2,...,numberOfReplicas
 // TODO(GG): change to support full dynamic reconfiguration
-static set<uint16_t> generateSetOfReplicas(const int16_t numberOfReplicas) {
+set<uint16_t> BCStateTran::GenerateSetOfReplicas(const int16_t numberOfReplicas, bool excludeMyreplicaId) {
   std::set<uint16_t> retVal;
-  for (int16_t i = 0; i < numberOfReplicas; i++) retVal.insert(i);
+  for (int16_t i = 0; i < numberOfReplicas; i++) {
+    if ((i == config_.myReplicaId) && excludeMyreplicaId) continue;
+    retVal.insert(i);
+  }
   return retVal;
 }
 
@@ -141,7 +144,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     : as_{stateApi},
       psd_{ds},
       config_{config},
-      replicas_{generateSetOfReplicas(config_.numReplicas)},
+      replicas_{GenerateSetOfReplicas(config_.numConsensusReplicas + config_.numRoReplicas, false)},
       maxVBlockSize_{calcMaxVBlockSize(config_.maxNumOfReservedPages, config_.sizeOfReservedPage)},
       maxItemSize_{calcMaxItemSize(config_.maxBlockSize, config_.maxNumOfReservedPages, config_.sizeOfReservedPage)},
       maxNumOfChunksInAppBlock_{
@@ -151,8 +154,9 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
       randomGen_{randomDevice_()},
-      sourceSelector_{
-          allOtherReplicas(), config_.fetchRetransmissionTimeoutMs, config_.sourceReplicaReplacementTimeoutMs},
+      sourceSelector_{GenerateSetOfReplicas(config_.numConsensusReplicas, true),
+                      config_.fetchRetransmissionTimeoutMs,
+                      config_.sourceReplicaReplacementTimeoutMs},
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
@@ -305,7 +309,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       }
 
       if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
-        SetAllReplicasAsPreferred();
+        SetPotentialSrcReplicasAsPreferred();
       }
       loadMetrics();
     } else {
@@ -1165,7 +1169,10 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   // set the preferred replicas
   for (uint16_t r : replicas_) {  // TODO(GG): can be improved
     CheckpointSummaryMsg *t = cert->getMsgFromReplica(r);
-    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) sourceSelector_.addPreferredReplica(r);
+    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) {
+      sourceSelector_.addPreferredReplica(r);
+      ConcordAssertLT(r, config_.numConsensusReplicas);
+    }
   }
 
   metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
@@ -1518,7 +1525,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     LOG_DEBUG(getLogger(), "Adding all peer replicas to preferredReplicas_ (because preferredReplicas_.size()==0)");
 
     // in this case, we will try to use all other replicas
-    SetAllReplicasAsPreferred();
+    SetPotentialSrcReplicasAsPreferred();
     processData();
   } else if (fs == FetchingState::GettingMissingResPages) {
     EnterGettingCheckpointSummariesState();
@@ -1972,14 +1979,8 @@ bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfRe
   return true;
 }
 
-set<uint16_t> BCStateTran::allOtherReplicas() {
-  set<uint16_t> others = replicas_;
-  others.erase(config_.myReplicaId);
-  return others;
-}
-
-void BCStateTran::SetAllReplicasAsPreferred() {
-  sourceSelector_.setAllReplicasAsPreferred();
+void BCStateTran::SetPotentialSrcReplicasAsPreferred() {
+  sourceSelector_.SetPotentialSrcReplicasAsPreferred();
   metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
 }
 

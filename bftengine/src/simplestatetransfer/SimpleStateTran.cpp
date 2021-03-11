@@ -275,7 +275,8 @@ SimpleStateTran::SimpleStateTran(
       myReplicaId,                          // myReplicaId
       fVal,                                 // fVal
       cVal,                                 // cVal
-      (uint16_t)(3 * fVal + 2 * cVal + 1),  // numReplicas
+      (uint16_t)(3 * fVal + 2 * cVal + 1),  // numConsensusReplicas
+      0,                                    // numRoReplicas
       pedanticChecks,                       // pedanticChecks
       false,                                // isReadOnly
       128,                                  // maxChunkSize
@@ -290,7 +291,8 @@ SimpleStateTran::SimpleStateTran(
       15000,                                // sourceReplicaReplacementTimeoutMs
       250,                                  // fetchRetransmissionTimeoutMs
       5,                                    // metricsDumpIntervalSec
-      false                                 // runInSeparateThread
+      false,                                // runInSeparateThread
+      true                                  // enableReservedPages
   };
 
   auto comparator = concord::storage::memorydb::KeyComparator();

@@ -103,7 +103,8 @@ struct Config {
   uint16_t myReplicaId;
   uint16_t fVal = 0;
   uint16_t cVal = 0;
-  uint16_t numReplicas = 0;
+  uint16_t numConsensusReplicas = 0;
+  uint16_t numRoReplicas = 0;
   bool pedanticChecks = false;
   bool isReadOnly = false;
 
@@ -132,7 +133,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
   os << KVLOG(c.myReplicaId,
               c.fVal,
               c.cVal,
-              c.numReplicas,
+              c.numConsensusReplicas,
+              c.numRoReplicas,
               c.pedanticChecks,
               c.isReadOnly,
               c.maxChunkSize,
@@ -143,10 +145,13 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.sizeOfReservedPage,
               c.refreshTimerMs,
               c.checkpointSummariesRetransmissionTimeoutMs,
-              c.maxAcceptableMsgDelayMs,
-              c.sourceReplicaReplacementTimeoutMs);
+              c.maxAcceptableMsgDelayMs);
   os << ",";
-  os << KVLOG(c.fetchRetransmissionTimeoutMs, c.metricsDumpIntervalSec, c.runInSeparateThread);
+  os << KVLOG(c.sourceReplicaReplacementTimeoutMs,
+              c.fetchRetransmissionTimeoutMs,
+              c.metricsDumpIntervalSec,
+              c.runInSeparateThread,
+              c.enableReservedPages);
   return os;
 }
 // creates an instance of the state transfer module.

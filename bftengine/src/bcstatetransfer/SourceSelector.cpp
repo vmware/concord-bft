@@ -31,7 +31,7 @@ void SourceSelector::removeCurrentReplica() {
   currentReplica_ = NO_REPLICA;
 }
 
-void SourceSelector::setAllReplicasAsPreferred() { preferredReplicas_ = allOtherReplicas_; }
+void SourceSelector::SetPotentialSrcReplicasAsPreferred() { preferredReplicas_ = potentialSrcReplicas_; }
 
 void SourceSelector::reset() {
   preferredReplicas_.clear();
@@ -68,7 +68,7 @@ void SourceSelector::updateSource(uint64_t currTimeMilli) {
     preferredReplicas_.erase(currentReplica_);
   }
   if (preferredReplicas_.empty()) {
-    preferredReplicas_ = allOtherReplicas_;
+    preferredReplicas_ = potentialSrcReplicas_;
   }
   selectSource(currTimeMilli);
 }

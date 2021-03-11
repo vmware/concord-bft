@@ -127,6 +127,7 @@ class BCStateTran : public IStateTransfer {
   // Management and general data
   ///////////////////////////////////////////////////////////////////////////
   const Config config_;
+  // includes my replica Id, all consensus replicas IDs and all read-only replica IDs
   const set<uint16_t> replicas_;
   const uint32_t maxVBlockSize_;
   const uint32_t maxItemSize_;
@@ -187,6 +188,8 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
  protected:
   void sendToAllOtherReplicas(char* msg, uint32_t msgSize);
+
+  set<uint16_t> GenerateSetOfReplicas(const int16_t numberOfReplicas, bool excludeMyreplicaId);
 
   void sendAskForCheckpointSummariesMsg();
 
@@ -295,8 +298,7 @@ class BCStateTran : public IStateTransfer {
   void processData();
 
   void EnterGettingCheckpointSummariesState();
-  set<uint16_t> allOtherReplicas();
-  void SetAllReplicasAsPreferred();
+  void SetPotentialSrcReplicasAsPreferred();
 
   ///////////////////////////////////////////////////////////////////////////
   // Helper methods
