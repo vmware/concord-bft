@@ -228,7 +228,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       fetch_block_msg_latency_rec_(histograms_.fetch_blocks_msg_latency) {
   ConcordAssertNE(stateApi, nullptr);
   ConcordAssertGE(replicas_.size(), 3U * config_.fVal + 1U);
-  ConcordAssertEQ(replicas_.count(config_.myReplicaId), 1);
+  ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
   ConcordAssertGE(config_.maxNumOfReservedPages, 2);
 
   // Register metrics component with the default aggregator.
@@ -719,7 +719,7 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
 // this function can be executed in context of another thread.
 void BCStateTran::handleStateTransferMessageImp(char *msg, uint32_t msgLen, uint16_t senderId) {
   if (!running_) return;
-  bool invalidSender = replicas_.count(senderId) == 0;
+  bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas));
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
   if (msgSizeTooSmall || sentFromSelf || invalidSender) {
@@ -1165,7 +1165,10 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   // set the preferred replicas
   for (uint16_t r : replicas_) {  // TODO(GG): can be improved
     CheckpointSummaryMsg *t = cert->getMsgFromReplica(r);
-    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) sourceSelector_.addPreferredReplica(r);
+    if (t != nullptr && CheckpointSummaryMsg::equivalent(t, checkSummary)) {
+      sourceSelector_.addPreferredReplica(r);
+      ConcordAssertLT(r, config_.numReplicas);
+    }
   }
 
   metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
