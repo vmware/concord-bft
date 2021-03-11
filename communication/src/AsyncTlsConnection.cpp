@@ -49,8 +49,8 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
             return;
           }
           // Remove the connection as it is no longer valid, and then close it, cancelling any ongoing operations.
-          LOG_ERROR(logger_,
-                    "Reading message size header failed for node " << peer_id_.value() << ": " << error_code.message());
+          LOG_WARN(logger_,
+                   "Reading message size header failed for node " << peer_id_.value() << ": " << error_code.message());
           return dispose();
         }
 
