@@ -332,38 +332,30 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 }
 
-bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
   if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
     LOG_DEBUG(GL,
               "Not sufficient messages size in the primary replica queue to fill a batch"
                   << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
-    return false;
+    return nullptr;
   }
-  if (!checkSendPrePrepareMsgPrerequisites()) return false;
+  if (!checkSendPrePrepareMsgPrerequisites()) return nullptr;
 
   removeDuplicatedRequestsFromRequestsQueue();
-  PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByBatchSize(requiredBatchSizeInBytes);
-  if (!prePrepareMsg) return false;
-
-  startConsensusProcess(prePrepareMsg);
-  return true;
+  return buildPrePrepareMessageByBatchSize(requiredBatchSizeInBytes);
 }
 
-bool ReplicaImp::tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
     LOG_DEBUG(GL,
               "Not enough messages in the primary replica queue to fill a batch"
                   << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
-    return false;
+    return nullptr;
   }
-  if (!checkSendPrePrepareMsgPrerequisites()) return false;
+  if (!checkSendPrePrepareMsgPrerequisites()) return nullptr;
 
   removeDuplicatedRequestsFromRequestsQueue();
-  PrePrepareMsg *prePrepareMsg = buildPrePrepareMessageByRequestsNum(requiredRequestsNum);
-  if (!prePrepareMsg) return false;
-
-  startConsensusProcess(prePrepareMsg);
-  return true;
+  return buildPrePrepareMessageByRequestsNum(requiredRequestsNum);
 }
 
 bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {

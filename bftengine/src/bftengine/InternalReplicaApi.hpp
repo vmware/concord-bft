@@ -46,8 +46,8 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual SeqNum getLastExecutedSeqNum() const = 0;
   virtual PrePrepareMsg* buildPrePrepareMessage() { return nullptr; }
   virtual bool tryToSendPrePrepareMsg(bool batchingLogic) { return false; }
-  virtual bool tryToSendPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) { return false; }
-  virtual bool tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) { return false; }
+  virtual PrePrepareMsg* buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) { return nullptr; }
+  virtual PrePrepareMsg* buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) { return nullptr; }
 
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
   virtual util::SimpleThreadPool& getInternalThreadPool() = 0;

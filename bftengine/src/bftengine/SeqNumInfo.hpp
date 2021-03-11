@@ -114,7 +114,7 @@ class SeqNumInfo {
   }
 
   uint64_t getCommitDurationMs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(firstSeenFromPrimary - commitUpdateTime).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(commitUpdateTime - firstSeenFromPrimary).count();
   }
 
  protected:
