@@ -42,6 +42,7 @@ Config TestConfig() {
       1,                  // fVal
       0,                  // cVal
       4,                  // numReplicas
+      0,                  // numRoReplicas
       false,              // pedanticChecks
       false,              // isReadOnly
       128,                // maxChunkSize
