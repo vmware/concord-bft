@@ -23,6 +23,7 @@ class PersistentStorage;
 class ReadOnlyReplica : public ReplicaForStateTransfer {
  public:
   ReadOnlyReplica(const ReplicaConfig&,
+                  std::shared_ptr<IRequestsHandler>,
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
                   std::shared_ptr<MsgHandlersRegistrator>,

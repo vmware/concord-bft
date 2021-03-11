@@ -24,12 +24,13 @@ namespace bftEngine::impl {
 using namespace std::chrono_literals;
 
 ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
+                                                 std::shared_ptr<IRequestsHandler> requestsHandler,
                                                  IStateTransfer *stateTransfer,
                                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
                                                  bool firstTime,
                                                  concordUtil::Timers &timers)
-    : ReplicaBase(config, msgComm, msgHandlerReg, timers),
+    : ReplicaBase(config, requestsHandler, msgComm, msgHandlerReg, timers),
       stateTransfer{(stateTransfer != nullptr ? stateTransfer : new NullStateTransfer())},
       metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")},
       metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)},

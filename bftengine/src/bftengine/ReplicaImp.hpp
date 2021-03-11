@@ -12,7 +12,6 @@
 #pragma once
 
 #include <string>
-#include "Replica.hpp"
 #include "ReplicaForStateTransfer.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SeqNumInfo.hpp"
@@ -133,8 +132,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // buffer used to store replies
   char* replyBuffer = nullptr;
 
-  RequestHandler bftRequestsHandler_;
-
   // used to dynamically estimate a upper bound for consensus rounds
   DynamicUpperLimitWithSimpleFilter<int64_t>* dynamicUpperLimitOfRounds = nullptr;
 
@@ -235,7 +232,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   //*****************************************************
  public:
   ReplicaImp(const ReplicaConfig&,
-             IRequestsHandler* requestsHandler,
+             shared_ptr<IRequestsHandler>,
              IStateTransfer* stateTransfer,
              shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
@@ -244,7 +241,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<concord::performance::PerformanceManager>& pm);
 
   ReplicaImp(const LoadedReplicaData&,
-             IRequestsHandler* requestsHandler,
+             shared_ptr<IRequestsHandler>,
              IStateTransfer* stateTransfer,
              shared_ptr<MsgsCommunicator> msgsCommunicator,
              shared_ptr<PersistentStorage> persistentStorage,
@@ -260,7 +257,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual bool isReadOnly() const override { return false; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
-  IRequestsHandler* getRequestsHandler() { return &bftRequestsHandler_; }
 
   void recoverRequests();
 
@@ -290,7 +286,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
  protected:
   ReplicaImp(bool firstTime,
              const ReplicaConfig&,
-             IRequestsHandler*,
+             shared_ptr<IRequestsHandler>,
              IStateTransfer*,
              SigManager*,
              ReplicasInfo*,
