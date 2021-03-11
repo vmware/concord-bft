@@ -26,11 +26,12 @@ using concordUtil::Timers;
 namespace bftEngine::impl {
 
 ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
+                                 std::shared_ptr<IRequestsHandler> requestsHandler,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
                                  concordUtil::Timers &timers)
-    : ReplicaForStateTransfer(config, stateTransfer, msgComm, msgHandlerReg, true, timers),
+    : ReplicaForStateTransfer(config, requestsHandler, stateTransfer, msgComm, msgHandlerReg, true, timers),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),

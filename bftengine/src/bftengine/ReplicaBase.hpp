@@ -12,7 +12,7 @@
 #pragma once
 
 #include <memory>
-
+#include "Replica.hpp"
 #include "PrimitiveTypes.hpp"
 #include "ReplicaConfig.hpp"
 #include "SeqNumInfo.hpp"
@@ -42,6 +42,7 @@ class ReplicaBase {
 
  public:
   ReplicaBase(const ReplicaConfig&,
+              std::shared_ptr<IRequestsHandler>,
               std::shared_ptr<MsgsCommunicator>,
               std::shared_ptr<MsgHandlersRegistrator>,
               concordUtil::Timers& timers);
@@ -61,6 +62,7 @@ class ReplicaBase {
   }
 
   std::shared_ptr<concordMetrics::Aggregator> getAggregator() const { return aggregator_; }
+  std::shared_ptr<IRequestsHandler> getRequestsHandler() { return bftRequestsHandler_; }
 
   virtual void start();
   virtual void stop();
@@ -102,6 +104,7 @@ class ReplicaBase {
   ReplicasInfo* repsInfo = nullptr;
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
+  std::shared_ptr<IRequestsHandler> bftRequestsHandler_;
 
   // last SeqNum executed  by this replica (or its affect was transferred to this replica)
   SeqNum lastExecutedSeqNum = 0;

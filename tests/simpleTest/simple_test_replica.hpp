@@ -157,7 +157,8 @@ class SimpleTestReplica {
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
       : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state), inMemoryST_(inMemoryST) {
-    replica = IReplica::createNewReplica(rc, state, inMemoryST, comm, metaDataStorage);
+    replica = IReplica::createNewReplica(
+        rc, std::shared_ptr<bftEngine::IRequestsHandler>(state), inMemoryST, comm, metaDataStorage);
   }
 
   ~SimpleTestReplica() {

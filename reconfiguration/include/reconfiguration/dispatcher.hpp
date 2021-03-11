@@ -23,7 +23,7 @@ namespace concord::reconfiguration {
 // All handled messages are defined in the IReconfigurationHandler interface.
 class Dispatcher {
  public:
-  Dispatcher(std::shared_ptr<IReconfigurationHandler> handler) { addReconfigurationHandler(handler); }
+  Dispatcher(std::shared_ptr<IReconfigurationHandler> rh) { addReconfigurationHandler(rh); }
 
   // This method is the gate for all reconfiguration actions. It works as
   // follows:
@@ -39,10 +39,10 @@ class Dispatcher {
                                                       uint64_t sequence_num);
 
   void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h) {
-    if (h != nullptr) reconfig_handlers_.push_back(h);
+    if (h) reconfig_handlers_.push_back(h);
   }
   void addPruningHandler(std::shared_ptr<IPruningHandler> h) {
-    if (h != nullptr) pruning_handlers_.push_back(h);
+    if (h) pruning_handlers_.push_back(h);
   }
 
  private:

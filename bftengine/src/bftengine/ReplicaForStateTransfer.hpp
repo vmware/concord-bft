@@ -22,6 +22,7 @@ namespace bftEngine::impl {
 class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaBase {
  public:
   ReplicaForStateTransfer(const ReplicaConfig&,
+                          std::shared_ptr<IRequestsHandler>,
                           IStateTransfer*,
                           std::shared_ptr<MsgsCommunicator>,
                           std::shared_ptr<MsgHandlersRegistrator>,

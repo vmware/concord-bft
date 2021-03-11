@@ -24,6 +24,7 @@
 #include "sliver.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "rocksdb/native_client.h"
+#include "pruning_handler.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -48,7 +49,8 @@ Status ReplicaImp::start() {
 
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, m_stateTransfer, m_ptrComm);
+    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
   } else {
     createReplicaAndSyncState();
   }
@@ -65,8 +67,11 @@ Status ReplicaImp::start() {
 void ReplicaImp::createReplicaAndSyncState() {
   bool isNewStorage = m_metadataStorage->isNewStorage();
   bool erasedMetaData;
+  auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+  requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
+      new concord::reconfiguration::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
+      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
   if (erasedMetaData) isNewStorage = true;
   LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
   if (!replicaConfig_.isReadOnly && !isNewStorage && !m_stateTransfer->isCollectingState()) {
