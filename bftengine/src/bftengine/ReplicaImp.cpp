@@ -224,7 +224,9 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         LOG_DEBUG(CNSUS,
                   "Pushing to primary queue, request [" << reqSeqNum << "], client [" << clientId
                                                         << "], senderId=" << senderId);
+        if (time_to_collect_batch_ == MinTime) time_to_collect_batch_ = getMonotonicTime();
         requestsQueueOfPrimary.push(m);
+        primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
         return;
@@ -327,6 +329,7 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
     requestsQueueOfPrimary.pop();
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
+  primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 }
 
 bool ReplicaImp::tryToSendPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
@@ -373,6 +376,17 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
   else
     pp = buildPrePrepareMessage();
   if (!pp) return false;
+  if (batchingLogic) {
+    batch_closed_on_logic_on_.Get().Inc();
+    accumulating_batch_time_.add(
+        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime() - time_to_collect_batch_).count());
+    accumulating_batch_avg_time_.Get().Set((uint64_t)accumulating_batch_time_.avg());
+    if (accumulating_batch_time_.numOfElements() == 1000)
+      accumulating_batch_time_.reset();  // We reset the average on every 1000 samples
+  } else {
+    batch_closed_on_logic_off_.Get().Inc();
+  }
+  time_to_collect_batch_ = MinTime;
   startConsensusProcess(pp);
   return true;
 }
@@ -413,6 +427,7 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
   }
   delete nextRequest;
   requestsQueueOfPrimary.pop();
+  primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
   return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 }
 
@@ -2505,6 +2520,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     requestsQueueOfPrimary.pop();
     delete msg;
   }
+  primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 
   // send messages
 
@@ -3468,8 +3484,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_sent_replica_asks_to_leave_view_msg_{metrics_.RegisterGauge("sentReplicaAsksToLeaveViewMsg", 0)},
       metric_bft_batch_size_{metrics_.RegisterGauge("bft_batch_size", 0)},
       my_id{metrics_.RegisterGauge("my_id", config.replicaId)},
+      primary_queue_size_{metrics_.RegisterGauge("primary_queue_size", 0)},
+      consensus_avg_time_{metrics_.RegisterGauge("consensus_rolling_avg_time", 0)},
+      accumulating_batch_avg_time_{metrics_.RegisterGauge("accumualating_batch_avg_time", 0)},
       metric_first_commit_path_{metrics_.RegisterStatus(
           "firstCommitPath", CommitPathToStr(ControllerWithSimpleHistory_debugInitialFirstPath))},
+      batch_closed_on_logic_off_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_off")},
+      batch_closed_on_logic_on_{metrics_.RegisterCounter("total_number_batch_closed_on_logic_on")},
       metric_indicator_of_non_determinism_{metrics_.RegisterCounter("indicator_of_non_determinism")},
       metric_total_committed_sn_{metrics_.RegisterCounter("total_committed_seqNum")},
       metric_slow_path_count_{metrics_.RegisterCounter("slowPathCount", 0)},
@@ -4069,6 +4090,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   consensus_times_.end(seqNumber);
   // First of all, we remove the pending request before the execution, to prevent long execution from affecting VC
   tryToRemovePendingRequestsForSeqNum(seqNumber);
+
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SCOPED_MDC_SEQ_NUM(std::to_string(nextExecutedSeqNum));
@@ -4092,6 +4114,9 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     const uint16_t numOfRequests = prePrepareMsg->numberOfRequests();
 
     executeRequestsInPrePrepareMsg(span, prePrepareMsg);
+    consensus_time_.add(seqNumInfo.getCommitDurationMs());
+    consensus_avg_time_.Get().Set((uint64_t)consensus_time_.avg());
+    if (consensus_time_.numOfElements() == 1000) consensus_time_.reset();  // We reset the average every 1000 samples
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
     metric_total_finished_consensuses_.Get().Inc();
     if (seqNumInfo.slowPathStarted()) {

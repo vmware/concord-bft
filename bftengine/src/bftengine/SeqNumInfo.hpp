@@ -113,6 +113,10 @@ class SeqNumInfo {
     commitMsgsCollector->onCompletionOfCombinedSigVerification(seqNumber, viewNumber, isValid);
   }
 
+  uint64_t getCommitDurationMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(firstSeenFromPrimary - commitUpdateTime).count();
+  }
+
  protected:
   class ExFuncForPrepareCollector {
    public:

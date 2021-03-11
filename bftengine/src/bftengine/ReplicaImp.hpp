@@ -191,9 +191,14 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle metric_sent_replica_asks_to_leave_view_msg_;
   GaugeHandle metric_bft_batch_size_;
   GaugeHandle my_id;
+  GaugeHandle primary_queue_size_;
+  GaugeHandle consensus_avg_time_;
+  GaugeHandle accumulating_batch_avg_time_;
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
+  CounterHandle batch_closed_on_logic_off_;
+  CounterHandle batch_closed_on_logic_on_;
   CounterHandle metric_indicator_of_non_determinism_;
   CounterHandle metric_total_committed_sn_;
   CounterHandle metric_slow_path_count_;
@@ -235,6 +240,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
   //*****************************************************
+  RollingAvgAndVar consensus_time_;
+  RollingAvgAndVar accumulating_batch_time_;
+  Time time_to_collect_batch_ = MinTime;
+
  public:
   ReplicaImp(const ReplicaConfig&,
              IRequestsHandler* requestsHandler,
