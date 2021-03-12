@@ -23,8 +23,12 @@ namespace concord::secretsmanager {
 
 std::string ISecretsManagerImpl::readFile(std::string_view path) {
   std::ifstream in(path.data());
+  return readFile(in);
+}
+
+std::string ISecretsManagerImpl::readFile(const std::ifstream& file) {
   std::stringstream stream;
-  stream << in.rdbuf();
+  stream << file.rdbuf();
 
   return stream.str();
 }

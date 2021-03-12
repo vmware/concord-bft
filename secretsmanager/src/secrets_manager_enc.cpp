@@ -43,16 +43,13 @@ SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets) {
 }
 
 bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::string& input) {
-  std::vector<uint8_t> salt(SALT_SIZE);
-  rand.GenerateBlock(salt.data(), salt.size());
-  auto key_params = deriveKeyPass(password_, salt, key_length_, AES_CBC::getBlockSize());
-  AES_CBC e(key_params);
-
-  auto cipher_text = e.encrypt(input);
-  auto ct_encoded = base64Enc(salt, cipher_text);
+  auto ct_encoded = encrypt(input);
+  if (!ct_encoded.has_value()) {
+    return false;
+  }
 
   try {
-    writeFile(file_path, ct_encoded);
+    writeFile(file_path, *ct_encoded);
   } catch (std::ios_base::failure& e) {
     LOG_ERROR(logger, "Error opening file for writing " << file_path << ": " << e.what());
     return false;
@@ -61,21 +58,63 @@ bool SecretsManagerEnc::encryptFile(std::string_view file_path, const std::strin
   return true;
 }
 
+std::optional<std::string> SecretsManagerEnc::encryptString(const std::string& input) { return encrypt(input); }
+
 std::optional<std::string> SecretsManagerEnc::decryptFile(std::string_view path) {
   std::string data;
   try {
     data = readFile(path);
   } catch (std::ios_base::failure& e) {
-    LOG_ERROR(logger, "Error opening file for reading    " << path << ": " << e.what());
+    LOG_ERROR(logger, "Error opening file for reading " << path << ": " << e.what());
     return std::nullopt;
   }
 
-  auto dec = base64Dec(data);
-  auto key_params = deriveKeyPass(password_, dec.salt, key_length_, AES_CBC::getBlockSize());
-  AES_CBC e(key_params);
-  auto pt = e.decrypt(dec.cipher_text);
+  return decrypt(data);
+}
 
-  return std::optional<std::string>{pt};
+std::optional<std::string> SecretsManagerEnc::decryptFile(const std::ifstream& file) {
+  std::string data;
+  try {
+    data = readFile(file);
+  } catch (std::ios_base::failure& e) {
+    LOG_ERROR(logger, "Error reading from file stream: " << e.what());
+    return std::nullopt;
+  }
+
+  return decrypt(data);
+}
+
+std::optional<std::string> SecretsManagerEnc::decryptString(const std::string& input) { return decrypt(input); }
+
+std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
+  try {
+    auto dec = base64Dec(data);
+    auto key_params = deriveKeyPass(password_, dec.salt, key_length_, AES_CBC::getBlockSize());
+    AES_CBC e(key_params);
+    auto pt = e.decrypt(dec.cipher_text);
+
+    return std::optional<std::string>{pt};
+  } catch (std::exception& e) {
+    LOG_ERROR(logger, "Decryption error: " << e.what());
+  }
+
+  return std::nullopt;
+}
+
+std::optional<std::string> SecretsManagerEnc::encrypt(const std::string& data) {
+  std::vector<uint8_t> salt(SALT_SIZE);
+  try {
+    rand.GenerateBlock(salt.data(), salt.size());
+    auto key_params = deriveKeyPass(password_, salt, key_length_, AES_CBC::getBlockSize());
+    AES_CBC e(key_params);
+
+    auto cipher_text = e.encrypt(data);
+    return std::optional<std::string>{base64Enc(salt, cipher_text)};
+  } catch (std::exception& e) {
+    LOG_ERROR(logger, "Encryption error: " << e.what());
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace concord::secretsmanager

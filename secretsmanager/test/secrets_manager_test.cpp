@@ -105,3 +105,15 @@ TEST(SecretsManagerEnc, FileTest) {
 
   ASSERT_EQ(long_input, output);
 }
+
+TEST(SecretsManagerEnc, EmptyInput) {
+  SecretData ret;
+  ret.algo = "AES/CBC/PKCS5Padding";
+  ret.digest = "SHA-256";
+  ret.key_length = 256;
+  ret.password = "XaQZrOYEQw";
+
+  SecretsManagerEnc sm(ret);
+  auto res = sm.decryptString("");
+  ASSERT_FALSE(res.has_value());
+}

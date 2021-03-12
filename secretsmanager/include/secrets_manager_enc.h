@@ -49,16 +49,23 @@ class SecretsManagerEnc : public ISecretsManagerImpl {
   logging::Logger logger = logging::getLogger("concord.bft.secrets-manager-enc");
   CryptoPP::BlockingRng rand;
 
+  std::optional<std::string> encrypt(const std::string& data);
+  std::optional<std::string> decrypt(const std::string& data);
+
  public:
   SecretsManagerEnc(const SecretData& secrets);
 
   // Creates an encrypted file on the filesystem from string input
   bool encryptFile(std::string_view file_path, const std::string& input) override;
 
+  std::optional<std::string> encryptString(const std::string& input) override;
+
   // Loads an encrypted file and returns it as a string buffer
   // The function is intended for loading private keys, so the file
   // should be reasonably sized.
   std::optional<std::string> decryptFile(std::string_view path) override;
+  std::optional<std::string> decryptFile(const std::ifstream& file) override;
+  std::optional<std::string> decryptString(const std::string& input) override;
 
   ~SecretsManagerEnc() = default;
 };

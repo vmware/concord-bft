@@ -40,4 +40,21 @@ std::optional<std::string> SecretsManagerPlain::decryptFile(std::string_view pat
 
   return std::optional<std::string>{data};
 }
+
+std::optional<std::string> SecretsManagerPlain::decryptFile(const std::ifstream& file) {
+  std::string data;
+  try {
+    data = readFile(file);
+  } catch (std::ios_base::failure& e) {
+    LOG_ERROR(logger, "Error opening stream for reading " << e.what());
+    return std::nullopt;
+  }
+
+  return std::optional<std::string>{data};
+}
+
+std::optional<std::string> SecretsManagerPlain::encryptString(const std::string& input) { return input; }
+
+std::optional<std::string> SecretsManagerPlain::decryptString(const std::string& input) { return input; }
+
 }  // namespace concord::secretsmanager
