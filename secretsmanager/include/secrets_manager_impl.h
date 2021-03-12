@@ -24,15 +24,21 @@ class ISecretsManagerImpl {
  protected:
   // on error both functions throw std::ios_base::failure
   std::string readFile(std::string_view path);
+  std::string readFile(const std::ifstream& file);
   void writeFile(std::string_view file_path, const std::string& content);
 
  public:
   // Creates an encrypted file on the filesystem from string
   virtual bool encryptFile(std::string_view file_path, const std::string& input) = 0;
 
+  virtual std::optional<std::string> encryptString(const std::string& input) = 0;
+
   // Loads an encrypted file and returns it as a string buffer
   // The function is intended for loading private keys, so the file should be reasonably sized.
   virtual std::optional<std::string> decryptFile(std::string_view path) = 0;
+  virtual std::optional<std::string> decryptFile(const std::ifstream& file) = 0;
+
+  virtual std::optional<std::string> decryptString(const std::string& input) = 0;
 
   virtual ~ISecretsManagerImpl() = default;
 };

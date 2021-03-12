@@ -47,9 +47,15 @@ SaltedCipher base64Dec(const std::string& input) {
   CryptoPP::StringSource ss(input, true, new CryptoPP::Base64Decoder(new CryptoPP::VectorSink(decoded)));
 
   SaltedCipher result;
+
+  if (decoded.size() < salt_prefix.length()) {
+    throw std::runtime_error("Bad salt header length " + std::to_string(decoded.size()) +
+                             ". Expected length to be at least " + std::to_string(salt_prefix.length()));
+  }
+
   std::string header(decoded.begin(), decoded.begin() + salt_prefix.length());
   if (header != salt_prefix) {
-    throw std::runtime_error("Bad salt header " + header + ". Expected value " + salt_prefix);
+    throw std::runtime_error("Bad salt header '" + header + "'. Expected value " + salt_prefix);
   }
 
   auto salt_it = decoded.begin() + salt_prefix.length();

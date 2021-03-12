@@ -27,6 +27,17 @@ class SecretsManagerPlain : public ISecretsManagerImpl {
  public:
   bool encryptFile(std::string_view file_path, const std::string& input) override;
   std::optional<std::string> decryptFile(std::string_view path) override;
+  std::optional<std::string> decryptFile(const std::ifstream& file) override;
+
+  // Implementation below are needed to complete the interface, but they are meaningless
+  // Don't use them.
+  __attribute__((deprecated("This function has no effect and creates unnecessary copy. Avoid using it.")))
+  std::optional<std::string>
+  encryptString(const std::string& input) override;
+
+  __attribute__((deprecated("This function has no effect and creates unnecessary copy. Avoid using it.")))
+  std::optional<std::string>
+  decryptString(const std::string& input) override;
 };
 
 }  // namespace concord::secretsmanager
