@@ -305,10 +305,10 @@ struct GetEarliestCategoryUpdates {
   const bool read_only = true;
   std::string description() const {
     return "getEarliestCategoryUpdates CATEGORY-ID [BLOCK-VERSION-TO]\n"
-           "  Returns the first blockID and a category updates that contains the given category in the "
-           "[genesisBlockID, BLOCK-VERSION-TO] range.\n"
-           "If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
-           "Note that this method performs linear search which may take time on big blockchains";
+           "  Returns the first blockID and a category updates that contains the given category in the \n"
+           "  [genesisBlockID, BLOCK-VERSION-TO] range.\n"
+           "  If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
+           "  Note that this method performs linear search which may take time on big blockchains.";
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -357,10 +357,10 @@ struct GetCategoryEarliestStale {
   const bool read_only = true;
   std::string description() const {
     return "getCategoryEarliestStale CATEGORY-ID [BLOCK-VERSION-TO]\n"
-           "  Returns the first blockID and a list of stale keys for this blockID a given category has in the "
-           "[genesisBlockID, BLOCK-VERSION-TO] range.\n"
-           "If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
-           "Note that this method performs linear search which may take time on big blockchains";
+           "  Returns the first blockID and a list of stale keys for this blockID a given category has in \n"
+           "  the [genesisBlockID, BLOCK-VERSION-TO] range.\n"
+           "  If BLOCK-VERSION-TO is not set, the search range is [genesisBlockID, lastReachableBlockID].\n"
+           "  Note that this method performs linear search which may take time on big blockchains.";
   }
 
   std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
@@ -561,10 +561,6 @@ inline std::string usage() {
     ret += std::visit([](const auto &command) { return command.description(); }, kv.second);
     ret += "\n\n";
   }
-
-  ret += "Note:\n";
-  ret += "The DB Editor is configured to use the following non-provable keys:\n";
-  ret += "0x20, 0x22\n\n";
 
   ret += "Examples:\n";
   ret += "  " + kToolName + " /rocksdb-path getGenesisBlockID\n";
