@@ -1902,7 +1902,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
                 << msgSenderId << ". Reported Last Stable Sequence not consistent with checkpointWindowSize "
                 << KVLOG(msgLastStable, checkpointWindowSize));
 
-  LOG_DEBUG(MSGS, KVLOG(msgSenderId));
+  LOG_DEBUG(MSGS, KVLOG(msgSenderId, msgLastStable, msgViewNum, lastStableSeqNum));
 
   /////////////////////////////////////////////////////////////////////////
   // Checkpoints
