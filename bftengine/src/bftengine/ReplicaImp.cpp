@@ -1895,7 +1895,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   const ViewNum msgViewNum = msg->getViewNumber();
   ConcordAssertEQ(msgLastStable % checkpointWindowSize, 0);
 
-  LOG_DEBUG(MSGS, KVLOG(msgSenderId));
+  LOG_DEBUG(MSGS, KVLOG(msgSenderId, msgLastStable, msgViewNum, lastStableSeqNum));
 
   /////////////////////////////////////////////////////////////////////////
   // Checkpoints
