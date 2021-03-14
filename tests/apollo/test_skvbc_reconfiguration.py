@@ -171,7 +171,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 not_reached = False
                 for r in bft_network.all_replicas():
                     lastExecSeqNum = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
-                    if lastExecSeqNum != lastExecSeqNum:
+                    if lastExecSeqNum != 299:
                         not_reached = True
                         break
 
