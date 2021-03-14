@@ -47,8 +47,6 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReconfigurationTest(unittest.TestCase):
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -69,7 +67,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
-
+        await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
     @with_trio
@@ -145,6 +143,65 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         done = False
                         break
 
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_wedge_command_where_noops_should_be_sent_in_two_parts(self, bft_network):
+        """
+            Sends a wedge command on sequence number 300 and check that the system stops from processing new requests.
+            this way, when the primary tries to sent noop commands, the working window is reach only to 450.
+            Thus, it has to wait for a new stable checkpoint before sending the last 150 noops
+            Note: In this test we assume that the batch duration is no
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        # bring the system to sequence number 299
+        not_reached = True
+        while not_reached:
+            await skvbc.write_known_kv()
+            with trio.fail_after(seconds=0.5):
+                for r in bft_network.all_replicas():
+                    lastExecSeqNum = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
+                    # If we have one replica that reached to 299 it is safe to break. The next sequence number will be 300
+                    if lastExecSeqNum == 299:
+                        not_reached = False
+                        break
+
+        # verify that all nodes are in sequence number 299
+        not_reached = True
+        with trio.fail_after(seconds=30):
+            while not_reached:
+                not_reached = False
+                for r in bft_network.all_replicas():
+                    lastExecSeqNum = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
+                    if lastExecSeqNum != lastExecSeqNum:
+                        not_reached = True
+                        break
+
+        # now, send a wedge command. The wedge command sequence number is 300. Hence, in this point the woeking window
+        # is between 150 - 450. But, the wedge command will make the primary to send noops until 600.
+        # we want to verify that the primary manages to send the noops as required.
+        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+
+        # now, verify that the system has managed to stop
+        with trio.fail_after(seconds=90):
+            done = False
+            while done is False:
+                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
+                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                    bft_network.config.n)]))
+                rsi_rep = client.get_rsi_replies()
+                done = True
+                for r in rsi_rep.values():
+                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                        done = False
+                        break
+
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, 2, range(bft_network.config.n))
+        await self.verify_last_executed_seq_num(bft_network, 2)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
 
     @unittest.skip("manual testcase - not part of CI")
@@ -381,6 +438,12 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                     break
                                 else:
                                     await trio.sleep(1)
+
+    async def verify_last_executed_seq_num(self, bft_network, previous_checkpoint):
+        expectedSeqNum = (previous_checkpoint  + 2) * 150
+        for r in bft_network.all_replicas():
+            lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
+            self.assertEqual(expectedSeqNum, lastExecSn)
 
 
     async def validate_state_consistency(self, skvbc, key, val):
