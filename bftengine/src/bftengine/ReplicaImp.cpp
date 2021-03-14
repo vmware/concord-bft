@@ -195,7 +195,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     return;
   }
 
-  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+  if ((isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) || isSeqNumToStopAt(lastExecutedSeqNum + 1)) {
     LOG_INFO(GL,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
@@ -288,7 +288,7 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
-  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+  if (isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) {
     LOG_INFO(GL,
              "Not sending PrePrepareMsg because system is stopped at checkpoint pending control state operation "
              "(upgrade, etc...)");
@@ -552,22 +552,19 @@ void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
 }
 
 void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath) {
-  if (!isCurrentPrimary()) return;
-  while (primaryLastUsedSeqNum != seqNumToStopAt) {
+  if (!isCurrentPrimary() || seqNumToStopAt <= primaryLastUsedSeqNum) return;
+  LOG_INFO(GL, "Sending noops for [" << primaryLastUsedSeqNum + 1 << " --> " << seqNumToStopAt << " ]");
+  while (primaryLastUsedSeqNum < seqNumToStopAt) {
     sendInternalNoopPrePrepareMsg(firstPath);
   }
 }
 
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
   if (ControlStateManager::instance().getPruningProcessStatus()) return true;
-  if (seqNumToStopAt_ > 0 && seq_num == seqNumToStopAt_) return true;
-  if (seqNumToStopAt_ > 0 && seq_num > seqNumToStopAt_) return false;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
-    seqNumToStopAt_ = seq_num_to_stop_at.value();
-    if (seqNumToStopAt_ == seq_num) return true;
+    if (seq_num_to_stop_at < seq_num) return true;
   }
-
   return false;
 }
 template <typename T>
@@ -624,7 +621,7 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
 
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
-  if (isSeqNumToStopAt(lastExecutedSeqNum)) {
+  if (isSeqNumToStopAt(msg->seqNumber())) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
@@ -2807,6 +2804,13 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       stateTransfer->setEraseMetadataFlag();
     }
   }
+
+  // If we want to wedge the system and we got to a stable checkpoint we need to check if we need to send more noops in
+  // order to bring the system to the wedge point
+  if (isCurrentPrimary() && seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() > newStableSeqNum &&
+      primaryLastUsedSeqNum < seq_num_to_stop_at.value()) {
+    bringTheSystemToCheckpointBySendingNoopCommands(seq_num_to_stop_at.value());
+  }
 }
 
 void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly, uint16_t destReplicaId) {
@@ -4126,7 +4130,9 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     // If, following the last execution, we discover that we need to jump to the
     // next checkpoint, the primary sends noop commands until filling the working window.
-    bringTheSystemToCheckpointBySendingNoopCommands(ControlStateManager::instance().getCheckpointToStopAt().value());
+    auto checkpointToStopAt = ControlStateManager::instance().getCheckpointToStopAt().value();
+    auto next_checkpoint = checkpointToStopAt - checkpointWindowSize;
+    bringTheSystemToCheckpointBySendingNoopCommands(next_checkpoint);
   }
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
       lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
