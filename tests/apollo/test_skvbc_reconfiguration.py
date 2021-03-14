@@ -42,7 +42,9 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")]
+            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-b", "2",
+            "-q", "1"]
 
 
 class SkvbcReconfigurationTest(unittest.TestCase):
@@ -159,17 +161,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         client = bft_network.random_client()
 
         # bring the system to sequence number 299
-        not_reached = True
-        while not_reached:
+        for i in range(299):
             await skvbc.write_known_kv()
-            with trio.fail_after(seconds=0.5):
-                for r in bft_network.all_replicas():
-                    lastExecSeqNum = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
-                    # If we have one replica that reached to 299 it is safe to break. The next sequence number will be 300
-                    if lastExecSeqNum == 299:
-                        not_reached = False
-                        break
-
+            
         # verify that all nodes are in sequence number 299
         not_reached = True
         with trio.fail_after(seconds=30):
