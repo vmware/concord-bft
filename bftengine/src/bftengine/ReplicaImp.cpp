@@ -3865,6 +3865,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
             send(replyMsg, clientId);
             delete replyMsg;
           }
+          reqIdx++;
           continue;
         }
         requestSet.set(reqIdx);
