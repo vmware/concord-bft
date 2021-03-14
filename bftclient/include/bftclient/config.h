@@ -92,4 +92,9 @@ struct ReadConfig {
   ReadQuorum quorum;
 };
 
+struct ClientRequest {
+  WriteConfig config;
+  Msg request;
+};
+
 }  // namespace bft::client
