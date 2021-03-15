@@ -41,7 +41,7 @@ bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusComma
                                     concord::messages::DownloadStatus&) {
   return true;
 }
-bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd) { return true; }
+bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd, uint64_t) { return true; }
 bool ReconfigurationHandler::handle(const concord::messages::InstallStatusCommand& cmd,
                                     concord::messages::InstallStatusResponse& response) {
   return true;

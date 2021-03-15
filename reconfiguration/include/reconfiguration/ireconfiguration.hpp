@@ -31,7 +31,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::DownloadCommand&) = 0;
   virtual bool handle(const concord::messages::UpgradeCommand&) = 0;
   virtual bool handle(const concord::messages::DownloadStatusCommand&, concord::messages::DownloadStatus&) = 0;
-  virtual bool handle(const concord::messages::InstallCommand& cmd) = 0;
+  virtual bool handle(const concord::messages::InstallCommand& cmd, uint64_t) = 0;
   virtual bool handle(const concord::messages::InstallStatusCommand& cmd,
                       concord::messages::InstallStatusResponse&) = 0;
   virtual bool verifySignature(const concord::messages::ReconfigurationRequest&) const = 0;
