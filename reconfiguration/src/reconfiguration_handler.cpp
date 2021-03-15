@@ -29,7 +29,7 @@ bool ReconfigurationHandler::handle(const WedgeStatusRequest& req, WedgeStatusRe
   return true;
 }
 
-bool ReconfigurationHandler::handle(const GetVersionCommand&) { return true; }
+bool ReconfigurationHandler::handle(const GetVersionCommand&, std::string& version) { return true; }
 
 bool ReconfigurationHandler::handle(const DownloadCommand&) { return true; }
 
