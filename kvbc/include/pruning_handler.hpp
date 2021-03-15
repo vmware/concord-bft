@@ -151,8 +151,6 @@ class PruningHandler : public reconfiguration::IPruningHandler {
 
  protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
-  virtual kvbc::BlockId latestBasedOnTimeRangeConfig() const;
-
   kvbc::BlockId agreedPrunableBlockId(const concord::messages::PruneRequest &) const;
   // Returns the last agreed prunable block ID from storage, if existing.
   std::optional<kvbc::BlockId> lastAgreedPrunableBlockId() const;
@@ -172,7 +170,6 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   bool pruning_enabled_{false};
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
-  std::uint32_t duration_to_keep_minutes_{0};
   bool run_async_{false};
   static const std::string last_agreed_prunable_block_id_key_;
   mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;

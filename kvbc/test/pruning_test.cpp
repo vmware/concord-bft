@@ -685,7 +685,6 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
   uint64_t replica_count = 4;
   const auto num_blocks_to_keep = 0;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = 0;
   replicaConfig.replicaId = 1;
   replicaConfig.pruningEnabled_ = true;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -711,9 +710,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
   const auto replica_count = 4;
   const auto num_blocks_to_keep = 0;
   const auto replica_idx = 1;
-  const auto duration_to_keep_minutes = 0;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = duration_to_keep_minutes;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = false;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -736,10 +733,8 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
 TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   const auto num_blocks_to_keep = 30;
   const auto replica_idx = 1;
-  const auto duration_to_keep_minutes = 0;
   const auto client_idx = 0;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = duration_to_keep_minutes;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = false;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -759,7 +754,6 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   const auto replica_idx = 1;
   const auto client_idx = 5;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = 0;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -790,7 +784,6 @@ TEST_F(test_rocksdb, sm_prune_on_startup) {
   const auto num_blocks_to_keep = 30;
   const auto replica_idx = 1;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = 0;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -820,7 +813,6 @@ TEST_F(test_rocksdb, sm_already_pruned_on_startup) {
   const auto num_blocks_to_keep = 30;
   const auto replica_idx = 1;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = 0;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -849,7 +841,6 @@ TEST_F(test_rocksdb, sm_prune_on_state_transfer_complete) {
   const auto num_blocks_to_keep = 30;
   const auto replica_idx = 1;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = 0;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
   replicaConfig.replicaPrivateKey = privateKey_1;
@@ -884,7 +875,6 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
   const auto replica_idx = 1;
   const auto client_idx = 5;
   replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.durationToKeppMinutes_ = 0;
   replicaConfig.replicaId = replica_idx;
   replicaConfig.pruningEnabled_ = true;
   replicaConfig.replicaPrivateKey = privateKey_1;

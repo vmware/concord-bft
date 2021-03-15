@@ -131,7 +131,6 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
-  duration_to_keep_minutes_ = bftEngine::ReplicaConfig::instance().durationToKeppMinutes_;
 
   // Make sure that blocks from old genesis through the last agreed block are
   // pruned. That might be violated if there was a crash during pruning itself.
@@ -151,8 +150,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
 
-  const auto latest_prunable_block_id =
-      pruning_enabled_ ? std::min(latestBasedOnNumBlocksConfig(), latestBasedOnTimeRangeConfig()) : 0;
+  const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
   signer_.sign(latest_prunable_block);
@@ -198,16 +196,6 @@ kvbc::BlockId PruningHandler::latestBasedOnNumBlocksConfig() const {
     return 0;
   }
   return last_block_id - num_blocks_to_keep_;
-}
-
-kvbc::BlockId PruningHandler::latestBasedOnTimeRangeConfig() const {
-  /*
-   * Currently time records are not saved by concordbft layer.
-   * The user may ovveride this method to have time based search.
-   */
-  const auto last_block_id = ro_storage_.getLastBlockId();
-  if (duration_to_keep_minutes_ > 0) LOG_WARN(logger_, "time based pruning is not supported by default");
-  return last_block_id;
 }
 
 kvbc::BlockId PruningHandler::agreedPrunableBlockId(const concord::messages::PruneRequest& prune_request) const {
