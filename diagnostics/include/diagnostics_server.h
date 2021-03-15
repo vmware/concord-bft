@@ -147,9 +147,7 @@ class Server {
           return;
         }
         int sock = accept(listen_sock_, NULL, NULL);
-        // We must bind the result future or else this call blocks.
-        auto _ = std::async(std::launch::async, [&]() { handleRequest(registrar, sock); });
-        (void)_;  // unused variable hack
+        handleRequest(registrar, sock);
       }
     });
   }
