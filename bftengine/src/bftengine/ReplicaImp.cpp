@@ -250,10 +250,10 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     }
   } else {  // Reply has already been sent to the client for this request
     ClientReplyMsg *repMsg = clientsManager->allocateReplyFromSavedOne(clientId, reqSeqNum, currentPrimary());
+    LOG_DEBUG(
+        GL,
+        "ClientRequestMsg has already been executed: retransmitting reply to client." << KVLOG(reqSeqNum, clientId));
     if (repMsg) {
-      LOG_DEBUG(
-          GL,
-          "ClientRequestMsg has already been executed: retransmitting reply to client." << KVLOG(reqSeqNum, clientId));
       send(repMsg, clientId);
       delete repMsg;
     }
@@ -3865,6 +3865,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
             send(replyMsg, clientId);
             delete replyMsg;
           }
+          reqIdx++;
           continue;
         }
         requestSet.set(reqIdx);
