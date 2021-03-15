@@ -46,19 +46,28 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       rresp.response.emplace<WedgeStatusResponse>(wedge_response);
     } else if (holds_alternative<GetVersionCommand>(request.command)) {
       LOG_INFO(getLogger(), "GetVersionCommand");
+      concord::messages::GetVersionResponse response;
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command));
-      if (rresp.success) ADDITIONAL_DATA(rresp, "Version");
+        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command), response);
+      rresp.response.emplace<concord::messages::GetVersionResponse>(response);
     } else if (holds_alternative<DownloadCommand>(request.command)) {
       LOG_INFO(getLogger(), "DownloadCommand");
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<DownloadCommand>(request.command));
-      if (rresp.success) ADDITIONAL_DATA(rresp, "Downloading");
     } else if (holds_alternative<UpgradeCommand>(request.command)) {
       LOG_INFO(getLogger(), "UpgradeCommand");
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<UpgradeCommand>(request.command));
-      if (rresp.success) ADDITIONAL_DATA(rresp, "Upgrading");
+    } else if (holds_alternative<InstallCommand>(request.command)) {
+      LOG_INFO(getLogger(), "InstallCommand");
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<InstallCommand>(request.command), sequence_num);
+    } else if (holds_alternative<InstallStatusCommand>(request.command)) {
+      LOG_INFO(getLogger(), "InstallStatusCommand");
+      InstallStatusResponse response;
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<InstallStatusCommand>(request.command), response);
+      rresp.response.emplace<InstallStatusResponse>(response);
     } else if (holds_alternative<LatestPrunableBlockRequest>(request.command)) {
       LOG_INFO(getLogger(), "LatestPrunableBlockRequest");
       LatestPrunableBlock last_pruneable_block;
@@ -69,8 +78,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       LOG_INFO(getLogger(), "PruneRequest");
       kvbc::BlockId latest_prunable_block_id = 0;
       for (auto& handler : pruning_handlers_)
-        rresp.success &= handler->handle(std::get<PruneRequest>(request.command), latest_prunable_block_id);
-      ADDITIONAL_DATA(rresp, "latest_prunable_block_id: " + std::to_string(latest_prunable_block_id));
+        rresp.success &=
+            handler->handle(std::get<PruneRequest>(request.command), latest_prunable_block_id, sequence_num);
+      ADDITIONAL_DATA(rresp, std::to_string(latest_prunable_block_id));
     } else if (holds_alternative<PruneStatusRequest>(request.command)) {
       LOG_INFO(getLogger(), "PruneStatus");
       PruneStatus status;

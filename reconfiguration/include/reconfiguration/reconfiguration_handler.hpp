@@ -24,11 +24,11 @@ class ReconfigurationHandler : public IReconfigurationHandler {
  public:
   bool handle(const concord::messages::WedgeCommand&) override;
   bool handle(const concord::messages::WedgeStatusRequest&, concord::messages::WedgeStatusResponse&) override;
-  bool handle(const concord::messages::GetVersionCommand&) override;
+  bool handle(const concord::messages::GetVersionCommand&, concord::messages::GetVersionResponse&) override;
   bool handle(const concord::messages::DownloadCommand&) override;
   bool handle(const concord::messages::UpgradeCommand&) override;
   bool handle(const concord::messages::DownloadStatusCommand&, concord::messages::DownloadStatus&) override;
-  bool handle(const concord::messages::InstallCommand& cmd) override;
+  bool handle(const concord::messages::InstallCommand& cmd, uint64_t) override;
   bool handle(const concord::messages::InstallStatusCommand& cmd, concord::messages::InstallStatusResponse&) override;
   bool verifySignature(const concord::messages::ReconfigurationRequest&) const override;
 

@@ -157,7 +157,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   return true;
 }
 
-bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc::BlockId& bid) {
+bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc::BlockId& bid, uint64_t bftSeqNum) {
   if (!pruning_enabled_) {
     const auto msg = "PruningHandler pruning is disabled, returning an error on PruneRequest";
     LOG_WARN(logger_, msg);

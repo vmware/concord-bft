@@ -29,7 +29,7 @@ bool ReconfigurationHandler::handle(const WedgeStatusRequest& req, WedgeStatusRe
   return true;
 }
 
-bool ReconfigurationHandler::handle(const GetVersionCommand&) { return true; }
+bool ReconfigurationHandler::handle(const GetVersionCommand&, concord::messages::GetVersionResponse&) { return true; }
 
 bool ReconfigurationHandler::handle(const DownloadCommand&) { return true; }
 
@@ -41,7 +41,7 @@ bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusComma
                                     concord::messages::DownloadStatus&) {
   return true;
 }
-bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd) { return true; }
+bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd, uint64_t) { return true; }
 bool ReconfigurationHandler::handle(const concord::messages::InstallStatusCommand& cmd,
                                     concord::messages::InstallStatusResponse& response) {
   return true;

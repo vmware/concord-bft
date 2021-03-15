@@ -27,11 +27,11 @@ class IReconfigurationHandler {
   // Message handlers
   virtual bool handle(const concord::messages::WedgeCommand&) = 0;
   virtual bool handle(const concord::messages::WedgeStatusRequest&, concord::messages::WedgeStatusResponse&) = 0;
-  virtual bool handle(const concord::messages::GetVersionCommand&) = 0;
+  virtual bool handle(const concord::messages::GetVersionCommand&, concord::messages::GetVersionResponse&) = 0;
   virtual bool handle(const concord::messages::DownloadCommand&) = 0;
   virtual bool handle(const concord::messages::UpgradeCommand&) = 0;
   virtual bool handle(const concord::messages::DownloadStatusCommand&, concord::messages::DownloadStatus&) = 0;
-  virtual bool handle(const concord::messages::InstallCommand& cmd) = 0;
+  virtual bool handle(const concord::messages::InstallCommand& cmd, uint64_t) = 0;
   virtual bool handle(const concord::messages::InstallStatusCommand& cmd,
                       concord::messages::InstallStatusResponse&) = 0;
   virtual bool verifySignature(const concord::messages::ReconfigurationRequest&) const = 0;
@@ -44,7 +44,7 @@ class IPruningHandler {
   virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
                       concord::messages::LatestPrunableBlock&) = 0;
   virtual bool handle(const concord::messages::PruneStatusRequest&, concord::messages::PruneStatus&) = 0;
-  virtual bool handle(const concord::messages::PruneRequest&, kvbc::BlockId&) = 0;
+  virtual bool handle(const concord::messages::PruneRequest&, kvbc::BlockId&, uint64_t bftSeqNum) = 0;
 
   virtual ~IPruningHandler() = default;
 };

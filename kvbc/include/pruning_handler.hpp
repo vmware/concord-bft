@@ -18,6 +18,7 @@
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "Crypto.hpp"
+#include <future>
 
 namespace concord::kvbc::pruning {
 
@@ -145,7 +146,7 @@ class PruningHandler : public reconfiguration::IPruningHandler {
                  bftEngine::IStateTransfer &,
                  bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &, concord::messages::LatestPrunableBlock &) override;
-  bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &) override;
+  bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &, uint64_t bftSeqNum) override;
   bool handle(const concord::messages::PruneStatusRequest &, concord::messages::PruneStatus &) override;
   static std::string lastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
 
