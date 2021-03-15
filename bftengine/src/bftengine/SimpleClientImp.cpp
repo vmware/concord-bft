@@ -338,7 +338,10 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
     reqMsg = new ClientPreProcessRequestMsg(clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
   else
     reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
-  pendingRequests_.push_back(reqMsg);
+  {
+    std::unique_lock<std::mutex> mlock(lock_);
+    pendingRequests_.push_back(reqMsg);
+  }
   sendPendingRequest(false, cid);
 
   client_metrics_.retransmissionTimer.Get().Set(maxRetransmissionTimeout);
