@@ -1897,10 +1897,13 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgLastStable = msg->getLastStableSeqNum();
   const ViewNum msgViewNum = msg->getViewNumber();
-  LOG_ERROR(MSGS,
-            "FATAL ERROR for peer msgSenderId = "
-                << msgSenderId << ". Reported Last Stable Sequence not consistent with checkpointWindowSize "
-                << KVLOG(msgLastStable, checkpointWindowSize));
+  if (msgLastStable % checkpointWindowSize != 0) {
+    LOG_ERROR(MSGS,
+              "ERROR detected in peer msgSenderId = "
+                  << msgSenderId << ". Reported Last Stable Sequence not consistent with checkpointWindowSize "
+                  << KVLOG(msgLastStable, checkpointWindowSize));
+    return;
+  }
 
   LOG_DEBUG(MSGS, KVLOG(msgSenderId, msgLastStable, msgViewNum, lastStableSeqNum));
 
@@ -1917,7 +1920,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
       sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
     }
 
-    delete msg;
   } else if (msgLastStable > lastStableSeqNum + kWorkWindowSize) {
     tryToSendStatusReport();  // ask for help
   } else {
