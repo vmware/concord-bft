@@ -18,6 +18,7 @@
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "Crypto.hpp"
+#include <future>
 
 namespace concord::kvbc::pruning {
 
