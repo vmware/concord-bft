@@ -74,6 +74,10 @@ Msg InstallStatusResponse 22 {
     bool install_completed
 }
 
+Msg GetVersionResponse 23 {
+  string version
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -101,6 +105,7 @@ Msg ReconfigurationResponse 2 {
     PruneStatus
     DownloadStatus
     InstallStatusResponse
+    GetVersionResponse
   } response
   bytes additional_data
 }

@@ -46,21 +46,28 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       rresp.response.emplace<WedgeStatusResponse>(wedge_response);
     } else if (holds_alternative<GetVersionCommand>(request.command)) {
       LOG_INFO(getLogger(), "GetVersionCommand");
-      for (auto& handler : reconfig_handlers_) {
-        std::string ret_val;
-        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command), ret_val);
-      }
-      if (rresp.success) ADDITIONAL_DATA(rresp, "Version");
+      concord::messages::GetVersionResponse response;
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command), response);
+      rresp.response.emplace<concord::messages::GetVersionResponse>(response);
     } else if (holds_alternative<DownloadCommand>(request.command)) {
       LOG_INFO(getLogger(), "DownloadCommand");
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<DownloadCommand>(request.command));
-      if (rresp.success) ADDITIONAL_DATA(rresp, "Downloading");
     } else if (holds_alternative<UpgradeCommand>(request.command)) {
       LOG_INFO(getLogger(), "UpgradeCommand");
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<UpgradeCommand>(request.command));
-      if (rresp.success) ADDITIONAL_DATA(rresp, "Upgrading");
+    } else if (holds_alternative<InstallCommand>(request.command)) {
+      LOG_INFO(getLogger(), "InstallCommand");
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<InstallCommand>(request.command), sequence_num);
+    } else if (holds_alternative<InstallStatusCommand>(request.command)) {
+      LOG_INFO(getLogger(), "InstallStatusCommand");
+      InstallStatusResponse response;
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<InstallStatusCommand>(request.command), response);
+      rresp.response.emplace<InstallStatusResponse>(response);
     } else if (holds_alternative<LatestPrunableBlockRequest>(request.command)) {
       LOG_INFO(getLogger(), "LatestPrunableBlockRequest");
       LatestPrunableBlock last_pruneable_block;

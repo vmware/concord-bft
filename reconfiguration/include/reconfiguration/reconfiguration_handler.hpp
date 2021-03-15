@@ -24,7 +24,7 @@ class ReconfigurationHandler : public IReconfigurationHandler {
  public:
   bool handle(const concord::messages::WedgeCommand&) override;
   bool handle(const concord::messages::WedgeStatusRequest&, concord::messages::WedgeStatusResponse&) override;
-  bool handle(const concord::messages::GetVersionCommand&, std::string& version) override;
+  bool handle(const concord::messages::GetVersionCommand&, concord::messages::GetVersionResponse&) override;
   bool handle(const concord::messages::DownloadCommand&) override;
   bool handle(const concord::messages::UpgradeCommand&) override;
   bool handle(const concord::messages::DownloadStatusCommand&, concord::messages::DownloadStatus&) override;
