@@ -1957,9 +1957,9 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == curView) && (!msg->currentViewIsActive())) {
-    auto sendViewChangeMsgs = [&msg, &msgSenderId, this]() {  // Send all View Change messages we have
-      if (curView > 0 &&                                      // we only have ViewChangeMsg for View > 0
-          msg->hasListOfMissingViewChangeMsgForViewChange()) {
+    auto sendViewChangeMsgs = [&msg, &msgSenderId, this]() {
+      // Send all View Change messages we have. We only have ViewChangeMsg for View > 0
+      if (curView > 0 && msg->hasListOfMissingViewChangeMsgForViewChange()) {
         for (auto *vcMsg : viewsManager->getViewChangeMsgsForView(curView)) {
           if (msg->isMissingViewChangeMsgForViewChange(vcMsg->idOfGeneratedReplica())) {
             sendAndIncrementMetric(vcMsg, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
