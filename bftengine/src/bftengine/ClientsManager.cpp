@@ -102,7 +102,8 @@ void ClientsManager::loadInfoFromReservedPages() {
     ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
     auto& repliesInfo = indexToClientInfo_.at(e.second).repliesInfo;
-    repliesInfo.emplace(replyHeader->reqSeqNum, MinTime);
+    // YS TBD: Multiple replies for client batching should be sorted by incoming time
+    repliesInfo.insert_or_assign(replyHeader->reqSeqNum, MinTime);
 
     // Remove pending request
     auto& requestsInfo = indexToClientInfo_.at(e.second).requestsInfo;
@@ -119,12 +120,13 @@ bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
 }
 
 void ClientsManager::deleteOldestReply(NodeIdType clientId) {
+  // YS TBD: Once multiple replies for client batching are sorted by incoming time, they could be deleted properly
   Time earliestTime = MaxTime;
   ReqId earliestReplyId = 0;
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
   for (const auto& reply : repliesInfo) {
-    if (reply.second != MinTime && earliestTime > reply.second) {
+    if (earliestTime > reply.second) {
       earliestReplyId = reply.first;
       earliestTime = reply.second;
     }
@@ -212,11 +214,18 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
     stateTransfer_->loadReservedPage(resPageOffset() + firstPageId + i, sizePage, ptrPage);
   }
 
-  if (r->reqSeqNum() != requestSeqNum) {
+  const auto& replySeqNum = r->reqSeqNum();
+  if (replySeqNum != requestSeqNum) {
+    if (maxNumOfReqsPerClient_ == 1) {
+      LOG_FATAL(GL,
+                "The client reserved page does not contain a reply for specified request"
+                    << KVLOG(replySeqNum, requestSeqNum));
+      ConcordAssert(false);
+    }
+    // YS TBD: Fix this for client batching with a proper ordering of incoming requests
     LOG_INFO(GL,
-             "The reserved page contains a reply for a different request, so the current request gets ignored"
-                 << KVLOG(r->reqSeqNum(), requestSeqNum));
-    delete r;
+             "The client reserved page does not contain a reply for specified request; skipping"
+                 << KVLOG(replySeqNum, requestSeqNum));
     return nullptr;
   }
 
