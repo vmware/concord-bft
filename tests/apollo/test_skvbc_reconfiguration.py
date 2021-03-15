@@ -43,7 +43,9 @@ def start_replica_cmd(builddir, replica_id):
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
-            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")]
+            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-b", "2",
+            "-q", "1"]
 
 
 class SkvbcReconfigurationTest(unittest.TestCase):

@@ -745,7 +745,7 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
 
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
   BlockId agreed_pruned_block;
-  auto res = sm.handle(req, agreed_pruned_block);
+  auto res = sm.handle(req, agreed_pruned_block, 0);
   ASSERT_FALSE(res);
 }
 TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
@@ -767,7 +767,7 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas, latest_prunable_block_id);
   blocks_deleter.deleteBlocksUntil(latest_prunable_block_id + 1);
   BlockId prunedBlock;
-  auto res = sm.handle(req, prunedBlock);
+  auto res = sm.handle(req, prunedBlock, 0);
 
   ASSERT_TRUE(res);
   ASSERT_EQ(prunedBlock, latest_prunable_block_id);
@@ -893,7 +893,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     added_block.replica = block.replica;
     added_block.signature = block.signature;
     BlockId agreed_pruned_block;
-    auto res = sm.handle(req, agreed_pruned_block);
+    auto res = sm.handle(req, agreed_pruned_block, 0);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
@@ -904,7 +904,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
     req.latest_prunable_block.pop_back();
     BlockId agreed_pruned_block;
-    auto res = sm.handle(req, agreed_pruned_block);
+    auto res = sm.handle(req, agreed_pruned_block, 0);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
@@ -916,7 +916,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     auto &block = req.latest_prunable_block[req.latest_prunable_block.size() - 1];
     block.signature[0] += 1;
     BlockId agreed_pruned_block;
-    auto res = sm.handle(req, agreed_pruned_block);
+    auto res = sm.handle(req, agreed_pruned_block, 0);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);

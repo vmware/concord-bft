@@ -46,8 +46,10 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       rresp.response.emplace<WedgeStatusResponse>(wedge_response);
     } else if (holds_alternative<GetVersionCommand>(request.command)) {
       LOG_INFO(getLogger(), "GetVersionCommand");
-      for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command));
+      for (auto& handler : reconfig_handlers_) {
+        std::string ret_val;
+        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command), ret_val);
+      }
       if (rresp.success) ADDITIONAL_DATA(rresp, "Version");
     } else if (holds_alternative<DownloadCommand>(request.command)) {
       LOG_INFO(getLogger(), "DownloadCommand");
@@ -69,8 +71,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       LOG_INFO(getLogger(), "PruneRequest");
       kvbc::BlockId latest_prunable_block_id = 0;
       for (auto& handler : pruning_handlers_)
-        rresp.success &= handler->handle(std::get<PruneRequest>(request.command), latest_prunable_block_id);
-      ADDITIONAL_DATA(rresp, "latest_prunable_block_id: " + std::to_string(latest_prunable_block_id));
+        rresp.success &=
+            handler->handle(std::get<PruneRequest>(request.command), latest_prunable_block_id, sequence_num);
+      ADDITIONAL_DATA(rresp, std::to_string(latest_prunable_block_id));
     } else if (holds_alternative<PruneStatusRequest>(request.command)) {
       LOG_INFO(getLogger(), "PruneStatus");
       PruneStatus status;

@@ -44,7 +44,7 @@ class IPruningHandler {
   virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
                       concord::messages::LatestPrunableBlock&) = 0;
   virtual bool handle(const concord::messages::PruneStatusRequest&, concord::messages::PruneStatus&) = 0;
-  virtual bool handle(const concord::messages::PruneRequest&, kvbc::BlockId&) = 0;
+  virtual bool handle(const concord::messages::PruneRequest&, kvbc::BlockId&, uint64_t bftSeqNum) = 0;
 
   virtual ~IPruningHandler() = default;
 };
