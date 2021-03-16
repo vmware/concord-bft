@@ -297,6 +297,7 @@ void PruningHandler::pruneOnStateTransferCompletion(uint64_t checkpoint_number) 
 
 bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
                             concord::messages::PruneStatus& prune_status) {
+  if (!pruning_enabled_) return true;
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   std::lock_guard lock(pruning_status_lock_);
   prune_status.last_pruned_block =
