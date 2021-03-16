@@ -1890,7 +1890,13 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgLastStable = msg->getLastStableSeqNum();
   const ViewNum msgViewNum = msg->getViewNumber();
-  ConcordAssertEQ(msgLastStable % checkpointWindowSize, 0);
+  if (msgLastStable % checkpointWindowSize != 0) {
+    LOG_ERROR(MSGS,
+              "ERROR detected in peer msgSenderId = "
+                  << msgSenderId << ". Reported Last Stable Sequence not consistent with checkpointWindowSize "
+                  << KVLOG(msgLastStable, checkpointWindowSize));
+    return;
+  }
 
   LOG_DEBUG(MSGS, KVLOG(msgSenderId, msgLastStable, msgViewNum, lastStableSeqNum));
 
@@ -1907,8 +1913,6 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
       sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
     }
 
-    delete msg;
-    return;
   } else if (msgLastStable > lastStableSeqNum + kWorkWindowSize) {
     tryToSendStatusReport();  // ask for help
   } else {
@@ -1953,22 +1957,20 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   /////////////////////////////////////////////////////////////////////////
 
   else if ((msgViewNum == curView) && (!msg->currentViewIsActive())) {
-    auto sendViewChangeMsg = [&msg, &msgSenderId, this]() {
-      if (curView > 0 &&  // we only have ViewChangeMsg for View > 0
-          msg->hasListOfMissingViewChangeMsgForViewChange() &&
-          msg->isMissingViewChangeMsgForViewChange(config_.getreplicaId())) {
-        ViewChangeMsg *myVC = viewsManager->getMyLatestViewChangeMsg();
-        ConcordAssertNE(myVC, nullptr);
-        sendAndIncrementMetric(myVC, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
+    auto sendViewChangeMsgs = [&msg, &msgSenderId, this]() {
+      // Send all View Change messages we have. We only have ViewChangeMsg for View > 0
+      if (curView > 0 && msg->hasListOfMissingViewChangeMsgForViewChange()) {
+        for (auto *vcMsg : viewsManager->getViewChangeMsgsForView(curView)) {
+          if (msg->isMissingViewChangeMsgForViewChange(vcMsg->idOfGeneratedReplica())) {
+            sendAndIncrementMetric(vcMsg, msgSenderId, metric_sent_viewchange_msg_due_to_status_);
+          }
+        }
       }
     };
 
     if (isCurrentPrimary() || (repsInfo->primaryOfView(curView) == msgSenderId))  // if the primary is involved
     {
-      if (!isCurrentPrimary())  // I am not the primary of curView
-      {
-        sendViewChangeMsg();
-      } else  // I am the primary of curView
+      if (isCurrentPrimary())  // I am the primary of curView
       {
         // send NewViewMsg for View > 0
         if (curView > 0 && !msg->currentViewHasNewViewMessage() && viewsManager->viewIsActive(curView)) {
@@ -1976,20 +1978,12 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
           ConcordAssertNE(nv, nullptr);
           sendAndIncrementMetric(nv, msgSenderId, metric_sent_newview_msg_due_to_status_);
         }
-
-        // send all VC msgs that can help making progress (needed because the original senders may not send
-        // the ViewChangeMsg msgs used by the primary)
-        // if viewsManager->viewIsActive(curView), we can send only the VC msgs which are really needed for
-        // curView (see in ViewsManager)
-        // It should be taken in consideration that we do not have ViewChangeMsg-s for View 0
-        if (curView > 0 && msg->hasListOfMissingViewChangeMsgForViewChange()) {
-          for (auto *vcMsg : viewsManager->getViewChangeMsgsForView(curView)) {
-            if (msg->isMissingViewChangeMsgForViewChange(vcMsg->idOfGeneratedReplica())) {
-              send(vcMsg, msgSenderId);
-            }
-          }
-        }
       }
+      // send all VC msgs that can help making progress (needed because the original senders may not send
+      // the ViewChangeMsg msgs used by the primary)
+      // if viewsManager->viewIsActive(curView), we can send only the VC msgs which are really needed for
+      // curView (see in ViewsManager)
+      sendViewChangeMsgs();
 
       if (viewsManager->viewIsActive(curView)) {
         if (msg->hasListOfMissingPrePrepareMsgForViewChange()) {
@@ -2018,7 +2012,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         }
       }
     } else {
-      sendViewChangeMsg();
+      sendViewChangeMsgs();
     }
   }
 
