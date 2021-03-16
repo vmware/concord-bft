@@ -153,6 +153,8 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   // smaller block range.
 
   const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
+  if (latest_prunable_block_id > 1)
+    latest_prunable_block.bft_sequence_number = getBlockBftSequenceNumber(latest_prunable_block_id);
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
   signer_.sign(latest_prunable_block);
@@ -301,5 +303,22 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
       last_scheduled_block_for_pruning_.has_value() ? last_scheduled_block_for_pruning_.value() : 0;
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
   return true;
+}
+
+uint64_t PruningHandler::getBlockBftSequenceNumber(kvbc::BlockId bid) const {
+  auto opt_value = ro_storage_.get(concord::kvbc::kConcordInternalCategoryId, std::string{bft_seq_num_key_}, bid);
+  uint64_t sequenceNum = 0;
+  if (!opt_value) {
+    LOG_WARN(logger_, "Unable to get block");
+    return sequenceNum;
+  }
+  auto value = std::get<concord::kvbc::categorization::VersionedValue>(*opt_value);
+  if (value.data.empty()) {
+    LOG_WARN(logger_, "value has zero-length");
+    return sequenceNum;
+  }
+  sequenceNum = concordUtils::fromBigEndianBuffer<std::uint64_t>(value.data.data());
+  LOG_DEBUG(logger_, "sequenceNum = " << sequenceNum);
+  return sequenceNum;
 }
 }  // namespace concord::kvbc::pruning

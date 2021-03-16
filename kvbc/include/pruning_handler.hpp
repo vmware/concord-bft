@@ -162,6 +162,7 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   void pruneThroughBlockId(kvbc::BlockId block_id) const;
   void pruneThroughLastAgreedBlockId() const;
   void pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept;
+  uint64_t getBlockBftSequenceNumber(kvbc::BlockId) const;
   logging::Logger logger_;
   RSAPruningSigner signer_;
   RSAPruningVerifier verifier_;
