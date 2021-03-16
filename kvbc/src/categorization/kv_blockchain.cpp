@@ -38,7 +38,12 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
           concordMetrics::Component("kv_blockchain_deletes", std::make_shared<concordMetrics::Aggregator>())},
       versioned_num_of_deletes_keys_{delete_metrics_comp_.RegisterCounter("numOfVersionedKeysDeleted")},
       immutable_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfImmutableKeysDeleted")},
-      merkle_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfMerkleKeysDeleted")} {
+      merkle_num_of_deleted_keys_{delete_metrics_comp_.RegisterCounter("numOfMerkleKeysDeleted")},
+      add_metrics_comp_{
+          concordMetrics::Component("kv_blockchain_adds", std::make_shared<concordMetrics::Aggregator>())},
+      versioned_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfVersionedKeys")},
+      immutable_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfImmutableKeysDeleted")},
+      merkle_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfMerkleKeys")} {
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
   }
@@ -58,6 +63,7 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   // transfer chain.
   linkSTChainFrom(getLastReachableBlockId() + 1);
   delete_metrics_comp_.Register();
+  add_metrics_comp_.Register();
 }
 
 void KeyValueBlockchain::initNewBlockchainCategories(
@@ -174,6 +180,7 @@ BlockId KeyValueBlockchain::addBlock(CategoryInput&& category_updates,
   block_chain_.addBlock(new_block, write_batch);
   LOG_DEBUG(CAT_BLOCK_LOG, "Writing block [" << new_block.id() << "] to the blocks cf");
   write_batch.put(detail::BLOCKS_CF, Block::generateKey(new_block.id()), Block::serialize(new_block));
+  add_metrics_comp_.UpdateAggregator();
   return new_block.id();
 }
 
@@ -590,6 +597,7 @@ BlockMerkleOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
     throw std::runtime_error{"Category does not exist = " + category_id};
   }
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the BlockMerkleCategory");
+  merkle_num_of_keys_.Get().Inc(updates.kv.size());
   return std::get<detail::BlockMerkleCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }
 
@@ -601,6 +609,7 @@ VersionedOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   if (itr == categories_.end()) {
     throw std::runtime_error{"Category does not exist = " + category_id};
   }
+  versioned_num_of_keys_.Get().Inc(updates.kv.size());
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the VersionedKeyValueCategory");
   return std::get<detail::VersionedKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }
@@ -613,6 +622,7 @@ ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   if (itr == categories_.end()) {
     throw std::runtime_error{"Category does not exist = " + category_id};
   }
+  immutable_num_of_keys_.Get().Inc(updates.kv.size());
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the ImmutableKeyValueCategory");
   return std::get<detail::ImmutableKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }
