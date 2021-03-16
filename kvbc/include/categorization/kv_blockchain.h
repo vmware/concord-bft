@@ -217,6 +217,11 @@ class KeyValueBlockchain {
   concordMetrics::CounterHandle immutable_num_of_deleted_keys_;
   concordMetrics::CounterHandle merkle_num_of_deleted_keys_;
 
+  concordMetrics::Component add_metrics_comp_;
+  concordMetrics::CounterHandle versioned_num_of_keys_;
+  concordMetrics::CounterHandle immutable_num_of_keys_;
+  concordMetrics::CounterHandle merkle_num_of_keys_;
+
  public:
   struct KeyValueBlockchain_tester {
     void loadCategories(KeyValueBlockchain& kvbc) { kvbc.loadCategories(); }
@@ -235,6 +240,7 @@ class KeyValueBlockchain {
 
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     delete_metrics_comp_.SetAggregator(aggregator);
+    add_metrics_comp_.SetAggregator(aggregator);
   }
   friend struct KeyValueBlockchain_tester;
 };
