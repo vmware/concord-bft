@@ -605,6 +605,7 @@ class LatestPrunableBlock():
     def __init__(self):
          self.replica = None
          self.block_id = None
+         self.bft_sequence_number = None
          self.signature = None
 
 
@@ -613,6 +614,7 @@ class LatestPrunableBlock():
         serializer = CMFSerializer()
         serializer.serialize(self.replica, ['uint64'], None)
         serializer.serialize(self.block_id, ['uint64'], None)
+        serializer.serialize(self.bft_sequence_number, ['uint64'], None)
         serializer.serialize(self.signature, ['bytes'], None)
         return serializer.buf
 
@@ -623,6 +625,7 @@ class LatestPrunableBlock():
         obj = cls()
         obj.replica = deserializer.deserialize(['uint64'], None)
         obj.block_id = deserializer.deserialize(['uint64'], None)
+        obj.bft_sequence_number = deserializer.deserialize(['uint64'], None)
         obj.signature = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 
@@ -630,6 +633,8 @@ class LatestPrunableBlock():
         if self.replica != other.replica:
             return False
         if self.block_id != other.block_id:
+            return False
+        if self.bft_sequence_number != other.bft_sequence_number:
             return False
         if self.signature != other.signature:
             return False

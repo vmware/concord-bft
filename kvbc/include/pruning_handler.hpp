@@ -18,6 +18,7 @@
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "Crypto.hpp"
+#include "block_metadata.hpp"
 #include <future>
 
 namespace concord::kvbc::pruning {
@@ -155,24 +156,27 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   kvbc::BlockId agreedPrunableBlockId(const concord::messages::PruneRequest &) const;
   // Returns the last agreed prunable block ID from storage, if existing.
   std::optional<kvbc::BlockId> lastAgreedPrunableBlockId() const;
-  void persistLastAgreedPrunableBlockId(kvbc::BlockId block_id) const;
+  void persistLastAgreedPrunableBlockId(kvbc::BlockId block_id, uint64_t bft_seq_num) const;
   // Prune blocks in the [genesis, block_id] range (both inclusive).
   // Throws on errors.
   void pruneThroughBlockId(kvbc::BlockId block_id) const;
   void pruneThroughLastAgreedBlockId() const;
   void pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept;
+  uint64_t getBlockBftSequenceNumber(kvbc::BlockId) const;
   logging::Logger logger_;
   RSAPruningSigner signer_;
   RSAPruningVerifier verifier_;
   kvbc::IReader &ro_storage_;
   kvbc::IBlockAdder &blocks_adder_;
   kvbc::IBlocksDeleter &blocks_deleter_;
+  BlockMetadata block_metadata_;
 
   bool pruning_enabled_{false};
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
   bool run_async_{false};
   static const std::string last_agreed_prunable_block_id_key_;
+  static const std::string bft_seq_num_key_;
   mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
