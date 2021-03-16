@@ -115,6 +115,7 @@ const RSAPruningVerifier::Replica& RSAPruningVerifier::getReplica(ReplicaVector:
 }
 
 const std::string PruningHandler::last_agreed_prunable_block_id_key_{0x24};
+const std::string PruningHandler::bft_seq_num_key_{0x21};
 
 PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
                                kvbc::IBlockAdder& blocks_adder,
@@ -127,6 +128,7 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       ro_storage_{ro_storage},
       blocks_adder_{blocks_adder},
       blocks_deleter_{blocks_deleter},
+      block_metadata_{ro_storage},
       replica_id_{bftEngine::ReplicaConfig::instance().replicaId},
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
@@ -183,7 +185,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc
   const auto latest_prunable_block_id = agreedPrunableBlockId(request);
   // Make sure we have persisted the agreed prunable block ID before proceeding.
   // Rationale is that we want to be able to pick up in case of a crash.
-  persistLastAgreedPrunableBlockId(latest_prunable_block_id);
+  persistLastAgreedPrunableBlockId(latest_prunable_block_id, bftSeqNum);
   // Execute actual pruning.
   pruneThroughBlockId(latest_prunable_block_id);
   bid = latest_prunable_block_id;
@@ -216,10 +218,14 @@ std::optional<kvbc::BlockId> PruningHandler::lastAgreedPrunableBlockId() const {
   return concordUtils::fromBigEndianBuffer<kvbc::BlockId>(val.data.data());
 }
 
-void PruningHandler::persistLastAgreedPrunableBlockId(kvbc::BlockId block_id) const {
+void PruningHandler::persistLastAgreedPrunableBlockId(kvbc::BlockId block_id, uint64_t bft_seq_num) const {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::string{last_agreed_prunable_block_id_key_},
                         concordUtils::toBigEndianStringBuffer(block_id));
+
+  // All blocks are expected to have the BFT sequence number as a key.
+  ver_updates.addUpdate(std::string{bft_seq_num_key_}, block_metadata_.serialize(bft_seq_num));
+
   concord::kvbc::categorization::Updates updates;
   updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
   try {
