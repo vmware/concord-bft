@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the 'License').
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -10,6 +10,7 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 
+import enum
 import struct
 
 
@@ -64,7 +65,7 @@ class CMFSerializer():
 
     def serialize(self, val, serializers, fixed_size=None):
         '''
-        Serialize any nested types in by applying the methods in `serializers` at each level.
+        Serialize any nested types by applying the methods in `serializers` at each level.
         This method interacts with those below in a mutually recursive manner for nested types.
         '''
         s = serializers[0]
@@ -80,6 +81,9 @@ class CMFSerializer():
         elif type(s) is tuple and len(s) == 2 and s[0] == 'msg' and type(
                 s[1]) is str:
             self.msg(val, s[1])
+        elif type(s) is tuple and len(s) == 2 and s[0] == 'enum' and type(
+                s[1]) is str:
+            self.enum(val, s[1])
         elif is_primitive(s):
             getattr(self, s)(val)
         else:
@@ -190,6 +194,14 @@ class CMFSerializer():
             raise CmfSerializeError(
                 f'Invalid msg in oneof: {val.__class__.__name__}')
 
+    def enum(self, val, name):
+        if val.__class__.__name__ != name:
+            raise CmfSerializeError(
+                f'Expected {name}, got {val.__class__.__name__}')
+        if not isinstance(val, enum.Enum):
+            raise CmfSerializeError(f'{val} of class {name} is not an Enum')
+        self.uint8(val.value)
+
 
 class CMFDeserializer():
     def __init__(self, buf):
@@ -213,6 +225,9 @@ class CMFDeserializer():
         elif type(s) is tuple and len(s) == 2 and s[0] == 'msg' and type(
                 s[1]) is str:
             return self.msg(s[1])
+        elif type(s) is tuple and len(s) == 2 and s[0] == 'enum' and type(
+                s[1]) is str:
+            return self.enum(s[1])
         elif is_primitive(s):
             return getattr(self, s)()
         else:
@@ -344,3 +359,8 @@ class CMFDeserializer():
         for name, msg_id in msgs.items():
             if msg_id == id:
                 return self.msg(name)
+
+    def enum(self, name):
+        cls = globals()[name]
+        value = self.uint8()
+        return cls(value)

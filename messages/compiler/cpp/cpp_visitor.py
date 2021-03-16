@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the "License").
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -132,18 +132,14 @@ def equalop_str(msg_name, fields):
   return {comparison};
 }}"""
 
-
 class CppVisitor(Visitor):
     """ A visitor that generates C++ code. """
     def __init__(self):
         # All output currently constructed
         self.output = ""
 
-        # All output declaration currently constructed
+        # All output declarations currently constructed
         self.output_declaration = ""
-
-        # For each message, all four of the following C++ code strings are constructed in the same
-        # pass.
 
         # The current message being processed
         self.msg_name = ''
@@ -189,6 +185,14 @@ class CppVisitor(Visitor):
         self.output = output
         self.output_declaration = output_declaration
         self.oneofs_seen = oneofs
+
+    def create_enum(self, name, tags):
+        enumstr = 'enum class {name} : uint8_t {{ {tagstr} }};\n'
+        enumsize_decl = 'uint8_t enumSize({name} _);\n'
+        enumsize_def = 'uint8_t enumSize({name} _) {{ (void)_; return {num_tags}; }};\n'
+        self.output_declaration += enumstr.format(name=name, tagstr=", ".join(tags))
+        self.output_declaration += enumsize_decl.format(name=name)
+        self.output += enumsize_def.format(name=name, num_tags = len(tags))
 
     def msg_start(self, name, id):
         self.msg_name = name
@@ -327,3 +331,6 @@ class CppVisitor(Visitor):
         self.oneof_deserialize += variant_deserialize(variant, msgs)
         self.oneof_deserialize_declaration += variant_deserialize_declaration(
             variant)
+
+    def enum(self, type_name):
+        self.struct += type_name
