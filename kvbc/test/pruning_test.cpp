@@ -726,7 +726,6 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
   concord::messages::LatestPrunableBlock resp;
   sm.handle(req, resp);
 
-  CheckLatestPrunableResp(resp, replica_idx, verifier);
   // Verify that when pruning is disabled, 0 is returned.
   ASSERT_EQ(resp.block_id, 0);
 }
@@ -746,7 +745,8 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
   BlockId agreed_pruned_block;
   auto res = sm.handle(req, agreed_pruned_block, 0);
-  ASSERT_FALSE(res);
+  ASSERT_EQ(agreed_pruned_block, 0);
+  ASSERT_TRUE(res);
 }
 TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   const auto replica_count = 4;
