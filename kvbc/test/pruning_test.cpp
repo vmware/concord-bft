@@ -743,7 +743,7 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
 
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
-  BlockId agreed_pruned_block;
+  BlockId agreed_pruned_block = 0;
   auto res = sm.handle(req, agreed_pruned_block, 0);
   ASSERT_EQ(agreed_pruned_block, 0);
   ASSERT_TRUE(res);
