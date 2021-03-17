@@ -16,6 +16,7 @@
 #include <memory>
 #include <cstdint>
 #include <string>
+#include <functional>
 
 #include "IStateTransfer.hpp"
 #include "OpenTracing.hpp"
@@ -66,6 +67,7 @@ class IControlHandler {
   virtual bool isOnNOutOfNCheckpoint() const = 0;
   virtual bool isOnStableCheckpoint() const = 0;
   virtual void setOnPruningProcess(bool inProcess) = 0;
+  virtual void addOnNOutOfNCheckpointCallBack(const std::function<void()> &cb) = 0;
   virtual ~IControlHandler() = default;
 };
 
