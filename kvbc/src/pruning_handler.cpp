@@ -152,6 +152,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
 
+  if (!pruning_enabled_) return true;
   const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
   if (latest_prunable_block_id > 1)
     latest_prunable_block.bft_sequence_number = getBlockBftSequenceNumber(latest_prunable_block_id);
@@ -165,8 +166,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc
   if (!pruning_enabled_) {
     const auto msg = "PruningHandler pruning is disabled, returning an error on PruneRequest";
     LOG_WARN(logger_, msg);
-    bid = 0;
-    return false;
+    return true;
   }
 
   const auto sender = request.sender;
@@ -297,6 +297,7 @@ void PruningHandler::pruneOnStateTransferCompletion(uint64_t checkpoint_number) 
 
 bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
                             concord::messages::PruneStatus& prune_status) {
+  if (!pruning_enabled_) return true;
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   std::lock_guard lock(pruning_status_lock_);
   prune_status.last_pruned_block =
