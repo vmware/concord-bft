@@ -158,12 +158,15 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
           clientId_, replyMsg->reqSeqNum(), replyMsg->senderId(), replyMsg->size(), (int)replyMsg->currentPrimaryId()));
 
   bool pendingReqFound = false;
-  for (auto const& m : pendingRequests_) {
-    if (m->requestSeqNum() == replyMsg->reqSeqNum()) {
-      LOG_DEBUG(logger_,
-                "Received ClientReplyMsg for a pending request" << KVLOG(clientId_, m->getCid(), replyMsg->size()));
-      pendingReqFound = true;
-      break;
+  {
+    unique_lock<std::mutex> mlock(lock_);
+    for (auto const& m : pendingRequests_) {
+      if (m->requestSeqNum() == replyMsg->reqSeqNum()) {
+        LOG_DEBUG(logger_,
+                  "Received ClientReplyMsg for a pending request" << KVLOG(clientId_, m->getCid(), replyMsg->size()));
+        pendingReqFound = true;
+        break;
+      }
     }
   }
   if (!pendingReqFound) {
@@ -239,8 +242,11 @@ std::string SimpleClientImp::getReqSeqNumsAsString() {
 
 bool SimpleClientImp::allRequiredRepliesReceived() {
   if (replyCertificates_.empty()) return false;
-  LOG_DEBUG(logger_, KVLOG(pendingRequests_.size(), replyCertificates_.size()));
-  if (pendingRequests_.size() != replyCertificates_.size()) return false;
+  {
+    unique_lock<std::mutex> mlock(lock_);
+    LOG_DEBUG(logger_, KVLOG(pendingRequests_.size(), replyCertificates_.size()));
+    if (pendingRequests_.size() != replyCertificates_.size()) return false;
+  }
   for (auto& elem : replyCertificates_)
     if (!elem.second->isComplete()) return false;
   LOG_DEBUG(logger_, "All replies received for requests of" << KVLOG(clientId_, getReqSeqNumsAsString()));
@@ -248,6 +254,7 @@ bool SimpleClientImp::allRequiredRepliesReceived() {
 }
 
 void SimpleClientImp::verifySendRequestPrerequisites() {
+  unique_lock<std::mutex> mlock(lock_);
   ConcordAssert(replyCertificates_.empty());
   ConcordAssert(msgQueue_.empty());
   ConcordAssert(pendingRequests_.empty());
@@ -338,7 +345,10 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
     reqMsg = new ClientPreProcessRequestMsg(clientId_, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
   else
     reqMsg = new ClientRequestMsg(clientId_, flags, reqSeqNum, lenOfRequest, request, reqTimeoutMilli, msgCid, ctx);
-  pendingRequests_.push_back(reqMsg);
+  {
+    std::unique_lock<std::mutex> mlock(lock_);
+    pendingRequests_.push_back(reqMsg);
+  }
   sendPendingRequest(false, cid);
 
   client_metrics_.retransmissionTimer.Get().Set(maxRetransmissionTimeout);
@@ -443,7 +453,10 @@ OperationResult SimpleClientImp::preparePendingRequestsFromBatch(const deque<Cli
                                   req.timeoutMilli,
                                   cid,
                                   ctx);
-    pendingRequests_.push_back(reqMsg);
+    {
+      unique_lock<std::mutex> mlock(lock_);
+      pendingRequests_.push_back(reqMsg);
+    }
   }
   return res;
 }
@@ -496,12 +509,15 @@ OperationResult SimpleClientImp::sendBatch(const deque<ClientRequest>& clientReq
     reset();
     return SUCCESS;
   } else if (requestTimedOut) {
-    const auto& firstReqInBatchSeqNum = pendingRequests_[0]->requestSeqNum();
-    LOG_INFO(logger_, "Batch timed out" << KVLOG(clientId_, batchCid, firstReqInBatchSeqNum, maxTimeToWait));
-    if (maxTimeToWait >= maxRetransmissionTimeout) {
-      LOG_DEBUG(logger_, KVLOG(clientId_, batchCid, firstReqInBatchSeqNum) << " primary is set to UNKNOWN");
-      primaryReplicaIsKnown_ = false;
-      limitOfExpectedOperationTime_.add(maxTimeToWait);
+    {
+      unique_lock<std::mutex> mlock(lock_);
+      const auto& firstReqInBatchSeqNum = pendingRequests_[0]->requestSeqNum();
+      LOG_INFO(logger_, "Batch timed out" << KVLOG(clientId_, batchCid, firstReqInBatchSeqNum, maxTimeToWait));
+      if (maxTimeToWait >= maxRetransmissionTimeout) {
+        LOG_DEBUG(logger_, KVLOG(clientId_, batchCid, firstReqInBatchSeqNum) << " primary is set to UNKNOWN");
+        primaryReplicaIsKnown_ = false;
+        limitOfExpectedOperationTime_.add(maxTimeToWait);
+      }
     }
     reset();
     return TIMEOUT;
@@ -546,8 +562,8 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message
   // check type
   if (msgHeader->msgType != REPLY_MSG_TYPE) return;
 
-  std::unique_lock<std::mutex> mlock(lock_);
   {
+    std::unique_lock<std::mutex> mlock(lock_);
     if (pendingRequests_.empty()) return;
 
     // create msg object
@@ -562,6 +578,7 @@ void SimpleClientImp::onNewMessage(NodeNum sourceNode, const char* const message
 
 void SimpleClientImp::onConnectionStatusChanged(const NodeNum node, const ConnectionStatus newStatus) {}
 
+// This function requires prior locking of lock_
 void SimpleClientImp::sendRequestToAllOrToPrimary(bool sendToAll, char* data, uint64_t size) {
   std::vector<uint8_t> msg(data, data + size);
   const auto& firstReqSeqNum = pendingRequests_[0]->requestSeqNum();
@@ -575,6 +592,7 @@ void SimpleClientImp::sendRequestToAllOrToPrimary(bool sendToAll, char* data, ui
   }
 }
 
+// This function requires prior locking of lock_
 std::string SimpleClientImp::getReqIdsAsString() {
   std::stringstream reqIds;
   for (const auto& req : pendingRequests_) reqIds << req->getCid() << ";" << req->requestSeqNum() << ";";
@@ -582,6 +600,7 @@ std::string SimpleClientImp::getReqIdsAsString() {
 }
 
 void SimpleClientImp::sendPendingRequest(bool isBatch, const std::string& cid) {
+  std::unique_lock<std::mutex> mlock(lock_);
   ConcordAssert(!pendingRequests_.empty());
 
   timeOfLastTransmission_ = getMonotonicTime();
