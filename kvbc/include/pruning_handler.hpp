@@ -17,10 +17,82 @@
 #include "concord.cmf.hpp"
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
-#include "reconfiguration/pruning_utils.hpp"
+#include "Crypto.hpp"
 
-namespace concord::reconfiguration::pruning {
-class PruningHandler : public IPruningHandler {
+namespace concord::kvbc::pruning {
+
+// This class signs pruning messages via the replica's private key that it gets
+// through the configuration. Message contents used to generate the signature
+// are generated via the mechanisms provided in pruning_serialization.hpp/cpp .
+class RSAPruningSigner {
+ public:
+  // Construct by passing the configuration for the node the signer is running
+  // on.
+  RSAPruningSigner(const std::string &key);
+  // Sign() methods sign the passed message and store the signature in the
+  // 'signature' field of the message. An exception is thrown on error.
+  //
+  // Note RSAPruningSigner does not handle signing of PruneRequest messages on
+  // behalf of the operator, as the operator's signature is a dedicated-purpose
+  // application-level signature rather than a Concord-BFT Principal's RSA
+  // signature.
+  void sign(concord::messages::LatestPrunableBlock &) const;
+
+ private:
+  std::string getSignatureBuffer() const;
+
+ private:
+  bftEngine::impl::RSASigner signer_;
+};
+
+// This class verifies pruning messages that were signed by serializing message
+// contents via mechanisms provided in pruning_serialization.hpp/cpp . Public
+// keys for verification are extracted from the passed configuration.
+//
+// Idea is to use the principal_id as an ID that identifies senders in pruning
+// messages since it is unique across clients and replicas.
+class RSAPruningVerifier {
+ public:
+  // Construct by passing the system configuration.
+  RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>> &replicasPublicKeys);
+  // Verify() methods verify that the message comes from the advertised sender.
+  // Methods return true on successful verification and false on unsuccessful.
+  // An exception is thrown on error.
+  //
+  // Note RSAPruningVerifier::Verify(const com::vmware::concord::PruneRequest&)
+  // handles verification of the LatestPrunableBlock message(s) contained within
+  // the PruneRequest, but does not itself handle verification of the issuing
+  // operator's signature of the pruning command, as the operator's signature is
+  // a dedicated application-level signature rather than one of the Concord-BFT
+  // Principal's RSA signatures.
+  bool verify(const concord::messages::LatestPrunableBlock &) const;
+  bool verify(const concord::messages::PruneRequest &) const;
+
+ private:
+  struct Replica {
+    std::uint64_t principal_id{0};
+    bftEngine::impl::RSAVerifier verifier;
+  };
+
+  bool verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const;
+
+  using ReplicaVector = std::vector<Replica>;
+
+  // Get a replica from the replicas vector by its index.
+  const Replica &getReplica(ReplicaVector::size_type idx) const;
+
+  // A vector of all the replicas in the system.
+  ReplicaVector replicas_;
+  // We map a principal_id to a replica index in the replicas_ vector to be able
+  // to verify a message through the Replica's verifier that is associated with
+  // its public key.
+  std::unordered_map<std::uint64_t, ReplicaVector::size_type> principal_to_replica_idx_;
+
+  // Contains a set of replica principal_ids for use in verification. Filled in
+  // once during construction.
+  std::unordered_set<std::uint64_t> replica_ids_;
+};
+class PruningHandler : public reconfiguration::IPruningHandler {
   // This class implements the KVB pruning state machine. Main functionalities
   // include executing pruning based on configuration policy and replica states as
   // well as providing read-only information to the operator node.
@@ -79,8 +151,6 @@ class PruningHandler : public IPruningHandler {
 
  protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
-  virtual kvbc::BlockId latestBasedOnTimeRangeConfig() const;
-
   kvbc::BlockId agreedPrunableBlockId(const concord::messages::PruneRequest &) const;
   // Returns the last agreed prunable block ID from storage, if existing.
   std::optional<kvbc::BlockId> lastAgreedPrunableBlockId() const;
@@ -100,11 +170,10 @@ class PruningHandler : public IPruningHandler {
   bool pruning_enabled_{false};
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
-  std::uint32_t duration_to_keep_minutes_{0};
   bool run_async_{false};
   static const std::string last_agreed_prunable_block_id_key_;
   mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
 };
-}  // namespace concord::reconfiguration::pruning
+}  // namespace concord::kvbc::pruning

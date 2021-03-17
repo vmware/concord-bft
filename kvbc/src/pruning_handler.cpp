@@ -11,11 +11,108 @@
 // file.
 
 #include <endianness.hpp>
+#include <future>
+#include "bftengine/ControlStateManager.hpp"
 #include "pruning_handler.hpp"
-#include "reconfiguration/pruning_utils.hpp"
 #include "categorization/versioned_kv_category.h"
 
-namespace concord::reconfiguration::pruning {
+namespace concord::kvbc::pruning {
+
+void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock& block) const {
+  std::ostringstream oss;
+  std::string ser;
+  oss << block.replica << block.block_id;
+  ser = oss.str();
+  auto signature = getSignatureBuffer();
+  size_t actual_sign_len{0};
+  const auto res =
+      signer_.sign(ser.c_str(), ser.length(), signature.data(), signer_.signatureLength(), actual_sign_len);
+  if (!res) {
+    throw std::runtime_error{"RSAPruningSigner failed to sign a LatestPrunableBlock message"};
+  } else if (actual_sign_len < signature.length()) {
+    signature.resize(actual_sign_len);
+  }
+
+  block.signature = std::vector<uint8_t>(signature.begin(), signature.end());
+}
+
+std::string RSAPruningSigner::getSignatureBuffer() const {
+  const auto sign_len = signer_.signatureLength();
+  return std::string(sign_len, '\0');
+}
+RSAPruningSigner::RSAPruningSigner(const string& key) : signer_{key.c_str()} {}
+
+RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
+  auto i = 0u;
+  for (auto& [idx, pkey] : replicasPublicKeys) {
+    replicas_.push_back(Replica{idx, pkey.c_str()});
+    const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
+    if (!ins_res.second) {
+      throw std::runtime_error{"RSAPruningVerifier found duplicate replica principal_id: " +
+                               std::to_string(replicas_.back().principal_id)};
+    }
+
+    const auto& replica = replicas_.back();
+    principal_to_replica_idx_[replica.principal_id] = i;
+    i++;
+  }
+}
+
+bool RSAPruningVerifier::verify(const concord::messages::LatestPrunableBlock& block) const {
+  // LatestPrunableBlock can only be sent by replicas and not by client proxies.
+  if (replica_ids_.find(block.replica) == std::end(replica_ids_)) {
+    return false;
+  }
+  std::ostringstream oss;
+  std::string ser;
+  oss << block.replica << block.block_id;
+  ser = oss.str();
+  std::string sig_str(block.signature.begin(), block.signature.end());
+  return verify(block.replica, ser, sig_str);
+}
+
+bool RSAPruningVerifier::verify(const concord::messages::PruneRequest& request) const {
+  if (request.latest_prunable_block.size() != static_cast<size_t>(replica_ids_.size())) {
+    return false;
+  }
+
+  // PruneRequest can only be sent by client proxies and not by replicas.
+  if (replica_ids_.find(request.sender) != std::end(replica_ids_)) {
+    return false;
+  }
+
+  // Note RSAPruningVerifier does not handle verification of the operator's
+  // signature authorizing this pruning order, as the operator's signature is a
+  // dedicated application-level signature rather than one of the Concord-BFT
+  // principals' RSA signatures.
+
+  // Verify that *all* replicas have responded with valid responses.
+  auto replica_ids_to_verify = replica_ids_;
+  for (auto& block : request.latest_prunable_block) {
+    if (!verify(block)) {
+      return false;
+    }
+    auto it = replica_ids_to_verify.find(block.replica);
+    if (it == std::end(replica_ids_to_verify)) {
+      return false;
+    }
+    replica_ids_to_verify.erase(it);
+  }
+  return replica_ids_to_verify.empty();
+}
+
+bool RSAPruningVerifier::verify(std::uint64_t sender, const std::string& ser, const std::string& signature) const {
+  auto it = principal_to_replica_idx_.find(sender);
+  if (it == std::cend(principal_to_replica_idx_)) {
+    return false;
+  }
+
+  return getReplica(it->second).verifier.verify(ser.data(), ser.length(), signature.c_str(), signature.length());
+}
+
+const RSAPruningVerifier::Replica& RSAPruningVerifier::getReplica(ReplicaVector::size_type idx) const {
+  return replicas_[idx];
+}
 
 const std::string PruningHandler::last_agreed_prunable_block_id_key_{0x24};
 
@@ -34,7 +131,6 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
-  duration_to_keep_minutes_ = bftEngine::ReplicaConfig::instance().durationToKeppMinutes_;
 
   // Make sure that blocks from old genesis through the last agreed block are
   // pruned. That might be violated if there was a crash during pruning itself.
@@ -54,8 +150,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
 
-  const auto latest_prunable_block_id =
-      pruning_enabled_ ? std::min(latestBasedOnNumBlocksConfig(), latestBasedOnTimeRangeConfig()) : 0;
+  const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
   signer_.sign(latest_prunable_block);
@@ -101,16 +196,6 @@ kvbc::BlockId PruningHandler::latestBasedOnNumBlocksConfig() const {
     return 0;
   }
   return last_block_id - num_blocks_to_keep_;
-}
-
-kvbc::BlockId PruningHandler::latestBasedOnTimeRangeConfig() const {
-  /*
-   * Currently time records are not saved by concordbft layer.
-   * The user may ovveride this method to have time based search.
-   */
-  const auto last_block_id = ro_storage_.getLastBlockId();
-  if (duration_to_keep_minutes_ > 0) LOG_WARN(logger_, "time based pruning is not supported by default");
-  return last_block_id;
 }
 
 kvbc::BlockId PruningHandler::agreedPrunableBlockId(const concord::messages::PruneRequest& prune_request) const {
@@ -211,4 +296,4 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
   return true;
 }
-}  // namespace concord::reconfiguration::pruning
+}  // namespace concord::kvbc::pruning
