@@ -97,7 +97,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         return reconf_msg
 
     from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -230,19 +229,22 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # now, send a wedge command. The wedge command sequence number is 300. Hence, in this point the woeking window
         # is between 150 - 450. But, the wedge command will make the primary to send noops until 600.
         # we want to verify that the primary manages to send the noops as required.
-        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+        reconf_msg = self._construct_reconfiguraiton_wedge_coammand()
+        await client.write(reconf_msg.serialize(), reconfiguration=True)
 
         # now, verify that the system has managed to stop
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
-                    bft_network.config.n)]))
+                msg = self._construct_reconfiguraiton_wedge_status()
+                await client.read(msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                    bft_network.config.n)]), reconfiguration=True)
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    status = res[0].response.stopped
+                    if status is False:
                         done = False
                         break
 

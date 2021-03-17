@@ -109,11 +109,11 @@ struct TlsTcpConfig : PlainTcpConfig {
                NodeNum _selfId,
                const std::string &certRootPath,
                const std::string &ciphSuite,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
+               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr,
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
       : PlainTcpConfig(host, port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
         certificatesRootPath{certRootPath},
-        cipherSuite{ciphSuite} {
+        cipherSuite{ciphSuite},
         secretData{std::move(decryptionSecretData)} {
     commType = CommType::TlsTcp;
   }
