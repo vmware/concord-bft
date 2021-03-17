@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/param.h>
 #include <unistd.h>
 #include "ReplicaImp.h"
 #include <inttypes.h>
@@ -67,7 +66,7 @@ Status ReplicaImp::start() {
 void ReplicaImp::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
   requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
-      new concord::reconfiguration::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer)));
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();

@@ -613,7 +613,7 @@ class LatestPrunableBlock():
         serializer = CMFSerializer()
         serializer.serialize(self.replica, ['uint64'], None)
         serializer.serialize(self.block_id, ['uint64'], None)
-        serializer.serialize(self.signature, ['string'], None)
+        serializer.serialize(self.signature, ['bytes'], None)
         return serializer.buf
 
     @classmethod
@@ -623,7 +623,7 @@ class LatestPrunableBlock():
         obj = cls()
         obj.replica = deserializer.deserialize(['uint64'], None)
         obj.block_id = deserializer.deserialize(['uint64'], None)
-        obj.signature = deserializer.deserialize(['string'], None)
+        obj.signature = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 
     def __eq__(self, other):
@@ -758,6 +758,97 @@ class GetVersionCommand():
             return False
         return True
 
+class InstallCommand():
+    ''' A CMF message for InstallCommand '''
+    id = 20
+
+    def __init__(self):
+         self.version = None
+
+
+    def serialize(self) -> bytes:
+        ''' Serialize this message in CMF format '''
+        serializer = CMFSerializer()
+        serializer.serialize(self.version, ['string'], None)
+        return serializer.buf
+
+    @classmethod
+    def deserialize(cls, buf):
+        ''' Take bytes of a serialized CMF message, deserialize it, and return a new instance of this class. '''
+        deserializer = CMFDeserializer(buf)
+        obj = cls()
+        obj.version = deserializer.deserialize(['string'], None)
+        return obj, deserializer.pos
+
+    def __eq__(self, other):
+        if self.version != other.version:
+            return False
+        return True
+
+class InstallStatusCommand():
+    ''' A CMF message for InstallStatusCommand '''
+    id = 21
+
+    def __init__(self):
+         self.version = None
+
+
+    def serialize(self) -> bytes:
+        ''' Serialize this message in CMF format '''
+        serializer = CMFSerializer()
+        serializer.serialize(self.version, ['string'], None)
+        return serializer.buf
+
+    @classmethod
+    def deserialize(cls, buf):
+        ''' Take bytes of a serialized CMF message, deserialize it, and return a new instance of this class. '''
+        deserializer = CMFDeserializer(buf)
+        obj = cls()
+        obj.version = deserializer.deserialize(['string'], None)
+        return obj, deserializer.pos
+
+    def __eq__(self, other):
+        if self.version != other.version:
+            return False
+        return True
+
+class InstallStatusResponse():
+    ''' A CMF message for InstallStatusResponse '''
+    id = 22
+
+    def __init__(self):
+         self.version = None
+         self.in_progress = None
+         self.install_completed = None
+
+
+    def serialize(self) -> bytes:
+        ''' Serialize this message in CMF format '''
+        serializer = CMFSerializer()
+        serializer.serialize(self.version, ['string'], None)
+        serializer.serialize(self.in_progress, ['bool'], None)
+        serializer.serialize(self.install_completed, ['bool'], None)
+        return serializer.buf
+
+    @classmethod
+    def deserialize(cls, buf):
+        ''' Take bytes of a serialized CMF message, deserialize it, and return a new instance of this class. '''
+        deserializer = CMFDeserializer(buf)
+        obj = cls()
+        obj.version = deserializer.deserialize(['string'], None)
+        obj.in_progress = deserializer.deserialize(['bool'], None)
+        obj.install_completed = deserializer.deserialize(['bool'], None)
+        return obj, deserializer.pos
+
+    def __eq__(self, other):
+        if self.version != other.version:
+            return False
+        if self.in_progress != other.in_progress:
+            return False
+        if self.install_completed != other.install_completed:
+            return False
+        return True
+
 class ReconfigurationRequest():
     ''' A CMF message for ReconfigurationRequest '''
     id = 1
@@ -772,7 +863,7 @@ class ReconfigurationRequest():
         ''' Serialize this message in CMF format '''
         serializer = CMFSerializer()
         serializer.serialize(self.signature, ['bytes'], None)
-        serializer.serialize(self.command, [('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'UpgradeCommand': 7, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17})], None)
+        serializer.serialize(self.command, [('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'UpgradeCommand': 7, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17, 'InstallCommand': 20, 'InstallStatusCommand': 21})], None)
         serializer.serialize(self.additional_data, ['bytes'], None)
         return serializer.buf
 
@@ -782,7 +873,7 @@ class ReconfigurationRequest():
         deserializer = CMFDeserializer(buf)
         obj = cls()
         obj.signature = deserializer.deserialize(['bytes'], None)
-        obj.command = deserializer.deserialize([('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'UpgradeCommand': 7, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17})], None)
+        obj.command = deserializer.deserialize([('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'UpgradeCommand': 7, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17, 'InstallCommand': 20, 'InstallStatusCommand': 21})], None)
         obj.additional_data = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 
@@ -809,7 +900,7 @@ class ReconfigurationResponse():
         ''' Serialize this message in CMF format '''
         serializer = CMFSerializer()
         serializer.serialize(self.success, ['bool'], None)
-        serializer.serialize(self.response, [('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11})], None)
+        serializer.serialize(self.response, [('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11, 'InstallStatusResponse': 22})], None)
         serializer.serialize(self.additional_data, ['bytes'], None)
         return serializer.buf
 
@@ -819,7 +910,7 @@ class ReconfigurationResponse():
         deserializer = CMFDeserializer(buf)
         obj = cls()
         obj.success = deserializer.deserialize(['bool'], None)
-        obj.response = deserializer.deserialize([('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11})], None)
+        obj.response = deserializer.deserialize([('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11, 'InstallStatusResponse': 22})], None)
         obj.additional_data = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 
