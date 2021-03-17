@@ -49,14 +49,14 @@ struct BaseCommConfig {
   NodeNum selfId;
 
   BaseCommConfig(CommType type,
-                 std::string host,
+                 const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
       : commType{type},
-        listenHost{std::move(host)},
+        listenHost{host},
         listenPort{port},
         bufferLength{bufLength},
         nodes{std::move(_nodes)},
@@ -67,38 +67,28 @@ struct BaseCommConfig {
 };
 
 struct PlainUdpConfig : BaseCommConfig {
-  PlainUdpConfig(std::string host,
+  PlainUdpConfig(const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(CommType::PlainUdp,
-                       std::move(host),
-                       port,
-                       bufLength,
-                       std::move(_nodes),
-                       _selfId,
-                       std::move(_statusCallback)) {}
+      : BaseCommConfig(
+            CommType::PlainUdp, host, port, bufLength, std::move(_nodes), _selfId, std::move(_statusCallback)) {}
 };
 
 struct PlainTcpConfig : BaseCommConfig {
   int32_t maxServerId;
 
-  PlainTcpConfig(std::string host,
+  PlainTcpConfig(const std::string &host,
                  uint16_t port,
                  uint32_t bufLength,
                  NodeMap _nodes,
                  int32_t _maxServerId,
                  NodeNum _selfId,
                  UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
-      : BaseCommConfig(CommType::PlainTcp,
-                       std::move(host),
-                       port,
-                       bufLength,
-                       std::move(_nodes),
-                       _selfId,
-                       std::move(_statusCallback)),
+      : BaseCommConfig(
+            CommType::PlainTcp, host, port, bufLength, std::move(_nodes), _selfId, std::move(_statusCallback)),
         maxServerId{_maxServerId} {}
 };
 
@@ -111,20 +101,19 @@ struct TlsTcpConfig : PlainTcpConfig {
 
   std::optional<concord::secretsmanager::SecretData> secretData;
 
-  TlsTcpConfig(std::string host,
+  TlsTcpConfig(const std::string &host,
                uint16_t port,
                uint32_t bufLength,
                NodeMap _nodes,
                int32_t _maxServerId,
                NodeNum _selfId,
-               std::string certRootPath,
-               std::string ciphSuite,
-               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr,
+               const std::string &certRootPath,
+               const std::string &ciphSuite,
+               UPDATE_CONNECTIVITY_FN _statusCallback = nullptr)
                std::optional<concord::secretsmanager::SecretData> decryptionSecretData = std::nullopt)
-      : PlainTcpConfig(
-            move(host), port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
-        certificatesRootPath{std::move(certRootPath)},
-        cipherSuite{std::move(ciphSuite)},
+      : PlainTcpConfig(host, port, bufLength, std::move(_nodes), _maxServerId, _selfId, std::move(_statusCallback)),
+        certificatesRootPath{certRootPath},
+        cipherSuite{ciphSuite} {
         secretData{std::move(decryptionSecretData)} {
     commType = CommType::TlsTcp;
   }
