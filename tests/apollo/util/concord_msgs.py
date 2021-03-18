@@ -774,7 +774,7 @@ class InstallStatusCommand():
     def serialize(self) -> bytes:
         ''' Serialize this message in CMF format '''
         serializer = CMFSerializer()
-        serializer.serialize(self.version, ['string'], None)
+        serializer.serialize(self.version, ['optional', 'string'], None)
         return serializer.buf
 
     @classmethod
@@ -782,7 +782,7 @@ class InstallStatusCommand():
         ''' Take bytes of a serialized CMF message, deserialize it, and return a new instance of this class. '''
         deserializer = CMFDeserializer(buf)
         obj = cls()
-        obj.version = deserializer.deserialize(['string'], None)
+        obj.version = deserializer.deserialize(['optional', 'string'], None)
         return obj, deserializer.pos
 
     def __eq__(self, other):

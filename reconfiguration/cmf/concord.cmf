@@ -62,7 +62,7 @@ Msg InstallCommand 20 {
 }
 
 Msg InstallStatusCommand 21 {
-    string version
+    optional string version
 }
 
 Msg InstallStatusResponse 22 {
