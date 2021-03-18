@@ -12,7 +12,7 @@
 #pragma once
 
 #include <memory>
-#include "Replica.hpp"
+#include "IRequestHandler.hpp"
 #include "PrimitiveTypes.hpp"
 #include "ReplicaConfig.hpp"
 #include "SeqNumInfo.hpp"

@@ -12,7 +12,7 @@
 
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
-#include "Replica.hpp"
+#include "IRequestHandler.hpp"
 #pragma once
 
 namespace bftEngine {

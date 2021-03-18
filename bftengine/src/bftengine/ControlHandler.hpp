@@ -17,24 +17,26 @@
 
 namespace bftEngine {
 
+// The controlHandler class is the default implementation of the IControlHandler.
+// It mark and defines who the system behaves on superStableCheckpoint, stableCheckpoint and pruning
 class ControlHandler : public IControlHandler {
  public:
   void onSuperStableCheckpoint() override {
-    onNoutOfNCheckpoint = true;
+    onNoutOfNCheckpoint_ = true;
     for (auto& cb : onSuperStableCheckpointCallBack) cb();
   };
-  void onStableCheckpoint() override { onNMinusFOutOfNCheckpoint = true; }
+  void onStableCheckpoint() override { onNMinusFOutOfNCheckpoint_ = true; }
   bool onPruningProcess() override { return onPruningProcess_; }
-  bool isOnNOutOfNCheckpoint() const override { return onNoutOfNCheckpoint; }
-  bool isOnStableCheckpoint() const override { return onNMinusFOutOfNCheckpoint; }
+  bool isOnNOutOfNCheckpoint() const override { return onNoutOfNCheckpoint_; }
+  bool isOnStableCheckpoint() const override { return onNMinusFOutOfNCheckpoint_; }
   void setOnPruningProcess(bool inProcess) override { onPruningProcess_ = inProcess; }
   void addOnSuperStableCheckpointCallBack(const std::function<void()>& cb) override {
     onSuperStableCheckpointCallBack.emplace_back(cb);
   }
 
  private:
-  bool onNoutOfNCheckpoint = false;
-  bool onNMinusFOutOfNCheckpoint = false;
+  bool onNoutOfNCheckpoint_ = false;
+  bool onNMinusFOutOfNCheckpoint_ = false;
   bool onPruningProcess_ = false;
   std::vector<std::function<void()>> onSuperStableCheckpointCallBack;
 };

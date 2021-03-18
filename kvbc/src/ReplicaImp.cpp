@@ -24,6 +24,7 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "rocksdb/native_client.h"
 #include "pruning_handler.hpp"
+#include "IRequestHandler.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;

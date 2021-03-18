@@ -25,11 +25,7 @@
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "PerformanceManager.hpp"
-
-namespace concord::reconfiguration {
-class IReconfigurationHandler;
-class IPruningHandler;
-}  // namespace concord::reconfiguration
+#include "IRequestHandler.hpp"
 
 namespace bftEngine {
 // Possible values for 'flags' parameter
@@ -69,48 +65,6 @@ class IControlHandler {
   virtual void setOnPruningProcess(bool inProcess) = 0;
   virtual void addOnSuperStableCheckpointCallBack(const std::function<void()> &cb) = 0;
   virtual ~IControlHandler() = default;
-};
-
-class IRequestsHandler {
- public:
-  struct ExecutionRequest {
-    uint16_t clientId = 0;
-    uint64_t executionSequenceNum = 0;
-    uint8_t flags = 0;  // copy of ClientRequestMsg flags
-    uint32_t requestSize = 0;
-    const char *request;
-    uint32_t maxReplySize = 0;
-    char *outReply;
-    uint64_t requestSequenceNum = executionSequenceNum;
-    uint32_t outActualReplySize = 0;
-    uint32_t outReplicaSpecificInfoSize = 0;
-    int outExecutionStatus = 1;
-  };
-
-  static std::shared_ptr<IRequestsHandler> createRequestsHandler(std::shared_ptr<IRequestsHandler> userReqHandler);
-  typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
-
-  virtual void execute(ExecutionRequestsQueue &requests,
-                       const std::string &batchCid,
-                       concordUtils::SpanWrapper &parent_span) = 0;
-
-  virtual void onFinishExecutingReadWriteRequests() {}
-
-  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {
-    return reconfig_handler_;
-  }
-  void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) {
-    reconfig_handler_ = rh;
-  }
-  std::shared_ptr<concord::reconfiguration::IPruningHandler> getPruningHandler() const { return pruning_handler_; }
-  virtual void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) {
-    pruning_handler_ = ph;
-  }
-  virtual ~IRequestsHandler() = default;
-
- protected:
-  std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> reconfig_handler_;
-  std::shared_ptr<concord::reconfiguration::IPruningHandler> pruning_handler_;
 };
 
 class IReplica {
