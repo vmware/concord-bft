@@ -14,6 +14,7 @@
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
 #include "ReservedPages.hpp"
+#include "Metrics.hpp"
 #include <map>
 #include <set>
 #include <vector>
@@ -27,7 +28,7 @@ class ClientRequestMsg;
 
 class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
-  ClientsManager(std::set<NodeIdType>& clientsSet);
+  ClientsManager(concordMetrics::Component& metrics, std::set<NodeIdType>& clientsSet);
   ~ClientsManager();
 
   void init(IStateTransfer* stateTransfer);
@@ -110,6 +111,8 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   std::vector<ClientInfo> indexToClientInfo_;
   const uint32_t maxReplySize_;
   const uint16_t maxNumOfReqsPerClient_;
+  concordMetrics::Component& metrics_;
+  concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
 };
 
 }  // namespace impl
