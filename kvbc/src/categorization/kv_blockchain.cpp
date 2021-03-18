@@ -42,7 +42,7 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
       add_metrics_comp_{
           concordMetrics::Component("kv_blockchain_adds", std::make_shared<concordMetrics::Aggregator>())},
       versioned_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfVersionedKeys")},
-      immutable_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfImmutableKeysDeleted")},
+      immutable_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfImmutableKeys")},
       merkle_num_of_keys_{add_metrics_comp_.RegisterCounter("numOfMerkleKeys")} {
   if (detail::createColumnFamilyIfNotExisting(detail::CAT_ID_TYPE_CF, *native_client_.get())) {
     LOG_INFO(CAT_BLOCK_LOG, "Created [" << detail::CAT_ID_TYPE_CF << "] column family for the category types");
