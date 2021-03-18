@@ -33,8 +33,6 @@ bool ReconfigurationHandler::handle(const GetVersionCommand&, concord::messages:
 
 bool ReconfigurationHandler::handle(const DownloadCommand&) { return true; }
 
-bool ReconfigurationHandler::handle(const UpgradeCommand&) { return true; }
-
 bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest&) const { return true; }
 
 bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusCommand&,

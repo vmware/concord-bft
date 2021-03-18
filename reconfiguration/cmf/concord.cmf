@@ -10,10 +10,6 @@ Msg WedgeStatusResponse 6 {
     bool stopped
 }
 
-Msg UpgradeCommand 7 {
-  string version
-}
-
 Msg DownloadCommand 9 {
   string version
 }
@@ -88,7 +84,6 @@ Msg ReconfigurationRequest 1 {
     GetVersionCommand
     DownloadCommand
     DownloadStatusCommand
-    UpgradeCommand
     LatestPrunableBlockRequest
     PruneRequest
     PruneStatusRequest

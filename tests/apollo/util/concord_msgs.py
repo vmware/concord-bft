@@ -431,33 +431,6 @@ class WedgeStatusResponse():
             return False
         return True
 
-class UpgradeCommand():
-    ''' A CMF message for UpgradeCommand '''
-    id = 7
-
-    def __init__(self):
-         self.version = None
-
-
-    def serialize(self) -> bytes:
-        ''' Serialize this message in CMF format '''
-        serializer = CMFSerializer()
-        serializer.serialize(self.version, ['string'], None)
-        return serializer.buf
-
-    @classmethod
-    def deserialize(cls, buf):
-        ''' Take bytes of a serialized CMF message, deserialize it, and return a new instance of this class. '''
-        deserializer = CMFDeserializer(buf)
-        obj = cls()
-        obj.version = deserializer.deserialize(['string'], None)
-        return obj, deserializer.pos
-
-    def __eq__(self, other):
-        if self.version != other.version:
-            return False
-        return True
-
 class DownloadCommand():
     ''' A CMF message for DownloadCommand '''
     id = 9
@@ -895,7 +868,7 @@ class ReconfigurationRequest():
         ''' Serialize this message in CMF format '''
         serializer = CMFSerializer()
         serializer.serialize(self.signature, ['bytes'], None)
-        serializer.serialize(self.command, [('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'UpgradeCommand': 7, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17, 'InstallCommand': 20, 'InstallStatusCommand': 21})], None)
+        serializer.serialize(self.command, [('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17, 'InstallCommand': 20, 'InstallStatusCommand': 21})], None)
         serializer.serialize(self.additional_data, ['bytes'], None)
         return serializer.buf
 
@@ -905,7 +878,7 @@ class ReconfigurationRequest():
         deserializer = CMFDeserializer(buf)
         obj = cls()
         obj.signature = deserializer.deserialize(['bytes'], None)
-        obj.command = deserializer.deserialize([('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'UpgradeCommand': 7, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17, 'InstallCommand': 20, 'InstallStatusCommand': 21})], None)
+        obj.command = deserializer.deserialize([('oneof', {'WedgeCommand': 3, 'WedgeStatusRequest': 5, 'TestCommand': 12, 'GetVersionCommand': 19, 'DownloadCommand': 9, 'DownloadStatusCommand': 10, 'LatestPrunableBlockRequest': 13, 'PruneRequest': 15, 'PruneStatusRequest': 17, 'InstallCommand': 20, 'InstallStatusCommand': 21})], None)
         obj.additional_data = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 

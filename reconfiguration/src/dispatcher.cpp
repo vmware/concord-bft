@@ -54,10 +54,6 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       LOG_INFO(getLogger(), "DownloadCommand");
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<DownloadCommand>(request.command));
-    } else if (holds_alternative<UpgradeCommand>(request.command)) {
-      LOG_INFO(getLogger(), "UpgradeCommand");
-      for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<UpgradeCommand>(request.command));
     } else if (holds_alternative<InstallCommand>(request.command)) {
       LOG_INFO(getLogger(), "InstallCommand");
       for (auto& handler : reconfig_handlers_)
