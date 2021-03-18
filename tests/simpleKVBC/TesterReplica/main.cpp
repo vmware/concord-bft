@@ -52,8 +52,8 @@ void run_replica(int argc, char** argv) {
 
   if (!setup->GetReplicaConfig().isReadOnly) replica->setReplicaStateSync(new ReplicaStateSyncImp(blockMetadata));
 
-  auto cmdHandler = std::make_unique<InternalCommandsHandler>(replica.get(), replica.get(), blockMetadata, logger);
-  replica->set_command_handler(cmdHandler.get());
+  auto cmdHandler = std::make_shared<InternalCommandsHandler>(replica.get(), replica.get(), blockMetadata, logger);
+  replica->set_command_handler(cmdHandler);
   replica->start();
 
   // Start metrics server after creation of the replica so that we ensure

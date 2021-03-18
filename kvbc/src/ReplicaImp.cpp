@@ -172,7 +172,7 @@ BlockId ReplicaImp::getGenesisBlockId() const { return m_kvBlockchain->getGenesi
 
 BlockId ReplicaImp::getLastBlockId() const { return m_kvBlockchain->getLastReachableBlockId(); }
 
-void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
+void ReplicaImp::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
 
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,

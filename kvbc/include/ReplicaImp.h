@@ -45,7 +45,7 @@ class ReplicaImp : public IReplica,
   RepStatus getReplicaStatus() const override;
   const IReader &getReadOnlyStorage() const override;
   BlockId addBlockToIdleReplica(categorization::Updates &&updates) override;
-  void set_command_handler(ICommandsHandler *handler) override;
+  void set_command_handler(std::shared_ptr<ICommandsHandler> handler) override;
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IBlocksDeleter implementation
@@ -168,7 +168,7 @@ class ReplicaImp : public IReplica,
   bft::communication::ICommunication *m_ptrComm = nullptr;
   const bftEngine::ReplicaConfig &replicaConfig_;
   bftEngine::IReplica::IReplicaPtr m_replicaPtr = nullptr;
-  ICommandsHandler *m_cmdHandler = nullptr;
+  std::shared_ptr<ICommandsHandler> m_cmdHandler = nullptr;
   bftEngine::IStateTransfer *m_stateTransfer = nullptr;
   concord::storage::DBMetadataStorage *m_metadataStorage = nullptr;
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;

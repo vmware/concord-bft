@@ -214,7 +214,8 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
   return replicaInternal;
 }
 
-std::shared_ptr<IRequestsHandler> IRequestsHandler::createRequestsHandler(IRequestsHandler *userReqHandler) {
+std::shared_ptr<IRequestsHandler> IRequestsHandler::createRequestsHandler(
+    std::shared_ptr<IRequestsHandler> userReqHandler) {
   auto reqHandler = new bftEngine::RequestHandler();
   reqHandler->setUserRequestHandler(userReqHandler);
   return std::shared_ptr<IRequestsHandler>(reqHandler);

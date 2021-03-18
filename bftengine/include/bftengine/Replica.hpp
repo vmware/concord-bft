@@ -87,7 +87,7 @@ class IRequestsHandler {
     int outExecutionStatus = 1;
   };
 
-  static std::shared_ptr<IRequestsHandler> createRequestsHandler(IRequestsHandler *userReqHandler);
+  static std::shared_ptr<IRequestsHandler> createRequestsHandler(std::shared_ptr<IRequestsHandler> userReqHandler);
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,

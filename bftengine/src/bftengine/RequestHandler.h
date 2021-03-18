@@ -23,7 +23,7 @@ class RequestHandler : public IRequestsHandler {
 
   void execute(ExecutionRequestsQueue &requests, const std::string &batchCid, concordUtils::SpanWrapper &) override;
 
-  void setUserRequestHandler(IRequestsHandler *userHdlr) {
+  void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;
       reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
@@ -38,7 +38,7 @@ class RequestHandler : public IRequestsHandler {
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
 
  private:
-  IRequestsHandler *userRequestsHandler_ = nullptr;  // TODO [TK] - shared_ptr
+  std::shared_ptr<IRequestsHandler> userRequestsHandler_ = nullptr;  // TODO [TK] - shared_ptr
   concord::reconfiguration::Dispatcher reconfig_dispatcher_;
 };
 
