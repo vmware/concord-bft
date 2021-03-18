@@ -16,11 +16,21 @@
 #include <iostream>
 #include <thread>
 
+#include "assertUtils.hpp"
 #include "categorization/block_merkle_category.h"
 #include "categorization/kv_blockchain.h"
 #include "input.h"
 
 namespace concord::kvbc::bench {
+
+inline ReadKeys::const_iterator randomReadIter(const ReadKeys& keys, size_t num_keys_to_read) {
+  ConcordAssertGE(keys.size(), num_keys_to_read);
+  const auto max_read_offset = keys.size() - num_keys_to_read;
+  if (max_read_offset == 0) {
+    return keys.cbegin();
+  }
+  return keys.cbegin() + (rand() % max_read_offset);
+}
 
 struct PreExecConfig {
   size_t concurrency;
@@ -81,13 +91,11 @@ class PreExecutionSimulator {
 
  private:
   std::vector<std::string>::const_iterator randomMerkleKeyIter() {
-    auto max_read_offset = merkle_read_keys_.size() - config_.num_block_merkle_keys_to_read;
-    return merkle_read_keys_.begin() + (rand() % max_read_offset);
+    return randomReadIter(merkle_read_keys_, config_.num_block_merkle_keys_to_read);
   }
 
   std::vector<std::string>::const_iterator randomVersionedKeyIter() {
-    auto max_read_offset = versioned_read_keys_.size() - config_.num_versioned_keys_to_read;
-    return versioned_read_keys_.begin() + (rand() % max_read_offset);
+    return randomReadIter(versioned_read_keys_, config_.num_versioned_keys_to_read);
   }
 
   std::atomic_bool stop_ = false;
