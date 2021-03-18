@@ -35,7 +35,6 @@ def translate(ast, language, namespace, output):
         print("Generating Python source code")
         from python import pygen
         code = pygen.translate(ast, namespace)
-        print(output)
         with open(output + ".py", "w") as f:
             f.write(code)
 
