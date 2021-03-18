@@ -16,6 +16,10 @@
 #include <future>
 #include <thread>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#include "diagnostics_server.h"
 #include "gtest/gtest.h"
 #include "diagnostics.h"
 #include "protocol.h"
@@ -108,6 +112,50 @@ TEST(diagnostics_tests, protocol) {
   // Getting status for multiple handlers works
   expected = async_handler_status + "\n" + async_handler_status + "\n";
   ASSERT_EQ(expected, run({"status", "get", async_handler_name, async_handler_name2}, registrar));
+}
+
+TEST(diagnostics_server_tests, shutdown_cleanly_from_destructor) {
+  static constexpr uint16_t PORT = 6888;
+  Registrar registrar;
+  concord::diagnostics::Server diagnostics_server;
+  diagnostics_server.start(registrar, INADDR_LOOPBACK, PORT);
+}
+
+TEST(diagnostics_server_tests, shutdown_cleanly_from_stop) {
+  static constexpr uint16_t PORT = 6888;
+  Registrar registrar;
+  concord::diagnostics::Server diagnostics_server;
+  diagnostics_server.start(registrar, INADDR_LOOPBACK, PORT);
+  diagnostics_server.stop();
+}
+
+void connect_to_ds(uint16_t port) {
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_TRUE(sock);
+  struct sockaddr_in addr;
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  std::cout << "Connecting to diagnostics server" << std::endl;
+  int rv = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
+  if (rv == 0) {
+    std::cout << "Connected to diagnostics server" << std::endl;
+  } else {
+    std::cout << "Failed to connect to diagnostics server" << std::endl;
+  }
+}
+
+TEST(diagnostics_server_tests, connect_does_not_trigger_crash) {
+  static constexpr uint16_t PORT = 6889;
+  Registrar registrar;
+  {
+    concord::diagnostics::Server diagnostics_server;
+    diagnostics_server.start(registrar, INADDR_LOOPBACK, PORT);
+
+    while (!diagnostics_server.listening_) {
+      sleep(1);
+    }
+    connect_to_ds(PORT);
+  }
 }
 
 int main(int argc, char** argv) {
