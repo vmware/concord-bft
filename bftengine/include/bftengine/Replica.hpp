@@ -67,7 +67,7 @@ class IControlHandler {
   virtual bool isOnNOutOfNCheckpoint() const = 0;
   virtual bool isOnStableCheckpoint() const = 0;
   virtual void setOnPruningProcess(bool inProcess) = 0;
-  virtual void addOnNOutOfNCheckpointCallBack(const std::function<void()> &cb) = 0;
+  virtual void addOnSuperStableCheckpointCallBack(const std::function<void()> &cb) = 0;
   virtual ~IControlHandler() = default;
 };
 
