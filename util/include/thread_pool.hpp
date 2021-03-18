@@ -14,6 +14,8 @@
 // Based on Mastering the C++17 STL, page 204:
 // https://books.google.bg/books?id=zJlGDwAAQBAJ&pg=PA205&lpg=PA205#
 
+#pragma once
+
 #include <assertUtils.hpp>
 
 #include <condition_variable>
