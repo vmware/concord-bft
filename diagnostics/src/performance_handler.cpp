@@ -15,7 +15,21 @@
 
 #include "performance_handler.h"
 
+static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.perf");
+
 namespace concord::diagnostics {
+
+void Recorder::record(int64_t val) {
+  if (!hdr_interval_recorder_record_value(&(recorder), val)) {
+    LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
+  }
+}
+
+void Recorder::recordAtomic(int64_t val) {
+  if (!hdr_interval_recorder_record_value_atomic(&(recorder), val)) {
+    LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
+  }
+}
 
 void PerformanceHandler::registerComponent(const std::string& name,
                                            const std::vector<std::shared_ptr<Recorder>>& recorders) {
@@ -211,6 +225,23 @@ std::ostream& operator<<(std::ostream& os, const Unit& unit) {
       break;
   }
   return os;
+}
+
+void Histogram::takeSnapshot() {
+  snapshot_start = snapshot_end;
+  snapshot_end = std::chrono::system_clock::now();
+  // Add the previous snapshot to the history
+  if (int64_t discarded = hdr_add(history, snapshot) != 0) {
+    // This should be impossible to hit, according to hdrHistogram docs, since the histograms have the same
+    // trackable values.
+    LOG_ERROR(DIAG_LOGGER,
+              "Failed to update history: " << KVLOG(discarded,
+                                                    snapshot->lowest_trackable_value,
+                                                    snapshot->highest_trackable_value,
+                                                    history->lowest_trackable_value,
+                                                    history->highest_trackable_value));
+  }
+  snapshot = hdr_interval_recorder_sample_and_recycle(&(recorder->recorder), snapshot);
 }
 
 }  // namespace concord::diagnostics

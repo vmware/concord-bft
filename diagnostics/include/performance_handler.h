@@ -26,8 +26,6 @@
 
 namespace concord::diagnostics {
 
-static logging::Logger DIAG_LOGGER = logging::getLogger("concord.diag.perf");
-
 enum class Unit {
   NANOSECONDS,
   MICROSECONDS,
@@ -73,19 +71,11 @@ struct Recorder {
 
   // Record to a histogram in a single thread. This is the common case.
   // Do NOT mix calls with `recordAtomic` in the same recorder.
-  void record(int64_t val) {
-    if (!hdr_interval_recorder_record_value(&(recorder), val)) {
-      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
-    }
-  }
+  void record(int64_t val);
 
   // Record to a histogram safely across threads. Please use this method sparingly. It should not be necessary in most
   // cases. Do NOT mix calls with `record` in the same recorder.
-  void recordAtomic(int64_t val) {
-    if (!hdr_interval_recorder_record_value_atomic(&(recorder), val)) {
-      LOG_WARN(DIAG_LOGGER, "Failed to record value: " << KVLOG(name, val, unit));
-    }
-  }
+  void recordAtomic(int64_t val);
 
   hdr_interval_recorder recorder;
   Unit unit;
@@ -244,22 +234,7 @@ struct Histogram {
   Histogram(const Histogram&) = delete;
   Histogram& operator=(const Histogram&) = delete;
 
-  void takeSnapshot() {
-    snapshot_start = snapshot_end;
-    snapshot_end = std::chrono::system_clock::now();
-    // Add the previous snapshot to the history
-    if (int64_t discarded = hdr_add(history, snapshot) != 0) {
-      // This should be impossible to hit, according to hdrHistogram docs, since the histograms have the same
-      // trackable values.
-      LOG_ERROR(DIAG_LOGGER,
-                "Failed to update history: " << KVLOG(discarded,
-                                                      snapshot->lowest_trackable_value,
-                                                      snapshot->highest_trackable_value,
-                                                      history->lowest_trackable_value,
-                                                      history->highest_trackable_value));
-    }
-    snapshot = hdr_interval_recorder_sample_and_recycle(&(recorder->recorder), snapshot);
-  }
+  void takeSnapshot();
 
   std::shared_ptr<Recorder> recorder;
 
