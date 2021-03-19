@@ -90,7 +90,7 @@ inline std::string readline(int sock) {
 
 inline void handleRequest(Registrar& registrar, int sock) {
   try {
-    LOG_INFO(logger, "Handle Diagnostics Request");
+    LOG_DEBUG(logger, "Handle Diagnostics Request");
     std::stringstream ss(readline(sock));
     std::vector<std::string> tokens;
     std::string token;
@@ -109,7 +109,7 @@ inline void handleRequest(Registrar& registrar, int sock) {
     }
     close(sock);
   }
-  LOG_INFO(logger, "Finished handling diagnostics request");
+  LOG_DEBUG(logger, "Finished handling diagnostics request");
 }
 
 // Each request creates a separate connection and spawns a thread.
