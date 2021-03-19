@@ -62,7 +62,7 @@ inline std::string readline(int sock) {
     }
     if (rv < 0 && errno == EINTR) continue;
     if (rv < 0) {
-      throw std::runtime_error("select failed: " + errnoString(rv));
+      throw std::runtime_error("diagnostics server readline select failed: " + errnoString(rv));
     }
 
     if (count == MAX_INPUT_SIZE) {
@@ -71,7 +71,7 @@ inline std::string readline(int sock) {
 
     rv = read(sock, buf.data() + count, buf.size() - count);
     if (rv <= 0) {
-      throw std::runtime_error("read failed: " + errnoString(rv));
+      throw std::runtime_error("diagnostics server read failed: " + errnoString(rv));
     }
     count += rv;
 
@@ -90,6 +90,7 @@ inline std::string readline(int sock) {
 
 inline void handleRequest(Registrar& registrar, int sock) {
   try {
+    LOG_DEBUG(logger, "Handle Diagnostics Request");
     std::stringstream ss(readline(sock));
     std::vector<std::string> tokens;
     std::string token;
@@ -108,6 +109,7 @@ inline void handleRequest(Registrar& registrar, int sock) {
     }
     close(sock);
   }
+  LOG_DEBUG(logger, "Finished handling diagnostics request");
 }
 
 // Each request creates a separate connection and spawns a thread.
@@ -118,12 +120,17 @@ inline void handleRequest(Registrar& registrar, int sock) {
 // use case.
 class Server {
  public:
+  ~Server() {
+    LOG_INFO(logger, "Diagnostics Server being destroyed.");
+    stop();
+  }
+
   void start(Registrar& registrar, in_addr_t host, uint16_t port) {
     shutdown_.store(false);
     listen_thread_ = std::thread([this, &registrar, host, port]() {
+      LOG_INFO(logger, "Running diagnostics server main thread");
       if (listen(host, port) == -1) {
         LOG_ERROR(logger, "Failed to listen to incoming requests");
-        shutdown_.store(true);
         return;
       }
 
@@ -137,24 +144,31 @@ class Server {
         auto rv = select(listen_sock_ + 1, &read_fds, NULL, NULL, &tv);
         if (rv == 0) continue;  // timeout
         if (rv < 0 && errno == EINTR) {
-          LOG_WARN(logger, "While waiting for a client requests, an interruption has occurred");
+          LOG_WARN(logger, "While waiting for a client requests, an interruption has occurred.");
           continue;
         }
         if (rv < 0) {
           LOG_ERROR(logger,
-                    "Error while waiting for new client request, shutting down the server " << errnoString(errno));
-          shutdown_.store(true);
+                    "Error while waiting for new client request, shutting down the server: " << errnoString(errno));
           return;
         }
         int sock = accept(listen_sock_, NULL, NULL);
+        if (sock < 0) {
+          LOG_WARN(logger, "Failed to accept connection: " << errnoString(errno));
+          continue;
+        }
         handleRequest(registrar, sock);
       }
     });
   }
 
   void stop() {
-    shutdown_.store(true);
-    listen_thread_.join();
+    if (!shutdown_) {
+      LOG_INFO(logger, "Shutting down diagnostics server main thread.");
+      shutdown_.store(true);
+      listen_thread_.join();
+      LOG_INFO(logger, "Diagnostics server main thread exited");
+    }
   };
 
  private:
@@ -181,6 +195,8 @@ class Server {
       LOG_ERROR(logger, "Failed to listen for connections: " << errnoString(errno));
       return -1;
     }
+    LOG_INFO(logger, "Diagnostics server listening on port " << port);
+    listening_ = true;
     return 0;
   }
 
@@ -188,6 +204,10 @@ class Server {
   sockaddr_in servaddr_;
   std::thread listen_thread_;
   std::atomic<bool> shutdown_{false};
+
+ public:
+  // Used for testing
+  std::atomic<bool> listening_{false};
 };
 
 }  // namespace concord::diagnostics
