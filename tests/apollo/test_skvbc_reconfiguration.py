@@ -111,6 +111,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
         await client.write(reconf_msg.serialize(), reconfiguration=True)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -144,6 +146,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
 
         client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
         with log.start_action(action_type="send_wedge_cmd",
                               checkpoint_before=checkpoint_before,
                               late_replicas=list(late_replicas)):
@@ -177,6 +181,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
 
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
         await client.write(reconf_msg.serialize(), reconfiguration=True)
@@ -210,7 +216,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
-
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        
         # bring the system to sequence number 299
         for i in range(299):
             await skvbc.write_known_kv()
