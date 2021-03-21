@@ -218,7 +218,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
-        
+
         # bring the system to sequence number 299
         for i in range(299):
             await skvbc.write_known_kv()
@@ -311,34 +311,38 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_pruning_command(self, bft_network):
+        with log.start_action(action_type="test_pruning_command") as action:
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            client = bft_network.random_client()
 
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
+            # Create 100 blocks in total, including the genesis block we have 101 blocks
+            k, v = await skvbc.write_known_kv()
+            for i in range(99):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
 
-        # Create 100 blocks in total, including the genesis block we have 101 blocks
-        k, v = await skvbc.write_known_kv()
-        for i in range(99):
-            v = skvbc.random_value()
-            await client.write(skvbc.write_req([], [(k, v)], 0))
+            # Get the minimal latest pruneable block among all replicas
+            reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
+            await client.read(reconf_msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                        bft_network.config.n)]), reconfiguration=True)
 
-        # Get the minimal latest pruneable block among all replicas
-        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
-        await client.read(reconf_msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
-                    bft_network.config.n)]), reconfiguration=True)
+            latest_pruneable_blocks = []
+            rsi_rep = client.get_rsi_replies()
+            for r in rsi_rep.values():
+                lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                latest_pruneable_blocks += [lpab.response]
 
-        latest_pruneable_blocks = []
-        rsi_rep = client.get_rsi_replies()
-        for r in rsi_rep.values():
-            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-            latest_pruneable_blocks += [lpab.response]
-
-        reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
-        await client.write(reconf_msg.serialize(), reconfiguration=True)
-        rsi_rep = client.get_rsi_replies()
-        for r in rsi_rep.values():
-            data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-            assert '90' in data.additional_data.decode('utf-8')
+            reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
+            await client.write(reconf_msg.serialize(), reconfiguration=True)
+            rsi_rep = client.get_rsi_replies()
+            # we expect to have at least 2f + 1 replies
+            for rep in rsi_rep:
+                r = rsi_rep[rep]
+                data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                if '90' not in data.additional_data.decode('utf-8'):
+                    action.log('pruned block is not 90, additional data: {}, replica: {}'.format(data.additional_data.decode('utf-8'), rep))
+                assert '90' in data.additional_data.decode('utf-8')
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
