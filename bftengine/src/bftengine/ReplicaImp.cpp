@@ -3555,7 +3555,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   const auto numOfEntities = config_.getnumReplicas() + config_.getnumRoReplicas() + config_.getnumOfClientProxies() +
                              config_.getnumOfExternalClients();
   for (uint16_t i = config_.getnumReplicas() + config_.getnumRoReplicas(); i < numOfEntities; i++) clientsSet.insert(i);
-  clientsManager = new ClientsManager(clientsSet);
+  clientsManager = new ClientsManager(metrics_, clientsSet);
   clientsManager->initInternalClientInfo(config_.getnumReplicas());
   internalBFTClient_.reset(new InternalBFTClient(
       config_.getreplicaId(), clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
