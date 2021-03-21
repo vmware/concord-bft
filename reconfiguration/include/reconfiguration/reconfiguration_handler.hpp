@@ -22,14 +22,25 @@ namespace concord::reconfiguration {
 
 class ReconfigurationHandler : public IReconfigurationHandler {
  public:
-  bool handle(const concord::messages::WedgeCommand&) override;
-  bool handle(const concord::messages::WedgeStatusRequest&, concord::messages::WedgeStatusResponse&) override;
-  bool handle(const concord::messages::GetVersionCommand&, concord::messages::GetVersionResponse&) override;
-  bool handle(const concord::messages::DownloadCommand&) override;
-  bool handle(const concord::messages::DownloadStatusCommand&, concord::messages::DownloadStatus&) override;
-  bool handle(const concord::messages::InstallCommand& cmd, uint64_t) override;
-  bool handle(const concord::messages::InstallStatusCommand& cmd, concord::messages::InstallStatusResponse&) override;
-  bool verifySignature(const concord::messages::ReconfigurationRequest&) const override;
+  bool handle(const concord::messages::WedgeCommand&, concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::WedgeStatusRequest&,
+              concord::messages::WedgeStatusResponse&,
+              concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::GetVersionCommand&,
+              concord::messages::GetVersionResponse&,
+              concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::DownloadCommand&, concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::DownloadStatusCommand&,
+              concord::messages::DownloadStatus&,
+              concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::InstallCommand& cmd,
+              uint64_t,
+              concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::InstallStatusCommand& cmd,
+              concord::messages::InstallStatusResponse&,
+              concord::messages::ReconfigurationErrorMsg&) override;
+  bool verifySignature(const concord::messages::ReconfigurationRequest&,
+                       concord::messages::ReconfigurationErrorMsg&) const override;
 
  protected:
   logging::Logger getLogger() {

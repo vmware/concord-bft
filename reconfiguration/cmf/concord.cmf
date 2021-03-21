@@ -75,6 +75,9 @@ Msg GetVersionResponse 23 {
   string version
 }
 
+Msg ReconfigurationErrorMsg 24 {
+    string error_msg
+}
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -102,6 +105,7 @@ Msg ReconfigurationResponse 2 {
     DownloadStatus
     InstallStatusResponse
     GetVersionResponse
+    ReconfigurationErrorMsg
   } response
   bytes additional_data
 }

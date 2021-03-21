@@ -854,6 +854,33 @@ class GetVersionResponse():
             return False
         return True
 
+class ReconfigurationErrorMsg():
+    ''' A CMF message for ReconfigurationErrorMsg '''
+    id = 24
+
+    def __init__(self):
+         self.error_msg = None
+
+
+    def serialize(self) -> bytes:
+        ''' Serialize this message in CMF format '''
+        serializer = CMFSerializer()
+        serializer.serialize(self.error_msg, ['string'], None)
+        return serializer.buf
+
+    @classmethod
+    def deserialize(cls, buf):
+        ''' Take bytes of a serialized CMF message, deserialize it, and return a new instance of this class. '''
+        deserializer = CMFDeserializer(buf)
+        obj = cls()
+        obj.error_msg = deserializer.deserialize(['string'], None)
+        return obj, deserializer.pos
+
+    def __eq__(self, other):
+        if self.error_msg != other.error_msg:
+            return False
+        return True
+
 class ReconfigurationRequest():
     ''' A CMF message for ReconfigurationRequest '''
     id = 1
@@ -905,7 +932,7 @@ class ReconfigurationResponse():
         ''' Serialize this message in CMF format '''
         serializer = CMFSerializer()
         serializer.serialize(self.success, ['bool'], None)
-        serializer.serialize(self.response, [('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11, 'InstallStatusResponse': 22, 'GetVersionResponse': 23})], None)
+        serializer.serialize(self.response, [('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11, 'InstallStatusResponse': 22, 'GetVersionResponse': 23, 'ReconfigurationErrorMsg': 24})], None)
         serializer.serialize(self.additional_data, ['bytes'], None)
         return serializer.buf
 
@@ -915,7 +942,7 @@ class ReconfigurationResponse():
         deserializer = CMFDeserializer(buf)
         obj = cls()
         obj.success = deserializer.deserialize(['bool'], None)
-        obj.response = deserializer.deserialize([('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11, 'InstallStatusResponse': 22, 'GetVersionResponse': 23})], None)
+        obj.response = deserializer.deserialize([('oneof', {'WedgeStatusResponse': 6, 'LatestPrunableBlock': 14, 'PruneStatus': 18, 'DownloadStatus': 11, 'InstallStatusResponse': 22, 'GetVersionResponse': 23, 'ReconfigurationErrorMsg': 24})], None)
         obj.additional_data = deserializer.deserialize(['bytes'], None)
         return obj, deserializer.pos
 

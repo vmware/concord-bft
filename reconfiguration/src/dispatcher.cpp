@@ -29,59 +29,67 @@ namespace concord::reconfiguration {
 ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& request, uint64_t sequence_num) {
   ReconfigurationResponse rresp;
   rresp.success = true;
+  concord::messages::ReconfigurationErrorMsg error_msg;
   try {
-    for (auto& handler : reconfig_handlers_) rresp.success &= handler->verifySignature(request);
+    for (auto& handler : reconfig_handlers_) rresp.success &= handler->verifySignature(request, error_msg);
     if (!rresp.success) {
       ADDITIONAL_DATA(rresp, "Request signature verification failure");
+      rresp.response.emplace<concord::messages::ReconfigurationErrorMsg>(error_msg);
       return rresp;
     }
     if (holds_alternative<WedgeCommand>(request.command)) {
       const_cast<WedgeCommand&>(std::get<WedgeCommand>(request.command)).stop_seq_num = sequence_num;
       for (auto& handler : reconfig_handlers_)
-        rresp.success |= handler->handle(std::get<WedgeCommand>(request.command));
+        rresp.success |= handler->handle(std::get<WedgeCommand>(request.command), error_msg);
+
     } else if (holds_alternative<WedgeStatusRequest>(request.command)) {
       WedgeStatusResponse wedge_response;
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<WedgeStatusRequest>(request.command), wedge_response);
+        rresp.success &= handler->handle(std::get<WedgeStatusRequest>(request.command), wedge_response, error_msg);
       rresp.response.emplace<WedgeStatusResponse>(wedge_response);
+
     } else if (holds_alternative<GetVersionCommand>(request.command)) {
       LOG_INFO(getLogger(), "GetVersionCommand");
       concord::messages::GetVersionResponse response;
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command), response);
+        rresp.success &= handler->handle(std::get<GetVersionCommand>(request.command), response, error_msg);
+
       rresp.response.emplace<concord::messages::GetVersionResponse>(response);
     } else if (holds_alternative<DownloadCommand>(request.command)) {
       LOG_INFO(getLogger(), "DownloadCommand");
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<DownloadCommand>(request.command));
+        rresp.success &= handler->handle(std::get<DownloadCommand>(request.command), error_msg);
+
     } else if (holds_alternative<InstallCommand>(request.command)) {
       LOG_INFO(getLogger(), "InstallCommand");
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<InstallCommand>(request.command), sequence_num);
+        rresp.success &= handler->handle(std::get<InstallCommand>(request.command), sequence_num, error_msg);
+
     } else if (holds_alternative<InstallStatusCommand>(request.command)) {
       LOG_INFO(getLogger(), "InstallStatusCommand");
       InstallStatusResponse response;
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(std::get<InstallStatusCommand>(request.command), response);
+        rresp.success &= handler->handle(std::get<InstallStatusCommand>(request.command), response, error_msg);
       rresp.response.emplace<InstallStatusResponse>(response);
     } else if (holds_alternative<LatestPrunableBlockRequest>(request.command)) {
       LOG_INFO(getLogger(), "LatestPrunableBlockRequest");
       LatestPrunableBlock last_pruneable_block;
       for (auto& handler : pruning_handlers_)
-        rresp.success &= handler->handle(std::get<LatestPrunableBlockRequest>(request.command), last_pruneable_block);
+        rresp.success &=
+            handler->handle(std::get<LatestPrunableBlockRequest>(request.command), last_pruneable_block, error_msg);
       rresp.response.emplace<LatestPrunableBlock>(last_pruneable_block);
     } else if (holds_alternative<PruneRequest>(request.command)) {
       LOG_INFO(getLogger(), "PruneRequest");
       kvbc::BlockId latest_prunable_block_id = 0;
       for (auto& handler : pruning_handlers_)
         rresp.success &=
-            handler->handle(std::get<PruneRequest>(request.command), latest_prunable_block_id, sequence_num);
+            handler->handle(std::get<PruneRequest>(request.command), latest_prunable_block_id, sequence_num, error_msg);
       ADDITIONAL_DATA(rresp, std::to_string(latest_prunable_block_id));
     } else if (holds_alternative<PruneStatusRequest>(request.command)) {
       LOG_INFO(getLogger(), "PruneStatus");
       PruneStatus status;
       for (auto& handler : pruning_handlers_)
-        rresp.success &= handler->handle(std::get<PruneStatusRequest>(request.command), status);
+        rresp.success &= handler->handle(std::get<PruneStatusRequest>(request.command), status, error_msg);
       rresp.response.emplace<PruneStatus>(status);
     } else {
       LOG_ERROR(getLogger(), "Reconfiguration request validation failed: No command set");
@@ -90,6 +98,8 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     ADDITIONAL_DATA(rresp,
                     "Reconfiguration request " + std::to_string(sequence_num) + " failed, exception: " + e.what());
   }
+  // If there was any error, replace the reply with the error message.
+  if (!error_msg.error_msg.empty()) rresp.response.emplace<concord::messages::ReconfigurationErrorMsg>(error_msg);
   return rresp;
 }
 

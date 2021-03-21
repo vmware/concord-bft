@@ -148,7 +148,8 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
 }
 
 bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
-                            concord::messages::LatestPrunableBlock& latest_prunable_block) {
+                            concord::messages::LatestPrunableBlock& latest_prunable_block,
+                            concord::messages::ReconfigurationErrorMsg& error_msg) {
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
 
@@ -162,25 +163,25 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   return true;
 }
 
-bool PruningHandler::handle(const concord::messages::PruneRequest& request, kvbc::BlockId& bid, uint64_t bftSeqNum) {
-  if (!pruning_enabled_) {
-    const auto msg = "PruningHandler pruning is disabled, returning an error on PruneRequest";
-    LOG_WARN(logger_, msg);
-    return true;
-  }
+bool PruningHandler::handle(const concord::messages::PruneRequest& request,
+                            kvbc::BlockId& bid,
+                            uint64_t bftSeqNum,
+                            concord::messages::ReconfigurationErrorMsg& error_msg) {
+  if (!pruning_enabled_) return true;
 
   const auto sender = request.sender;
 
   if (!verifier_.verify(request)) {
-    LOG_WARN(logger_,
-             "PruningHandler failed to verify PruneRequest from principal_id "
-                 << sender
-                 << " on the grounds that the pruning request did not include "
-                    "LatestPrunableBlock responses from the required replicas, or "
-                    "on the grounds that some non-empty subset of those "
-                    "LatestPrunableBlock messages did not bear correct signatures "
-                    "from the claimed replicas.");
+    auto error = "PruningHandler failed to verify PruneRequest from principal_id " + std::to_string(sender) +
+                 " on the grounds that the pruning request did not include "
+                 "LatestPrunableBlock responses from the required replicas, or "
+                 "on the grounds that some non-empty subset of those "
+                 "LatestPrunableBlock messages did not bear correct signatures "
+                 "from the claimed replicas.";
+    LOG_WARN(logger_, error);
+    error_msg.error_msg = error;
     bid = 0;
+
     return false;
   }
 
@@ -296,7 +297,8 @@ void PruningHandler::pruneOnStateTransferCompletion(uint64_t checkpoint_number) 
 }
 
 bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
-                            concord::messages::PruneStatus& prune_status) {
+                            concord::messages::PruneStatus& prune_status,
+                            concord::messages::ReconfigurationErrorMsg& error_msg) {
   if (!pruning_enabled_) return true;
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   std::lock_guard lock(pruning_status_lock_);

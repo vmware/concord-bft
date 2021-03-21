@@ -146,9 +146,16 @@ class PruningHandler : public reconfiguration::IPruningHandler {
                  kvbc::IBlocksDeleter &,
                  bftEngine::IStateTransfer &,
                  bool run_async = false);
-  bool handle(const concord::messages::LatestPrunableBlockRequest &, concord::messages::LatestPrunableBlock &) override;
-  bool handle(const concord::messages::PruneRequest &, kvbc::BlockId &, uint64_t bftSeqNum) override;
-  bool handle(const concord::messages::PruneStatusRequest &, concord::messages::PruneStatus &) override;
+  bool handle(const concord::messages::LatestPrunableBlockRequest &,
+              concord::messages::LatestPrunableBlock &,
+              concord::messages::ReconfigurationErrorMsg &) override;
+  bool handle(const concord::messages::PruneRequest &,
+              kvbc::BlockId &,
+              uint64_t bftSeqNum,
+              concord::messages::ReconfigurationErrorMsg &) override;
+  bool handle(const concord::messages::PruneStatusRequest &,
+              concord::messages::PruneStatus &,
+              concord::messages::ReconfigurationErrorMsg &) override;
   static std::string lastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
 
  protected:
