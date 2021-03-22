@@ -20,6 +20,7 @@
 #include "SeqNumInfo.hpp"
 #include "bftengine/ISecureStore.hpp"
 #include "PersistentStorage.hpp"
+#include "secrets_manager_impl.h"
 
 namespace bftEngine::impl {
 class KeyManager {
@@ -54,6 +55,20 @@ class KeyManager {
     void save(const std::string& str);
     std::string load();
     static uint32_t maxSize() { return 4096; }
+  };
+
+  class EncryptedFileSecureStore : public ISecureStore {
+    FileSecureStore store;
+    const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsMgr;
+
+   public:
+    EncryptedFileSecureStore(const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm,
+                             const std::string& path,
+                             uint16_t id,
+                             const std::string& postfix = "")
+        : store{path, id, postfix}, secretsMgr{sm} {}
+    void save(const std::string& str);
+    std::string load();
   };
 
   // A private key has three states

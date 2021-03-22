@@ -360,4 +360,27 @@ std::string KeyManager::FileSecureStore::load() {
   return strStream.str();
 }
 
+void KeyManager::EncryptedFileSecureStore::save(const std::string& str) {
+  auto enc = secretsMgr->encryptString(str);
+  if (!enc.has_value()) {
+    LOG_FATAL(KEY_EX_LOG, "Couldn't encrypt value while saving key file to " << store.fileName);
+    ConcordAssert(false);
+  }
+  store.save(enc.value());
+}
+
+std::string KeyManager::EncryptedFileSecureStore::load() {
+  auto enc = store.load();
+  if (enc.length() == 0) {
+    return enc;
+  }
+
+  auto res = secretsMgr->decryptString(enc);
+  if (res.has_value()) {
+    return res.value();
+  } else {
+    return "";  // this is the behaviour of FileSecureStore
+  }
+}
+
 }  // namespace bftEngine::impl
