@@ -20,6 +20,7 @@
 #include <random>
 
 #include <boost/program_options.hpp>
+#include <boost/program_options/errors.hpp>
 #include <boost/program_options/value_semantic.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <rocksdb/db.h>
@@ -73,8 +74,11 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
       "The multiple of keys and values stored across all categories per block")
 
     ("total-blocks",
-     po::value<size_t>()->default_value(1000),
-     "Number of total blocks to add during the test.")
+     po::value<size_t>()->default_value(1000)->notifier([] (size_t v) {
+       if (v < std::thread::hardware_concurrency()) {
+          throw po::validation_error{po::validation_error::invalid_option_value, "total-blocks", std::to_string(v)};
+       }}),
+     "Number of total blocks to add during the test. Must be at least the number of CPUs in the system.")
 
     ("stats-dump-period-in-blocks",
     po::value<size_t>()->default_value(10000),
@@ -170,6 +174,7 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
 
   auto config = po::variables_map{};
   po::store(po::parse_command_line(argc, argv, desc), config);
+  po::notify(config);
   return std::make_pair(desc, config);
 }
 
@@ -271,8 +276,6 @@ void addBlocks(const po::variables_map& config,
               << KVLOG(total_blocks, generated_input_blocks);
   }
 
-  auto max_merkle_read_offset = input.block_merkle_read_keys.size() - num_merkle_versions_to_read;
-  auto max_versioned_read_offset = input.ver_read_keys.size() - num_versioned_versions_to_read;
   auto batch_size = config["batch-size"].as<size_t>();
   for (auto i = 1u; i <= total_blocks; i++) {
     // Print Memory Stats every 10k blocks
@@ -283,9 +286,9 @@ void addBlocks(const po::variables_map& config,
     // We need to read a set of key versions for each request in a block
     for (auto j = 0u; j <= batch_size; j++) {
       // Generate a random offset in the read_keys and then create vector to pass in.
-      auto merkle_start = input.block_merkle_read_keys.begin() + (rand() % max_merkle_read_offset);
+      auto merkle_start = randomReadIter(input.block_merkle_read_keys, num_merkle_versions_to_read);
       auto merkle_conflict_keys = std::vector<std::string>(merkle_start, merkle_start + num_merkle_versions_to_read);
-      auto versioned_start = input.ver_read_keys.begin() + (rand() % max_versioned_read_offset);
+      auto versioned_start = randomReadIter(input.ver_read_keys, num_versioned_versions_to_read);
       auto versioned_conflict_keys =
           std::vector<std::string>(versioned_start, versioned_start + num_versioned_versions_to_read);
 
