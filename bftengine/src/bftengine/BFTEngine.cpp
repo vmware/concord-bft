@@ -118,9 +118,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  IRequestsHandler *requestsHandler,
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
-                                                 MetadataStorage *metadataStorage,
-                                                 bool &erasedMetadata) {
-  erasedMetadata = false;
+                                                 MetadataStorage *metadataStorage) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -130,14 +128,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
   }
 
   shared_ptr<PersistentStorage> persistentStoragePtr;
-  uint16_t numOfObjects = 0;
-  bool isNewStorage = true;
-
   if (replicaConfig.debugPersistentStorageEnabled)
     if (metadataStorage == nullptr)
       persistentStoragePtr.reset(new impl::DebugPersistentStorage(replicaConfig.fVal, replicaConfig.cVal));
 
   // Testing/real metadataStorage passed.
+  uint16_t numOfObjects = 0;
+  bool isNewStorage = true;
   if (metadataStorage != nullptr) {
     persistentStoragePtr.reset(new impl::PersistentStorageImp(replicaConfig.fVal, replicaConfig.cVal));
     unique_ptr<MetadataStorage> metadataStoragePtr(metadataStorage);
@@ -146,10 +143,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
     bool erasedMetaData;
     ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr), erasedMetaData);
-    if (erasedMetaData) {
-      isNewStorage = true;
-      erasedMetadata = true;
-    }
+    if (erasedMetaData) isNewStorage = true;
   }
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
@@ -193,14 +187,6 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
   return replicaInternal;
 }
 
-IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaConfig,
-                                                 IRequestsHandler *requestsHandler,
-                                                 IStateTransfer *stateTransfer,
-                                                 bft::communication::ICommunication *communication,
-                                                 MetadataStorage *metadataStorage) {
-  bool dummy;
-  return createNewReplica(replicaConfig, requestsHandler, stateTransfer, communication, metadataStorage, dummy);
-}
 IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaConfig,
                                                    IStateTransfer *stateTransfer,
                                                    bft::communication::ICommunication *communication) {

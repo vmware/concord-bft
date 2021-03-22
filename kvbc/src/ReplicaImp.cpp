@@ -62,19 +62,17 @@ Status ReplicaImp::start() {
 }
 
 void ReplicaImp::createReplicaAndSyncState() {
-  bool isNewStorage = m_metadataStorage->isNewStorage();
-  bool erasedMetaData;
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData);
-  if (erasedMetaData) isNewStorage = true;
-  LOG_INFO(logger, "createReplicaAndSyncState: isNewStorage= " << isNewStorage);
-  if (!isNewStorage && !m_stateTransfer->isCollectingState()) {
-    uint64_t removedBlocksNum = replicaStateSync_->execute(
-        logger, *m_bcDbAdapter, getLastReachableBlockNum(), m_replicaPtr->getLastExecutedSequenceNum());
-    LOG_INFO(logger,
-             "createReplicaAndSyncState: removedBlocksNum = "
-                 << removedBlocksNum << ", new m_lastBlock = " << getLastBlockNum()
-                 << ", new m_lastReachableBlock = " << getLastReachableBlockNum());
+      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
+  const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
+  LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
+  if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
+    try {
+      uint64_t removedBlocksNum = replicaStateSync_->execute(logger, *m_bcDbAdapter, lastExecutedSeqNum);
+      LOG_INFO(logger, KVLOG(lastExecutedSeqNum, removedBlocksNum, getLastBlockNum(), getLastReachableBlockNum()));
+    } catch (std::exception &e) {
+      std::terminate();
+    }
   }
 }
 

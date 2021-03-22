@@ -25,10 +25,7 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
   ReplicaStateSyncImp(IBlockMetadata* blockMetadata);
   ~ReplicaStateSyncImp() override = default;
 
-  uint64_t execute(logging::Logger& logger,
-                   IDbAdapter& bcDBAdapter,
-                   BlockId lastReachableBlockId,
-                   uint64_t lastExecutedSeqNum) override;
+  uint64_t execute(logging::Logger& logger, IDbAdapter& bcDBAdapter, uint64_t lastExecutedSeqNum) override;
 
  protected:
   std::unique_ptr<IBlockMetadata> blockMetadata_;
