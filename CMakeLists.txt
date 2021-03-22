@@ -89,7 +89,7 @@ if(LEAKCHECK)
     message("-- Address and Leak Sanitizers Enabled")
 endif()
 if(THREADCHECK)
-    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread")
+    string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread -O2 -g")
     message("-- Thread Sanitizer Enabled")
 endif()
 

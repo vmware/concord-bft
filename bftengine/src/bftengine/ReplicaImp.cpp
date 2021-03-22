@@ -40,6 +40,7 @@
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
+#include "messages/InternalMessage.hpp"
 #include "KeyManager.h"
 #include "CryptoManager.hpp"
 
@@ -1105,6 +1106,11 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   if (auto *rpr = std::get_if<RetranProcResultInternalMsg>(&msg)) {
     onRetransmissionsProcessingResults(rpr->lastStableSeqNum, rpr->view, rpr->suggestedRetransmissions);
     return retransmissionsManager->OnProcessingComplete();
+  }
+
+  // Handle a state transfer completion
+  if (auto *stc = std::get_if<StateTransferCompleteMsg>(&msg)) {
+    return onStateTransferCompleted(stc->newStateCheckpointNum);
   }
 
   // Handle a status request for the diagnostics subsystem
@@ -2569,6 +2575,11 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
+  InternalMessage iMsg{StateTransferCompleteMsg{newStateCheckpoint}};
+  getIncomingMsgsStorage().pushInternalMsg(std::move(iMsg));
+}
+
+void ReplicaImp::onStateTransferCompleted(uint64_t newStateCheckpoint) {
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
