@@ -104,7 +104,8 @@ target_link_libraries(corebft PUBLIC
   preprocessor
   bftcommunication
   diagnostics
-  concordbft_reconfiguration)
+  concordbft_reconfiguration
+  secretsmanager)
 
 
 target_include_directories(bftclient PUBLIC include/bftengine)

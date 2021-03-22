@@ -112,7 +112,8 @@ class ReplicaImp : public IReplica,
              std::unique_ptr<IStorageFactory> storageFactory,
              std::shared_ptr<concordMetrics::Aggregator> aggregator,
              const std::shared_ptr<concord::performance::PerformanceManager> &pm,
-             std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories);
+             std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
+             const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
@@ -174,6 +175,9 @@ class ReplicaImp : public IReplica,
   std::unique_ptr<ReplicaStateSync> replicaStateSync_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_;
+  // secretsManager_ can be nullptr. This means that encrypted configuration is not enabled
+  // and there is no instance of SecretsManagerEnc available
+  const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsManager_;
 
   // 5 Minutes
   static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;

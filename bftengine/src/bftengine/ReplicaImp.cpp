@@ -3173,7 +3173,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                        shared_ptr<PersistentStorage> persistentStorage,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
-                       shared_ptr<concord::performance::PerformanceManager> &pm)
+                       shared_ptr<concord::performance::PerformanceManager> &pm,
+                       const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm)
     : ReplicaImp(false,
                  ld.repConfig,
                  requestsHandler,
@@ -3184,7 +3185,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  msgsCommunicator,
                  msgHandlers,
                  timers,
-                 pm) {
+                 pm,
+                 sm) {
   ConcordAssertNE(persistentStorage, nullptr);
 
   ps_ = persistentStorage;
@@ -3435,7 +3437,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        shared_ptr<PersistentStorage> persistentStorage,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
-                       shared_ptr<concord::performance::PerformanceManager> &pm)
+                       shared_ptr<concord::performance::PerformanceManager> &pm,
+                       const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm)
     : ReplicaImp(true,
                  config,
                  requestsHandler,
@@ -3446,7 +3449,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                  msgsCommunicator,
                  msgHandlers,
                  timers,
-                 pm) {
+                 pm,
+                 sm) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3466,7 +3470,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
                        shared_ptr<MsgHandlersRegistrator> msgHandlers,
                        concordUtil::Timers &timers,
-                       shared_ptr<concord::performance::PerformanceManager> &pm)
+                       shared_ptr<concord::performance::PerformanceManager> &pm,
+                       const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm)
     : ReplicaForStateTransfer(config, requestsHandler, stateTrans, msgsCommunicator, msgHandlers, firstTime, timers),
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
@@ -3477,6 +3482,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       timeOfLastAgreedView{getMonotonicTime()},    // TODO(GG): TBD
       complainedReplicas(config),
       pm_{pm},
+      sm_{sm},
       metric_view_{metrics_.RegisterGauge("view", curView)},
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},

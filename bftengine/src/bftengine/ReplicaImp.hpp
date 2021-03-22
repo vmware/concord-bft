@@ -37,6 +37,7 @@
 #include "ReplicaStatusHandlers.hpp"
 #include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "PerformanceManager.hpp"
+#include "secrets_manager_impl.h"
 
 namespace bftEngine::impl {
 
@@ -168,6 +169,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 
+  // secretsManager_ can be nullptr. This means that encrypted configuration is not enabled
+  // and there is no instance of SecretsManagerEnc available
+  shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -247,7 +252,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
-             shared_ptr<concord::performance::PerformanceManager>& pm);
+             shared_ptr<concord::performance::PerformanceManager>& pm,
+             const shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm);
 
   ReplicaImp(const LoadedReplicaData&,
              shared_ptr<IRequestsHandler>,
@@ -256,7 +262,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
-             shared_ptr<concord::performance::PerformanceManager>& pm);
+             shared_ptr<concord::performance::PerformanceManager>& pm,
+             const shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm);
 
   virtual ~ReplicaImp();
 
@@ -266,6 +273,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   virtual bool isReadOnly() const override { return false; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> getSecretsManager() { return sm_; }
 
   void recoverRequests();
 
@@ -303,7 +311,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgsCommunicator>,
              shared_ptr<MsgHandlersRegistrator>,
              concordUtil::Timers& timers,
-             shared_ptr<concord::performance::PerformanceManager>& pm);
+             shared_ptr<concord::performance::PerformanceManager>& pm,
+             const shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm);
 
   void registerMsgHandlers();
 
