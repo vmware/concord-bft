@@ -33,7 +33,8 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     python3-setuptools \
     sudo \
     vim \
-    wget
+    wget \
+    lzip
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
@@ -45,7 +46,6 @@ apt-get ${APT_GET_FLAGS} install \
     libboost-program-options1.65-dev \
     libboost1.65-dev \
     libbz2-dev \
-    libgmp3-dev \
     liblz4-dev \
     libs3-dev \
     libsnappy-dev \
@@ -117,6 +117,19 @@ wget ${WGET_FLAGS} \
     rm -r ${HOME}/cryptopp-CRYPTOPP_8_2_0
 
 cd ${HOME}
+wget --no-check-certificate https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz && \
+    tar --lzip -xf gmp-6.1.2.tar.lz && \
+    cd gmp-6.1.2/ && \
+    ./configure CFLAGS=-fPIC CXXFLAGS=-fPIC && \
+    make && \
+    make check && \
+    make install && \
+    ldconfig && \
+    cd ../ && \
+    rm -rf gmp-6.1.2/
+
+
+cd ${HOME}
 git clone https://github.com/relic-toolkit/relic && \
     cd relic && \
     git checkout 0998bfcb6b00aec85cf8d755d2a70d19ea3051fd && \
@@ -129,7 +142,7 @@ git clone https://github.com/relic-toolkit/relic && \
             -DCHECK=on -DVERBS=on \
             -DARITH=x64-asm-254 -DFP_PRIME=254 \
             -DFP_METHD="INTEG;INTEG;INTEG;MONTY;LOWER;SLIDE" \
-            -DCOMP="-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=x86-64 -mtune=generic" \
+            -DCOMP="-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=x86-64 -mtune=generic -fPIC" \
             -DFP_PMERS=off -DFP_QNRES=on \
             -DFPX_METHD="INTEG;INTEG;LAZYR" -DPP_METHD="LAZYR;OATEP" .. && \
     make -j$(nproc) && \
