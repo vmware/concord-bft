@@ -27,6 +27,10 @@
 #include "PerformanceManager.hpp"
 #include "IRequestHandler.hpp"
 
+namespace concord::secretsmanager {
+class ISecretsManagerImpl;
+}
+
 namespace bftEngine {
 // Possible values for 'flags' parameter
 enum MsgFlag : uint8_t {
@@ -75,15 +79,16 @@ class IReplica {
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
-                                      std::shared_ptr<concord::performance::PerformanceManager> sdm =
-                                          std::make_shared<concord::performance::PerformanceManager>());
+                                      std::shared_ptr<concord::performance::PerformanceManager> pm,
+                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm);
   static IReplicaPtr createNewReplica(const ReplicaConfig &,
                                       std::shared_ptr<IRequestsHandler>,
                                       IStateTransfer *,
                                       bft::communication::ICommunication *,
                                       MetadataStorage *,
                                       bool &erasedMetadata,
-                                      std::shared_ptr<concord::performance::PerformanceManager> sdm);
+                                      std::shared_ptr<concord::performance::PerformanceManager> pm,
+                                      const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm);
 
   static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
                                         std::shared_ptr<IRequestsHandler>,

@@ -99,7 +99,8 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
                                   persistentStorage,
                                   replicaImp->getMsgHandlersRegistrator(),
                                   replicaImp->timers(),
-                                  pm));
+                                  pm,
+                                  replicaImp->getSecretsManager()));
 
   } else {
     //  TODO [TK] rep.reset(new ReadOnlyReplicaImp());
@@ -116,7 +117,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  IStateTransfer *stateTransfer,
                                                  bft::communication::ICommunication *communication,
                                                  MetadataStorage *metadataStorage,
-                                                 std::shared_ptr<concord::performance::PerformanceManager> pm) {
+                                                 std::shared_ptr<concord::performance::PerformanceManager> pm,
+                                                 const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm) {
   {
     std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
     if (!cryptoInitialized) {
@@ -160,7 +162,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    persistentStoragePtr,
                                                    msgHandlersPtr,
                                                    timers,
-                                                   pm));
+                                                   pm,
+                                                   sm));
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -176,7 +179,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    persistentStoragePtr,
                                                    msgHandlersPtr,
                                                    timers,
-                                                   pm));
+                                                   pm,
+                                                   sm));
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,
                                                  incomingMsgsStoragePtr,

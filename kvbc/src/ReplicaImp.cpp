@@ -69,7 +69,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_);
+      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
@@ -180,7 +180,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
                        std::unique_ptr<IStorageFactory> storageFactory,
                        std::shared_ptr<concordMetrics::Aggregator> aggregator,
                        const std::shared_ptr<concord::performance::PerformanceManager> &pm,
-                       std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories)
+                       std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
+                       const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager)
     : logger(logging::getLogger("skvbc.replicaImp")),
       m_currentRepStatus(RepStatus::Idle),
       m_dbSet{storageFactory->newDatabaseSet()},
@@ -189,7 +190,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
       m_ptrComm(comm),
       replicaConfig_(replicaConfig),
       aggregator_(aggregator),
-      pm_{pm} {
+      pm_{pm},
+      secretsManager_{secretsManager} {
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
