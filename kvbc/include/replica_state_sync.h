@@ -32,7 +32,6 @@ class ReplicaStateSync {
   // Synchronizes replica state and returns a number of deleted blocks.
   virtual uint64_t execute(logging::Logger& logger,
                            categorization::KeyValueBlockchain& blockchain,
-                           BlockId lastReachableBlockId,
                            uint64_t lastExecutedSeqNum) = 0;
 };
 
