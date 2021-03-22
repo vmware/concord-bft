@@ -18,6 +18,10 @@ if(LEAKCHECK)
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
 endif()
 
+if(THREADCHECK)
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TSAN_OPTIONS=\"history_size=7 external_symbolizer_path=/usr/lib/llvm-6.0/bin/llvm-symbolizer\"")
+endif()
+
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 
 if (OMIT_TEST_OUTPUT)

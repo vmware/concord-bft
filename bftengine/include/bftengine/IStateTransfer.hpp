@@ -68,6 +68,7 @@ class IStateTransfer : public IReservedPages {
   // Accepts the checkpoint number as a parameter.
   // Callbacks must not throw.
   // Multiple callbacks can be added.
+  // If callback read/writes to another thread data context, remember to synchronize between threads.
   virtual void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) = 0;
 
   virtual void setEraseMetadataFlag() = 0;

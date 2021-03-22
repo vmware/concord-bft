@@ -17,6 +17,7 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "SignatureInternalMsgs.hpp"
+#include "messages/StateTransferInternalMsgs.hpp"
 
 namespace bftEngine::impl {
 
@@ -56,6 +57,9 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      RetranProcResultInternalMsg,
 
                                      // Diagnostics related
-                                     GetStatus>;
+                                     GetStatus,
+
+                                     // State Transfer Complete
+                                     StateTransferCompleteMsg>;
 
 }  // namespace bftEngine::impl
