@@ -3306,8 +3306,16 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
         // examples below)
       }
-      std::shared_ptr<ISecureStore> secStore(
-          new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
+      std::shared_ptr<ISecureStore> secStore;
+      // If sm_ has a SecretsManager instance - encrypted config is enabled and EncryptedFileSecureStore is used
+      if (sm_) {
+        secStore.reset(new KeyManager::EncryptedFileSecureStore(
+            sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
+      } else {
+        secStore.reset(
+            new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
+      }
+
       if (e.getSlowStarted()) {
         seqNumInfo.startSlowPath();
 
@@ -3736,10 +3744,20 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   // requires the init of state transfer
-  std::shared_ptr<ISecureStore> sec(
-      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
-  std::shared_ptr<ISecureStore> backupsec(
-      new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
+  std::shared_ptr<ISecureStore> sec;
+  std::shared_ptr<ISecureStore> backupsec;
+  // If sm_ has a SecretsManager instance - encrypted config is enabled and EncryptedFileSecureStore is used
+  if (sm_) {
+    sec.reset(new KeyManager::EncryptedFileSecureStore(
+        sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
+    backupsec.reset(new KeyManager::EncryptedFileSecureStore(
+        sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
+  } else {
+    sec.reset(new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
+    backupsec.reset(
+        new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
+  }
+
   KeyManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.getreplicaId();
