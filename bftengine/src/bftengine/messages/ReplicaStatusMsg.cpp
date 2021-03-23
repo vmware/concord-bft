@@ -44,9 +44,9 @@ MsgSize ReplicaStatusMsg::calcSizeOfReplicaStatusMsg(bool viewIsActive,
   else if (viewIsActive)
     return sizeof(ReplicaStatusMsg::Header) + maxNumberOfReplicasBitMaskSize;
   else if (listOfMissingViewChangeMsgForViewChange)
-    return sizeof(ReplicaStatusMsg::Header) + maxNumberOfReplicasBitMaskSize;
+    return sizeof(ReplicaStatusMsg::Header) + (2 * maxNumberOfReplicasBitMaskSize);
   else if (listOfMissingPrePrepareMsgForViewChange)
-    return sizeof(ReplicaStatusMsg::Header) + kWorkWindowBitMaskSize;
+    return sizeof(ReplicaStatusMsg::Header) + kWorkWindowBitMaskSize + maxNumberOfReplicasBitMaskSize;
   else
     return sizeof(ReplicaStatusMsg::Header);
 }
@@ -145,7 +145,7 @@ bool ReplicaStatusMsg::isPrePrepareInActiveWindow(SeqNum seqNum) const {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -156,7 +156,7 @@ bool ReplicaStatusMsg::isMissingViewChangeMsgForViewChange(ReplicaId replicaId) 
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -168,7 +168,7 @@ bool ReplicaStatusMsg::isMissingPrePrepareMsgForViewChange(SeqNum seqNum) const 
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
@@ -179,7 +179,7 @@ void ReplicaStatusMsg::setPrePrepareInActiveWindow(SeqNum seqNum) const {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -189,7 +189,7 @@ void ReplicaStatusMsg::setMissingViewChangeMsgForViewChange(ReplicaId replicaId)
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
@@ -200,37 +200,27 @@ void ReplicaStatusMsg::setMissingPrePrepareMsgForViewChange(SeqNum seqNum) {
   size_t index = (size_t)(seqNum - b()->lastStableSeqNum - 1);
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + payloadShift();
+  uint8_t* p = (uint8_t*)body() + payloadShift() + maxNumberOfReplicasBitMaskSize;
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
 bool ReplicaStatusMsg::hasComplaintFromReplica(ReplicaId replicaId) const {
   ConcordAssert(replicaId < MaxNumberOfReplicas);
 
-  auto shift = payloadShift();
-  if (hasListOfPrePrepareMsgsInActiveWindow()) {
-    shift += kWorkWindowBitMaskSize;
-  }
-
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + shift;
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   return ((p[byteIndex] & powersOf2[bitIndex]) != 0);
 }
 
 void ReplicaStatusMsg::setComplaintFromReplica(ReplicaId replicaId) {
   ConcordAssert(replicaId < MaxNumberOfReplicas);
 
-  auto shift = payloadShift();
-  if (hasListOfPrePrepareMsgsInActiveWindow()) {
-    shift += kWorkWindowBitMaskSize;
-  }
-
   size_t index = replicaId;
   size_t byteIndex = index / 8;
   size_t bitIndex = index % 8;
-  uint8_t* p = (uint8_t*)body() + shift;
+  uint8_t* p = (uint8_t*)body() + payloadShift();
   p[byteIndex] = p[byteIndex] | powersOf2[bitIndex];
 }
 
