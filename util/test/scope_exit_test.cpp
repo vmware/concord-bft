@@ -17,6 +17,7 @@
 
 #include <optional>
 
+// NOLINTNEXTLINE(misc-unused-using-decls)
 using concord::util::ScopeExit;
 
 TEST(scope_exit, call_on_exit) {

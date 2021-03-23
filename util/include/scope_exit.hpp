@@ -25,8 +25,10 @@ namespace concord::util {
 template <typename EF>
 class ScopeExit {
  public:
-  // Disable this constructor (accepting a forwarding reference) in favour of the move constructor in case the passed
+  // Disable this perferct forwarding constructor as it can hide the move constructor in case the passed
   // type is ScopeExit.
+  // Reported by clang-tidy:
+  // https://releases.llvm.org/5.0.1/tools/clang/tools/extra/docs/clang-tidy/checks/misc-forwarding-reference-overload.html
   template <typename Fn, typename = std::enable_if_t<!std::is_same_v<std::decay_t<Fn>, ScopeExit>>>
   explicit ScopeExit(Fn&& fn) noexcept : fn_{std::forward<Fn>(fn)} {}
 
