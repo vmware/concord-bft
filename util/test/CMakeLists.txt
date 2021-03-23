@@ -52,3 +52,7 @@ target_link_libraries(hex_tools_test GTest::Main util)
 add_executable(callback_registry_test callback_registry_test.cpp)
 add_test(callback_registry_test callback_registry_test)
 target_link_libraries(callback_registry_test GTest::Main util)
+
+add_executable(scope_exit_test scope_exit_test.cpp)
+add_test(scope_exit_test scope_exit_test)
+target_link_libraries(scope_exit_test GTest::Main util)
