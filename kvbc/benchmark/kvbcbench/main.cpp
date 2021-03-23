@@ -41,6 +41,7 @@
 #include "diagnostics_server.h"
 #include "input.h"
 #include "pre_execution.h"
+#include "pruning.h"
 
 using namespace std;
 
@@ -99,6 +100,21 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char**
     ("rocksdb-cache-size",
     po::value<size_t>()->default_value(CACHE_SIZE_DEFAULT),
     "Rocksdb Block Cache size")
+
+    /*********************************
+     Pruning Config
+     *********************************/
+    ("prune-blocks",
+    po::value<size_t>()->default_value(0),
+    "Number of blocks to prune. Must be less than total-blocks.")
+
+    ("start-pruning-at-block",
+    po::value<size_t>()->default_value(0),
+    "Start pruning after this block has been added. Must be bigger than prune-blocks. If 0, start after all blocks have been added.")
+
+    ("add-delay-during-pruning-ms",
+    po::value<size_t>()->default_value(0),
+    "Sleep for this amount of ms between block adds after pruning has started.")
 
     /*********************************
      Block Merkle Category Config
@@ -262,6 +278,7 @@ PreExecConfig preExecConfig(const po::variables_map& config,
 void addBlocks(const po::variables_map& config,
                std::shared_ptr<storage::rocksdb::NativeClient>& db,
                categorization::KeyValueBlockchain& kvbc,
+               Pruning& pruning,
                InputData& input,
                std::shared_ptr<diagnostics::Recorder>& add_block_recorder,
                std::shared_ptr<diagnostics::Recorder>& conflict_detection_recorder) {
@@ -277,6 +294,8 @@ void addBlocks(const po::variables_map& config,
   }
 
   auto batch_size = config["batch-size"].as<size_t>();
+  const auto start_pruning_at_block = config["start-pruning-at-block"].as<size_t>();
+  const auto add_delay = config["add-delay-during-pruning-ms"].as<size_t>();
   for (auto i = 1u; i <= total_blocks; i++) {
     // Print Memory Stats every 10k blocks
     if (i % stats_dump_period_in_blocks == 0) {
@@ -322,6 +341,13 @@ void addBlocks(const po::variables_map& config,
         kvbc.addBlock(std::move(updates));
       }
     }
+    if (start_pruning_at_block) {
+      if (i == start_pruning_at_block) {
+        pruning.start();
+      } else if (add_delay && i > start_pruning_at_block) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(add_delay));
+      }
+    }
   }
 }
 
@@ -343,6 +369,22 @@ int main(int argc, char** argv) {
     if (config.count("help")) {
       cout << desc << endl;
       return 1;
+    }
+
+    const auto total_blocks = config["total-blocks"].as<size_t>();
+    const auto prune_blocks = config["prune-blocks"].as<size_t>();
+    const auto start_pruning_at_block = config["start-pruning-at-block"].as<size_t>();
+    if (prune_blocks >= total_blocks) {
+      cerr << "prune-blocks [" << prune_blocks << "] must be less than total-blocks [" << total_blocks << "]\n";
+      return -1;
+    } else if (start_pruning_at_block && start_pruning_at_block <= prune_blocks) {
+      cerr << "start-pruning-at-block [" << start_pruning_at_block << "] must be bigger than prune-blocks ["
+           << prune_blocks << "]\n";
+      return -1;
+    } else if (start_pruning_at_block >= total_blocks) {
+      cerr << "start-pruning-at-block [" << start_pruning_at_block << "] must be less than total-blocks ["
+           << total_blocks << "]\n";
+      return -1;
     }
 
     diagnostics_server.start(registrar, INADDR_ANY, 6888);
@@ -373,20 +415,32 @@ int main(int argc, char** argv) {
     auto pre_exec_sim = PreExecutionSimulator(pre_exec_config, input.block_merkle_read_keys, input.ver_read_keys, kvbc);
     pre_exec_sim.start();
 
+    auto pruning = Pruning{prune_blocks, kvbc};
+
     cout << "Starting to Add Blocks..." << endl;
     start = std::chrono::steady_clock::now();
-    addBlocks(config, db, kvbc, input, add_block_recorder, conflict_detection_recorder);
+    addBlocks(config, db, kvbc, pruning, input, add_block_recorder, conflict_detection_recorder);
     end = std::chrono::steady_clock::now();
     auto add_block_duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
     cout << "Adding blocks completed in = " << add_block_duration / 1000.0 << " seconds" << endl << endl;
 
+    // 0 means start after all blocks have been added.
+    if (start_pruning_at_block == 0) {
+      pruning.start();
+    }
+
     pre_exec_sim.stop();
+    pruning.stop();
 
     printRocksDbProperties(db);
     printHistograms();
 
-    cout << "Avg. Throughput = " << config["total-blocks"].as<size_t>() / (add_block_duration / 1000.0) << " blocks/s"
-         << endl;
+    cout << "Avg. Add Throughput = " << total_blocks / (add_block_duration / 1000.0) << " blocks/s" << endl << endl;
+
+    if (pruning.blocks()) {
+      cout << "Pruning completed in = " << pruning.duration() / 1000.0 << " seconds" << endl;
+      cout << "Avg. Pruning Throughput = " << pruning.blocks() / (pruning.duration() / 1000.0) << " blocks/s" << endl;
+    }
   } catch (exception& e) {
     diagnostics_server.stop();
     cerr << e.what() << endl;

@@ -37,6 +37,31 @@ class categorized_kvbc : public ::testing::Test {
   void TearDown() override { cleanup(); }
 
  protected:
+  void addBlocks(std::size_t blocks, KeyValueBlockchain& blockchain) {
+    const auto tester = KeyValueBlockchain::KeyValueBlockchain_tester{};
+    const auto& categories = tester.getCategories(blockchain);
+    for (auto i = 0ull; i < blocks; ++i) {
+      auto updates = Updates{};
+      for (const auto& [category_id, category] : categories) {
+        if (std::holds_alternative<detail::BlockMerkleCategory>(category)) {
+          auto merkle = BlockMerkleUpdates{};
+          merkle.addUpdate("mk", "mv" + std::to_string(i));
+          updates.add(category_id, std::move(merkle));
+        } else if (std::holds_alternative<detail::VersionedKeyValueCategory>(category)) {
+          auto versioned = VersionedUpdates{};
+          versioned.addUpdate("vk", "vv" + std::to_string(i));
+          updates.add(category_id, std::move(versioned));
+        } else if (std::holds_alternative<detail::ImmutableKeyValueCategory>(category)) {
+          auto immutable = ImmutableUpdates{};
+          // Make sure immutable keys are unique by appending the index.
+          immutable.addUpdate("ik" + std::to_string(i), {"iv" + std::to_string(i), {}});
+          updates.add(category_id, std::move(immutable));
+        }
+      }
+      blockchain.addBlock(std::move(updates));
+    }
+  };
+
   std::shared_ptr<NativeClient> db;
 };
 
@@ -2029,6 +2054,82 @@ TEST_F(categorized_kvbc, root_hash) {
     std::string str_cached_rb(ser_cached_rb.begin(), ser_cached_rb.end());
     ASSERT_EQ(std::hash<std::string>{}(str_rb), std::hash<std::string>{}(str_cached_rb));
   }
+}
+
+TEST_F(categorized_kvbc, delete_blocks_until) {
+  const auto categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                               {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                               {"immutable", CATEGORY_TYPE::immutable}};
+  auto blockchain = KeyValueBlockchain{db, true, categories};
+
+  const auto blocks = 10u;
+  const auto new_genesis = 6;
+
+  // Add blocks and verify.
+  addBlocks(blocks, blockchain);
+  ASSERT_EQ(1, blockchain.getGenesisBlockId());
+  ASSERT_EQ(blocks, blockchain.getLastReachableBlockId());
+
+  // Delete blocks and verify.
+  ASSERT_EQ(new_genesis - 1, blockchain.deleteBlocksUntil(new_genesis));
+  ASSERT_EQ(new_genesis, blockchain.getGenesisBlockId());
+  ASSERT_EQ(blocks, blockchain.getLastReachableBlockId());
+}
+
+TEST_F(categorized_kvbc, delete_blocks_until_non_yet_existent_block) {
+  const auto categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                               {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                               {"immutable", CATEGORY_TYPE::immutable}};
+  auto blockchain = KeyValueBlockchain{db, true, categories};
+
+  const auto blocks = 3u;
+
+  // Add blocks and verify.
+  addBlocks(blocks, blockchain);
+  ASSERT_EQ(1, blockchain.getGenesisBlockId());
+  ASSERT_EQ(blocks, blockchain.getLastReachableBlockId());
+
+  // Until is incorrect.
+  ASSERT_THROW(blockchain.deleteBlocksUntil(blocks + 1), std::invalid_argument);
+  ASSERT_EQ(1, blockchain.getGenesisBlockId());
+  ASSERT_EQ(blocks, blockchain.getLastReachableBlockId());
+}
+
+TEST_F(categorized_kvbc, delete_blocks_until_empty_blockchain) {
+  auto blockchain =
+      KeyValueBlockchain{db, true, std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle}}};
+  ASSERT_THROW(blockchain.deleteBlocksUntil(42), std::logic_error);
+}
+
+TEST_F(categorized_kvbc, delete_blocks_until_with_invalid_until) {
+  auto blockchain =
+      KeyValueBlockchain{db, true, std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle}}};
+  addBlocks(3, blockchain);
+  ASSERT_TRUE(blockchain.deleteBlock(1));
+  ASSERT_EQ(2, blockchain.getGenesisBlockId());
+  ASSERT_THROW(blockchain.deleteBlocksUntil(1), std::invalid_argument);
+}
+
+TEST_F(categorized_kvbc, concurrent_pruning) {
+  const auto categories = std::map<std::string, CATEGORY_TYPE>{{"merkle", CATEGORY_TYPE::block_merkle},
+                                                               {"versioned", CATEGORY_TYPE::versioned_kv},
+                                                               {"immutable", CATEGORY_TYPE::immutable}};
+  auto blockchain = KeyValueBlockchain{db, true, categories};
+  const auto existing_blocks = 500;
+  const auto blocks_to_add = 700;
+  const auto prune_until = 201;
+
+  // Add blocks to the blockchain.
+  addBlocks(existing_blocks, blockchain);
+
+  // Prune concurrently with adding more blocks.
+  auto f = std::async(std::launch::async, [&]() { blockchain.deleteBlocksUntil(prune_until); });
+  addBlocks(blocks_to_add, blockchain);
+  f.wait();
+
+  // Make sure pruning and block addition completed.
+  ASSERT_EQ(prune_until, blockchain.getGenesisBlockId());
+  ASSERT_EQ(existing_blocks + blocks_to_add, blockchain.getLastReachableBlockId());
 }
 
 }  // end namespace

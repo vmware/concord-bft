@@ -149,10 +149,13 @@ void KeyValueBlockchain::loadCategories() {
 BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
-  auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
-  native_client_->write(std::move(write_batch));
-  block_chain_.setAddedBlockId(block_id);
-  return block_id;
+
+  return addBlock([&]() {
+    const auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
+    native_client_->write(std::move(write_batch));
+    block_chain_.setAddedBlockId(block_id);
+    return block_id;
+  });
 }
 
 BlockId KeyValueBlockchain::addBlock(CategoryInput&& category_updates,
@@ -476,6 +479,29 @@ void KeyValueBlockchain::deleteLastReachableBlock() {
   }
 }
 
+BlockId KeyValueBlockchain::deleteBlocksUntil(BlockId until) {
+  const auto genesis_block = getGenesisBlockId();
+  if (genesis_block == 0) {
+    throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
+  } else if (until <= genesis_block || until > getLastReachableBlockId()) {
+    throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
+  }
+
+  const auto last_reachable_block = getLastReachableBlockId();
+  const auto last_deleted_block = std::min(last_reachable_block, until - 1);
+  for (auto i = genesis_block; i <= last_deleted_block; ++i) {
+    auto lock = std::unique_lock{write_mtx_};
+    // If there's a pending block addition, wait until it completes before executing the delete. Essentially, give
+    // transactions and state transfer priority over pruning.
+    if (pending_add_) {
+      add_completed_.wait(lock, [this]() { return !pending_add_; });
+    }
+    [[maybe_unused]] const auto result = deleteBlock(i);
+    ConcordAssert(result);
+  }
+  return last_deleted_block;
+}
+
 std::vector<std::string> KeyValueBlockchain::getStaleKeys(BlockId block_id,
                                                           const std::string& category_id,
                                                           const ImmutableOutput& updates_info) const {
@@ -636,20 +662,23 @@ void KeyValueBlockchain::addRawBlock(const RawBlock& block, const BlockId& block
   }
 
   auto write_batch = native_client_->getBatch();
-  state_transfer_block_chain_.addBlock(block_id, block, write_batch);
-  native_client_->write(std::move(write_batch));
-  // Update the cached latest ST temporary block ID if we have received and persisted such a block.
-  state_transfer_block_chain_.updateLastId(block_id);
 
-  try {
-    linkSTChainFrom(last_reachable_block + 1);
-  } catch (const std::exception& e) {
-    // LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added, reason: "s + e.what());
-    std::terminate();
-  } catch (...) {
-    // LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added");
-    std::terminate();
-  }
+  addBlock([&]() {
+    state_transfer_block_chain_.addBlock(block_id, block, write_batch);
+    native_client_->write(std::move(write_batch));
+    // Update the cached latest ST temporary block ID if we have received and persisted such a block.
+    state_transfer_block_chain_.updateLastId(block_id);
+
+    try {
+      linkSTChainFrom(last_reachable_block + 1);
+    } catch (const std::exception& e) {
+      // LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added, reason: "s + e.what());
+      std::terminate();
+    } catch (...) {
+      // LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added");
+      std::terminate();
+    }
+  });
 }
 
 std::optional<RawBlock> KeyValueBlockchain::getRawBlock(const BlockId& block_id) const {

@@ -15,7 +15,6 @@
 
 #include "updates.h"
 #include "rocksdb/native_client.h"
-#include <memory>
 #include "blocks.h"
 #include "blockchain.h"
 #include "immutable_kv_category.h"
@@ -25,9 +24,25 @@
 #include "categorization/types.h"
 #include "thread_pool.hpp"
 #include "Metrics.hpp"
+#include "scope_exit.hpp"
+
+#include <atomic>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <type_traits>
 
 namespace concord::kvbc::categorization {
 
+// Represents a key-value blockchain.
+//
+// -------------------------------------- Notes on multi-threading and Pruning --------------------------------------
+// * Adding blocks via addBlock() and addRawBlock() can be done from a single thread only.
+// * Reading and calling const methods can be done in parallel to adding blocks and from multiple threads.
+// * Pruning via the deleteBlocksUntil() method can be done from a single thread only and in parallel to the thread that
+//   is adding blocks and the threads that are reading. Essentially, deleteBlocksUntil() will pause if there are
+//   blocks to be added and resume once they are added. Adding blocks has a higher priority over pruning.
+// * The deleteBlock() method should not be called if multiple threads are in use.
 class KeyValueBlockchain {
   using VersionedRawBlock = std::pair<BlockId, std::optional<categorization::RawBlockData>>;
 
@@ -49,6 +64,15 @@ class KeyValueBlockchain {
 
   bool deleteBlock(const BlockId& blockId);
   void deleteLastReachableBlock();
+
+  // Deletes blocks in the [genesis, until) range. If the until value is bigger than the last block, blocks in the
+  // range [genesis, lastBlock] will be deleted.
+  // Deletes one block at a time. Therefore, the operation is atomic only for a single block deletion. If something
+  // fails, less blocks than requested might be deleted.
+  // Can be called from a single thread while another thread calls addBlock() or addRawBlock().
+  // Returns the last deleted block ID.
+  // Throws on errors or if until <= genesis .
+  BlockId deleteBlocksUntil(BlockId until);
 
   /////////////////////// Raw Blocks ///////////////////////
 
@@ -195,6 +219,21 @@ class KeyValueBlockchain {
                                         ImmutableInput&& updates,
                                         concord::storage::rocksdb::NativeWriteBatch& write_batch);
 
+  // Utility that allows calling addBlock methods concurrently with deleteBlocksUntil(), i.e. pruning.
+  template <typename Fn>
+  typename std::invoke_result<Fn>::type addBlock(Fn f) {
+    // Set prior to locking write_mtx_ in order to avoid potentially unfair mutex policies.
+    pending_add_ = true;
+    auto l = std::unique_lock{write_mtx_};
+    auto s = util::ScopeExit{[&]() {
+      l.unlock();
+      // Unset prior to notifying the pruning thread, ensuring it will not miss the signal.
+      pending_add_ = false;
+      add_completed_.notify_one();
+    }};
+    return f();
+  }
+
   /////////////////////// Members ///////////////////////
 
   std::shared_ptr<concord::storage::rocksdb::NativeClient> native_client_;
@@ -211,6 +250,14 @@ class KeyValueBlockchain {
   // currently we are operating with single thread
   util::ThreadPool thread_pool_{1};
 
+  // Whether block addition (raw from ST or user-supplied) is pending. This flag is set prior to locking write_mtx_ in
+  // order to avoid potentially unfair mutex policies.
+  std::atomic_bool pending_add_{false};
+  // Used to serialize writes, namely block addition and pruning.
+  std::mutex write_mtx_;
+  // Used to signal the pruning thread that an add operation has completed.
+  std::condition_variable add_completed_;
+
   // metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   concordMetrics::Component delete_metrics_comp_;
@@ -226,7 +273,7 @@ class KeyValueBlockchain {
  public:
   struct KeyValueBlockchain_tester {
     void loadCategories(KeyValueBlockchain& kvbc) { kvbc.loadCategories(); }
-    const auto& getCategories(KeyValueBlockchain& kvbc) { return kvbc.categories_; }
+    const auto& getCategories(const KeyValueBlockchain& kvbc) const { return kvbc.categories_; }
 
     const auto& getStateTransferBlockchain(KeyValueBlockchain& kvbc) { return kvbc.state_transfer_block_chain_; }
 

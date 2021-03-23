@@ -112,21 +112,7 @@ void ReplicaImp::deleteGenesisBlock() {
   m_kvBlockchain->deleteBlock(genesisBlock);
 }
 
-BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
-  const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
-  if (genesisBlock == 0) {
-    throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
-  } else if (until <= genesisBlock) {
-    throw std::invalid_argument{"Invalid 'until' value passed to deleteBlocksUntil()"};
-  }
-
-  const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
-  const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
-  for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
-    ConcordAssert(m_kvBlockchain->deleteBlock(i));
-  }
-  return lastDeletedBlock;
-}
+BlockId ReplicaImp::deleteBlocksUntil(BlockId id) { return m_kvBlockchain->deleteBlocksUntil(id); }
 
 BlockId ReplicaImp::add(categorization::Updates &&updates) { return m_kvBlockchain->addBlock(std::move(updates)); }
 
