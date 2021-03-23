@@ -392,6 +392,40 @@ struct GetCategoryEarliestStale {
   }
 };
 
+struct GetStaleKeysSummary {
+  const bool read_only = true;
+  std::string description() const {
+    return "getStaleKeysSummary [BLOCK-VERSION-TO]\n"
+           "  return the number of stale keys per category type in the current blockchain\n"
+           "If BLOCK-VERSION-TO has been given, the method will summerize the stale keys from current genesis to "
+           "BLOCK-VERSION-TO";
+  }
+
+  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    auto latestBlockID = adapter.getLastReachableBlockId();
+    if (args.values.size() >= 1) {
+      latestBlockID = toBlockId(args.values.front());
+    }
+    const auto &categories = adapter.blockchainCategories();
+    std::map<CATEGORY_TYPE, uint64_t> stale_keys_per_category_type_;
+    for (const auto &[cat_id, cat_type] : categories) {
+      (void)cat_id;
+      stale_keys_per_category_type_.emplace(cat_type, 0);
+    }
+    for (auto block = adapter.getGenesisBlockId(); block <= latestBlockID; block++) {
+      auto stale_keys = adapter.getBlockStaleKeys(block);
+      for (const auto &[cat_id, cat_type] : categories) {
+        stale_keys_per_category_type_[cat_type] += stale_keys[cat_id].size();
+      }
+    }
+    std::map<std::string, std::string> out;
+    for (auto const &[cat_type, num_of_stale] : stale_keys_per_category_type_) {
+      out[cat_type_str.at(cat_type)] = std::to_string(num_of_stale);
+    }
+    return toJson(out);
+  }
+};
+
 struct GetValue {
   const bool read_only = true;
   std::string description() const {
@@ -533,6 +567,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetCategories,
                              GetEarliestCategoryUpdates,
                              GetCategoryEarliestStale,
+                             GetStaleKeysSummary,
                              GetValue,
                              CompareTo,
                              RemoveMetadata>;
@@ -548,6 +583,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getCategories", GetCategories{}),
     std::make_pair("getEarliestCategoryUpdates", GetEarliestCategoryUpdates{}),
     std::make_pair("getCategoryEarliestStale", GetCategoryEarliestStale{}),
+    std::make_pair("getStaleKeysSummary", GetStaleKeysSummary{}),
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
