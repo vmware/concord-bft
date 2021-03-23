@@ -378,14 +378,16 @@ bool ViewsManager::hasNewViewMessage(ViewNum v) {
   return (nv != nullptr && nv->newView() == v);
 }
 
-bool ViewsManager::hasViewChangeMessageForFutureView(uint16_t repId) {
+bool ViewsManager::hasViewChangeMessageForFutureView(uint16_t repId, ViewNum curView) {
   ConcordAssert(repId < N);
 
   if (stat != Stat::NO_VIEW) return true;
 
   ViewChangeMsg* vc = viewChangeMessages[repId];
 
-  return ((vc != nullptr) && (vc->newView() > myLatestPendingView));
+  // If we have moved to higher view (reflected in curView) we need the
+  // View Change Messages from peer Replicas for it.
+  return ((vc != nullptr) && (vc->newView() >= curView));
 }
 
 NewViewMsg* ViewsManager::getMyNewViewMsgForCurrentView() {

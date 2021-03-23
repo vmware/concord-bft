@@ -137,7 +137,7 @@ class ViewsManager {
 
   bool getNumbersOfMissingPP(SeqNum currentLastStable, std::vector<SeqNum> *outMissingPPNumbers);
 
-  bool hasViewChangeMessageForFutureView(uint16_t repId);
+  bool hasViewChangeMessageForFutureView(uint16_t repId, ViewNum curView);
 
  protected:
   bool inView() const { return (stat == Stat::IN_VIEW); }

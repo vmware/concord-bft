@@ -2131,7 +2131,7 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
   }
   if (listOfMissingVCMsg) {
     for (ReplicaId i : repsInfo->idsOfPeerReplicas()) {
-      if (!viewsManager->hasViewChangeMessageForFutureView(i)) msg.setMissingViewChangeMsgForViewChange(i);
+      if (!viewsManager->hasViewChangeMessageForFutureView(i, curView)) msg.setMissingViewChangeMsgForViewChange(i);
     }
   } else if (listOfMissingPPMsg) {
     std::vector<SeqNum> missPP;
