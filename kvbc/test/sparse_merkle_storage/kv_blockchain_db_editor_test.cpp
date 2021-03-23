@@ -494,6 +494,16 @@ TEST_F(DbEditorTests, get_category_earliest_stale_immutable) {
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
+TEST_F(DbEditorTests, get_summary_stake_keys) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
+
 TEST_F(DbEditorTests, get_empty_block_key_values) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(
