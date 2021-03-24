@@ -116,20 +116,19 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
   return msg;
 }
 
-Msg Client::createClientBatchMsg(const std::deque<Msg>& clientRequests,
-                                 uint32_t batchBufSize,
+Msg Client::createClientBatchMsg(const std::deque<Msg>& client_requests,
+                                 uint32_t batch_buf_size,
                                  const string& cid,
                                  uint16_t client_id) {
   auto header_size = sizeof(ClientBatchRequestMsgHeader);
-  auto msg_size = sizeof(ClientBatchRequestMsgHeader) + cid.size() + batchBufSize;
-  const auto& numOfMessagesInBatch = clientRequests.size();
+  auto msg_size = sizeof(ClientBatchRequestMsgHeader) + cid.size() + batch_buf_size;
   Msg msg(msg_size);
   ClientBatchRequestMsgHeader* header = reinterpret_cast<ClientBatchRequestMsgHeader*>(msg.data());
   header->msgType = BATCH_REQUEST_MSG_TYPE;
   header->cidSize = cid.size();
   header->clientId = client_id;
-  header->numOfMessagesInBatch = numOfMessagesInBatch;
-  header->dataSize = batchBufSize;
+  header->numOfMessagesInBatch = client_requests.size();
+  header->dataSize = batch_buf_size;
 
   auto* position = msg.data() + header_size;
 
@@ -138,7 +137,7 @@ Msg Client::createClientBatchMsg(const std::deque<Msg>& clientRequests,
     position += cid.size();
   }
 
-  for (auto const& client_msg : clientRequests) {
+  for (auto const& client_msg : client_requests) {
     memcpy(position, client_msg.data(), client_msg.size());
     position += client_msg.size();
   }
@@ -146,15 +145,34 @@ Msg Client::createClientBatchMsg(const std::deque<Msg>& clientRequests,
   return msg;
 }
 
+Msg Client::initBatch(std::deque<WriteRequest>& write_requests,
+                      const std::string& cid,
+                      std::chrono::milliseconds& max_time_to_wait) {
+  Msg client_msg;
+  MatchConfig match_config;
+  uint32_t max_reply_size = 0;
+  for (auto& req : write_requests) {
+    match_config = writeConfigToMatchConfig(req.config);
+    reply_certificates_.insert(std::make_pair(req.config.request.sequence_number, Matcher(match_config)));
+    pending_requests_.push_back(createClientMsg(req.config.request, std::move(req.request), false, config_.id.val));
+    if (req.config.request.timeout > max_time_to_wait) max_time_to_wait = req.config.request.timeout;
+    if (req.config.request.max_reply_size > max_reply_size) max_reply_size = req.config.request.max_reply_size;
+  }
+  uint32_t batch_buf_size = 0;
+  for (auto const& msg : pending_requests_) batch_buf_size += msg.size();
+  receiver_.activate(max_reply_size);
+  return createClientBatchMsg(pending_requests_, batch_buf_size, cid, config_.id.val);
+}
+
 Reply Client::send(const WriteConfig& config, Msg&& request) {
-  ConcordAssertEQ(replyCertificates_.size(), 0);
+  ConcordAssertEQ(reply_certificates_.size(), 0);
   auto match_config = writeConfigToMatchConfig(config);
   bool read_only = false;
   return send(match_config, config.request, std::move(request), read_only);
 }
 
 Reply Client::send(const ReadConfig& config, Msg&& request) {
-  ConcordAssertEQ(replyCertificates_.size(), 0);
+  ConcordAssertEQ(reply_certificates_.size(), 0);
   auto match_config = readConfigToMatchConfig(config);
   bool read_only = true;
   return send(match_config, config.request, std::move(request), read_only);
@@ -164,15 +182,14 @@ Reply Client::send(const MatchConfig& match_config,
                    const RequestConfig& request_config,
                    Msg&& request,
                    bool read_only) {
-  std::deque<Reply> replies;
   metrics_.retransmissionTimer.Get().Set(expected_commit_time_ms_.upperLimit());
   metrics_.updateAggregator();
-  replyCertificates_.insert(std::make_pair(request_config.sequence_number, Matcher(match_config)));
+  reply_certificates_.insert(std::make_pair(request_config.sequence_number, Matcher(match_config)));
   receiver_.activate(request_config.max_reply_size);
   auto orig_msg = createClientMsg(request_config, std::move(request), read_only, config_.id.val);
   auto start = std::chrono::steady_clock::now();
   auto end = start + request_config.timeout;
-  while (std::chrono::steady_clock::now() < end && replies.size() != 1) {
+  while (std::chrono::steady_clock::now() < end) {
     bft::client::Msg msg(orig_msg);  // create copy here due to the loop
     if (primary_ && !read_only) {
       communication_->send(primary_.value().val, std::move(msg));
@@ -184,41 +201,28 @@ Reply Client::send(const MatchConfig& match_config,
       communication_->send(dests, std::move(msg));
     }
 
-    wait(replies);
-    if (replies.size() == 1) {
+    if (auto reply = wait()) {
       expected_commit_time_ms_.add(
           std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
-      replyCertificates_.clear();
-      return replies.front();
+      reply_certificates_.clear();
+      return reply.value();
     }
     metrics_.retransmissions.Get().Inc();
   }
 
   expected_commit_time_ms_.add(request_config.timeout.count());
-  replyCertificates_.clear();
+  reply_certificates_.clear();
   throw TimeoutException(request_config.sequence_number, request_config.correlation_id);
 }
 
-std::deque<Reply> Client::sendBatch(std::deque<ClientRequest>& clientRequests, const std::string& cid) {
+std::deque<Reply> Client::sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid) {
   std::deque<Reply> replies;
   std::chrono::milliseconds max_time_to_wait = 0s;
-  Msg client_msg;
-  MatchConfig match_config;
-  uint32_t max_reply_size = 0;
-  for (auto& req : clientRequests) {
-    match_config = writeConfigToMatchConfig(req.config);
-    replyCertificates_.insert(std::make_pair(req.config.request.sequence_number, Matcher(match_config)));
-    pendingRequests_.push_back(createClientMsg(req.config.request, std::move(req.request), false, config_.id.val));
-    if (req.config.request.timeout > max_time_to_wait) max_time_to_wait = req.config.request.timeout;
-    if (req.config.request.max_reply_size > max_reply_size) max_reply_size = req.config.request.max_reply_size;
-  }
-  receiver_.activate(max_reply_size);
-  uint32_t batchBufSize = 0;
-  for (auto const& msg : pendingRequests_) batchBufSize += msg.size();
+  MatchConfig match_config = writeConfigToMatchConfig(write_requests.front().config);
+  auto batch_msg = initBatch(write_requests, cid, max_time_to_wait);
   auto start = std::chrono::steady_clock::now();
   auto end = start + max_time_to_wait;
-  auto batch_msg = createClientBatchMsg(pendingRequests_, batchBufSize, cid, config_.id.val);
-  while (std::chrono::steady_clock::now() < end && replies.size() != pendingRequests_.size()) {
+  while (std::chrono::steady_clock::now() < end && replies.size() != pending_requests_.size()) {
     bft::client::Msg msg(batch_msg);  // create copy here due to the loop
     if (primary_) {
       communication_->send(primary_.value().val, std::move(msg));
@@ -233,12 +237,34 @@ std::deque<Reply> Client::sendBatch(std::deque<ClientRequest>& clientRequests, c
     wait(replies);
     metrics_.retransmissions.Get().Inc();
   }
-  replyCertificates_.clear();
-  if (replies.size() == pendingRequests_.size()) return replies;
+  reply_certificates_.clear();
+  if (replies.size() == pending_requests_.size()) {
+    expected_commit_time_ms_.add(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
+    return replies;
+  }
 
   expected_commit_time_ms_.add(max_time_to_wait.count());
-  replyCertificates_.clear();
-  throw TimeoutException(cid);
+  throw BatchTimeoutException(cid);
+}
+
+std::optional<Reply> Client::wait() {
+  std::deque<Reply> replies;
+  wait(replies);
+  if (replies.empty()) {
+    static constexpr size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 5;
+    // reply_certificates_ should hold just one request when using this wait method
+    for (auto& req : reply_certificates_) {
+      if (req.second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
+        req.second.clearReplies();
+        metrics_.repliesCleared.Get().Inc();
+      }
+      primary_ = std::nullopt;
+      return std::nullopt;
+    }
+  }
+  auto reply = std::move(replies.front());
+  return reply;
 }
 
 void Client::wait(std::deque<Reply>& replies) {
@@ -246,20 +272,20 @@ void Client::wait(std::deque<Reply>& replies) {
   auto retry_timeout = std::chrono::milliseconds(expected_commit_time_ms_.upperLimit());
   auto end_wait = now + retry_timeout;
   // Keep trying to receive messages until we get quorum or a retry timeout.
-  while ((now = std::chrono::steady_clock::now()) < end_wait && !replyCertificates_.empty()) {
+  while ((now = std::chrono::steady_clock::now()) < end_wait && !reply_certificates_.empty()) {
     auto wait_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_wait - now);
     auto unmatched_requests = receiver_.wait(wait_time);
     for (auto&& reply : unmatched_requests) {
-      auto request = replyCertificates_.find(reply.metadata.seq_num);
-      if (request == replyCertificates_.end()) continue;
+      auto request = reply_certificates_.find(reply.metadata.seq_num);
+      if (request == reply_certificates_.end()) continue;
       if (auto match = request->second.onReply(std::move(reply))) {
         primary_ = match->primary;
         replies.push_back(match->reply);
-        replyCertificates_.erase(request->first);
+        reply_certificates_.erase(request->first);
       }
     }
   }
-  if (!replyCertificates_.empty()) primary_ = std::nullopt;
+  if (!reply_certificates_.empty()) primary_ = std::nullopt;
 }
 
 MatchConfig Client::writeConfigToMatchConfig(const WriteConfig& write_config) {

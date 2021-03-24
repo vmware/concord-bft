@@ -44,7 +44,7 @@ class Client {
   // Throws a BftClientException on error.
   Reply send(const WriteConfig& config, Msg&& request);
   Reply send(const ReadConfig& config, Msg&& request);
-  std::deque<Reply> sendBatch(std::deque<ClientRequest>& clientRequests, const std::string& cid);
+  std::deque<Reply> sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
   bool isServing(int numOfReplicas, int requiredNumOfReplicas) const;
 
   // Useful for testing. Shouldn't be relied on in production.
@@ -58,6 +58,9 @@ class Client {
   //
   // Inserts the Replies to the input queue.
   void wait(std::deque<Reply>& replies);
+
+  // Return a Reply on quorum, or std::nullopt on timeout.
+  std::optional<Reply> wait();
 
   // Extract a matcher configurations from operational configurations
   //
@@ -74,18 +77,22 @@ class Client {
   Msg createClientMsg(const RequestConfig& req_config, Msg&& request, bool read_only, uint16_t client_id);
 
   // This function creates a ClientBatchRequestMsg.
-  Msg createClientBatchMsg(const std::deque<Msg>& clientRequests,
-                           uint32_t batchBufSize,
+  Msg createClientBatchMsg(const std::deque<Msg>& client_requests,
+                           uint32_t batch_buf_size,
                            const string& cid,
                            uint16_t client_id);
+
+  Msg initBatch(std::deque<WriteRequest>& write_requests,
+                const std::string& cid,
+                std::chrono::milliseconds& max_time_to_wait);
 
   MsgReceiver receiver_;
 
   std::unique_ptr<bft::communication::ICommunication> communication_;
   ClientConfig config_;
   logging::Logger logger_ = logging::getLogger("bftclient");
-  std::deque<Msg> pendingRequests_;
-  std::unordered_map<uint64_t, Matcher> replyCertificates_;
+  std::deque<Msg> pending_requests_;
+  std::unordered_map<uint64_t, Matcher> reply_certificates_;
 
   // The client doesn't always know the current primary.
   std::optional<ReplicaId> primary_;

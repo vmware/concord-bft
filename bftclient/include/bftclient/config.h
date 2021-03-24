@@ -92,7 +92,7 @@ struct ReadConfig {
   ReadQuorum quorum;
 };
 
-struct ClientRequest {
+struct WriteRequest {
   WriteConfig config;
   Msg request;
 };

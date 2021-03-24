@@ -41,8 +41,12 @@ class TimeoutException : public BftClientException {
   TimeoutException(uint64_t seq_num, const std::string& cid)
       : BftClientException("Timeout for request sequence number: " + std::to_string(seq_num) +
                            ", and correlation id: " + cid) {}
+};
 
-  TimeoutException(const std::string& cid) : BftClientException("Timeout for correlation id: " + cid) {}
+class BatchTimeoutException : public BftClientException {
+ public:
+  BatchTimeoutException(const std::string& cid)
+      : BftClientException("Timeout for a batch request with correlation id: " + cid) {}
 };
 
 class InvalidPrivateKeyException : public BftClientException {
