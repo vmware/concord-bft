@@ -48,7 +48,7 @@ MsgSize ReplicaStatusMsg::calcSizeOfReplicaStatusMsg(bool viewIsActive,
   else if (listOfMissingPrePrepareMsgForViewChange)
     return sizeof(ReplicaStatusMsg::Header) + kWorkWindowBitMaskSize + maxNumberOfReplicasBitMaskSize;
   else
-    return sizeof(ReplicaStatusMsg::Header);
+    return sizeof(ReplicaStatusMsg::Header) + maxNumberOfReplicasBitMaskSize;
 }
 
 ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
