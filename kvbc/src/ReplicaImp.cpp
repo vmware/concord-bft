@@ -69,7 +69,7 @@ void ReplicaImp::createReplicaAndSyncState() {
   requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, erasedMetaData, pm_);
+      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
