@@ -120,7 +120,7 @@ cd ${HOME}
 wget --no-check-certificate https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz && \
     tar --lzip -xf gmp-6.1.2.tar.lz && \
     cd gmp-6.1.2/ && \
-    ./configure CFLAGS=-fPIC CXXFLAGS=-fPIC && \
+    ./configure --with-pic && \
     make && \
     make check && \
     make install && \
