@@ -392,6 +392,68 @@ struct GetCategoryEarliestStale {
   }
 };
 
+struct GetStaleKeysSummary {
+  const bool read_only = true;
+  std::string description() const {
+    return "getStaleKeysSummary [BLOCK-VERSION-FROM] [BLOCK-VERSION-TO]\n"
+           "Return the number of stale keys per category type in the current blockchain.\n"
+           "If BLOCK-VERSION-FROM and BLOCK-VERSION-TO has been given, the method will sum the stale keys from "
+           "BLOCK-VERSION-FROM to "
+           "BLOCK-VERSION-TO.\n"
+           "If only one argument has been given, it will be retreated as BLOCK-VERSION-TO and BLOCK-VERSION-FROM will "
+           "be set to the current genesis.\n"
+           "Note that this operation is doing a linear search, hence in may take a while to be completed.";
+  }
+
+  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    auto latestBlockID = adapter.getLastReachableBlockId();
+    auto firstBlockID = adapter.getGenesisBlockId();
+    if (args.values.size() == 2) {
+      auto block_version_from = toBlockId(args.values[0]);
+      auto block_version_to = toBlockId(args.values[1]);
+      if (block_version_from < firstBlockID || block_version_from > latestBlockID) {
+        throw std::invalid_argument(
+            "BLOCK-VERSION-FROM is incorrect: current genesis: " + std::to_string(firstBlockID) +
+            ", latest reachable block: " + std::to_string(latestBlockID) +
+            ", BLOCK-VERSION-FROM: " + std::to_string(block_version_from));
+      }
+      if (block_version_to < firstBlockID || block_version_to > latestBlockID) {
+        throw std::invalid_argument("BLOCK-VERSION-TO is incorrect: current genesis: " + std::to_string(firstBlockID) +
+                                    ", latest reachable block: " + std::to_string(latestBlockID) +
+                                    ", BLOCK-VERSION-TO: " + std::to_string(block_version_to));
+      }
+      firstBlockID = block_version_from;
+      latestBlockID = block_version_to;
+    }
+    if (args.values.size() == 1) {
+      auto block_version_to = toBlockId(args.values[0]);
+      if (block_version_to < firstBlockID || block_version_to > latestBlockID) {
+        throw std::invalid_argument("BLOCK-VERSION-TO is incorrect: current genesis: " + std::to_string(firstBlockID) +
+                                    ", latest reachable block: " + std::to_string(latestBlockID) +
+                                    ", BLOCK-VERSION-TO: " + std::to_string(block_version_to));
+      }
+      latestBlockID = block_version_to;
+    }
+    const auto &categories = adapter.blockchainCategories();
+    std::map<CATEGORY_TYPE, uint64_t> stale_keys_per_category_type_;
+    for (const auto &[cat_id, cat_type] : categories) {
+      (void)cat_id;
+      stale_keys_per_category_type_.emplace(cat_type, 0);
+    }
+    for (auto block = firstBlockID; block <= latestBlockID; block++) {
+      auto stale_keys = adapter.getBlockStaleKeys(block);
+      for (const auto &[cat_id, cat_type] : categories) {
+        stale_keys_per_category_type_[cat_type] += stale_keys[cat_id].size();
+      }
+    }
+    std::map<std::string, std::string> out;
+    for (auto const &[cat_type, num_of_stale] : stale_keys_per_category_type_) {
+      out[cat_type_str.at(cat_type)] = std::to_string(num_of_stale);
+    }
+    return toJson(out);
+  }
+};
+
 struct GetValue {
   const bool read_only = true;
   std::string description() const {
@@ -533,6 +595,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetCategories,
                              GetEarliestCategoryUpdates,
                              GetCategoryEarliestStale,
+                             GetStaleKeysSummary,
                              GetValue,
                              CompareTo,
                              RemoveMetadata>;
@@ -548,6 +611,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getCategories", GetCategories{}),
     std::make_pair("getEarliestCategoryUpdates", GetEarliestCategoryUpdates{}),
     std::make_pair("getCategoryEarliestStale", GetCategoryEarliestStale{}),
+    std::make_pair("getStaleKeysSummary", GetStaleKeysSummary{}),
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),

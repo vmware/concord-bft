@@ -494,6 +494,79 @@ TEST_F(DbEditorTests, get_category_earliest_stale_immutable) {
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
+TEST_F(DbEditorTests, get_summary_stale_keys_invalid_argumets) {
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "0", "5"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("BLOCK-VERSION-FROM is incorrect: current genesis: 1"));
+  ASSERT_THAT(err_.str(), HasSubstr("BLOCK-VERSION-FROM: 0"));
+
+  ASSERT_EQ(EXIT_FAILURE,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "1", "1000"}},
+                out_,
+                err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("latest reachable block: 10"));
+  ASSERT_THAT(err_.str(), HasSubstr("BLOCK-VERSION-TO: 1000"));
+
+  ASSERT_EQ(
+      EXIT_FAILURE,
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "1000"}}, out_, err_));
+  ASSERT_TRUE(out_.str().empty());
+  ASSERT_THAT(err_.str(), HasSubstr("latest reachable block: 10"));
+  ASSERT_THAT(err_.str(), HasSubstr("BLOCK-VERSION-TO: 1000"));
+}
+
+TEST_F(DbEditorTests, get_summary_stale_keys) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "1", "10"}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+
+  ASSERT_EQ(
+      EXIT_SUCCESS,
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "10"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+
+  ASSERT_EQ(
+      EXIT_SUCCESS,
+      run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "1"}}, out_, err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"2\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"2\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getStaleKeysSummary", "2", "3"}},
+                out_,
+                err_));
+  ASSERT_TRUE(err_.str().empty());
+  ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"4\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"0\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"4\""));
+  ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
+}
+
 TEST_F(DbEditorTests, get_empty_block_key_values) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(
