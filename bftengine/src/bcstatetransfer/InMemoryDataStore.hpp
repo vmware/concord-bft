@@ -163,7 +163,7 @@ class InMemoryDataStore : public DataStore {
 
   map<uint64_t, CheckpointDesc> descMap;
 
-  std::atomic<bool> fetching = false;
+  bool fetching = false;
 
   CheckpointDesc checkpointBeingFetched;
   // none if checkpointBeingFetched.checkpointNum == 0
