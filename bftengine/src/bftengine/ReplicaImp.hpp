@@ -454,8 +454,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                           const ViewNum relatedViewNumber,
                                           const std::forward_list<RetSuggestion>& suggestedRetransmissions);
 
-  void onStateTransferCompleted(uint64_t newStateCheckpoint);
-
  private:
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isInternalNoop);
