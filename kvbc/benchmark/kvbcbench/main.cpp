@@ -337,7 +337,11 @@ void addBlocks(const po::variables_map& config,
         kvbc.addBlock(std::move(updates));
       } else {
         auto&& merkle_input = std::move(input.block_merkle_input[i - 1]);
+        auto&& versioned_updates = std::move(input.ver_updates[i - 1]);
+        auto&& immutable_updates = std::move(input.imm_updates[i - 1]);
         updates.add(kCategoryMerkle, categorization::BlockMerkleUpdates(std::move(merkle_input)));
+        updates.add(kCategoryVersioned, std::move(versioned_updates));
+        updates.add(kCategoryImmutable, std::move(immutable_updates));
         kvbc.addBlock(std::move(updates));
       }
     }
