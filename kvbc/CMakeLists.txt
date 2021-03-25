@@ -12,6 +12,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/merkle_tree_block.cpp
     src/direct_kv_storage_factory.cpp
     src/merkle_tree_storage_factory.cpp
+    src/pruning_handler.cpp
     src/sparse_merkle/base_types.cpp
     src/sparse_merkle/keys.cpp
     src/sparse_merkle/internal_node.cpp

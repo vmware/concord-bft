@@ -70,6 +70,9 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     flags |= KEY_EXCHANGE_REQ;
   }
 
+  if (config.reconfiguration) {
+    flags |= RECONFIG_FLAG;
+  }
   auto header_size = sizeof(ClientRequestMsgHeader);
   auto msg_size = header_size + request.size() + config.correlation_id.size() + config.span_context.size();
   if (transaction_signer_) {

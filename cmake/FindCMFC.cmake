@@ -32,6 +32,21 @@ function(CMF_GENERATE_CPP CPP_HEADER CPP_IMPL CPP_NAMESPACE)
   set(${CPP_IMPL} ${${CPP_IMPL}} PARENT_SCOPE)
 endfunction()
 
+function(CMF_GENERATE_PYTHON OUTPUT_NAME)
+  foreach(FIL ${ARGN})
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${FIL}")
+      message(FATAL_ERROR "CMF doesn't exist: ${CMAKE_CURRENT_SOURCE_DIR}/${FIL}")
+    endif()
+    set(IN_FILE_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${FIL}")
+    execute_process(
+            COMMAND ${CMF_COMPILER}
+            --input ${IN_FILE_ABS}
+            --output "${CMAKE_CURRENT_SOURCE_DIR}/${OUTPUT_NAME}"
+            --language python
+    )
+  endforeach()
+endfunction()
+
 # Find CMFC
 find_program(CMF_COMPILER cmfc.py
   HINTS "../messages/compiler/"

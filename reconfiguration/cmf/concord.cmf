@@ -1,0 +1,111 @@
+Msg WedgeCommand 3 {
+  uint64 stop_seq_num
+}
+
+Msg WedgeStatusRequest 5 {
+	uint64 sender
+}
+
+Msg WedgeStatusResponse 6 {
+    bool stopped
+}
+
+Msg DownloadCommand 9 {
+  string version
+}
+
+Msg DownloadStatusCommand 10 {
+    string version
+}
+
+Msg DownloadStatus 11 {
+    bool download_completed
+    bool in_progress
+}
+
+Msg TestCommand 12 {
+  string test
+}
+
+Msg LatestPrunableBlockRequest 13 {
+    uint64 sender
+}
+
+Msg LatestPrunableBlock 14 {
+   uint64 replica
+   uint64 block_id
+   uint64 bft_sequence_number
+   bytes signature
+}
+
+Msg PruneRequest 15 {
+   uint64 sender
+   list LatestPrunableBlock latest_prunable_block
+}
+
+Msg PruneStatusRequest 17 {
+    uint64 sender
+}
+
+Msg PruneStatus 18 {
+    uint64 sender
+    bool in_progress
+    uint64 last_pruned_block
+}
+
+Msg GetVersionCommand 19 {
+  bytes place_holder
+}
+
+Msg InstallCommand 20 {
+    string version
+}
+
+Msg InstallStatusCommand 21 {
+    optional string version
+}
+
+Msg InstallStatusResponse 22 {
+    string version
+    bool in_progress
+    bool install_completed
+}
+
+Msg GetVersionResponse 23 {
+  string version
+}
+
+Msg ReconfigurationErrorMsg 24 {
+    string error_msg
+}
+Msg ReconfigurationRequest 1 {
+  bytes signature
+  oneof {
+    WedgeCommand
+    WedgeStatusRequest
+    TestCommand
+    GetVersionCommand
+    DownloadCommand
+    DownloadStatusCommand
+    LatestPrunableBlockRequest
+    PruneRequest
+    PruneStatusRequest
+    InstallCommand
+    InstallStatusCommand
+  } command
+  bytes additional_data
+}
+
+Msg ReconfigurationResponse 2 {
+  bool success
+  oneof {
+    WedgeStatusResponse
+    LatestPrunableBlock
+    PruneStatus
+    DownloadStatus
+    InstallStatusResponse
+    GetVersionResponse
+    ReconfigurationErrorMsg
+  } response
+  bytes additional_data
+}

@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/param.h>
 #include <unistd.h>
 #include "ReplicaImp.h"
 #include <inttypes.h>
@@ -24,6 +23,8 @@
 #include "sliver.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "rocksdb/native_client.h"
+#include "pruning_handler.hpp"
+#include "IRequestHandler.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -48,7 +49,8 @@ Status ReplicaImp::start() {
 
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, m_stateTransfer, m_ptrComm);
+    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
   } else {
     createReplicaAndSyncState();
   }
@@ -63,8 +65,11 @@ Status ReplicaImp::start() {
 }
 
 void ReplicaImp::createReplicaAndSyncState() {
+  auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+  requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
-      replicaConfig_, m_cmdHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_);
+      replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
@@ -168,7 +173,7 @@ BlockId ReplicaImp::getGenesisBlockId() const { return m_kvBlockchain->getGenesi
 
 BlockId ReplicaImp::getLastBlockId() const { return m_kvBlockchain->getLastReachableBlockId(); }
 
-void ReplicaImp::set_command_handler(ICommandsHandler *handler) { m_cmdHandler = handler; }
+void ReplicaImp::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
 
 ReplicaImp::ReplicaImp(ICommunication *comm,
                        const bftEngine::ReplicaConfig &replicaConfig,

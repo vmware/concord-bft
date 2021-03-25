@@ -21,6 +21,7 @@ from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 import sys
 from util import eliot_logging as log
+from util import concord_msgs as cmf_msgs
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
@@ -49,6 +50,53 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReconfigurationTest(unittest.TestCase):
 
+    def _construct_reconfiguration_wedge_coammand(self):
+        wedge_cmd = cmf_msgs.WedgeCommand()
+        wedge_cmd.stop_seq_num = 0
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = wedge_cmd
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
+
+    def _construct_reconfiguration_latest_prunebale_block_coammand(self):
+        lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
+        lpab_cmd.sender = 1000
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = lpab_cmd
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
+
+    def _construct_reconfiguration_wedge_status(self):
+        wedge_status_cmd = cmf_msgs.WedgeStatusRequest()
+        wedge_status_cmd.sender = 1000
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = wedge_status_cmd
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
+
+    def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks):
+        prune_cmd = cmf_msgs.PruneRequest()
+        prune_cmd.sender = 1000
+        prune_cmd.latest_prunable_block = latest_pruneble_blocks
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = prune_cmd
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
+
+    def _construct_reconfiguration_prune_status_request(self):
+        prune_status_cmd = cmf_msgs.PruneStatusRequest()
+        prune_status_cmd.sender = 1000
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = prune_status_cmd
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
+
+    from os import environ
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -63,10 +111,11 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
-
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        reconf_msg = self._construct_reconfiguration_wedge_coammand()
+        await client.write(reconf_msg.serialize(), reconfiguration=True)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
-
-        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
@@ -97,10 +146,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
 
         client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
         with log.start_action(action_type="send_wedge_cmd",
                               checkpoint_before=checkpoint_before,
                               late_replicas=list(late_replicas)):
-           await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+            reconf_msg = self._construct_reconfiguration_wedge_coammand()
+            await client.write(reconf_msg.serialize(), reconfiguration=True)
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, on_time_replicas)
 
@@ -129,19 +181,24 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
 
-        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+        reconf_msg = self._construct_reconfiguration_wedge_coammand()
+        await client.write(reconf_msg.serialize(), reconfiguration=True)
 
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
-                    bft_network.config.n)]))
+                msg = self._construct_reconfiguration_wedge_status()
+                await client.read(msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                    bft_network.config.n)]), reconfiguration=True)
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    status = res[0].response.stopped
+                    if status is False:
                         done = False
                         break
 
@@ -159,6 +216,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
 
         # bring the system to sequence number 299
         for i in range(299):
@@ -178,19 +237,22 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # now, send a wedge command. The wedge command sequence number is 300. Hence, in this point the woeking window
         # is between 150 - 450. But, the wedge command will make the primary to send noops until 600.
         # we want to verify that the primary manages to send the noops as required.
-        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+        reconf_msg = self._construct_reconfiguration_wedge_coammand()
+        await client.write(reconf_msg.serialize(), reconfiguration=True)
 
         # now, verify that the system has managed to stop
         with trio.fail_after(seconds=90):
             done = False
             while done is False:
-                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
-                    bft_network.config.n)]))
+                msg = self._construct_reconfiguration_wedge_status()
+                await client.read(msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                    bft_network.config.n)]), reconfiguration=True)
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    status = res[0].response.stopped
+                    if status is False:
                         done = False
                         break
 
@@ -201,199 +263,142 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @unittest.skip("manual testcase - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_semi_manual_upgrade(self, bft_network):
-        """
-             Sends a wedge command and check that the system stops from processing new requests.
-             Note that in this test we assume no failures and synchronized network.
-             The test does the following:
-             1. A client sends a wedge command
-             2. The client then sends a "Have you stopped" read only command such that each replica answers "I have stopped"
-             3. Apollo stops all replicas
-             4. Apollo starts all replicas
-             5. A client verifies that new write requests are being processed
-         """
+    async def test_get_latest_pruneable_block(self, bft_network):
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        key, val = await skvbc.write_known_kv()
-        await client.write(skvbc.write_req([], [], block_id=0, wedge_command=True))
+        # Create 100 blocks in total, including the genesis block we have 101 blocks
+        k, v = await skvbc.write_known_kv()
+        for i in range(99):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
 
-        with trio.fail_after(seconds=60):
-            done = False
-            while done is False:
-                await trio.sleep(seconds=1)
-                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
-                    bft_network.config.n)]))
-                rsi_rep = client.get_rsi_replies()
-                done = True
-                for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
-                        done = False
-                        break
+        # Get the minimal latest pruneable block among all replicas
+        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
+        await client.read(reconf_msg.serialize(),
+                                m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                                    bft_network.config.n)]), reconfiguration=True)
 
-        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+        rsi_rep = client.get_rsi_replies()
+        min_prunebale_block = 1000
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            if lpab.response.block_id < min_prunebale_block:
+                min_prunebale_block = lpab.response.block_id
 
-        bft_network.stop_all_replicas()
+        # Create another 100 blocks
+        k, v = await skvbc.write_known_kv()
+        for i in range(99):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
 
-        # Here the system operator runs a manual upgrade
-        input("update the software and press any kay to continue")
+        # Get the new minimal latest pruneable block
+        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
+        await client.read(reconf_msg.serialize(),
+                                m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                                    bft_network.config.n)]), reconfiguration=True)
 
-        bft_network.start_all_replicas()
+        rsi_rep = client.get_rsi_replies()
+        min_prunebale_block_b = 1000
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            if lpab.response.block_id < min_prunebale_block_b:
+                min_prunebale_block_b = lpab.response.block_id
+        assert min_prunebale_block < min_prunebale_block_b
 
-        await self.validate_state_consistency(skvbc, key, val)
-        await skvbc.write_known_kv()
-
-    @unittest.skip("Will be re-written")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_remove_nodes(self, bft_network):
-        """
-        In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
-        to 4 nodes cluster.
-        For that the operator performs the following steps:
-        1. Send a remove_node command - this command also wedges the system
-        2. Verify that all (including the removed candidates) have stopped
-        3. Load  a new configuration to the bft network
-        4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
-        """
-        bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
+    async def test_pruning_command(self, bft_network):
+        with log.start_action(action_type="test_pruning_command") as action:
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            client = bft_network.random_client()
 
-        key, val = await skvbc.write_known_kv()
+            # Create 100 blocks in total, including the genesis block we have 101 blocks
+            k, v = await skvbc.write_known_kv()
+            for i in range(99):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
 
-        await client.write(skvbc.write_req([], [], block_id=0, add_remove_node_command=True))
+            # Get the minimal latest pruneable block among all replicas
+            reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
+            await client.read(reconf_msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                        bft_network.config.n)]), reconfiguration=True)
 
-        with trio.fail_after(seconds=90):
-            done = False
-            while done is False:
-                msg = skvbc.get_have_you_stopped_req(n_of_n=1)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum.All(client.config, bft_network.all_replicas()))
-                rsi_rep = client.get_rsi_replies()
-                done = True
-                for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
-                        done = False
-                        break
+            latest_pruneable_blocks = []
+            rsi_rep = client.get_rsi_replies()
+            for r in rsi_rep.values():
+                lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                latest_pruneable_blocks += [lpab.response]
 
-        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+            reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
+            await client.write(reconf_msg.serialize(), reconfiguration=True)
+            rsi_rep = client.get_rsi_replies()
+            # we expect to have at least 2f + 1 replies
+            for rep in rsi_rep:
+                r = rsi_rep[rep]
+                data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                if '90' not in data.additional_data.decode('utf-8'):
+                    action.log('pruned block is not 90, additional data: {}, replica: {}'.format(data.additional_data.decode('utf-8'), rep))
+                assert '90' in data.additional_data.decode('utf-8')
 
-        checkpoint_to_stop_at = 300
-        for r in bft_network.all_replicas():
-            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-            self.assertEqual(last_stable_checkpoint, checkpoint_to_stop_at)
-
-        bft_network.stop_all_replicas()
-        # We now expect the replicas to start with a fresh new configuration which means that we
-        # need to see in the logs that isNewStorage() = true. Also,
-        # we expect to see that lastStableSeqNum = 0 (for example)
-
-        conf = TestConfig(n=4,
-                   f=1,
-                   c=0,
-                   num_clients=30,
-                   key_file_prefix=KEY_FILE_PREFIX,
-                   start_replica_cmd=start_replica_cmd,
-                   stop_replica_cmd=None,
-                   num_ro_replicas=0)
-        await bft_network.change_configuration(conf)
-
-        bft_network.start_all_replicas()
-        for r in bft_network.all_replicas():
-            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-            self.assertEqual(last_stable_checkpoint, 0)
-
-        await self.validate_state_consistency(skvbc, key, val)
-        for i in range(100):
-            await skvbc.write_known_kv()
-
-        for r in bft_network.all_replicas():
-            assert (r < 4)
-            num_of_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
-            self.assertGreater(num_of_fast_path, 0)
-
-    @unittest.skip("Will be re-written")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_remove_nodes_with_f_failures(self, bft_network):
-        """
-        In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
-        to 4 nodes cluster even when f nodes are not responding
-        For that the operator performs the following steps:
-        1. Stop 2 nodes (f=2)
-        2. Send a remove_node command - this command also wedges the system
-        3. Verify that all live (including the removed candidates) nodes have stopped
-        4. Load  a new configuration to the bft network
-        5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
-        """
+    async def test_pruning_status_command(self, bft_network):
+
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        for i in range(100):
-            await skvbc.write_known_kv()
-        # choose two replicas to crash and crash them
-        crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
-        bft_network.stop_replicas(crashed_replicas)
+        reconf_msg = self._construct_reconfiguration_prune_status_request()
+        await client.read(reconf_msg.serialize(),
+                                m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                                    bft_network.config.n)]), reconfiguration=True)
 
-        # All next request should be go through the slow path
-        for i in range(100):
-            await skvbc.write_known_kv()
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            assert status.response.in_progress is False
+            assert status.response.last_pruned_block == 0
 
-        key, val = await skvbc.write_known_kv()
+        # Create 100 blocks in total, including the genesis block we have 101 blocks
+        k, v = await skvbc.write_known_kv()
+        for i in range(99):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
 
-        live_replicas = bft_network.all_replicas(without=crashed_replicas)
+        # Get the minimal latest pruneable block among all replicas
+        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
+        await client.read(reconf_msg.serialize(),
+                                m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                                    bft_network.config.n)]), reconfiguration=True)
 
-        await client.write(skvbc.write_req([], [], block_id=0, add_remove_node_command=True))
+        latest_pruneable_blocks = []
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            latest_pruneable_blocks += [lpab.response]
 
-        with trio.fail_after(seconds=90):
-            done = False
-            while done is False:
-                msg = skvbc.get_have_you_stopped_req(n_of_n=0)
-                rep = await client.read(msg, m_of_n_quorum=bft_client.MofNQuorum(live_replicas, len(live_replicas)))
-                rsi_rep = client.get_rsi_replies()
-                done = True
-                for r in rsi_rep.values():
-                    if skvbc.parse_rsi_reply(rep, r) == 0:
-                        done = False
-                        break
+        reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
+        await client.write(reconf_msg.serialize(), reconfiguration=True)
 
-        checkpoint_to_stop_at = 300
-        for r in live_replicas:
-            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-            self.assertGreaterEqual(last_stable_checkpoint, checkpoint_to_stop_at)
-
-        bft_network.stop_all_replicas()
-        # We now expect the replicas to start with a fresh new configuration which means that we
-        # need to see in the logs that isNewStorage() = true. Also,
-        # we expect tp see that lastStableSeqNum = 0 (for example)
-
-        conf = TestConfig(n=4,
-                          f=1,
-                          c=0,
-                          num_clients=30,
-                          key_file_prefix=KEY_FILE_PREFIX,
-                          start_replica_cmd=start_replica_cmd,
-                          stop_replica_cmd=None,
-                          num_ro_replicas=0)
-        await bft_network.change_configuration(conf)
-
-        bft_network.start_all_replicas()
-        for r in bft_network.all_replicas():
-            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
-            self.assertEqual(last_stable_checkpoint, 0)
-
-        await self.validate_state_consistency(skvbc, key, val)
-
-        for i in range(100):
+        # Verify the system is able to get new write requests (which means that pruning has done)
+        with trio.fail_after(30):
             await skvbc.write_known_kv()
 
-        for r in bft_network.all_replicas():
-            assert (r < 4)
-            num_of_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
-            self.assertGreater(num_of_fast_path, 0)
+        reconf_msg = self._construct_reconfiguration_prune_status_request()
+        await client.read(reconf_msg.serialize(),
+                          m_of_n_quorum=bft_client.MofNQuorum.All(client.config, [r for r in range(
+                              bft_network.config.n)]), reconfiguration=True)
+
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            assert status.response.in_progress is False
+            assert status.response.last_pruned_block == 90
+
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):

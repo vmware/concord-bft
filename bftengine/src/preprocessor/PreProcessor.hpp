@@ -16,6 +16,7 @@
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "SimpleThreadPool.hpp"
+#include "IRequestHandler.hpp"
 #include "Replica.hpp"
 #include "RequestProcessingState.hpp"
 #include "sliver.hpp"

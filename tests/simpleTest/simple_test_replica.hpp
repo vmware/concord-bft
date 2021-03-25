@@ -18,6 +18,7 @@
 #include "communication/CommFactory.hpp"
 #include "Replica.hpp"
 #include "ReplicaConfig.hpp"
+#include "ControlStateManager.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "FileStorage.hpp"
 #include <thread>
@@ -67,8 +68,6 @@ class SimpleAppState : public IRequestsHandler {
   }
 
  public:
-  std::shared_ptr<ControlHandlers> getControlHandlers() override { return nullptr; }
-
   SimpleAppState(uint16_t numCl, uint16_t numRep)
       : statePtr{new SimpleAppState::State[numCl]}, numOfClients{numCl}, numOfReplicas{numRep} {}
   ~SimpleAppState() { delete[] statePtr; }
@@ -158,7 +157,8 @@ class SimpleTestReplica {
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
       : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state), inMemoryST_(inMemoryST) {
-    replica = IReplica::createNewReplica(rc, state, inMemoryST, comm, metaDataStorage);
+    replica = IReplica::createNewReplica(
+        rc, std::shared_ptr<bftEngine::IRequestsHandler>(state), inMemoryST, comm, metaDataStorage);
   }
 
   ~SimpleTestReplica() {

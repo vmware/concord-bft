@@ -115,15 +115,15 @@ class BftClient(ABC):
         """
         pass
 
-    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
+    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False):
         """ A wrapper around sendSync for requests that mutate state """
-        return await self.sendSync(msg, False, seq_num, cid, pre_process, m_of_n_quorum)
+        return await self.sendSync(msg, False, seq_num, cid, pre_process, m_of_n_quorum, reconfiguration)
 
-    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None):
+    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None, reconfiguration=False):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum)
+        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum, reconfiguration=reconfiguration)
 
-    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None):
+    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False):
         """
         Send a client request and wait for a m_of_n_quorum (if None, it will set to 2F+C+1 quorum) of replies.
 
@@ -155,7 +155,7 @@ class BftClient(ABC):
         if cid is None:
             cid = str(seq_num)
         data = bft_msgs.pack_request(
-            self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process)
+            self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process, reconfiguration=reconfiguration)
 
         if m_of_n_quorum is None:
             m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])

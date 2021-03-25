@@ -78,6 +78,7 @@ struct RequestConfig {
   std::string correlation_id = "";
   std::string span_context = "";
   bool key_exchange = false;
+  bool reconfiguration = false;
 };
 
 // The configuration for a single write request.

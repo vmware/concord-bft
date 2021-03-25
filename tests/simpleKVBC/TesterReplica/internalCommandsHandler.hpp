@@ -28,31 +28,13 @@
 static const std::string VERSIONED_KV_CAT_ID{"replica_tester_versioned_kv_category"};
 static const std::string BLOCK_MERKLE_CAT_ID{"replica_tester_block_merkle_category"};
 
-class InternalControlHandlers : public bftEngine::ControlHandlers {
-  bool stoppedOnSuperStableCheckpoint = false;
-  bool stoppedOnStableCheckpoint = false;
-
- public:
-  void onSuperStableCheckpoint() override { stoppedOnSuperStableCheckpoint = true; }
-  void onStableCheckpoint() override { stoppedOnStableCheckpoint = true; }
-  bool onPruningProcess() override { return false; }
-
-  virtual ~InternalControlHandlers(){};
-  bool haveYouStopped(uint64_t n_of_n) {
-    return n_of_n == 1 ? stoppedOnSuperStableCheckpoint : stoppedOnStableCheckpoint;
-  }
-};
 class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
  public:
   InternalCommandsHandler(concord::kvbc::IReader *storage,
                           concord::kvbc::IBlockAdder *blocksAdder,
                           concord::kvbc::IBlockMetadata *blockMetadata,
                           logging::Logger &logger)
-      : m_storage(storage),
-        m_blockAdder(blocksAdder),
-        m_blockMetadata(blockMetadata),
-        m_logger(logger),
-        controlHandlers_(std::make_shared<InternalControlHandlers>()) {}
+      : m_storage(storage), m_blockAdder(blocksAdder), m_blockMetadata(blockMetadata), m_logger(logger) {}
 
   virtual void execute(ExecutionRequestsQueue &requests,
                        const std::string &batchCid,
@@ -87,17 +69,9 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   bool executeGetBlockDataCommand(
       uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
-  bool executeHaveYouStoppedReadCommand(uint32_t requestSize,
-                                        const char *request,
-                                        size_t maxReplySize,
-                                        char *outReply,
-                                        uint32_t &outReplySize,
-                                        uint32_t &specificReplicaInfoSize);
   bool executeGetLastBlockCommand(uint32_t requestSize, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;
-
-  std::shared_ptr<bftEngine::ControlHandlers> getControlHandlers() override { return controlHandlers_; }
 
  private:
   static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
@@ -115,6 +89,5 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   size_t m_readsCounter = 0;
   size_t m_writesCounter = 0;
   size_t m_getLastBlockCounter = 0;
-  std::shared_ptr<InternalControlHandlers> controlHandlers_;
   std::shared_ptr<concord::performance::PerformanceManager> perfManager_;
 };

@@ -67,8 +67,6 @@ class DummyRequestsHandler : public IRequestsHandler {
       req.outExecutionStatus = 0;
     }
   }
-
-  std::shared_ptr<ControlHandlers> getControlHandlers() override { return nullptr; }
 };
 
 class DummyReceiver : public IReceiver {

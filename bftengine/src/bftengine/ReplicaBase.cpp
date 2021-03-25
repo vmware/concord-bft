@@ -21,12 +21,14 @@ namespace bftEngine::impl {
 using namespace std::chrono_literals;
 
 ReplicaBase::ReplicaBase(const ReplicaConfig& config,
+                         std::shared_ptr<IRequestsHandler> requestsHandler,
                          std::shared_ptr<MsgsCommunicator> msgComm,
                          std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
                          concordUtil::Timers& timers)
     : config_(config),
       msgsCommunicator_(msgComm),
       msgHandlers_(msgHandlerReg),
+      bftRequestsHandler_{requestsHandler},
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},

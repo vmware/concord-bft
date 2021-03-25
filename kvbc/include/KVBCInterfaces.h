@@ -109,7 +109,7 @@ class IReplica {
   /// TODO(IG) the following methods are probably temp solution,
   /// need to split interfaces implementations to differrent modules
   /// instead of being all implemented bt ReplicaImpl
-  virtual void set_command_handler(ICommandsHandler* handler) = 0;
+  virtual void set_command_handler(std::shared_ptr<ICommandsHandler> handler) = 0;
 };
 
 /////////////////////////////////////////////////////////////////////////////
