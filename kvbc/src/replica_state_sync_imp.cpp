@@ -19,17 +19,20 @@
 
 using concord::kvbc::Key;
 
-namespace concord {
-namespace kvbc {
+namespace concord::kvbc {
 
 ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata) : blockMetadata_(blockMetadata) {}
 
 uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
                                       categorization::KeyValueBlockchain& blockchain,
-                                      BlockId lastReachableBlockId,
                                       uint64_t lastExecutedSeqNum) {
+  if (!lastExecutedSeqNum) {
+    LOG_INFO(logger, "Replica's metadata is empty => skip blocks removal");
+    return 0;
+  }
   uint64_t removedBlocksNum = 0;
   const auto genesisBlockId = blockchain.getGenesisBlockId();
+  BlockId lastReachableBlockId = blockchain.getLastReachableBlockId();
   uint64_t lastBlockSeqNum = 0;
   while (lastReachableBlockId && genesisBlockId <= lastReachableBlockId) {
     // Get execution sequence number stored in the current last block.
@@ -42,13 +45,19 @@ uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
     }
     // SBFT State Metadata is not in sync with the Blockchain State.
     // Remove blocks which sequence number is greater than lastExecutedSeqNum.
+    if (removedBlocksNum == 1) {
+      std::string error = " Detected more than one block needs to be deleted from the blockchain - unsupported";
+      LOG_FATAL(logger, error);
+      throw std::runtime_error(__PRETTY_FUNCTION__ + error);
+    }
     blockchain.deleteLastReachableBlock();
-    --lastReachableBlockId;
+    lastReachableBlockId = blockchain.getLastReachableBlockId();
     ++removedBlocksNum;
   }
-  LOG_INFO(logger, "All blockchain blocks deleted " << KVLOG(removedBlocksNum, lastBlockSeqNum, lastReachableBlockId));
+  LOG_INFO(logger,
+           "Inconsistent blockchain block deleted "
+               << KVLOG(removedBlocksNum, lastExecutedSeqNum, lastBlockSeqNum, blockchain.getLastReachableBlockId()));
   return removedBlocksNum;
 }
 
-}  // namespace kvbc
-}  // namespace concord
+}  // namespace concord::kvbc
