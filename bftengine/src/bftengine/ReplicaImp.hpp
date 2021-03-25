@@ -332,6 +332,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // Generate diagnostics status replies
   std::string getReplicaState() const;
+  std::string getReplicaLastStableSeqNum() const;
   template <typename T>
   void onMessage(T* msg);
 
@@ -453,8 +454,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
                                           const ViewNum relatedViewNumber,
                                           const std::forward_list<RetSuggestion>& suggestedRetransmissions);
-
-  void onStateTransferCompleted(uint64_t newStateCheckpoint);
 
  private:
   void addTimers();

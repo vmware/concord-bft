@@ -40,7 +40,6 @@
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
-#include "messages/InternalMessage.hpp"
 #include "KeyManager.h"
 #include "CryptoManager.hpp"
 
@@ -1115,11 +1114,6 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return retransmissionsManager->OnProcessingComplete();
   }
 
-  // Handle a state transfer completion
-  if (auto *stc = std::get_if<StateTransferCompleteMsg>(&msg)) {
-    return onStateTransferCompleted(stc->newStateCheckpointNum);
-  }
-
   // Handle a status request for the diagnostics subsystem
   if (auto *get_status = std::get_if<GetStatus>(&msg)) {
     return onInternalMsg(*get_status);
@@ -1128,12 +1122,27 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   ConcordAssert(false);
 }
 
+std::string ReplicaImp::getReplicaLastStableSeqNum() const {
+  std::ostringstream oss;
+  std::unordered_map<std::string, std::string> result, nested_data;
+
+  nested_data.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
+  result.insert(
+      toPair("Sequence Numbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+
+  oss << concordUtils::kContainerToJson(result);
+  return oss.str();
+}
+
 std::string ReplicaImp::getReplicaState() const {
   auto primary = getReplicasInfo().primaryOfView(curView);
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result, nested_data;
+
   result.insert(toPair("Replica ID", std::to_string(getReplicasInfo().myId())));
+
   result.insert(toPair("Primary ", std::to_string(primary)));
+
   nested_data.insert(toPair(getName(viewChangeProtocolEnabled), viewChangeProtocolEnabled));
   nested_data.insert(toPair(getName(autoPrimaryRotationEnabled), autoPrimaryRotationEnabled));
   nested_data.insert(toPair(getName(curView), curView));
@@ -1145,6 +1154,7 @@ std::string ReplicaImp::getReplicaState() const {
   result.insert(
       toPair("View Change ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
+
   nested_data.insert(toPair(getName(primaryLastUsedSeqNum), primaryLastUsedSeqNum));
   nested_data.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
   nested_data.insert(toPair("lastStableCheckpoint", lastStableSeqNum / checkpointWindowSize));
@@ -1157,6 +1167,7 @@ std::string ReplicaImp::getReplicaState() const {
   result.insert(
       toPair("Sequence Numbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
+
   nested_data.insert(toPair(getName(restarted_), restarted_));
   nested_data.insert(toPair(getName(requestsQueueOfPrimary.size()), requestsQueueOfPrimary.size()));
   nested_data.insert(toPair(getName(requestsBatcg312her_->getMaxNumberOfPendingRequestsInRecentHistory()),
@@ -1175,12 +1186,17 @@ std::string ReplicaImp::getReplicaState() const {
   nested_data.insert(toPair(getName(numInvalidClients), numInvalidClients));
   nested_data.insert(toPair(getName(numValidNoOps), numValidNoOps));
   result.insert(toPair("Other ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
 }
 
 void ReplicaImp::onInternalMsg(GetStatus &status) const {
-  if (status.key == "replica") {
+  if (status.key == "replica") {  // TODO: change this key name (coordinate with deployment)
+    return status.output.set_value(getReplicaLastStableSeqNum());
+  }
+
+  if (status.key == "replica_state") {
     return status.output.set_value(getReplicaState());
   }
 
@@ -2583,11 +2599,6 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
-  InternalMessage iMsg{StateTransferCompleteMsg{newStateCheckpoint}};
-  getIncomingMsgsStorage().pushInternalMsg(std::move(iMsg));
-}
-
-void ReplicaImp::onStateTransferCompleted(uint64_t newStateCheckpoint) {
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
