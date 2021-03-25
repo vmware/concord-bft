@@ -397,7 +397,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in rsi_rep.values():
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.in_progress is False
-            assert status.response.last_pruned_block == 90
+            assert status.response.last_pruned_block <= 90
 
 
 
