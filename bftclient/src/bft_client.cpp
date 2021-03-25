@@ -254,14 +254,13 @@ std::optional<Reply> Client::wait() {
   if (replies.empty()) {
     static constexpr size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 5;
     // reply_certificates_ should hold just one request when using this wait method
-    for (auto& req : reply_certificates_) {
-      if (req.second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
-        req.second.clearReplies();
-        metrics_.repliesCleared.Get().Inc();
-      }
-      primary_ = std::nullopt;
-      return std::nullopt;
+    auto req = reply_certificates_.begin();
+    if (req->second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
+      req->second.clearReplies();
+      metrics_.repliesCleared.Get().Inc();
     }
+    primary_ = std::nullopt;
+    return std::nullopt;
   }
   auto reply = std::move(replies.front());
   return reply;
