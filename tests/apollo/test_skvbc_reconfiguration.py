@@ -113,9 +113,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         client = bft_network.random_client()
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
         await client.write(reconf_msg.serialize(), reconfiguration=True)
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
