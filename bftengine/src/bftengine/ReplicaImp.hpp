@@ -319,6 +319,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // Generate diagnostics status replies
   std::string getReplicaState() const;
+  std::string getReplicaLastStableSeqNum() const;
   template <typename T>
   void onMessage(T* msg);
 
