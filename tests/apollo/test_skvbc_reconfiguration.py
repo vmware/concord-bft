@@ -340,9 +340,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             for rep in rsi_rep:
                 r = rsi_rep[rep]
                 data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-                if '90' not in data.additional_data.decode('utf-8'):
-                    action.log('pruned block is not 90, additional data: {}, replica: {}'.format(data.additional_data.decode('utf-8'), rep))
-                assert '90' in data.additional_data.decode('utf-8')
+                pruned_block = int(data.additional_data.decode('utf-8'))
+                assert pruned_block <= 90
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
