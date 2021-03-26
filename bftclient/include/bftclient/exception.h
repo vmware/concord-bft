@@ -43,6 +43,12 @@ class TimeoutException : public BftClientException {
                            ", and correlation id: " + cid) {}
 };
 
+class BatchTimeoutException : public BftClientException {
+ public:
+  BatchTimeoutException(const std::string& cid)
+      : BftClientException("Timeout for a batch request with correlation id: " + cid) {}
+};
+
 class InvalidPrivateKeyException : public BftClientException {
  public:
   InvalidPrivateKeyException(std::string& file_path, bool encrypted)
