@@ -3112,6 +3112,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 }
 
 void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
+  if (isCollectingState()) return;
+
   tryToSendStatusReport(true);
 
 #ifdef DEBUG_MEMORY_MSG
