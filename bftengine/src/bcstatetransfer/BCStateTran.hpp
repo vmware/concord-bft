@@ -39,7 +39,6 @@
 #include "throughput.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
-#include "ControlStateManager.hpp"
 
 using std::set;
 using std::map;
