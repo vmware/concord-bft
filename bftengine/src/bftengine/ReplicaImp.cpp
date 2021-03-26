@@ -1634,6 +1634,11 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    LOG_INFO(GL, "Received checkpoint message while pruning, ignoring the message");
+    delete msg;
+    return;
+  }
   LOG_INFO(
       GL,
       "Received checkpoint message from node. " << KVLOG(msgSenderId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
