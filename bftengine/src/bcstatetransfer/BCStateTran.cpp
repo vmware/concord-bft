@@ -627,10 +627,6 @@ void BCStateTran::startCollectingState() {
 
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
-  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
-    LOG_INFO(getLogger(), "Unable to perform ST while pruning");
-    return;
-  }
   metrics_.start_collecting_state_.Get().Inc();
   startCollectingStats();
 
