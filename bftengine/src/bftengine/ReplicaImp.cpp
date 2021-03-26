@@ -1820,6 +1820,7 @@ void ReplicaImp::sendRetransmittableMsgToReplica(MessageBase *msg,
 }
 
 void ReplicaImp::onRetransmissionsTimer(Timers::Handle timer) {
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return;
   ConcordAssert(retransmissionsLogicEnabled);
 
   retransmissionsManager->tryToStartProcessing();
@@ -3019,6 +3020,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
 
 void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/update logic
 {
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return;
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   ConcordAssert(viewChangeProtocolEnabled);
 
@@ -3117,6 +3119,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
 }
 
 void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
+  if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return;
+
   tryToSendStatusReport(true);
 
 #ifdef DEBUG_MEMORY_MSG
@@ -3125,6 +3129,7 @@ void ReplicaImp::onStatusReportTimer(Timers::Handle timer) {
 }
 
 void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return;
   tryToStartSlowPaths();
   auto newPeriod = milliseconds(controller->slowPathsTimerMilli());
   timers_.reset(timer, newPeriod);
@@ -3132,6 +3137,7 @@ void ReplicaImp::onSlowPathTimer(Timers::Handle timer) {
 }
 
 void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) return;
   tryToAskForMissingInfo();
   auto newPeriod = milliseconds(dynamicUpperLimitOfRounds->upperLimit() / 2);
   timers_.reset(timer, newPeriod);
