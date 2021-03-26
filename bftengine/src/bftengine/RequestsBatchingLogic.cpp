@@ -93,13 +93,13 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
       break;
     case BATCH_BY_REQ_NUM: {
       lock_guard<mutex> lock(batchProcessingLock_);
-      if (replica_.tryToSendPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_))
-        timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      prePrepareMsg = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
+      if (prePrepareMsg) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     } break;
     case BATCH_BY_REQ_SIZE: {
       lock_guard<mutex> lock(batchProcessingLock_);
-      if (replica_.tryToSendPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_))
-        timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      prePrepareMsg = replica_.buildPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_);
+      if (prePrepareMsg) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     } break;
   }
   return prePrepareMsg;
