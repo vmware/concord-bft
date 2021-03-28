@@ -73,9 +73,32 @@ Msg ComposedFixedList 16 {
     list fixedlist uint8 32 hashes
 }
 
+Enum Color { red, blue, yellow }
+
+Msg ContainsEnum 17 {
+    Color color
+    map string Color colors_by_name
+    list Color colors
+}
+
+Msg ComposedOneof 18 {
+    list oneof {Transaction NewViewElement} x
+}
+
 ######
 # Uncomment each message to induce various parse errors
 ######
+
+# Oneof containing enum
+#Msg OneofContainsEnum 1000 {
+#    oneof { Color } x
+#}
+
+# Duplicate Enum name
+#Enum Color {black, white}
+
+# Enum with same name as Msg
+#Enum Envelope { a, b, c}
 
 # Duplicate name
 #Msg Envelope 1000 {

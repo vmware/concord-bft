@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the 'License').
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -122,6 +122,9 @@ class PyVisitor(Visitor):
             [self.msg_class, self.serialize, self.deserialize, self.eq])
         self._reset()
 
+    def create_enum(self, name, tags):
+        self.output += f'''\n{name} = enum.Enum(\'{name}\', {tags}, start=0)\n'''
+
     def field_start(self, name, type):
         self.field_name = name
         self.msg_class += f'         self.{name} = None\n'
@@ -212,3 +215,6 @@ class PyVisitor(Visitor):
 
     def oneof(self, msgs):
         self.serializers.append(('oneof', msgs))
+
+    def enum(self, name):
+        self.serializers.append(('enum', name))

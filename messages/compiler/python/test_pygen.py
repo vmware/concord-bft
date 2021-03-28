@@ -231,3 +231,29 @@ def test_FixedTransactionList(codegen):
     msg.transactions2 = [t1]
     with pytest.raises(example.CmfSerializeError):
         s = msg.serialize()
+
+def test_ContainsEnum(codegen):
+    import example
+
+    msg = example.ContainsEnum()
+    msg.color = example.Color(1)
+    msg.colors = [example.Color(0)]
+    msg.colors_by_name = {'red': example.Color(0)}
+    assert_roundtrip(msg)
+
+    # Try to serialize an invalid type
+    msg.color = 'red'
+    with pytest.raises(example.CmfSerializeError):
+        msg.serialize()
+
+    # Try to serialize a class with the same name but that isn't an enum
+    class Color:
+        pass
+    msg.color = Color()
+    with pytest.raises(example.CmfSerializeError):
+        msg.serialize()
+
+    # Try to deserialize a message with a value outside the enum range (0-2)
+    s = bytearray(b'\x03')
+    with pytest.raises(ValueError):
+        msg.deserialize(s)

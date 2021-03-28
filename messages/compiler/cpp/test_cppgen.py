@@ -79,6 +79,13 @@ class InstanceVisitor(Visitor):
         # The current msg instance being generated as a string
         self.instance = ''
 
+        # All Enum definitions.
+        self.enums = dict()
+
+
+    def create_enum(self, name, tags):
+        self.enums[name] = tags
+
     def msg_start(self, name, id):
         self.msg_name = name
         self.instance = f'{name} {instance_name(name, self.size)}{{'
@@ -162,6 +169,7 @@ class InstanceVisitor(Visitor):
     def fixedlist_end(self, size):
         self.instance += "}"
 
+
     # Map instances are tricky to generate. Uniform initialization of maps is done by lists of
     # std::pairs, which themselves are represented as initializer lists. For this reason, we
     # actually need to know when a map starts and ends so we can generate `self.size` numbers
@@ -199,6 +207,8 @@ class InstanceVisitor(Visitor):
         self.instance += type_instance_from_variable_instance(
             variable_instance)
 
+    def enum(self, name):
+        self.instance += (name + "::" + random.choice(self.enums[name]))
 
 def testSerializationStr(msg_name):
     """
@@ -247,8 +257,9 @@ def file_trailer(namespace, ast):
 
 int main() {{
 """.format(namespace)
-    for msg in ast.msgs:
-        s += "  {}::{}();\n".format(namespace, test_name(msg.name))
+    for t in ast:
+        for msg in t.msgs or []:
+            s += "  {}::{}();\n".format(namespace, test_name(msg.name))
     s += "  cmf::test::test_integer_serialization();\n"
     s += "}"
     return s

@@ -38,7 +38,8 @@ class Visitor(metaclass=ABCMeta):
     `key_end`, like `kvpair_key_end`.
 
     Top level types, 'Msg' and 'Field', cannot be nested, although they also register two
-    callbacks, since they must be "opened" and "closed".
+    callbacks, since they must be "opened" and "closed". The top-level 'Enum' type does not
+    require more than one callback.
 
     See 'grammar.ebnf' for details about all types.
     """
@@ -46,6 +47,17 @@ class Visitor(metaclass=ABCMeta):
     #
     # TOP LEVEL TYPES
     #
+
+    @abstractmethod
+    def create_enum(self, name, tags):
+      """
+        A new enum has been defined.
+        Enum definitions are not nestable.
+
+        Args:
+            name (str): The name of the Enum
+            tags (list(str)): The possible values of the enumeration
+        """
 
     @abstractmethod
     def msg_start(self, name, id):
@@ -206,5 +218,15 @@ class Visitor(metaclass=ABCMeta):
 
         Args:
            msgs (dict(str, int)): A dict mapping the names of messages to their ids.
+        """
+        pass
+
+    @abstractmethod
+    def enum(self, name):
+        """
+        An enum field used to refer to a previously defined Enum.
+
+        Args:
+            name (str): The name of the Enum
         """
         pass

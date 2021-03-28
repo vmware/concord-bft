@@ -84,6 +84,26 @@ void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
 }
 
 /******************************************************************************
+ * Enums
+ *
+ * Enums are type wrappers around uint8_t
+ ******************************************************************************/
+template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+void serialize(std::vector<uint8_t>& output, const T& t) {
+  serialize(output, static_cast<uint8_t>(t));
+}
+
+template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
+  uint8_t val;
+  deserialize(start, end, val);
+  t = static_cast<T>(val);
+  if (val >= enumSize(t)) {
+    throw BadDataError(std::string("Value < ") + std::to_string(enumSize(t)), std::to_string(val));
+  }
+}
+
+/******************************************************************************
  * Strings
  *
  * Strings are preceded by a uint32_t length

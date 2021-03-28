@@ -19,18 +19,25 @@ generates an [Abstract Syntax Tree (AST)](https://en.wikipedia.org/wiki/Abstract
 the parsed messages according to the grammar. The parser generator finds syntax errors, and some
 basic typechecking is done via a [semantics plugin](compiler/semantics.py).
 
-Code generation is performed by walking the AST and generating strings containining the messages as types in the language being generated, as well as serialization and deserialization code for each message. In order to decouple the implementation of the AST from the code generation, where generation for each language may be written by different developers, a [Visitor](compiler/visitor.py) pattern is used. Each code generator implements the visitor for a given language that allow it to take callbacks about specific types and generate the corresponding code. Currently there is only a single [code generator for C++](compiler/cpp/cppgen.py), although python is coming soon.
+Code generation is performed by walking the AST and generating strings containining the messages as types in the language being generated, as well as serialization and deserialization code for each message. In order to decouple the implementation of the AST from the code generation, where generation for each language may be written by different developers, a [Visitor](compiler/visitor.py) pattern is used. Each code generator implements the visitor for a given language that allow it to take callbacks about specific types and generate the corresponding code.
 
 The great thing about generating code via a visitor, is that [tests can be generated as well](test_cppgen.py)!
 
+# Language Implementations
+
+ * [C++](compiler/cpp/cppgen.py)
+ * [Python](compiler/python/pygen.py)
+
 # Usage
 
-Messages are defined in concord message format (.cmf) files. For C++ a single `.cmf` file will generate a standalone `.h` file. The only dependency is a C++17 standard library.
+## C++
+
+Messages are defined in concord message format (.cmf) files. For C++ a single `.cmf` file will generate corresponding `.hpp` and `.cpp` files. The only dependency is a C++17 standard library.
 
 Generate C++ code:
 
 ```bash
-./cmfc.py --input ../example.cmf --output example.h --language cpp --namespace concord::messages
+./cmfc.py --input ../example.cmf --output example --language cpp --namespace concord::messages
 ```
 
 Test C++ code generation. The following:
@@ -43,6 +50,14 @@ Test C++ code generation. The following:
 ```bash
 cd compiler/cpp
 ./test_cppgen.py
+```
+
+## Python
+
+Generate Python code:
+
+```bash
+./cmfc.py --input ../example.cmf --output example --language python
 ```
 
 
@@ -65,6 +80,7 @@ Compound data types may include primitive types and other compound types. We ens
  * map - A lexicographically sorted list of key-value pairs
  * oneof - A sum type (tagged union) containing exactly one of the given messages. oneof types cannot contain primitives or compound types, they can only refer to messages. This is useful for deserializing a set of related messages into a given wrapper type. A oneof maps to a `std::variant` in c++.
  * optional - An optional value of any type. An optional maps to a `std::optional` in C++.
+ * enum - An enumerated list of tags. The underlying representation is a uint8.
 
  ## C++ Struct Member Initialization
  C++ struct members are value-initialized via `{}`, effectively:
@@ -84,10 +100,10 @@ Comments must be on their own line and start with the `#` character. Leading whi
 * `uint16` - The value itself
 * `uint32` - The value itself
 * `uint64` - The value itself
-* `sint8` - The value itself
-* `sint16` - The value itself
-* `sint32` - The value itself
-* `sint64` - The value itself
+* `int8` - The value itself
+* `int16` - The value itself
+* `int32` - The value itself
+* `int64` - The value itself
 * `string` - uint32 length followed by UTF-8 encoded data
 * `bytes` - uint32 length followed by arbitrary bytes
 * `kvpair` - primitive key followed by primitive or compound value
@@ -96,16 +112,31 @@ Comments must be on their own line and start with the `#` character. Leading whi
 * `map` - serialized as a list of lexicographically sorted key-value pairs
 * `oneof` - uint32 message id of the contained message followed by the message
 * `optional` - bool followed by the value
+* `enum` - The value itself as a uint8
 
 Integer values are serialized in `big-endian` byte order.
 
 # Schema Format
+
+There are two top-level types: `Msg` and `Enum`. Enums and Msgs share a namespace and therefore
+they must have distinct names.
 
 All messages start with the token `Msg`, followed the message name, the message id, and opening
 brace, `{`. Each field is specified with the type name, followed by the field name. After all
 field definitions, a closing brace, `}` is added. All types must be *flat*. No nested messsage
 definitions are allowed. For nesting, use an existing message name as the type or multiple
 compound types.
+
+An Enum is a type containing a choice of distinct tags. It can be used as a field in one or more `Msg`s.
+
+Previsously defined Enums and Msgs can be directly referred to by name in a field.
+
+```
+Msg DirectRefs 3 {
+    SomeMsg some_msg
+    SomeEnum some_enum
+}
+```
 
 ## Field type formats
 
@@ -116,10 +147,10 @@ compound types.
 * `uint16 <name>`
 * `uint32 <name>`
 * `uint64 <name>`
-* `sint8 <name>`
-* `sint16 <name>`
-* `sint32 <name>`
-* `sint64 <name>`
+* `int8 <name>`
+* `int16 <name>`
+* `int32 <name>`
+* `int64 <name>`
 * `string <name>`
 * `bytes <name>`
 
@@ -167,33 +198,3 @@ An optional may contain a value of a given type or not.
 
 ## Example
 See [example.cmf](example.cmf)
-
-```
-Msg NewViewElement 1 {
-    uint16 replica_id
-    bytes digest
-}
-
-Msg NewView 2 {
-  uint16 view
-  list NewViewElement element
-}
-
-Msg PrePrepare 3 {
-    uint64 view
-    uint64 sequence_number
-    uint16_t flags
-    bytes digest
-    list bytes client_requests
-}
-
-Msg ConsensusMsg 4 {
-    uint32 protocol_version
-    bytes span
-    oneof {
-        NewView
-        PrePrepare
-    } msg_type
-}
-
-```

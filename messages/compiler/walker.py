@@ -26,8 +26,9 @@ def field_type(type):
     if not isinstance(type, dict):
         if is_primitive(type):
             return type
-        return "msg"
-    for compound in ["list", "fixedlist", "kvpair", "map", "optional", "oneof"]:
+        raise CmfParseError(type.parseinfo, f"Invalid field type: {type}")
+    # The semantics class puts enum and msg into the same form as a compound
+    for compound in ["list", "fixedlist", "kvpair", "map", "optional", "oneof", "enum", "msg"]:
         if compound in type:
             return compound
     raise CmfParseError(type.parseinfo, f"Invalid field type: {type}")
@@ -41,25 +42,28 @@ class Walker:
 
         # A map of msg names to ids for all seen messages while walking the AST.
         self.msgs = dict()
+        self.enums = set()
 
     def walk(self):
         """ Walk the AST and call the visitor to generate code """
-        for msg in self.ast.msgs:
-            self.msgs[msg.name] = msg.id
-            self.visitor.msg_start(msg.name, msg.id)
-            for field in msg.fields:
-                type = field_type(field.type)
-                self.visitor.field_start(field.name, type)
-                self.walk_type(field.type)
-                self.visitor.field_end()
-            self.visitor.msg_end()
+        for t in self.ast:
+            for msg in t.msgs or []:
+                self.msgs[msg.name] = msg.id
+                self.visitor.msg_start(msg.name, msg.id)
+                for field in msg.fields:
+                    type = field_type(field.type)
+                    self.visitor.field_start(field.name, type)
+                    self.walk_type(field.type)
+                    self.visitor.field_end()
+                self.visitor.msg_end()
+            for enum in t.enums or []:
+                self.enums.add(enum.name)
+                self.visitor.create_enum(enum.name, enum.tags)
 
     def walk_type(self, type):
         if not isinstance(type, dict):
             if is_primitive(type):
                 getattr(self.visitor, type)()
-            else:
-                self.visitor.msgname_ref(type)
         elif "list" in type:
             self.visitor.list_start()
             self.walk_type(type.list.type)
@@ -86,7 +90,18 @@ class Walker:
             self.walk_type(type.optional.type)
             self.visitor.optional_end()
         elif "oneof" in type:
-            self.visitor.oneof(
-                dict([(n, self.msgs[n]) for n in type.oneof.msg_names]))
+            msgs = dict()
+            for d in type.oneof.msg_names:
+                if not 'msg' in d:
+                    # This is needed to prevent oneofs of Enums now that both messages and enums
+                    # are top level types
+                    raise CmfParseError(type.parseinfo, "A oneof can only contain names of messages")
+                name = d['msg']
+                msgs[name] = self.msgs[name]
+            self.visitor.oneof(msgs)
+        elif "msg" in type:
+            self.visitor.msgname_ref(type['msg'])
+        elif "enum" in type:
+            self.visitor.enum(type['enum'])
         else:
             raise CmfParseError(type.parseinfo, "Invalid field type")
