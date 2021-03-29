@@ -161,6 +161,11 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
+  if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
+    LOG_FATAL(CL_MNGR,
+              "More than maxNumOfReqsPerClient_ items in repliesInfo"
+                  << KVLOG(c.repliesInfo.size(), maxNumOfReqsPerClient_, requestSeqNum, reply, replyLength));
+  }
 
   c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
@@ -169,6 +174,12 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   LOG_DEBUG(CL_MNGR, "firstPageId=" << firstPageId);
   uint32_t numOfPages = r->size() / sizeOfReservedPage_;
   uint32_t sizeLastPage = sizeOfReservedPage_;
+  if (numOfPages > reservedPagesPerClient_) {
+    LOG_FATAL(CL_MNGR,
+              "Client reply larger than reservedPagesPerClient_ allows" << KVLOG(
+                  requestSeqNum, r->size(), reservedPagesPerClient_ * sizeOfReservedPage_, reply, replyLength));
+    ConcordAssert(false);
+  }
 
   if (r->size() % sizeOfReservedPage_ != 0) {
     numOfPages++;
