@@ -29,15 +29,10 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
   const size_t offset = bytes_already_read ? bytes_already_read.value() : 0;
   const size_t bytes_remaining = MSG_HEADER_SIZE - offset;
   auto buf = boost::asio::buffer(read_size_buf_.data() + offset, bytes_remaining);
-  const auto start_read = std::chrono::steady_clock::now();
   tlsTcpImpl_.status_->msg_size_header_read_attempts++;
 
   socket_->async_read_some(
-      buf,
-      [this, self, bytes_already_read, bytes_remaining, start_read](const auto& error_code, auto bytes_transferred) {
-        auto interval =
-            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_read);
-        tlsTcpImpl_.histograms_.time_between_reads->record(interval.count());
+      buf, [this, self, bytes_already_read, bytes_remaining](const auto& error_code, auto bytes_transferred) {
         if (disposed_) {
           return;
         }
