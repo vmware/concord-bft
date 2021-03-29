@@ -118,7 +118,6 @@ struct Recorders {
                                       received_msg_size,
                                       send_time_in_queue,
                                       read_enqueue_time,
-                                      time_between_reads,
                                       connect_callback,
                                       on_connection_authenticated});
   }
@@ -129,7 +128,6 @@ struct Recorders {
   DEFINE_SHARED_RECORDER(write_queue_len, 1, MAX_QUEUE_LENGTH, 3, Unit::COUNT);
   DEFINE_SHARED_RECORDER(send_time_in_queue, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(read_enqueue_time, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(time_between_reads, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(connect_callback, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(on_connection_authenticated, 1, MAX_US, 3, Unit::MICROSECONDS);
 };
