@@ -167,7 +167,11 @@ RC_GTEST_PROP(
   // Removing one or two nodes will trigger removal of the BatchedInternalNode altogether. We want
   // to ensure that when only a single key is removed, the state of the node is identical to the
   // state before the addition. Therefore, we only work on nodes with more than 2 inserted keys.
-  RC_PRE(key_hashes.size() > 2ul);
+  try {
+    RC_PRE(key_hashes.size() > 2ul);
+  } catch (...) {
+    RC_SUCCEED("Test case skipped. Pre-condition not met.");
+  }
 
   for (auto i = 0ul; i < key_hashes.size() - 1; i++) {
     auto key = LeafKey(key_hashes[i], version);
@@ -194,7 +198,11 @@ RC_GTEST_PROP(batched_internal_node_properties,
   const auto version = Version(1);
   const auto& [key_hashes, depth] = *genHashesWithUniqueNibblesAtGeneratedDepth();
 
-  RC_PRE(key_hashes.size() == 1ul || key_hashes.size() == 2ul);
+  try {
+    RC_PRE(key_hashes.size() == 1ul || key_hashes.size() == 2ul);
+  } catch (...) {
+    RC_SUCCEED("Test case skipped. Pre-condition not met.");
+  }
 
   for (auto key_hash : key_hashes) {
     auto key = LeafKey(key_hash, version);
