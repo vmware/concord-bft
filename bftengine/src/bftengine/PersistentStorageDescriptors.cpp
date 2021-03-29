@@ -277,7 +277,7 @@ void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t 
   std::unique_ptr<MessageBase> msgBase(MessageBase::deserializeMsg(buf, bufLen, actualSize));
   auto msg = new ViewChangeMsg(msgBase.get());
   ConcordAssert(viewChangeMsgs[id] == nullptr);
-  viewChangeMsgs[id] = ((ViewChangeMsg *)msg);
+  viewChangeMsgs[id] = msg;
 }
 
 /***** DescriptorOfLastExecution *****/
