@@ -120,8 +120,10 @@ void DescriptorOfLastExitFromView::deserializeSimpleParams(char *buf, size_t buf
 
   size_t actualMsgSize = 0;
   std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, actualMsgSize));
-  myViewChangeMsg = new ViewChangeMsg(baseMsg.get());
-
+  myViewChangeMsg = nullptr;
+  if (baseMsg) {
+    myViewChangeMsg = new ViewChangeMsg(baseMsg.get());
+  }
   uint32_t elementsNum;
   size_t elementsNumSize = sizeof(elementsNum);
   memcpy(&elementsNum, buf, elementsNumSize);
@@ -140,11 +142,15 @@ void DescriptorOfLastExitFromView::deserializeElement(uint32_t id, char *buf, si
   PrepareFullMsg *prepareFullMsgPtr = nullptr;
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, msgSize1));
-    prePrepareMsgPtr = new PrePrepareMsg(baseMsg.get());
+    if (baseMsg) {
+      prePrepareMsgPtr = new PrePrepareMsg(baseMsg.get());
+    }
   }
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, msgSize2));
-    prepareFullMsgPtr = new PrepareFullMsg(baseMsg.get());
+    if (baseMsg) {
+      prepareFullMsgPtr = new PrepareFullMsg(baseMsg.get());
+    }
   }
 
   bool hasAllRequests = false;
@@ -259,12 +265,18 @@ void DescriptorOfLastNewView::deserializeSimpleParams(char *buf, size_t bufLen, 
   size_t newViewMsgSize = 0;
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, newViewMsgSize));
-    newViewMsg = new NewViewMsg(baseMsg.get());
+    newViewMsg = nullptr;
+    if (baseMsg) {
+      newViewMsg = new NewViewMsg(baseMsg.get());
+    }
   }
   size_t myViewChangeMsgSize = 0;
   {
     std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, myViewChangeMsgSize));
-    myViewChangeMsg = new ViewChangeMsg(baseMsg.get());
+    myViewChangeMsg = nullptr;
+    if (baseMsg) {
+      myViewChangeMsg = new ViewChangeMsg(baseMsg.get());
+    }
   }
   actualSize = isDefaultSize + viewSize + maxSeqNumSize + stableLowerBoundWhenEnteredToViewSize + newViewMsgSize +
                myViewChangeMsgSize;
@@ -275,7 +287,10 @@ void DescriptorOfLastNewView::deserializeElement(uint32_t id, char *buf, size_t 
   ConcordAssert(id < viewChangeMsgsNum);
 
   std::unique_ptr<MessageBase> msgBase(MessageBase::deserializeMsg(buf, bufLen, actualSize));
-  auto msg = new ViewChangeMsg(msgBase.get());
+  ViewChangeMsg *msg = nullptr;
+  if (msgBase) {
+    msg = new ViewChangeMsg(msgBase.get());
+  }
   ConcordAssert(viewChangeMsgs[id] == nullptr);
   viewChangeMsgs[id] = msg;
 }
