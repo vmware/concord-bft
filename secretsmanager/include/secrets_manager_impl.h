@@ -22,7 +22,6 @@ namespace concord::secretsmanager {
 
 class ISecretsManagerImpl {
  protected:
-  // on error both functions throw std::ios_base::failure
   std::string readFile(std::string_view path);
   std::string readFile(const std::ifstream& file);
   void writeFile(std::string_view file_path, const std::string& content);

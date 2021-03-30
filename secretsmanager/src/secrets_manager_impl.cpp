@@ -23,10 +23,15 @@ namespace concord::secretsmanager {
 
 std::string ISecretsManagerImpl::readFile(std::string_view path) {
   std::ifstream in(path.data());
+
+  if (!in) throw std::runtime_error("Error opening file " + std::string{path});
+
   return readFile(in);
 }
 
 std::string ISecretsManagerImpl::readFile(const std::ifstream& file) {
+  if (!file) throw std::runtime_error("Bad ifstream");
+
   std::stringstream stream;
   stream << file.rdbuf();
 
