@@ -10,18 +10,17 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 import os.path
-import random
 import unittest
-from os import environ
 
 import trio
 
-from util import blinking_replica
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 import sys
 from util import eliot_logging as log
-from util import concord_msgs as cmf_msgs
+
+sys.path.append(os.path.abspath("../../build/tests/apollo/util/"))
+import concord_msgs as cmf_msgs
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
@@ -311,7 +310,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_pruning_command(self, bft_network):
-        with log.start_action(action_type="test_pruning_command") as action:
+        with log.start_action(action_type="test_pruning_command"):
             bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             client = bft_network.random_client()

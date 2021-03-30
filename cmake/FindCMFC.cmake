@@ -41,7 +41,7 @@ function(CMF_GENERATE_PYTHON OUTPUT_NAME)
     execute_process(
             COMMAND ${CMF_COMPILER}
             --input ${IN_FILE_ABS}
-            --output "${CMAKE_CURRENT_SOURCE_DIR}/${OUTPUT_NAME}"
+            --output "${CMAKE_CURRENT_BINARY_DIR}/${OUTPUT_NAME}"
             --language python
     )
   endforeach()
