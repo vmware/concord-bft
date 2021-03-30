@@ -150,7 +150,12 @@ uint8_t CheckData::deserializeCompletedMark(char *&buf) {
 }
 
 CheckpointMsg *CheckData::deserializeCheckpointMsg(char *&buf, uint32_t bufLen, size_t &actualMsgSize) {
-  return (CheckpointMsg *)MessageBase::deserializeMsg(buf, bufLen, actualMsgSize);
+  std::unique_ptr<MessageBase> baseMsg(MessageBase::deserializeMsg(buf, bufLen, actualMsgSize));
+  CheckpointMsg *msg = nullptr;
+  if (baseMsg) {
+    msg = new CheckpointMsg(baseMsg.get());
+  }
+  return msg;
 }
 
 CheckData CheckData::deserialize(char *buf, uint32_t bufLen, uint32_t &actualSize) {
