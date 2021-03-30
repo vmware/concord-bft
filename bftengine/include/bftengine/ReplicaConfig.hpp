@@ -71,6 +71,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(preExecutionFeatureEnabled, bool, false, "enables the pre-execution feature");
   CONFIG_PARAM(clientBatchingEnabled, bool, false, "enables the concord-client-batch feature");
   CONFIG_PARAM(clientBatchingMaxMsgsNbr, uint16_t, 10, "Maximum messages number in one client batch");
+  CONFIG_PARAM(clientTransactionSigningEnabled,
+               bool,
+               false,
+               "whether concord client requests are signed and should be verified");
   CONFIG_PARAM(preExecReqStatusCheckTimerMillisec,
                uint64_t,
                5000,
@@ -99,6 +103,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Crypto system
   // RSA public keys of all replicas. map from replica identifier to a public key
   std::set<std::pair<uint16_t, const std::string>> publicKeysOfReplicas;
+
+  // RSA public keys of all clients. Maps from public key to a set of distinct clients which are expected to sign with
+  // the matching private key
+  std::map<const std::string, std::set<const uint16_t>> publicKeysOfClients;
 
   CONFIG_PARAM(replicaPrivateKey, std::string, "", "RSA private key of the current replica");
 
@@ -171,6 +179,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, preExecutionFeatureEnabled);
     serialize(outStream, clientBatchingEnabled);
     serialize(outStream, clientBatchingMaxMsgsNbr);
+    serialize(outStream, clientTransactionSigningEnabled);
     serialize(outStream, preExecReqStatusCheckTimerMillisec);
     serialize(outStream, preExecConcurrencyLevel);
     serialize(outStream, batchingPolicy);
@@ -223,6 +232,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, preExecutionFeatureEnabled);
     deserialize(inStream, clientBatchingEnabled);
     deserialize(inStream, clientBatchingMaxMsgsNbr);
+    deserialize(inStream, clientTransactionSigningEnabled);
     deserialize(inStream, preExecReqStatusCheckTimerMillisec);
     deserialize(inStream, preExecConcurrencyLevel);
     deserialize(inStream, batchingPolicy);
@@ -306,7 +316,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
   os << ", ";
-  os << KVLOG(rc.clientBatchingEnabled, rc.clientBatchingMaxMsgsNbr, rc.keyViewFilePath);
+  os << KVLOG(
+      rc.clientBatchingEnabled, rc.clientBatchingMaxMsgsNbr, rc.keyViewFilePath, rc.clientTransactionSigningEnabled);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
