@@ -3,6 +3,7 @@
 #include "openssl_pass.h"
 #include "aes.h"
 #include "secrets_manager_enc.h"
+#include "secrets_manager_plain.h"
 
 using namespace concord::secretsmanager;
 
@@ -115,5 +116,23 @@ TEST(SecretsManagerEnc, EmptyInput) {
 
   SecretsManagerEnc sm(ret);
   auto res = sm.decryptString("");
+  ASSERT_FALSE(res.has_value());
+}
+
+TEST(SecretsManagerEnc, NonExistantPath) {
+  SecretData ret;
+  ret.algo = "AES/CBC/PKCS5Padding";
+  ret.digest = "SHA-256";
+  ret.key_length = 256;
+  ret.password = "XaQZrOYEQw";
+
+  SecretsManagerEnc sm(ret);
+  auto res = sm.decryptFile("/path/which/doesnt/exist");
+  ASSERT_FALSE(res.has_value());
+}
+
+TEST(SecretsManagerPlain, NonExistantPath) {
+  SecretsManagerPlain sm;
+  auto res = sm.decryptFile("/path/which/doesnt/exist");
   ASSERT_FALSE(res.has_value());
 }

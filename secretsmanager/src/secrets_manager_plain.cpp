@@ -21,7 +21,7 @@ namespace concord::secretsmanager {
 bool SecretsManagerPlain::encryptFile(std::string_view file_path, const std::string& input) {
   try {
     writeFile(file_path, input);
-  } catch (std::ios_base::failure& e) {
+  } catch (std::exception& e) {
     LOG_ERROR(logger, "Error opening file for writing " << file_path << ": " << e.what());
     return false;
   }
@@ -33,7 +33,7 @@ std::optional<std::string> SecretsManagerPlain::decryptFile(std::string_view pat
   std::string data;
   try {
     data = readFile(path);
-  } catch (std::ios_base::failure& e) {
+  } catch (std::exception& e) {
     LOG_ERROR(logger, "Error opening file for reading    " << path << ": " << e.what());
     return std::nullopt;
   }
@@ -45,7 +45,7 @@ std::optional<std::string> SecretsManagerPlain::decryptFile(const std::ifstream&
   std::string data;
   try {
     data = readFile(file);
-  } catch (std::ios_base::failure& e) {
+  } catch (std::exception& e) {
     LOG_ERROR(logger, "Error opening stream for reading " << e.what());
     return std::nullopt;
   }
