@@ -24,3 +24,6 @@ MakefileCustom
 # Apollo test output
 */apollo/Testing/*
 Testing
+
+# Apollo auto generated cmf messages
+tests/apollo/util/concord_msgs.py
