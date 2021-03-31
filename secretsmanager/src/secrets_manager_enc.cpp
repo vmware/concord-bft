@@ -16,7 +16,6 @@
 #include "secrets_manager_enc.h"
 
 #include "aes.h"
-#include "openssl_pass.h"
 #include "base64.h"
 
 namespace concord::secretsmanager {
@@ -79,7 +78,7 @@ std::optional<std::string> SecretsManagerEnc::decryptString(const std::string& i
 
 std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
   try {
-    auto cipher_text = base64DecNoSalt(data);
+    auto cipher_text = base64Dec(data);
     auto pt = enc_algo_->decrypt(cipher_text);
 
     return std::optional<std::string>{pt};

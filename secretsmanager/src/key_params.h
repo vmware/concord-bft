@@ -22,7 +22,6 @@
 namespace concord::secretsmanager {
 
 struct KeyParams {
-  KeyParams(const size_t key_size, const size_t iv_size) : key(key_size), iv(iv_size) {}
   KeyParams(const std::string& pkey, const std::string& piv);
 
   std::vector<uint8_t> key;

@@ -20,28 +20,6 @@
 
 namespace concord::secretsmanager {
 
-const std::string salt_prefix{"Salted__"};
-const uint8_t salt_size = 8;
-
-std::string base64Enc(const std::vector<uint8_t>& salt, const std::vector<uint8_t>& cipher_text) {
-  if (salt.size() != salt_size) {
-    throw std::runtime_error("Bad salt size " + std::to_string(salt.size()) + ". Expected value " +
-                             std::to_string(salt_size));
-  }
-
-  CryptoPP::Base64Encoder encoder;
-  encoder.Put((unsigned char*)salt_prefix.data(), salt_prefix.length());
-  encoder.Put(salt.data(), salt.size());
-  encoder.Put(cipher_text.data(), cipher_text.size());
-  encoder.MessageEnd();
-
-  uint64_t output_size = encoder.MaxRetrievable();
-  std::string output(output_size, '0');
-  encoder.Get((unsigned char*)output.data(), output.size());
-
-  return output;
-}
-
 std::string base64Enc(const std::vector<uint8_t>& cipher_text) {
   CryptoPP::Base64Encoder encoder;
   encoder.Put(cipher_text.data(), cipher_text.size());
@@ -53,31 +31,7 @@ std::string base64Enc(const std::vector<uint8_t>& cipher_text) {
   return output;
 }
 
-SaltedCipher base64Dec(const std::string& input) {
-  std::vector<uint8_t> decoded;
-  CryptoPP::StringSource ss(input, true, new CryptoPP::Base64Decoder(new CryptoPP::VectorSink(decoded)));
-
-  SaltedCipher result;
-
-  if (decoded.size() < salt_prefix.length()) {
-    throw std::runtime_error("Bad salt header length " + std::to_string(decoded.size()) +
-                             ". Expected length to be at least " + std::to_string(salt_prefix.length()));
-  }
-
-  std::string header(decoded.begin(), decoded.begin() + salt_prefix.length());
-  if (header != salt_prefix) {
-    throw std::runtime_error("Bad salt header '" + header + "'. Expected value " + salt_prefix);
-  }
-
-  auto salt_it = decoded.begin() + salt_prefix.length();
-  auto ct_it = salt_it + salt_size;
-  result.salt = std::vector<uint8_t>(salt_it, salt_it + salt_size);
-  result.cipher_text = std::vector<uint8_t>(ct_it, decoded.end());
-
-  return result;
-}
-
-std::vector<uint8_t> base64DecNoSalt(const std::string& input) {
+std::vector<uint8_t> base64Dec(const std::string& input) {
   std::vector<uint8_t> dec;
   CryptoPP::StringSource ss(input, true, new CryptoPP::Base64Decoder(new CryptoPP::VectorSink(dec)));
 

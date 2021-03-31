@@ -14,6 +14,9 @@
 # 3) To create 30 certificates folders with node IDs 5 to 34 in "/tmp/fldkdsZ/:
 # > ./create_tls_certs.sh 30 /tmp/fldkdsZ 5
 
+KEY="15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2"
+IV="38106509f6528ff859c366747aa04f21"
+
 if [ "$#" -eq 0 ] || [ -z "$1" ]; then
    echo "usage: create_tls_certs.sh {num of replicas} {optional - output folder} {optional - start node ID}"
    exit 1
@@ -48,9 +51,9 @@ while [ $i -le $last_node_id ]; do
    openssl req -new -key $clientDir/pk.pem -nodes -days 365 -x509 \
         -subj "/C=NA/ST=NA/L=NA/O=NA/OU=${i}/CN=node${i}cli" -out $clientDir/client.cert
 
-   openssl enc -base64 -aes-256-cbc -e -in $serverDir/pk.pem -md sha256 -pass pass:XaQZrOYEQw \
+   openssl enc -base64 -aes-256-cbc -e -in  $serverDir/pk.pem -K ${KEY} -iv ${IV}  \
          -p -out $serverDir/pk.pem.enc 2>/dev/null
-   openssl enc -base64 -aes-256-cbc -e -in $clientDir/pk.pem -md sha256 -pass pass:XaQZrOYEQw \
+   openssl enc -base64 -aes-256-cbc -e -in $clientDir/pk.pem -K ${KEY} -iv ${IV}  \
          -p -out $clientDir/pk.pem.enc 2>/dev/null
 
    # rm $serverDir/pk.pem

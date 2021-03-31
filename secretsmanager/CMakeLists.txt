@@ -9,7 +9,6 @@ set(secretsmanager_source_files
     src/secrets_manager_impl.cpp
     src/base64.cpp
     src/aes.cpp
-    src/openssl_pass.cpp
     src/key_params.cpp)
 
 add_library(secretsmanager STATIC 
