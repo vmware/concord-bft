@@ -184,9 +184,8 @@ TlsTcpConfig TestCommConfig::GetTlsTCPConfig(bool is_replica,
   // private key decryption configuration for tests
   concord::secretsmanager::SecretData secretData;
   secretData.algo = "AES/CBC/PKCS5Padding";
-  secretData.digest = "SHA-256";
-  secretData.key_length = 256;
-  secretData.password = "XaQZrOYEQw";
+  secretData.key = "15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2";
+  secretData.iv = "38106509f6528ff859c366747aa04f21";
 
   // need to move the default cipher suite to the config file
   TlsTcpConfig retVal(default_listen_ip_,

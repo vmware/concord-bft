@@ -44,7 +44,8 @@ constexpr char KEYS_BASE_PATH[] = "/tmp/transaction_signing_keys";
 constexpr char PRIV_KEY_NAME[] = "privkey.pem";
 constexpr char PUB_KEY_NAME[] = "pubkey.pem";
 constexpr char ENC_PRIV_KEY_NAME[] = "privkey.enc";
-constexpr char ENC_PRIV_KEY_PASSWORD[] = "XaQZrOYEQw";
+constexpr char ENC_SYMM_KEY[] = "15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2";
+constexpr char ENC_IV[] = "38106509f6528ff859c366747aa04f21";
 constexpr char KEYS_GEN_SCRIPT_PATH[] =
     "/concord-bft//scripts/linux/create_concord_clients_transaction_signing_keys.sh";
 
@@ -120,9 +121,9 @@ class ClientApiTestParametrizedFixture : public ClientApiTestFixture,
   SecretData GetSecretData() {
     SecretData sd;
     sd.algo = "AES/CBC/PKCS5Padding";
-    sd.digest = "SHA-256";
+    sd.key = ENC_SYMM_KEY;
+    sd.iv = ENC_IV;
     sd.key_length = 256;
-    sd.password = ENC_PRIV_KEY_PASSWORD;
     return sd;
   }
 
@@ -130,8 +131,8 @@ class ClientApiTestParametrizedFixture : public ClientApiTestFixture,
     ostringstream encrypted_file_path, cmd;
 
     encrypted_file_path << KEYS_BASE_PATH << "/1/" << ENC_PRIV_KEY_NAME;
-    cmd << "openssl enc -base64 -debug -aes-256-cbc -e -in " << priv_key_file_path
-        << " -md sha256 -pass pass:" << ENC_PRIV_KEY_PASSWORD << " -p -out " << encrypted_file_path.str();
+    cmd << "openssl enc -base64 -debug -aes-256-cbc -e -in " << priv_key_file_path << " -K " << ENC_SYMM_KEY << " -iv "
+        << ENC_IV << " -p -out " << encrypted_file_path.str();
     ASSERT_EQ(0, system(cmd.str().c_str()));
 
     out = GetSecretData();  // return secret data
