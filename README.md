@@ -4,9 +4,9 @@
 # Concord-BFT: a Distributed Trust Infrastructure
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![clang-tidy](https://github.com/vmware/concord-bft/workflows/clang-tidy/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy)  
+[![clang-tidy](https://github.com/vmware/concord-bft/workflows/clang-tidy/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy)
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28gcc%29")
-[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")  
+[![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
 
@@ -41,18 +41,7 @@ when a backwards incompatible change is made.
 
 Concord-BFT supports two kinds of builds: native and docker.
 
-### Native
-
-```sh
-git clone https://github.com/vmware/concord-bft
-cd concord-bft
-sudo ./install_deps.sh # Installs all dependencies and 3rd parties
-mkdir build
-cd build
-cmake -DBUILD_ROCKSDB_STORAGE=TRUE ..
-make
-sudo make test
-```
+The docker build is **strongly recommended**.
 
 ### Docker
 
@@ -76,33 +65,33 @@ make CONCORD_BFT_CONTAINER_CXX=g++ \
     build
 ```
 
-### C++ Linter
+Other build options, including passthrough options for CMake, are defined in the Makefile and prefixed with `CONCORD_BFT_`. Variables that are capable of being overridden on the commandline are set with the Make conditional operator `?=` and are at the beginning of [Makefile](Makefile). Please check that file for options.
 
-The C++ code is statically checked by `clang-tidy` as part of the [CI](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy).
-<br>To check code before submitting PR, please run `make tidy-check`.
+#### Select comm module
+One option that is worth calling out explicitly is the communication (transport) library. Transport defaults to TLS and can be configured explicitly by setting the `CONCORD_BFT_CMAKE_TRANSPORT` flag. The flag defaults to **TLS**, but also supports **UDP** and **TCP**. These can be useful because the use of pinned certificates for TLS requires an out of band setup.
 
-[Detailed information about clang-tidy checks](https://clang.llvm.org/extra/clang-tidy/checks/list.html).
+See [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) for an example. This script is used in apollo tests. For production usage, an out of band deployment for each replica must be used to avoid revealing private keys to each replica.
 
-### Build Options
+### Native
+
+```sh
+git clone https://github.com/vmware/concord-bft
+cd concord-bft
+sudo ./install_deps.sh # Installs all dependencies and 3rd parties
+mkdir build
+cd build
+cmake ..
+make
+sudo make test
+```
 
 In order to turn on or off various options, you need to change your cmake configuration. This is
 done by passing arguments to cmake with a `-D` prefix: e.g. `cmake -DBUILD_TESTING=OFF`. Note that
-make must be run afterwards to build according to the configuration. The following options are
-available:
-
-| Option | Possible Values | Default |
-| - | - | - |
-| `CMAKE_BUILD_TYPE`     | Debug \| Release \| RelWithDebInfo \| MinSizeRel | Debug |
-| `BUILD_TESTING`        | OFF \| ON  | ON |
-| `BUILD_COMM_TCP_PLAIN` | TRUE \| FALSE | FALSE - UDP is used |
-| `BUILD_COMM_TCP_TLS`   | TRUE \| FALSE | FALSE - UDP is used |
-| `USE_LOG4CPP`          | TRUE \| FALSE | FALSE |
-| `CONCORD_LOGGER_NAME`  | STRING |"concord" |
-| `USE_OPENTRACING`      | OFF\| ON | ON |
-
- Note(1): You can't set both `BUILD_COMM_TCP_PLAIN` and `BUILD_COMM_TCP_TLS` to TRUE.
+make must be run afterwards to build according to the configuration. Please see [CMakeLists.txt](CMakeLists.txt) for configurable options.
 
 #### Select comm module
+One option that is worth calling out explicitly is the communication (transport) library.
+
 We support both UDP and TCP communication. UDP is the default. In order to
 enable TCP communication, build with `-DBUILD_COMM_TCP_PLAIN=TRUE` in the cmake
 instructions shown above.  If set, the test client will run using TCP. If you
@@ -114,11 +103,22 @@ We also support TCP over TLS communication. To enable it, change the
 `BUILD_COMM_TCP_TLS` flag to `TRUE` in the main CMakeLists.txt file. When
 running simpleTest using the testReplicasAndClient.sh - there is no need to create TLS certificates manually. The script will use the `create_tls_certs.sh` (located under the scripts/linux folder) to create certificates. The latter can be used to create TLS files for any number of replicas, e.g. when extending existing tests.
 
+As we used pinned certificates for TLS, the user will have to manually provide these. THey can use the [create_tls_certs.sh](scripts/linux/create_tls_certs.sh) script as an example.
+
+
+### C++ Linter
+
+The C++ code is statically checked by `clang-tidy` as part of the [CI](https://github.com/vmware/concord-bft/actions?query=workflow%3Aclang-tidy).
+<br>To check code before submitting PR, please run `make tidy-check`.
+
+[Detailed information about clang-tidy checks](https://clang.llvm.org/extra/clang-tidy/checks/list.html).
+
+
 #### (Optional) Python client
 
-The python client is required for running tests. If you do not want to install
-python, you can configure the build of concord-bft by running `cmake
--DBUILD_TESTING=OFF ..` from the `build` directory.
+The python client is required for running tests. If you do not want to install python, you can
+configure the build of concord-bft by running `cmake -DBUILD_TESTING=OFF ..` from the `build`
+directory for native builds, and `CONCORD_BFT_CMAKE_BUILD_TESTING=TRUE make` for docker builds.
 
 The python client requires python3(>= 3.5) and trio, which is installed via pip.
 

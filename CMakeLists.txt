@@ -39,8 +39,8 @@ option(THREADCHECK "Enable Thread Sanitizer" FALSE)
 # Default BUILD_COMM_TCP_TLS to FALSE
 option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" FALSE)
 
-# This requires the rocksdb dependencies to be installed, so defaults to FALSE
-option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" FALSE)
+# Rocksdb is required for storage now. Consider removing this flag.
+option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" TRUE)
 
 # Build S3 Object Store support.
 option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
