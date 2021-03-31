@@ -105,6 +105,7 @@ void ClientsManager::loadInfoFromReservedPages() {
 
     // YS TBD: Multiple replies for client batching should be sorted by incoming time
     auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
+    if (repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
     const auto& res = repliesInfo.insert_or_assign(replyHeader->reqSeqNum, MinTime);
     const bool added = res.second;
     LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, added));
@@ -142,10 +143,18 @@ void ClientsManager::deleteOldestReply(NodeIdType clientId) {
       earliestTime = reply.second;
     }
   }
-  if (earliestReplyId) {
+  if (earliestReplyId)
     repliesInfo.erase(earliestReplyId);
-    LOG_DEBUG(CL_MNGR, "Deleted reply message" << KVLOG(clientId, earliestReplyId, repliesInfo.size()));
+  else if (!repliesInfo.empty()) {
+    // Delete reply arrived through ST
+    auto const& reply = repliesInfo.cbegin();
+    earliestReplyId = reply->first;
+    earliestTime = reply->second;
+    repliesInfo.erase(reply);
   }
+  LOG_DEBUG(CL_MNGR,
+            "Deleted reply message" << KVLOG(
+                clientId, earliestReplyId, earliestTime.time_since_epoch().count(), repliesInfo.size()));
 }
 
 bool ClientsManager::isValidClient(NodeIdType clientId) const { return (clientIdToIndex_.count(clientId) > 0); }
@@ -164,7 +173,7 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
     LOG_FATAL(CL_MNGR,
               "More than maxNumOfReqsPerClient_ items in repliesInfo"
-                  << KVLOG(c.repliesInfo.size(), maxNumOfReqsPerClient_, requestSeqNum, reply, replyLength));
+                  << KVLOG(c.repliesInfo.size(), maxNumOfReqsPerClient_, clientId, requestSeqNum, replyLength));
   }
 
   c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
@@ -176,8 +185,8 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
   uint32_t sizeLastPage = sizeOfReservedPage_;
   if (numOfPages > reservedPagesPerClient_) {
     LOG_FATAL(CL_MNGR,
-              "Client reply larger than reservedPagesPerClient_ allows" << KVLOG(
-                  requestSeqNum, r->size(), reservedPagesPerClient_ * sizeOfReservedPage_, reply, replyLength));
+              "Client reply is larger than reservedPagesPerClient_ allows"
+                  << KVLOG(clientId, requestSeqNum, reservedPagesPerClient_ * sizeOfReservedPage_, replyLength));
     ConcordAssert(false);
   }
 
@@ -211,7 +220,7 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
                                                           uint16_t currentPrimaryId) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
-  LOG_DEBUG(CL_MNGR, KVLOG(requestSeqNum, firstPageId));
+  LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
   stateTransfer_->loadReservedPage(resPageOffset() + firstPageId, sizeOfReservedPage_, scratchPage_);
 
   ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
@@ -227,7 +236,7 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
     numOfPages++;
     sizeLastPage = replyMsgSize % sizeOfReservedPage_;
   }
-  LOG_DEBUG(CL_MNGR, KVLOG(numOfPages, sizeLastPage));
+  LOG_DEBUG(CL_MNGR, KVLOG(clientId, numOfPages, sizeLastPage));
   ClientReplyMsg* const r = new ClientReplyMsg(myId_, replyHeader->replyLength);
   // load reply message from reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
@@ -242,13 +251,13 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
       metric_reply_inconsistency_detected_.Get().Inc();
       LOG_FATAL(CL_MNGR,
                 "The client reserved page does not contain a reply for specified request"
-                    << KVLOG(replySeqNum, requestSeqNum));
+                    << KVLOG(clientId, replySeqNum, requestSeqNum));
       ConcordAssert(false);
     }
     // YS TBD: Fix this for client batching with a proper ordering of incoming requests
     LOG_INFO(CL_MNGR,
              "The client reserved page does not contain a reply for specified request; skipping"
-                 << KVLOG(replySeqNum, requestSeqNum));
+                 << KVLOG(clientId, replySeqNum, requestSeqNum));
     return nullptr;
   }
 
