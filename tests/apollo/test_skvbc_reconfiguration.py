@@ -96,7 +96,35 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         reconf_msg.additional_data = bytes()
         return reconf_msg
 
-    from os import environ
+    def _construct_reconfiguration_keMsg_coammand(self):
+        ke_command = cmf_msgs.KeyExchangeCommand()
+        ke_command.sender_id = 1000
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = ke_command
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_key_exchange_command(self, bft_network):
+        """
+             Sends a wedge command and checks that the system stops processing new requests.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a wedge command
+             2. The client verifies that the system reached a super stable checkpoint.
+             3. The client tries to initiate a new write bft command and fails
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        reconf_msg = self._construct_reconfiguration_keMsg_coammand()
+        await client.write(reconf_msg.serialize(), reconfiguration=True)
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):

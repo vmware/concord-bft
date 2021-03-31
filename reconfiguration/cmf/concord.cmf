@@ -81,6 +81,10 @@ Msg GetVersionResponse 23 {
 Msg ReconfigurationErrorMsg 24 {
     string error_msg
 }
+
+Msg KeyExchangeCommand 25 {
+    uint64 sender_id
+}
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -95,6 +99,7 @@ Msg ReconfigurationRequest 1 {
     PruneStatusRequest
     InstallCommand
     InstallStatusCommand
+    KeyExchangeCommand
   } command
   bytes additional_data
 }
