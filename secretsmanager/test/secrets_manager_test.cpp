@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
+#include <gmock/gmock.h>
 #include "base64.h"
-#include "openssl_pass.h"
 #include "aes.h"
 #include "secrets_manager_enc.h"
 #include "secrets_manager_plain.h"
@@ -31,24 +31,41 @@ Aenean laoreet sit amet augue quis suscipit. Fusce nec consequat mauris. Pellent
 
 Aenean pharetra bibendum dui non accumsan. Vivamus ex tellus, accumsan tincidunt tempus sed, cursus eu mi. Ut feugiat ligula nec egestas tincidunt. Morbi egestas viverra tellus, a. )L0R3M"};
 
-SecretsManagerEnc getSecretsManager() {
+SecretData getSecretData() {
+  // Key and IV are just 32bit and 16 bit random values.
+  // Can be generated from /dev/rand or any wrapper around it:
+  // dd if=/dev/random of=./key bs=1 count=32 bs=1
+  // dd if=/dev/random of=./iv bs=1 count=16 bs=1
   SecretData ret;
   ret.algo = "AES/CBC/PKCS5Padding";
   ret.key = "15ec11a047f630ca00f65c25f0b3bfd89a7054a5b9e2e3cdb6a772a58251b4c2";
   ret.iv = "38106509f6528ff859c366747aa04f21";
   ret.key_length = 256;
 
-  return SecretsManagerEnc{ret};
+  return ret;
+}
+
+SecretsManagerEnc getSecretsManager() { return SecretsManagerEnc{getSecretData()}; }
+
+TEST(SecretsManager, StringToHex) {
+  const std::vector<uint8_t> expected_key{0x15, 0xEC, 0x11, 0xA0, 0x47, 0xF6, 0x30, 0xCA, 0x00, 0xF6, 0x5C,
+                                          0x25, 0xF0, 0xB3, 0xBF, 0xD8, 0x9A, 0x70, 0x54, 0xA5, 0xB9, 0xE2,
+                                          0xE3, 0xCD, 0xB6, 0xA7, 0x72, 0xA5, 0x82, 0x51, 0xB4, 0xC2};
+  const std::vector<uint8_t> expected_iv = {
+      0x38, 0x10, 0x65, 0x09, 0xF6, 0x52, 0x8F, 0xF8, 0x59, 0xC3, 0x66, 0x74, 0x7A, 0xA0, 0x4F, 0x21};
+  auto input = getSecretData();
+  concord::secretsmanager::KeyParams key_params{input.key, input.iv};
+
+  EXPECT_THAT(key_params.key, testing::ContainerEq(expected_key));
+  EXPECT_THAT(key_params.iv, testing::ContainerEq(expected_iv));
 }
 
 TEST(SecretsManager, Internals) {
   const std::string input{"This is a sample text"};
   const std::string encrypted{"eIetIYAvY5EHsb2F7bDcHH8labEq5jrmyvW7DC2N904=\n"};
 
-  concord::secretsmanager::KeyParams key_params(32, 16);
-  key_params.key = {0x15, 0xEC, 0x11, 0xA0, 0x47, 0xF6, 0x30, 0xCA, 0x00, 0xF6, 0x5C, 0x25, 0xF0, 0xB3, 0xBF, 0xD8,
-                    0x9A, 0x70, 0x54, 0xA5, 0xB9, 0xE2, 0xE3, 0xCD, 0xB6, 0xA7, 0x72, 0xA5, 0x82, 0x51, 0xB4, 0xC2};
-  key_params.iv = {0x38, 0x10, 0x65, 0x09, 0xF6, 0x52, 0x8F, 0xF8, 0x59, 0xC3, 0x66, 0x74, 0x7A, 0xA0, 0x4F, 0x21};
+  auto secret_data = getSecretData();
+  concord::secretsmanager::KeyParams key_params(secret_data.key, secret_data.iv);
 
   // Encrypt
   AES_CBC e(key_params);
@@ -57,7 +74,7 @@ TEST(SecretsManager, Internals) {
   ASSERT_EQ(cipher_text_encoded, encrypted);
 
   // Decrypt
-  auto dec = base64DecNoSalt(cipher_text_encoded);
+  auto dec = base64Dec(cipher_text_encoded);
   ASSERT_EQ(dec, cipher_text);
 
   auto plain_text = e.decrypt(dec);
@@ -72,7 +89,7 @@ TEST(SecretsManager, Base64) {
   auto e = base64Enc(cipher_text);
   ASSERT_EQ(e, expected_base64_enc);
 
-  auto r = base64DecNoSalt(e);
+  auto r = base64Dec(e);
   ASSERT_EQ(r, cipher_text);
 }
 

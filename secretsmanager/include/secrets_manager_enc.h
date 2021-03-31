@@ -37,17 +37,14 @@ class AES_CBC;
 // 3. The buffer is base64 encoded and written to file.
 class SecretsManagerEnc : public ISecretsManagerImpl {
   const std::set<std::string> supported_encs_{"AES/CBC/PKCS5Padding", "AES/CBC/PKCS7Padding"};
-  const uint32_t SALT_SIZE = 8;
 
   logging::Logger logger_ = logging::getLogger("concord.bft.secrets-manager-enc");
   std::unique_ptr<KeyParams> key_params_;
   std::unique_ptr<AES_CBC> enc_algo_;
 
-  CryptoPP::BlockingRng rand;
-
   std::optional<std::string> encrypt(const std::string& data);
   std::optional<std::string> decrypt(const std::string& data);
-  
+
  public:
   SecretsManagerEnc(const SecretData& secrets);
 

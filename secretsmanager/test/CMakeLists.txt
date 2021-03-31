@@ -1,9 +1,4 @@
 find_package(GTest REQUIRED)
-find_package(OpenSSL REQUIRED)
-
-add_executable(secrets_manager_openssl_test secrets_manager_openssl_test.cpp)
-add_test(secrets_manager_openssl_test secrets_manager_openssl_test)
-target_link_libraries(secrets_manager_openssl_test PUBLIC GTest::Main ${OPENSSL_LIBRARIES})
 
 add_executable(secrets_manager_test secrets_manager_test.cpp)
 add_test(secrets_manager_test secrets_manager_test)
