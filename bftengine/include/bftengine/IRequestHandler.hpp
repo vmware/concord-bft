@@ -55,13 +55,14 @@ class IRequestsHandler {
   std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {
     return reconfig_handler_;
   }
-  void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) {
+  virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) {
     reconfig_handler_ = rh;
   }
   std::shared_ptr<concord::reconfiguration::IPruningHandler> getPruningHandler() const { return pruning_handler_; }
   virtual void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) {
     pruning_handler_ = ph;
   }
+
   virtual ~IRequestsHandler() = default;
 
  protected:

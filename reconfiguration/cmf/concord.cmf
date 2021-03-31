@@ -1,5 +1,6 @@
 Msg WedgeCommand 3 {
   uint64 stop_seq_num
+  uint64 bft_seq_num
 }
 
 Msg WedgeStatusRequest 5 {
@@ -12,6 +13,7 @@ Msg WedgeStatusResponse 6 {
 
 Msg DownloadCommand 9 {
   string version
+  uint64 bft_seq_num
 }
 
 Msg DownloadStatusCommand 10 {
@@ -59,6 +61,7 @@ Msg GetVersionCommand 19 {
 
 Msg InstallCommand 20 {
     string version
+    uint64 bft_seq_num
 }
 
 Msg InstallStatusCommand 21 {

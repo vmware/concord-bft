@@ -26,19 +26,24 @@ class RequestHandler : public IRequestsHandler {
   void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;
+      reconfig_handler_ = userHdlr->getReconfigurationHandler();
+      pruning_handler_ = userHdlr->getPruningHandler();
       reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
       reconfig_dispatcher_.addPruningHandler(userHdlr->getPruningHandler());
     }
   }
 
   void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) override {
-    pruning_handler_ = ph;
     reconfig_dispatcher_.addPruningHandler(ph);
+  }
+
+  void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) override {
+    reconfig_dispatcher_.addReconfigurationHandler(rh);
   }
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
 
  private:
-  std::shared_ptr<IRequestsHandler> userRequestsHandler_ = nullptr;  // TODO [TK] - shared_ptr
+  std::shared_ptr<IRequestsHandler> userRequestsHandler_ = nullptr;
   concord::reconfiguration::Dispatcher reconfig_dispatcher_;
 };
 
