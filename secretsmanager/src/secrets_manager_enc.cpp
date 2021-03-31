@@ -22,7 +22,8 @@ namespace concord::secretsmanager {
 
 SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets)
     : key_params_{std::make_unique<KeyParams>(secrets.key, secrets.iv)},
-      enc_algo_{std::make_unique<AES_CBC>(*key_params_)} {
+      enc_algo_{std::make_unique<AES_CBC>(*key_params_)},
+      initial_secret_data_{secrets} {
   if (supported_encs_.find(secrets.algo) == supported_encs_.end()) {
     std::string encs;
     for (auto& e : supported_encs_) {

@@ -42,11 +42,15 @@ class SecretsManagerEnc : public ISecretsManagerImpl {
   std::unique_ptr<KeyParams> key_params_;
   std::unique_ptr<AES_CBC> enc_algo_;
 
+  SecretData initial_secret_data_;
+
   std::optional<std::string> encrypt(const std::string& data);
   std::optional<std::string> decrypt(const std::string& data);
 
  public:
   SecretsManagerEnc(const SecretData& secrets);
+
+  SecretData getInitialSecretData() { return initial_secret_data_; }
 
   // Creates an encrypted file on the filesystem from string input
   bool encryptFile(std::string_view file_path, const std::string& input) override;
