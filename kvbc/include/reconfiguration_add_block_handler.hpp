@@ -16,6 +16,7 @@
 #include "db_interfaces.h"
 #include "hex_tools.h"
 #include "block_metadata.hpp"
+#include "kvbc_key_types.hpp"
 
 namespace concord::kvbc::reconfiguration {
 class ReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
@@ -25,7 +26,8 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
   bool handle(const concord::messages::WedgeCommand& command, concord::messages::ReconfigurationErrorMsg&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
-    auto blockId = persistReconfigurationBlock(serialized_command, command.bft_seq_num, reconfiguration_key_prefix + 1);
+    auto blockId =
+        persistReconfigurationBlock(serialized_command, command.bft_seq_num, kvbc::keyTypes::reconfiguration_wedge_key);
     LOG_INFO(getLogger(), "WedgeCommand block is " << blockId);
     return true;
   }
@@ -42,7 +44,8 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
   bool handle(const concord::messages::DownloadCommand& command, concord::messages::ReconfigurationErrorMsg&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
-    auto blockId = persistReconfigurationBlock(serialized_command, command.bft_seq_num, reconfiguration_key_prefix + 2);
+    auto blockId = persistReconfigurationBlock(
+        serialized_command, command.bft_seq_num, kvbc::keyTypes::reconfiguration_download_key);
     LOG_INFO(getLogger(), "DownloadCommand command block is " << blockId);
     return true;
   }
@@ -56,7 +59,8 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
               concord::messages::ReconfigurationErrorMsg&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
-    auto blockId = persistReconfigurationBlock(serialized_command, command.bft_seq_num, reconfiguration_key_prefix + 3);
+    auto blockId = persistReconfigurationBlock(
+        serialized_command, command.bft_seq_num, kvbc::keyTypes::reconfiguration_install_key);
     LOG_INFO(getLogger(), "InstallCommand command block is " << blockId);
     return true;
   }
@@ -70,9 +74,6 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     return true;
   }
 
-  static const char bft_seq_num_key_ = 0x21;
-  static const char reconfiguration_key_prefix = 0x25;
-
  private:
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
@@ -81,21 +82,22 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
                                             const uint64_t bft_seq_num,
                                             const char& key) {
     concord::kvbc::categorization::VersionedUpdates ver_updates;
-    ver_updates.addUpdate(std::string{reconfiguration_key_prefix, key}, std::string(data.begin(), data.end()));
+    ver_updates.addUpdate(std::string{key}, std::string(data.begin(), data.end()));
 
     // All blocks are expected to have the BFT sequence number as a key.
-    ver_updates.addUpdate(std::string{bft_seq_num_key_}, block_metadata_.serialize(bft_seq_num));
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
 
     concord::kvbc::categorization::Updates updates;
     updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
     try {
       return blocks_adder_.add(std::move(updates));
     } catch (...) {
-      throw std::runtime_error{"Reconfiguration Handler failed to persist last agreed prunable block ID"};
+      LOG_ERROR(getLogger(), "Reconfiguration Handler failed to persist last agreed prunable block ID");
+      throw;
     }
   }
 
-  logging::Logger getLogger() {
+  logging::Logger getLogger() const {
     static logging::Logger logger_(logging::getLogger("concord.kvbc.reconfiguration"));
     return logger_;
   }

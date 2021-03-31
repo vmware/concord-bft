@@ -19,6 +19,7 @@
 #include "reconfiguration/ireconfiguration.hpp"
 #include "Crypto.hpp"
 #include "block_metadata.hpp"
+#include "kvbc_key_types.hpp"
 #include <future>
 
 namespace concord::kvbc::pruning {
@@ -156,7 +157,9 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   bool handle(const concord::messages::PruneStatusRequest &,
               concord::messages::PruneStatus &,
               concord::messages::ReconfigurationErrorMsg &) override;
-  static std::string lastAgreedPrunableBlockIdKey() { return last_agreed_prunable_block_id_key_; }
+  static std::string lastAgreedPrunableBlockIdKey() {
+    return std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key};
+  }
 
  protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
@@ -182,8 +185,6 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
   bool run_async_{false};
-  static const std::string last_agreed_prunable_block_id_key_;
-  static const std::string bft_seq_num_key_;
   mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
