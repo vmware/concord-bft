@@ -17,11 +17,13 @@
 #include "concord.cmf.hpp"
 #include "ireconfiguration.hpp"
 #include "OpenTracing.hpp"
+#include "Crypto.hpp"
 
 namespace concord::reconfiguration {
 
 class ReconfigurationHandler : public IReconfigurationHandler {
  public:
+  ReconfigurationHandler();
   bool handle(const concord::messages::WedgeCommand&, concord::messages::ReconfigurationErrorMsg&) override;
   bool handle(const concord::messages::WedgeStatusRequest&,
               concord::messages::WedgeStatusResponse&,
@@ -43,10 +45,11 @@ class ReconfigurationHandler : public IReconfigurationHandler {
                        concord::messages::ReconfigurationErrorMsg&) const override;
 
  protected:
-  logging::Logger getLogger() {
+  logging::Logger getLogger() const {
     static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
+  std::unique_ptr<bftEngine::impl::Verifier> verifier_ = nullptr;
 };
 
 }  // namespace concord::reconfiguration

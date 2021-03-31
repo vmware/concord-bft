@@ -41,9 +41,25 @@ bool ReconfigurationHandler::handle(const DownloadCommand&, concord::messages::R
   return true;
 }
 
-bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest&,
-                                             concord::messages::ReconfigurationErrorMsg&) const {
-  return true;
+bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest& request,
+                                             concord::messages::ReconfigurationErrorMsg& error_msg) const {
+  if (!verifier_) {
+    LOG_WARN(getLogger(),
+             "The public operator public key is missing, the reconfiguration engine assumes that some higher level "
+             "implementation is verifying the operator requests");
+    return true;
+  } else {
+    ReconfigurationRequest request_without_sig = request;
+    request_without_sig.signature = {};
+    std::vector<uint8_t> serialized_cmd;
+    concord::messages::serialize(serialized_cmd, request_without_sig);
+
+    auto valid = verifier_->verify(std::string(serialized_cmd.begin(), serialized_cmd.end()),
+                                   std::string(request.signature.begin(), request.signature.end()));
+    if (!valid) error_msg.error_msg = "Invalid signature";
+    return valid;
+  }
+  return false;
 }
 
 bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusCommand&,
@@ -60,5 +76,14 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallStatusComman
                                     concord::messages::InstallStatusResponse& response,
                                     concord::messages::ReconfigurationErrorMsg&) {
   return true;
+}
+ReconfigurationHandler::ReconfigurationHandler() {
+  auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatprPublicKey_;
+  if (operatorPubKeyPath.empty()) {
+    LOG_WARN(getLogger(),
+             "The operator public key is missing, the replica won't be able to validate the operator requests");
+  } else {
+    verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
+  }
 }
 }  // namespace concord::reconfiguration

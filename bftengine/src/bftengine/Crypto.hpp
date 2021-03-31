@@ -38,11 +38,13 @@ class CryptographyWrapper {
 class Signer {
  public:
   virtual std::string sign(const std::string& data_to_sign) = 0;
+  virtual ~Signer() = default;
 };
 
 class Verifier {
  public:
   virtual bool verify(const std::string& data_to_verify, const std::string& signature) = 0;
+  virtual ~Verifier() = default;
 };
 
 class ECDSASigner : public Signer {
