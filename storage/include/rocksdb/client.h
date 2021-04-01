@@ -20,7 +20,7 @@
 #ifdef USE_ROCKSDB
 #include "Logger.hpp"
 #include <rocksdb/db.h>
-#include <rocksdb/utilities/transaction_db.h>
+#include <rocksdb/utilities/optimistic_transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
 #include "storage/db_interface.h"
 #include "storage/storage_metrics.h"
@@ -158,7 +158,7 @@ class Client : public concord::storage::IDBClient {
 
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
-  ::rocksdb::TransactionDB* txn_db_ = nullptr;
+  ::rocksdb::OptimisticTransactionDB* txn_db_ = nullptr;
   std::unique_ptr<const ::rocksdb::Comparator> comparator_;
   std::map<std::string, CfUniquePtr> cf_handles_;
 
