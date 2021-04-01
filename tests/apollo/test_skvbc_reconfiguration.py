@@ -117,13 +117,27 @@ class SkvbcReconfigurationTest(unittest.TestCase):
              3. The client tries to initiate a new write bft command and fails
          """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        key_exchange_before = {}
+        for i in range(50):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            key_exchange_before[r] = await bft_network.get_metric(r, bft_network, "Counters", "KeyExchangedOnStartCounter", component='KeyManager')
         reconf_msg = self._construct_reconfiguration_keMsg_coammand()
         await client.write(reconf_msg.serialize(), reconfiguration=True)
+
+        # Perform some more requests in order to trigger the timer that updates the metrics
+        for i in range(10):
+            await skvbc.write_known_kv()
+
+        for r in bft_network.all_replicas():
+            key_exchange_after = await bft_network.get_metric(r, bft_network, "Counters", "KeyExchangedOnStartCounter",  component='KeyManager')
+            assert key_exchange_after > key_exchange_before[r]
+
+
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
