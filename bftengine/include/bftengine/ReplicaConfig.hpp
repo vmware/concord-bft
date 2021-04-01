@@ -106,7 +106,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   // RSA public keys of all clients. Maps from public key to a set of distinct clients which are expected to sign with
   // the matching private key
-  std::map<const std::string, std::set<const uint16_t>> publicKeysOfClients;
+  std::map<std::string, std::set<uint16_t>> publicKeysOfClients;
 
   CONFIG_PARAM(replicaPrivateKey, std::string, "", "RSA private key of the current replica");
 
