@@ -25,6 +25,7 @@
 #include "rocksdb/native_client.h"
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
+#include "reconfiguration_add_block_handler.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -68,6 +69,8 @@ void ReplicaImp::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
   requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
