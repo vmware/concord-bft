@@ -74,6 +74,17 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     return true;
   }
 
+  bool handle(const concord::messages::KeyExchangeCommand& command,
+              concord::messages::ReconfigurationErrorMsg&,
+              uint64_t sequence_number) override {
+    std::vector<uint8_t> serialized_command;
+    concord::messages::serialize(serialized_command, command);
+    auto blockId =
+        persistReconfigurationBlock(serialized_command, sequence_number, kvbc::keyTypes::reconfiguration_install_key);
+    LOG_INFO(getLogger(), "KeyExchangeCommand command block is " << blockId);
+    return true;
+  }
+
  private:
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
