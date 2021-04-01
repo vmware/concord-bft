@@ -28,7 +28,6 @@
 namespace concord::secretsmanager {
 
 struct KeyParams;
-class AES_CBC;
 
 // SecretsManagerEnc handles encryption and decryption of files.
 // The following flow is used for encryption:
@@ -36,17 +35,6 @@ class AES_CBC;
 // 2. The key and iv are used to encrypt the payload with a supported block cipher (AES256 CBC).
 // 3. The buffer is base64 encoded and written to file.
 class SecretsManagerEnc : public ISecretsManagerImpl {
-  const std::set<std::string> supported_encs_{"AES/CBC/PKCS5Padding", "AES/CBC/PKCS7Padding"};
-
-  logging::Logger logger_ = logging::getLogger("concord.bft.secrets-manager-enc");
-  std::unique_ptr<KeyParams> key_params_;
-  std::unique_ptr<AES_CBC> enc_algo_;
-
-  SecretData initial_secret_data_;
-
-  std::optional<std::string> encrypt(const std::string& data);
-  std::optional<std::string> decrypt(const std::string& data);
-
  public:
   SecretsManagerEnc(const SecretData& secrets);
 
@@ -67,6 +55,17 @@ class SecretsManagerEnc : public ISecretsManagerImpl {
   // = default won't work here. The destructor needs to be defined in the cpp due to the forward declarations and
   // unique_ptr
   ~SecretsManagerEnc();
+
+ private:
+  const std::set<std::string> supported_encs_{"AES/CBC/PKCS5Padding", "AES/CBC/PKCS7Padding"};
+
+  logging::Logger logger_ = logging::getLogger("concord.bft.secrets-manager-enc");
+  const std::unique_ptr<KeyParams> key_params_;
+
+  const SecretData initial_secret_data_;
+
+  std::optional<std::string> encrypt(const std::string& data);
+  std::optional<std::string> decrypt(const std::string& data);
 };
 
 }  // namespace concord::secretsmanager

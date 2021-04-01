@@ -21,9 +21,7 @@
 namespace concord::secretsmanager {
 
 SecretsManagerEnc::SecretsManagerEnc(const SecretData& secrets)
-    : key_params_{std::make_unique<KeyParams>(secrets.key, secrets.iv)},
-      enc_algo_{std::make_unique<AES_CBC>(*key_params_)},
-      initial_secret_data_{secrets} {
+    : key_params_{std::make_unique<KeyParams>(secrets.key, secrets.iv)}, initial_secret_data_{secrets} {
   if (supported_encs_.find(secrets.algo) == supported_encs_.end()) {
     std::string encs;
     for (auto& e : supported_encs_) {
@@ -79,8 +77,10 @@ std::optional<std::string> SecretsManagerEnc::decryptString(const std::string& i
 
 std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
   try {
+    // AES_CBC is created on each call fir thread safety
+    auto aes = AES_CBC(*key_params_);
     auto cipher_text = base64Dec(data);
-    auto pt = enc_algo_->decrypt(cipher_text);
+    auto pt = aes.decrypt(cipher_text);
 
     return std::optional<std::string>{pt};
   } catch (std::exception& e) {
@@ -92,7 +92,9 @@ std::optional<std::string> SecretsManagerEnc::decrypt(const std::string& data) {
 
 std::optional<std::string> SecretsManagerEnc::encrypt(const std::string& data) {
   try {
-    auto cipher_text = enc_algo_->encrypt(data);
+    // AES_CBC is created on each call fir thread safety
+    auto aes = AES_CBC(*key_params_);
+    auto cipher_text = aes.encrypt(data);
     return std::optional<std::string>{base64Enc(cipher_text)};
   } catch (std::exception& e) {
     LOG_ERROR(logger_, "Encryption error: " << e.what());
