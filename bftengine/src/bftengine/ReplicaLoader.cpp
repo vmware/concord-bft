@@ -175,6 +175,9 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
                                                   descriptorOfLastNewView.viewChangeMsgs);
 
     ld.maxSeqNumTransferredFromPrevViews = descriptorOfLastNewView.maxSeqNumTransferredFromPrevViews;
+    // we have not used descriptorOfLastExitFromView, therefore
+    // we need to clean up the messages we have allocated inside it.
+    descriptorOfLastExitFromView.clean();
   } else {
     LOG_ERROR(GL,
               "Failed to load view (inconsistent state): " << KVLOG(
@@ -183,7 +186,6 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
   }
 
   ld.viewsManager = viewsManager;
-  descriptorOfLastExitFromView.clean();
   return Succ;
 }
 
