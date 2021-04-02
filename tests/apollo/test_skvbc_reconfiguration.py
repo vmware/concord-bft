@@ -121,8 +121,18 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
+        key_exchange_before = {}
+        for r in bft_network.all_replicas():
+            key_exchange_before[r] = await bft_network.get_metric(r, bft_network, "Counters", "keyExchangeReceivedMsgs", component='KeyManager')
         reconf_msg = self._construct_reconfiguration_keMsg_coammand()
         await client.write(reconf_msg.serialize(), reconfiguration=True)
+        for i in range(10):
+            await client.write(skvbc.write_req([], [(skvbc.random_key(), skvbc.random_value())], 0))
+        for r in bft_network.all_replicas():
+            key_exchange_after = await bft_network.get_metric(r, bft_network, "Counters", "keyExchangeReceivedMsgs",  component='KeyManager')
+            assert key_exchange_after > key_exchange_before[r]
+
+
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
