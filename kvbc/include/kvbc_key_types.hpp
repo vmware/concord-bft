@@ -18,5 +18,5 @@ static const char pruning_last_agreed_prunable_block_id_key = 0x24;
 static const char reconfiguration_wedge_key = 0x25;
 static const char reconfiguration_download_key = 0x26;
 static const char reconfiguration_install_key = 0x27;
-static const char reconfiguration_key_exchange = 0x27;
+static const char reconfiguration_key_exchange = 0x28;
 }  // namespace concord::kvbc::keyTypes
