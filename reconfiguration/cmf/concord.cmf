@@ -33,11 +33,13 @@ Msg LatestPrunableBlockRequest 13 {
     uint64 sender
 }
 
+Enum ReplicaType { committer, readOnly }
 Msg LatestPrunableBlock 14 {
    uint64 replica
    uint64 block_id
    uint64 bft_sequence_number
    bytes signature
+   ReplicaType type
 }
 
 Msg PruneRequest 15 {

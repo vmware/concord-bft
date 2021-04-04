@@ -157,6 +157,7 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
     latest_prunable_block.bft_sequence_number = getBlockBftSequenceNumber(latest_prunable_block_id);
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
+  latest_prunable_block.type = concord::messages::ReplicaType::committer;
   signer_.sign(latest_prunable_block);
   return true;
 }
