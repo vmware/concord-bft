@@ -218,8 +218,8 @@ Reply Client::send(const MatchConfig& match_config,
   throw TimeoutException(request_config.sequence_number, request_config.correlation_id);
 }
 
-std::deque<Reply> Client::sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid) {
-  std::deque<Reply> replies;
+SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid) {
+  SeqNumToReplyMap replies;
   std::chrono::milliseconds max_time_to_wait = 0s;
   MatchConfig match_config = writeConfigToMatchConfig(write_requests.front().config);
   auto batch_msg = initBatch(write_requests, cid, max_time_to_wait);
@@ -252,7 +252,7 @@ std::deque<Reply> Client::sendBatch(std::deque<WriteRequest>& write_requests, co
 }
 
 std::optional<Reply> Client::wait() {
-  std::deque<Reply> replies;
+  SeqNumToReplyMap replies;
   wait(replies);
   if (replies.empty()) {
     static constexpr size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 5;
@@ -265,11 +265,11 @@ std::optional<Reply> Client::wait() {
     primary_ = std::nullopt;
     return std::nullopt;
   }
-  auto reply = std::move(replies.front());
+  auto reply = std::move(replies.begin()->second);
   return reply;
 }
 
-void Client::wait(std::deque<Reply>& replies) {
+void Client::wait(SeqNumToReplyMap& replies) {
   auto now = std::chrono::steady_clock::now();
   auto retry_timeout = std::chrono::milliseconds(expected_commit_time_ms_.upperLimit());
   auto end_wait = now + retry_timeout;
@@ -282,7 +282,7 @@ void Client::wait(std::deque<Reply>& replies) {
       if (request == reply_certificates_.end()) continue;
       if (auto match = request->second.onReply(std::move(reply))) {
         primary_ = match->primary;
-        replies.push_back(match->reply);
+        replies.insert(std::make_pair(request->first, match->reply));
         reply_certificates_.erase(request->first);
       }
     }
