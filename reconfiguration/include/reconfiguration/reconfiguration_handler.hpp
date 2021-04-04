@@ -49,7 +49,7 @@ class ReconfigurationHandler : public IReconfigurationHandler {
     static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
-  std::unique_ptr<bftEngine::impl::Verifier> verifier_ = nullptr;
+  std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
 };
 
 }  // namespace concord::reconfiguration

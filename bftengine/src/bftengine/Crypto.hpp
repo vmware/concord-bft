@@ -35,19 +35,19 @@ class CryptographyWrapper {
 
 // TODO(GG): define generic signer/verifier (not sure we want to use RSA)
 
-class Signer {
+class ISigner {
  public:
   virtual std::string sign(const std::string& data_to_sign) = 0;
-  virtual ~Signer() = default;
+  virtual ~ISigner() = default;
 };
 
-class Verifier {
+class IVerifier {
  public:
   virtual bool verify(const std::string& data_to_verify, const std::string& signature) = 0;
-  virtual ~Verifier() = default;
+  virtual ~IVerifier() = default;
 };
 
-class ECDSASigner : public Signer {
+class ECDSASigner : public ISigner {
  public:
   ECDSASigner(const std::string& path_to_pem_file);
   ~ECDSASigner();
@@ -58,7 +58,7 @@ class ECDSASigner : public Signer {
   std::unique_ptr<Impl> impl_;
 };
 
-class ECDSAVerifier : public Verifier {
+class ECDSAVerifier : public IVerifier {
  public:
   ECDSAVerifier(const std::string& path_to_pem_file);
   ~ECDSAVerifier();
