@@ -41,7 +41,7 @@ class MsgWithReplicaSpecificInfo:
         return self.rsi_data
 
     def get_matched_reply_key(self):
-        return MatchedReplyKey(self.common_header, self.common_data)
+        return MatchedReplyKey(self.common_header.req_seq_num, self.common_data)
 
     def get_sender_id(self):
         return self.sender_id

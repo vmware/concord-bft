@@ -284,7 +284,7 @@ class BftClient(ABC):
             self.replies_manager.add_reply(rsi_msg)
             if self.replies_manager.has_quorum_on_all(required_replies):
                 self.replies = self.replies_manager.get_all_replies()
-                self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
+                self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_common_data())
                 self.primary = self.replicas[header.primary_id]
                 cancel_scope.cancel()
 
