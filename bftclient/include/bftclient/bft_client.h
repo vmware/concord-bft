@@ -28,6 +28,8 @@
 
 namespace bft::client {
 
+typedef std::unordered_map<uint64_t, Reply> SeqNumToReplyMap;
+
 class Client {
  public:
   Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config);
@@ -44,7 +46,7 @@ class Client {
   // Throws a BftClientException on error.
   Reply send(const WriteConfig& config, Msg&& request);
   Reply send(const ReadConfig& config, Msg&& request);
-  std::unordered_map<uint64_t, Reply> sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
+  SeqNumToReplyMap sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
   bool isServing(int numOfReplicas, int requiredNumOfReplicas) const;
 
   // Useful for testing. Shouldn't be relied on in production.
