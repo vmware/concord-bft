@@ -171,7 +171,6 @@ class KeyManager {
     concordMetrics::CounterHandle keyExchangedCounter;
     concordMetrics::CounterHandle keyExchangedOnStartCounter;
     concordMetrics::CounterHandle publicKeyRotated;
-    concordMetrics::CounterHandle keyExchangeReceivedMsgs;
     void setAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
       aggregator = a;
       component.SetAggregator(aggregator);
@@ -183,8 +182,7 @@ class KeyManager {
           component{"KeyManager", aggregator},
           keyExchangedCounter{component.RegisterCounter("KeyExchangedCounter")},
           keyExchangedOnStartCounter{component.RegisterCounter("KeyExchangedOnStartCounter")},
-          publicKeyRotated{component.RegisterCounter("publicKeyRotated")},
-          keyExchangeReceivedMsgs{component.RegisterCounter("keyExchangeReceivedMsgs")} {}
+          publicKeyRotated{component.RegisterCounter("publicKeyRotated")} {}
   };
 
   std::unique_ptr<Metrics> metrics_;

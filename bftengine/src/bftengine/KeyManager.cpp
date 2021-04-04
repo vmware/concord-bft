@@ -81,7 +81,6 @@ std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
     if (!keysExchanged && keyExchangeOnStart_) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
-  metrics_->keyExchangeReceivedMsgs.Get().Inc();
   LOG_INFO(KEY_EX_LOG, "Recieved onKeyExchange " << kemsg.toString() << " seq num " << sn);
   if (!keysExchanged) {
     onInitialKeyExchange(kemsg, sn);
