@@ -44,7 +44,7 @@ class Client {
   // Throws a BftClientException on error.
   Reply send(const WriteConfig& config, Msg&& request);
   Reply send(const ReadConfig& config, Msg&& request);
-  std::deque<Reply> sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
+  std::unordered_map<uint64_t, Reply> sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
   bool isServing(int numOfReplicas, int requiredNumOfReplicas) const;
 
   // Useful for testing. Shouldn't be relied on in production.
@@ -57,7 +57,7 @@ class Client {
   // Wait for messages until we get a quorum or a retry timeout.
   //
   // Inserts the Replies to the input queue.
-  void wait(std::deque<Reply>& replies);
+  void wait(std::unordered_map<uint64_t, Reply>& replies);
 
   // Return a Reply on quorum, or std::nullopt on timeout.
   std::optional<Reply> wait();

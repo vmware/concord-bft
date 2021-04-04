@@ -403,8 +403,8 @@ TEST_F(ClientApiTestFixture, batch_of_writes) {
   auto replies = client.sendBatch(request_queue, request1.config.request.correlation_id);
   Msg expected{'w', 'o', 'r', 'l', 'd'};
   ASSERT_EQ(replies.size(), request_queue.size());
-  ASSERT_EQ(expected, replies.front().matched_data);
-  ASSERT_EQ(replies.front().rsi.size(), 2);
+  ASSERT_EQ(expected, replies.begin()->second.matched_data);
+  ASSERT_EQ(replies.begin()->second.rsi.size(), 2);
   ASSERT_EQ(client.primary(), ReplicaId{0});
   client.stop();
 }
