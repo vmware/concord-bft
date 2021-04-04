@@ -24,6 +24,8 @@ using namespace std;
 using namespace std::placeholders;
 using namespace concordUtil;
 
+uint8_t RequestState::reqProcessingHistoryHeight = 10;
+
 //**************** Class PreProcessor ****************//
 
 vector<shared_ptr<PreProcessor>> PreProcessor::preProcessors_;
@@ -118,6 +120,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
     // Allocate a buffer for the pre-execution result per client * batch
     preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
+  RequestState::reqProcessingHistoryHeight *= clientMaxBatchSize_;
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
   if (!numOfThreads) {
     if (myReplica.getReplicaConfig().numOfExternalClients)
@@ -192,15 +195,14 @@ void PreProcessor::onRequestsStatusCheckTimer() {
       if (reqStatePtr->isReqTimedOut()) {
         preProcessorMetrics_.preProcessRequestTimedout.Get().Inc();
         preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
-        // The request could expire do to failed primary replica, let ReplicaImp to address that
+        // The request could expire do to failed primary replica, let ReplicaImp address that
         // TBD YS: This causes a request to retry in case the primary is OK. Consider passing a kind of NOOP message.
         const auto &reqEntryIndex = reqEntry.first;
         const auto &reqSeqNum = reqStatePtr->getReqSeqNum();
         const auto &clientId = reqStatePtr->getClientId();
         const auto &reqOffsetInBatch = reqStatePtr->getReqOffsetInBatch();
         SCOPED_MDC_CID(reqStatePtr->getReqCid());
-        LOG_INFO(logger(),
-                 "Let replica to handle request" << KVLOG(reqSeqNum, reqEntryIndex, clientId, reqOffsetInBatch));
+        LOG_INFO(logger(), "Let replica handle request" << KVLOG(reqSeqNum, reqEntryIndex, clientId, reqOffsetInBatch));
         preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
         incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
         releaseClientPreProcessRequest(reqEntry.second, CANCEL);
@@ -300,6 +302,82 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
   handleSingleClientRequestMessage(move(clientMsg), false, 0);
 }
 
+// Should be called under reqEntry->mutex lock
+bool PreProcessor::isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,
+                                                  ReqId reqSeqNum,
+                                                  NodeIdType clientId,
+                                                  NodeIdType senderId) {
+  if (reqEntry->reqProcessingStatePtr) {
+    const auto &ongoingReqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
+    const auto &ongoingCid = reqEntry->reqProcessingStatePtr->getReqCid();
+    LOG_DEBUG(logger(),
+              KVLOG(reqSeqNum, clientId, senderId)
+                  << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid) << " is in progress");
+    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    return true;
+  }
+  return false;
+}
+
+// Should be called under reqEntry->mutex lock
+bool PreProcessor::isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
+                                                       NodeIdType clientId,
+                                                       NodeIdType senderId,
+                                                       const string &cid) {
+  // Count requests arrived through non-primary replicas and accepted in spite of the
+  // same request has been processing by the primary replica
+  if (clientId != senderId && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
+    preProcessorMetrics_.preProcReqForwardedByNonPrimaryNotIgnored.Get().Inc();
+    LOG_DEBUG(logger(),
+              "Not ignoring client request arrived through a non-primary replica"
+                  << KVLOG(cid, reqSeqNum, clientId, senderId));
+  }
+  // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
+  // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
+  // request messages from the primary. TBD YS: save senderId in the header and set it before re-sending
+  if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
+    LOG_DEBUG(
+        logger(),
+        "The specified request has been processing right now - ignore" << KVLOG(cid, reqSeqNum, clientId, senderId));
+    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    return true;
+  }
+  return false;
+}
+
+// Should be called under reqEntry->mutex lock
+bool PreProcessor::isRequestAlreadyExecuted(ReqId reqSeqNum, NodeIdType clientId, const string &cid) {
+  const bool replySentToClient = myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum);
+  if (replySentToClient) {
+    LOG_INFO(logger(),
+             "Request has already been executed - let replica decide how to proceed further"
+                 << KVLOG(cid, reqSeqNum, clientId));
+    preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
+    return true;
+  }
+  return false;
+}
+
+// Should be called under reqEntry->mutex lock
+bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
+                                               SeqNum reqSeqNum,
+                                               NodeIdType clientId,
+                                               const string &cid) {
+  if (!reqEntry->reqProcessingStatePtr) {
+    // Verify that an arrived request is newer than any other in the requests history for this client
+    for (const auto &oldReqState : reqEntry->reqProcessingHistory) {
+      if (oldReqState->getReqSeqNum() > reqSeqNum) {
+        LOG_DEBUG(logger(),
+                  "The request will be ignored as newer request from this client has been already pre-processed"
+                      << KVLOG(cid, reqSeqNum, clientId, oldReqState->getReqCid(), oldReqState->getReqSeqNum()));
+        preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
                                                     bool arrivedInBatch,
                                                     uint16_t msgOffsetInBatch) {
@@ -313,38 +391,18 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   {
     const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, msgOffsetInBatch)];
     lock_guard<mutex> lock(reqEntry->mutex);
-    if (reqEntry->reqProcessingStatePtr) {
-      const auto &ongoingReqSeqNum = reqEntry->reqProcessingStatePtr->getReqSeqNum();
-      const auto &ongoingCid = reqEntry->reqProcessingStatePtr->getReqCid();
-      LOG_DEBUG(logger(),
-                KVLOG(reqSeqNum, clientId, senderId)
-                    << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid) << " is in progress");
-      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-      return;
-    }
-    // Count requests arrived through non-primary replicas and accepted in spite of the
-    // same request has been processing by the primary replica
-    if (clientId != senderId && myReplica_.isClientRequestInProcess(clientId, reqSeqNum))
-      preProcessorMetrics_.preProcReqForwardedByNonPrimaryNotIgnored.Get().Inc();
-    // Verify that a request is not passing consensus/PostExec right now. The primary replica should not ignore client
-    // requests forwarded by non-primary replicas, otherwise this will cause timeouts caused by missing PreProcess
-    // request messages from the primary.
-    // TBD: save senderId in the header and set it before re-sending
-    if ((clientId == senderId) && myReplica_.isClientRequestInProcess(clientId, reqSeqNum)) {
-      LOG_DEBUG(logger(),
-                "Specified request has been processing right now - ignore" << KVLOG(reqSeqNum, clientId, senderId));
-      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
-      return;
-    }
-    const bool replySentToClient = myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum);
-    if (replySentToClient) {
-      LOG_INFO(logger(),
-               "Request has already been executed - let replica to decide how to proceed further"
-                   << KVLOG(reqSeqNum, clientId));
-      preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
+    if (isRequestPreProcessingRightNow(reqEntry, reqSeqNum, clientId, senderId)) return;
+
+    if (isRequestPassingConsensusOrPostExec(reqSeqNum, clientId, senderId, clientMsg->getCid())) return;
+
+    if (isRequestAlreadyExecuted(reqSeqNum, clientId, clientMsg->getCid())) {
+      // The request has already been committed and executed - let replica decide how to proceed further.
       incomingMsgsStorage_->pushExternalMsg(move(clientMsg));
       return;
     }
+
+    if (isRequestPreProcessedBefore(reqEntry, reqSeqNum, clientId, clientMsg->getCid())) return;
+
     if (myReplica_.isCurrentPrimary())
       registerSucceeded = registerRequestOnPrimaryReplica(
           move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
