@@ -33,6 +33,7 @@
 #include "DigestType.h"
 #include <cryptopp/cryptlib.h>
 #include "cryptopp/ida.h"
+#include <cryptopp/eccrypto.h>
 
 using namespace CryptoPP;
 using namespace std;
@@ -140,6 +141,57 @@ DigestUtil::Context::~Context() {
   }
 }
 
+class ECDSASigner::Impl {
+  ECDSA<ECP, SHA256>::PrivateKey privateKey_;
+  std::unique_ptr<ECDSA<ECP, SHA256>::Signer> signer_;
+  AutoSeededRandomPool prng_;
+
+ public:
+  Impl(const std::string& path_to_pem_file) {
+    FileSource file(path_to_pem_file.c_str(), true);
+    PEM_Load(file, privateKey_);
+    signer_ = std::make_unique<ECDSA<ECP, SHA256>::Signer>(privateKey_);
+  }
+
+  std::string sign(const std::string& data_to_sign) {
+    size_t siglen = signer_->MaxSignatureLength();
+    string signature(siglen, 0x00);
+    siglen = signer_->SignMessage(
+        prng_, (const CryptoPP::byte*)&data_to_sign[0], data_to_sign.size(), (CryptoPP::byte*)&signature[0]);
+    signature.resize(siglen);
+    return signature;
+  }
+};
+
+ECDSASigner::ECDSASigner(const std::string& path_to_pem_file)
+    : impl_{std::make_unique<ECDSASigner::Impl>(path_to_pem_file)} {}
+std::string ECDSASigner::sign(const std::string& data_to_sign) { return impl_->sign(data_to_sign); }
+
+ECDSASigner::~ECDSASigner() = default;
+class ECDSAVerifier::Impl {
+  ECDSA<ECP, SHA256>::PublicKey publicKey_;
+  std::unique_ptr<ECDSA<ECP, SHA256>::Verifier> verifier_;
+
+ public:
+  Impl(const std::string& path_to_pem_file) {
+    FileSource file(path_to_pem_file.c_str(), true);
+    PEM_Load(file, publicKey_);
+    verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(publicKey_);
+  }
+
+  bool verify(const std::string& data_to_verify, const std::string& signature) {
+    return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
+                                    data_to_verify.size(),
+                                    (const CryptoPP::byte*)&signature[0],
+                                    signature.size());
+  }
+};
+
+ECDSAVerifier::ECDSAVerifier(const std::string& path_to_pem_file) : impl_{std::make_unique<Impl>(path_to_pem_file)} {}
+bool ECDSAVerifier::verify(const std::string& data_to_verify, const std::string& signature) {
+  return impl_->verify(data_to_verify, signature);
+}
+ECDSAVerifier::~ECDSAVerifier() = default;
 class RSASigner::Impl {
  public:
   Impl(BufferedTransformation& privateKey) : rand(sGlobalRandGen), priv(privateKey){};
