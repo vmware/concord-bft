@@ -18,9 +18,11 @@
 using namespace concord::messages;
 namespace concord::reconfiguration {
 
-bool ReconfigurationHandler::handle(const WedgeCommand& cmd, concord::messages::ReconfigurationErrorMsg&) {
-  LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << cmd.stop_seq_num);
-  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(cmd.stop_seq_num);
+bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
+                                    uint64_t bft_seq_num,
+                                    concord::messages::ReconfigurationErrorMsg&) {
+  LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   return true;
 }
 
@@ -37,7 +39,7 @@ bool ReconfigurationHandler::handle(const GetVersionCommand&,
   return true;
 }
 
-bool ReconfigurationHandler::handle(const DownloadCommand&, concord::messages::ReconfigurationErrorMsg&) {
+bool ReconfigurationHandler::handle(const DownloadCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) {
   return true;
 }
 

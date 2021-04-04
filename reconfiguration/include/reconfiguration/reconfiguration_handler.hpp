@@ -24,14 +24,16 @@ namespace concord::reconfiguration {
 class ReconfigurationHandler : public IReconfigurationHandler {
  public:
   ReconfigurationHandler();
-  bool handle(const concord::messages::WedgeCommand&, concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) override;
   bool handle(const concord::messages::WedgeStatusRequest&,
               concord::messages::WedgeStatusResponse&,
               concord::messages::ReconfigurationErrorMsg&) override;
   bool handle(const concord::messages::GetVersionCommand&,
               concord::messages::GetVersionResponse&,
               concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::DownloadCommand&, concord::messages::ReconfigurationErrorMsg&) override;
+  bool handle(const concord::messages::DownloadCommand&,
+              uint64_t,
+              concord::messages::ReconfigurationErrorMsg&) override;
   bool handle(const concord::messages::DownloadStatusCommand&,
               concord::messages::DownloadStatus&,
               concord::messages::ReconfigurationErrorMsg&) override;

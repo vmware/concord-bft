@@ -51,8 +51,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     def _construct_reconfiguration_wedge_coammand(self):
         wedge_cmd = cmf_msgs.WedgeCommand()
-        wedge_cmd.stop_seq_num = 0
-        wedge_cmd.bft_seq_num = 0
+        wedge_cmd.sender = 1000
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = wedge_cmd
         reconf_msg.signature = bytes()
