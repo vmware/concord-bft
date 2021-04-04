@@ -51,6 +51,7 @@ Status ReplicaImp::start() {
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+    requestHandler->setPruningHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
   } else {
     createReplicaAndSyncState();
