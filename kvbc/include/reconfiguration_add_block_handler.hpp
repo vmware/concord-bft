@@ -23,11 +23,13 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
       : blocks_adder_{block_adder}, block_metadata_{ro_storage} {}
-  bool handle(const concord::messages::WedgeCommand& command, concord::messages::ReconfigurationErrorMsg&) override {
+  bool handle(const concord::messages::WedgeCommand& command,
+              uint64_t bft_seq_num,
+              concord::messages::ReconfigurationErrorMsg&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
-        persistReconfigurationBlock(serialized_command, command.bft_seq_num, kvbc::keyTypes::reconfiguration_wedge_key);
+        persistReconfigurationBlock(serialized_command, bft_seq_num, kvbc::keyTypes::reconfiguration_wedge_key);
     LOG_INFO(getLogger(), "WedgeCommand block is " << blockId);
     return true;
   }
@@ -41,11 +43,13 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
               concord::messages::ReconfigurationErrorMsg&) override {
     return true;
   }
-  bool handle(const concord::messages::DownloadCommand& command, concord::messages::ReconfigurationErrorMsg&) override {
+  bool handle(const concord::messages::DownloadCommand& command,
+              uint64_t bft_seq_num,
+              concord::messages::ReconfigurationErrorMsg&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
-    auto blockId = persistReconfigurationBlock(
-        serialized_command, command.bft_seq_num, kvbc::keyTypes::reconfiguration_download_key);
+    auto blockId =
+        persistReconfigurationBlock(serialized_command, bft_seq_num, kvbc::keyTypes::reconfiguration_download_key);
     LOG_INFO(getLogger(), "DownloadCommand command block is " << blockId);
     return true;
   }
@@ -55,12 +59,12 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     return true;
   }
   bool handle(const concord::messages::InstallCommand& command,
-              uint64_t,
+              uint64_t bft_seq_num,
               concord::messages::ReconfigurationErrorMsg&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
-    auto blockId = persistReconfigurationBlock(
-        serialized_command, command.bft_seq_num, kvbc::keyTypes::reconfiguration_install_key);
+    auto blockId =
+        persistReconfigurationBlock(serialized_command, bft_seq_num, kvbc::keyTypes::reconfiguration_install_key);
     LOG_INFO(getLogger(), "InstallCommand command block is " << blockId);
     return true;
   }

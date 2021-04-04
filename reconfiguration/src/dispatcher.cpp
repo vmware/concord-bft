@@ -39,9 +39,8 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     }
     if (holds_alternative<WedgeCommand>(request.command)) {
       WedgeCommand wedge_with_bft_sn = std::get<WedgeCommand>(request.command);
-      wedge_with_bft_sn.bft_seq_num = sequence_num;
-      wedge_with_bft_sn.stop_seq_num = sequence_num;
-      for (auto& handler : reconfig_handlers_) rresp.success |= handler->handle(wedge_with_bft_sn, error_msg);
+      for (auto& handler : reconfig_handlers_)
+        rresp.success |= handler->handle(wedge_with_bft_sn, sequence_num, error_msg);
 
     } else if (holds_alternative<WedgeStatusRequest>(request.command)) {
       WedgeStatusResponse wedge_response;
@@ -57,17 +56,14 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
 
       rresp.response.emplace<concord::messages::GetVersionResponse>(response);
     } else if (holds_alternative<DownloadCommand>(request.command)) {
-      DownloadCommand command_with_bft_sn = std::get<DownloadCommand>(request.command);
-      command_with_bft_sn.bft_seq_num = sequence_num;
       LOG_INFO(getLogger(), "DownloadCommand");
-      for (auto& handler : reconfig_handlers_) rresp.success &= handler->handle(command_with_bft_sn, error_msg);
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<DownloadCommand>(request.command), sequence_num, error_msg);
 
     } else if (holds_alternative<InstallCommand>(request.command)) {
-      InstallCommand command_with_bft_sn = std::get<InstallCommand>(request.command);
-      command_with_bft_sn.bft_seq_num = sequence_num;
       LOG_INFO(getLogger(), "InstallCommand");
       for (auto& handler : reconfig_handlers_)
-        rresp.success &= handler->handle(command_with_bft_sn, sequence_num, error_msg);
+        rresp.success &= handler->handle(std::get<InstallCommand>(request.command), sequence_num, error_msg);
 
     } else if (holds_alternative<InstallStatusCommand>(request.command)) {
       LOG_INFO(getLogger(), "InstallStatusCommand");
