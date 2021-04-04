@@ -78,7 +78,7 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallStatusComman
   return true;
 }
 ReconfigurationHandler::ReconfigurationHandler() {
-  auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatprPublicKey_;
+  auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
   if (operatorPubKeyPath.empty()) {
     LOG_WARN(getLogger(),
              "The operator public key is missing, the replica won't be able to validate the operator requests");

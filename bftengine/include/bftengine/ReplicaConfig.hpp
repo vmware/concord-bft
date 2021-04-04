@@ -118,7 +118,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   std::vector<std::string> thresholdVerificationKeys_;
 
   // Reconfiguration credentials
-  CONFIG_PARAM(pathToOperatprPublicKey_, std::string, "", "Path to the operator public key pem file");
+  CONFIG_PARAM(pathToOperatorPublicKey_, std::string, "", "Path to the operator public key pem file");
   // Pruning parameters
   CONFIG_PARAM(pruningEnabled_, bool, false, "Enable pruning");
   CONFIG_PARAM(numBlocksToKeep_, uint64_t, 0, "how much blocks to keep while pruning");
@@ -199,7 +199,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, thresholdPublicKey_);
     serialize(outStream, thresholdVerificationKeys_);
 
-    serialize(outStream, pathToOperatprPublicKey_);
+    serialize(outStream, pathToOperatorPublicKey_);
     serialize(outStream, pruningEnabled_);
     serialize(outStream, numBlocksToKeep_);
 
@@ -253,7 +253,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, thresholdPublicKey_);
     deserialize(inStream, thresholdVerificationKeys_);
 
-    deserialize(inStream, pathToOperatprPublicKey_);
+    deserialize(inStream, pathToOperatorPublicKey_);
     deserialize(inStream, pruningEnabled_);
     deserialize(inStream, numBlocksToKeep_);
 
