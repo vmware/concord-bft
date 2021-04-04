@@ -80,7 +80,7 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
-        persistReconfigurationBlock(serialized_command, sequence_number, kvbc::keyTypes::reconfiguration_install_key);
+        persistReconfigurationBlock(serialized_command, sequence_number, kvbc::keyTypes::reconfiguration_key_exchange);
     LOG_INFO(getLogger(), "KeyExchangeCommand command block is " << blockId);
     return true;
   }
