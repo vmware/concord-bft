@@ -41,10 +41,6 @@ ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
 
 # Install 3rd parties
 apt-get ${APT_GET_FLAGS} install \
-    libboost-filesystem1.65-dev \
-    libboost-system1.65-dev \
-    libboost-program-options1.65-dev \
-    libboost1.65-dev \
     libbz2-dev \
     liblz4-dev \
     libs3-dev \
@@ -61,6 +57,15 @@ pip3 install \
     pytest
 
 # Build 3rd parties
+cd ${HOME}
+wget ${WGET_FLAGS} -O boost.tar.gz \
+    https://dl.bintray.com/boostorg/release/1.75.0/source/boost_1_75_0.tar.gz && \
+    mkdir boost && tar xzf boost.tar.gz -C boost --strip-components 1 && \
+    cd boost && \
+    ./bootstrap.sh --prefix=/usr && mkdir build && \
+    ./b2 --build-dir=./build install && \
+    cd ${HOME} && rm -rf boost boost.tar.gz
+
 cd ${HOME}
 wget ${WGET_FLAGS} \
     https://github.com/HdrHistogram/HdrHistogram_c/archive/0.9.12.tar.gz && \
