@@ -101,49 +101,48 @@ login: ## Login to the container. Note: if the container is already running, log
 			${CONCORD_BFT_CONTAINER_SHELL};exit 0; \
 	fi
 
-.PHONY: build
-build: ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
+.PHONY: gen_cmake
+gen_cmake: ## Generate cmake files, used internally
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
 		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
-		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		cmake ${CONCORD_BFT_CMAKE_FLAGS} .."
+	@echo
+	@echo "CMake finished."
+
+.PHONY: build
+build: gen_cmake ## Build Concord-BFT source. In order to build a specific target run: make TARGET=<target name>.
+	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
+		${CONCORD_BFT_CONTAINER_SHELL} -c \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make format-check && \
 		make -j $$(nproc) ${TARGET}"
 	@echo
 	@echo "Build finished. The binaries are in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}"
 
 .PHONY: list-targets
-list-targets: ## Prints the list of available targets
+list-targets: gen_cmake ## Prints the list of available targets
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
-		cd ${CONCORD_BFT_BUILD_DIR} && \
-		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
-		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make help"
 
 .PHONY: format
-format: ## Format Concord-BFT source with clang-format
+format: gen_cmake ## Format Concord-BFT source with clang-format
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
-		cd ${CONCORD_BFT_BUILD_DIR} && \
-		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
-		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make format"
 	@echo
 	@echo "Format finished."
 
 .PHONY: tidy-check
-tidy-check: ## Run clang-tidy
+tidy-check: gen_cmake ## Run clang-tidy
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"mkdir -p ${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR} && \
-		cd ${CONCORD_BFT_BUILD_DIR} && \
-		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
-		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make -C ${CONCORD_BFT_KVBC_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
 		run-clang-tidy-10 &> clang-tidy-report.txt && \
@@ -162,13 +161,10 @@ test: ## Run all tests
 		ctest --timeout ${CONCORD_BFT_CTEST_TIMEOUT} --output-on-failure"
 
 .PHONY: list-tests
-list-tests: ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
+list-tests: gen_cmake ## List all tests. This one is helpful to choose which test to run when calling `make single-test TEST_NAME=<test name>`
 	docker run  ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"mkdir -p ${CONCORD_BFT_BUILD_DIR} && \
-		cd ${CONCORD_BFT_BUILD_DIR} && \
-		CC=${CONCORD_BFT_CONTAINER_CC} CXX=${CONCORD_BFT_CONTAINER_CXX} \
-		cmake ${CONCORD_BFT_CMAKE_FLAGS} .. && \
+		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		ctest -N"
 
 .PHONY: single-test
