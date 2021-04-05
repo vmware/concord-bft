@@ -209,7 +209,6 @@ class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
     latest_prunable_block.bft_sequence_number = 0;  // Read only replica doesn't know the block sequence number
     latest_prunable_block.replica = replica_id_;
     latest_prunable_block.block_id = latest_prunable_block_id;
-    latest_prunable_block.type = concord::messages::ReplicaType::readOnly;
     signer_.sign(latest_prunable_block);
     return true;
   }
