@@ -72,6 +72,8 @@ class SkvbcTest(unittest.TestCase):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get(self)
 
+    
+
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_request_missing_data_from_previous_window(self, bft_network, exchange_keys=True):
