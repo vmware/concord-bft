@@ -133,8 +133,20 @@ class FakeCommunication : public bft::communication::ICommunication {
   BehaviorThreadRunner runner_;
   std::thread fakeCommThread_;
 };
+std::vector<uint8_t> replayConfig(const MsgFromClient &msg);
 
 inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
+  std::vector<uint8_t> reply = replayConfig(msg);
+  client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
+}
+
+inline void delayedBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
+  std::vector<uint8_t> reply = replayConfig(msg);
+  std::this_thread::sleep_for(100ms);
+  client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
+}
+
+std::vector<uint8_t> replayConfig(const MsgFromClient &msg) {
   const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(msg.data.data());
   std::string reply_data = "reply";
   auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);
@@ -147,6 +159,6 @@ inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_recei
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
   // Copy the reply data;
-  std::memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
-  client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
+  memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
+  return reply;
 }
