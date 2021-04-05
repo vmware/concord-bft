@@ -133,7 +133,7 @@ class FakeCommunication : public bft::communication::ICommunication {
   BehaviorThreadRunner runner_;
   std::thread fakeCommThread_;
 };
-std::vector<uint8_t> replayConfig(const MsgFromClient &msg);
+std::vector<uint8_t> replayConfig(const MsgFromClient& msg);
 
 inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
   std::vector<uint8_t> reply = replayConfig(msg);
@@ -146,7 +146,7 @@ inline void delayedBehaviour(const MsgFromClient& msg, IReceiver* client_receive
   client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
 }
 
-std::vector<uint8_t> replayConfig(const MsgFromClient &msg) {
+std::vector<uint8_t> replayConfig(const MsgFromClient& msg) {
   const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(msg.data.data());
   std::string reply_data = "reply";
   auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);
