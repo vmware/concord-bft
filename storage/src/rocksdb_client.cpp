@@ -182,8 +182,9 @@ void Client::openRocksDB(bool readOnly,
                                s.ToString());
     dbInstance_.reset(db);
   } else {
-    ::rocksdb::TransactionDBOptions txn_options;
-    s = ::rocksdb::TransactionDB::Open(db_options, txn_options, m_dbPath, cf_descs, &raw_cf_handles, &txn_db_);
+    ::rocksdb::OptimisticTransactionDBOptions txn_options;
+    s = ::rocksdb::OptimisticTransactionDB::Open(
+        db_options, txn_options, m_dbPath, cf_descs, &raw_cf_handles, &txn_db_);
     unique_cf_handles = raw_to_unique_cf_handles(raw_cf_handles);
     if (!s.ok())
       throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
