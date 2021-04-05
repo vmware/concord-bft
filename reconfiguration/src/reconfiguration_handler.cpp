@@ -88,4 +88,10 @@ ReconfigurationHandler::ReconfigurationHandler() {
     verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
   }
 }
+bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
+                                    ReconfigurationErrorMsg&,
+                                    uint64_t sequence_number) {
+  LOG_INFO(GL, "KeyExchangeCommand has been executed");
+  return true;
+}
 }  // namespace concord::reconfiguration

@@ -668,12 +668,12 @@ class BftTestNetwork:
             action.add_success_fields(current_view=current_view)
             return current_view
 
-    async def get_metric(self, replica_id, bft_network, mtype, mname):
+    async def get_metric(self, replica_id, bft_network, mtype, mname, component='replica'):
         with trio.fail_after(seconds=30):
             while True:
                 with trio.move_on_after(seconds=1):
                     try:
-                        key = ['replica', mtype, mname]
+                        key = [component, mtype, mname]
                         value = await bft_network.metrics.get(replica_id, *key)
                     except KeyError:
                         # metrics not yet available, continue looping

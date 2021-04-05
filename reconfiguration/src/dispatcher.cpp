@@ -71,6 +71,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<InstallStatusCommand>(request.command), response, error_msg);
       rresp.response.emplace<InstallStatusResponse>(response);
+    } else if (holds_alternative<KeyExchangeCommand>(request.command)) {
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<KeyExchangeCommand>(request.command), error_msg, sequence_num);
     } else if (holds_alternative<LatestPrunableBlockRequest>(request.command)) {
       LOG_INFO(getLogger(), "LatestPrunableBlockRequest");
       LatestPrunableBlock last_pruneable_block;
