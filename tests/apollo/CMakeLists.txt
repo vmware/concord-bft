@@ -15,9 +15,25 @@ if(USE_S3_OBJECT_STORE)
 endif()
 
 if(LEAKCHECK)
+  set(ASAN_LOG_DIR "${CMAKE_BINARY_DIR}/asan_logs")
+  file(MAKE_DIRECTORY ${ASAN_LOG_DIR})
   # For Leak Sanitizers to report errors we need to shut down processes gracefully
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} \
+  ASAN_OPTIONS=log_path=${ASAN_LOG_DIR}/leak.log:symbolize=1:check_initialization_order=1:detect_leaks=1 \
+  ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
+  ")
+endif()
+
+if(THREADCHECK)
+  set(TSAN_LOG_DIR "${CMAKE_BINARY_DIR}/tsan_logs")
+  file(MAKE_DIRECTORY ${TSAN_LOG_DIR})
+  # For Leak Sanitizers to report errors we need to shut down processes gracefully
   set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
+  set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} \
+  TSAN_OPTIONS=log_path=${TSAN_LOG_DIR}/leak.log:history_size=7 \
+  TSAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer\
+  ")
 endif()
 
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
@@ -25,7 +41,6 @@ set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 if (OMIT_TEST_OUTPUT)
     set(TEST_OUTPUT "2>&1 > /dev/null")
 endif()
-
 add_test(NAME skvbc_basic_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_basic_tests python3 -m unittest test_skvbc ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
