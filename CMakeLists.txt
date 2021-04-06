@@ -84,6 +84,8 @@ string(APPEND CMAKE_CXX_FLAGS " -Wbuiltin-macro-redefined")
 string(APPEND CMAKE_CXX_FLAGS " -pedantic")
 string(APPEND CMAKE_CXX_FLAGS " -Werror")
 string(APPEND CMAKE_CXX_FLAGS " -fno-omit-frame-pointer")
+string(APPEND CMAKE_CXX_FLAGS " -g")
+
 if(LEAKCHECK AND THREADCHECK)
     message(FATAL_ERROR "Cannot have both Thread and Address/Leak Sanitizers Enabled")
 endif()
@@ -148,6 +150,7 @@ add_subdirectory(reconfiguration)
 add_subdirectory(client)
 add_subdirectory(thin-replica-server)
 add_subdirectory(ccron)
+add_subdirectory(orrery)
 
 #
 # Setup testing

@@ -191,7 +191,7 @@ class CppVisitor(Visitor):
     def create_enum(self, name, tags):
         enumstr = 'enum class {name} : uint8_t {{ {tagstr} }};\n'
         enumsize_decl = 'uint8_t enumSize({name} _);\n'
-        enumsize_def = 'uint8_t enumSize({name} _) {{ (void)_; return {num_tags}; }};\n'
+        enumsize_def = 'uint8_t enumSize({name} _) {{ (void)_; return {num_tags}; }}\n'
         self.output_declaration += enumstr.format(name=name, tagstr=", ".join(tags))
         self.output_declaration += enumsize_decl.format(name=name)
         self.output += enumsize_def.format(name=name, num_tags = len(tags))
