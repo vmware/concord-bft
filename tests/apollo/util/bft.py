@@ -661,7 +661,7 @@ class BftTestNetwork:
         """
         Returns the current view number
         """
-        with log.start_action(action_type="get_current_view", ) as action:
+        with log.start_action(action_type="get_current_view") as action:
             matching_view = None
             nb_replicas_in_matching_view = 0
 
