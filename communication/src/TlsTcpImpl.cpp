@@ -217,7 +217,13 @@ void TlsTCPCommunication::TlsTcpImpl::closeConnection(std::shared_ptr<AsyncTlsCo
 
 void TlsTCPCommunication::TlsTcpImpl::syncCloseConnection(std::shared_ptr<AsyncTlsConnection>& conn) {
   boost::system::error_code ec;
+
+#ifndef NO_SSL_SOCKET_SHUTDOWN
   conn->getSocket().shutdown(ec);
+#else
+#pragma message "NOTE: TLS-TCP module will not shutdown SSL socket properly"
+#endif
+
   if (ec) {
     LOG_WARN(logger_, "SSL shutdown failed: " << ec.message());
   }
