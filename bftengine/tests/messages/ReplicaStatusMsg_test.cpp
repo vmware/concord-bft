@@ -179,6 +179,15 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   EXPECT_FALSE(msg.isMissingViewChangeMsgForViewChange(4));
   msg.setMissingViewChangeMsgForViewChange(4);
   EXPECT_TRUE(msg.isMissingViewChangeMsgForViewChange(4));
+
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_FALSE(msg.hasComplaintFromReplica(id));
+    msg.setComplaintFromReplica(id);
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
   /* the next methods crash the app with an assert ¯\_(ツ)_/¯
   EXPECT_FALSE(msg.isPrePrepareInActiveWindow(151));
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(151));
@@ -187,6 +196,7 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
 }
 
 TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
@@ -224,6 +234,16 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   EXPECT_FALSE(msg.isMissingPrePrepareMsgForViewChange(152));
   msg.setMissingPrePrepareMsgForViewChange(152);
   EXPECT_TRUE(msg.isMissingPrePrepareMsgForViewChange(152));
+
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_FALSE(msg.hasComplaintFromReplica(id));
+    msg.setComplaintFromReplica(id);
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+  for (auto& id : replicaInfo.idsOfPeerReplicas()) {
+    EXPECT_TRUE(msg.hasComplaintFromReplica(id));
+  }
+
   testMessageBaseMethods(msg, MsgCode::ReplicaStatus, senderId, spanContext);
 }
 
