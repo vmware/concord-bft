@@ -25,6 +25,8 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     gdbserver \
     git \
     iptables \
+    llvm \
+    lzip \
     net-tools \
     parallel \
     pkg-config \
@@ -33,8 +35,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     python3-setuptools \
     sudo \
     vim \
-    wget \
-    lzip
+    wget
 
 ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
 ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
