@@ -695,36 +695,37 @@ class BftTestNetwork:
             if expected is None:
                 expected = lambda _: True
 
-        matching_view = None
-        nb_replicas_in_matching_view = 0
+            matching_view = None
+            nb_replicas_in_matching_view = 0
 
-        async def get_view(replica_id ):
-            replica_view = await self._wait_for_matching_agreed_view(replica_id, expected)
-            replica_views.append(replica_view)
-        try:
-            while True:
-                replica_views = []
-                async with trio.open_nursery() as nursery:
-                    for r in self.get_live_replicas():
-                        nursery.start_soon(get_view,r)
+            async def get_view(replica_id):
+                replica_view = await self._wait_for_matching_agreed_view(replica_id, expected)
+                replica_views.append(replica_view)
+            try:
+                while True:
+                    replica_views = []
+                    async with trio.open_nursery() as nursery:
+                        for r in self.get_live_replicas():
+                            nursery.start_soon(get_view, r)
 
-                view = Counter(replica_views).most_common(1)[0]
-                # wait for n-f = 2f+2c+1 replicas to be in the expected view
-                if view[1] >= 2 * self.config.f + 2 * self.config.c + 1:
-                    matching_view = view[0]
-                    nb_replicas_in_matching_view = view[1]
-                    break
-                await trio.sleep(0.1)
+                    view = Counter(replica_views).most_common(1)[0]
+                    # wait for n-f = 2f+2c+1 replicas to be in the expected view
+                    if view[1] >= 2 * self.config.f + 2 * self.config.c + 1:
+                        matching_view = view[0]
+                        nb_replicas_in_matching_view = view[1]
+                        break
+                    await trio.sleep(0.1)
 
-            action.log(message_type=f'Matching view #{matching_view} has been agreed among replicas.')
+                action.log(
+                    message_type=f'Matching view #{matching_view} has been agreed among replicas.')
 
-            action.log(f'View #{matching_view} is active on '
-                    f'{nb_replicas_in_matching_view} replicas '
-                    f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
-            return matching_view
+                action.log(f'View #{matching_view} is active on '
+                           f'{nb_replicas_in_matching_view} replicas '
+                           f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
+                return matching_view
 
-        except trio.TooSlowError:
-            assert False, err_msg
+            except trio.TooSlowError:
+                assert False, err_msg
 
     async def wait_for_view(self, replica_id, expected=None,
                             err_msg="Expected view not reached"):
