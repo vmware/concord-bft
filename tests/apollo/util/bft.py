@@ -706,8 +706,7 @@ class BftTestNetwork:
                         value = await bft_network.metrics.get(replica_id, *key)
                     except KeyError:
                         # metrics not yet available, continue looping
-                        log.log_message(
-                            message_type=f"KeyError! '{mname}' not yet available.")
+                        log.log_message(message_type=f"KeyError! '{mname}' not yet available.")
                         await trio.sleep(0.1)
                     else:
                         return value
