@@ -661,44 +661,12 @@ class BftTestNetwork:
         """
         Returns the current view number
         """
-        with log.start_action(action_type="get_current_view") as action:
-            current_view = await self.get_current_view()
-            action.add_success_fields(current_view=current_view)
-            return current_view
-
-    async def get_metric(self, replica_id, bft_network, mtype, mname, component='replica'):
-        with trio.fail_after(seconds=30):
-            while True:
-                with trio.move_on_after(seconds=1):
-                    try:
-                        key = [component, mtype, mname]
-                        value = await bft_network.metrics.get(replica_id, *key)
-                    except KeyError:
-                        # metrics not yet available, continue looping
-                        log.log_message(message_type=f"KeyError! '{mname}' not yet available.")
-                        await trio.sleep(0.1)
-                    else:
-                        return value
-
-    async def get_current_view(self, expected=None,
-                            err_msg="Expected view not reached"):
-        """
-        Waits for a view that matches the "expected" predicate,
-        and returns the corresponding view number.
-
-        If the "expected" predicate is not provided,
-        returns the current view number.
-
-        In case of a timeout, fails with the provided err_msg
-        """
         with log.start_action(action_type="get_current_view", ) as action:
-            if expected is None:
-                expected = lambda _: True
-
             matching_view = None
             nb_replicas_in_matching_view = 0
 
             async def get_view(replica_id):
+                def expected(_): return True
                 replica_view = await self._wait_for_matching_agreed_view(replica_id, expected)
                 replica_views.append(replica_view)
             try:
@@ -722,10 +690,27 @@ class BftTestNetwork:
                 action.log(f'View #{matching_view} is active on '
                            f'{nb_replicas_in_matching_view} replicas '
                            f'({nb_replicas_in_matching_view} >= n-f = {self.config.n - self.config.f}).')
+                action.add_success_fields(current_view=matching_view)
+
                 return matching_view
 
             except trio.TooSlowError:
-                assert False, err_msg
+                assert False, "Could not agree view among replicas."
+
+    async def get_metric(self, replica_id, bft_network, mtype, mname, component='replica'):
+        with trio.fail_after(seconds=30):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    try:
+                        key = [component, mtype, mname]
+                        value = await bft_network.metrics.get(replica_id, *key)
+                    except KeyError:
+                        # metrics not yet available, continue looping
+                        log.log_message(
+                            message_type=f"KeyError! '{mname}' not yet available.")
+                        await trio.sleep(0.1)
+                    else:
+                        return value
 
     async def wait_for_view(self, replica_id, expected=None,
                             err_msg="Expected view not reached"):
