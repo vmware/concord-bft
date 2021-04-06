@@ -38,6 +38,8 @@ class RequestsBatchingLogic {
                                                  uint64_t requestsInQueue,
                                                  SeqNum lastExecutedSeqNum);
 
+  void adjustPreprepareSize();
+
  private:
   InternalReplicaApi &replica_;
   concordMetrics::CounterHandle metric_not_enough_client_requests_event_;
@@ -45,11 +47,16 @@ class RequestsBatchingLogic {
   // Variables used to heuristically compute the 'optimal' batch size
   uint32_t maxNumberOfPendingRequestsInRecentHistory_ = 0;
   uint32_t batchingFactor_ = 1;
+  std::chrono::steady_clock::time_point start_timer_ = std::chrono::steady_clock::now();
   const uint32_t batchingFactorCoefficient_;
   const uint32_t maxInitialBatchSize_;
   const uint32_t batchFlushPeriodMs_;
-  const uint32_t maxNumOfRequestsInBatch_;
+  uint16_t closed_on_logic = 0;
+  uint16_t closed_on_flush = 0;
+  uint32_t maxNumOfRequestsInBatch_;
+  const uint32_t initialMaxNumOfRequestsInBatch_;
   const uint32_t maxBatchSizeInBytes_;
+  const bool adaptiveConsensusSize_;
   concordUtil::Timers &timers_;
   concordUtil::Timers::Handle batchFlushTimer_;
   std::mutex batchProcessingLock_;

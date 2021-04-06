@@ -28,7 +28,9 @@ RequestsBatchingLogic::RequestsBatchingLogic(InternalReplicaApi &replica,
       maxInitialBatchSize_(config.maxInitialBatchSize),
       batchFlushPeriodMs_(config.batchFlushPeriod),
       maxNumOfRequestsInBatch_(config.maxNumOfRequestsInBatch),
+      initialMaxNumOfRequestsInBatch_(config.maxNumOfRequestsInBatch),
       maxBatchSizeInBytes_(config.maxBatchSizeInBytes),
+      adaptiveConsensusSize_(config.adaptiveConsensus),
       timers_(timers) {
   if (batchingPolicy_ == BATCH_BY_REQ_SIZE || batchingPolicy_ == BATCH_BY_REQ_NUM)
     batchFlushTimer_ = timers_.add(milliseconds(batchFlushPeriodMs_),
@@ -45,6 +47,7 @@ void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {
     lock_guard<mutex> lock(batchProcessingLock_);
     if (replica_.tryToSendPrePrepareMsg(false)) {
       LOG_INFO(GL, "Batching flush period expired" << KVLOG(batchFlushPeriodMs_));
+      closed_on_flush += 1;
       timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     }
   }
@@ -81,6 +84,28 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum pri
   return replica_.buildPrePrepareMessage();
 }
 
+void RequestsBatchingLogic::adjustPreprepareSize() {
+  auto totalConsensusesCount = closed_on_logic + closed_on_flush;
+  start_timer_ = std::chrono::steady_clock::now();
+  if (closed_on_flush / totalConsensusesCount > 0.5 && maxNumOfRequestsInBatch_ > initialMaxNumOfRequestsInBatch_)
+    maxNumOfRequestsInBatch_ *= 0.8;
+  else if (closed_on_flush / totalConsensusesCount > 0.25 &&
+           maxNumOfRequestsInBatch_ > initialMaxNumOfRequestsInBatch_) {
+    maxNumOfRequestsInBatch_ *= 0.9;
+  } else if (maxNumOfRequestsInBatch_ <= 3 * initialMaxNumOfRequestsInBatch_) {
+    if (closed_on_logic / totalConsensusesCount >= 0.95) {
+      maxNumOfRequestsInBatch_ += maxNumOfRequestsInBatch_ * 0.15;
+    } else if (closed_on_logic / totalConsensusesCount >= 0.9) {
+      maxNumOfRequestsInBatch_ += maxNumOfRequestsInBatch_ * 0.1;
+    } else if (closed_on_logic / totalConsensusesCount >= 0.75) {
+      maxNumOfRequestsInBatch_ += maxNumOfRequestsInBatch_ * 0.05;
+    }
+  }
+  closed_on_flush = 0;
+  closed_on_logic = 0;
+  LOG_INFO(GL, "increasing maxBatchSize to:" << maxNumOfRequestsInBatch_);
+}
+
 PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
   const auto requestsInQueue = replica_.getRequestsInQueue();
   if (requestsInQueue == 0) return nullptr;
@@ -94,7 +119,14 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
     case BATCH_BY_REQ_NUM: {
       lock_guard<mutex> lock(batchProcessingLock_);
       prePrepareMsg = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
-      if (prePrepareMsg) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      if (prePrepareMsg) {
+        timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+        auto period =
+            std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_timer_)
+                .count();
+        closed_on_logic += 1;
+        if (adaptiveConsensusSize_ && period > batchFlushPeriodMs_ * 20) adjustPreprepareSize();
+      }
     } break;
     case BATCH_BY_REQ_SIZE: {
       lock_guard<mutex> lock(batchProcessingLock_);
