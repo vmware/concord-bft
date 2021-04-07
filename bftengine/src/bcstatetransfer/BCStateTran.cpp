@@ -524,7 +524,6 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
 
 void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char *outDigestBuffer) {
   ConcordAssert(running_);
-  ConcordAssert(!isFetching());
   ConcordAssertGE(sizeOfDigestBuffer, sizeof(STDigest));
   ConcordAssertGT(checkpointNumber, 0);
   ConcordAssertGE(checkpointNumber, psd_->getFirstStoredCheckpoint());
