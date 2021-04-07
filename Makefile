@@ -129,6 +129,14 @@ list-targets: gen_cmake ## Prints the list of available targets
 		"cd ${CONCORD_BFT_BUILD_DIR} && \
 		make help"
 
+.PHONY: test-range
+test-range: ## Run all tests in the range [START,END], inclusive: `make test-range START=<#start_test> END=<#end_test>`. To get test numbers, use list-tests.
+	docker run ${BASIC_RUN_PARAMS} \
+			${CONCORD_BFT_CONTAINER_SHELL} -c \
+			"mkdir -p ${CONCORD_BFT_CORE_DIR} && \
+			cd ${CONCORD_BFT_BUILD_DIR} && \
+			ctest -I ${START},${END}"
+
 .PHONY: format
 format: gen_cmake ## Format Concord-BFT source with clang-format
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
