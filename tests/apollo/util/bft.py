@@ -670,14 +670,13 @@ class BftTestNetwork:
                 replica_view = await self._wait_for_matching_agreed_view(replica_id, expected)
                 replica_views.append(replica_view)
 
-            with trio.fail_after(seconds=30):
-                try:
+            try:
+                with trio.fail_after(seconds=30):
                     while True:
                         replica_views = []
                         async with trio.open_nursery() as nursery:
                             for r in self.get_live_replicas():
                                 nursery.start_soon(get_view, r)
-
                         view = Counter(replica_views).most_common(1)[0]
                         # wait for n-f = 2f+2c+1 replicas to be in the expected view
                         if view[1] >= 2 * self.config.f + 2 * self.config.c + 1:
@@ -696,8 +695,8 @@ class BftTestNetwork:
 
                     return matching_view
 
-                except trio.TooSlowError:
-                    assert False, "Could not agree view among replicas."
+            except trio.TooSlowError:
+                assert False, "Could not agree view among replicas."
 
     async def get_metric(self, replica_id, bft_network, mtype, mname, component='replica'):
         with trio.fail_after(seconds=30):
