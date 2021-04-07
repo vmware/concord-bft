@@ -300,7 +300,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       FetchingState fs = getFetchingState();
       LOG_INFO(getLogger(), "Starting state is " << stateName(fs));
 
-      if (fs == FetchingState::GettingMissingBlocks) {
+      if (fs != FetchingState::NotFetching) {
         startCollectingStats();
       }
 
