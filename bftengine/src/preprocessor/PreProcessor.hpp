@@ -36,7 +36,7 @@ struct RequestState {
   std::mutex mutex;  // Define a mutex per request to avoid contentions
   RequestProcessingStateUniquePtr reqProcessingStatePtr;
   // A list of requests passed a pre-processing consensus used for a non-determinism detection at later stage.
-  static const uint8_t reqProcessingHistoryHeight = 30;
+  static uint8_t reqProcessingHistoryHeight;
   std::deque<RequestProcessingStateUniquePtr> reqProcessingHistory;
   uint64_t reqRetryId = 1;
 };
@@ -161,7 +161,20 @@ class PreProcessor {
   void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
                                         bool arrivedInBatch,
                                         uint16_t msgOffsetInBatch);
+  bool isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,
+                                      ReqId reqSeqNum,
+                                      NodeIdType clientId,
+                                      NodeIdType senderId);
+  bool isRequestAlreadyExecuted(ReqId reqSeqNum, NodeIdType clientId, const std::string &cid);
+  bool isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
+                                   SeqNum reqSeqNum,
+                                   NodeIdType clientId,
+                                   const std::string &cid);
 
+  bool isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
+                                           NodeIdType clientId,
+                                           NodeIdType senderId,
+                                           const std::string &cid);
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
