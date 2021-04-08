@@ -15,7 +15,8 @@
 
 namespace preprocessor {
 
-PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
+PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
+                                           NodeIdType senderId,
                                            uint16_t clientId,
                                            uint16_t reqOffsetInBatch,
                                            uint64_t reqSeqNum,
@@ -26,7 +27,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
                                            const concordUtils::SpanContext& span_context)
     : MessageBase(
           senderId, MsgCode::PreProcessRequest, span_context.data().size(), (sizeof(Header) + reqLength + cid.size())) {
-  setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, reqLength);
+  setParams(reqType, senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, reqLength);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
@@ -36,8 +37,9 @@ PreProcessRequestMsg::PreProcessRequestMsg(NodeIdType senderId,
   memcpy(position, cid.c_str(), cid.size());
   uint64_t msgLength = sizeof(Header) + span_context.data().size() + reqLength + cid.size();
   SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(),
-            KVLOG(senderId, clientId, reqSeqNum, reqRetryId, sizeof(Header), reqLength, cid.size(), msgLength));
+  LOG_DEBUG(
+      logger(),
+      KVLOG(reqType, senderId, clientId, reqSeqNum, reqRetryId, sizeof(Header), reqLength, cid.size(), msgLength));
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
@@ -49,12 +51,14 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
-void PreProcessRequestMsg::setParams(NodeIdType senderId,
+void PreProcessRequestMsg::setParams(RequestType reqType,
+                                     NodeIdType senderId,
                                      uint16_t clientId,
                                      uint16_t reqOffsetInBatch,
                                      ReqId reqSeqNum,
                                      uint64_t reqRetryId,
                                      uint32_t reqLength) {
+  msgBody()->reqType = reqType;
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
   msgBody()->reqOffsetInBatch = reqOffsetInBatch;

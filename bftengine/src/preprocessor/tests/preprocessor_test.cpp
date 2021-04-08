@@ -500,8 +500,8 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   msgHandlerCallback(clientReqMsg);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
 
-  auto* preProcessReqMsg =
-      new PreProcessRequestMsg(replica.currentPrimary(), clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, span);
+  auto* preProcessReqMsg = new PreProcessRequestMsg(
+      REQ_TYPE_PRE_PROCESS, replica.currentPrimary(), clientId, 0, reqSeqNum, reqRetryId, bufLen, buf, cid, span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
   usleep(reqWaitTimeoutMilli * 1000 / 2);  // Wait for the pre-execution completion
