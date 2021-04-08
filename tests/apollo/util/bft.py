@@ -678,7 +678,7 @@ class BftTestNetwork:
                             for r in self.get_live_replicas():
                                 nursery.start_soon(get_view, r)
                         view = Counter(replica_views).most_common(1)[0]
-                        # wait for n-f = 2f+2c+1 replicas to be in the expected view
+                        # wait for n-f = 2f+2c+1 replicas to have agreed the expected view
                         if view[1] >= 2 * self.config.f + 2 * self.config.c + 1:
                             matching_view = view[0]
                             nb_replicas_in_matching_view = view[1]
