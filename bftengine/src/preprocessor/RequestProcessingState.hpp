@@ -23,7 +23,7 @@ namespace preprocessor {
 
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, RETRY_PRIMARY } PreProcessingResult;
+typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, CANCELLED_BY_PRIMARY, RETRY_PRIMARY } PreProcessingResult;
 typedef std::vector<ReplicaId> ReplicaIdsList;
 
 class RequestProcessingState {
