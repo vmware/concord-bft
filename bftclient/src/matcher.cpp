@@ -17,14 +17,14 @@ std::optional<Match> Matcher::onReply(UnmatchedReply&& reply) {
   if (!valid(reply)) return std::nullopt;
 
   auto key = MatchKey{reply.metadata, std::move(reply.data)};
-  const auto [it, success] = matches_[key].insert_or_assign(reply.rsi.from, std::move(reply.rsi.data));
-  (void)it;  // unused variable hack needed by GCC
-  if (!success) {
-    LOG_ERROR(logger_,
-              "Received two different pieces of replica specific information from: " << reply.rsi.from.val
-                                                                                     << ". Keeping the new one.");
-    return std::nullopt;
+  if (matches_[key].count(reply.rsi.from)) {
+    if (matches_[key][reply.rsi.from] != reply.rsi.data) {
+      LOG_ERROR(logger_,
+                "Received two different pieces of replica specific information from: " << reply.rsi.from.val
+                                                                                       << ". Keeping the new one.");
+    }
   }
+  matches_[key].insert_or_assign(reply.rsi.from, std::move(reply.rsi.data));
 
   return match();
 }

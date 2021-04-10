@@ -410,6 +410,55 @@ TEST_F(ClientApiTestFixture, batch_of_writes) {
   client.stop();
 }
 
+TEST_F(ClientApiTestFixture, client_handle_several_batches) {
+  auto BatchBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
+    const auto* req_header = reinterpret_cast<const ClientBatchRequestMsgHeader*>(msg.data.data());
+    auto* position = msg.data.data();
+    position += sizeof(ClientBatchRequestMsgHeader) + req_header->cidSize;
+    string reply_data = "world";
+    auto reply_header_size = sizeof(ClientReplyMsgHeader);
+    Msg reply(reply_header_size + reply_data.size());
+
+    auto* reply_header = reinterpret_cast<ClientReplyMsgHeader*>(reply.data());
+    reply_header->currentPrimaryId = 0;
+    reply_header->msgType = REPLY_MSG_TYPE;
+    reply_header->replicaSpecificInfoLength = 0;
+    reply_header->replyLength = reply_data.size();
+    for (uint32_t i = 0; i < req_header->numOfMessagesInBatch; i++) {
+      const auto* req_header1 = reinterpret_cast<const ClientRequestMsgHeader*>(position);
+      reply_header->reqSeqNum = req_header1->reqSeqNum;
+      reply_header->spanContextSize = 0;
+      // Copy the reply data;
+      memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
+      client_receiver->onNewMessage((NodeNum)msg.destination.val, (const char*)reply.data(), reply.size());
+      position += sizeof(ClientRequestMsgHeader) + req_header1->cidLength + req_header1->requestLength +
+                  req_header1->spanContextSize;
+    }
+  };
+
+  unique_ptr<FakeCommunication> comm(new FakeCommunication(BatchBehavior));
+  Client client(move(comm), test_config_);
+  for (uint64_t i = 1; i < 10; i += 2) {
+    // Ensure we only wait for F+1 replies (ByzantineSafeQuorum)
+    WriteConfig config{RequestConfig{false, i}, ByzantineSafeQuorum{}};
+    WriteConfig config2{RequestConfig{false, i + 1}, ByzantineSafeQuorum{}};
+    config.request.timeout = 500ms;
+    config2.request.timeout = 500ms;
+    WriteRequest request1{config, Msg({'c', 'o', 'n', 'c', 'o', 'r', 'd'})};
+    WriteRequest request2{config2, Msg({'h', 'e', 'l', 'l', 'o'})};
+    std::deque<WriteRequest> request_queue;
+    request_queue.push_back(request1);
+    request_queue.push_back(request2);
+    auto replies = client.sendBatch(request_queue, request1.config.request.correlation_id);
+    Msg expected{'w', 'o', 'r', 'l', 'd'};
+    ASSERT_EQ(replies.size(), request_queue.size());
+    ASSERT_EQ(expected, replies.begin()->second.matched_data);
+    ASSERT_EQ(replies.begin()->second.rsi.size(), 2);
+    ASSERT_EQ(client.primary(), ReplicaId{0});
+  }
+  client.stop();
+}
+
 TEST_F(ClientApiTestFixture, batch_of_writes_no_reply) {
   auto NoReplyBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) { return; };
 
