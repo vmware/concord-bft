@@ -244,9 +244,10 @@ SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, con
   if (replies.size() == pending_requests_.size()) {
     expected_commit_time_ms_.add(
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count());
+    pending_requests_.clear();
     return replies;
   }
-
+  pending_requests_.clear();
   expected_commit_time_ms_.add(max_time_to_wait.count());
   throw BatchTimeoutException(cid);
 }
@@ -280,6 +281,7 @@ void Client::wait(SeqNumToReplyMap& replies) {
     for (auto&& reply : unmatched_requests) {
       auto request = reply_certificates_.find(reply.metadata.seq_num);
       if (request == reply_certificates_.end()) continue;
+      if (pending_requests_.size() > 0 && replies.size() == pending_requests_.size()) return;
       if (auto match = request->second.onReply(std::move(reply))) {
         primary_ = match->primary;
         replies.insert(std::make_pair(request->first, match->reply));
