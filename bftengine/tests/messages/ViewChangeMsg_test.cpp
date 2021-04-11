@@ -11,7 +11,6 @@
 
 #include "gtest/gtest.h"
 
-#include <tuple>
 #include "helper.hpp"
 #include "DigestType.h"
 #include "ViewsManager.hpp"
@@ -21,6 +20,9 @@
 #include "messages/ViewChangeMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+
+#include <tuple>
+#include <memory>
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
@@ -33,11 +35,9 @@ void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::strin
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   ReplicasInfo replicaInfo(config, true, true);
-  SigManager sigManager(config.replicaId,
-                        config.numReplicas + config.numOfClientProxies,
-                        config.replicaPrivateKey,
-                        config.publicKeysOfReplicas);
-  ViewsManager manager(&replicaInfo, &sigManager);
+  std::unique_ptr<SigManager> sigManager(createSigManager(
+      config.replicaId, config.replicaPrivateKey, KeyFormat::HexaDecimalStrippedFormat, config.publicKeysOfReplicas));
+  ViewsManager manager(&replicaInfo);
   ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);
@@ -174,11 +174,9 @@ void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int t
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   ReplicasInfo replicaInfo(config, true, true);
-  SigManager sigManager(config.replicaId,
-                        config.numReplicas + config.numOfClientProxies,
-                        config.replicaPrivateKey,
-                        config.publicKeysOfReplicas);
-  ViewsManager manager(&replicaInfo, &sigManager);
+  std::unique_ptr<SigManager> sigManager(createSigManager(
+      config.replicaId, config.replicaPrivateKey, KeyFormat::HexaDecimalStrippedFormat, config.publicKeysOfReplicas));
+  ViewsManager manager(&replicaInfo);
   ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);

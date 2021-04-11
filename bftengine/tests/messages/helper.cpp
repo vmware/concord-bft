@@ -65,6 +65,17 @@ const char publicKeyValue4[] =
     "F6605C909F98B6C3F795354BBB988C9695F8A1E27FFC3CE4FFA64B549DD9072763404FBD352C5C1A05FA3D17377E113600B1EDCAEE17687BC4"
     "C1AA6F3D020111";
 
+void loadPrivateAndPublicKeys(std::string& myPrivateKey,
+                              std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
+                              size_t numPublicKeysToLoad) {
+  ConcordAssert(numPublicKeysToLoad <= 4);
+  myPrivateKey = replicaPrivateKey;
+  publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
+  publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
+  publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
+  publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
+}
+
 bftEngine::ReplicaConfig& createReplicaConfig() {
   bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
   config.numReplicas = 4;
@@ -84,13 +95,25 @@ bftEngine::ReplicaConfig& createReplicaConfig() {
   config.sizeOfReservedPage = 2048;
   config.debugStatisticsEnabled = true;
 
-  config.replicaPrivateKey = replicaPrivateKey;
-  config.publicKeysOfReplicas.insert(IdToKeyPair(0, publicKeyValue1));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(1, publicKeyValue2));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(2, publicKeyValue3));
-  config.publicKeysOfReplicas.insert(IdToKeyPair(3, publicKeyValue4));
+  loadPrivateAndPublicKeys(config.replicaPrivateKey, config.publicKeysOfReplicas, 4);
 
   bftEngine::CryptoManager::instance(new TestCryptoSystem);
 
   return config;
+}
+
+bftEngine::impl::SigManager* createSigManager(size_t myId,
+                                              std::string& myPrivateKey,
+                                              KeyFormat replicasKeysFormat,
+                                              std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas) {
+  return SigManager::init(myId,
+                          myPrivateKey,
+                          publicKeysOfReplicas,
+                          replicasKeysFormat,
+                          nullptr,
+                          KeyFormat::PemFormat,
+                          publicKeysOfReplicas.size() + 1,
+                          0,
+                          0,
+                          0);
 }
