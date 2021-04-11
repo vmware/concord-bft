@@ -118,8 +118,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
   ViewsManager *viewsManager = nullptr;
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
-    viewsManager = ViewsManager::createInsideViewZero(
-        ld.repsInfo, ld.sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+    viewsManager = ViewsManager::createInsideViewZero(ld.repsInfo, ld.sigManager);
 
     ConcordAssert(viewsManager->latestActiveView() == 0);
     ConcordAssert(viewsManager->viewIsActive(0));
@@ -130,7 +129,6 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
                                                    ld.sigManager,
-                                                   CryptoManager::instance().thresholdVerifierForSlowPathCommit(),
                                                    descriptorOfLastExitFromView.view,
                                                    descriptorOfLastExitFromView.lastStable,
                                                    descriptorOfLastExitFromView.lastExecuted,
@@ -148,7 +146,6 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     viewsManager = ViewsManager::createOutsideView(ld.repsInfo,
                                                    ld.sigManager,
-                                                   CryptoManager::instance().thresholdVerifierForSlowPathCommit(),
                                                    descriptorOfLastExitFromView.view,
                                                    descriptorOfLastExitFromView.lastStable,
                                                    descriptorOfLastExitFromView.lastExecuted,
@@ -167,7 +164,6 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
 
     viewsManager = ViewsManager::createInsideView(ld.repsInfo,
                                                   ld.sigManager,
-                                                  CryptoManager::instance().thresholdVerifierForSlowPathCommit(),
                                                   descriptorOfLastNewView.view,
                                                   descriptorOfLastNewView.stableLowerBoundWhenEnteredToView,
                                                   descriptorOfLastNewView.newViewMsg,

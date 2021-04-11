@@ -23,7 +23,7 @@
 #include "secrets_manager_impl.h"
 
 namespace bftEngine::impl {
-class KeyManager {
+class KeyExchangeManager {
  public:
   // Generates and publish key to consensus
   void sendKeyExchange();
@@ -33,7 +33,7 @@ class KeyManager {
   std::string onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn);
   // A callback that is called each checkpoint and can trigger rotation of keys.
   void onCheckpoint(const int& num);
-  // Register a IKeyExchanger to notification whehn keys are rotated.
+  // Register a IKeyExchanger to notification when keys are rotated.
   void registerForNotification(IKeyExchanger* ke);
   KeyExchangeMsg getReplicaPublicKey(const uint16_t& repID) const;
   std::string getPrivateKey() { return keysView_.data.privateKey; }
@@ -128,8 +128,8 @@ class KeyManager {
     bool keyExchangeOnStart{false};
   };
 
-  static KeyManager& instance(InitData* id = nullptr) {
-    static KeyManager km{id};
+  static KeyExchangeManager& instance(InitData* id = nullptr) {
+    static KeyExchangeManager km{id};
     return km;
   }
 
@@ -139,7 +139,7 @@ class KeyManager {
   }
 
  private:
-  KeyManager(InitData* id);
+  KeyExchangeManager(InitData* id);
 
   uint16_t repID_{};
   uint32_t clusterSize_{};
@@ -192,10 +192,10 @@ class KeyManager {
   concordUtil::Timers::Handle metricsTimer_;
   concordUtil::Timers& timers_;
   // deleted
-  KeyManager(const KeyManager&) = delete;
-  KeyManager(const KeyManager&&) = delete;
-  KeyManager& operator=(const KeyManager&) = delete;
-  KeyManager& operator=(const KeyManager&&) = delete;
+  KeyExchangeManager(const KeyExchangeManager&) = delete;
+  KeyExchangeManager(const KeyExchangeManager&&) = delete;
+  KeyExchangeManager& operator=(const KeyExchangeManager&) = delete;
+  KeyExchangeManager& operator=(const KeyExchangeManager&&) = delete;
 
   friend class TestKeyManager;
 };

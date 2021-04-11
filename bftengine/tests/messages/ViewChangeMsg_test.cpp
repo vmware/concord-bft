@@ -37,7 +37,7 @@ void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::strin
                         config.numReplicas + config.numOfClientProxies,
                         config.replicaPrivateKey,
                         config.publicKeysOfReplicas);
-  ViewsManager manager(&replicaInfo, &sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+  ViewsManager manager(&replicaInfo, &sigManager);
   ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);
@@ -178,7 +178,7 @@ void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int t
                         config.numReplicas + config.numOfClientProxies,
                         config.replicaPrivateKey,
                         config.publicKeysOfReplicas);
-  ViewsManager manager(&replicaInfo, &sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+  ViewsManager manager(&replicaInfo, &sigManager);
   ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);

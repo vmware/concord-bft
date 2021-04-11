@@ -36,7 +36,7 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
                         config.numReplicas + config.numOfClientProxies,
                         config.replicaPrivateKey,
                         config.publicKeysOfReplicas);
-  ViewsManager manager(&replicaInfo, &sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+  ViewsManager manager(&replicaInfo, &sigManager);
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg(
       ReplicaAsksToLeaveViewMsg::create(senderId,
                                         viewNum,

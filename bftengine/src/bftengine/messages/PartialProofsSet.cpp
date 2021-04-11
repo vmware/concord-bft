@@ -310,9 +310,9 @@ std::shared_ptr<IThresholdVerifier> PartialProofsSet::thresholdVerifier(CommitPa
   // TODO: Not thread-safe?
   // TODO: ALIN: Not sure if the commented code below would be the desired behavior
   if (cPath == CommitPath::OPTIMISTIC_FAST) {
-    return CryptoManager::instance().thresholdVerifierForOptimisticCommit();
+    return CryptoManager::instance().thresholdVerifierForOptimisticCommit(seqNumber);
   } else /* if (cPath == CommitPath::FAST_WITH_THRESHOLD) */ {
-    return CryptoManager::instance().thresholdVerifierForCommit();
+    return CryptoManager::instance().thresholdVerifierForCommit(seqNumber);
   }
 }
 
