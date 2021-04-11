@@ -23,21 +23,19 @@ namespace impl {
 
 SigManager* SigManager::instance_{nullptr};
 
-SigManager* SigManager::init(ReplicaId myId,
-                             const Key& mySigPrivateKey,
-                             const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                             KeyFormat replicasKeysFormat,
-                             const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                             KeyFormat clientsKeysFormat,
-                             uint16_t numReplicas,
-                             uint16_t numRoReplicas,
-                             uint16_t numOfClientProxies,
-                             uint16_t numOfExternalClients) {
+SigManager* SigManager::initImpl(ReplicaId myId,
+                                 const Key& mySigPrivateKey,
+                                 const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+                                 KeyFormat replicasKeysFormat,
+                                 const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+                                 KeyFormat clientsKeysFormat,
+                                 uint16_t numReplicas,
+                                 uint16_t numRoReplicas,
+                                 uint16_t numOfClientProxies,
+                                 uint16_t numOfExternalClients) {
   vector<pair<Key, KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
   size_t lowBound, highBound;
-
-  ConcordAssertEQ(instance_, nullptr);
 
   LOG_INFO(
       GL,
@@ -70,10 +68,33 @@ SigManager* SigManager::init(ReplicaId myId,
       ++i;
     }
   }
+
   LOG_INFO(GL, "Done Compute Start ctor for SigManager with " << KVLOG(publickeys.size(), publicKeysMapping.size()));
-  auto instance =
-      new SigManager(myId, numReplicas, make_pair(mySigPrivateKey, replicasKeysFormat), publickeys, publicKeysMapping);
-  instance_ = instance;
+  return new SigManager(
+      myId, numReplicas, make_pair(mySigPrivateKey, replicasKeysFormat), publickeys, publicKeysMapping);
+}
+
+SigManager* SigManager::init(ReplicaId myId,
+                             const Key& mySigPrivateKey,
+                             const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+                             KeyFormat replicasKeysFormat,
+                             const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+                             KeyFormat clientsKeysFormat,
+                             uint16_t numReplicas,
+                             uint16_t numRoReplicas,
+                             uint16_t numOfClientProxies,
+                             uint16_t numOfExternalClients) {
+  ConcordAssertEQ(instance_, nullptr);
+  instance_ = initImpl(myId,
+                       mySigPrivateKey,
+                       publicKeysOfReplicas,
+                       replicasKeysFormat,
+                       publicKeysOfClients,
+                       clientsKeysFormat,
+                       numReplicas,
+                       numRoReplicas,
+                       numOfClientProxies,
+                       numOfExternalClients);
   return instance_;
 }
 
@@ -126,7 +147,6 @@ SigManager::SigManager(PrincipalId myId,
 }
 
 SigManager::~SigManager() {
-  ConcordAssertNE(nullptr, instance_);
   instance_ = nullptr;
   delete mySigner_;
 
@@ -140,8 +160,6 @@ SigManager::~SigManager() {
 }
 
 uint16_t SigManager::getSigLength(PrincipalId pid) const {
-  ConcordAssertNE(nullptr, instance_);
-
   if (pid == myId_) {
     return (uint16_t)mySigner_->signatureLength();
   } else {
@@ -158,7 +176,6 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
 
 bool SigManager::verifySig(
     PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
-  ConcordAssertNE(nullptr, instance_);
   auto pos = verifiers_.find(pid);
   if (pos == verifiers_.end()) {
     LOG_ERROR(GL, "Unrecognized pid " << pid);
@@ -171,16 +188,12 @@ bool SigManager::verifySig(
 }
 
 void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const {
-  ConcordAssertNE(nullptr, instance_);
   size_t actualSigSize = 0;
   mySigner_->sign(data, dataLength, outSig, outSigLength, actualSigSize);
   ConcordAssert(outSigLength == actualSigSize);
 }
 
-uint16_t SigManager::getMySigLength() const {
-  ConcordAssertNE(nullptr, instance_);
-  return (uint16_t)mySigner_->signatureLength();
-}
+uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
 
 }  // namespace impl
 }  // namespace bftEngine
