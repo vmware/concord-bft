@@ -22,8 +22,6 @@ class Transaction : public ITransaction {
  public:
   Transaction(Client& client, ITransaction::ID id) : ITransaction{id}, client_{client} {}
 
-  void commit() override { commitImpl(); }
-
   void rollback() override { updates_.clear(); }
 
   void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {
@@ -59,7 +57,7 @@ class Transaction : public ITransaction {
   };
 
   // Make sure the commit operation cannot throw. If it does, abort the program.
-  void commitImpl() noexcept {
+  void commitImpl() override {
     for (const auto& update : updates_) {
       auto status = concordUtils::Status::OK();
       if (update.second.isDelete) {

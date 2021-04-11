@@ -87,58 +87,58 @@ void DBDataStore::load(bool loadResPages_) {
 void DBDataStore::setAsInitialized() {
   LOG_DEBUG(logger(), "");
   putInt(Initialized, true);
-  inmem_->setAsInitialized();
+  addCommitCallback([this] { inmem_->setAsInitialized(); });
 }
 void DBDataStore::setMyReplicaId(uint16_t id) {
   LOG_DEBUG(logger(), "MyReplicaId: " << id);
   putInt(MyReplicaId, id);
-  inmem_->setMyReplicaId(id);
+  addCommitCallback([this, id] { inmem_->setMyReplicaId(id); });
 }
 void DBDataStore::setMaxNumOfStoredCheckpoints(uint64_t num) {
   LOG_DEBUG(logger(), "MaxNumOfStoredCheckpoints: " << num);
   putInt(MaxNumOfStoredCheckpoints, num);
-  inmem_->setMaxNumOfStoredCheckpoints(num);
+  addCommitCallback([this, num] { inmem_->setMaxNumOfStoredCheckpoints(num); });
 }
 void DBDataStore::setNumberOfReservedPages(uint32_t numResPages) {
   LOG_DEBUG(logger(), "NumberOfReservedPages: " << numResPages);
   putInt(NumberOfReservedPages, numResPages);
-  inmem_->setNumberOfReservedPages(numResPages);
+  addCommitCallback([this, numResPages] { inmem_->setNumberOfReservedPages(numResPages); });
 }
 void DBDataStore::setLastStoredCheckpoint(uint64_t c) {
   LOG_DEBUG(logger(), "LastStoredCheckpoint: " << c);
   putInt(LastStoredCheckpoint, c);
-  inmem_->setLastStoredCheckpoint(c);
+  addCommitCallback([this, c] { inmem_->setLastStoredCheckpoint(c); });
 }
 void DBDataStore::setFirstStoredCheckpoint(uint64_t c) {
   LOG_DEBUG(logger(), "FirstStoredCheckpoint: " << c);
   putInt(FirstStoredCheckpoint, c);
-  inmem_->setFirstStoredCheckpoint(c);
+  addCommitCallback([this, c] { inmem_->setFirstStoredCheckpoint(c); });
 }
 void DBDataStore::setIsFetchingState(bool b) {
   LOG_DEBUG(logger(), "IsFetchingState: " << b);
   putInt(IsFetchingState, b);
-  inmem_->setIsFetchingState(b);
+  addCommitCallback([this, b] { inmem_->setIsFetchingState(b); });
 }
 void DBDataStore::setFVal(uint16_t fVal) {
   LOG_DEBUG(logger(), "FVal: " << fVal);
   putInt(GeneralIds::fVal, fVal);
-  inmem_->setFVal(fVal);
+  addCommitCallback([this, fVal] { inmem_->setFVal(fVal); });
 }
 void DBDataStore::setFirstRequiredBlock(uint64_t i) {
   LOG_DEBUG(logger(), "FirstRequiredBlock: " << i);
   putInt(FirstRequiredBlock, i);
-  inmem_->setFirstRequiredBlock(i);
+  addCommitCallback([this, i] { inmem_->setFirstRequiredBlock(i); });
 }
 void DBDataStore::setLastRequiredBlock(uint64_t i) {
   LOG_DEBUG(logger(), "LastRequiredBlock: " << i);
   putInt(LastRequiredBlock, i);
-  inmem_->setLastRequiredBlock(i);
+  addCommitCallback([this, i] { inmem_->setLastRequiredBlock(i); });
 }
 void DBDataStore::setReplicas(const std::set<std::uint16_t> replicas) {
   std::ostringstream oss;
   Serializable::serialize(oss, replicas);
   put(Replicas, oss.str());
-  inmem_->setReplicas(replicas);
+  addCommitCallback([this, replicas] { inmem_->setReplicas(replicas); });
 }
 /** ******************************************************************************************************************
  *  Checkpoint
@@ -160,7 +160,7 @@ void DBDataStore::setCheckpointDesc(uint64_t checkpoint, const CheckpointDesc& d
   std::ostringstream oss;
   serializeCheckpoint(oss, desc);
   put(chkpDescKey(checkpoint), oss.str());
-  inmem_->setCheckpointDesc(checkpoint, desc);
+  addCommitCallback([this, checkpoint, desc] { inmem_->setCheckpointDesc(checkpoint, desc); });
 }
 bool DBDataStore::hasCheckpointDesc(uint64_t checkpoint) {
   if (inmem_->hasCheckpointDesc(checkpoint)) return true;
@@ -193,19 +193,19 @@ void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteDescOfSmallerCheckpointsTxn(checkpoint, g.txn());
   }
-  inmem_->deleteDescOfSmallerCheckpoints(checkpoint);
+  addCommitCallback([this, checkpoint] { inmem_->deleteDescOfSmallerCheckpoints(checkpoint); });
 }
 void DBDataStore::setCheckpointBeingFetched(const CheckpointDesc& desc) {
   LOG_DEBUG(logger(), toString(desc));
   std::ostringstream oss;
   serializeCheckpoint(oss, desc);
   put(CheckpointBeingFetched, oss.str());
-  inmem_->setCheckpointBeingFetched(desc);
+  addCommitCallback([this, desc] { inmem_->setCheckpointBeingFetched(desc); });
 }
 void DBDataStore::deleteCheckpointBeingFetched() {
   LOG_DEBUG(logger(), "");
   del(CheckpointBeingFetched);
-  inmem_->deleteCheckpointBeingFetched();
+  addCommitCallback([this] { inmem_->deleteCheckpointBeingFetched(); });
 }
 /**
  * ResPage serialized form: [pageId][checkpoint][PageDigest][PageSize][Page]
@@ -275,7 +275,10 @@ void DBDataStore::setResPage(uint32_t inPageId,
     ITransaction::Guard g(dbc_->beginTransaction());
     setResPageTxn(inPageId, inCheckpoint, inPageDigest, inPage, g.txn());
   }
-  inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  addCommitCallback([this, inPageId, inCheckpoint, inPageDigest, inPage] {
+    inmem_->setResPage(inPageId, inCheckpoint, inPageDigest, inPage);
+  });
+
   LOG_TRACE(logger(), inmem_->getPagesForLog());
 }
 /** ******************************************************************************************************************
@@ -308,7 +311,7 @@ void DBDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint3
   Serializable::serialize(oss, inPageLen);
   Serializable::serialize(oss, inPage, inPageLen);
   put(pendingPageKey(inPageId), oss.str());
-  inmem_->setPendingResPage(inPageId, inPage, inPageLen);
+  addCommitCallback([this, inPageId, inPage, inPageLen] { inmem_->setPendingResPage(inPageId, inPage, inPageLen); });
 }
 
 void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
@@ -320,7 +323,9 @@ void DBDataStore::associatePendingResPageWithCheckpoint(uint32_t inPageId,
     ITransaction::Guard g(dbc_->beginTransaction());
     associatePendingResPageWithCheckpointTxn(inPageId, inCheckpoint, inPageDigest, g.txn());
   }
-  inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
+  addCommitCallback([this, inPageId, inCheckpoint, inPageDigest] {
+    inmem_->associatePendingResPageWithCheckpoint(inPageId, inCheckpoint, inPageDigest);
+  });
   LOG_DEBUG(logger(), inmem_->getPagesForLog());
 }
 
@@ -349,7 +354,7 @@ void DBDataStore::deleteAllPendingPages() {
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteAllPendingPagesTxn(g.txn());
   }
-  inmem_->deleteAllPendingPages();
+  addCommitCallback([this] { inmem_->deleteAllPendingPages(); });
 }
 
 void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t minChkp, ITransaction* txn) {
@@ -384,7 +389,7 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t minChkp) {
     ITransaction::Guard g(dbc_->beginTransaction());
     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, g.txn());
   }
-  inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp);
+  addCommitCallback([this, minChkp] { inmem_->deleteCoveredResPageInSmallerCheckpoints(minChkp); });
   LOG_DEBUG(logger(), inmem_->getPagesForLog());
 }
 

@@ -218,6 +218,13 @@ class DBDataStore : public DataStore {
     std::string s(val.data(), val.length());
     return concord::util::to<T>(s);
   }
+
+  void addCommitCallback(std::function<void()> f) {
+    if (txn_)
+      txn_->addCommitCallback(f);
+    else
+      f();
+  }
   /** *****************************************************************************************************************
    * keys generation
    */

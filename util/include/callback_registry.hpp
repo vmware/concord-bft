@@ -19,6 +19,8 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include "Logger.hpp"
+#include "demangle.hpp"
 
 namespace concord::util {
 
@@ -117,6 +119,8 @@ class CallbackRegistry {
   template <typename... InvokeArgs>
   void invokeAll(InvokeArgs&&... args) const {
     for (auto& callback : callbacks_) {
+      LOG_TRACE(logging::getLogger("concord.util.callback_registry"),
+                "invoking callback: " << demangler::demangle(callback.target_type()));
       callback(std::forward<InvokeArgs>(args)...);
     }
   }

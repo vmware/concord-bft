@@ -68,10 +68,11 @@ class BcStTest : public ::testing::Test {
   const std::string BCST_DB = "./bcst_db";
 
   void SetUp() override {
-    // uncomment if needed
-    //    logging::Logger::getInstance("serializable").setLogLevel(TRACE_LOG_LEVEL);
-    //    logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(TRACE_LOG_LEVEL);
-    //    logging::Logger::getInstance("rocksdb").setLogLevel(TRACE_LOG_LEVEL);
+    //    // uncomment if needed
+    //    logging::Logger::getInstance("serializable").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("concord.storage").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
+    //    logging::Logger::getInstance("concord.util.callback_registry").setLogLevel(log4cplus::TRACE_LOG_LEVEL);
 
     DeleteBcStateTransferDbfolder();
     config_ = TestConfig();
@@ -80,16 +81,17 @@ class BcStTest : public ::testing::Test {
     concord::storage::IDBClient::ptr dbc(
         new concord::storage::rocksdb::Client(BCST_DB, std::make_unique<KeyComparator>(db_key_comparator)));
     dbc->init();
-    auto* datastore = new DBDataStore(dbc,
-                                      config_.sizeOfReservedPage,
-                                      std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>(),
-                                      config_.enableReservedPages);
+    ds_ = new DBDataStore(dbc,
+                          config_.sizeOfReservedPage,
+                          std::make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>(),
+                          config_.enableReservedPages);
+
 #else
     auto comparator = concord::storage::memorydb::KeyComparator(db_key_comparator);
     concord::storage::IDBClient::ptr dbc(new concord::storage::memorydb::Client(comparator));
     auto* datastore = new InMemoryDataStore(config_.sizeOfReservedPage);
 #endif
-    st_ = new BCStateTran(config_, &app_state_, datastore);
+    st_ = new BCStateTran(config_, &app_state_, ds_);
     st_->init(3, 32, 4096);
     ASSERT_FALSE(st_->isRunning());
     st_->startRunning(&replica_);
@@ -135,7 +137,6 @@ void assert_checkpoint_summary_requests_sent(const TestReplica& replica, uint64_
 // another replica.
 TEST_F(BcStTest, FetchMissingData) {
   st_->startCollectingState();
-
   ASSERT_EQ(BCStateTran::FetchingState::GettingCheckpointSummaries, st_->getFetchingState());
 
   auto min_relevant_checkpoint = 1;
@@ -144,7 +145,15 @@ TEST_F(BcStTest, FetchMissingData) {
   // TODO: Mock out some checkpoint data and return it from multiple replicas.
   // Make sure that it syncs correctly.
 }
-
+TEST_F(BcStTest, Transactions) {
+  st_->startCollectingState();
+  {
+    DataStoreTransaction::Guard g(ds_->beginTransaction());
+    g.txn()->setIsFetchingState(false);
+    ASSERT_EQ(ds_->getIsFetchingState(), true);
+  }
+  ASSERT_EQ(ds_->getIsFetchingState(), false);
+}
 TEST(DBDataStore, API) {}
 
 TEST(DBDataStore, Transactions) {}

@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include "Metrics.hpp"
+#include "callback_registry.hpp"
 
 #define OUT
 
@@ -26,11 +27,17 @@ class ITransaction {
   typedef uint64_t ID;
   ITransaction(ID id) : id_(id) {}
   virtual ~ITransaction() = default;
-  virtual void commit() = 0;
+  virtual void commitImpl() = 0;
   virtual void rollback() = 0;
   virtual void put(const Sliver& key, const Sliver& value) = 0;
   virtual std::string get(const Sliver& key) = 0;
   virtual void del(const Sliver& key) = 0;
+
+  void commit() {
+    commitImpl();
+    on_commit_.invokeAll();
+  }
+  void addCommitCallback(std::function<void()> f) { on_commit_.add(f); }
 
   ID getId() const { return id_; }
   std::string getIdStr() const { return std::to_string(id_); }
@@ -51,6 +58,7 @@ class ITransaction {
 
  private:
   ID id_;
+  concord::util::CallbackRegistry<> on_commit_;
 };
 
 class IDBClient {

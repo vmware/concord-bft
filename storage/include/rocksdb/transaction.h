@@ -27,7 +27,7 @@ class Transaction : public ITransaction {
  public:
   Transaction(::rocksdb::Transaction* txn, ID id) : ITransaction(id), txn_(txn) {}
   ~Transaction() { LOG_TRACE(logger(), "txn: " << getId()); }
-  void commit() override {
+  void commitImpl() override {
     LOG_DEBUG(logger(), "commit txn: " << getId());
     ::rocksdb::Status s = txn_->Commit();
     if (!s.ok()) ROCKSDB_THROW("Commit", s);

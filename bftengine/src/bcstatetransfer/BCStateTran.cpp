@@ -258,6 +258,7 @@ BCStateTran::~BCStateTran() {
   ConcordAssert(pendingItemDataMsgs.empty());
 
   delete[] buffer_;
+  concord::diagnostics::RegistrarSingleton::getInstance().perf.unRegisterComponent("state_transfer");
 }
 
 // Load metrics that are saved on persistent storage

@@ -51,7 +51,7 @@ class Client : public concord::storage::IDBClient {
   class Transaction : public ITransaction {
    public:
     Transaction(Client* client) : ITransaction(nextId()), client_{client} {}
-    void commit() override {
+    void commitImpl() override {
       for (auto& pair : multiput_)
         if (concordUtils::Status s = client_->put(pair.first, pair.second); !s.isOK())
           throw std::runtime_error("S3 commit failed while putting a value for key: " + pair.first.toString() +

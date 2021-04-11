@@ -261,7 +261,7 @@ class DataStoreTransaction : public DataStore, public ITransaction {
   /**
    * ITransaction implementation
    */
-  void commit() override { txn_->commit(); }
+  void commitImpl() override { txn_->commit(); }
   void rollback() override { txn_->rollback(); };
   void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override { txn_->put(key, value); }
   std::string get(const concordUtils::Sliver& key) override { return txn_->get(key); }

@@ -129,7 +129,7 @@ class InMemoryDataStore : public DataStore {
   class NullTransaction : public ITransaction {
    public:
     NullTransaction() : concord::storage::ITransaction(0) {}
-    void commit() override {}
+    void commitImpl() override {}
     void rollback() override {}
     void put(const concordUtils::Sliver& key, const concordUtils::Sliver& value) override {}
     std::string get(const concordUtils::Sliver& key) override { return ""; }
@@ -146,30 +146,30 @@ class InMemoryDataStore : public DataStore {
  protected:
   const uint32_t sizeOfReservedPage_;
 
-  bool wasInit_ = false;
+  std::atomic<bool> wasInit_ = false;
 
   set<uint16_t> replicas_;
 
-  uint16_t myReplicaId_ = UINT16_MAX;
+  std::atomic<uint16_t> myReplicaId_ = UINT16_MAX;
 
-  uint16_t fVal_ = UINT16_MAX;
+  std::atomic<uint16_t> fVal_ = UINT16_MAX;
 
-  uint64_t maxNumOfStoredCheckpoints_ = UINT64_MAX;
+  std::atomic<uint64_t> maxNumOfStoredCheckpoints_ = UINT64_MAX;
 
-  uint32_t numberOfReservedPages_ = UINT32_MAX;
+  std::atomic<uint32_t> numberOfReservedPages_ = UINT32_MAX;
 
-  uint64_t lastStoredCheckpoint = UINT64_MAX;
-  uint64_t firstStoredCheckpoint = UINT64_MAX;
+  std::atomic<uint64_t> lastStoredCheckpoint = UINT64_MAX;
+  std::atomic<uint64_t> firstStoredCheckpoint = UINT64_MAX;
 
   map<uint64_t, CheckpointDesc> descMap;
 
-  bool fetching = false;
+  std::atomic<bool> fetching = false;
 
   CheckpointDesc checkpointBeingFetched;
   // none if checkpointBeingFetched.checkpointNum == 0
 
-  uint64_t firstRequiredBlock = UINT64_MAX;
-  uint64_t lastRequiredBlock = UINT64_MAX;
+  std::atomic<uint64_t> firstRequiredBlock = UINT64_MAX;
+  std::atomic<uint64_t> lastRequiredBlock = UINT64_MAX;
 
   map<uint32_t, char*> pendingPages;
 
