@@ -13,7 +13,7 @@
 #include "threshsign/IThresholdVerifier.h"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
-
+#include "CryptoManager.hpp"
 #include <set>
 #include <unordered_map>
 
@@ -130,9 +130,8 @@ static bool checkSlowPathCertificates(std::set<SlowElem, SlowElemCompare>& slowP
 ViewChangeSafetyLogic::ViewChangeSafetyLogic(const uint16_t n,
                                              const uint16_t f,
                                              const uint16_t c,
-                                             std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                                              const Digest& digestOfNull)
-    : N(n), F(f), C(c), preparedCertVerifier(preparedCertificateVerifier), nullDigest(digestOfNull) {
+    : N(n), F(f), C(c), nullDigest(digestOfNull) {
   ConcordAssert(N == (3 * F + 2 * C + 1));
 }
 
@@ -174,8 +173,7 @@ void ViewChangeSafetyLogic::computeRestrictions(ViewChangeMsg** const inViewChan
                                                 const SeqNum inLBStableForView,
                                                 SeqNum& outMinRestrictedSeqNum,
                                                 SeqNum& outMaxRestrictedSeqNum,
-                                                Restriction* outSafetyRestrictionsArray,
-                                                std::shared_ptr<IThresholdVerifier> ver) const {
+                                                Restriction* outSafetyRestrictionsArray) const {
   const SeqNum lowerBound = inLBStableForView + 1;
   const SeqNum upperBound = inLBStableForView + kWorkWindowSize;
 
@@ -211,7 +209,7 @@ void ViewChangeSafetyLogic::computeRestrictions(ViewChangeMsg** const inViewChan
   for (; currSeqNum <= upperBound && !VCIterators.empty(); currSeqNum++) {
     Restriction& r = outSafetyRestrictionsArray[currSeqNum - lowerBound];
 
-    bool hasRest = computeRestrictionsForSeqNum(currSeqNum, VCIterators, upperBound, r.digest, ver);
+    bool hasRest = computeRestrictionsForSeqNum(currSeqNum, VCIterators, upperBound, r.digest);
 
     if (hasRest && (r.digest != nullDigest)) {
       lastRestcitionNum = currSeqNum;
@@ -249,8 +247,7 @@ void ViewChangeSafetyLogic::computeRestrictions(ViewChangeMsg** const inViewChan
 bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
                                                          vector<ViewChangeMsg::ElementsIterator*>& VCIterators,
                                                          const SeqNum upperBound,
-                                                         Digest& outRestrictedDigest,
-                                                         std::shared_ptr<IThresholdVerifier> ver) const {
+                                                         Digest& outRestrictedDigest) const {
   ConcordAssert(!VCIterators.empty());
   ConcordAssert(s <= upperBound);
 
@@ -283,7 +280,8 @@ bool ViewChangeSafetyLogic::computeRestrictionsForSeqNum(SeqNum s,
     Digest d;
     Digest::calcCombination(slow.prePrepreDigest(), slow.certificateView(), slow.seqNum(), d);
 
-    bool valid = ver->verify(d.content(), DIGEST_SIZE, slow.certificateSig(), slow.certificateSigLength());
+    bool valid = CryptoManager::instance().thresholdVerifierForSlowPathCommit(s)->verify(
+        d.content(), DIGEST_SIZE, slow.certificateSig(), slow.certificateSigLength());
 
     if (valid) {
       selectedSlow = slow;

@@ -44,16 +44,12 @@ uint32_t ViewsManager::PrevViewInfo::maxSize() {
          sizeof(hasAllRequests);
 }
 
-ViewsManager::ViewsManager(const ReplicasInfo* const r,
-                           SigManager* sigmgr,
-                           std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier)
+ViewsManager::ViewsManager(const ReplicasInfo* const r, SigManager* sigmgr)
     : replicasInfo(r), N(r->numberOfReplicas()), F(r->fVal()), C(r->cVal()), myId(r->myId()) {
   sigManager_ = sigmgr;
-  ConcordAssert(preparedCertificateVerifier != nullptr);
   ConcordAssert(N == (3 * F + 2 * C + 1));
 
-  viewChangeSafetyLogic =
-      new ViewChangeSafetyLogic(N, F, C, preparedCertificateVerifier, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  viewChangeSafetyLogic = new ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   stat = Stat::IN_VIEW;
 
@@ -117,7 +113,6 @@ ViewsManager::~ViewsManager() {
 
 ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
                                               SigManager* sigMgr,
-                                              std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                                               ViewNum lastActiveView,
                                               SeqNum lastStable,
                                               SeqNum lastExecuted,
@@ -147,7 +142,7 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
     ConcordAssert(pvi.prepareFull == nullptr || pvi.prepareFull->seqNumber() == pvi.prePrepare->seqNumber());
   }
 
-  ViewsManager* v = new ViewsManager(r, sigMgr, preparedCertificateVerifier);
+  ViewsManager* v = new ViewsManager(r, sigMgr);
   ConcordAssert(v->stat == Stat::IN_VIEW);
   ConcordAssert(v->myLatestActiveView == 0);
 
@@ -175,16 +170,13 @@ ViewsManager* ViewsManager::createOutsideView(const ReplicasInfo* const r,
   return v;
 }
 
-ViewsManager* ViewsManager::createInsideViewZero(const ReplicasInfo* const r,
-                                                 SigManager* sigMgr,
-                                                 std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier) {
-  ViewsManager* v = new ViewsManager(r, sigMgr, preparedCertificateVerifier);
+ViewsManager* ViewsManager::createInsideViewZero(const ReplicasInfo* const r, SigManager* sigMgr) {
+  ViewsManager* v = new ViewsManager(r, sigMgr);
   return v;
 }
 
 ViewsManager* ViewsManager::createInsideView(const ReplicasInfo* const r,
                                              SigManager* sigMgr,
-                                             std::shared_ptr<IThresholdVerifier> preparedCertificateVerifier,
                                              ViewNum view,
                                              SeqNum stableLowerBound,
                                              NewViewMsg* newViewMsg,
@@ -216,7 +208,7 @@ ViewsManager* ViewsManager::createInsideView(const ReplicasInfo* const r,
     ConcordAssert(newViewMsg->includesViewChangeFromReplica(r->myId(), msgDigest) == false);
   }
 
-  ViewsManager* v = new ViewsManager(r, sigMgr, preparedCertificateVerifier);
+  ViewsManager* v = new ViewsManager(r, sigMgr);
 
   ConcordAssert(v->stat == Stat::IN_VIEW);
   v->myLatestActiveView = view;
@@ -892,8 +884,7 @@ void ViewsManager::computeRestrictionsOfNewView(ViewNum v) {
       // Outputs
       minRestrictionOfPendingView,
       maxRestrictionOfPendingView,
-      restrictionsOfPendingView,
-      CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+      restrictionsOfPendingView);
 
   // add items to prePrepareMsgsOfRestrictions
   // if we have restrictions

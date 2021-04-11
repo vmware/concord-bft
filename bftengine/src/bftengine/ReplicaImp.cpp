@@ -40,13 +40,13 @@
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
-#include "KeyManager.h"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 
 #include <string>
 #include <type_traits>
 #include <bitset>
+#include "KeyExchangeManager.h"
 
 #define getName(var) #var
 
@@ -173,7 +173,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
     // If Multi sig keys haven't been replaced for all replicas and it's not a key ex msg then don't accept the msg.
-    if (!KeyManager::instance().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
+    if (!KeyExchangeManager::instance().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
       return;
@@ -833,7 +833,8 @@ void ReplicaImp::tryToAskForMissingInfo() {
   for (SeqNum i = minSeqNum; i <= lastRelatedSeqNum; i++) {
     if (!recentViewChange) {
       // during exchange we need missing data to be performed in slow path
-      auto exchanging = (!KeyManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
+      auto exchanging =
+          (!KeyExchangeManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
       tryToSendReqMissingDataMsg(i, exchanging);
     } else {
       if (isCurrentPrimary()) {
@@ -902,9 +903,9 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       ConcordAssertOR((config_.getcVal() != 0), (commitPath != CommitPath::FAST_WITH_THRESHOLD));
 
       if ((commitPath == CommitPath::FAST_WITH_THRESHOLD) && (config_.getcVal() > 0))
-        commitSigner = CryptoManager::instance().thresholdSignerForCommit();
+        commitSigner = CryptoManager::instance().thresholdSignerForCommit(seqNum);
       else
-        commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit();
+        commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
       Digest tmpDigest;
       Digest::calcCombination(ppDigest, curView, seqNum, tmpDigest);
@@ -946,12 +947,13 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
     LOG_DEBUG(MSGS, "Sending PreparePartialMsg. " << KVLOG(pp->seqNumber()));
 
     const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
-    PreparePartialMsg *p = PreparePartialMsg::create(curView,
-                                                     pp->seqNumber(),
-                                                     config_.getreplicaId(),
-                                                     pp->digestOfRequests(),
-                                                     CryptoManager::instance().thresholdSignerForSlowPathCommit(),
-                                                     span_context);
+    PreparePartialMsg *p =
+        PreparePartialMsg::create(curView,
+                                  pp->seqNumber(),
+                                  config_.getreplicaId(),
+                                  pp->digestOfRequests(),
+                                  CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()),
+                                  span_context);
     seqNumInfo.addSelfMsg(p);
 
     if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(p, currentPrimary(), pp->seqNumber());
@@ -986,7 +988,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
                                s,
                                config_.getreplicaId(),
                                d,
-                               CryptoManager::instance().thresholdSignerForSlowPathCommit(),
+                               CryptoManager::instance().thresholdSignerForSlowPathCommit(s),
                                prepareFullMsg->spanContext<std::remove_pointer<decltype(prepareFullMsg)>::type>());
   seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d);
 
@@ -2635,7 +2637,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyManager::instance().loadKeysFromReservedPages();
+    KeyExchangeManager::instance().loadKeysFromReservedPages();
   }
 
   if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -3292,9 +3294,9 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         ConcordAssertOR((config_.getcVal() != 0), (pathInPrePrepare != CommitPath::FAST_WITH_THRESHOLD));
 
         if ((pathInPrePrepare == CommitPath::FAST_WITH_THRESHOLD) && (config_.getcVal() > 0))
-          commitSigner = CryptoManager::instance().thresholdSignerForCommit();
+          commitSigner = CryptoManager::instance().thresholdSignerForCommit(seqNum);
         else
-          commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit();
+          commitSigner = CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum);
 
         Digest tmpDigest;
         Digest::calcCombination(ppDigest, curView, seqNum, tmpDigest);
@@ -3309,11 +3311,11 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
       std::shared_ptr<ISecureStore> secStore;
       // If sm_ has a SecretsManager instance - encrypted config is enabled and EncryptedFileSecureStore is used
       if (sm_) {
-        secStore.reset(new KeyManager::EncryptedFileSecureStore(
+        secStore.reset(new KeyExchangeManager::EncryptedFileSecureStore(
             sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
       } else {
-        secStore.reset(
-            new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
+        secStore.reset(new KeyExchangeManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(),
+                                                               config_.getreplicaId()));
       }
 
       if (e.getSlowStarted()) {
@@ -3321,20 +3323,21 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
         // add PreparePartialMsg
         PrePrepareMsg *pp = seqNumInfo.getPrePrepareMsg();
-        PreparePartialMsg *p = PreparePartialMsg::create(curView,
-                                                         pp->seqNumber(),
-                                                         config_.getreplicaId(),
-                                                         pp->digestOfRequests(),
-                                                         CryptoManager::instance().thresholdSignerForSlowPathCommit());
+        PreparePartialMsg *p =
+            PreparePartialMsg::create(curView,
+                                      pp->seqNumber(),
+                                      config_.getreplicaId(),
+                                      pp->digestOfRequests(),
+                                      CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()));
         bool added = seqNumInfo.addSelfMsg(p, true);
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
+          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
           p = PreparePartialMsg::create(curView,
                                         pp->seqNumber(),
                                         config_.getreplicaId(),
                                         pp->digestOfRequests(),
-                                        CryptoManager::instance().thresholdSignerForSlowPathCommit());
+                                        CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()));
           added = seqNumInfo.addSelfMsg(p, true);
         }
         ConcordAssert(added);
@@ -3348,21 +3351,21 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           failedToAdd = true;
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
           std::cout << e.what() << '\n';
-          KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
+          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
         }
         if (failedToAdd) seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
 
         Digest d;
         Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
         CommitPartialMsg *c = CommitPartialMsg::create(
-            curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit());
+            curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
 
         bool added = seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
+          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
           c = CommitPartialMsg::create(
-              curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit());
+              curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
           seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
         }
       }
@@ -3375,7 +3378,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           failedToAdd = true;
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
           std::cout << e.what() << '\n';
-          KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
+          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
         }
         if (failedToAdd) seqNumInfo.addMsg(e.getCommitFullMsg(), true);
 
@@ -3388,7 +3391,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         // the message (as in the examples below)
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
+          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
           added = pps.addMsg(e.getFullCommitProofMsg());
         }
         ConcordAssert(added);  // we should verify the relevant signature when it is loaded
@@ -3602,8 +3605,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                                 config_.getreplicaPrivateKey(),
                                 config_.publicKeysOfReplicas);
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-    viewsManager =
-        new ViewsManager(repsInfo, sigManager, CryptoManager::instance().thresholdVerifierForSlowPathCommit());
+    viewsManager = new ViewsManager(repsInfo, sigManager);
   } else {
     sigManager = sigMgr;
     repsInfo = replicasInfo;
@@ -3748,17 +3750,18 @@ void ReplicaImp::start() {
   std::shared_ptr<ISecureStore> backupsec;
   // If sm_ has a SecretsManager instance - encrypted config is enabled and EncryptedFileSecureStore is used
   if (sm_) {
-    sec.reset(new KeyManager::EncryptedFileSecureStore(
+    sec.reset(new KeyExchangeManager::EncryptedFileSecureStore(
         sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
-    backupsec.reset(new KeyManager::EncryptedFileSecureStore(
+    backupsec.reset(new KeyExchangeManager::EncryptedFileSecureStore(
         sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
   } else {
-    sec.reset(new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
-    backupsec.reset(
-        new KeyManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
+    sec.reset(
+        new KeyExchangeManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
+    backupsec.reset(new KeyExchangeManager::FileSecureStore(
+        ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
   }
 
-  KeyManager::InitData id{};
+  KeyExchangeManager::InitData id{};
   id.cl = internalBFTClient_;
   id.id = config_.getreplicaId();
   id.clusterSize = config_.getnumReplicas();
@@ -3773,7 +3776,7 @@ void ReplicaImp::start() {
   id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
   id.keyExchangeOnStart = ReplicaConfig::instance().getkeyExchangeOnStart();
 
-  KeyManager::start(&id);
+  KeyExchangeManager::start(&id);
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
@@ -3782,7 +3785,7 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyManager::instance().sendInitialKey();
+    KeyExchangeManager::instance().sendInitialKey();
   }
 }
 
@@ -4016,7 +4019,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       onSeqNumIsSuperStable(lastStableSeqNum);
     }
 
-    KeyManager::instance().onCheckpoint(checkpointNum);
+    KeyExchangeManager::instance().onCheckpoint(checkpointNum);
   }
 
   if (ps_) ps_->endWriteTran();
@@ -4160,7 +4163,8 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     if (requestMissingInfo && !ready) {
       LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextExecutedSeqNum, curView, lastStableSeqNum));
       // during exchange we need missing data to be performed in slow path
-      auto exchanging = (!KeyManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
+      auto exchanging =
+          (!KeyExchangeManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
       tryToSendReqMissingDataMsg(nextExecutedSeqNum, exchanging);
     }
 

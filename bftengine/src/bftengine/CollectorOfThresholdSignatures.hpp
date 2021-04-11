@@ -232,7 +232,7 @@ class CollectorOfThresholdSignatures {
     ConcordAssert(combinedValidSignatureMsg == nullptr);
     ConcordAssert(candidateCombinedSignatureMsg == nullptr);
 
-    auto verifier = ExternalFunc::thresholdVerifier();
+    auto verifier = ExternalFunc::thresholdVerifier(expectedSeqNumber);
     bool succ = verifier->verify(
         (char*)&expectedDigest, sizeof(Digest), combinedSigMsg->signatureBody(), combinedSigMsg->signatureLen());
     if (!succ) throw std::runtime_error("failed to verify");
@@ -255,20 +255,21 @@ class CollectorOfThresholdSignatures {
     if (candidateCombinedSignatureMsg != nullptr) {
       processingSignaturesInTheBackground = true;
 
-      CombinedSigVerificationJob* bkJob = new CombinedSigVerificationJob(ExternalFunc::thresholdVerifier(),
-                                                                         &ExternalFunc::incomingMsgsStorage(context),
-                                                                         expectedSeqNumber,
-                                                                         expectedView,
-                                                                         expectedDigest,
-                                                                         candidateCombinedSignatureMsg->signatureBody(),
-                                                                         candidateCombinedSignatureMsg->signatureLen(),
-                                                                         context);
+      CombinedSigVerificationJob* bkJob =
+          new CombinedSigVerificationJob(ExternalFunc::thresholdVerifier(expectedSeqNumber),
+                                         &ExternalFunc::incomingMsgsStorage(context),
+                                         expectedSeqNumber,
+                                         expectedView,
+                                         expectedDigest,
+                                         candidateCombinedSignatureMsg->signatureBody(),
+                                         candidateCombinedSignatureMsg->signatureLen(),
+                                         context);
 
       ExternalFunc::threadPool(context).add(bkJob);
     } else if (numberOfUnknownSignatures >= numOfRequiredSigs) {
       processingSignaturesInTheBackground = true;
 
-      SignaturesProcessingJob* bkJob = new SignaturesProcessingJob(ExternalFunc::thresholdVerifier(),
+      SignaturesProcessingJob* bkJob = new SignaturesProcessingJob(ExternalFunc::thresholdVerifier(expectedSeqNumber),
                                                                    &ExternalFunc::incomingMsgsStorage(context),
                                                                    expectedSeqNumber,
                                                                    expectedView,

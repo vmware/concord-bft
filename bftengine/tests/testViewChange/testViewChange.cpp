@@ -27,6 +27,7 @@
 #include "MsgHandlersRegistrator.hpp"
 #include "IncomingMsgsStorageImp.hpp"
 #include "ViewsManager.hpp"
+#include "../messages/helper.hpp"
 
 #include "gtest/gtest.h"
 
@@ -106,23 +107,6 @@ class DummySigner : public IThresholdSigner {
 
 } dummySigner_;
 
-class DummyVerifier : public IThresholdVerifier {
-  DummyShareVerificationKey dummyShareVerificationKey_;
-  mutable DummyThresholdAccumulator dummyThresholdAccumulator_;
-
- public:
-  IThresholdAccumulator* newAccumulator(bool withShareVerification) const override {
-    return new DummyThresholdAccumulator;
-  }
-  virtual bool verify(const char* msg, int msgLen, const char* sig, int sigLen) const override { return true; }
-  virtual int requiredLengthForSignedData() const override { return 3; }
-
-  virtual const IPublicKey& getPublicKey() const override { return dummyShareVerificationKey_; }
-  virtual const IShareVerificationKey& getShareVerificationKey(ShareID signer) const override {
-    return dummyShareVerificationKey_;
-  }
-};
-
 void setUpConfiguration_4() {
   for (int i = 0; i < N; i++) {
     replicaConfig[i].numReplicas = N;
@@ -182,12 +166,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions) {
                                 pfMsg->signatureLen(),
                                 pfMsg->signatureBody());
 
-  auto VCS =
-      ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  std::shared_ptr<IThresholdVerifier> ver{new DummyVerifier()};
-  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, ver);
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - min) {
@@ -297,12 +279,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_for_s
                                 pfMsg2->signatureLen(),
                                 pfMsg2->signatureBody());
 
-  auto VCS =
-      ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  std::shared_ptr<IThresholdVerifier> ver{new DummyVerifier()};
-  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, ver);
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
 
   for (int i = 0; i < kWorkWindowSize; i++) {
     if (i == assignedSeqNum - min) {
@@ -423,12 +403,10 @@ TEST(testViewchangeSafetyLogic_test, computeRestrictions_two_prepare_certs_one_i
                                 pfMsg2->signatureLen(),
                                 pfMsg2->signatureBody());
 
-  auto VCS =
-      ViewChangeSafetyLogic(N, F, C, std::make_shared<DummyVerifier>(), PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   SeqNum min{}, max{};
-  std::shared_ptr<IThresholdVerifier> ver{new DummyVerifier()};
-  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions, ver);
+  VCS.computeRestrictions(viewChangeMsgs, VCS.calcLBStableForView(viewChangeMsgs), min, max, restrictions);
 
   // Check that the reported lowest meaningful sequence number for the
   // View Change (min) is above the one that is below the last stable
@@ -471,7 +449,7 @@ TEST(testViewchangeSafetyLogic_test, one_different_new_view_in_VC_msgs) {
   viewChangeMsgs[2] = new ViewChangeMsg(2, 10, 0);
   viewChangeMsgs[3] = new ViewChangeMsg(3, 11, 0);
 
-  auto VCS = ViewChangeSafetyLogic(N, F, C, nullptr, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   ASSERT_DEATH(VCS.calcLBStableForView(viewChangeMsgs), "");
 
@@ -493,7 +471,7 @@ TEST(testViewchangeSafetyLogic_test, different_new_views_in_VC_msgs) {
     }
   }
 
-  auto VCS = ViewChangeSafetyLogic(N, F, C, nullptr, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   ASSERT_DEATH(VCS.calcLBStableForView(viewChangeMsgs), "");
 
@@ -516,7 +494,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
     }
   }
 
-  auto VCS = ViewChangeSafetyLogic(N, F, C, nullptr, PrePrepareMsg::digestOfNullPrePrepareMsg());
+  auto VCS = ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
 
   auto seqNum = VCS.calcLBStableForView(viewChangeMsgs);
   ConcordAssert(seqNum == lastStableSeqNum);
@@ -533,6 +511,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   setUpConfiguration_4();
+  bftEngine::CryptoManager::instance(new TestCryptoSystem);
   int res = RUN_ALL_TESTS();
   // TODO cleanup the generated certificates
   return res;

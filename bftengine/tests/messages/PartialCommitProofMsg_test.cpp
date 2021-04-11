@@ -42,7 +42,7 @@ TEST(PartialCommitProofMsg, create_and_compare) {
                             seqNum,
                             commitPath,
                             tmpDigest,
-                            CryptoManager::instance().thresholdSignerForOptimisticCommit(),
+                            CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum),
                             concordUtils::SpanContext{spanContext});
 
   EXPECT_EQ(msg.senderId(), senderId);
@@ -51,11 +51,11 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   EXPECT_EQ(msg.commitPath(), commitPath);
   EXPECT_EQ(msg.spanContextSize(), spanContext.size());
   EXPECT_EQ(msg.thresholSignatureLength(),
-            CryptoManager::instance().thresholdSignerForOptimisticCommit()->requiredLengthForSignedData());
+            CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum)->requiredLengthForSignedData());
 
   std::vector<char> signature(
-      CryptoManager::instance().thresholdSignerForOptimisticCommit()->requiredLengthForSignedData());
-  CryptoManager::instance().thresholdSignerForOptimisticCommit()->signData(
+      CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum)->requiredLengthForSignedData());
+  CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum)->signData(
       nullptr, 0, signature.data(), signature.size());
 
   EXPECT_EQ(memcmp(msg.thresholSignature(), signature.data(), signature.size()), 0);
@@ -75,7 +75,7 @@ TEST(PartialCommitProofMsg, base_methods) {
                             seqNum,
                             commitPath,
                             tmpDigest,
-                            CryptoManager::instance().thresholdSignerForOptimisticCommit(),
+                            CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum),
                             concordUtils::SpanContext{spanContext});
   testMessageBaseMethods(msg, MsgCode::PartialCommitProof, senderId, spanContext);
 }

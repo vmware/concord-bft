@@ -342,8 +342,8 @@ uint16_t SeqNumInfo::ExFuncForPrepareCollector::numberOfRequiredSignatures(void*
   return (uint16_t)((info.fVal() * 2) + info.cVal() + 1);
 }
 
-std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForPrepareCollector::thresholdVerifier() {
-  return CryptoManager::instance().thresholdVerifierForSlowPathCommit();
+std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForPrepareCollector::thresholdVerifier(SeqNum seqNumber) {
+  return CryptoManager::instance().thresholdVerifierForSlowPathCommit(seqNumber);
 }
 
 util::SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* context) {
@@ -398,8 +398,8 @@ uint16_t SeqNumInfo::ExFuncForCommitCollector::numberOfRequiredSignatures(void* 
   return (uint16_t)((info.fVal() * 2) + info.cVal() + 1);
 }
 
-std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForCommitCollector::thresholdVerifier() {
-  return CryptoManager::instance().thresholdVerifierForSlowPathCommit();
+std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForCommitCollector::thresholdVerifier(SeqNum seqNumber) {
+  return CryptoManager::instance().thresholdVerifierForSlowPathCommit(seqNumber);
 }
 
 util::SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* context) {
