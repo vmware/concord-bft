@@ -234,16 +234,18 @@ class RSAVerifier::Impl {
   RSASS<PKCS1v15, SHA256>::Verifier pub;  // TODO 77777
 };
 
-RSASigner::RSASigner(const char* privateKey) {
-  StringSource s(privateKey, true, new HexDecoder);
-  impl = std::make_unique<Impl>(s);
-}
-
-RSASigner::RSASigner(const string& private_key_pem) {
-  StringSource ss(private_key_pem, true);
-  RSA::PrivateKey priv_key;
-  PEM_Load(ss, priv_key);
-  impl = std::make_unique<Impl>(priv_key);
+RSASigner::RSASigner(const char* privateKey, KeyFormat format) {
+  if (format == KeyFormat::HexaDecimalStrippedFormat) {
+    StringSource s(privateKey, true, new HexDecoder);
+    impl = std::make_unique<Impl>(s);
+  } else if (format == KeyFormat::PemFormat) {
+    StringSource ss(privateKey, true);
+    RSA::PrivateKey priv_key;
+    PEM_Load(ss, priv_key);
+    impl = std::make_unique<Impl>(priv_key);
+  } else {
+    throw runtime_error("Invalid keyType!");
+  }
 }
 
 RSASigner::RSASigner(RSASigner&&) = default;
@@ -262,9 +264,19 @@ bool RSASigner::sign(const char* inBuffer,
   return impl->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
 }
 
-RSAVerifier::RSAVerifier(const char* publicKey) {
-  StringSource s(publicKey, true, new HexDecoder);
-  impl = std::make_unique<Impl>(s);
+// removeHeaderTrailer true - PEM string, false - hexadecimal format pure key
+RSAVerifier::RSAVerifier(const char* publicKey, KeyFormat format) {
+  if (format == KeyFormat::PemFormat) {
+    RSA::PublicKey pub_key;
+    StringSource s(publicKey, true);
+    PEM_Load(s, pub_key);
+    impl = std::make_unique<Impl>(pub_key);
+  } else if (format == KeyFormat::HexaDecimalStrippedFormat) {
+    StringSource s(publicKey, true, new HexDecoder);
+    impl = std::make_unique<Impl>(s);
+  } else {
+    throw runtime_error("Invalid keyType!");
+  }
 }
 
 RSAVerifier::RSAVerifier(const string& publicKeyPath) {
