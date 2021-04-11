@@ -68,7 +68,48 @@ class SigManager {
              const std::pair<Key, KeyFormat>& mySigPrivateKey,
              const std::vector<std::pair<Key, KeyFormat>>& publickeys,
              const std::map<PrincipalId, KeyIndex>& publicKeysMapping);
-};
+
+  static SigManager* initImpl(ReplicaId myId,
+                              const Key& mySigPrivateKey,
+                              const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+                              KeyFormat replicasKeysFormat,
+                              const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+                              KeyFormat clientsKeysFormat,
+                              uint16_t numReplicas,
+                              uint16_t numRoReplicas,
+                              uint16_t numOfClientProxies,
+                              uint16_t numOfExternalClients);
+
+  // These methods bypass the singelton, and can be used (STRICTLY) for testing.
+  // Define the below flag in order to use them in your test.
+#ifdef CONCORD_BFT_TESTING
+ public:
+  static SigManager* initInTesting(
+      ReplicaId myId,
+      const Key& mySigPrivateKey,
+      const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+      KeyFormat replicasKeysFormat,
+      const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+      KeyFormat clientsKeysFormat,
+      uint16_t numReplicas,
+      uint16_t numRoReplicas,
+      uint16_t numOfClientProxies,
+      uint16_t numOfExternalClients) {
+    return initImpl(myId,
+                    mySigPrivateKey,
+                    publicKeysOfReplicas,
+                    replicasKeysFormat,
+                    publicKeysOfClients,
+                    clientsKeysFormat,
+                    numReplicas,
+                    numRoReplicas,
+                    numOfClientProxies,
+                    numOfExternalClients);
+  }
+  static void setInstance(SigManager* instance) { instance_ = instance; }
+#endif
+
+};  // namespace impl
 
 }  // namespace impl
 }  // namespace bftEngine
