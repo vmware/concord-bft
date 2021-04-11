@@ -893,10 +893,11 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
   {
     auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
     const auto &block = req.latest_prunable_block[3];
-    auto &added_block = req.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
-    added_block.block_id = block.block_id;
-    added_block.replica = block.replica;
-    added_block.signature = block.signature;
+    auto latest_prunnable_block = concord::messages::LatestPrunableBlock();
+    latest_prunnable_block.block_id = block.block_id;
+    latest_prunnable_block.replica = block.replica;
+    latest_prunnable_block.signature = block.signature;
+    req.latest_prunable_block.push_back(std::move(latest_prunnable_block));
     BlockId agreed_pruned_block;
     concord::messages::ReconfigurationErrorMsg error_msg;
     auto res = sm.handle(req, agreed_pruned_block, 0, error_msg);
