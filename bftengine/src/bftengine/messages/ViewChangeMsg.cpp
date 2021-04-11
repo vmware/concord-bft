@@ -81,7 +81,7 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
 
   // TODO(GG): we should make sure that this assert will never be violated (by calculating the maximum  size of a
   // ViewChangeMsg message required for the actual configuration)
-  ConcordAssertLE((size_t)(requiredSpace + ViewsManager::sigManager_->getMySigLength()), (size_t)internalStorageSize());
+  ConcordAssertLE((size_t)(requiredSpace + SigManager::getInstance()->getMySigLength()), (size_t)internalStorageSize());
 
   Element* pElement = (Element*)(body() + b()->locationAfterLast);
   pElement->seqNum = seqNum;
@@ -112,7 +112,7 @@ void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complain
 
   ConcordAssert(b()->numberOfComplaints > 0 || b()->sizeOfAllComplaints == 0);
   auto bodySize = getBodySize();
-  auto sigSize = ViewsManager::sigManager_->getMySigLength();
+  auto sigSize = SigManager::getInstance()->getMySigLength();
   bodySize += sigSize + b()->sizeOfAllComplaints;
 
   auto sizeOfComplaint = complaint->size();
@@ -131,7 +131,7 @@ bool ViewChangeMsg::clearAllComplaints() {
   b()->numberOfComplaints = 0;
   if (reallocSize(ReplicaConfig::instance().getmaxExternalMessageSize())) {
     auto bodySize = getBodySize();
-    auto sigSize = ViewsManager::sigManager_->getMySigLength();
+    auto sigSize = SigManager::getInstance()->getMySigLength();
     memset(body() + bodySize + sigSize, 0, storageSize_ - (bodySize + sigSize));
     return true;
   } else {
@@ -141,8 +141,9 @@ bool ViewChangeMsg::clearAllComplaints() {
 
 void ViewChangeMsg::finalizeMessage() {
   auto bodySize = getBodySize();
+  auto sigManager = SigManager::getInstance();
 
-  auto sigSize = ViewsManager::sigManager_->getMySigLength();
+  auto sigSize = sigManager->getMySigLength();
 
   setMsgSize(bodySize + sigSize + b()->sizeOfAllComplaints);
   shrinkToFit();
@@ -156,7 +157,7 @@ void ViewChangeMsg::finalizeMessage() {
   // |               Message Body               |
   // +------------------------------------------+
 
-  ViewsManager::sigManager_->sign(body(), bodySize, body() + bodySize, sigSize);
+  sigManager->sign(body(), bodySize, body() + bodySize, sigSize);
 
   bool b = checkElements((uint16_t)sigSize) && checkComplaints((uint16_t)sigSize);
 
@@ -164,15 +165,16 @@ void ViewChangeMsg::finalizeMessage() {
 }
 
 void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
+  auto sigManager = SigManager::getInstance();
   if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   auto dataLength = getBodySize();
-  uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
+  uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 
   if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
-  if (!ViewsManager::sigManager_->verifySig(idOfGeneratedReplica(), body(), dataLength, body() + dataLength, sigLen))
+  if (!sigManager->verifySig(idOfGeneratedReplica(), body(), dataLength, body() + dataLength, sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
   if (!checkElements(sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
@@ -360,7 +362,7 @@ ViewChangeMsg::ComplaintsIterator::ComplaintsIterator(const ViewChangeMsg* const
   } else {
     endLoc = m->size();
     auto bodySize = m->getBodySize();
-    currLoc = bodySize + ViewsManager::sigManager_->getMySigLength();
+    currLoc = bodySize + SigManager::getInstance()->getMySigLength();
     ConcordAssert(endLoc > currLoc);
     nextComplaintNum = 1;
   }
