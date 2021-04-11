@@ -88,7 +88,7 @@ class RSASigner {
 
  private:
   class Impl;
-  std::unique_ptr<Impl> impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class RSAVerifier {
@@ -106,7 +106,7 @@ class RSAVerifier {
 
  private:
   class Impl;
-  std::unique_ptr<Impl> impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class DigestUtil {
