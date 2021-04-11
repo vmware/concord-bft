@@ -22,72 +22,69 @@ namespace bftEngine {
 
 class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
  public:
+  /**
+   * Singleton access method
+   * For the first time should be called with a non-null argument
+   */
   static CryptoManager& instance(Cryptosystem* cryptoSys = nullptr) {
-    // ensure cryptoSys will be freed since we're expected to take ownership
-    std::unique_ptr<Cryptosystem> cryptoSysPtr(cryptoSys);
-    static CryptoManager cm_(cryptoSysPtr);
+    static CryptoManager cm_(cryptoSys);
     return cm_;
   }
 
-  std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit() const { return thresholdSigner_; }
-  std::shared_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit() const {
+  std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit(const std::int64_t& seqnum) const {
+    return thresholdSigner_;
+  }
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForSlowPathCommit(const std::int64_t& seqnum) const {
     return thresholdVerifierForSlowPathCommit_;
   }
 
-  std::shared_ptr<IThresholdSigner> thresholdSignerForCommit() const { return thresholdSigner_; }
-  std::shared_ptr<IThresholdVerifier> thresholdVerifierForCommit() const { return thresholdVerifierForCommit_; }
+  std::shared_ptr<IThresholdSigner> thresholdSignerForCommit(const std::int64_t& seqnum) const {
+    return thresholdSigner_;
+  }
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForCommit(const std::int64_t& seqnum) const {
+    return thresholdVerifierForCommit_;
+  }
 
-  std::shared_ptr<IThresholdSigner> thresholdSignerForOptimisticCommit() const { return thresholdSigner_; }
-  std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit() const {
+  std::shared_ptr<IThresholdSigner> thresholdSignerForOptimisticCommit(const std::int64_t& seqnum) const {
+    return thresholdSigner_;
+  }
+  std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit(const std::int64_t& seqnum) const {
     return thresholdVerifierForOptimisticCommit_;
   }
 
-  // IMultiSigKeyGenerator methods
+  // IMultiSigKeyGenerator method
   std::pair<std::string, std::string> generateMultisigKeyPair() override {
     return multiSigCryptoSystem_->generateNewKeyPair();
   }
+
+  // IKeyExchanger methods
   void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) override {
-    updateMultisigKeys(secretKey, verificationKey);
-  }
-  void onPublicKeyExchange(const std::string& verificationKey, const std::uint16_t& signerIndex) override {
-    updateVerificationKeyForSigner(verificationKey, signerIndex);
-  }
-
- private:
-  CryptoManager(std::unique_ptr<Cryptosystem>& cryptoSys)
-      : f_{ReplicaConfig::instance().getfVal()},
-        c_{ReplicaConfig::instance().getcVal()},
-        numSigners_{ReplicaConfig::instance().getnumReplicas()} {
-    multiSigCryptoSystem_ = std::move(cryptoSys);
-    init();
-  }
-
-  void init() {
-    thresholdSigner_.reset(multiSigCryptoSystem_->createThresholdSigner());
-    thresholdVerifierForSlowPathCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(f_ * 2 + c_ + 1));
-    thresholdVerifierForCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(f_ * 3 + c_ + 1));
-    thresholdVerifierForOptimisticCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(numSigners_));
-  }
-
-  void updateMultisigKeys(const std::string& secretKey, const std::string& verificationKey) {
     multiSigCryptoSystem_->updateKeys(secretKey, verificationKey);
     init();
   }
-
-  void updateVerificationKeyForSigner(const std::string& verificationKey, const std::uint16_t& signerIndex) {
+  void onPublicKeyExchange(const std::string& verificationKey, const std::uint16_t& signerIndex) override {
     // the +1 is due to Crypto system starts counting from 1
     multiSigCryptoSystem_->updateVerificationKey(verificationKey, signerIndex + 1);
     init();
+  }
+
+ private:
+  CryptoManager(Cryptosystem* cryptoSys) : multiSigCryptoSystem_{cryptoSys} { init(); }
+
+  void init() {
+    std::uint16_t f{ReplicaConfig::instance().getfVal()};
+    std::uint16_t c{ReplicaConfig::instance().getcVal()};
+    std::uint16_t numSigners{ReplicaConfig::instance().getnumReplicas()};
+    thresholdSigner_.reset(multiSigCryptoSystem_->createThresholdSigner());
+    thresholdVerifierForSlowPathCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(f * 2 + c + 1));
+    thresholdVerifierForCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(f * 3 + c + 1));
+    thresholdVerifierForOptimisticCommit_.reset(multiSigCryptoSystem_->createThresholdVerifier(numSigners));
   }
 
   CryptoManager(const CryptoManager&) = delete;
   CryptoManager(const CryptoManager&&) = delete;
   CryptoManager& operator=(const CryptoManager&) = delete;
   CryptoManager& operator=(const CryptoManager&&) = delete;
-
-  std::uint16_t f_;
-  std::uint16_t c_;
-  std::uint16_t numSigners_;
 
   std::unique_ptr<Cryptosystem> multiSigCryptoSystem_;
 

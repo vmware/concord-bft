@@ -9,20 +9,20 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "KeyManager.h"
 #include "gtest/gtest.h"
 #include <chrono>
 #include <thread>
+#include "../../src/bftengine/KeyExchangeManager.h"
 
 using namespace std;
 
 namespace bftEngine::impl {
 class TestKeyManager {
  public:
-  TestKeyManager(KeyManager::InitData* id) : km_(id), a(new concordMetrics::Aggregator()) {
+  TestKeyManager(KeyExchangeManager::InitData* id) : km_(id), a(new concordMetrics::Aggregator()) {
     km_.initMetrics(a, std::chrono::seconds(600));
   }
-  KeyManager km_;
+  KeyExchangeManager km_;
   std::shared_ptr<concordMetrics::Aggregator> a;
   uint64_t getKeyExchangedCounter() { return km_.metrics_->keyExchangedCounter.Get().Get(); }
   uint64_t getKeyExchangedOnStartCounter() { return km_.metrics_->keyExchangedOnStartCounter.Get().Get(); }
@@ -358,7 +358,7 @@ struct DummyClient : public IInternalBFTClient {
   bool isUdp() { return false; }
 };
 
-TEST(KeyManager, initialKeyExchange) {
+TEST(KeyExchangeManager, initialKeyExchange) {
   uint32_t clusterSize = 4;
   std::shared_ptr<IInternalBFTClient> dc(new DummyClient());
   DummyKeyGen dkg{clusterSize};
@@ -367,7 +367,7 @@ TEST(KeyManager, initialKeyExchange) {
   ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clusterSize, true);
   concordUtil::Timers timers;
 
-  KeyManager::InitData id{};
+  KeyExchangeManager::InitData id{};
   id.cl = dc;
   id.id = 3;
   id.clusterSize = clusterSize;
@@ -419,7 +419,7 @@ TEST(KeyManager, initialKeyExchange) {
   ASSERT_EQ(dkg.pubs[2], "c");
 }
 
-TEST(KeyManager, endToEnd) {
+TEST(KeyExchangeManager, endToEnd) {
   uint32_t clustersize{4};
   std::shared_ptr<IInternalBFTClient> dc(new DummyClient());
   DummyKeyGen dkg{clustersize};
@@ -428,7 +428,7 @@ TEST(KeyManager, endToEnd) {
   ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, true);
   concordUtil::Timers timers;
 
-  KeyManager::InitData id{};
+  KeyExchangeManager::InitData id{};
   id.cl = dc;
   id.id = 2;
   id.clusterSize = clustersize;
@@ -668,7 +668,7 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
 }
 TEST(PrivateKeys, ser_der) {
   std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
-  KeyManager::KeysView keys{dls, nullptr, 4};
+  KeyExchangeManager::KeysView keys{dls, nullptr, 4};
   keys.data.generatedPrivateKey = "publish";
   keys.data.outstandingPrivateKey = "outstandingPrivateKey";
   keys.data.privateKey = "privateKey";
@@ -677,7 +677,7 @@ TEST(PrivateKeys, ser_der) {
   concord::serialize::Serializable::serialize(ss, keys.data);
   auto strMsg = ss.str();
 
-  KeyManager::KeysView keys2{dls, nullptr, 4};
+  KeyExchangeManager::KeysView keys2{dls, nullptr, 4};
 
   ss.write(strMsg.c_str(), std::streamsize(strMsg.size()));
   concord::serialize::Serializable::deserialize(ss, keys2.data);
@@ -689,7 +689,7 @@ TEST(PrivateKeys, ser_der) {
 
 TEST(PrivateKeys, SaveLoad) {
   std::shared_ptr<ISecureStore> dls(new DummyLoaderSaver());
-  KeyManager::KeysView keys{dls, nullptr, 4};
+  KeyExchangeManager::KeysView keys{dls, nullptr, 4};
   keys.data.generatedPrivateKey = "publish";
   keys.data.outstandingPrivateKey = "outstandingPrivateKey";
   keys.data.privateKey = "privateKey";
@@ -706,7 +706,7 @@ TEST(PrivateKeys, SaveLoad) {
   ASSERT_EQ(keys.data.privateKey, "privateKey");
 }
 
-TEST(KeyManager, reserved_pages) {}
+TEST(KeyExchangeManager, reserved_pages) {}
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

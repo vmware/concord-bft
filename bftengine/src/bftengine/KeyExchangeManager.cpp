@@ -9,17 +9,17 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "KeyManager.h"
 #include "thread"
 #include "ReplicaImp.hpp"
 #include "ReplicaConfig.hpp"
 #include <memory>
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/CryptoManager.hpp"
+#include "KeyExchangeManager.h"
 
 ////////////////////////////// KEY MANAGER//////////////////////////////
 namespace bftEngine::impl {
-KeyManager::KeyManager(InitData* id)
+KeyExchangeManager::KeyExchangeManager(InitData* id)
     : repID_(id->id),
       clusterSize_(id->clusterSize),
       client_(id->cl),
@@ -46,7 +46,7 @@ KeyManager::KeyManager(InitData* id)
   }
 }
 
-void KeyManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
+void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
   metrics_.reset(new Metrics(a, interval));
   metrics_->component.Register();
   metricsTimer_ = timers_.add(std::chrono::milliseconds(100), Timers::Timer::RECURRING, [this](Timers::Handle h) {
@@ -63,7 +63,7 @@ void KeyManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std:
   }
 }
 
-std::string KeyManager::generateCid() {
+std::string KeyExchangeManager::generateCid() {
   std::string cid{"KEY-EXCHANGE-"};
   auto now = getMonotonicTime().time_since_epoch();
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now);
@@ -74,7 +74,7 @@ std::string KeyManager::generateCid() {
 
 // Key exchange msg for replica has been recieved:
 // update the replica public key store.
-std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
+std::string KeyExchangeManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
   SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   if (kemsg.op == KeyExchangeMsg::HAS_KEYS) {
     LOG_INFO(KEY_EX_LOG, "Has key query arrived, returning " << std::boolalpha << keysExchanged << std::noboolalpha);
@@ -99,7 +99,7 @@ std::string KeyManager::onKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
 }
 
 // Once the set contains all replicas the crypto system is being updated and the gate is open.
-void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
+void KeyExchangeManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn) {
   SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   // For some reason we recieved a key for a replica that already exchanged it's key.
   if (keyStore_.exchangedReplicas.find(kemsg.repID) != keyStore_.exchangedReplicas.end()) {
@@ -130,7 +130,7 @@ void KeyManager::onInitialKeyExchange(KeyExchangeMsg& kemsg, const uint64_t& sn)
   LOG_INFO(KEY_EX_LOG, "All replicas exchanged keys, can start accepting msgs");
 }
 
-void KeyManager::notifyRegistry(bool save) {
+void KeyExchangeManager::notifyRegistry(bool save) {
   for (uint32_t i = 0; i < clusterSize_; i++) {
     keysView_.keys().publicKeys[i] = keyStore_.getReplicaPublicKey(i).key;
     if (i == repID_) {
@@ -150,9 +150,9 @@ void KeyManager::notifyRegistry(bool save) {
   }
 }
 
-void KeyManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
-                                       const uint16_t repID,
-                                       const uint16_t numReplicas) {
+void KeyExchangeManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
+                                               const uint16_t repID,
+                                               const uint16_t numReplicas) {
   KeysView kv(sec, nullptr, numReplicas);
   if (!kv.load()) {
     LOG_ERROR(KEY_EX_LOG, "Couldn't load keys");
@@ -168,7 +168,7 @@ void KeyManager::loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
 }
 
 // The checkpoint is the point where keys are rotated.
-void KeyManager::onCheckpoint(const int& num) {
+void KeyExchangeManager::onCheckpoint(const int& num) {
   auto rotatedReplicas = keyStore_.rotate(num);
   if (rotatedReplicas.empty()) return;
 
@@ -183,14 +183,14 @@ void KeyManager::onCheckpoint(const int& num) {
   notifyRegistry(true);
 }
 
-void KeyManager::registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
+void KeyExchangeManager::registerForNotification(IKeyExchanger* ke) { registryToExchange_.push_back(ke); }
 
-KeyExchangeMsg KeyManager::getReplicaPublicKey(const uint16_t& repID) const {
+KeyExchangeMsg KeyExchangeManager::getReplicaPublicKey(const uint16_t& repID) const {
   return keyStore_.getReplicaPublicKey(repID);
 }
 
 // Called at the end of a state transfer.
-void KeyManager::loadKeysFromReservedPages() {
+void KeyExchangeManager::loadKeysFromReservedPages() {
   // Until Key-rotation is implemented, state transfer after the key-exchange has been performed has no side effect.
   // in order to mitigate BC-5530, we'll not do a redundent work
   if (keysExchanged) {  // TODO remove when implementing key-rotation!
@@ -214,7 +214,7 @@ void KeyManager::loadKeysFromReservedPages() {
   notifyRegistry(true);
 }
 
-void KeyManager::sendKeyExchange() {
+void KeyExchangeManager::sendKeyExchange() {
   KeyExchangeMsg msg;
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
   keysView_.keys().generatedPrivateKey = prv;
@@ -231,7 +231,7 @@ void KeyManager::sendKeyExchange() {
 // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
 // In order not to block it's done as async operation.
 // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
-void KeyManager::sendInitialKey() {
+void KeyExchangeManager::sendInitialKey() {
   if (keysView_.hasGeneratedKeys()) {
     LOG_INFO(KEY_EX_LOG, "Replica already generated keys ");
     return;
@@ -249,7 +249,7 @@ void KeyManager::sendInitialKey() {
   futureRet = std::async(std::launch::async, l);
 }
 
-void KeyManager::waitForFullCommunication() {
+void KeyExchangeManager::waitForFullCommunication() {
   auto avlble = client_->numOfConnectedReplicas(clusterSize_);
   LOG_INFO(KEY_EX_LOG, "Consensus engine: " << avlble << " replicas are connected");
   // Num of connections should be: (clusterSize - 1)
@@ -263,36 +263,36 @@ void KeyManager::waitForFullCommunication() {
 
 /////////////KEYS VIEW////////////////////////////
 
-const std::string KeyManager::KeysViewData::getVersion() const { return "1"; }
+const std::string KeyExchangeManager::KeysViewData::getVersion() const { return "1"; }
 
-void KeyManager::KeysViewData::serializeDataMembers(std::ostream& outStream) const {
+void KeyExchangeManager::KeysViewData::serializeDataMembers(std::ostream& outStream) const {
   serialize(outStream, privateKey);
   serialize(outStream, outstandingPrivateKey);
   serialize(outStream, generatedPrivateKey);
   serialize(outStream, publicKeys);
 }
 
-void KeyManager::KeysViewData::deserializeDataMembers(std::istream& inStream) {
+void KeyExchangeManager::KeysViewData::deserializeDataMembers(std::istream& inStream) {
   deserialize(inStream, privateKey);
   deserialize(inStream, outstandingPrivateKey);
   deserialize(inStream, generatedPrivateKey);
   deserialize(inStream, publicKeys);
 }
 
-KeyManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec,
-                               std::shared_ptr<ISecureStore> backSec,
-                               uint32_t clusterSize)
+KeyExchangeManager::KeysView::KeysView(std::shared_ptr<ISecureStore> sec,
+                                       std::shared_ptr<ISecureStore> backSec,
+                                       uint32_t clusterSize)
     : secStore(sec), backupSecStore(backSec) {
   data.publicKeys.resize(clusterSize);
 }
 
-void KeyManager::KeysView::rotate(std::string& dst, std::string& src) {
+void KeyExchangeManager::KeysView::rotate(std::string& dst, std::string& src) {
   ConcordAssert(src.empty() == false);
   dst = src;
   src.clear();
   save();
 }
-void KeyManager::KeysView::save() {
+void KeyExchangeManager::KeysView::save() {
   if (!secStore) {
     LOG_DEBUG(KEY_EX_LOG, "Saver is not set");
     return;
@@ -300,7 +300,7 @@ void KeyManager::KeysView::save() {
   save(secStore);
 }
 
-void KeyManager::KeysView::backup() {
+void KeyExchangeManager::KeysView::backup() {
   if (!backupSecStore) {
     LOG_DEBUG(KEY_EX_LOG, "Backup is not set");
     return;
@@ -308,13 +308,13 @@ void KeyManager::KeysView::backup() {
   save(backupSecStore);
 }
 
-void KeyManager::KeysView::save(std::shared_ptr<ISecureStore>& secureStore) {
+void KeyExchangeManager::KeysView::save(std::shared_ptr<ISecureStore>& secureStore) {
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, data);
   secureStore->save(ss.str());
 }
 
-bool KeyManager::KeysView::load() {
+bool KeyExchangeManager::KeysView::load() {
   if (!secStore) {
     LOG_DEBUG(KEY_EX_LOG, "Loader is not set");
     return false;
@@ -331,7 +331,7 @@ bool KeyManager::KeysView::load() {
   return true;
 }
 
-void KeyManager::FileSecureStore::save(const std::string& str) {
+void KeyExchangeManager::FileSecureStore::save(const std::string& str) {
   if (str.empty()) {
     LOG_INFO(KEY_EX_LOG, "Got empty string to save to key file");
     return;
@@ -346,7 +346,7 @@ void KeyManager::FileSecureStore::save(const std::string& str) {
   myfile.close();
 }
 
-std::string KeyManager::FileSecureStore::load() {
+std::string KeyExchangeManager::FileSecureStore::load() {
   std::ifstream inFile;
   inFile.open(fileName.c_str());
   if (!inFile.good()) {
@@ -359,7 +359,7 @@ std::string KeyManager::FileSecureStore::load() {
   return strStream.str();
 }
 
-void KeyManager::EncryptedFileSecureStore::save(const std::string& str) {
+void KeyExchangeManager::EncryptedFileSecureStore::save(const std::string& str) {
   auto enc = secretsMgr->encryptString(str);
   if (!enc.has_value()) {
     LOG_FATAL(KEY_EX_LOG, "Couldn't encrypt value while saving key file to " << store.fileName);
@@ -368,7 +368,7 @@ void KeyManager::EncryptedFileSecureStore::save(const std::string& str) {
   store.save(enc.value());
 }
 
-std::string KeyManager::EncryptedFileSecureStore::load() {
+std::string KeyExchangeManager::EncryptedFileSecureStore::load() {
   auto enc = store.load();
   if (enc.length() == 0) {
     return enc;

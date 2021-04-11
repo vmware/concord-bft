@@ -11,9 +11,8 @@
 // file.
 
 #include "RequestHandler.h"
-#include "KeyManager.h"
-
 #include <sstream>
+#include "KeyExchangeManager.h"
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
@@ -27,7 +26,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     if (req.flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
-      auto resp = KeyManager::instance().onKeyExchange(ke, req.executionSequenceNum);
+      auto resp = KeyExchangeManager::instance().onKeyExchange(ke, req.executionSequenceNum);
       if (resp.size() <= req.maxReplySize) {
         std::copy(resp.begin(), resp.end(), req.outReply);
         req.outActualReplySize = resp.size();
