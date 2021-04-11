@@ -237,12 +237,12 @@ class RSAVerifier::Impl {
 RSASigner::RSASigner(const char* privateKey, KeyFormat format) {
   if (format == KeyFormat::HexaDecimalStrippedFormat) {
     StringSource s(privateKey, true, new HexDecoder);
-    impl = std::make_unique<Impl>(s);
+    impl_ = std::make_unique<Impl>(s);
   } else if (format == KeyFormat::PemFormat) {
     StringSource ss(privateKey, true);
     RSA::PrivateKey priv_key;
     PEM_Load(ss, priv_key);
-    impl = std::make_unique<Impl>(priv_key);
+    impl_ = std::make_unique<Impl>(priv_key);
   } else {
     throw runtime_error("Invalid keyType!");
   }
@@ -254,14 +254,14 @@ RSASigner::~RSASigner() = default;
 
 RSASigner& RSASigner::operator=(RSASigner&&) = default;
 
-size_t RSASigner::signatureLength() const { return impl->signatureLength(); }
+size_t RSASigner::signatureLength() const { return impl_->signatureLength(); }
 
 bool RSASigner::sign(const char* inBuffer,
                      size_t lengthOfInBuffer,
                      char* outBuffer,
                      size_t lengthOfOutBuffer,
                      size_t& lengthOfReturnedData) const {
-  return impl->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
+  return impl_->sign(inBuffer, lengthOfInBuffer, outBuffer, lengthOfOutBuffer, lengthOfReturnedData);
 }
 
 // removeHeaderTrailer true - PEM string, false - hexadecimal format pure key
@@ -270,10 +270,10 @@ RSAVerifier::RSAVerifier(const char* publicKey, KeyFormat format) {
     RSA::PublicKey pub_key;
     StringSource s(publicKey, true);
     PEM_Load(s, pub_key);
-    impl = std::make_unique<Impl>(pub_key);
+    impl_ = std::make_unique<Impl>(pub_key);
   } else if (format == KeyFormat::HexaDecimalStrippedFormat) {
     StringSource s(publicKey, true, new HexDecoder);
-    impl = std::make_unique<Impl>(s);
+    impl_ = std::make_unique<Impl>(s);
   } else {
     throw runtime_error("Invalid keyType!");
   }
@@ -283,7 +283,7 @@ RSAVerifier::RSAVerifier(const string& publicKeyPath) {
   FileSource fs(publicKeyPath.c_str(), true);
   RSA::PublicKey pub_key;
   PEM_Load(fs, pub_key);
-  impl = std::make_unique<Impl>(pub_key);
+  impl_ = std::make_unique<Impl>(pub_key);
 }
 
 RSAVerifier::RSAVerifier(RSAVerifier&&) = default;
@@ -292,13 +292,13 @@ RSAVerifier::~RSAVerifier() = default;
 
 RSAVerifier& RSAVerifier::operator=(RSAVerifier&&) = default;
 
-size_t RSAVerifier::signatureLength() const { return impl->signatureLength(); }
+size_t RSAVerifier::signatureLength() const { return impl_->signatureLength(); }
 
 bool RSAVerifier::verify(const char* data,
                          size_t lengthOfData,
                          const char* signature,
                          size_t lengthOfOSignature) const {
-  return impl->verify(data, lengthOfData, signature, lengthOfOSignature);
+  return impl_->verify(data, lengthOfData, signature, lengthOfOSignature);
 }
 
 }  // namespace impl
