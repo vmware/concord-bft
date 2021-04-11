@@ -2,7 +2,7 @@ find_package(GTest REQUIRED)
 
 add_executable(ViewChange_tests 
                 testViewChange.cpp
-                ../messages/helper.cpp
+                ${bftengine_SOURCE_DIR}/tests/messages/helper.cpp
                 ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp)
 
 add_test(ViewChange_tests ViewChange_tests)
@@ -12,6 +12,7 @@ add_test(ViewChange_tests ViewChange_tests)
 target_include_directories(ViewChange_tests
       PRIVATE
       ${bftengine_SOURCE_DIR}/src/bftengine
+      ${bftengine_SOURCE_DIR}/tests/messages
       ${concord_bft_tools_SOURCE_DIR})
 
 target_link_libraries(ViewChange_tests PUBLIC
