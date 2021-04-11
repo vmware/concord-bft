@@ -39,6 +39,7 @@ typedef uint16_t MsgType;
 typedef uint32_t SpanContextSize;
 
 enum class CommitPath { NA = -1, OPTIMISTIC_FAST = 0, FAST_WITH_THRESHOLD = 1, SLOW = 2 };
+enum class KeyFormat { HexaDecimalStrippedFormat, PemFormat };
 
 std::string CommitPathToStr(CommitPath path);
 std::string CommitPathToMDCString(CommitPath path);
