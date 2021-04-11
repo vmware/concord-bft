@@ -82,7 +82,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ControllerBase* controller = nullptr;
 
   // digital signatures
-  SigManager* sigManager = nullptr;
+  std::unique_ptr<SigManager> sigManager_;
 
   // view change logic
   ViewsManager* viewsManager = nullptr;
@@ -305,7 +305,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              const ReplicaConfig&,
              shared_ptr<IRequestsHandler>,
              IStateTransfer*,
-             SigManager*,
              ReplicasInfo*,
              ViewsManager*,
              shared_ptr<MsgsCommunicator>,

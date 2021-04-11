@@ -10,7 +10,7 @@
 # num_participants.
 #
 # In general, it can be used by any 2 entities; the signer should use the
-# private_key.pem to sign, and the verifier should use public_key.pem
+# transaction_signing_priv.pem to sign, and the verifier should use transaction_signing_pub.pem
 # to verify the signature.
 
 # This script assumes that the output path is empty. If not, it fails with a warning.
@@ -20,8 +20,8 @@ usage() {
     printf "\n-----\nhelp:\n-----\n"
     printf "%s\n\n" "-h --help, print this message"
     printf "%s\n\n" "-n --num_participants <integer>, mandatory"
-    printf "%s\n\n" "-r --private_key_name <string>, optional, default: private_key.pem"
-    printf "%s\n\n" "-u --public_key_name <string>, optional, default: public_key.pem"
+    printf "%s\n\n" "-r --private_key_name <string>, optional, default: transaction_signing_priv.pem"
+    printf "%s\n\n" "-u --public_key_name <string>, optional, default: transaction_signing_pub.pem"
     printf "%s\n\t\t\t\t%s\n\t\t\t\t%s\n" "-o --output_base_path <string>, optional, base path in relative/absolute format" \
            "output is redirected to output_base_path/transaction_signing_keys folder" \
            "default: ./transaction_signing_keys"
@@ -31,8 +31,8 @@ parser() {
     num_participants=""
     output_base_path="./"
     output_folder="transaction_signing_keys"
-    private_key_name="private_key.pem"
-    public_key_name="public_key.pem"
+    private_key_name="transaction_signing_priv.pem"
+    public_key_name="transaction_signing_pub.pem"
 
     while [ $1 ]; do
         case $1 in

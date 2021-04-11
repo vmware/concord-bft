@@ -12,6 +12,7 @@
 #pragma once
 
 #include <threshsign/ThresholdSignaturesSchemes.h>
+#include "PrimitiveTypes.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -72,8 +73,7 @@ class ECDSAVerifier : public IVerifier {
 class RSASigner {
  public:
   RSASigner(const char* privteKey, const char* randomSeed);
-  explicit RSASigner(const char* privateKey);
-  explicit RSASigner(const string& private_key_pem);
+  explicit RSASigner(const char* privateKey, KeyFormat format = KeyFormat::HexaDecimalStrippedFormat);
   RSASigner(const RSASigner&) = delete;
   RSASigner(RSASigner&&);
   ~RSASigner();
@@ -88,13 +88,13 @@ class RSASigner {
 
  private:
   class Impl;
-  std::unique_ptr<Impl> impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class RSAVerifier {
  public:
   RSAVerifier(const char* publicKey, const char* randomSeed);
-  explicit RSAVerifier(const char* publicKey);
+  explicit RSAVerifier(const char* publicKey, KeyFormat format = KeyFormat::HexaDecimalStrippedFormat);
   explicit RSAVerifier(const string& publicKeyPath);
   RSAVerifier(const RSAVerifier&) = delete;
   RSAVerifier(RSAVerifier&&);
@@ -106,7 +106,7 @@ class RSAVerifier {
 
  private:
   class Impl;
-  std::unique_ptr<Impl> impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 class DigestUtil {

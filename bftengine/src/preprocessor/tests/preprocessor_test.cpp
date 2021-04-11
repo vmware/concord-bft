@@ -9,6 +9,8 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#define CONCORD_BFT_TESTING
+
 #include "PreProcessor.hpp"
 #include "OpenTracing.hpp"
 #include "Timers.hpp"
@@ -56,7 +58,7 @@ uint64_t reqRetryId = 20;
 
 ReplicaConfig& replicaConfig = ReplicaConfig::instance();
 char buf[bufLen];
-SigManagerSharedPtr sigManager_[numOfReplicas_4];
+std::unique_ptr<SigManager> sigManager_[numOfReplicas_4];
 
 class DummyRequestsHandler : public IRequestsHandler {
   void execute(ExecutionRequestsQueue& requests,
@@ -287,9 +289,19 @@ void setUpConfiguration_4() {
   replicaConfig.replicaPrivateKey = privateKey_0;
   string privateKeys[numOfReplicas_4] = {privateKey_0, privateKey_1, privateKey_2, privateKey_3};
 
-  for (auto i = 0; i < replicaConfig.numReplicas; i++)
-    sigManager_[i] = make_shared<SigManager>(
-        i, replicaConfig.numReplicas + numOfInternalClients, privateKeys[i], replicaConfig.publicKeysOfReplicas);
+  for (auto i = 0; i < replicaConfig.numReplicas; i++) {
+    sigManager_[i].reset(SigManager::initInTesting(i,
+                                                   privateKeys[i],
+                                                   replicaConfig.publicKeysOfReplicas,
+                                                   KeyFormat::HexaDecimalStrippedFormat,
+                                                   nullptr,
+                                                   KeyFormat::HexaDecimalStrippedFormat,
+                                                   replicaConfig.numReplicas,
+                                                   replicaConfig.numRoReplicas,
+                                                   replicaConfig.numOfClientProxies,
+                                                   replicaConfig.numOfExternalClients));
+  }
+  SigManager::setInstance(sigManager_[replicaConfig.replicaId].get());
 }
 
 void setUpConfiguration_7() {
@@ -317,10 +329,12 @@ void setUpCommunication() {
 }
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
-  auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(
-      sigManager_[replicaId], &preProcessorRecorder, replicaId, clientId, 0, reqSeqNum, reqRetryId);
+  SigManager::setInstance(sigManager_[replicaId].get());
+  auto preProcessReplyMsg =
+      make_shared<PreProcessReplyMsg>(&preProcessorRecorder, replicaId, clientId, 0, reqSeqNum, reqRetryId);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
-  preProcessReplyMsg->validate(repInfo);
+  // preProcessReplyMsg->validate(repInfo);
+  SigManager::setInstance(sigManager_[repInfo.myId()].get());
   return preProcessReplyMsg;
 }
 

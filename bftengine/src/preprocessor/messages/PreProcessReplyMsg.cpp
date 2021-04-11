@@ -18,18 +18,18 @@ namespace preprocessor {
 using namespace std;
 using namespace concord::util;
 using namespace bftEngine;
+using namespace bftEngine::impl;
 
 // maxReplyMsgSize_ = sizeof(Header) + sizeof(signature) + cid.size(), i.e 58 + 256 + up to 710 bytes of cid
 uint16_t PreProcessReplyMsg::maxReplyMsgSize_ = 1024;
 
-PreProcessReplyMsg::PreProcessReplyMsg(SigManagerSharedPtr sigManager,
-                                       preprocessor::PreProcessorRecorder* histograms,
+PreProcessReplyMsg::PreProcessReplyMsg(preprocessor::PreProcessorRecorder* histograms,
                                        NodeIdType senderId,
                                        uint16_t clientId,
                                        uint16_t reqOffsetInBatch,
                                        uint64_t reqSeqNum,
                                        uint64_t reqRetryId)
-    : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_), sigManager_(sigManager) {
+    : MessageBase(senderId, MsgCode::PreProcessReply, 0, maxReplyMsgSize_) {
   setPreProcessorHistograms(histograms);
   setParams(senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
 }
@@ -43,9 +43,8 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   auto& msgHeader = *msgBody();
   ConcordAssert(msgHeader.senderId != repInfo.myId());
 
-  if (sigManager_ == nullptr) throw runtime_error(__PRETTY_FUNCTION__ + string(": sigManager_ is null"));
-
-  uint16_t sigLen = sigManager_->getSigLength(msgHeader.senderId);
+  auto sigManager = SigManager::getInstance();
+  uint16_t sigLen = sigManager->getSigLength(msgHeader.senderId);
   if (msgHeader.status == STATUS_GOOD) {
     if (size() < (sizeof(Header) + sigLen)) {
       LOG_ERROR(logger(),
@@ -54,11 +53,11 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
       throw runtime_error(__PRETTY_FUNCTION__ + string(": Message size is too small"));
     }
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->validateMessage);
-    if (!sigManager_->verifySig(msgHeader.senderId,
-                                (char*)msgBody()->resultsHash,
-                                SHA3_256::SIZE_IN_BYTES,
-                                (char*)msgBody() + headerSize,
-                                sigLen))
+    if (!sigManager->verifySig(msgHeader.senderId,
+                               (char*)msgBody()->resultsHash,
+                               SHA3_256::SIZE_IN_BYTES,
+                               (char*)msgBody() + headerSize,
+                               sigLen))
       throw runtime_error(__PRETTY_FUNCTION__ + string(": verifySig failed"));
   }
 }  // namespace preprocessor
@@ -80,7 +79,8 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
   const uint16_t headerSize = sizeof(Header);
   uint16_t sigSize = 0;
   if (status == STATUS_GOOD) {
-    sigSize = sigManager_->getMySigLength();
+    auto sigManager = SigManager::getInstance();
+    sigSize = sigManager->getMySigLength();
     SHA3_256::Digest hash;
     {
       concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->calculateHash);
@@ -90,7 +90,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
     }
     {
       concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signHash);
-      sigManager_->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + headerSize, sigSize);
+      sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + headerSize, sigSize);
     }
   }
   memcpy(body() + headerSize + sigSize, cid.c_str(), cid.size());

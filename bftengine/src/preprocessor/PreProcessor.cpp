@@ -108,10 +108,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   registerMsgHandlers();
   metricsComponent_.Register();
   const uint16_t numOfExternalClients = myReplica.getReplicaConfig().numOfExternalClients;
-  sigManager_ = make_shared<SigManager>(myReplicaId_,
-                                        numOfReplicas_ + numOfExternalClients,
-                                        myReplica.getReplicaConfig().replicaPrivateKey,
-                                        myReplica.getReplicaConfig().publicKeysOfReplicas);
   const uint16_t numOfReqEntries = numOfExternalClients * clientMaxBatchSize_;
   const uint16_t firstClientRequestId = (numOfReplicas_ + numOfInternalClients_) * clientMaxBatchSize_;
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
@@ -272,8 +268,8 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                 uint64_t reqRetryId,
                                                 const string &cid,
                                                 const string &ongoingCid) {
-  auto replyMsg = make_shared<PreProcessReplyMsg>(
-      sigManager_, &histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
+  auto replyMsg =
+      make_shared<PreProcessReplyMsg>(&histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch), 0, cid, STATUS_REJECT);
   LOG_DEBUG(
       logger(),
@@ -564,7 +560,6 @@ void PreProcessor::messageHandler(MessageBase *msg) {
 template <>
 void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
   PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
-  trueTypeObj->setSigManager(sigManager_);
   trueTypeObj->setPreProcessorHistograms(&histograms_);
   delete msg;
   if (validateMessage(trueTypeObj)) {
@@ -943,8 +938,8 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                                      const std::string &cid) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
-  auto replyMsg = make_shared<PreProcessReplyMsg>(
-      sigManager_, &histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
+  auto replyMsg =
+      make_shared<PreProcessReplyMsg>(&histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
   replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch), resBufLen, cid, STATUS_GOOD);
   // Release the request before sending a reply to the primary to be able accepting new messages
   releaseClientPreProcessRequestSafe(clientId, reqOffsetInBatch, COMPLETE);

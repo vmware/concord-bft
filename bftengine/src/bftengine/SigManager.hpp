@@ -11,10 +11,12 @@
 
 #pragma once
 #include "PrimitiveTypes.hpp"
+#include "assertUtils.hpp"
 
 #include <utility>
-#include <set>
+#include <vector>
 #include <map>
+#include <string>
 #include <memory>
 
 namespace bftEngine {
@@ -25,29 +27,89 @@ class RSAVerifier;
 
 class SigManager {
  public:
-  typedef std::pair<ReplicaId, const std::string> PublicKeyDesc;
-  typedef std::string PrivateKeyDesc;
+  typedef std::string Key;
+  typedef uint16_t KeyIndex;
 
-  SigManager(ReplicaId myId,
-             int16_t numberOfReplicasAndClients,
-             const PrivateKeyDesc& mySigPrivateKey,
-             const std::set<PublicKeyDesc>& replicasSigPublicKeys);
+  static SigManager* getInstance() { return instance_; }
+
+  static SigManager* init(ReplicaId myId,
+                          const Key& mySigPrivateKey,
+                          const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+                          KeyFormat replicasKeysFormat,
+                          const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+                          KeyFormat clientsKeysFormat,
+                          uint16_t numReplicas,
+                          uint16_t numRoReplicas,
+                          uint16_t numOfClientProxies,
+                          uint16_t numOfExternalClients);
 
   ~SigManager();
 
-  uint16_t getSigLength(ReplicaId replicaId) const;
-  bool verifySig(ReplicaId replicaId, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const;
-
+  // returns 0 if pid is invalid
+  uint16_t getSigLength(PrincipalId pid) const;
+  // returns false if actual verification failed, or if pid is invalid
+  bool verifySig(PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const;
   void sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const;
   uint16_t getMySigLength() const;
 
- protected:
-  const ReplicaId myId_;
-  RSASigner* mySigner_;
-  std::map<ReplicaId, RSAVerifier*> replicasVerifiers_;
-};
+  SigManager(const SigManager&) = delete;
+  SigManager& operator=(const SigManager&) = delete;
+  SigManager(SigManager&&) = delete;
+  SigManager& operator=(SigManager&&) = delete;
 
-typedef std::shared_ptr<SigManager> SigManagerSharedPtr;
+ protected:
+  static SigManager* instance_;
+  const PrincipalId myId_;
+  RSASigner* mySigner_;
+  std::map<PrincipalId, RSAVerifier*> verifiers_;
+
+  SigManager(PrincipalId myId,
+             uint16_t numReplicas,
+             const std::pair<Key, KeyFormat>& mySigPrivateKey,
+             const std::vector<std::pair<Key, KeyFormat>>& publickeys,
+             const std::map<PrincipalId, KeyIndex>& publicKeysMapping);
+
+  static SigManager* initImpl(ReplicaId myId,
+                              const Key& mySigPrivateKey,
+                              const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+                              KeyFormat replicasKeysFormat,
+                              const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+                              KeyFormat clientsKeysFormat,
+                              uint16_t numReplicas,
+                              uint16_t numRoReplicas,
+                              uint16_t numOfClientProxies,
+                              uint16_t numOfExternalClients);
+
+  // These methods bypass the singelton, and can be used (STRICTLY) for testing.
+  // Define the below flag in order to use them in your test.
+#ifdef CONCORD_BFT_TESTING
+ public:
+  static SigManager* initInTesting(
+      ReplicaId myId,
+      const Key& mySigPrivateKey,
+      const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
+      KeyFormat replicasKeysFormat,
+      const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
+      KeyFormat clientsKeysFormat,
+      uint16_t numReplicas,
+      uint16_t numRoReplicas,
+      uint16_t numOfClientProxies,
+      uint16_t numOfExternalClients) {
+    return initImpl(myId,
+                    mySigPrivateKey,
+                    publicKeysOfReplicas,
+                    replicasKeysFormat,
+                    publicKeysOfClients,
+                    clientsKeysFormat,
+                    numReplicas,
+                    numRoReplicas,
+                    numOfClientProxies,
+                    numOfExternalClients);
+  }
+  static void setInstance(SigManager* instance) { instance_ = instance; }
+#endif
+
+};  // namespace impl
 
 }  // namespace impl
 }  // namespace bftEngine

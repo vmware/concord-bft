@@ -50,12 +50,10 @@ class ViewsManager {
     static uint32_t maxSize();
   };
 
-  ViewsManager(const ReplicasInfo *const r,
-               SigManager *sigmgr);  // TODO(GG): move to protected
+  ViewsManager(const ReplicasInfo *const r);  // TODO(GG): move to protected
   ~ViewsManager();
 
   static ViewsManager *createOutsideView(const ReplicasInfo *const r,
-                                         SigManager *sigMgr,
                                          ViewNum lastActiveView,
                                          SeqNum lastStable,
                                          SeqNum lastExecuted,
@@ -63,10 +61,9 @@ class ViewsManager {
                                          ViewChangeMsg *myLastViewChange,
                                          std::vector<PrevViewInfo> &elementsOfPrevView);
 
-  static ViewsManager *createInsideViewZero(const ReplicasInfo *const r, SigManager *sigMgr);
+  static ViewsManager *createInsideViewZero(const ReplicasInfo *const r);
 
   static ViewsManager *createInsideView(const ReplicasInfo *const r,
-                                        SigManager *sigMgr,
                                         ViewNum view,
                                         SeqNum stableLowerBound,
                                         NewViewMsg *newViewMsg,
@@ -151,7 +148,6 @@ class ViewsManager {
   ///////////////////////////////////////////////////////////////////////////
 
   const ReplicasInfo *const replicasInfo;
-  static SigManager *sigManager_;
 
   const uint16_t N;  // number of replicas
   const uint16_t F;  // f

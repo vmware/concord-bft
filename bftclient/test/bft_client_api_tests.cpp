@@ -38,6 +38,7 @@ using namespace bftEngine::impl;
 using namespace bftEngine;
 using namespace placeholders;
 using namespace concord::secretsmanager;
+using ReplicaId_t = bft::client::ReplicaId;
 
 constexpr char KEYS_BASE_PARENT_PATH[] = "/tmp/";
 constexpr char KEYS_BASE_PATH[] = "/tmp/transaction_signing_keys";
@@ -51,8 +52,12 @@ constexpr char KEYS_GEN_SCRIPT_PATH[] =
 
 class ClientApiTestFixture : public ::testing::Test {
  public:
-  ClientConfig test_config_ = {
-      ClientId{5}, {ReplicaId{0}, ReplicaId{1}, ReplicaId{2}, ReplicaId{3}}, 1, 0, RetryTimeoutConfig{}, nullopt};
+  ClientConfig test_config_ = {ClientId{5},
+                               {ReplicaId_t{0}, ReplicaId_t{1}, ReplicaId_t{2}, ReplicaId_t{3}},
+                               1,
+                               0,
+                               RetryTimeoutConfig{},
+                               nullopt};
 
   // Just print all received messages from a client
   void PrintBehavior(const MsgFromClient& msg, IReceiver* client_receiver) {
@@ -251,7 +256,7 @@ Msg replyFromRequestWithRSI(const MsgFromClient& request, const Msg& rsi) {
 // Wait for a single retry then return all replies
 class RetryBehavior {
  public:
-  RetryBehavior(set<ReplicaId>& all_replicas) : not_heard_from_yet(all_replicas){};
+  RetryBehavior(set<ReplicaId_t>& all_replicas) : not_heard_from_yet(all_replicas){};
   void operator()(const MsgFromClient& msg, IReceiver* client_receiver) {
     not_heard_from_yet.erase(msg.destination);
     if (not_heard_from_yet.empty()) {
@@ -261,7 +266,7 @@ class RetryBehavior {
   }
 
  private:
-  set<ReplicaId> not_heard_from_yet;
+  set<ReplicaId_t> not_heard_from_yet;
 };
 
 TEST_F(ClientApiTestFixture, receive_reply_after_retry_timeout) {
@@ -300,13 +305,13 @@ TEST_F(ClientApiTestFixture, test_ignore_reply_from_wrong_replica) {
 
   unique_ptr<FakeCommunication> comm(new FakeCommunication(WrongReplicaBehavior));
   Client client(move(comm), test_config_);
-  ReadConfig read_config{RequestConfig{false, 1}, All{{ReplicaId{1}}}};
+  ReadConfig read_config{RequestConfig{false, 1}, All{{ReplicaId_t{1}}}};
   read_config.request.timeout = 1s;
   auto reply = client.send(read_config, Msg({'h', 'e', 'l', 'l', 'o'}));
   Msg expected{'w', 'o', 'r', 'l', 'd'};
   ASSERT_EQ(expected, reply.matched_data);
   ASSERT_EQ(reply.rsi.size(), 1);
-  ASSERT_EQ(reply.rsi.count(ReplicaId{1}), 1);
+  ASSERT_EQ(reply.rsi.count(ReplicaId_t{1}), 1);
   ASSERT_TRUE(sent_reply_from_wrong_replica);
   ASSERT_TRUE(sent_reply_from_correct_replica);
   client.stop();
@@ -317,7 +322,7 @@ TEST_F(ClientApiTestFixture, primary_gets_learned_on_successful_write_and_cleare
   atomic<bool> quorum_of_replies_sent = false;
 
   auto WriteBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
-    static set<ReplicaId> not_heard_from_yet = test_config_.all_replicas;
+    static set<ReplicaId_t> not_heard_from_yet = test_config_.all_replicas;
     auto reply = replyFromRequest(msg);
     // Check for linearizable quorum
     if (not_heard_from_yet.size() != 1) {
@@ -338,7 +343,7 @@ TEST_F(ClientApiTestFixture, primary_gets_learned_on_successful_write_and_cleare
   ASSERT_EQ(expected, reply.matched_data);
   ASSERT_EQ(reply.rsi.size(), 3);
   ASSERT_TRUE(quorum_of_replies_sent);
-  ASSERT_EQ(client.primary(), ReplicaId{0});
+  ASSERT_EQ(client.primary(), ReplicaId_t{0});
   ASSERT_THROW(client.send(config, Msg({1, 2, 3, 4, 5})), TimeoutException);
   ASSERT_FALSE(client.primary().has_value());
   client.stop();
@@ -359,7 +364,7 @@ TEST_F(ClientApiTestFixture, write_f_plus_one) {
   Msg expected{'w', 'o', 'r', 'l', 'd'};
   ASSERT_EQ(expected, reply.matched_data);
   ASSERT_EQ(reply.rsi.size(), 2);
-  ASSERT_EQ(client.primary(), ReplicaId{0});
+  ASSERT_EQ(client.primary(), ReplicaId_t{0});
   client.stop();
 }
 
@@ -406,7 +411,7 @@ TEST_F(ClientApiTestFixture, batch_of_writes) {
   ASSERT_EQ(replies.size(), request_queue.size());
   ASSERT_EQ(expected, replies.begin()->second.matched_data);
   ASSERT_EQ(replies.begin()->second.rsi.size(), 2);
-  ASSERT_EQ(client.primary(), ReplicaId{0});
+  ASSERT_EQ(client.primary(), ReplicaId_t{0});
   client.stop();
 }
 
@@ -454,7 +459,7 @@ TEST_F(ClientApiTestFixture, client_handle_several_batches) {
     ASSERT_EQ(replies.size(), request_queue.size());
     ASSERT_EQ(expected, replies.begin()->second.matched_data);
     ASSERT_EQ(replies.begin()->second.rsi.size(), 2);
-    ASSERT_EQ(client.primary(), ReplicaId{0});
+    ASSERT_EQ(client.primary(), ReplicaId_t{0});
   }
   client.stop();
 }
@@ -483,7 +488,7 @@ TEST_F(ClientApiTestFixture, batch_of_writes_no_reply) {
 }
 
 TEST_F(ClientApiTestFixture, write_f_plus_one_get_differnt_rsi) {
-  map<ReplicaId, Msg> rsi = {{ReplicaId{0}, {0}}, {ReplicaId{1}, {1}}};
+  map<ReplicaId_t, Msg> rsi = {{ReplicaId_t{0}, {0}}, {ReplicaId_t{1}, {1}}};
   auto WriteBehavior = [&](const MsgFromClient& msg, IReceiver* client_receiver) {
     if (msg.destination.val == 0 || msg.destination.val == 1) {
       auto reply = replyFromRequestWithRSI(msg, rsi[msg.destination]);
@@ -501,7 +506,7 @@ TEST_F(ClientApiTestFixture, write_f_plus_one_get_differnt_rsi) {
   ASSERT_EQ(expected, reply.matched_data);
   ASSERT_EQ(reply.rsi.size(), 2);
   ASSERT_EQ(reply.rsi, rsi);
-  ASSERT_EQ(client.primary(), ReplicaId{0});
+  ASSERT_EQ(client.primary(), ReplicaId_t{0});
   client.stop();
 }
 

@@ -22,6 +22,9 @@
 #include "threshsign/IPublicKey.h"
 #include "CryptoManager.hpp"
 
+#include <set>
+#include <string>
+
 class IShareSecretKeyDummy : public IShareSecretKey {
  public:
   std::string toString() const override { return "IShareSecretKeyDummy"; }
@@ -105,3 +108,12 @@ void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType sen
   EXPECT_EQ(memcmp(tested.body(), deserialized->body(), deserialized->size()), 0);
   EXPECT_TRUE(other->equals(*deserialized));
 }
+
+bftEngine::impl::SigManager *createSigManager(size_t myId,
+                                              std::string &myPrivateKey,
+                                              KeyFormat replicasKeysFormat,
+                                              std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas);
+
+void loadPrivateAndPublicKeys(std::string &myPrivateKey,
+                              std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
+                              size_t numPublicKeysToLoad);
