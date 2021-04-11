@@ -35,7 +35,8 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
                                                              ViewNum v,
                                                              Reason r,
                                                              const concordUtils::SpanContext& spanContext) {
-  const size_t sigLen = ViewsManager::sigManager_->getMySigLength();
+  auto sigManager = SigManager::getInstance();
+  const size_t sigLen = sigManager->getMySigLength();
 
   ReplicaAsksToLeaveViewMsg* m = new ReplicaAsksToLeaveViewMsg(senderId, v, r, sigLen, spanContext);
 
@@ -43,20 +44,21 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
   position += spanContext.data().size();
 
-  ViewsManager::sigManager_->sign(m->body(), sizeof(Header), position, sigLen);
+  sigManager->sign(m->body(), sizeof(Header), position, sigLen);
 
   return m;
 }
 
 void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
+  auto sigManager = SigManager::getInstance();
   auto totalSize = sizeof(Header) + spanContextSize();
   if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  uint16_t sigLen = ViewsManager::sigManager_->getSigLength(idOfGeneratedReplica());
+  uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
   if (size() < totalSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
-  if (!ViewsManager::sigManager_->verifySig(idOfGeneratedReplica(), body(), sizeof(Header), body() + totalSize, sigLen))
+  if (!sigManager->verifySig(idOfGeneratedReplica(), body(), sizeof(Header), body() + totalSize, sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 

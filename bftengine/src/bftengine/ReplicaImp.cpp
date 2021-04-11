@@ -3194,7 +3194,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  ld.repConfig,
                  requestsHandler,
                  stateTrans,
-                 ld.sigManager,
                  ld.repsInfo,
                  ld.viewsManager,
                  msgsCommunicator,
@@ -3463,18 +3462,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> &pm,
                        const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm)
-    : ReplicaImp(true,
-                 config,
-                 requestsHandler,
-                 stateTrans,
-                 nullptr,
-                 nullptr,
-                 nullptr,
-                 msgsCommunicator,
-                 msgHandlers,
-                 timers,
-                 pm,
-                 sm) {
+    : ReplicaImp(
+          true, config, requestsHandler, stateTrans, nullptr, nullptr, msgsCommunicator, msgHandlers, timers, pm, sm) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3488,7 +3477,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        const ReplicaConfig &config,
                        shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
-                       SigManager *sigMgr,
                        ReplicasInfo *replicasInfo,
                        ViewsManager *viewsMgr,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
@@ -3589,8 +3577,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
-  // !firstTime ==> ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr))
-  ConcordAssert(firstTime || ((sigMgr != nullptr) && (replicasInfo != nullptr) && (viewsMgr != nullptr)));
+  ConcordAssert(firstTime || ((replicasInfo != nullptr) && (viewsMgr != nullptr)));
 
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
@@ -3598,16 +3585,20 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // Register metrics component with the default aggregator.
   metrics_.Register();
 
+  sigManager_.reset(SigManager::init(config_.replicaId,
+                                     config_.replicaPrivateKey,
+                                     config_.publicKeysOfReplicas,
+                                     KeyFormat::HexaDecimalStrippedFormat,
+                                     config_.clientTransactionSigningEnabled ? &config.publicKeysOfClients : nullptr,
+                                     KeyFormat::PemFormat,
+                                     config_.numReplicas,
+                                     config_.numRoReplicas,
+                                     config_.numOfClientProxies,
+                                     config_.numOfExternalClients));
   if (firstTime) {
-    sigManager = new SigManager(config_.getreplicaId(),
-                                config_.getnumReplicas() + config_.getnumRoReplicas() +
-                                    config_.getnumOfClientProxies() + config_.getnumOfExternalClients(),
-                                config_.getreplicaPrivateKey(),
-                                config_.publicKeysOfReplicas);
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-    viewsManager = new ViewsManager(repsInfo, sigManager);
+    viewsManager = new ViewsManager(repsInfo);
   } else {
-    sigManager = sigMgr;
     repsInfo = replicasInfo;
     viewsManager = viewsMgr;
   }
@@ -3684,7 +3675,6 @@ ReplicaImp::~ReplicaImp() {
   delete dynamicUpperLimitOfRounds;
   delete checkpointsLog;
   delete clientsManager;
-  delete sigManager;
   delete repsInfo;
   free(replyBuffer);
 

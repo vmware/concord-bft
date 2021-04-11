@@ -36,7 +36,6 @@ class CheckpointMsg;
 struct LoadedReplicaData {
   LoadedReplicaData() : repConfig(ReplicaConfig::instance()) {}
   ReplicaConfig &repConfig;
-  SigManager *sigManager = nullptr;
   ReplicasInfo *repsInfo = nullptr;
   ViewsManager *viewsManager = nullptr;
   SeqNum primaryLastUsedSeqNum = 0;
