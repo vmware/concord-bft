@@ -84,7 +84,12 @@ SigManager* SigManager::init(ReplicaId myId,
                              uint16_t numRoReplicas,
                              uint16_t numOfClientProxies,
                              uint16_t numOfExternalClients) {
-  ConcordAssertEQ(instance_, nullptr);
+  if (instance_) {
+    // allow re-configuration..
+    LOG_INFO(GL, "SigManager already exist, re-creating..");
+    delete instance_;
+    instance_ = nullptr;
+  }
   instance_ = initImpl(myId,
                        mySigPrivateKey,
                        publicKeysOfReplicas,
