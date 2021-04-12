@@ -31,8 +31,7 @@ ClientsManager::ClientsManager(concordMetrics::Component& metrics, std::set<Node
       metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")},
       metric_removed_due_to_out_of_boundaries_{metrics_.RegisterCounter("totalRemovedDueToOutOfBoundaries")} {
   ConcordAssert(clientsSet.size() >= 1);
-  scratchPage_ = (char*)std::malloc(sizeOfReservedPage_);
-  memset(scratchPage_, 0, sizeOfReservedPage_);
+  scratchPage_ = std::string(sizeOfReservedPage_ * maxNumOfReqsPerClient_, 0);
 
   uint16_t idx = 0;
   for (NodeIdType c : clientsSet) {
@@ -40,18 +39,21 @@ ClientsManager::ClientsManager(concordMetrics::Component& metrics, std::set<Node
     highestIdOfNonInternalClient_ = c;
     idx++;
   }
-  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage_, maxReplySize_);
+  reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage_, maxReplySize_, maxNumOfReqsPerClient_);
   numOfClients_ = (uint16_t)clientsSet.size();
   requiredNumberOfPages_ = (numOfClients_ * reservedPagesPerClient_);
+  singleReplyMaxNumOfPages_ = reservedPagesPerClient_ / maxNumOfReqsPerClient_;
   LOG_DEBUG(CL_MNGR, KVLOG(sizeOfReservedPage_, reservedPagesPerClient_, maxReplySize_, maxNumOfReqsPerClient_));
 }
 
-uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize) {
+uint32_t ClientsManager::reservedPagesPerClient(const uint32_t& sizeOfReservedPage,
+                                                const uint32_t& maxReplySize,
+                                                const uint16_t maxNumOfReqsPerClient) {
   uint32_t reservedPagesPerClient = maxReplySize / sizeOfReservedPage;
   if (maxReplySize % sizeOfReservedPage != 0) {
     reservedPagesPerClient++;
   }
-  return reservedPagesPerClient;
+  return reservedPagesPerClient * maxNumOfReqsPerClient;
 }
 
 // Internal bft clients will be located after all other clients.
@@ -75,7 +77,7 @@ int ClientsManager::getIndexOfClient(const NodeIdType& id) const {
   return clientIdToIndex_.at(id);
 }
 
-ClientsManager::~ClientsManager() { std::free(scratchPage_); }
+ClientsManager::~ClientsManager() {}
 
 void ClientsManager::init(IStateTransfer* stateTransfer) {
   ConcordAssert(stateTransfer != nullptr);
@@ -94,26 +96,35 @@ void ClientsManager::loadInfoFromReservedPages() {
   for (auto const& [clientId, clientIdx] : clientIdToIndex_) {
     const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
-    if (!stateTransfer_->loadReservedPage(resPageOffset() + firstPageId, sizeOfReservedPage_, scratchPage_)) continue;
+    // load all replies into the map of replies one by one
+    for (int i = 0; i < maxNumOfReqsPerClient_; i++) {
+      if (!stateTransfer_->loadReservedPage(
+              resPageOffset() + firstPageId + i, sizeOfReservedPage_, scratchPage_.data() + i * sizeOfReservedPage_))
+        continue;
 
-    ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
-    ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
-    ConcordAssert(replyHeader->currentPrimaryId == 0);
-    ConcordAssert(replyHeader->replyLength >= 0);
-    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
+      auto reply = (ClientReplyMsg*)(scratchPage_.data() + i * sizeOfReservedPage_);
+      auto replyPtr =
+          std::make_shared<ClientReplyMsg>(myId_, reply->reqSeqNum(), reply->replyBuf(), reply->replyLength());
+      auto replyHeader = reply->b();
+      ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
+      ConcordAssert(replyHeader->currentPrimaryId == 0);
+      ConcordAssert(replyHeader->replyLength >= 0);
+      ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
-    // YS TBD: Multiple replies for client batching should be sorted by incoming time
-    auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
-    if (repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
-    const auto& res = repliesInfo.insert_or_assign(replyHeader->reqSeqNum, MinTime);
-    const bool added = res.second;
-    LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, added));
-
+      auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
+      if (repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
+      const auto& res = repliesInfo.insert({replyHeader->reqSeqNum, replyPtr});
+      const bool added = res.second;
+      LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, added));
+    }
+    // get the newest reply from the map of replies.
+    auto lastReply = indexToClientInfo_.at(clientIdx).repliesInfo.cend();
+    auto lastReplyHeader = lastReply->second->b();
     // Remove old pending requests
     auto& requestsInfo = indexToClientInfo_.at(clientIdx).requestsInfo;
     for (auto it = requestsInfo.begin(); it != requestsInfo.end();) {
-      if (it->first <= replyHeader->reqSeqNum) {
-        LOG_INFO(CL_MNGR, "Remove old pending request" << KVLOG(clientId, replyHeader->reqSeqNum));
+      if (it->first <= lastReplyHeader->reqSeqNum) {
+        LOG_INFO(CL_MNGR, "Remove old pending request" << KVLOG(clientId, lastReplyHeader->reqSeqNum));
         it = requestsInfo.erase(it);
       } else
         it++;
@@ -136,21 +147,10 @@ void ClientsManager::deleteOldestReply(NodeIdType clientId) {
   ReqId earliestReplyId = 0;
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
-  for (const auto& reply : repliesInfo) {
-    if (earliestTime > reply.second) {
-      earliestReplyId = reply.first;
-      earliestTime = reply.second;
-    }
-  }
-  if (earliestReplyId)
-    repliesInfo.erase(earliestReplyId);
-  else if (!repliesInfo.empty()) {
-    // Delete reply arrived through ST
-    auto const& reply = repliesInfo.cbegin();
-    earliestReplyId = reply->first;
-    earliestTime = reply->second;
-    repliesInfo.erase(reply);
-  }
+  // Since seqnum is always growing we can be sure that the first element on the map is the oldest reply so we want to
+  // remove this reply.
+  earliestReplyId = repliesInfo.cbegin()->first;
+  repliesInfo.erase(earliestReplyId);
   LOG_DEBUG(CL_MNGR,
             "Deleted reply message" << KVLOG(
                 clientId, earliestReplyId, earliestTime.time_since_epoch().count(), repliesInfo.size()));
@@ -164,7 +164,7 @@ bool ClientsManager::isValidClient(NodeIdType clientId) const { return (clientId
 // * allocate new ClientReplyMsg
 // * calculate: num of pages, size of last page.
 // * save the reply to the reserved pages.
-std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(
+std::shared_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
@@ -175,31 +175,39 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
                   << KVLOG(c.repliesInfo.size(), maxNumOfReqsPerClient_, clientId, requestSeqNum, replyLength));
   }
 
-  c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
-  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength);
+  auto r = std::make_shared<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength);
+  c.repliesInfo.insert({requestSeqNum, r});
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, "firstPageId=" << firstPageId);
-  uint32_t numOfPages = r->size() / sizeOfReservedPage_;
-  uint32_t sizeLastPage = sizeOfReservedPage_;
-  if (numOfPages > reservedPagesPerClient_) {
-    LOG_FATAL(CL_MNGR,
-              "Client reply is larger than reservedPagesPerClient_ allows"
-                  << KVLOG(clientId, requestSeqNum, reservedPagesPerClient_ * sizeOfReservedPage_, replyLength));
-    ConcordAssert(false);
-  }
+  uint16_t requestNum = 0;
+  for (auto& rep : c.repliesInfo) {
+    uint32_t numOfPages = rep.second->size() / sizeOfReservedPage_;
+    uint32_t sizeLastPage = sizeOfReservedPage_;
+    if (numOfPages > reservedPagesPerClient_) {
+      LOG_FATAL(CL_MNGR,
+                "Client reply is larger than reservedPagesPerClient_ allows"
+                    << KVLOG(clientId,
+                             rep.second->reqSeqNum(),
+                             reservedPagesPerClient_ * sizeOfReservedPage_,
+                             rep.second->replyLength()));
+      ConcordAssert(false);
+    }
 
-  if (r->size() % sizeOfReservedPage_ != 0) {
-    numOfPages++;
-    sizeLastPage = r->size() % sizeOfReservedPage_;
-  }
+    if (rep.second->size() % sizeOfReservedPage_ != 0) {
+      numOfPages++;
+      sizeLastPage = rep.second->size() % sizeOfReservedPage_;
+    }
 
-  LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, numOfPages, sizeLastPage));
-  // write reply message to reserved pages
-  for (uint32_t i = 0; i < numOfPages; i++) {
-    const char* ptrPage = r->body() + i * sizeOfReservedPage_;
-    const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
-    stateTransfer_->saveReservedPage(resPageOffset() + firstPageId + i, sizePage, ptrPage);
+    LOG_DEBUG(CL_MNGR, KVLOG(clientId, rep.second->reqSeqNum(), numOfPages, sizeLastPage));
+    // write reply message to reserved pages
+    for (uint32_t i = 0; i < numOfPages; i++) {
+      const char* ptrPage = rep.second->body() + i * sizeOfReservedPage_;
+      const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
+      stateTransfer_->saveReservedPage(
+          resPageOffset() + firstPageId + i + requestNum * singleReplyMaxNumOfPages_, sizePage, ptrPage);
+    }
+    requestNum++;
   }
 
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
@@ -214,56 +222,45 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 // * allocate new ClientReplyMsg.
 // * copy reply from reserved pages to ClientReplyMsg.
 // * set primary id.
-std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
+std::shared_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
                                                                           ReqId requestSeqNum,
                                                                           uint16_t currentPrimaryId) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
-  stateTransfer_->loadReservedPage(resPageOffset() + firstPageId, sizeOfReservedPage_, scratchPage_);
+  for (int j = 0; j < maxNumOfReqsPerClient_; j++) {
+    stateTransfer_->loadReservedPage(
+        resPageOffset() + firstPageId + j * sizeOfReservedPage_, sizeOfReservedPage_, scratchPage_.data());
 
-  ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
-  ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
-  ConcordAssert(replyHeader->currentPrimaryId == 0);
-  ConcordAssert(replyHeader->replyLength > 0);
-  ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
+    ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
+    ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
+    ConcordAssert(replyHeader->currentPrimaryId == 0);
+    ConcordAssert(replyHeader->replyLength > 0);
+    ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
+    if (replyHeader->reqSeqNum != requestSeqNum) continue;
 
-  uint32_t replyMsgSize = sizeof(ClientReplyMsgHeader) + replyHeader->replyLength;
-  uint32_t numOfPages = replyMsgSize / sizeOfReservedPage_;
-  uint32_t sizeLastPage = sizeOfReservedPage_;
-  if (replyMsgSize % sizeOfReservedPage_ != 0) {
-    numOfPages++;
-    sizeLastPage = replyMsgSize % sizeOfReservedPage_;
-  }
-  LOG_DEBUG(CL_MNGR, KVLOG(clientId, numOfPages, sizeLastPage));
-  auto r = std::make_unique<ClientReplyMsg>(myId_, replyHeader->replyLength);
-
-  // load reply message from reserved pages
-  for (uint32_t i = 0; i < numOfPages; i++) {
-    char* const ptrPage = r->body() + i * sizeOfReservedPage_;
-    const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
-    stateTransfer_->loadReservedPage(resPageOffset() + firstPageId + i, sizePage, ptrPage);
-  }
-
-  const auto& replySeqNum = r->reqSeqNum();
-  if (replySeqNum != requestSeqNum) {
-    if (maxNumOfReqsPerClient_ == 1) {
-      metric_reply_inconsistency_detected_.Get().Inc();
-      LOG_FATAL(CL_MNGR,
-                "The client reserved page does not contain a reply for specified request"
-                    << KVLOG(clientId, replySeqNum, requestSeqNum));
-      ConcordAssert(false);
+    uint32_t replyMsgSize = sizeof(ClientReplyMsgHeader) + replyHeader->replyLength;
+    uint32_t numOfPages = replyMsgSize / sizeOfReservedPage_;
+    uint32_t sizeLastPage = sizeOfReservedPage_;
+    if (replyMsgSize % sizeOfReservedPage_ != 0) {
+      numOfPages++;
+      sizeLastPage = replyMsgSize % sizeOfReservedPage_;
     }
-    // YS TBD: Fix this for client batching with a proper ordering of incoming requests
-    LOG_INFO(CL_MNGR,
-             "The client reserved page does not contain a reply for specified request; skipping"
-                 << KVLOG(clientId, replySeqNum, requestSeqNum));
-    return nullptr;
-  }
+    LOG_DEBUG(CL_MNGR, KVLOG(clientId, numOfPages, sizeLastPage));
+    auto r = std::make_shared<ClientReplyMsg>(myId_, replyHeader->replyLength);
+    // load reply message from reserved pages
+    for (uint32_t i = 0; i < numOfPages; i++) {
+      char* const ptrPage = r->body() + i * sizeOfReservedPage_;
+      const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
+      stateTransfer_->loadReservedPage(
+          resPageOffset() + firstPageId + (j * sizeOfReservedPage_) + i, sizePage, ptrPage);
+    }
 
-  r->setPrimaryId(currentPrimaryId);
-  LOG_DEBUG(CL_MNGR, "Returns reply with hash=" << r->debugHash());
-  return r;
+    r->setPrimaryId(currentPrimaryId);
+    LOG_DEBUG(CL_MNGR, "Returns reply with hash=" << r->debugHash());
+    return r;
+  }
+  return nullptr;
 }
 
 bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const {

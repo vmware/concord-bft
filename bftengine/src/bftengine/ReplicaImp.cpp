@@ -3675,10 +3675,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
   clientsManager->initInternalClientInfo(config_.getnumReplicas());
   internalBFTClient_.reset(new InternalBFTClient(
       config_.getreplicaId(), clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
-
-  ClientsManager::setNumResPages(
-      (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
-      ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(), config.maxReplyMessageSize));
+  auto maxNumOfReqsPerClient = config.clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1;
+  ClientsManager::setNumResPages((config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
+                                 ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(),
+                                                                        config.maxReplyMessageSize,
+                                                                        maxNumOfReqsPerClient));
   ClusterKeyStore::setNumResPages(config.numReplicas);
 
   clientsManager->init(stateTransfer.get());
