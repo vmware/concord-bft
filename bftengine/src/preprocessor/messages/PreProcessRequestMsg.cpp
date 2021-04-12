@@ -34,8 +34,16 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                   span_context.data().size(),
                   sizeof(Header) + reqLength + cid.size() + requestSignatureLength) {
   ConcordAssert((requestSignatureLength > 0) == (nullptr != requestSignature));
-  setParams(reqType, senderId, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId, reqLength, requestSignatureLength);
-  msgBody()->cidLength = cid.size();
+  setParams(reqType,
+            senderId,
+            clientId,
+            reqOffsetInBatch,
+            reqSeqNum,
+            cid.size(),
+            span_context.data().size(),
+            reqRetryId,
+            reqLength,
+            requestSignatureLength);
   auto position = body() + sizeof(Header);
   memcpy(position, span_context.data().data(), span_context.data().size());
   position += span_context.data().size();
@@ -58,6 +66,7 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
                   sizeof(Header),
                   reqLength,
                   cid.size(),
+                  span_context.data().size(),
                   requestSignatureLength,
                   msgLength));
 }
@@ -68,8 +77,8 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   auto* header = msgBody();
   auto* requestSignature = this->requestSignature();
   auto* sigManager = SigManager::instance();
-  auto expectedMsgSize =
-      (sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength + header->reqSignatureLength);
+  auto expectedMsgSize = (sizeof(Header) + header->spanContextSize + header->requestLength + header->cidLength +
+                          header->reqSignatureLength);
 
   if (size() < (sizeof(Header)) || size() != expectedMsgSize) {
     throw std::runtime_error(__PRETTY_FUNCTION__);
@@ -96,6 +105,8 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
                                      uint16_t clientId,
                                      uint16_t reqOffsetInBatch,
                                      ReqId reqSeqNum,
+                                     uint32_t cidLength,
+                                     uint32_t spanContextSize,
                                      uint64_t reqRetryId,
                                      uint32_t reqLength,
                                      uint16_t reqSignatureLength) {
@@ -105,13 +116,16 @@ void PreProcessRequestMsg::setParams(RequestType reqType,
   header->clientId = clientId;
   header->reqOffsetInBatch = reqOffsetInBatch;
   header->reqSeqNum = reqSeqNum;
+  header->cidLength = cidLength;
+  header->spanContextSize = spanContextSize;
   header->reqRetryId = reqRetryId;
   header->requestLength = reqLength;
   header->reqSignatureLength = reqSignatureLength;
 }
 
 std::string PreProcessRequestMsg::getCid() const {
-  return std::string(body() + sizeof(Header) + spanContextSize() + msgBody()->requestLength, msgBody()->cidLength);
+  return std::string(body() + sizeof(Header) + msgBody()->spanContextSize + msgBody()->requestLength,
+                     msgBody()->cidLength);
 }
 
 }  // namespace preprocessor
