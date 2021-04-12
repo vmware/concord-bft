@@ -1206,7 +1206,7 @@ void ReplicaImp::onInternalMsg(GetStatus &status) const {
     return status.output.set_value(getReplicaLastStableSeqNum());
   }
 
-  if (status.key == "replica_state") {
+  if (status.key == "replica-state") {
     return status.output.set_value(getReplicaState());
   }
 
