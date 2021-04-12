@@ -46,10 +46,10 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   bool isValidClient(NodeIdType clientId) const;
 
-  std::unique_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
+  std::shared_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
       NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength);
 
-  std::unique_ptr<ClientReplyMsg> allocateReplyFromSavedOne(NodeIdType clientId,
+  std::shared_ptr<ClientReplyMsg> allocateReplyFromSavedOne(NodeIdType clientId,
                                                             ReqId requestSeqNum,
                                                             uint16_t currentPrimaryId);
 
@@ -82,7 +82,9 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   NodeIdType getHighestIdOfNonInternalClient();
 
   // General
-  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
+  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage,
+                                         const uint32_t& maxReplySize,
+                                         const uint16_t maxNumOfReqsPerClient);
   int getIndexOfClient(const NodeIdType& id) const;
 
  protected:
@@ -91,7 +93,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   IStateTransfer* stateTransfer_ = nullptr;
 
-  char* scratchPage_ = nullptr;
+  std::string scratchPage_;
 
   uint32_t reservedPagesPerClient_;
   uint32_t requiredNumberOfPages_;
@@ -112,12 +114,13 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   struct ClientInfo {
     std::map<ReqId, RequestInfo> requestsInfo;
-    std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
+    std::map<ReqId, std::shared_ptr<ClientReplyMsg>> repliesInfo;  // replyId to replymsg
   };
 
   std::vector<ClientInfo> indexToClientInfo_;
   const uint32_t maxReplySize_;
   const uint16_t maxNumOfReqsPerClient_;
+  uint16_t singleReplyMaxNumOfPages_;
   concordMetrics::Component& metrics_;
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
   concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;

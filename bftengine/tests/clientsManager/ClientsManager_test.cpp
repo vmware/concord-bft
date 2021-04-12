@@ -21,13 +21,13 @@ concordMetrics::Component metrics{concordMetrics::Component("replica", std::make
 TEST(ClientsManager, reservedPagesPerClient) {
   uint32_t sizeOfReservedPage = 1024;
   uint32_t maxReplysize = 1000;
-  auto numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  auto numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, 1);
   ASSERT_EQ(numPagesPerCl, 1);
   maxReplysize = 3000;
-  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, 1);
   ASSERT_EQ(numPagesPerCl, 3);
   maxReplysize = 1024;
-  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, 1);
   ASSERT_EQ(numPagesPerCl, 1);
 }
 
