@@ -2254,7 +2254,6 @@ void BCStateTran::processData() {
 
       g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
       g.txn()->deleteCheckpointBeingFetched();
-      g.txn()->setIsFetchingState(false);
 
       deleteOldCheckpoints(cp.checkpointNum, g.txn());
 
@@ -2285,7 +2284,7 @@ void BCStateTran::processData() {
                "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_.Get().Inc();
       on_transferring_complete_cb_registry_.invokeAll(cp.checkpointNum);
-
+      g.txn()->setIsFetchingState(false);
       break;
     }
     //////////////////////////////////////////////////////////////////////////
