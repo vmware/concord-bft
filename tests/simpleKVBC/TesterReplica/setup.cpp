@@ -30,6 +30,12 @@
 #include "config/config_file_parser.hpp"
 #include "direct_kv_storage_factory.h"
 #include "merkle_tree_storage_factory.h"
+#include "secrets_manager_plain.h"
+
+#include <boost/algorithm/string.hpp>
+#include <experimental/filesystem>
+
+namespace fs = std::experimental::filesystem;
 
 namespace concord::kvbc {
 
@@ -54,6 +60,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string s3ConfigFile;
     std::string certRootPath = "certs";
     std::string logPropsFile = "logging.properties";
+    std::string principalsMapping;
+    std::string txnSigningKeysPath;
 
     static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
                                           {"key-file-prefix", required_argument, 0, 'k'},
@@ -70,11 +78,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"consensus-batching-max-req-num", required_argument, 0, 'q'},
                                           {"consensus-batching-flush-period", required_argument, 0, 'z'},
                                           {"consensus-concurrency-level", required_argument, 0, 'y'},
+                                          {"principals-mapping", optional_argument, 0, 'p'},
+                                          {"txn-signing-key-path", optional_argument, 0, 't'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:t:l:c:e:b:m:q:y:z:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:t:l:c:e:b:m:q:y:z:p:t", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -140,6 +150,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.batchFlushPeriod = batchFlushPeriod;
           break;
         }
+        case 'p': {
+          principalsMapping = optarg;
+          break;
+        }
+        case 't': {
+          txnSigningKeysPath = optarg;
+        } break;
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -150,6 +167,15 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     }
 
     if (keysFilePrefix.empty()) throw std::runtime_error("missing --key-file-prefix");
+
+    // If -p and -t are set, enable clientTransactionSigningEnabled. If only one of them is set, throw an error
+    if (!principalsMapping.empty() && !txnSigningKeysPath.empty()) {
+      replicaConfig.clientTransactionSigningEnabled = true;
+      TestSetup::setPublicKeysOfClients(principalsMapping, txnSigningKeysPath, replicaConfig.publicKeysOfClients);
+    } else if ((!principalsMapping.empty() && txnSigningKeysPath.empty()) ||
+               (principalsMapping.empty() && !txnSigningKeysPath.empty())) {
+      throw std::runtime_error("Params principals-mapping and txn-signing-key-path must be set simultaneously.");
+    }
 
     logging::Logger logger = logging::getLogger("skvbctest.replica");
 
@@ -241,6 +267,67 @@ std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
   }
 #endif
   return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
+}
+
+std::vector<std::string> TestSetup::getKeyDirectories(const std::string& keysRootPath) {
+  std::vector<std::string> result;
+  std::string fullKeyDir = keysRootPath + "/transaction_signing_keys";
+  if (!fs::exists(keysRootPath) || !fs::is_directory(keysRootPath)) {
+    throw std::invalid_argument{"Transaction signing keys path doesn't exist at " + keysRootPath};
+  }
+  for (auto& dir : fs::directory_iterator(fullKeyDir)) {
+    if (fs::exists(dir) && fs::is_directory(dir)) {
+      result.push_back(dir.path().string());
+    }
+  }
+  return result;
+}
+
+void TestSetup::setPublicKeysOfClients(
+    const std::string& principalsMapping,
+    const std::string& keysRootPath,
+    std::set<std::pair<const std::string, std::set<uint16_t>>>& publicKeysOfClients) {
+  // The string principalsMapping looks like:
+  // "11 12,13 14,15 16,17 18,19 20", for 10 client ids divided into 5 participants.
+  // If there are 2 reserved client, with ids 21 and 22, the mapping string would look like:
+  // "11 12 21,13 14 22,15 16,17 18,19 20"
+  // such that the reserved client ids are added at the end of the groups in round robin manner.
+
+  std::vector<std::string> keysDirectories = TestSetup::getKeyDirectories(keysRootPath);
+  std::vector<std::string> clientIdChunks;
+  boost::split(clientIdChunks, principalsMapping, boost::is_any_of(","));
+
+  if (clientIdChunks.size() != keysDirectories.size()) {
+    throw std::runtime_error(
+        "Number of keys directory should match the number of number of sets of clientIds mappings in principals "
+        "mapping string");
+  }
+
+  // Sort keysDirectories just to ensure ordering of the folders
+  std::sort(keysDirectories.begin(), keysDirectories.end());
+
+  // Build publicKeysOfClients of replicaConfig
+  for (std::size_t i = 0; i < clientIdChunks.size(); ++i) {
+    std::string keyFilePath =
+        keysDirectories.at(i) + "/transaction_signing_pub.pem";  // Will be "../1/transaction_signing_pub.pem" etc.
+
+    secretsmanager::SecretsManagerPlain smp;
+    std::optional<std::string> keyPlaintext;
+    keyPlaintext = smp.decryptFile(keyFilePath);
+    if (keyPlaintext.has_value()) {
+      // Each clientIdChunk would look like "11 12 13 14"
+      std::vector<std::string> clientIds;
+      boost::split(clientIds, clientIdChunks.at(i), boost::is_any_of(" "));
+      std::set<uint16_t> clientIdsSet;
+      for (const std::string clientId : clientIds) {
+        clientIdsSet.insert(std::stoi(clientId));
+      }
+      const std::string key = keyPlaintext.value();
+      publicKeysOfClients.insert(std::pair<const std::string, std::set<uint16_t>>(key, clientIdsSet));
+    } else {
+      throw std::runtime_error("Key public_key.pem not found in directory " + keysDirectories.at(i));
+    }
+  }
 }
 
 }  // namespace concord::kvbc

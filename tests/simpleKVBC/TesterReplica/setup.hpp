@@ -61,6 +61,13 @@ class TestSetup {
         pm_{std::make_shared<concord::performance::PerformanceManager>()} {}
 
   TestSetup() = delete;
+
+  static std::vector<std::string> getKeyDirectories(const std::string& keysRootPath);
+
+  static void setPublicKeysOfClients(const std::string& principalsMapping,
+                                     const std::string& keysRootPath,
+                                     std::set<std::pair<const std::string, std::set<uint16_t>>>& publicKeysOfClients);
+
 #ifdef USE_S3_OBJECT_STORE
   concord::storage::s3::StoreConfig ParseS3Config(const std::string& s3ConfigFile);
 #endif
