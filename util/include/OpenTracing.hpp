@@ -64,8 +64,12 @@ class SpanWrapper {
   SpanContext context() const;
 
   friend SpanWrapper startSpan(const std::string& operation_name);
-  friend SpanWrapper startChildSpan(const std::string& operation_name, const SpanWrapper& parent_span);
-  friend SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name);
+  friend SpanWrapper startChildSpanUtil(const std::string& operation_name,
+                                        const SpanWrapper& parent_span,
+                                        bool needSpan);
+  friend SpanWrapper startChildSpanFromContextUtil(const SpanContext& context,
+                                                   const std::string& child_operation_name,
+                                                   bool needSpan);
 #ifdef USE_OPENTRACING
   friend SpanWrapper startChildSpanFromContext(const opentracing::SpanContext& context,
                                                const std::string& child_operation_name);
@@ -83,8 +87,14 @@ class SpanWrapper {
 };
 
 SpanWrapper startSpan(const std::string& operation_name);
+SpanWrapper startChildSpanUtil(const std::string& operation_name, const SpanWrapper& parent_span, bool needSpan);
+SpanWrapper startChildSpanFromContextUtil(const SpanContext& context,
+                                          const std::string& child_operation_name,
+                                          bool needSpan);
 SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWrapper& parent_span);
+SpanWrapper startChildSpanOrRoot(const std::string& child_operation_name, const SpanWrapper& parent_span);
 SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name);
+SpanWrapper startChildSpanFromContextOrRoot(const SpanContext& context, const std::string& child_operation_name);
 #ifdef USE_OPENTRACING
 SpanWrapper startChildSpanFromContext(const opentracing::SpanContext& context, const std::string& child_operation_name);
 #endif

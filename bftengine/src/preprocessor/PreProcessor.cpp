@@ -746,16 +746,17 @@ bool PreProcessor::registerRequestOnPrimaryReplica(ClientPreProcessReqMsgUniqueP
                                                    PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                                    uint16_t reqOffsetInBatch,
                                                    uint64_t reqRetryId) {
-  preProcessRequestMsg =
-      make_shared<PreProcessRequestMsg>(myReplicaId_,
-                                        clientReqMsg->clientProxyId(),
-                                        reqOffsetInBatch,
-                                        clientReqMsg->requestSeqNum(),
-                                        reqRetryId,
-                                        clientReqMsg->requestLength(),
-                                        clientReqMsg->requestBuf(),
-                                        clientReqMsg->getCid(),
-                                        clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
+  auto span_context = clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>();
+  auto span = concordUtils::startChildSpanFromContextOrRoot(span_context, "register_pre_process_req_in_primary");
+  preProcessRequestMsg = make_shared<PreProcessRequestMsg>(myReplicaId_,
+                                                           clientReqMsg->clientProxyId(),
+                                                           reqOffsetInBatch,
+                                                           clientReqMsg->requestSeqNum(),
+                                                           reqRetryId,
+                                                           clientReqMsg->requestLength(),
+                                                           clientReqMsg->requestBuf(),
+                                                           clientReqMsg->getCid(),
+                                                           span.context());
   return registerRequest(move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
 }
 

@@ -1035,8 +1035,8 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       std::bind(&IncomingMsgsStorage::pushExternalMsgRaw, &getIncomingMsgsStorage(), _1, _2));
 
   metric_received_full_commit_proofs_.Get().Inc();
-  auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
-                                                      "bft_handle_full_commit_proof_msg");
+  auto span_context = msg->spanContext<std::remove_pointer<decltype(msg)>::type>();
+  auto span = concordUtils::startChildSpanFromContextOrRoot(span_context, "bft_handle_full_commit_proof_msg");
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
@@ -1067,7 +1067,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       const bool askForMissingInfoAboutCommittedItems =
           (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel());  // TODO(GG): check/improve this logic
 
-      auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
+      auto execution_span = concordUtils::startChildSpanOrRoot("bft_execute_committed_reqs", span);
       metric_total_committed_sn_.Get().Inc();
       pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
       executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
@@ -3863,7 +3863,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
                                                 PrePrepareMsg *ppMsg,
                                                 bool recoverFromErrorInRequestsExecution) {
   TimeRecorder scoped_timer(*histograms_.executeRequestsInPrePrepareMsg);
-  auto span = concordUtils::startChildSpan("bft_execute_requests_in_preprepare", parent_span);
+  auto span = concordUtils::startChildSpanOrRoot("bft_execute_requests_in_preprepare", parent_span);
   ConcordAssertAND(!isCollectingState(), currentViewIsActive());
   ConcordAssertNE(ppMsg, nullptr);
   ConcordAssertEQ(ppMsg->viewNumber(), curView);
@@ -4038,12 +4038,13 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
 void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
                                                  Bitmap &requestSet,
-                                                 concordUtils::SpanWrapper &span) {
+                                                 concordUtils::SpanWrapper &parent_span) {
   SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
   IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
+  auto span = concordUtils::startChildSpanOrRoot("bft_execute_and_send_response", parent_span);
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;

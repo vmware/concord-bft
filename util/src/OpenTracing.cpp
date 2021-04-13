@@ -43,13 +43,29 @@ SpanWrapper startSpan(const std::string& operation_name) {
 }
 
 SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWrapper& parent_span) {
+  return startChildSpanUtil(child_operation_name, parent_span, false);
+}
+
+SpanWrapper startChildSpanOrRoot(const std::string& child_operation_name, const SpanWrapper& parent_span) {
+  return startChildSpanUtil(child_operation_name, parent_span, true);
+}
+SpanWrapper startChildSpanUtil(const std::string& child_operation_name,
+                               const SpanWrapper& parent_span,
+                               bool need_span) {
 #ifdef USE_OPENTRACING
-  if (!parent_span) {
-    return SpanWrapper{};
-  }
   auto tracer = opentracing::Tracer::Global();
-  auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(&parent_span.impl()->context())});
-  return SpanWrapper{std::move(span)};
+  if (!parent_span) {
+    if (need_span) {
+      std::string new_span_name = "starting_new_span_from_" + child_operation_name;
+      auto span = tracer->StartSpan(new_span_name);
+      return SpanWrapper{std::move(span)};
+    } else {
+      return SpanWrapper{};
+    }
+  } else {
+    auto span = tracer->StartSpan(child_operation_name, {opentracing::ChildOf(&parent_span.impl()->context())});
+    return SpanWrapper{std::move(span)};
+  }
 #else
   (void)child_operation_name;
   (void)parent_span;
@@ -58,12 +74,27 @@ SpanWrapper startChildSpan(const std::string& child_operation_name, const SpanWr
 }
 
 SpanWrapper startChildSpanFromContext(const SpanContext& context, const std::string& child_operation_name) {
+  return startChildSpanFromContextUtil(context, child_operation_name, false);
+}
+
+SpanWrapper startChildSpanFromContextOrRoot(const SpanContext& context, const std::string& child_operation_name) {
+  return startChildSpanFromContextUtil(context, child_operation_name, true);
+}
+SpanWrapper startChildSpanFromContextUtil(const SpanContext& context,
+                                          const std::string& child_operation_name,
+                                          bool needSpan) {
 #ifdef USE_OPENTRACING
+  auto tracer = opentracing::Tracer::Global();
   if (context.data().empty()) {
-    return SpanWrapper{};
+    if (needSpan) {
+      std::string new_span_name = child_operation_name + "_as_root";
+      auto span = tracer->StartSpan(new_span_name);
+      return SpanWrapper{std::move(span)};
+    } else {
+      return SpanWrapper{};
+    }
   }
   std::istringstream context_stream{context.data()};
-  auto tracer = opentracing::Tracer::Global();
   auto parent_span_context = tracer->Extract(context_stream);
   // DD: It might happen in 2 cases:
   // 1. invalid context
