@@ -200,7 +200,7 @@ void PreProcessor::onRequestsStatusCheckTimer() {
         SCOPED_MDC_CID(reqStatePtr->getReqCid());
         LOG_INFO(logger(), "Let replica handle request" << KVLOG(reqSeqNum, reqEntryIndex, clientId, reqOffsetInBatch));
         preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
-        incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
+        incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true, true));
         releaseClientPreProcessRequest(reqEntry.second, CANCEL);
       } else if (myReplica_.isCurrentPrimary() && reqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
         resendPreProcessRequest(reqStatePtr);

@@ -4054,6 +4054,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       continue;
     }
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    if (req.requestLength() == 0) continue;
     if (req.flags() & EMPTY_CLIENT_FLAG) {
       continue;
     }
