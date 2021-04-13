@@ -257,13 +257,12 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       }
     }
   } else {  // Reply has already been sent to the client for this request
-    ClientReplyMsg *repMsg = clientsManager->allocateReplyFromSavedOne(clientId, reqSeqNum, currentPrimary());
+    auto repMsg = clientsManager->allocateReplyFromSavedOne(clientId, reqSeqNum, currentPrimary());
     LOG_DEBUG(
         GL,
         "ClientRequestMsg has already been executed: retransmitting reply to client." << KVLOG(reqSeqNum, clientId));
     if (repMsg) {
-      send(repMsg, clientId);
-      delete repMsg;
+      send(repMsg.get(), clientId);
     }
   }
   delete m;
@@ -3907,11 +3906,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           continue;
         }
         if (isReplyAlreadySentToClient(clientId, req.requestSeqNum())) {
-          ClientReplyMsg *replyMsg =
-              clientsManager->allocateReplyFromSavedOne(clientId, req.requestSeqNum(), currentPrimary());
+          auto replyMsg = clientsManager->allocateReplyFromSavedOne(clientId, req.requestSeqNum(), currentPrimary());
           if (replyMsg) {
-            send(replyMsg, clientId);
-            delete replyMsg;
+            send(replyMsg.get(), clientId);
           }
           reqIdx++;
           continue;
@@ -4101,8 +4098,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
-      std::unique_ptr<ClientReplyMsg> replyMsg{clientsManager->allocateNewReplyMsgAndWriteToStorage(
-          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize)};
+      auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
+          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
       replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
       free(req.outReply);
       send(replyMsg.get(), req.clientId);
