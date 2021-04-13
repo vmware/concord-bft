@@ -165,7 +165,7 @@ bool ClientsManager::isValidClient(NodeIdType clientId) const { return (clientId
 // * allocate new ClientReplyMsg
 // * calculate: num of pages, size of last page.
 // * save the reply to the reserved pages.
-ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
+std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
@@ -178,7 +178,7 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
 
   c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
-  ClientReplyMsg* const r = new ClientReplyMsg(myId_, requestSeqNum, reply, replyLength);
+  auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, "firstPageId=" << firstPageId);
   uint32_t numOfPages = r->size() / sizeOfReservedPage_;
@@ -215,9 +215,9 @@ ClientReplyMsg* ClientsManager::allocateNewReplyMsgAndWriteToStorage(
 // * allocate new ClientReplyMsg.
 // * copy reply from reserved pages to ClientReplyMsg.
 // * set primary id.
-ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
-                                                          ReqId requestSeqNum,
-                                                          uint16_t currentPrimaryId) {
+std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
+                                                                          ReqId requestSeqNum,
+                                                                          uint16_t currentPrimaryId) {
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
@@ -237,7 +237,8 @@ ClientReplyMsg* ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
     sizeLastPage = replyMsgSize % sizeOfReservedPage_;
   }
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, numOfPages, sizeLastPage));
-  ClientReplyMsg* const r = new ClientReplyMsg(myId_, replyHeader->replyLength);
+  auto r = std::make_unique<ClientReplyMsg>(myId_, replyHeader->replyLength);
+
   // load reply message from reserved pages
   for (uint32_t i = 0; i < numOfPages; i++) {
     char* const ptrPage = r->body() + i * sizeOfReservedPage_;

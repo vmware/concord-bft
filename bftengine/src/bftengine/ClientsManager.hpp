@@ -18,6 +18,7 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <memory>
 
 namespace bftEngine {
 class IStateTransfer;
@@ -45,10 +46,12 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   bool isValidClient(NodeIdType clientId) const;
 
-  ClientReplyMsg* allocateNewReplyMsgAndWriteToStorage(
+  std::unique_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
       NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength);
 
-  ClientReplyMsg* allocateReplyFromSavedOne(NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId);
+  std::unique_ptr<ClientReplyMsg> allocateReplyFromSavedOne(NodeIdType clientId,
+                                                            ReqId requestSeqNum,
+                                                            uint16_t currentPrimaryId);
 
   // Requests
 
