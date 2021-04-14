@@ -29,7 +29,7 @@ constexpr auto kSmallDeltaTime = kSampleCurrentTimeMs + 1;
 constexpr auto kBigDeltaTime = 10 * kSampleCurrentTimeMs;
 constexpr uint16_t kSampleReplicaId = 1;
 
-const auto replicas = std::set<uint16_t>{1, 2, 3, 4};
+const auto replicas = std::set<uint16_t>{1, 2, 3};
 
 TEST(source_selector_test, on_construction_there_is_no_current_replica) {
   ASSERT_EQ(SourceSelector(replicas, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs).currentReplica(),
@@ -82,7 +82,7 @@ TEST(source_selector_test, should_change_source_when_the_replacement_time_has_el
   ASSERT_TRUE(source_selector.shouldReplaceSource(kBigDeltaTime, false));
 }
 
-TEST(source_selector_test, source_should_NOT_be_changed_when_working_and_replacement_time_has_NOT_elapsed_yet) {
+TEST(source_selector_test, source_should_not_be_changed_when_working_and_replacement_time_has_not_elapsed_yet) {
   auto source_selector = SourceSelector(replicas, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs);
   source_selector.updateSource(kSampleCurrentTimeMs);
   ASSERT_FALSE(source_selector.shouldReplaceSource(kSmallDeltaTime, false));
@@ -101,10 +101,10 @@ TEST(source_selector_test, remove_current_replica_sets_the_current_replica_to_no
 TEST(source_selector_test, removing_the_current_replica_makes_it_non_preferred_as_well) {
   auto source_selector = SourceSelector(replicas, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs);
   source_selector.updateSource(kSampleCurrentTimeMs);
-  const auto currentReplica = source_selector.currentReplica();
-  ASSERT_TRUE(source_selector.isPreferred(currentReplica));
+  const auto current_replica = source_selector.currentReplica();
+  ASSERT_TRUE(source_selector.isPreferred(current_replica));
   source_selector.removeCurrentReplica();
-  ASSERT_FALSE(source_selector.isPreferred(currentReplica));
+  ASSERT_FALSE(source_selector.isPreferred(current_replica));
 }
 
 // Reset tests
@@ -138,14 +138,15 @@ TEST(source_selector_test, reset_removes_preferred_replicas) {
   auto source_selector = SourceSelector(replicas, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs);
   ASSERT_EQ(source_selector.numberOfPreferredReplicas(), 0);
   source_selector.setAllReplicasAsPreferred();
-  ASSERT_NE(source_selector.numberOfPreferredReplicas(), 0);
+  ASSERT_EQ(source_selector.numberOfPreferredReplicas(), replicas.size());
   source_selector.reset();
   ASSERT_EQ(source_selector.numberOfPreferredReplicas(), 0);
 }
 
 TEST(source_selector_test, reset_removes_current_replica) {
   auto source_selector = SourceSelector(replicas, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs);
-  ASSERT_TRUE(source_selector.currentReplica() == NO_REPLICA && source_selector.isReset());
+  ASSERT_EQ(source_selector.currentReplica(), NO_REPLICA);
+  ASSERT_TRUE(source_selector.isReset());
   source_selector.updateSource(kSampleCurrentTimeMs);
   // Set the selection and fetching times to zero in order to ensure that the reset function's
   // result is solely based on the current replica.
@@ -153,7 +154,8 @@ TEST(source_selector_test, reset_removes_current_replica) {
   source_selector.setFetchingTimeStamp(GL, 0);
   ASSERT_FALSE(source_selector.isReset());
   source_selector.reset();
-  ASSERT_TRUE(source_selector.currentReplica() == NO_REPLICA && source_selector.isReset());
+  ASSERT_TRUE(source_selector.isReset());
+  ASSERT_EQ(source_selector.currentReplica(), NO_REPLICA);
 }
 
 TEST(source_selector_test, reset_sets_selection_time_to_zero) {
@@ -218,8 +220,9 @@ TEST(source_selector_test, add_preferred_replica) {
 TEST(source_selector_test, select_the_only_preferred_replica) {
   auto source_selector = SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs);
   source_selector.addPreferredReplica(kSampleReplicaId);
+  ASSERT_TRUE(source_selector.isPreferred(kSampleReplicaId));
   source_selector.updateSource(kSampleCurrentTimeMs);
-  ASSERT_TRUE(source_selector.isPreferred(kSampleReplicaId) && source_selector.currentReplica() == kSampleReplicaId);
+  ASSERT_EQ(source_selector.currentReplica(), kSampleReplicaId);
 }
 
 TEST(source_selector_test, select_amongst_preferred_replicas) {
