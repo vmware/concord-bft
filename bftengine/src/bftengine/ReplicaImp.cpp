@@ -43,6 +43,7 @@
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <bitset>
@@ -1751,18 +1752,20 @@ template <>
 void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
   // metric_received_checkpoints_.Get().Inc(); // TODO [TK]
 
-  LOG_INFO(GL, "Received AskForCheckpoint message: " << KVLOG(msg->senderId(), lastStableSeqNum));
+  // DD: handlers are supposed to either save or delete messages
+  std::unique_ptr<AskForCheckpointMsg> m{msg};
+  LOG_INFO(GL, "Received AskForCheckpoint message: " << KVLOG(m->senderId(), lastStableSeqNum));
 
   const CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
   CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
   if (checkpointMsg == nullptr) {
-    LOG_INFO(GL, "This replica does not have the current checkpoint. " << KVLOG(msg->senderId(), lastStableSeqNum));
+    LOG_INFO(GL, "This replica does not have the current checkpoint. " << KVLOG(m->senderId(), lastStableSeqNum));
   } else {
     // TODO [TK] check if already sent within a configurable time period
-    auto destination = msg->senderId();
+    auto destination = m->senderId();
     LOG_INFO(GL, "Sending CheckpointMsg: " << KVLOG(destination));
-    send(checkpointMsg, msg->senderId());
+    send(checkpointMsg, m->senderId());
   }
 }
 
