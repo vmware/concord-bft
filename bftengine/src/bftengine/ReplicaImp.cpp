@@ -702,6 +702,15 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       }
       msgAdded = true;
 
+      // Start tracking all client requests with in this pp message
+      RequestsIterator reqIter(msg);
+      char *requestBody = nullptr;
+      while (reqIter.getAndGoToNext(requestBody)) {
+        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        if (!clientsManager->isValidClient(req.clientProxyId())) continue;
+        if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
+          clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
+      }
       if (ps_) {
         ps_->beginWriteTran();
         ps_->setPrePrepareMsgInSeqNumWindow(msgSeqNum, msg);
