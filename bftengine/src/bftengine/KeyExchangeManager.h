@@ -74,9 +74,9 @@ class KeyExchangeManager {
 
   // A private key has three states
   // 1 - published to consensus.
-  // 2 - after consesnsus i.e. oustanding
+  // 2 - after consensus i.e. outstanding
   // 3 - after desired check point i.e. the private key of the replica
-  // all three fields may be populated simulatanously
+  // all three fields may be populated simultaneously
 
   struct KeysViewData : public concord::serialize::SerializableFactory<KeysViewData> {
     KeysViewData(){};

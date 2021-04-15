@@ -85,7 +85,6 @@ struct ReservedPagesMock : public IReservedPages {
 TEST(Messages, ser_der) {
   KeyExchangeMsg kem;
   kem.key = "qwerty";
-  kem.signature = "123456";
   kem.repID = 6;
 
   std::stringstream ss;
@@ -95,13 +94,11 @@ TEST(Messages, ser_der) {
   auto deskem = KeyExchangeMsg::deserializeMsg(strMsg.c_str(), strMsg.size());
 
   ASSERT_EQ(deskem.key, kem.key);
-  ASSERT_EQ(deskem.signature, kem.signature);
   ASSERT_EQ(deskem.repID, kem.repID);
 
   // Test constuctor with move of KeyExchangeMsg
   ReplicaKeyStore::ReplicaKey rk(kem, 123);
   ASSERT_EQ(rk.msg.key, "qwerty");
-  ASSERT_EQ(rk.msg.signature, "123456");
   ASSERT_EQ(rk.msg.repID, 6);
   ASSERT_EQ(rk.seqnum, 123);
 
@@ -116,7 +113,6 @@ TEST(Messages, ser_der) {
   concord::serialize::Serializable::deserialize(ss, der_rk);
 
   ASSERT_EQ(rk.msg.key, der_rk.msg.key);
-  ASSERT_EQ(rk.msg.signature, der_rk.msg.signature);
   ASSERT_EQ(rk.msg.repID, der_rk.msg.repID);
   ASSERT_EQ(rk.seqnum, der_rk.seqnum);
 }
@@ -125,11 +121,9 @@ TEST(ReplicaKeyStore, ser_der) {
   ReplicaKeyStore rks;
   KeyExchangeMsg kem;
   kem.key = "qwerty";
-  kem.signature = "123456";
   kem.repID = 6;
   KeyExchangeMsg kem2;
   kem.key = "ytrewq";
-  kem.signature = "098765";
   kem.repID = 2;
   kem2.repID = 2;
   rks.push(kem, 34);
@@ -146,13 +140,11 @@ TEST(ReplicaKeyStore, ser_der) {
 
   ASSERT_EQ(der_rks.numKeys(), rks.numKeys());
   ASSERT_EQ(der_rks.current().msg.key, rks.current().msg.key);
-  ASSERT_EQ(der_rks.current().msg.signature, rks.current().msg.signature);
   ASSERT_EQ(der_rks.current().msg.repID, rks.current().msg.repID);
   ASSERT_EQ(der_rks.current().seqnum, rks.current().seqnum);
   der_rks.pop();
   rks.pop();
   ASSERT_EQ(der_rks.current().msg.key, rks.current().msg.key);
-  ASSERT_EQ(der_rks.current().msg.signature, rks.current().msg.signature);
   ASSERT_EQ(der_rks.current().msg.repID, rks.current().msg.repID);
   ASSERT_EQ(der_rks.current().seqnum, rks.current().seqnum);
 }
@@ -164,11 +156,9 @@ TEST(ReplicaKeyStore, key_limit) {
 
   KeyExchangeMsg kem;
   kem.key = "qwerty";
-  kem.signature = "123456";
   kem.repID = 6;
   KeyExchangeMsg kem2;
   kem2.key = "ytrewq";
-  kem2.signature = "098765";
   kem2.repID = 2;
   rks.push(kem, 34);
   rks.push(kem2, 222);
@@ -177,11 +167,9 @@ TEST(ReplicaKeyStore, key_limit) {
 
   KeyExchangeMsg kem3;
   kem3.key = "qwerty3";
-  kem3.signature = "1234563";
   kem3.repID = 3;
   KeyExchangeMsg kem4;
   kem4.key = "ytrewq4";
-  kem4.signature = "0987654";
   kem4.repID = 4;
   rks.push(kem3, 34);
   ASSERT_EQ(rks.numKeys(), 3);
@@ -197,7 +185,6 @@ TEST(ReplicaKeyStore, rotate) {
   ReplicaKeyStore rks;
   KeyExchangeMsg kem;
   kem.key = "qwerty";
-  kem.signature = "123456";
   kem.repID = 6;
   rks.push(kem, 34);
   auto ok = rks.rotate(2);
@@ -205,7 +192,6 @@ TEST(ReplicaKeyStore, rotate) {
   ASSERT_EQ(ok, false);
   KeyExchangeMsg kem2;
   kem2.key = "ytrewq";
-  kem2.signature = "098765";
   kem2.repID = 2;
   rks.push(kem2, 35);
   ASSERT_EQ(rks.numKeys(), 2);
@@ -218,7 +204,6 @@ TEST(ReplicaKeyStore, rotate) {
   ASSERT_EQ(rks.current().msg.key, "ytrewq");
   KeyExchangeMsg kem3;
   kem3.key = "dsdsdsd";
-  kem3.signature = "098765";
   kem3.repID = 2;
   // edge case, where key exchange is on checkpoint
   rks.push(kem3, 450);
@@ -233,12 +218,10 @@ TEST(ReplicaKeyStore, rotate) {
 //   ReplicaKeyStore rks;
 //   KeyExchangeMsg kem;
 //   kem.key = "a";
-//   kem.signature = "1";
 //   kem.repID = 6;
 //   rks.push(kem, 1);
 //   KeyExchangeMsg kem2;
 //   kem2.key = "qwerty";
-//   kem2.signature = "123456";
 //   kem2.repID = 6;
 //   rks.push(kem2, 340);
 //   // Checkpoint can't be less than key exchange seq num
@@ -249,12 +232,10 @@ TEST(ReplicaKeyStore, rotate) {
 //   ReplicaKeyStore rks;
 //   KeyExchangeMsg kem;
 //   kem.key = "a";
-//   kem.signature = "1";
 //   kem.repID = 6;
 //   rks.push(kem, 1);
 //   KeyExchangeMsg kem2;
 //   kem2.key = "qwerty";
-//   kem2.signature = "123456";
 //   kem2.repID = 6;
 //   rks.push(kem2, 340);
 
@@ -268,7 +249,6 @@ TEST(ClusterKeyStore, push) {
   {
     KeyExchangeMsg kem;
     kem.key = "a";
-    kem.signature = "1";
     kem.repID = 8;
     // replica id out of range
     ASSERT_EQ(cks.push(kem, 2), false);
@@ -276,33 +256,28 @@ TEST(ClusterKeyStore, push) {
 
   KeyExchangeMsg kem;
   kem.key = "a";
-  kem.signature = "1";
   kem.repID = 1;
   auto ok = cks.push(kem, 2);
   ASSERT_EQ(ok, true);
 
   KeyExchangeMsg kem2;
   kem2.key = "c";
-  kem2.signature = "3";
   kem2.repID = 3;
   cks.push(kem2, 3);
 
   KeyExchangeMsg kem3;
   kem3.key = "d";
-  kem3.signature = "4";
   kem3.repID = 3;
   cks.push(kem3, 3);
 
   KeyExchangeMsg kem4;
   kem4.key = "e";
-  kem4.signature = "4w";
   kem4.repID = 3;
   // limit excceds
   ASSERT_EQ(cks.push(kem4, 2), false);
 
   auto msg = cks.getReplicaPublicKey(3);
   ASSERT_EQ(msg.key, "c");
-  ASSERT_EQ(msg.signature, "3");
 }
 
 TEST(ClusterKeyStore, rotate) {
@@ -312,37 +287,31 @@ TEST(ClusterKeyStore, rotate) {
 
   KeyExchangeMsg kem;
   kem.key = "a";
-  kem.signature = "1";
   kem.repID = 1;
   cks.push(kem, 2);
 
   KeyExchangeMsg kem2;
   kem2.key = "c";
-  kem2.signature = "3";
   kem2.repID = 3;
   cks.push(kem2, 3);
 
   KeyExchangeMsg kem3;
   kem3.key = "d";
-  kem3.signature = "4";
   kem3.repID = 3;
   cks.push(kem3, 30);
 
   KeyExchangeMsg kem4;
   kem4.key = "e";
-  kem4.signature = "3";
   kem4.repID = 4;
   cks.push(kem4, 45);
 
   KeyExchangeMsg kem5;
   kem5.key = "f";
-  kem5.signature = "4";
   kem5.repID = 4;
   cks.push(kem5, 80);
 
   KeyExchangeMsg kem6;
   kem6.key = "f";
-  kem6.signature = "4";
   kem6.repID = 5;
   cks.push(kem6, 155);
 
@@ -385,21 +354,18 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   // set public of replica 0
   KeyExchangeMsg kem;
   kem.key = "a";
-  kem.signature = "1";
   kem.repID = 0;
   test.km_.onKeyExchange(kem, 2);
 
   // set public of replica 1
   KeyExchangeMsg kem2;
   kem2.key = "b";
-  kem2.signature = "11";
   kem2.repID = 1;
   test.km_.onKeyExchange(kem2, 3);
 
   // set public of replica 3 and promote its private
   KeyExchangeMsg kem4;
   kem4.key = "public";
-  kem4.signature = "1";
   kem4.repID = 3;
   test.km_.onKeyExchange(kem4, 5);
 
@@ -407,7 +373,6 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   KeyExchangeMsg kem3;
   // set to fast path
   kem3.key = "c";
-  kem3.signature = "w1";
   kem3.repID = 2;
   test.km_.onKeyExchange(kem3, 5);
   ASSERT_EQ(test.getKeyExchangedOnStartCounter(), 4);
@@ -448,28 +413,24 @@ TEST(KeyExchangeManager, endToEnd) {
   // set public of replica 0
   KeyExchangeMsg kem;
   kem.key = "a";
-  kem.signature = "1";
   kem.repID = 0;
   test.km_.onKeyExchange(kem, 2);
 
   // set public of replica 1
   KeyExchangeMsg kem2;
   kem2.key = "b";
-  kem2.signature = "11";
   kem2.repID = 1;
   test.km_.onKeyExchange(kem2, 3);
 
   // set public of replica 2 and promote private
   KeyExchangeMsg kem3;
   kem3.key = "public";
-  kem3.signature = "w1";
   kem3.repID = 2;
   test.km_.onKeyExchange(kem3, 4);
 
   // set public of replica 3
   KeyExchangeMsg kem4;
   kem4.key = "d";
-  kem4.signature = "1";
   kem4.repID = 3;
   ASSERT_EQ(test.km_.keysExchanged, false);
   test.km_.onKeyExchange(kem4, 5);
@@ -501,21 +462,18 @@ TEST(KeyExchangeManager, endToEnd) {
   // rotation candidate for replica 0
   KeyExchangeMsg kem5;
   kem5.key = "aaaa";
-  kem5.signature = "1";
   kem5.repID = 0;
   test.km_.onKeyExchange(kem5, 22);
 
   // rotation candidate for replica 1
   KeyExchangeMsg kem6;
   kem6.key = "bbbb";
-  kem6.signature = "11";
   kem6.repID = 1;
   test.km_.onKeyExchange(kem6, 33);
 
   // rotation candidate for replica 2 promote private
   KeyExchangeMsg kem7;
   kem7.key = "public2";
-  kem7.signature = "w1";
   kem7.repID = 2;
   test.km_.onKeyExchange(kem7, 34);
   // Checkpoint too close, should not rotate
@@ -535,7 +493,6 @@ TEST(KeyExchangeManager, endToEnd) {
   // rotation candidate for replica 3
   KeyExchangeMsg kem8;
   kem8.key = "ddddd";
-  kem8.signature = "w1";
   kem8.repID = 3;
   test.km_.onKeyExchange(kem8, 180);
 
@@ -571,31 +528,26 @@ TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
 
   KeyExchangeMsg kem;
   kem.key = "a";
-  kem.signature = "1";
   kem.repID = 0;
   cks.push(kem, 2);
 
   KeyExchangeMsg kem2;
   kem2.key = "b";
-  kem2.signature = "12";
   kem2.repID = 1;
   cks.push(kem2, 2);
 
   KeyExchangeMsg kem3;
   kem3.key = "c";
-  kem3.signature = "13";
   kem3.repID = 2;
   cks.push(kem3, 2);
 
   KeyExchangeMsg kem4;
   kem4.key = "d";
-  kem4.signature = "14";
   kem4.repID = 3;
   cks.push(kem4, 2);
 
   KeyExchangeMsg kem5;
   kem5.key = "aa";
-  kem5.signature = "15";
   kem5.repID = 0;
   cks.push(kem5, 2);
 
@@ -616,37 +568,31 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
 
   KeyExchangeMsg kem;
   kem.key = "a";
-  kem.signature = "1";
   kem.repID = 0;
   cks.push(kem, 2);
 
   KeyExchangeMsg kem2;
   kem2.key = "b";
-  kem2.signature = "12";
   kem2.repID = 1;
   cks.push(kem2, 2);
 
   KeyExchangeMsg kem3;
   kem3.key = "c";
-  kem3.signature = "13";
   kem3.repID = 2;
   cks.push(kem3, 2);
 
   KeyExchangeMsg kem4;
   kem4.key = "d";
-  kem4.signature = "14";
   kem4.repID = 3;
   cks.push(kem4, 2);
 
   KeyExchangeMsg kem5;
   kem5.key = "aa";
-  kem5.signature = "15";
   kem5.repID = 0;
   cks.push(kem5, 3);
 
   KeyExchangeMsg kem6;
   kem6.key = "bb";
-  kem6.signature = "15";
   kem6.repID = 1;
   cks.push(kem6, 190);
 
@@ -657,7 +603,6 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
   for (int i = 0; i < 4; i++) {
     if (i == 0) {
       ASSERT_EQ(reloadCks.getReplicaPublicKey(i).key, "aa");
-      ASSERT_EQ(reloadCks.getReplicaPublicKey(i).signature, "15");
     }
     if (i == 1) {
       ASSERT_EQ(reloadCks.numKeys(i), 2);
