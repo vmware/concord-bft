@@ -148,7 +148,6 @@ class SimpleTest(unittest.TestCase):
                pass
            self.assertTrue(udp_client.retries > 0)
 
-    @verify_system_is_ready
     def testPrimaryWrite(self):
         """Test that we learn the primary and using it succeeds."""
         trio.run(self._testPrimaryWrite)
