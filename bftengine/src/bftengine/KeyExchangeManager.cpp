@@ -16,9 +16,13 @@
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/CryptoManager.hpp"
 #include "KeyExchangeManager.h"
+#include "json_output.hpp"
 
 ////////////////////////////// KEY MANAGER//////////////////////////////
 namespace bftEngine::impl {
+
+using concordUtils::toPair;
+
 KeyExchangeManager::KeyExchangeManager(InitData* id)
     : repID_(id->id),
       clusterSize_(id->clusterSize),
@@ -259,6 +263,19 @@ void KeyExchangeManager::waitForFullCommunication() {
     avlble = client_->numOfConnectedReplicas(clusterSize_);
   }
   LOG_INFO(KEY_EX_LOG, "Consensus engine available, " << avlble << " replicas are connected");
+}
+
+std::string KeyExchangeManager::getStatus() {
+  std::ostringstream oss;
+  std::unordered_map<std::string, std::string> result;
+  result.insert(toPair("isInitialKeyExchangeCompleted", keysExchanged));
+  result.insert(
+      toPair("keyExchangedCounter", metrics_->aggregator->GetCounter("KeyManager", "KeyExchangedCounter").Get()));
+  result.insert(toPair("KeyExchangedOnStartCounter",
+                       metrics_->aggregator->GetCounter("KeyManager", "KeyExchangedOnStartCounter").Get()));
+  result.insert(toPair("publicKeyRotated", metrics_->aggregator->GetCounter("KeyManager", "publicKeyRotated").Get()));
+  oss << concordUtils::kContainerToJson(result);
+  return oss.str();
 }
 
 /////////////KEYS VIEW////////////////////////////

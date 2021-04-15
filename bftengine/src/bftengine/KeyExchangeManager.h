@@ -38,6 +38,7 @@ class KeyExchangeManager {
   KeyExchangeMsg getReplicaPublicKey(const uint16_t& repID) const;
   std::string getPrivateKey() { return keysView_.data.privateKey; }
   void loadKeysFromReservedPages();
+  std::string getStatus();
 
   // loads the crypto system from a serialized key view.
   static void loadCryptoFromKeyView(std::shared_ptr<ISecureStore> sec,
