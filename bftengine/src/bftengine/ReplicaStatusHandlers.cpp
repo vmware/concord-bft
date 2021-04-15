@@ -41,11 +41,13 @@ void ReplicaStatusHandlers::registerStatusHandlers() const {
   // TODO: handler name left for backward compatibility with callers, change the name 'replica'.
   auto replica_handler = make_handler_callback("replica", "Last stable sequence number of the concord-bft replica");
   auto state_transfer_handler = make_handler_callback("state-transfer", "Status of blockchain state transfer");
+  auto key_exchange_handler = make_handler_callback("key-exchange", "Status of key-exchange");
   auto preexecution_handler = make_handler_callback("pre-execution", "Status of pre-execution");
   auto replica_state_handler = make_handler_callback("replica-state", "Internal state of the concord-bft replica");
 
   registrar.status.registerHandler(replica_handler);
   registrar.status.registerHandler(state_transfer_handler);
+  registrar.status.registerHandler(key_exchange_handler);
   registrar.status.registerHandler(preexecution_handler);
   registrar.status.registerHandler(replica_state_handler);
 }
