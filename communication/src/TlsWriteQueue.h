@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -13,20 +13,21 @@
 #pragma once
 
 #include <arpa/inet.h>
+#include <bits/stdint-uintn.h>
 #include <atomic>
+#include <cstddef>
 #include <cstring>
 #include <deque>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "communication/CommDefs.hpp"
 #include "Logger.hpp"
 #include "TlsDiagnostics.h"
 
-namespace bft::communication {
-
-class AsyncTlsConnection;
+namespace bft::communication::tls {
 
 // Any message attempted to be put on the queue that causes the total size of the queue to exceed
 // this value will be dropped. This is to prevent indefinite backups and useless stale messages.
@@ -48,58 +49,26 @@ struct OutgoingMsg {
   size_t payload_size() { return msg.size() - MSG_HEADER_SIZE; }
 };
 
-// A write queue is a buffer of messages for a single socket. Messages should only be put on the
-// queue if there is an active connection associated with it. By separating the queue fom the
-// connection however, we can allow optimistic pushes and not have to worry about locking the map of
-// connnections. This increase concurrency as a lock is only held when a message is pushed or popped
-// on a queue for a single connection, rather than an additional lock across all conenctions.
-// Furthermore, we only have to hold the lock when a request is pushed or popped, which is very
-// short.
 class WriteQueue {
  public:
-  WriteQueue(NodeNum destination, Recorders& recorders)
-      : connected_(false),
-        destination_(destination),
-        logger_(logging::getLogger("concord-bft.tls")),
-        recorders_(recorders) {}
-
-  void connect(const std::shared_ptr<AsyncTlsConnection>& conn) {
-    std::lock_guard<std::mutex> guard(lock_);
-    conn_ = conn;
-    msgs_.clear();
-    queued_size_in_bytes_ = 0;
-    connected_ = true;
-  }
-
-  void disconnect() {
-    std::lock_guard<std::mutex> guard(lock_);
-    conn_.reset();
-    connected_ = false;
-  }
-
-  bool connected() const { return connected_; }
+  WriteQueue(Recorders& recorders) : logger_(logging::getLogger("concord-bft.tls.conn")), recorders_(recorders) {}
 
   // Only add onto the queue if there is an active connection. Return the size of the queue after
-  // the push completes or std::nullopt if there is no connection, or the queue is full.
-  std::optional<size_t> push(const std::shared_ptr<OutgoingMsg>& msg) {
-    if (!connected_) {
-      return std::nullopt;
-    }
-
-    std::lock_guard<std::mutex> guard(lock_);
+  // the push completes or std::nullopt if the queue is full.
+  std::optional<size_t> push(std::shared_ptr<OutgoingMsg>&& msg) {
     if (queued_size_in_bytes_ > MAX_QUEUE_SIZE_IN_BYTES) {
-      LOG_WARN(logger_, "Queue full. Dropping message." << KVLOG(destination_, msg->payload_size()));
+      std::string destination = destination_.has_value() ? std::to_string(*destination_) : "unknown";
+      LOG_WARN(logger_, "Queue full. Dropping message." << KVLOG(destination, msg->payload_size()));
       return std::nullopt;
     }
     queued_size_in_bytes_ += msg->msg.size();
-    msgs_.push_back(msg);
+    msgs_.push_back(std::move(msg));
     return msgs_.size();
   }
 
   std::shared_ptr<OutgoingMsg> pop() {
-    std::lock_guard<std::mutex> guard(lock_);
-    recorders_.write_queue_len->record(msgs_.size());
-    recorders_.write_queue_size_in_bytes->record(queued_size_in_bytes_);
+    recorders_.write_queue_len->recordAtomic(msgs_.size());
+    recorders_.write_queue_size_in_bytes->recordAtomic(queued_size_in_bytes_);
     if (msgs_.empty()) {
       return nullptr;
     }
@@ -110,43 +79,25 @@ class WriteQueue {
   }
 
   void clear() {
-    std::lock_guard<std::mutex> guard(lock_);
     msgs_.clear();
     queued_size_in_bytes_ = 0;
   }
 
-  size_t size() const {
-    std::lock_guard<std::mutex> guard(lock_);
-    return msgs_.size();
-  }
+  void setDestination(NodeNum id) { destination_ = id; }
+  size_t size() const { return msgs_.size(); }
 
-  size_t sizeInBytes() const {
-    std::lock_guard<std::mutex> guard(lock_);
-    return queued_size_in_bytes_;
-  }
-
-  std::shared_ptr<AsyncTlsConnection> getConn() {
-    std::lock_guard<std::mutex> guard(lock_);
-    return conn_;
-  }
+  size_t sizeInBytes() const { return queued_size_in_bytes_; }
 
   WriteQueue(const WriteQueue&) = delete;
   WriteQueue& operator=(const WriteQueue&) = delete;
 
  private:
-  // Protects `msgs_`, `queued_size_in_bytes_`, and `conn_`
-  mutable std::mutex lock_;
   std::deque<std::shared_ptr<OutgoingMsg>> msgs_;
   size_t queued_size_in_bytes_ = 0;
-  std::shared_ptr<AsyncTlsConnection> conn_;
 
-  // We purposefully do not take any locks to check this. It is an optimistic check. It's ok to drop
-  // a message if a connection just occurred. It's also simultaneously ok to put a message onto the
-  // queue if a connection has just dropped.
-  std::atomic_bool connected_;
-  NodeNum destination_;
+  std::optional<NodeNum> destination_ = std::nullopt;
   logging::Logger logger_;
   Recorders& recorders_;
 };
 
-}  // namespace bft::communication
+}  // namespace bft::communication::tls
