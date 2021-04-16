@@ -27,10 +27,12 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
                              const char* request,
                              uint64_t reqTimeoutMilli,
                              const std::string& cid,
-                             const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+                             const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
+                             const char* requestSignature = nullptr,
+                             uint32_t requestSignatureLen = 0);
 
   ClientPreProcessRequestMsg(MessageBase* msgBase) : ClientRequestMsg(msgBase) {}
-
+  void validate(const ReplicasInfo& repInfo) const { validateRequest(repInfo, getExpectedSignatureLength()); }
   std::unique_ptr<MessageBase> convertToClientRequestMsg(bool resetPreProcessFlag, bool emptyReq = false);
 };
 
