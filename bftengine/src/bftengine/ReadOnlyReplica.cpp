@@ -148,7 +148,7 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   SCOPED_MDC_CID(m->getCid());
   LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<8>(flags));
 
-  const auto &span_context = m->spanContext<std::remove_pointer<decltype(m)>::type>();
+  const auto &span_context = m->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
   span.setTag("rid", config_.getreplicaId());
   span.setTag("cid", m->getCid());
@@ -159,7 +159,7 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   // the committers
 
   if (reconfig_flag) {
-    LOG_INFO(GL, "ro replica has received a reconfiguration reqeust");
+    LOG_INFO(GL, "ro replica has received a reconfiguration request");
     executeReadOnlyRequest(span, m);
     delete m;
     return;
@@ -168,25 +168,25 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   delete m;
 }
 
-void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, ClientRequestMsg *request) {
+void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, const ClientRequestMsg &request) {
   auto span = concordUtils::startChildSpan("bft_execute_read_only_request", parent_span);
   // Read only replica does not know who is the primary, so it always return 0. It is the client responsibility to treat
   // the replies accordingly.
-  ClientReplyMsg reply(0, request->requestSeqNum(), config_.getreplicaId());
+  ClientReplyMsg reply(0, request.requestSeqNum(), config_.getreplicaId());
 
-  uint16_t clientId = request->clientProxyId();
+  const uint16_t clientId = request.clientProxyId();
 
   int status = 0;
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
                                                                               static_cast<uint64_t>(lastExecutedSeqNum),
-                                                                              request->flags(),
-                                                                              request->requestLength(),
-                                                                              request->requestBuf(),
+                                                                              request.flags(),
+                                                                              request.requestLength(),
+                                                                              request.requestBuf(),
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf()});
 
-  bftRequestsHandler_->execute(accumulatedRequests, request->getCid(), span);
+  bftRequestsHandler_->execute(accumulatedRequests, request.getCid(), span);
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;
@@ -194,7 +194,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
   LOG_DEBUG(GL,
             "Executed read only request. " << KVLOG(clientId,
                                                     lastExecutedSeqNum,
-                                                    request->requestLength(),
+                                                    request.requestLength(),
                                                     reply.maxReplyLength(),
                                                     actualReplyLength,
                                                     actualReplicaSpecificInfoLength,

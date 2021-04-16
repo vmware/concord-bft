@@ -64,7 +64,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
-  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
 };
 
 }  // namespace bftEngine::impl

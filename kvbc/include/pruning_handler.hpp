@@ -192,7 +192,7 @@ class PruningHandler : public reconfiguration::IPruningHandler {
 
 /*
  * The read only pruning handler knows to answer only getLatestPruneableBlock.
- * As it doesn't participant the consensus, the only thing we want to know is what is the latest reachable block.
+ * As it doesn't participant the consensus, the only thing we want to know is what the latest reachable block is.
  */
 class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
  public:
