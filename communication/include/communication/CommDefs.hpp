@@ -169,6 +169,10 @@ class PlainTCPCommunication : public ICommunication {
   explicit PlainTCPCommunication(const PlainTcpConfig &config);
 };
 
+namespace tls {
+class Runner;
+}
+
 class TlsTCPCommunication : public ICommunication {
  public:
   static TlsTCPCommunication *create(const TlsTcpConfig &config);
@@ -187,9 +191,8 @@ class TlsTCPCommunication : public ICommunication {
   ~TlsTCPCommunication() override;
 
  private:
-  class TlsTcpImpl;
-  friend class AsyncTlsConnection;
-  std::unique_ptr<TlsTcpImpl> impl_;
+  TlsTcpConfig config_;
+  std::unique_ptr<tls::Runner> runner_;
 
   explicit TlsTCPCommunication(const TlsTcpConfig &config);
 };
