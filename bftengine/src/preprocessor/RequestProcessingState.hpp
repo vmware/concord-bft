@@ -53,6 +53,15 @@ class RequestProcessingState {
   uint64_t getReqTimeoutMilli() const {
     return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestTimeoutMilli() : 0;
   }
+
+  const char* getReqSignature() const {
+    return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestSignature() : nullptr;
+  }
+
+  uint32_t getReqSignatureLength() const {
+    return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestSignatureLength() : 0;
+  }
+
   std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId, uint64_t reqRetryId) const;
   void releaseResources();
