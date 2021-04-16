@@ -27,10 +27,20 @@
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
-ReplicaConfig& config = createReplicaConfig();
-const char rawSpanContext[] = {"span_\0context"};
+static constexpr char rawSpanContext[] = "span_\0context";
 
-void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::string& spanContext = "") {
+class ViewChangeMsgTestsFixture : public ::testing::Test {
+ public:
+  ViewChangeMsgTestsFixture() : config(createReplicaConfig()) {}
+  ReplicaConfig& config;
+
+  void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int totalElements = 0);
+  void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::string& spanContext = "");
+};
+
+void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
+                                                   bool bAddComplaints,
+                                                   const std::string& spanContext) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -169,7 +179,7 @@ void ViewChangeMsgTests(bool bAddElements, bool bAddComplaints, const std::strin
   }
 }
 
-void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int totalElements = 0) {
+void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::string& spanContext, int totalElements) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -287,31 +297,37 @@ void ViewChangeMsgAddRemoveComplaints(const std::string& spanContext = "", int t
   }
 }
 
-TEST(ViewChangeMsg, base_methods_no_span) { ViewChangeMsgTests(false, false); }
+TEST_F(ViewChangeMsgTestsFixture, base_methods_no_span) { ViewChangeMsgTests(false, false); }
 
-TEST(ViewChangeMsg, add_elements_no_span) { ViewChangeMsgTests(true, false); }
+TEST_F(ViewChangeMsgTestsFixture, add_elements_no_span) { ViewChangeMsgTests(true, false); }
 
-TEST(ViewChangeMsg, add_complaints_no_span) { ViewChangeMsgTests(false, true); }
+TEST_F(ViewChangeMsgTestsFixture, add_complaints_no_span) { ViewChangeMsgTests(false, true); }
 
-TEST(ViewChangeMsg, add_elements_and_complaints_no_span) { ViewChangeMsgTests(true, true); }
+TEST_F(ViewChangeMsgTestsFixture, add_elements_and_complaints_no_span) { ViewChangeMsgTests(true, true); }
 
-TEST(ViewChangeMsg, base_methods_with_span) { ViewChangeMsgTests(false, false, rawSpanContext); }
+TEST_F(ViewChangeMsgTestsFixture, base_methods_with_span) { ViewChangeMsgTests(false, false, rawSpanContext); }
 
-TEST(ViewChangeMsg, add_elements_with_span) { ViewChangeMsgTests(true, false, rawSpanContext); }
+TEST_F(ViewChangeMsgTestsFixture, add_elements_with_span) { ViewChangeMsgTests(true, false, rawSpanContext); }
 
-TEST(ViewChangeMsg, add_complaints_with_span) { ViewChangeMsgTests(false, true, rawSpanContext); }
+TEST_F(ViewChangeMsgTestsFixture, add_complaints_with_span) { ViewChangeMsgTests(false, true, rawSpanContext); }
 
-TEST(ViewChangeMsg, add_elements_and_complaints_with_span) { ViewChangeMsgTests(true, true, rawSpanContext); }
+TEST_F(ViewChangeMsgTestsFixture, add_elements_and_complaints_with_span) {
+  ViewChangeMsgTests(true, true, rawSpanContext);
+}
 
-TEST(ViewChangeMsg, add_remove_complaints_with_span_with_elements) {
+TEST_F(ViewChangeMsgTestsFixture, add_remove_complaints_with_span_with_elements) {
   ViewChangeMsgAddRemoveComplaints(rawSpanContext, 5);
 }
 
-TEST(ViewChangeMsg, add_remove_complaints_with_span_no_elements) { ViewChangeMsgAddRemoveComplaints(rawSpanContext); }
+TEST_F(ViewChangeMsgTestsFixture, add_remove_complaints_with_span_no_elements) {
+  ViewChangeMsgAddRemoveComplaints(rawSpanContext);
+}
 
-TEST(ViewChangeMsg, add_remove_complaints_no_span_with_elements) { ViewChangeMsgAddRemoveComplaints("", 7); }
+TEST_F(ViewChangeMsgTestsFixture, add_remove_complaints_no_span_with_elements) {
+  ViewChangeMsgAddRemoveComplaints("", 7);
+}
 
-TEST(ViewChangeMsg, add_remove_complaints_no_span_no_elements) { ViewChangeMsgAddRemoveComplaints(); }
+TEST_F(ViewChangeMsgTestsFixture, add_remove_complaints_no_span_no_elements) { ViewChangeMsgAddRemoveComplaints(); }
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
