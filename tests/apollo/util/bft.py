@@ -68,6 +68,7 @@ BFT_CLIENT_TYPE = bft_client.TcpTlsClient if os.environ.get('BUILD_COMM_TCP_TLS'
 # Reserved clients (RESERVED_CLIENTS_QUOTA) are not part of NUM_CLIENTS
 RESERVED_CLIENTS_QUOTA = 2
 BFT_CONFIGS_NUM_CLIENTS = 10
+NUM_PARTICIPANTS = 5
 
 @log_call(action_type="Test_Configs", include_args=[])
 def interesting_configs(selected=None):
@@ -208,6 +209,7 @@ class BftTestNetwork:
             os.chdir(self.origdir)
             shutil.rmtree(self.testdir, ignore_errors=True)
             shutil.rmtree(self.certdir, ignore_errors=True)
+            shutil.rmtree(self.self.txn_signing_keys_path, ignore_errors=True)
             if self.test_dir and self.test_start_time:
                 with open(f"{self.test_dir}test_duration.log", 'w+') as log_file:
                     log_file.write(f"test duration = {time.time() - self.test_start_time} seconds\n")
@@ -239,6 +241,10 @@ class BftTestNetwork:
         self.test_dir = None
         self.test_start_time = None
         self.perf_proc = None
+        self.txn_signing_enabled = True if os.environ.get('TXN_SIGNING_ENABLED', "").lower() == "true" else False
+        self.txn_signing_keys_path = tempfile.mkdtemp() if self.txn_signing_enabled else ""
+        self.principals_mapping, self.principals_to_participant_map = self.create_principals_mapping() \
+            if self.txn_signing_enabled else "", {}
 
     @classmethod
     def new(cls, config, background_nursery, client_factory=None):
@@ -365,6 +371,13 @@ class BftTestNetwork:
         args = [certs_gen_script_path, str(num_to_generate), self.certdir, str(start_index)]
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
 
+    def generate_txn_signing_keys(self, num_participants, keys_path):
+        """ Generates num_participants number of key pairs """
+        rootdir = os.path.abspath("../../")
+        txn_signing_keys_script_path = os.path.join(rootdir, "scripts/linux/create_concord_clients_transaction_signing_keys.sh")
+        args = [txn_signing_keys_script_path, "-n", num_participants, "-o", keys_path]
+        subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+
     def _create_clients(self):
         start_id = self.config.n + self.config.num_ro_replicas
         for client_id in range(start_id, start_id + self.config.num_clients):
@@ -396,7 +409,9 @@ class BftTestNetwork:
                                  MAX_MSG_SIZE,
                                  REQ_TIMEOUT_MILLI,
                                  RETRY_TIMEOUT_MILLI,
-                                 self.certdir)
+                                 self.certdir,
+                                 self.txn_signing_keys_path,
+                                 self.principals_to_participant_map)
 
     def _init_metrics(self):
         metric_clients = {}
@@ -409,6 +424,50 @@ class BftTestNetwork:
 
     def random_clients(self, max_clients):
         return set(random.choices(list(self.clients.values()), k=max_clients))
+
+    def create_principals_mapping(self):
+        """
+        If client principal ids range from 11-20, for example, this method splits them into groups based on NUM_PARTICIPANTS.
+        Client ids in each group will be space separated, and each group will be comma separated. 
+        E.g. "11 12,13 14,15 16,17 18,19 20" for 10 client ids divided into 5 participants.
+        If there are reserved clients, they are added at the end of the group in round robin manner.
+        Thus, if there are 2 reserved client, with ids 21 and 22, the final string would look like:
+        "11 12 21,13 14 22,15 16,17 18,19 20".
+        This method also returns a principals to participants map, with the key being the principal id
+        of the client or reserved client, and the value being the participant it belongs to (numbered 1 onwards).
+        """
+        def split(a, n):
+            """ Splits list 'a' into n chunks """
+            k, m = divmod(len(a), n)
+            return [a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+        principals = ""
+        client_ids = self.clients.keys().sort()
+        reserved_client_ids = self.reserved_clients.keys().sort()
+        combined_clients = client_ids + reserved_client_ids
+        combined_clients_set = set(combined_clients)
+        assert len(combined_clients_set) == len(combined_clients), "Client Ids and Reserved Client Ids must all be unique ids"
+        client_ids_chunks = split(client_ids, NUM_PARTICIPANTS)
+        reserved_client_ids_chunks = split(reserved_client_ids, NUM_PARTICIPANTS)
+        principals_to_participant_map = {}
+
+        # iterate number of participants
+        for i in range(NUM_PARTICIPANTS):
+            # add client_ids to principals
+            for cid in client_ids_chunks[i]:
+                principals = principals + str(cid) + " "
+                principals_to_participant_map[cid] = i+1
+            # add reserved_client_ids to principals
+            for rcid in reserved_client_ids_chunks[i]:
+                principals = principals + str(rcid) + " "
+                principals_to_participant_map[rcid] = i+1
+            # remove last space
+            if principals[-1] == ' ':
+                principals = principals[:-1]
+            # add , to separate next set of client_ids
+            principals = principals + ","
+
+        return principals, principals_to_participant_map
 
     def start_replica_cmd(self, replica_id):
         """
@@ -425,6 +484,12 @@ class BftTestNetwork:
             if self.certdir:
                 cmd.append("-c")
                 cmd.append(self.certdir)
+            if self.txn_signing_enabled:
+                cmd.append("-p")
+                cmd.append(self.principals_mapping)
+                self.generate_txn_signing_keys(NUM_PARTICIPANTS, txn_signing_keys_path)
+                cmd.append("-t")
+                cmd.append(txn_signing_keys_path)
             return cmd
 
     def stop_replica_cmd(self, replica_id):
