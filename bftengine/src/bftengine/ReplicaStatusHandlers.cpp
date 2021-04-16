@@ -67,6 +67,8 @@ std::string ReplicaStatusHandlers::preExecutionStatus(std::shared_ptr<concordMet
       toPair(getName(preProcReqReceived), aggregator->GetCounter("preProcessor", "preProcReqReceived").Get()));
   result.insert(toPair(getName(preProcReqInvalid), aggregator->GetCounter("preProcessor", "preProcReqInvalid").Get()));
   result.insert(toPair(getName(preProcReqIgnored), aggregator->GetCounter("preProcessor", "preProcReqIgnored").Get()));
+  result.insert(toPair(getName(preProcClientReqSigVerFailed),
+                       aggregator->GetCounter("preProcessor", "preProcClientReqSigVerFailed").Get()));
   result.insert(toPair(getName(preProcConsensusNotReached),
                        aggregator->GetCounter("preProcessor", "preProcConsensusNotReached").Get()));
   result.insert(toPair(getName(preProcessRequestTimedout),
