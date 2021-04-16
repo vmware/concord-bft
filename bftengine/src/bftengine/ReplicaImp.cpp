@@ -128,6 +128,23 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
 template <class T>
 void onMessage(T *);
 
+bool ReplicaImp::validateMessage(MessageBase *msg) {
+  if (config_.debugStatisticsEnabled) {
+    DebugStatistics::onReceivedExMessage(msg->type());
+  }
+  try {
+    msg->validate(*repsInfo);
+    return true;
+  } catch (ClientSignatureVerificationFailedException &e) {
+    metric_client_req_sig_veirification_failed_.Get().Inc();
+    onReportAboutInvalidMessage(msg, e.what());
+    return false;
+  } catch (std::exception &e) {
+    onReportAboutInvalidMessage(msg, e.what());
+    return false;
+  }
+}
+
 void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   if (clientsManager->isInternal(dest)) {
     LOG_DEBUG(GL, "Not sending reply to internal client id - " << dest);
@@ -658,7 +675,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     return;  // TODO(GG): memory deallocation is confusing .....
   }
-
   bool msgAdded = false;
 
   if (relevantMsgForActiveView(msg) && (msg->senderId() == currentPrimary())) {
@@ -701,7 +717,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         seqNumInfo.startSlowPath();
         metric_slow_path_count_.Get().Inc();
         sendPreparePartial(seqNumInfo);
-        ;
       }
     }
   }
@@ -3574,6 +3589,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
+      metric_client_req_sig_veirification_failed_{metrics_.RegisterCounter("clientReqSigVerFailed")},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),
