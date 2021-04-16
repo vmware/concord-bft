@@ -88,7 +88,7 @@ void setUpConfiguration_4() {
     replicaConfig[i].cVal = C;
     replicaConfig[i].replicaId = i;
   }
-  loadPrivateAndPublicKeys(replicaConfig[0].replicaPrivateKey, replicaConfig[0].publicKeysOfReplicas, 4);
+  loadPrivateAndPublicKeys(replicaConfig[0].replicaPrivateKey, replicaConfig[0].publicKeysOfReplicas, 0, N);
   pRepInfo = std::make_unique<bftEngine::impl::ReplicasInfo>(replicaConfig[0], true, true);
 
   sigManager_.reset(createSigManager(0,
