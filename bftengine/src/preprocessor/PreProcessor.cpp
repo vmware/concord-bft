@@ -61,6 +61,10 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
   try {
     msg->validate(myReplica_.getReplicasInfo());
     return true;
+  } catch (ClientSignatureVerificationFailedException &e) {
+    LOG_ERROR(logger(), "Received invalid message from " << KVLOG(msg->senderId(), msg->type(), e.what()));
+    preProcessorMetrics_.preProcClientReqSigVerFailed.Get().Inc();
+    return false;
   } catch (std::exception &e) {
     LOG_WARN(logger(),
              "Received invalid message from Node " << msg->senderId() << " type: " << msg->type()
@@ -95,6 +99,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterCounter("preProcReqIgnored"),
                            metricsComponent_.RegisterCounter("preProcReqRejected"),
+                           metricsComponent_.RegisterCounter("preProcClientReqSigVerFailed"),
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedOut"),
                            metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
@@ -676,7 +681,10 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                        reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
                                                        reqProcessingStatePtr->getPrimaryPreProcessedResult(),
                                                        reqProcessingStatePtr->getReqTimeoutMilli(),
-                                                       cid);
+                                                       cid,
+                                                       concordUtils::SpanContext(),
+                                                       reqProcessingStatePtr->getReqSignature(),
+                                                       reqProcessingStatePtr->getReqSignatureLength());
       LOG_DEBUG(logger(),
                 "Pass pre-processed request to the replica" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
       incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
