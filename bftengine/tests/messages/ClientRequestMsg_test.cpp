@@ -20,8 +20,22 @@
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
-TEST(ClientRequestMsg, create_and_compare) {
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+class ClientRequestMsgTestFixture : public ::testing::Test {
+ public:
+  ClientRequestMsgTestFixture()
+      : config{createReplicaConfig()},
+        replicaInfo(config, false, false),
+        sigManager(createSigManager(config.replicaId,
+                                    config.replicaPrivateKey,
+                                    KeyFormat::HexaDecimalStrippedFormat,
+                                    config.publicKeysOfReplicas)) {}
+
+  ReplicaConfig& config;
+  ReplicasInfo replicaInfo;
+  std::unique_ptr<SigManager> sigManager;
+};
+
+TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -51,8 +65,7 @@ TEST(ClientRequestMsg, create_and_compare) {
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
-TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -81,8 +94,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_span) {
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
-TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -112,8 +124,7 @@ TEST(ClientRequestMsg, create_and_compare_with_empty_cid) {
   EXPECT_NO_THROW(msg.validate(replicaInfo));
 }
 
-TEST(ClientRequestMsg, create_from_buffer) {
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;
@@ -145,8 +156,7 @@ TEST(ClientRequestMsg, create_from_buffer) {
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
 }
 
-TEST(ClientRequestMsg, base_methods) {
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+TEST_F(ClientRequestMsgTestFixture, base_methods) {
   NodeIdType senderId = 1u;
   uint8_t flags = 'F';
   uint64_t reqSeqNum = 100u;

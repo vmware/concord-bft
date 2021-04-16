@@ -116,4 +116,5 @@ bftEngine::impl::SigManager *createSigManager(size_t myId,
 
 void loadPrivateAndPublicKeys(std::string &myPrivateKey,
                               std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
-                              size_t numPublicKeysToLoad);
+                              ReplicaId myId,
+                              size_t numReplicas);

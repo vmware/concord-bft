@@ -42,7 +42,22 @@ ClientRequestMsg create_client_request() {
                           concordUtils::SpanContext{spanContext});
 }
 
-TEST(PrePrepareMsg, create_and_compare) {
+class PrePrepareMsgTestFixture : public ::testing::Test {
+ public:
+  PrePrepareMsgTestFixture()
+      : config{createReplicaConfig()},
+        replicaInfo(config, false, false),
+        sigManager(createSigManager(config.replicaId,
+                                    config.replicaPrivateKey,
+                                    KeyFormat::HexaDecimalStrippedFormat,
+                                    config.publicKeysOfReplicas)) {}
+
+  ReplicaConfig& config;
+  ReplicasInfo replicaInfo;
+  std::unique_ptr<SigManager> sigManager;
+};
+
+TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
 
   ReplicaId senderId = 1u;
@@ -80,7 +95,7 @@ TEST(PrePrepareMsg, create_and_compare) {
   iterator.restart();
 }
 
-TEST(PrePrepareMsg, create_null_message) {
+TEST_F(PrePrepareMsgTestFixture, create_null_message) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -98,7 +113,7 @@ TEST(PrePrepareMsg, create_null_message) {
   EXPECT_EQ(msg.numberOfRequests(), 0u);
 }
 
-TEST(PrePrepareMsg, base_methods) {
+TEST_F(PrePrepareMsgTestFixture, base_methods) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
