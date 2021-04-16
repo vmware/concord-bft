@@ -11,6 +11,7 @@
 
 #include "ClientBatchRequestMsg.hpp"
 #include "assertUtils.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine::impl {
 
@@ -57,19 +58,27 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
   char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
+  auto sigManager = SigManager::getInstance();
+  bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(ClientRequestMsgHeader*)dataPosition;
     const char* spanDataPosition = dataPosition + sizeof(ClientRequestMsgHeader);
     const char* requestDataPosition = spanDataPosition + singleMsgHeader.spanContextSize;
     const char* cidPosition = requestDataPosition + singleMsgHeader.requestLength;
     const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
+    const char* requestSignaturePosition =
+        isClientTransactionSigningEnabled ? (cidPosition + singleMsgHeader.cidLength) : nullptr;
+    uint32_t requestSignatureLength =
+        isClientTransactionSigningEnabled ? sigManager->getSigLength(singleMsgHeader.idOfClientProxy) : 0;
     auto msg = make_unique<preprocessor::ClientPreProcessRequestMsg>(singleMsgHeader.idOfClientProxy,
                                                                      singleMsgHeader.reqSeqNum,
                                                                      singleMsgHeader.requestLength,
                                                                      requestDataPosition,
                                                                      singleMsgHeader.timeoutMilli,
                                                                      string(cidPosition, singleMsgHeader.cidLength),
-                                                                     spanContext);
+                                                                     spanContext,
+                                                                     requestSignaturePosition,
+                                                                     requestSignatureLength);
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
                     singleMsgHeader.cidLength;
