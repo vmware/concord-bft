@@ -239,6 +239,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_slowPath_requests_;
   CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
+  CounterHandle metric_client_req_sig_veirification_failed_;
   //*****************************************************
   RollingAvgAndVar consensus_time_;
   RollingAvgAndVar accumulating_batch_time_;
@@ -276,6 +277,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> getSecretsManager() { return sm_; }
 
   void recoverRequests();
+
+  bool validateMessage(MessageBase* msg);
 
   // InternalReplicaApi
   bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
