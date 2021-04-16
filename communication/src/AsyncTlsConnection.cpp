@@ -466,25 +466,20 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
 
 using namespace concord::secretsmanager;
 
-inline static std::unique_ptr<ISecretsManagerImpl> secrets_manager_;
-
 const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& path) {
   namespace fs = boost::filesystem;
   std::string pkpath;
 
+  std::unique_ptr<ISecretsManagerImpl> secrets_manager;
   if (tlsTcpImpl_.config_.secretData) {
     pkpath = (path / fs::path("pk.pem.enc")).string();
-    if (secrets_manager_ == nullptr) {
-      secrets_manager_.reset(new SecretsManagerEnc(tlsTcpImpl_.config_.secretData.value()));
-    }
+    secrets_manager.reset(new SecretsManagerEnc(tlsTcpImpl_.config_.secretData.value()));
   } else {
     pkpath = (path / fs::path("pk.pem")).string();
-    if (secrets_manager_ == nullptr) {
-      secrets_manager_.reset(new SecretsManagerPlain());
-    }
+    secrets_manager.reset(new SecretsManagerPlain());
   }
 
-  auto decBuf = secrets_manager_->decryptFile(pkpath);
+  auto decBuf = secrets_manager->decryptFile(pkpath);
   if (!decBuf) {
     throw std::runtime_error("Error decrypting " + pkpath);
   }
