@@ -34,7 +34,7 @@ jobs:
           run: |
               script -q -e -c "make pull"
               sudo df -h
-              script -q -e -c "CONCORD_BFT_CMAKE_THREADCHECK=TRUE make build" \
+              script -q -e -c "CONCORD_BFT_CMAKE_TSAN=TRUE make build" \
               && script -q -e -c "make test"
         - name: Check if TSAN passed
           if: always()
