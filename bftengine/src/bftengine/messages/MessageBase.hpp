@@ -24,6 +24,13 @@ namespace impl {
 template <typename MessageT>
 size_t sizeOfHeader();
 
+class ClientSignatureVerificationFailedException : public std::runtime_error {
+ public:
+  ClientSignatureVerificationFailedException(const std::string &error)
+      : std::runtime_error(("ClientSignatureVerificationFailedException: " + error).c_str()) {}
+  const char *what() const noexcept override { return std::runtime_error::what(); }
+};
+
 class MessageBase {
  public:
 #pragma pack(push, 1)

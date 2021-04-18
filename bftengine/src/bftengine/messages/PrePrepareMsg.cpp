@@ -15,6 +15,7 @@
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
 #include "ClientRequestMsg.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -50,8 +51,9 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
       firstPath_ >= 3 ||             // invalid first path
       ((firstPath() == CommitPath::FAST_WITH_THRESHOLD) && (repInfo.cVal() == 0)) || reservedBits != 0 ||
       b()->endLocationOfLastRequest > size() || b()->numberOfRequests == 0 ||
-      b()->numberOfRequests >= b()->endLocationOfLastRequest || !checkRequests())
+      b()->numberOfRequests >= b()->endLocationOfLastRequest || !checkRequests()) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
+  }
 
   // digest
   Digest d;
@@ -61,6 +63,17 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
 
   if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
+
+  if (SigManager::getInstance()->isClientTransactionSigningEnabled()) {
+    auto it = RequestsIterator(this);
+    char* requestBody = nullptr;
+    while (it.getAndGoToNext(requestBody)) {
+      ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+      if (req.getExpectedSignatureLength() > 0) {
+        req.validateRequestSignature(repInfo);
+      }
+    }
+  }
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
