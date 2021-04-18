@@ -119,6 +119,9 @@ class PreProcessor {
                                     uint64_t reqRetryId,
                                     const std::string &cid,
                                     const std::string &ongoingCid);
+  void sendCancelPreProcessRequestMsg(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
+                                      uint16_t reqOffsetInBatch,
+                                      uint64_t reqRetryId);
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
   const uint16_t getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
@@ -165,15 +168,14 @@ class PreProcessor {
                                       ReqId reqSeqNum,
                                       NodeIdType clientId,
                                       NodeIdType senderId);
-  bool isRequestAlreadyExecuted(ReqId reqSeqNum, NodeIdType clientId, const std::string &cid);
+  bool isRequestAlreadyExecuted(ReqId reqSeqNum, NodeIdType senderId, NodeIdType clientId, const std::string &cid);
   bool isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
                                    SeqNum reqSeqNum,
                                    NodeIdType clientId,
                                    const std::string &cid);
-
   bool isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
-                                           NodeIdType clientId,
                                            NodeIdType senderId,
+                                           NodeIdType clientId,
                                            const std::string &cid);
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
@@ -206,11 +208,11 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcReqReceived;
     concordMetrics::CounterHandle preProcReqInvalid;
     concordMetrics::CounterHandle preProcReqIgnored;
+    concordMetrics::CounterHandle preProcReqRejected;
     concordMetrics::CounterHandle preProcConsensusNotReached;
-    concordMetrics::CounterHandle preProcessRequestTimedout;
+    concordMetrics::CounterHandle preProcessRequestTimedOut;
     concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
-    concordMetrics::CounterHandle preProcReqForwardedByNonPrimaryNotIgnored;
     concordMetrics::GaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
