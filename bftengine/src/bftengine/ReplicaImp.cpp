@@ -4070,11 +4070,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
-    if (!requestSet.get(tmp)) {
-      continue;
-    }
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-    if (req.requestLength() == 0 || (req.flags() & EMPTY_CLIENT_FLAG)) {
+    if (!requestSet.get(tmp) || req.requestLength() == 0 || (req.flags() & EMPTY_CLIENT_FLAG)) {
       if (clientsManager->isValidClient(req.clientProxyId()))
         clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
