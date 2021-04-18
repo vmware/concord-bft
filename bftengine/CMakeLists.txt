@@ -113,7 +113,7 @@ target_include_directories(bftclient PUBLIC src/bftengine)
 target_include_directories(bftclient PUBLIC src/preprocessor)
 target_include_directories(bftclient PUBLIC ${perf_include})
 target_include_directories(bftclient PUBLIC ${kvbc_include})
-target_link_libraries(bftclient PUBLIC bftcommunication)
+target_link_libraries(bftclient PUBLIC bftcommunication diagnostics)
 
 target_include_directories(bftclient_shared PUBLIC include/bftengine)
 target_include_directories(bftclient_shared PUBLIC src/bftengine)
@@ -122,7 +122,7 @@ target_include_directories(bftclient_shared PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(bftclient_shared PUBLIC ${perf_include})
 target_include_directories(bftclient_shared PUBLIC ${kvbc_include})
 
-target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared ${CRYPTOPP_SHARED_LIBRARY})
+target_link_libraries(bftclient_shared PUBLIC bftcommunication_shared ${CRYPTOPP_SHARED_LIBRARY} diagnostics)
 install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
 
 install(DIRECTORY include/bftengine DESTINATION include)
