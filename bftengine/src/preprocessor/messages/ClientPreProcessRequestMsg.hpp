@@ -31,7 +31,7 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
 
   ClientPreProcessRequestMsg(MessageBase* msgBase) : ClientRequestMsg(msgBase) {}
 
-  std::unique_ptr<MessageBase> convertToClientRequestMsg(bool resetPreProcessFlag);
+  std::unique_ptr<MessageBase> convertToClientRequestMsg(bool resetPreProcessFlag, bool emptyReq = false);
 };
 
 typedef std::unique_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgUniquePtr;

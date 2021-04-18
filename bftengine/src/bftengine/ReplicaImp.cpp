@@ -4058,7 +4058,9 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       continue;
     }
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-    if (req.flags() & EMPTY_CLIENT_FLAG) {
+    if (req.requestLength() == 0 || (req.flags() & EMPTY_CLIENT_FLAG)) {
+      if (clientsManager->isValidClient(req.clientProxyId()))
+        clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
     }
     SCOPED_MDC_CID(req.getCid());

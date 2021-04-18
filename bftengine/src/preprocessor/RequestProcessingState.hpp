@@ -39,7 +39,7 @@ class RequestProcessingState {
 
   void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
   void handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr& preProcessReplyMsg);
-  std::unique_ptr<MessageBase> buildClientRequestMsg(bool resetPreProcessFlag);
+  std::unique_ptr<MessageBase> buildClientRequestMsg(bool resetPreProcessFlag, bool emptyReq = false);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);
   const PreProcessRequestMsgSharedPtr& getPreProcessRequest() const { return preProcessRequestMsg_; }
   const auto getClientId() const { return clientId_; }
