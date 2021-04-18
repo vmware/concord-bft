@@ -16,13 +16,30 @@
 namespace bftEngine {
 namespace impl {
 
-// we assume that the set of replicas is 0,1,2,...,numberOfReplicas=n, n+1, n+2, ... , n+numberReadOnlyReplicas
-
+// We assume that the range of ids is as follows:
+//
+// Consensus replicas address range:
+//  [0, numReplicas-1] inclusive
+//
+// RO replicas address range:
+//  [numReplicas, numReplicas+numRoReplicas-1] inclusive
+//
+// Proxy clients address range:
+//  [numReplicas+numRoReplicas, numReplicas+numRoReplicas+numOfClientProxies-1] inclusive
+//
+// External clients address range:
+//  [numReplicas+numRoReplicas+numOfClientProxies-1,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1] inclusive
+//
 ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
     : _myId{config.replicaId},
       _numberOfReplicas{config.numReplicas},
+      _numOfClientProxies{config.numOfClientProxies},
+      _numberOfExternalClients{config.numOfExternalClients},
+      _maxValidPrincipalId{static_cast<uint16_t>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
+                                                 config.numOfExternalClients - 1)},
       _fVal{config.fVal},
       _cVal{config.cVal},
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
@@ -39,6 +56,24 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
         std::set<ReplicaId> ret;
         for (auto i = config.numReplicas; i < config.numReplicas + config.numRoReplicas; ++i)
           if (i != config.replicaId) ret.insert(i);
+        return ret;
+      }()},
+
+      _idsOfClientProxies{[&config]() {
+        std::set<ReplicaId> ret;
+        for (auto i = config.numReplicas + config.numRoReplicas;
+             i < config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
+             ++i)
+          ret.insert(i);
+        return ret;
+      }()},
+
+      _idsOfExternalClients{[&config]() {
+        std::set<ReplicaId> ret;
+        for (auto i = config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
+             i < config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients;
+             ++i)
+          ret.insert(i);
         return ret;
       }()} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
