@@ -328,6 +328,7 @@ void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId
 
 void ClientsManager::clearAllPendingRequests() {
   for (ClientInfo& clientInfo : indexToClientInfo_) clientInfo.requestsInfo.clear();
+  LOG_DEBUG(CL_MNGR, "Cleared pending requests for all clients");
 }
 
 // Iterate over all clients and choose the earliest pending request.
