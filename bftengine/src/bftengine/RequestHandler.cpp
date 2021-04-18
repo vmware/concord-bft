@@ -66,7 +66,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.flags = READ_ONLY_FLAG;
     }
   }
-  return userRequestsHandler_->execute(requests, batchCid, parent_span);
+  if (userRequestsHandler_) return userRequestsHandler_->execute(requests, batchCid, parent_span);
+  return;
 }
 
 }  // namespace bftEngine
