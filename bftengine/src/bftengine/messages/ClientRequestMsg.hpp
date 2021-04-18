@@ -14,6 +14,8 @@
 #include "MessageBase.hpp"
 #include "ReplicasInfo.hpp"
 #include "ClientMsgs.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 namespace bftEngine::impl {
 
@@ -24,8 +26,8 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 33, "ClientRequestMsgHeader size is 33B");
-
+  static_assert(sizeof(ClientRequestMsgHeader) == 35, "ClientRequestMsgHeader size is 35B");
+  static concord::diagnostics::Recorder sigNatureVerificationRecorder;
   // TODO(GG): more asserts
 
  public:
@@ -36,7 +38,9 @@ class ClientRequestMsg : public MessageBase {
                    const char* request,
                    uint64_t reqTimeoutMilli,
                    const std::string& cid = "",
-                   const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
+                   const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
+                   const char* requestSignature = nullptr,
+                   uint32_t requestSignatureLen = 0);
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -56,13 +60,31 @@ class ClientRequestMsg : public MessageBase {
 
   char* requestBuf() const { return body() + sizeof(ClientRequestMsgHeader) + spanContextSize(); }
 
+  uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
+
+  const char* requestSignature() const;
+
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
   std::string getCid() const;
+
   void validate(const ReplicasInfo&) const override;
+  void validateRequest(const ReplicasInfo&, uint16_t) const;
+  void validateRequestSignature(const ReplicasInfo&) const;
+  uint16_t getExpectedSignatureLength() const;
 
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
+
+  struct Recorders {
+    Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("client_request", {signatureVerificationduration});
+    }
+    DEFINE_SHARED_RECORDER(signatureVerificationduration, 1, 10000, 3, concord::diagnostics::Unit::MICROSECONDS);
+  };
+
+  static Recorders histograms_;
 
  private:
   void setParams(NodeIdType sender,
@@ -70,7 +92,8 @@ class ClientRequestMsg : public MessageBase {
                  uint32_t requestLength,
                  uint8_t flags,
                  uint64_t reqTimeoutMilli,
-                 const std::string& cid);
+                 const std::string& cid,
+                 uint32_t requestSignatureLen);
 };
 
 template <>
