@@ -66,11 +66,10 @@ class TestRepliesManager(unittest.TestCase):
         self.assertEqual(num_of_replies, 2)
 
         common_key = rsi_reply.get_matched_reply_key()
-        header = rsi_reply.get_common_reply()[0]
         rsi_replies = replies_manager.pop(common_key)
         self.assertEqual(replies_manager.num_matching_replies(common_key), 0)
-        self.assertEqual(header.primary_id, 0)
-        self.assertEqual(header.req_seq_num, 1)
+        self.assertEqual(common_key.header.primary_id, 0)
+        self.assertEqual(common_key.header.req_seq_num, 1)
         self.assertEqual(common_key.data, b'hello')
         self.assertEqual(b'1', rsi_replies[0].get_rsi_data())
         self.assertTrue(b'0', rsi_replies[1].get_rsi_data())
