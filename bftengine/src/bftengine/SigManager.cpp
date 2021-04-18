@@ -70,8 +70,12 @@ SigManager* SigManager::initImpl(ReplicaId myId,
   }
 
   LOG_INFO(GL, "Done Compute Start ctor for SigManager with " << KVLOG(publickeys.size(), publicKeysMapping.size()));
-  return new SigManager(
-      myId, numReplicas, make_pair(mySigPrivateKey, replicasKeysFormat), publickeys, publicKeysMapping);
+  return new SigManager(myId,
+                        numReplicas,
+                        make_pair(mySigPrivateKey, replicasKeysFormat),
+                        publickeys,
+                        publicKeysMapping,
+                        (publicKeysOfClients != nullptr));
 }
 
 SigManager* SigManager::init(ReplicaId myId,
@@ -107,13 +111,13 @@ SigManager::SigManager(PrincipalId myId,
                        uint16_t numReplicas,
                        const pair<Key, KeyFormat>& mySigPrivateKey,
                        const vector<pair<Key, KeyFormat>>& publickeys,
-                       const map<PrincipalId, KeyIndex>& publicKeysMapping)
-    : myId_(myId) {
+                       const map<PrincipalId, KeyIndex>& publicKeysMapping,
+                       bool clientTransactionSigningEnabled)
+    : myId_(myId), clientTransactionSigningEnabled_(clientTransactionSigningEnabled) {
   map<KeyIndex, RSAVerifier*> publicKeyIndexToVerifier;
   size_t numPublickeys = publickeys.size();
   ConcordAssert(publicKeysMapping.size() >= numPublickeys);
-  ConcordAssert(numPublickeys > 0);
-
+  ConcordAssert(numPublickeys + 1 >= numReplicas);
   mySigner_ = new RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second);
   for (const auto& p : publicKeysMapping) {
     ConcordAssert(verifiers_.count(p.first) == 0);
@@ -129,7 +133,7 @@ SigManager::SigManager(PrincipalId myId,
       verifiers_[p.first] = iter->second;
   }
 
-  // This is done for debugging and sanity check:
+  // This is done mainly for debugging and sanity check:
   // compute a vector which counts how many participants and which are per each key:
   vector<set<PrincipalId>> keyIndexToPrincipalIds(publickeys.size());
   for (auto& principalIdToKeyIndex : publicKeysMapping) {
