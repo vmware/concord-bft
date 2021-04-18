@@ -189,4 +189,47 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
 };
+
+/*
+ * The read only pruning handler knows to answer only getLatestPruneableBlock.
+ * As it doesn't participant the consensus, the only thing we want to know is what the latest reachable block is.
+ */
+class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
+ public:
+  ReadOnlyReplicaPruningHandler(IReader &ro_storage)
+      : ro_storage_{ro_storage},
+        signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
+        pruning_enabled_{bftEngine::ReplicaConfig::instance().pruningEnabled_},
+        replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {}
+  bool handle(const concord::messages::LatestPrunableBlockRequest &,
+              concord::messages::LatestPrunableBlock &latest_prunable_block,
+              concord::messages::ReconfigurationErrorMsg &) override {
+    if (!pruning_enabled_) return true;
+    const auto latest_prunable_block_id = pruning_enabled_ ? ro_storage_.getLastBlockId() : 0;
+    latest_prunable_block.bft_sequence_number = 0;  // Read only replica doesn't know the block sequence number
+    latest_prunable_block.replica = replica_id_;
+    latest_prunable_block.block_id = latest_prunable_block_id;
+    signer_.sign(latest_prunable_block);
+    return true;
+  }
+  // Read only replica doesn't perform the actual pruning
+  bool handle(const concord::messages::PruneRequest &,
+              kvbc::BlockId &,
+              uint64_t bftSeqNum,
+              concord::messages::ReconfigurationErrorMsg &) override {
+    return true;
+  }
+  // Read only replica doesn't know the pruning status
+  bool handle(const concord::messages::PruneStatusRequest &,
+              concord::messages::PruneStatus &,
+              concord::messages::ReconfigurationErrorMsg &) override {
+    return true;
+  }
+
+ private:
+  IReader &ro_storage_;
+  RSAPruningSigner signer_;
+  bool pruning_enabled_{false};
+  std::uint64_t replica_id_{0};
+};
 }  // namespace concord::kvbc::pruning
