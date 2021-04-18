@@ -12,6 +12,7 @@
 #pragma once
 
 #include "ReplicaForStateTransfer.hpp"
+#include "messages/ClientRequestMsg.hpp"
 #include "Timers.hpp"
 
 namespace bftEngine::impl {
@@ -41,7 +42,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
 
   template <typename T>
   void messageHandler(MessageBase* msg) {
-    if (validateMessage(msg) && !isCollectingState())
+    if (validateMessage(msg))
       onMessage<T>(static_cast<T*>(msg));
     else
       delete msg;
@@ -63,6 +64,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
 };
 
 }  // namespace bftEngine::impl
