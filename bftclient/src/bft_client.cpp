@@ -114,6 +114,9 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
                               expected_sig_len,
                               actualSigSize);
     ConcordAssert(expected_sig_len == actualSigSize);
+    header->reqSignatureLength = actualSigSize;
+  } else {
+    header->reqSignatureLength = 0;
   }
 
   return msg;
