@@ -190,7 +190,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   char data[RANDOM_DATA_SIZE]{0};
   size_t expectedSignerSigLen, expectedVerifierSigLen;
 
-  generateKeyPairs(2);
+  generateKeyPairs(numReplicas);
 
   // Load my private key
   string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PRIV_KEY_NAME});
@@ -200,10 +200,12 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PUB_KEY_NAME});
   verifier.reset(new RSAVerifier(pubKeyFullPath));
 
-  // load public key of other replica, must be done for SigManager ctor
-  pubKeyFullPath = string(KEYS_BASE_PATH) + string("/") + to_string(2) + string("/") + PUB_KEY_NAME;
-  readFile(pubKeyFullPath, pubKey);
-  publicKeysOfReplicas.insert(make_pair(2, pubKey));
+  // load public key of other replicas, must be done for SigManager ctor
+  for (size_t i{2}; i <= numReplicas; ++i) {
+    pubKeyFullPath = string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME;
+    readFile(pubKeyFullPath, pubKey);
+    publicKeysOfReplicas.insert(make_pair(i - 1, pubKey));
+  }
 
   unique_ptr<SigManager> sigManager(SigManager::init(myId,
                                                      myPrivKey,

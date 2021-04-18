@@ -23,8 +23,19 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
                                                        const char* request,
                                                        uint64_t reqTimeoutMilli,
                                                        const std::string& cid,
-                                                       const concordUtils::SpanContext& spanContext)
-    : ClientRequestMsg(sender, PRE_PROCESS_REQ, reqSeqNum, requestLength, request, reqTimeoutMilli, cid, spanContext) {
+                                                       const concordUtils::SpanContext& spanContext,
+                                                       const char* requestSignature,
+                                                       uint32_t requestSignatureLen)
+    : ClientRequestMsg(sender,
+                       PRE_PROCESS_REQ,
+                       reqSeqNum,
+                       requestLength,
+                       request,
+                       reqTimeoutMilli,
+                       cid,
+                       spanContext,
+                       requestSignature,
+                       requestSignatureLen) {
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
@@ -37,7 +48,9 @@ unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bo
                                                                            requestBuf(),
                                                                            requestTimeoutMilli(),
                                                                            getCid(),
-                                                                           spanContext<ClientRequestMsg>());
+                                                                           spanContext<ClientRequestMsg>(),
+                                                                           requestSignature(),
+                                                                           requestSignatureLength());
   return clientRequestMsg;
 }
 
