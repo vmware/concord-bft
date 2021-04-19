@@ -30,7 +30,6 @@ class ClientRequestMsg;
 class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
   ClientsManager(concordMetrics::Component& metrics, std::set<NodeIdType>& clientsSet);
-  ~ClientsManager();
 
   void init(IStateTransfer* stateTransfer);
 

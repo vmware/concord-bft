@@ -46,7 +46,8 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       MsgCode::ClientRequest, bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
   metrics_.Register();
   // must be initialized although is not used by ReadOnlyReplica for proper behavior of StateTransfer
-  auto maxNumOfReqsPerClient = config.clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1;
+  const auto maxNumOfReqsPerClient =
+      config.clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1;
   ClientsManager::setNumResPages((config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
                                  ClientsManager::reservedPagesPerClient(
                                      config.sizeOfReservedPage, config.maxReplyMessageSize, maxNumOfReqsPerClient));
