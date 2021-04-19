@@ -102,10 +102,8 @@ void ClientsManager::loadInfoFromReservedPages() {
               resPageOffset() + firstPageId + i, sizeOfReservedPage_, scratchPage_.data() + i * sizeOfReservedPage_))
         continue;
 
-      auto reply = (ClientReplyMsg*)(scratchPage_.data() + i * sizeOfReservedPage_);
-      auto replyPtr =
-          std::make_shared<ClientReplyMsg>(myId_, reply->reqSeqNum(), reply->replyBuf(), reply->replyLength());
-      auto replyHeader = reply->b();
+      auto replyHeader = (ClientReplyMsgHeader*)(scratchPage_.data() + i * sizeOfReservedPage_);
+      auto replyPtr = std::make_shared<ClientReplyMsg>(myId_, replyHeader->replyLength);
       ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
       ConcordAssert(replyHeader->currentPrimaryId == 0);
       ConcordAssert(replyHeader->replyLength >= 0);
@@ -229,8 +227,7 @@ std::shared_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
   for (int j = 0; j < maxNumOfReqsPerClient_; j++) {
-    stateTransfer_->loadReservedPage(
-        resPageOffset() + firstPageId + j * sizeOfReservedPage_, sizeOfReservedPage_, scratchPage_.data());
+    stateTransfer_->loadReservedPage(resPageOffset() + firstPageId + j, sizeOfReservedPage_, scratchPage_.data());
 
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
     ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
@@ -252,8 +249,7 @@ std::shared_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     for (uint32_t i = 0; i < numOfPages; i++) {
       char* const ptrPage = r->body() + i * sizeOfReservedPage_;
       const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
-      stateTransfer_->loadReservedPage(
-          resPageOffset() + firstPageId + (j * sizeOfReservedPage_) + i, sizePage, ptrPage);
+      stateTransfer_->loadReservedPage(resPageOffset() + firstPageId + j + i, sizePage, ptrPage);
     }
 
     r->setPrimaryId(currentPrimaryId);
