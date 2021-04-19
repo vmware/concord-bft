@@ -59,7 +59,8 @@ pip3 install --upgrade wheel && pip3 install --upgrade trio
 pip3 install \
     eliot eliot-tree \
     tatsu==4.4.0 \
-    pytest
+    pytest \
+    pycryptodome
 
 # Build 3rd parties
 cd ${HOME}
