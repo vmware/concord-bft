@@ -3675,7 +3675,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   clientsManager->initInternalClientInfo(config_.getnumReplicas());
   internalBFTClient_.reset(new InternalBFTClient(
       config_.getreplicaId(), clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
-  auto maxNumOfReqsPerClient = config.clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1;
+  const auto maxNumOfReqsPerClient =
+      config.clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1;
   ClientsManager::setNumResPages((config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
                                  ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(),
                                                                         config.maxReplyMessageSize,
