@@ -111,7 +111,7 @@ class FakeCommunication : public bft::communication::ICommunication {
     return 0;
   }
   bool isRunning() const override { return true; }
-  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override { return ConnectionStatus{}; }
+  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override { return ConnectionStatus::Connected; }
 
   int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
     runner_.send(MsgFromClient{ReplicaId{(uint16_t)destNode}, std::move(msg)});
@@ -134,7 +134,7 @@ class FakeCommunication : public bft::communication::ICommunication {
   std::thread fakeCommThread_;
 };
 
-inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
+inline std::vector<uint8_t> createReply(const MsgFromClient& msg) {
   const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(msg.data.data());
   std::string reply_data = "reply";
   auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);
@@ -147,6 +147,17 @@ inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_recei
   reply_header->reqSeqNum = req_header->reqSeqNum;
   reply_header->spanContextSize = 0;
   // Copy the reply data;
-  std::memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
+  memcpy(reply.data() + reply_header_size, reply_data.data(), reply_data.size());
+  return reply;
+}
+
+inline void immideateBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
+  std::vector<uint8_t> reply = createReply(msg);
+  client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
+}
+
+inline void delayedBehaviour(const MsgFromClient& msg, IReceiver* client_receiver) {
+  std::vector<uint8_t> reply = createReply(msg);
+  std::this_thread::sleep_for(5ms);
   client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
 }
