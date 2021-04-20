@@ -293,7 +293,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     return clientsManager->hasReply(clientId, reqSeqNum);
   }
   bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const override {
-    return !clientsManager->canBecomePending(clientId, reqSeqNum);
+    return clientsManager->isClientRequestInProcess(clientId, reqSeqNum);
   }
   SeqNum getPrimaryLastUsedSeqNum() const override { return primaryLastUsedSeqNum; }
   uint64_t getRequestsInQueue() const override { return requestsQueueOfPrimary.size(); }

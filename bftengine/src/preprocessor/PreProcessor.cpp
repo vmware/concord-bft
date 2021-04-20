@@ -267,6 +267,7 @@ void PreProcessor::updateAggregatorAndDumpMetrics() {
 }
 
 void PreProcessor::sendCancelPreProcessRequestMsg(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
+                                                  NodeIdType destId,
                                                   uint16_t reqOffsetInBatch,
                                                   uint64_t reqRetryId) {
   const auto clientId = clientReqMsg->clientProxyId();
@@ -282,7 +283,6 @@ void PreProcessor::sendCancelPreProcessRequestMsg(const ClientPreProcessReqMsgUn
                                         nullptr,
                                         clientReqMsg->getCid(),
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
-  const auto destId = clientReqMsg->senderId();
   SCOPED_MDC_CID(preProcessReqMsg->getCid());
   LOG_DEBUG(logger(), "Sending PreProcessRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId, reqSeqNum, destId));
   sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
@@ -310,7 +310,7 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
 
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
-  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onMessage);
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientPreProcessRequestMsg);
   preProcessorMetrics_.preProcReqReceived.Get().Inc();
   ClientPreProcessReqMsgUniquePtr clientMsg(msg);
   const string &cid = clientMsg->getCid();
@@ -324,7 +324,7 @@ void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequest
     preProcessorMetrics_.preProcReqIgnored.Get().Inc();
     return;
   }
-  handleSingleClientRequestMessage(move(clientMsg), false, 0);
+  handleSingleClientRequestMessage(move(clientMsg), senderId, false, 0);
 }
 
 // Should be called under reqEntry->mutex lock
@@ -366,9 +366,6 @@ bool PreProcessor::isRequestAlreadyExecuted(ReqId reqSeqNum,
                                             const string &cid) {
   const bool replySentToClient = myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum);
   if (replySentToClient) {
-    LOG_INFO(logger(),
-             "Request has already been executed - let replica decide how to proceed further"
-                 << KVLOG(cid, reqSeqNum, senderId, clientId));
     preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
     return true;
   }
@@ -396,10 +393,10 @@ bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqE
 }
 
 void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                                    NodeIdType senderId,
                                                     bool arrivedInBatch,
                                                     uint16_t msgOffsetInBatch) {
   SCOPED_MDC_CID(clientMsg->getCid());
-  const NodeIdType &senderId = clientMsg->senderId();
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
@@ -408,12 +405,6 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   {
     const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, msgOffsetInBatch)];
     lock_guard<mutex> lock(reqEntry->mutex);
-    if (isRequestAlreadyExecuted(reqSeqNum, senderId, clientId, clientMsg->getCid())) {
-      if (senderId != clientId) sendCancelPreProcessRequestMsg(clientMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
-      // The request has already been committed and executed - let replica decide how to proceed further.
-      return incomingMsgsStorage_->pushExternalMsg(clientMsg->convertToClientRequestMsg(false));
-    }
-
     const bool reqToBeDeclined =
         (isRequestPreProcessingRightNow(reqEntry, reqSeqNum, clientId, senderId) ||
          isRequestPassingConsensusOrPostExec(reqSeqNum, senderId, clientId, clientMsg->getCid()) ||
@@ -422,8 +413,19 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       if (senderId != clientId)
         // Send 'cancel' request to non-primary replicas to release them from waiting to a 'real' PreProcessRequestMsg,
         // which will not arrive in this case. Doing this to avoid request from being timed out on non-primary replicas.
-        sendCancelPreProcessRequestMsg(clientMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
+        sendCancelPreProcessRequestMsg(clientMsg, senderId, msgOffsetInBatch, (reqEntry->reqRetryId)++);
       return;
+    }
+
+    if (isRequestAlreadyExecuted(reqSeqNum, senderId, clientId, clientMsg->getCid())) {
+      if (senderId != clientId) {
+        sendCancelPreProcessRequestMsg(clientMsg, senderId, msgOffsetInBatch, (reqEntry->reqRetryId)++);
+        return;
+      }
+      LOG_INFO(logger(),
+               "Request has already been executed - let replica decide how to proceed further"
+                   << KVLOG(reqSeqNum, clientId, senderId));
+      return incomingMsgsStorage_->pushExternalMsg(clientMsg->convertToClientRequestMsg(false));
     }
 
     if (myReplica_.isCurrentPrimary())
@@ -443,6 +445,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
 
 template <>
 void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientBatchPreProcessRequestMsg);
   ClientBatchRequestMsgUniquePtr clientBatch(msg);
   const auto clientId = clientBatch->clientId();
   const auto senderId = clientBatch->senderId();
@@ -456,11 +459,14 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   }
   ClientMsgsList &clientMsgs = clientBatch->getClientPreProcessRequestMsgs();
   uint16_t offset = 0;
-  for (auto &clientMsg : clientMsgs) {
-    LOG_DEBUG(logger(),
-              "Start handling single message from the batch:" << KVLOG(
-                  clientMsg->requestSeqNum(), senderId, clientId, clientMsg->requestTimeoutMilli()));
-    handleSingleClientRequestMessage(move(clientMsg), true, offset++);
+  for (auto it = clientMsgs.begin(); it != clientMsgs.end(); ++it) {
+    auto &clientMsg = *it;
+    LOG_DEBUG(
+        logger(),
+        "Start handling single message from the batch:" << KVLOG(
+            clientMsg->requestSeqNum(), clientMsg->getCid(), senderId, clientId, clientMsg->requestTimeoutMilli()));
+    // senderId should be taken from ClientBatchRequestMsg as it does not get re-set in batched client messages
+    handleSingleClientRequestMessage(move(clientMsg), senderId, true, offset++);
   }
   if (!myReplica_.isCurrentPrimary()) {
     sendMsg(clientBatch->body(), myReplica_.currentPrimary(), clientBatch->type(), clientBatch->size());
@@ -471,6 +477,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
 // Non-primary replica request handling
 template <>
 void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onPreProcessRequestMsg);
   SCOPED_MDC_CID(msg->getCid());
   PreProcessRequestMsgSharedPtr preProcessReqMsg(msg);
   const auto &reqType = preProcessReqMsg->reqType();
@@ -537,6 +544,7 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
 // Primary replica handling
 template <>
 void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onPreProcessReplyMsg);
   PreProcessReplyMsgSharedPtr preProcessReplyMsg(msg);
   const NodeIdType &senderId = preProcessReplyMsg->senderId();
   const NodeIdType &clientId = preProcessReplyMsg->clientId();
@@ -862,14 +870,14 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
   // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
   const auto bufferOffset =
       (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
-  LOG_DEBUG(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+  LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
   return preProcessResultBuffers_[bufferOffset].data();
 }
 
 const uint16_t PreProcessor::getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const {
   // Index for ongoing requests starts from the first_client_id * batchSize_, e.g 28 * 10 = 280 (not from 0)
   const auto ongoingReqIndex = clientId * clientMaxBatchSize_ + reqOffsetInBatch;
-  LOG_DEBUG(logger(), KVLOG(clientId, reqOffsetInBatch, ongoingReqIndex));
+  LOG_TRACE(logger(), KVLOG(clientId, reqOffsetInBatch, ongoingReqIndex));
   return ongoingReqIndex;
 }
 
@@ -916,7 +924,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   SCOPED_MDC_CID(cid);
-  LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(reqSeqNum, clientId, reqOffsetInBatch, reqSeqNum));
+  LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(reqSeqNum, clientId, reqOffsetInBatch));
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
       clientId,
@@ -930,7 +938,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
   const auto resultLen = request.outActualReplySize;
-  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(reqSeqNum, clientId, reqOffsetInBatch, reqSeqNum));
+  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(reqSeqNum, clientId, reqOffsetInBatch));
   if (status != 0 || !resultLen) {
     LOG_FATAL(logger(), "Pre-execution failed!" << KVLOG(clientId, reqOffsetInBatch, reqSeqNum, status, resultLen));
     ConcordAssert(false);
