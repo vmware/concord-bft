@@ -107,7 +107,6 @@ void ClientsManager::loadInfoFromReservedPages() {
       auto replyHeader = (ClientReplyMsgHeader*)(scratchPage_.data());
       auto replyPtr = std::make_shared<ClientReplyMsg>(myId_, replyHeader->replyLength);
       ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
-      ConcordAssert(replyHeader->currentPrimaryId == 0);
       ConcordAssert(replyHeader->replyLength >= 0);
       ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
@@ -237,7 +236,6 @@ std::shared_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
     if (replyHeader->reqSeqNum != requestSeqNum) continue;
     ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
-    ConcordAssert(replyHeader->currentPrimaryId == 0);
     ConcordAssert(replyHeader->replyLength > 0);
     ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
