@@ -9,6 +9,10 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+
+// temporary patch - see https://jira.eng.vmware.com/browse/BC-8242. remove this flag after issue is solved
+#define _DEFINE_SIGMANAGER_INSTANCE_
+
 #include <queue>
 #include <unordered_map>
 #include <mutex>

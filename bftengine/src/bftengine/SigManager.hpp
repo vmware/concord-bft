@@ -111,8 +111,12 @@ class SigManager {
   }
   static void setInstance(SigManager* instance) { instance_ = instance; }
 #endif
+};
 
-};  // namespace impl
+// temporary patch - see https://jira.eng.vmware.com/browse/BC-8242. Definition should be moved back to SigManager.cpp
+#ifdef _DEFINE_SIGMANAGER_INSTANCE_
+SigManager* SigManager::instance_{nullptr};
+#endif
 
 }  // namespace impl
 }  // namespace bftEngine

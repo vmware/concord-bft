@@ -21,8 +21,6 @@ using namespace std;
 namespace bftEngine {
 namespace impl {
 
-SigManager* SigManager::instance_{nullptr};
-
 SigManager* SigManager::initImpl(ReplicaId myId,
                                  const Key& mySigPrivateKey,
                                  const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
