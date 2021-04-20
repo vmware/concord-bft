@@ -50,6 +50,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
+    @unittest.skip("Edge case scenario - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f == 2)
     async def test_view_change_with_f_replicas_collected_stable_checkpoint(self, bft_network):
