@@ -33,7 +33,7 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
 
   ClientPreProcessRequestMsg(MessageBase* msgBase) : ClientRequestMsg(msgBase) {}
   void validate(const ReplicasInfo& repInfo) const { validateRequest(repInfo, getExpectedSignatureLength()); }
-  std::unique_ptr<MessageBase> convertToClientRequestMsg(bool resetPreProcessFlag, bool emptyReq = false);
+  std::unique_ptr<MessageBase> convertToClientRequestMsg(bool emptyReq = false);
 };
 
 typedef std::unique_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgUniquePtr;
