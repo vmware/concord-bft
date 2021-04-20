@@ -452,8 +452,8 @@ class BCStateTran : public IStateTransfer {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.registerComponent("state_transfer", {fetch_blocks_msg_latency});
     }
-    std::shared_ptr<Recorder> fetch_blocks_msg_latency =
-        std::make_shared<Recorder>(1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
+    std::shared_ptr<Recorder> fetch_blocks_msg_latency = std::make_shared<Recorder>(
+        "fetch_blocks_msg_latency", 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
   };
   Recorders histograms_;
 
