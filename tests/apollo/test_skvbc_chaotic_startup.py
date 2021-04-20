@@ -22,6 +22,8 @@ from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_P
 from util import bft_network_partitioning as net
 from util import eliot_logging as log
 
+from util import skvbc as kvbc
+
 def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
     Return a command that starts an skvbc replica when passed to
@@ -47,6 +49,98 @@ def start_replica_cmd_with_vc_timeout(vc_timeout):
 class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f == 2)
+    async def test_view_change_with_f_replicas_collected_stable_checkpoint(self, bft_network):
+        """
+        The goal of this test is to leave the system with F Replicas that have collected a Stable Checkpoint and to
+        cause a View Change. In this way we get a misalignment in the Restrictions of the previous View and we get in an
+        indefinite View Change scenario.
+        1) Start all Replicas.
+        2) Move all Replicas to 1 SeqNo prior to the stable Checkpoint.
+        3) Stop Replicas 1 and 2.
+        4) Isolate Replica 3 from 6, 5 and 4 only in one direction - 3 will be able to send messages to all, but won't
+           receive from 6, 5 and 4. this way 3 won't be able to collect a Stable Checkpoint.
+        5) With the isolation on Replica 3, send Client Requests until 2*F replicas collect a Stable Checkpoint.
+           Only Replicas 0, 6, 5 and 4 will collect, 3 will not because it does not receive messages from 6, 5 and 4.
+        6) We stop Replicas 0 and 6 and start 1 and 2. This way we will cause View Change and we will have only 2
+           Replicas with a Stable Checkpoint (5 and 4).
+        7) Within this state the system must be able to finalize a View Change, because we have (2*F + 1) live Replicas,
+           but we have only F that have collected a Stable Checkpoint that are live.
+        """
+
+        # step 1
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        num_reqs_before_first_stable = 149
+
+        async def write_req(num_req=1):
+            for _ in range(num_req):
+                await skvbc.write_known_kv()
+
+        await write_req(num_reqs_before_first_stable)
+
+        # step 2
+        while True:
+            last_exec_seqs = []
+            for replica_id in bft_network.all_replicas():
+                last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
+                last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
+                log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable};\
+                                               last_exec = {last_exec}")
+                last_exec_seqs.append(last_exec)
+            if sum(x == num_reqs_before_first_stable for x in last_exec_seqs) == bft_network.config.n:
+                break
+            else:
+                last_exec_seqs.clear()
+
+        # step 3
+        bft_network.stop_replica(1)
+        bft_network.stop_replica(2)
+
+        await write_req()
+        last_stable_seqs = []
+
+        # step 4
+        with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, {3}, {6, 5, 4}) as adversary:
+            adversary.interfere()
+
+            while True:
+                for replica_id in bft_network.get_live_replicas():
+                    last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
+                    last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
+                    log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable};\
+                                                   lase_exec = {last_exec}")
+                    last_stable_seqs.append(last_stable)
+                if sum(x == num_reqs_before_first_stable + 1 for x in last_stable_seqs) == 2 * bft_network.config.f:
+                    # step 5 completed
+                    break
+                else:
+                    last_stable_seqs.clear()
+                    await write_req()
+                    await trio.sleep(seconds=3)
+
+        # step 6
+        bft_network.stop_replica(0)
+        bft_network.stop_replica(6)
+        bft_network.start_replica(1)
+        bft_network.start_replica(2)
+
+        # Send a Client Request to trigger View Change
+        with trio.move_on_after(seconds=3):
+            await write_req()
+
+        # step 7
+        await bft_network.wait_for_view(
+            replica_id=1,
+            expected=lambda v: v == 1,
+            err_msg="Make sure a view change happens from 0 to 1"
+        )
+
+        await skvbc.wait_for_liveness()
+
 
     # @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @unittest.skip("Disabled due to BC-6816")
