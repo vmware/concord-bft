@@ -82,6 +82,11 @@ Msg ReconfigurationErrorMsg 24 {
 Msg KeyExchangeCommand 25 {
     uint64 sender_id
 }
+
+Msg AddRemoveCommand 26 {
+    string reconfiguration
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -97,6 +102,7 @@ Msg ReconfigurationRequest 1 {
     InstallCommand
     InstallStatusCommand
     KeyExchangeCommand
+    AddRemoveCommand
   } command
   bytes additional_data
 }

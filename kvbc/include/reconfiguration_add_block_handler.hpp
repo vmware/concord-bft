@@ -89,6 +89,17 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     return true;
   }
 
+  bool handle(const concord::messages::AddRemoveCommand& command,
+              concord::messages::ReconfigurationErrorMsg&,
+              uint64_t sequence_number) override {
+    std::vector<uint8_t> serialized_command;
+    concord::messages::serialize(serialized_command, command);
+    auto blockId =
+        persistReconfigurationBlock(serialized_command, sequence_number, kvbc::keyTypes::reconfiguration_add_remove);
+    LOG_INFO(getLogger(), "AddRemoveCommand command block is " << blockId);
+    return true;
+  }
+
  private:
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
