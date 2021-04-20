@@ -94,4 +94,10 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
   LOG_INFO(GL, "KeyExchangeCommand has been executed");
   return true;
 }
+
+bool ReconfigurationHandler::handle(const concord::messages::AddRemoveCommand&,
+                                    concord::messages::ReconfigurationErrorMsg&,
+                                    uint64_t) {
+  return true;
+}
 }  // namespace concord::reconfiguration
