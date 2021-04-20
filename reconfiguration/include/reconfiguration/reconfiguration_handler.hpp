@@ -46,6 +46,9 @@ class ReconfigurationHandler : public IReconfigurationHandler {
   bool handle(const concord::messages::KeyExchangeCommand&,
               concord::messages::ReconfigurationErrorMsg&,
               uint64_t) override;
+  bool handle(const concord::messages::AddRemoveCommand&,
+              concord::messages::ReconfigurationErrorMsg&,
+              uint64_t) override;
   bool verifySignature(const concord::messages::ReconfigurationRequest&,
                        concord::messages::ReconfigurationErrorMsg&) const override;
 

@@ -49,6 +49,9 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::KeyExchangeCommand&,
                       concord::messages::ReconfigurationErrorMsg&,
                       uint64_t) = 0;
+  virtual bool handle(const concord::messages::AddRemoveCommand&,
+                      concord::messages::ReconfigurationErrorMsg&,
+                      uint64_t) = 0;
   virtual bool verifySignature(const concord::messages::ReconfigurationRequest&,
                                concord::messages::ReconfigurationErrorMsg&) const = 0;
 
