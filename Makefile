@@ -47,7 +47,7 @@ else ifeq (${CONCORD_BFT_CMAKE_TSAN},TRUE)
 	CONCORD_BFT_CMAKE_CXX_FLAGS_RELEASE=-O0 -g
 endif
 
-CONCORD_BFT_CMAKE_FLAGS:= \
+CONCORD_BFT_CMAKE_FLAGS?= \
 			-DCMAKE_BUILD_TYPE=${CONCORD_BFT_CMAKE_BUILD_TYPE} \
 			-DBUILD_TESTING=${CONCORD_BFT_CMAKE_BUILD_TESTING} \
 			-DBUILD_COMM_TCP_PLAIN=${TCP_ENABLED__} \
@@ -68,14 +68,14 @@ CONCORD_BFT_CMAKE_FLAGS:= \
 
 # The consistency parameter makes sense only at MacOS.
 # It is ignored at all other platforms.
-CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY:=,consistency=cached
-CONCORD_BFT_CTEST_TIMEOUT:=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
-CONCORD_BFT_USER_GROUP:=--user `id -u`:`id -g`
-CONCORD_BFT_CORE_DIR:=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}/cores
+CONCORD_BFT_CONTAINER_MOUNT_CONSISTENCY?=,consistency=cached
+CONCORD_BFT_CTEST_TIMEOUT?=3000 # Default value is 1500 sec. It takes 2500 to run all the tests at my dev station
+CONCORD_BFT_USER_GROUP?=--user `id -u`:`id -g`
+CONCORD_BFT_CORE_DIR?=${CONCORD_BFT_TARGET_SOURCE_PATH}/${CONCORD_BFT_BUILD_DIR}/cores
 
-CONCORD_BFT_ADDITIONAL_RUN_PARAMS:=
+CONCORD_BFT_ADDITIONAL_RUN_PARAMS?=
 
-BASIC_RUN_PARAMS:=-it --init --rm --privileged=true \
+BASIC_RUN_PARAMS?=-it --init --rm --privileged=true \
 					  --memory-swap -1 \
 					  --cap-add NET_ADMIN --cap-add=SYS_PTRACE --ulimit core=-1 \
 					  --name="${CONCORD_BFT_DOCKER_CONTAINER}" \
