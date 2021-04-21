@@ -205,7 +205,7 @@ void PreProcessor::onRequestsStatusCheckTimer() {
         SCOPED_MDC_CID(reqStatePtr->getReqCid());
         LOG_INFO(logger(), "Let replica handle request" << KVLOG(reqSeqNum, reqEntryIndex, clientId, reqOffsetInBatch));
         preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
-        incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true, true));
+        incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
         releaseClientPreProcessRequest(reqEntry.second, CANCEL);
       } else if (myReplica_.isCurrentPrimary() && reqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
         resendPreProcessRequest(reqStatePtr);
@@ -411,7 +411,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
     if (isRequestAlreadyExecuted(reqSeqNum, senderId, clientId, clientMsg->getCid())) {
       if (senderId != clientId) sendCancelPreProcessRequestMsg(clientMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
       // The request has already been committed and executed - let replica decide how to proceed further.
-      return incomingMsgsStorage_->pushExternalMsg(move(clientMsg));
+      return incomingMsgsStorage_->pushExternalMsg(clientMsg->convertToClientRequestMsg(false));
     }
 
     const bool reqToBeDeclined =

@@ -193,8 +193,8 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
   return CONTINUE;
 }
 
-unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool resetPreProcessFlag, bool emptyReq) {
-  return clientPreProcessReqMsg_->convertToClientRequestMsg(resetPreProcessFlag, emptyReq);
+unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool emptyReq) {
+  return clientPreProcessReqMsg_->convertToClientRequestMsg(emptyReq);
 }
 
 }  // namespace preprocessor
