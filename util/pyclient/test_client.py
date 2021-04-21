@@ -113,6 +113,7 @@ class SimpleTest(unittest.TestCase):
            with self.assertRaises(trio.TooSlowError):
                await udp_client.sendSync(msg, read_only)
 
+    @unittest.skip("Disabled due to instability")
     def testReadWrittenValue(self):
         """Write a value and then read it"""
         trio.run(self._testReadWrittenValue)
@@ -148,6 +149,7 @@ class SimpleTest(unittest.TestCase):
                pass
            self.assertTrue(udp_client.retries > 0)
 
+    @unittest.skip("Disabled due to instability")
     def testPrimaryWrite(self):
         """Test that we learn the primary and using it succeeds."""
         trio.run(self._testPrimaryWrite)
@@ -185,6 +187,7 @@ class SimpleTest(unittest.TestCase):
             read = await udp_client.sendSync(self.readRequest(), True, m_of_n_quorum=single_read_q)
             self.assertEqual(5, self.read_val(read))
 
+    @unittest.skip("Disabled due to instability")
     def testMonNQuorum(self):
         trio.run(self._testMofNQuorum)
 
