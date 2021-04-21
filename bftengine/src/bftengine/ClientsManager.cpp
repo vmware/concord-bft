@@ -347,16 +347,18 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
 bool ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return false;
   ReqId maxReqId{0};
-  uint64_t biggerThanGivenReqSeqNum{0};
   for (const auto& entry : requestsInfo) {
     if (entry.first > maxReqId) maxReqId = entry.first;
-    if (entry.first > reqSequenceNum) biggerThanGivenReqSeqNum++;
   }
-  if (biggerThanGivenReqSeqNum >= maxNumOfRequestsInBatch) {
+
+  // If we don't have room for the sequence number and we see that the highest sequence number is greater
+  // than the given one, it means that the highest sequence number is out of the boundries and can be safely removed
+  if (requestsInfo.size() == maxNumOfRequestsInBatch && maxReqId > reqSequenceNum) {
     requestsInfo.erase(maxReqId);
-    return true;
   }
+
   return false;
 }
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
