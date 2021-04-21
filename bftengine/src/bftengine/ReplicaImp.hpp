@@ -240,6 +240,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
   CounterHandle metric_client_req_sig_veirification_failed_;
+  CounterHandle metric_requests_removed_from_pending_;
   //*****************************************************
   RollingAvgAndVar consensus_time_;
   RollingAvgAndVar accumulating_batch_time_;

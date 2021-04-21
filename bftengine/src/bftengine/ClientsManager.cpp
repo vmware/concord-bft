@@ -327,6 +327,29 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
   LOG_DEBUG(CL_MNGR, "Request not found" << KVLOG(clientId, reqSeqNum));
 }
 
+/*
+ * We have to keep the following invariant:
+ * The client manager cannot hold request that are out of the bounds of a committed sequence number + maxNumOfRequestsInBatch
+ * We know that the client sequence number are always ascending. In order to keep this invariant we do the following:
+ * Every time we commit or execute a sequence number, we order all of our existing tracked sequence numbers.
+ * Then, we count how many bigger sequence number than the given reqSequenceNumber we have. We know for sure that we
+ * shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
+ */
+bool ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum) {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  ReqId maxReqId{0};
+  uint64_t biggerThanGivenReqSeqNum{0};
+  for (const auto& entry : requestsInfo) {
+    if (entry.first > maxReqId) maxReqId = entry.first;
+    if (entry.first > reqSequenceNum) biggerThanGivenReqSeqNum++;
+  }
+  if (biggerThanGivenReqSeqNum >= maxNumOfRequestsInBatch) {
+    requestsInfo.erase(maxReqId);
+    return true;
+  }
+  return false;
+}
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;

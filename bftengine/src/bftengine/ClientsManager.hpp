@@ -64,6 +64,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   void markRequestAsCommitted(NodeIdType clientId, ReqId reqSequenceNum);
 
+  bool removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum);
   void removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum);
 
   void clearAllPendingRequests();
