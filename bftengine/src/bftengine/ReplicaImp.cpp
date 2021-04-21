@@ -268,6 +268,10 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary view-change)
         send(m, currentPrimary());
         LOG_INFO(GL, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
+      }
+      if (clientsManager->isPending(clientId, reqSeqNum)) {
+        // As long as this request is not committed, we want to continue and alert the primary about it
+        send(m, currentPrimary());
       } else {
         LOG_INFO(GL,
                  "ClientRequestMsg is ignored because: request is old, or primary is currently working on it"
@@ -708,7 +712,8 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
-        if (clientsManager->removeRequestsOutsideBoundsOfBatch(req.clientProxyId(), req.requestSeqNum())) metric_requests_removed_from_pending_.Get().Inc();
+        if (clientsManager->removeRequestsOutsideBoundsOfBatch(req.clientProxyId(), req.requestSeqNum()))
+          metric_requests_removed_from_pending_.Get().Inc();
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
       }

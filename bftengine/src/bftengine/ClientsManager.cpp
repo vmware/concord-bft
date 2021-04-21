@@ -278,6 +278,15 @@ bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqN
   return false;
 }
 
+bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  const auto& reqIt = requestsInfo.find(reqSeqNum);
+  if (reqIt != requestsInfo.end() && !reqIt->second.committed) {
+    return true;
+  }
+  return false;
+}
 // Check that:
 // * max number of pending requests not reached for that client.
 // * request seq number is bigger than the last reply seq number.
@@ -329,11 +338,11 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
 
 /*
  * We have to keep the following invariant:
- * The client manager cannot hold request that are out of the bounds of a committed sequence number + maxNumOfRequestsInBatch
- * We know that the client sequence number are always ascending. In order to keep this invariant we do the following:
- * Every time we commit or execute a sequence number, we order all of our existing tracked sequence numbers.
- * Then, we count how many bigger sequence number than the given reqSequenceNumber we have. We know for sure that we
- * shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
+ * The client manager cannot hold request that are out of the bounds of a committed sequence number +
+ * maxNumOfRequestsInBatch We know that the client sequence number are always ascending. In order to keep this invariant
+ * we do the following: Every time we commit or execute a sequence number, we order all of our existing tracked sequence
+ * numbers. Then, we count how many bigger sequence number than the given reqSequenceNumber we have. We know for sure
+ * that we shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
  */
 bool ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);

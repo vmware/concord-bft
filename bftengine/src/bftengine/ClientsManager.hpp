@@ -60,6 +60,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   // Return true IFF there is no pending requests for clientId, and reqSeqNum can become the new pending request
   bool canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const;
 
+  bool isPending(NodeIdType clientId, ReqId reqSeqNum) const;
   void addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid);
 
   void markRequestAsCommitted(NodeIdType clientId, ReqId reqSequenceNum);
