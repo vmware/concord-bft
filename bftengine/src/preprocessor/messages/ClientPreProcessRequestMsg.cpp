@@ -39,8 +39,8 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
   msgBody_->msgType = MsgCode::ClientPreProcessRequest;
 }
 
-unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool resetPreProcessFlag, bool emptyReq) {
-  if (resetPreProcessFlag) msgBody()->flags &= ~(1 << 1);
+unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool emptyReq) {
+  msgBody()->flags &= ~(1 << 1);
   unique_ptr<MessageBase> clientRequestMsg = make_unique<ClientRequestMsg>(clientProxyId(),
                                                                            flags(),
                                                                            requestSeqNum(),
