@@ -34,6 +34,11 @@ using namespace preprocessor;
 
 namespace bftEngine {
 namespace impl {
+
+// start of temporary patch - see https://jira.eng.vmware.com/browse/BC-8242. Remove this flag after issue is solved
+SigManager* SigManager::instance_{nullptr};
+// end of temporary patch
+
 class SimpleClientImp : public SimpleClient, public IReceiver {
  public:
   SimpleClientImp(ICommunication* communication,
