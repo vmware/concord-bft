@@ -9,7 +9,7 @@
 set -e
 
 APT_GET_FLAGS="-y --no-install-recommends"
-WGET_FLAGS="--https-only -q"
+WGET_FLAGS="--https-only"
 
 # Install tools
 apt-get update && apt-get ${APT_GET_FLAGS} install \
@@ -209,3 +209,12 @@ wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz 
     echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
     ldconfig -v && \
     rm -rf /usr/local/src/openssl-${OPENSSL_VER}
+
+# ASIO only (without boost). This allows us to upgrade ASIO independently.
+cd ${HOME}
+wget ${WGET_FLAGS} --no-check-certificate \
+ https://sourceforge.net/projects/asio/files/asio/1.18.1%20%28Stable%29/asio-1.18.1.tar.bz2 && \
+    tar -xf asio-1.18.1.tar.bz2 && \
+    cd asio-1.18.1 && \
+    ./configure && make && make install && \
+    cd .. && rm -rf asio*
