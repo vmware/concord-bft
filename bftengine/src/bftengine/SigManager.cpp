@@ -148,6 +148,7 @@ SigManager::SigManager(PrincipalId myId,
 }
 
 SigManager::~SigManager() {
+  if (getInstance()) delete getInstance();
   delete mySigner_;
 
   set<RSAVerifier*> alreadyDeleted;
