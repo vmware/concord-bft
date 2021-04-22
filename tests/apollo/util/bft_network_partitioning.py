@@ -266,6 +266,28 @@ class ReplicaSubsetOneWayIsolatingAdversary(NetworkPartitioningAdversary):
                 if ir != r:
                     self._drop_packets_between(ir, r)
 
+class ReplicaOneWayTwoSubsetsIsolatingAdversary(NetworkPartitioningAdversary):
+    """
+    Adversary that isolates all messages except client requests
+    to a subset of replicas (blocked receivers) from another subset (blocked senders).
+    The Replicas in the blocked receivers subset will be able to send msgs to all other
+    replicas in the network, but anything addressed to them by the blocked senders set
+    of replicas will be dropped.
+    """
+
+    def __init__(self, bft_network, blocked_receivers, blocked_senders):
+        assert len(blocked_receivers) < bft_network.config.n
+        assert len(blocked_senders) < bft_network.config.n
+        self.blocked_receivers = blocked_receivers
+        self.blocked_senders = blocked_senders
+        super(ReplicaOneWayTwoSubsetsIsolatingAdversary, self).__init__(bft_network)
+
+    def interfere(self):
+        for sender in self.blocked_senders:
+            for receiver in self.blocked_receivers:
+                assert sender != receiver
+                self._drop_packets_between(sender, receiver)
+
 class ReplicaSubsetTwoWayIsolatingAdversary(NetworkPartitioningAdversary):
     """
     Adversary that isolates all messages except client requests
