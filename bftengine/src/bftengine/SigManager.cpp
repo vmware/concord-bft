@@ -21,8 +21,6 @@ using namespace std;
 namespace bftEngine {
 namespace impl {
 
-SigManager* SigManager::instance_{nullptr};
-
 SigManager* SigManager::initImpl(ReplicaId myId,
                                  const Key& mySigPrivateKey,
                                  const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
@@ -88,23 +86,17 @@ SigManager* SigManager::init(ReplicaId myId,
                              uint16_t numRoReplicas,
                              uint16_t numOfClientProxies,
                              uint16_t numOfExternalClients) {
-  if (instance_) {
-    // allow re-configuration..
-    LOG_INFO(GL, "SigManager already exist, re-creating..");
-    delete instance_;
-    instance_ = nullptr;
-  }
-  instance_ = initImpl(myId,
-                       mySigPrivateKey,
-                       publicKeysOfReplicas,
-                       replicasKeysFormat,
-                       publicKeysOfClients,
-                       clientsKeysFormat,
-                       numReplicas,
-                       numRoReplicas,
-                       numOfClientProxies,
-                       numOfExternalClients);
-  return instance_;
+  SigManager* sm = initImpl(myId,
+                            mySigPrivateKey,
+                            publicKeysOfReplicas,
+                            replicasKeysFormat,
+                            publicKeysOfClients,
+                            clientsKeysFormat,
+                            numReplicas,
+                            numRoReplicas,
+                            numOfClientProxies,
+                            numOfExternalClients);
+  return SigManager::getInstance(sm);
 }
 
 SigManager::SigManager(PrincipalId myId,
@@ -156,7 +148,6 @@ SigManager::SigManager(PrincipalId myId,
 }
 
 SigManager::~SigManager() {
-  instance_ = nullptr;
   delete mySigner_;
 
   set<RSAVerifier*> alreadyDeleted;

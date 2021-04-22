@@ -30,7 +30,10 @@ class SigManager {
   typedef std::string Key;
   typedef uint16_t KeyIndex;
 
-  static SigManager* getInstance() { return instance_; }
+  static SigManager* getInstance(SigManager* sm = nullptr) {
+    static SigManager* instance_ = sm;
+    return instance_;
+  }
 
   static SigManager* init(ReplicaId myId,
                           const Key& mySigPrivateKey,
@@ -59,7 +62,6 @@ class SigManager {
   SigManager& operator=(SigManager&&) = delete;
 
  protected:
-  static SigManager* instance_;
   const PrincipalId myId_;
   RSASigner* mySigner_;
   std::map<PrincipalId, RSAVerifier*> verifiers_;
@@ -109,7 +111,6 @@ class SigManager {
                     numOfClientProxies,
                     numOfExternalClients);
   }
-  static void setInstance(SigManager* instance) { instance_ = instance; }
 #endif
 
 };  // namespace impl
