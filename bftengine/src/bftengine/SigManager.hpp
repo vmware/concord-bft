@@ -30,8 +30,19 @@ class SigManager {
   typedef std::string Key;
   typedef uint16_t KeyIndex;
 
-  static SigManager* getInstance() { return instance_; }
+  // It is the caller responsibility to deallocate (delete) the object
+  // NOTICE: sm should be != nullptr ONLY for testing purpose. In that case it will be used as a set function.
+  static SigManager* getInstance(SigManager* sm = nullptr) {
+    static SigManager* instance_ = nullptr;
 
+    if (sm) {
+      instance_ = sm;
+    }
+
+    return instance_;
+  }
+
+  // It is the caller responsibility to deallocate (delete) the object
   static SigManager* init(ReplicaId myId,
                           const Key& mySigPrivateKey,
                           const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
@@ -59,7 +70,6 @@ class SigManager {
   SigManager& operator=(SigManager&&) = delete;
 
  protected:
-  static SigManager* instance_;
   const PrincipalId myId_;
   RSASigner* mySigner_;
   std::map<PrincipalId, RSAVerifier*> verifiers_;
@@ -87,6 +97,7 @@ class SigManager {
   // Define the below flag in order to use them in your test.
 #ifdef CONCORD_BFT_TESTING
  public:
+  // It is the caller responsibility to deallocate (delete) the object
   static SigManager* initInTesting(
       ReplicaId myId,
       const Key& mySigPrivateKey,
@@ -109,7 +120,6 @@ class SigManager {
                     numOfClientProxies,
                     numOfExternalClients);
   }
-  static void setInstance(SigManager* instance) { instance_ = instance; }
 #endif
 
 };  // namespace impl
