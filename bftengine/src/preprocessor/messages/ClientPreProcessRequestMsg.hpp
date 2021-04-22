@@ -39,3 +39,8 @@ class ClientPreProcessRequestMsg : public ClientRequestMsg {
 typedef std::unique_ptr<ClientPreProcessRequestMsg> ClientPreProcessReqMsgUniquePtr;
 
 }  // namespace preprocessor
+
+template <>
+inline size_t bftEngine::impl::sizeOfHeader<preprocessor::ClientPreProcessRequestMsg>() {
+  return sizeOfHeader<ClientRequestMsg>();
+}
