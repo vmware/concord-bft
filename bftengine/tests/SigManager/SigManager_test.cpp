@@ -217,7 +217,6 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
                                                      0,
                                                      0,
                                                      0));
-
   // sign with SigManager
   expectedSignerSigLen = sigManager->getSigLength(myId);
   sig.reserve(expectedSignerSigLen);
