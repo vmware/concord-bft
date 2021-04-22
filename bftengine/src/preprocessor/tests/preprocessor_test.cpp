@@ -333,7 +333,7 @@ PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bft
   auto preProcessReplyMsg =
       make_shared<PreProcessReplyMsg>(&preProcessorRecorder, replicaId, clientId, 0, reqSeqNum, reqRetryId);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
-  // preProcessReplyMsg->validate(repInfo);
+  //  preProcessReplyMsg->validate(repInfo);
   SigManager::getInstance(sigManager_[repInfo.myId()].get());
   return preProcessReplyMsg;
 }

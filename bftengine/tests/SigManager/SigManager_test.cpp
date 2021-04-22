@@ -207,9 +207,16 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
     publicKeysOfReplicas.insert(make_pair(i - 1, pubKey));
   }
 
-  SigManager* sigManager = SigManager::init(
-      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, numReplicas, 0, 0, 0);
-
+  unique_ptr<SigManager> sigManager(SigManager::init(myId,
+                                                     myPrivKey,
+                                                     publicKeysOfReplicas,
+                                                     KeyFormat::PemFormat,
+                                                     nullptr,
+                                                     KeyFormat::PemFormat,
+                                                     numReplicas,
+                                                     0,
+                                                     0,
+                                                     0));
   // sign with SigManager
   expectedSignerSigLen = sigManager->getSigLength(myId);
   sig.reserve(expectedSignerSigLen);

@@ -148,9 +148,7 @@ SigManager::SigManager(PrincipalId myId,
 }
 
 SigManager::~SigManager() {
-  if (getInstance()) delete getInstance();
   delete mySigner_;
-
   set<RSAVerifier*> alreadyDeleted;
   for (pair<PrincipalId, RSAVerifier*> v : verifiers_) {
     if (alreadyDeleted.find(v.second) == alreadyDeleted.end()) {

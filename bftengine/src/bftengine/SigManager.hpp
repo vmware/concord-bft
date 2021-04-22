@@ -35,6 +35,7 @@ class SigManager {
     return instance_;
   }
 
+  // It is the caller responsibility to deallocate (delete) the object
   static SigManager* init(ReplicaId myId,
                           const Key& mySigPrivateKey,
                           const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
@@ -89,6 +90,7 @@ class SigManager {
   // Define the below flag in order to use them in your test.
 #ifdef CONCORD_BFT_TESTING
  public:
+  // It is the caller responsibility to deallocate (delete) the object
   static SigManager* initInTesting(
       ReplicaId myId,
       const Key& mySigPrivateKey,
