@@ -17,6 +17,7 @@ import trio
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util import operator
+from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
 import sys
 from util import eliot_logging as log
 import concord_msgs as cmf_msgs
@@ -25,6 +26,16 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 
 import bft_client
 
+def start_replica_cmd_with_object_store(builddir, replica_id, config):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    ret = start_replica_cmd_prefix(builddir, replica_id, config)
+    ret.extend(["-b", "2", "-q", "1"])
+    return ret
 
 def start_replica_cmd(builddir, replica_id):
     """
@@ -338,6 +349,51 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert status.response.in_progress is False
             assert status.response.last_pruned_block <= 90
 
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    @with_object_store
+    async def test_pruning_with_ro_replica(self, bft_network, object_store):
+
+        bft_network.start_all_replicas()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        op = operator.Operator(bft_network.config, client)
+
+        # Create more than 150 blocks in total, including the genesis block we have 101 blocks
+        k, v = await skvbc.write_known_kv()
+        for i in range(200):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
+
+        # Wait for the read only replica to catch with the state
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+
+        # Get the minimal latest pruneable block among all replicas
+        await op.latest_pruneable_block()
+
+        latest_pruneable_blocks = []
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            latest_pruneable_blocks += [lpab.response]
+
+        await op.prune(latest_pruneable_blocks)
+
+        # Verify the system is able to get new write requests (which means that pruning has done)
+        with trio.fail_after(30):
+            await skvbc.write_known_kv()
+
+        await op.prune_status()
+
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            assert status.response.in_progress is False
+            assert status.response.last_pruned_block == 150
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
@@ -388,6 +444,26 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     async def validate_state_consistency(self, skvbc, key, val):
         return await skvbc.assert_kv_write_executed(key, val)
+
+    async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=150):
+        # TODO replace the below function with the library function:
+        # await tracker.skvbc.tracked_fill_and_wait_for_checkpoint(
+        # initial_nodes=bft_network.all_replicas(),
+        # num_of_checkpoints_to_add=1)
+        with trio.fail_after(seconds=70):
+            # the ro replica should be able to survive these failures
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
+                    except KeyError:
+                        continue
+                    else:
+                        # success!
+                        if lastExecutedSeqNum >= seqnum_threshold:
+                            log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            break
 
 if __name__ == '__main__':
     unittest.main()

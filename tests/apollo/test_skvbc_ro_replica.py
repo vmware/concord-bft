@@ -23,30 +23,11 @@ from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
 from util.skvbc_history_tracker import verify_linearizability
-from util import operator
 from math import inf
 from util import eliot_logging as log
+from util.object_store import ObjectStore, start_replica_cmd_prefix
 
 from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network
-import sys
-sys.path.append(os.path.abspath("../../build/tests/apollo/util/"))
-import concord_msgs as cmf_msgs
-
-sys.path.append(os.path.abspath("../../util/pyclient"))
-
-import bft_client
-
-def start_replica_cmd_for_pruning(builddir, replica_id, config):
-    """
-    Return a command that starts an skvbc replica when passed to
-    subprocess.Popen.
-
-    Note each arguments is an element in a list.
-    """
-
-    ret = start_replica_cmd_imp(builddir, replica_id, config, "test_s3_config_prefix.txt")
-    ret.extend(["-b", "2", "-q", "1"])
-    return ret
 
 def start_replica_cmd(builddir, replica_id, config):
     """
@@ -56,41 +37,7 @@ def start_replica_cmd(builddir, replica_id, config):
     The effect of this is that on each RO replica start we have got empty S3 storage.
     This is the default behaviour for most of the tests.
     """
-    return start_replica_cmd_imp(builddir, replica_id, config, "test_s3_config.txt")
-
-def start_replica_cmd_prefix(builddir, replica_id, config):
-    """
-    In test_s3_config_prefix.txt the s3-prefix parameter is set, which means that its value
-    doesn't change between RO replica restarts.
-    This means that the state fetched on S3 is persisted on RO replica restart.
-    """
-    return start_replica_cmd_imp(builddir, replica_id, config, "test_s3_config_prefix.txt")
-
-def start_replica_cmd_imp(builddir, replica_id, config, s3_config):
-    """
-    Return a command that starts an skvbc replica when passed to
-    subprocess.Popen.
-
-    The replica is started with a short view change timeout.
-
-    Note each arguments is an element in a list.
-    """
-    statusTimerMilli = "500"
-    viewChangeTimeoutMilli = "10000"
-    ro_params = [ "--s3-config-file",
-                    os.path.join(builddir, "tests", "simpleKVBC", "scripts", s3_config)
-                ]
-    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
-    ret = [path,
-            "-k", KEY_FILE_PREFIX,
-            "-i", str(replica_id),
-            "-s", statusTimerMilli,
-            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")
-            ]
-    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-        ret.extend(ro_params)
-        
-    return ret
+    return start_replica_cmd_prefix(builddir, replica_id, config)
 
 class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     """
@@ -99,67 +46,26 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         - using internal RocksDB store
     Setting CONCORD_BFT_MINIO_BINARY_PATH env variable will triger S3 mode.
     """
-    @classmethod
-    def _start_s3_server(cls):
-        log.log_message(message_type="Starting server")
-        server_env = os.environ.copy()
-        server_env["MINIO_ACCESS_KEY"] = "concordbft"
-        server_env["MINIO_SECRET_KEY"] = "concordbft"
-
-        minio_server_fname = os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH")
-        if minio_server_fname is None:
-            shutil.rmtree(cls.work_dir)
-            raise RuntimeError("Please set path to minio binary to CONCORD_BFT_MINIO_BINARY_PATH env variable")
-
-        cls.minio_server_proc = subprocess.Popen([minio_server_fname, "server", cls.minio_server_data_dir], 
-                                                    env = server_env, 
-                                                    close_fds=True)
 
     @classmethod
-    def setUpClass(cls):        
-        log.log_message(message_type="CONCORD_BFT_MINIO_BINARY_PATH is set. Running in S3 mode.")
-
-        # We need a temp dir for data and binaries - this is cls.dest_dir
-        # self.dest_dir will contain data dir for minio buckets and the minio binary
-        # if there are any directories inside data dir - they become buckets
-        cls.work_dir = "/tmp/concord_bft_minio_datadir_" + next(tempfile._get_candidate_names())
-        cls.minio_server_data_dir = os.path.join(cls.work_dir, "data")
-        os.makedirs(os.path.join(cls.work_dir, "data", "blockchain"))     # create all dirs in one call
-
-        log.log_message(message_type=f"Working in {cls.work_dir}")
-
-        # Start server
-        cls._start_s3_server()
-        
-        log.log_message(message_type="Initialisation complete")
+    def setUpClass(cls):
+        cls.object_store = ObjectStore()
 
     @classmethod
     def tearDownClass(cls):
-        if not os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
-            return
-
-        # First stop the server gracefully
-        cls.minio_server_proc.terminate()
-        cls.minio_server_proc.wait()
-
-        # Delete workdir dir
-        shutil.rmtree(cls.work_dir)
+        pass
 
     @classmethod
     def _stop_s3_server(cls):
-        cls.minio_server_proc.kill()
-        cls.minio_server_proc.wait()
+        cls.object_store.stop_s3_server()
 
     @classmethod
     def _stop_s3_for_X_secs(cls, x):
-        cls._stop_s3_server()
-        time.sleep(x)
-        cls._start_s3_server()
+        cls.object_store.stop_s3_for_X_secs(x)
 
     @classmethod
     def _start_s3_after_X_secs(cls, x):
-        time.sleep(x)
-        cls._start_s3_server()
+        cls.object_store.stop_s3_for_X_secs(x)
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
@@ -346,51 +252,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         )
 
         await self._wait_for_st(bft_network, ro_replica_id, 150)
-
-    @with_trio
-    @with_bft_network(start_replica_cmd=start_replica_cmd_for_pruning, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
-    async def test_pruning_with_ro_replica(self, bft_network):
-
-        bft_network.start_all_replicas()
-        ro_replica_id = bft_network.config.n
-        bft_network.start_replica(ro_replica_id)
-
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
-
-        op = operator.Operator(bft_network.config, client)
-
-        # Create more than 150 blocks in total, including the genesis block we have 101 blocks
-        k, v = await skvbc.write_known_kv()
-        for i in range(200):
-            v = skvbc.random_value()
-            await client.write(skvbc.write_req([], [(k, v)], 0))
-
-        # Wait for the read only replica to catch with the state
-        await self._wait_for_st(bft_network, ro_replica_id, 150)
-
-        # Get the minimal latest pruneable block among all replicas
-        await op.latest_pruneable_block()
-
-        latest_pruneable_blocks = []
-        rsi_rep = client.get_rsi_replies()
-        for r in rsi_rep.values():
-            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-            latest_pruneable_blocks += [lpab.response]
-
-        await op.prune(latest_pruneable_blocks)
-
-        # Verify the system is able to get new write requests (which means that pruning has done)
-        with trio.fail_after(30):
-            await skvbc.write_known_kv()
-
-        await op.prune_status()
-
-        rsi_rep = client.get_rsi_replies()
-        for r in rsi_rep.values():
-            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-            assert status.response.in_progress is False
-            assert status.response.last_pruned_block == 150
 
     async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=150):
         # TODO replace the below function with the library function:
