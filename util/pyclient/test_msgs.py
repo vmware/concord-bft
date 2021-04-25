@@ -68,7 +68,6 @@ class TestRepliesManager(unittest.TestCase):
         common_key = rsi_reply.get_matched_reply_key()
         rsi_replies = replies_manager.pop(common_key)
         self.assertEqual(replies_manager.num_matching_replies(common_key), 0)
-        self.assertEqual(common_key.header.primary_id, 0)
         self.assertEqual(common_key.header.req_seq_num, 1)
         self.assertEqual(common_key.data, b'hello')
         self.assertEqual(b'1', rsi_replies[0].get_rsi_data())
@@ -110,7 +109,6 @@ class TestSpecificReplyInfo(unittest.TestCase):
         rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         self.assertEqual(rsi_reply.sender_id, 0)
         common_header, common_data = rsi_reply.get_common_reply()
-        self.assertEqual(primary_id, common_header.primary_id)
         self.assertEqual(req_seq_num, common_header.req_seq_num)
         self.assertEqual(common_data, b'hello')
 
@@ -122,7 +120,6 @@ class TestSpecificReplyInfo(unittest.TestCase):
         rsi_reply = rsi.MsgWithReplicaSpecificInfo(packed, 0)
         self.assertEqual(rsi_reply.sender_id, 0)
         common_header, common_data = rsi_reply.get_common_reply()
-        self.assertEqual(primary_id, common_header.primary_id)
         self.assertEqual(req_seq_num, common_header.req_seq_num)
         self.assertEqual(rsi_reply.get_rsi_data(), b'rsi')
         self.assertEqual(common_data, b'hello')
