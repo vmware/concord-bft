@@ -75,7 +75,7 @@ class ObjectStore:
         # if there are any directories inside data dir - they become buckets
         self.work_dir = MINIO_DATA_DIR
         self.minio_server_data_dir = os.path.join(self.work_dir, "data")
-
+        os.makedirs(os.path.join(self.minio_server_data_dir))
         log.log_message(message_type=f"Working in {self.work_dir}")
         self.start_s3_server()
         log.log_message(message_type="Initialisation complete")
