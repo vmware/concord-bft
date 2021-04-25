@@ -161,15 +161,6 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         time.sleep(x)
         cls._start_s3_server()
 
-    def _construct_reconfiguration_latest_prunebale_block_coammand(self):
-        lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
-        lpab_cmd.sender = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = lpab_cmd
-        reconf_msg.signature = bytes()
-        reconf_msg.additional_data = bytes()
-        return reconf_msg
-
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
     @verify_linearizability(no_conflicts=True)
