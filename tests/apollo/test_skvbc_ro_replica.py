@@ -23,10 +23,30 @@ from util import bft
 from util import skvbc as kvbc
 from util.skvbc import SimpleKVBCProtocol
 from util.skvbc_history_tracker import verify_linearizability
+from util import operator
 from math import inf
 from util import eliot_logging as log
 
 from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network
+import sys
+sys.path.append(os.path.abspath("../../build/tests/apollo/util/"))
+import concord_msgs as cmf_msgs
+
+sys.path.append(os.path.abspath("../../util/pyclient"))
+
+import bft_client
+
+def start_replica_cmd_for_pruning(builddir, replica_id, config):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+
+    ret = start_replica_cmd_imp(builddir, replica_id, config, "test_s3_config_prefix.txt")
+    ret.extend(["-b", "2", "-q", "1"])
+    return ret
 
 def start_replica_cmd(builddir, replica_id, config):
     """
@@ -140,6 +160,15 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
     def _start_s3_after_X_secs(cls, x):
         time.sleep(x)
         cls._start_s3_server()
+
+    def _construct_reconfiguration_latest_prunebale_block_coammand(self):
+        lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
+        lpab_cmd.sender = 1000
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = lpab_cmd
+        reconf_msg.signature = bytes()
+        reconf_msg.additional_data = bytes()
+        return reconf_msg
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
@@ -327,6 +356,50 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
 
         await self._wait_for_st(bft_network, ro_replica_id, 150)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_for_pruning, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    async def test_pruning_with_ro_replica(self, bft_network):
+
+        bft_network.start_all_replicas()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        op = operator.Operator(bft_network.config, client)
+
+        # Create more than 150 blocks in total, including the genesis block we have 101 blocks
+        k, v = await skvbc.write_known_kv()
+        for i in range(200):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
+
+        # Wait for the read only replica to catch with the state
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+
+        # Get the minimal latest pruneable block among all replicas
+        await op.latest_pruneable_block()
+
+        latest_pruneable_blocks = []
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            latest_pruneable_blocks += [lpab.response]
+
+        await op.prune(latest_pruneable_blocks)
+
+        # Verify the system is able to get new write requests (which means that pruning has done)
+        with trio.fail_after(30):
+            await skvbc.write_known_kv()
+
+        await op.prune_status()
+
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            assert status.response.in_progress is False
+            assert status.response.last_pruned_block == 150
 
     async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=150):
         # TODO replace the below function with the library function:
