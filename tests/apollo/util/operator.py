@@ -84,30 +84,30 @@ class Operator:
 
     async def wedge(self):
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
-        await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def wedge_status(self):
         msg = self._construct_reconfiguration_wedge_status()
-        await self.client.read(msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
+        return await self.client.read(msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
             self.config.n)]), reconfiguration=True)
 
     async def latest_pruneable_block(self):
         reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
-        await self.client.read(reconf_msg.serialize(),
+        return await self.client.read(reconf_msg.serialize(),
                           m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
                                                                   [r for r in range(self.client.get_total_num_replicas())]), reconfiguration=True, include_ro=True)
 
     async def prune(self, latest_pruneable_blocks):
         reconf_msg = self._construct_reconfiguration_prune_request(latest_pruneable_blocks)
-        await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def prune_status(self):
         reconf_msg = self._construct_reconfiguration_prune_status_request()
         # Status is not supported by read only replicas, thus, we poll only the committers
-        await self.client.read(reconf_msg.serialize(),
+        return await self.client.read(reconf_msg.serialize(),
                           m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
                               self.config.n)]), reconfiguration=True)
 
     async def key_exchange(self):
         reconf_msg = self._construct_reconfiguration_keMsg_coammand()
-        await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)

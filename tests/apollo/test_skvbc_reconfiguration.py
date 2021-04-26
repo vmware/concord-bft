@@ -59,6 +59,14 @@ def start_replica_cmd(builddir, replica_id):
 
 class SkvbcReconfigurationTest(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        cls.object_store = ObjectStore()
+
+    @classmethod
+    def tearDownClass(cls):
+        pass
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_key_exchange_command(self, bft_network):
@@ -351,8 +359,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
-    @with_object_store
-    async def test_pruning_with_ro_replica(self, bft_network, object_store):
+    async def test_pruning_with_ro_replica(self, bft_network):
 
         bft_network.start_all_replicas()
         ro_replica_id = bft_network.config.n
@@ -394,6 +401,50 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.in_progress is False
             assert status.response.last_pruned_block == 150
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    async def test_pruning_with_ro_replica_failure(self, bft_network):
+
+        bft_network.start_all_replicas()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+
+        op = operator.Operator(bft_network.config, client)
+
+        # Create more than 150 blocks in total, including the genesis block we have 101 blocks
+        k, v = await skvbc.write_known_kv()
+        for i in range(200):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
+
+        # Wait for the read only replica to catch with the state
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+
+        # Get the minimal latest pruneable block among all replicas
+        await op.latest_pruneable_block()
+
+        latest_pruneable_blocks = []
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            latest_pruneable_blocks += [lpab.response]
+
+        # Remove the read only latest pruneable block from the list
+        for m in latest_pruneable_blocks:
+            if m.replica >= bft_network.config.n:
+                latest_pruneable_blocks.remove(m)
+
+        assert len(latest_pruneable_blocks) == bft_network.config.n
+
+        # Now, issue a prune request. we expect to receive an error as the read only latest prunebale block is missing
+        rep = await op.prune(latest_pruneable_blocks)
+        rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        assert rep.success is False
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
