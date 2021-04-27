@@ -19,7 +19,10 @@ class PreProcessorRecorder {
   PreProcessorRecorder() {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
     registrar.perf.registerComponent("pre-execution",
-                                     {onMessage,
+                                     {onClientPreProcessRequestMsg,
+                                      onClientBatchPreProcessRequestMsg,
+                                      onPreProcessRequestMsg,
+                                      onPreProcessReplyMsg,
                                       launchReqPreProcessing,
                                       handlePreProcessedReqByNonPrimary,
                                       handlePreProcessedReqByPrimary,
@@ -38,7 +41,10 @@ class PreProcessorRecorder {
   using Recorder = concord::diagnostics::Recorder;
   using Unit = concord::diagnostics::Unit;
 
-  DEFINE_SHARED_RECORDER(onMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onClientPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onClientBatchPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onPreProcessReplyMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(launchReqPreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByNonPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
