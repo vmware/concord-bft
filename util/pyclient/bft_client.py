@@ -19,7 +19,7 @@ import os
 import struct
 
 import bft_msgs
-import replica_specific_info as rsi
+import replica_specific_info as RSI
 from bft_config import bft_msg_port_from_node_id
 from abc import ABC, abstractmethod
 
@@ -75,7 +75,7 @@ class MofNQuorum:
         return MofNQuorum(replicas, len(replicas))
 
 class BftClient(ABC):
-    def __init__(self, config, replicas):
+    def __init__(self, config, replicas, ro_replicas=[]):
         self.config = config
         self.replicas = replicas
         self.req_seq_num = ReqSeqNum()
@@ -84,9 +84,10 @@ class BftClient(ABC):
         self.replies = None
         self.retries = 0
         self.msgs_sent = 0
-        self.replies_manager = rsi.RepliesManager()
+        self.replies_manager = RSI.RepliesManager()
         self.rsi_replies = dict()
         self.comm_prepared = False
+        self.ro_replicas = ro_replicas
 
     @abstractmethod
     def __enter__(self):
@@ -115,15 +116,18 @@ class BftClient(ABC):
         """
         pass
 
+    def get_total_num_replicas(self):
+        return len(self.replicas)
+
     async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False):
         """ A wrapper around sendSync for requests that mutate state """
         return await self.sendSync(msg, False, seq_num, cid, pre_process, m_of_n_quorum, reconfiguration)
 
-    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None, reconfiguration=False):
+    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None, reconfiguration=False, include_ro=False):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum, reconfiguration=reconfiguration)
+        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum, reconfiguration=reconfiguration, include_ro=include_ro)
 
-    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False):
+    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False, include_ro=False):
         """
         Send a client request and wait for a m_of_n_quorum (if None, it will set to 2F+C+1 quorum) of replies.
 
@@ -164,7 +168,7 @@ class BftClient(ABC):
         try:
             with trio.fail_after(self.config.req_timeout_milli / 1000):
                 self._reset_on_new_request([seq_num])
-                replies = await self._send_receive_loop(data, read_only, m_of_n_quorum)
+                replies = await self._send_receive_loop(data, read_only, m_of_n_quorum, include_ro=include_ro)
                 return next(iter(self.replies.values())).get_common_data()
         except trio.TooSlowError:
             print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
@@ -226,7 +230,7 @@ class BftClient(ABC):
         self.replies_manager.clear_replies()
         self.replies_manager.set_seq_nums(seq_nums)
 
-    async def _send_receive_loop(self, data, read_only, m_of_n_quorum, timeout = None):
+    async def _send_receive_loop(self, data, read_only, m_of_n_quorum, timeout = None, include_ro=False):
         """
         Send and wait for a quorum of replies. Keep retrying if a quorum
         isn't received. Eventually the max request timeout from the
@@ -236,6 +240,8 @@ class BftClient(ABC):
         if timeout is None:
             timeout = self.config.retry_timeout_milli / 1000
         dest_replicas = [r for r in self.replicas if r.id in m_of_n_quorum.replicas]
+        if include_ro is False:
+            dest_replicas = [r for r in dest_replicas if r.id not in self.ro_replicas]
         while self.replies is None:
             with trio.move_on_after(timeout):
                 async with trio.open_nursery() as nursery:
@@ -278,14 +284,18 @@ class BftClient(ABC):
 
     def _process_received_msg(self, data, sender, replicas_addr, required_replies, cancel_scope):
         """Called by child class to process a received message. At this point it's unknown if message is valid"""
-        rsi_msg = rsi.MsgWithReplicaSpecificInfo(data, sender)
+        rsi_msg = RSI.MsgWithReplicaSpecificInfo(data, sender)
         header, reply = rsi_msg.get_common_reply()
         if self._valid_reply(header, rsi_msg.get_sender_id(), replicas_addr):
             self.replies_manager.add_reply(rsi_msg)
             if self.replies_manager.has_quorum_on_all(required_replies):
                 self.replies = self.replies_manager.get_all_replies()
-                self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
-                self.primary = self.replicas[header.primary_id]
+                rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
+                for r in rsi_replies:
+                    rsi_reply = rsi_replies[r]
+                    self.rsi_replies[r] = rsi_reply.get_rsi_data()
+                    if r not in self.ro_replicas:
+                        self.primary = self.replicas[rsi_reply.get_primary()]
                 cancel_scope.cancel()
 
 class UdpClient(BftClient):
@@ -293,8 +303,8 @@ class UdpClient(BftClient):
     Define a UDP client - sends and receive all data via a single port
     (connectionless / stateless datagram communication)
     """
-    def __init__(self, config, replicas, background_nursery):
-        super().__init__(config, replicas)
+    def __init__(self, config, replicas, background_nursery, ro_replicas=[]):
+        super().__init__(config, replicas, ro_replicas)
         self.sock = trio.socket.socket(trio.socket.AF_INET, trio.socket.SOCK_DGRAM)
         self.port = bft_msg_port_from_node_id(self.client_id)
 
@@ -335,8 +345,8 @@ class TcpTlsClient(BftClient):
     # Taken from TlsTCPCommunication.cpp (we prefer hard-code and not to parse the file)
     MSG_HEADER_SIZE=4
 
-    def __init__(self, config, replicas, background_nursery):
-        super().__init__(config, replicas)
+    def __init__(self, config, replicas, background_nursery, ro_replicas=[]):
+        super().__init__(config, replicas, ro_replicas)
         self.ssl_streams = dict()
         self.reconnect_nursery = background_nursery
         self.exit_flag = False

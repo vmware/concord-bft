@@ -215,7 +215,7 @@ class BftTestNetwork:
                 self.perf_proc.wait()
 
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
-                 procs, replicas, clients, metrics, client_factory, background_nursery):
+                 procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[]):
         self.is_existing = is_existing
         self.origdir = origdir
         self.config = config
@@ -239,6 +239,7 @@ class BftTestNetwork:
         self.test_dir = None
         self.test_start_time = None
         self.perf_proc = None
+        self.ro_replicas = ro_replicas
 
     @classmethod
     def new(cls, config, background_nursery, client_factory=None):
@@ -261,7 +262,10 @@ class BftTestNetwork:
             clients = {},
             metrics = None,
             client_factory = client_factory,
-            background_nursery = background_nursery
+            background_nursery = background_nursery,
+            ro_replicas=[bft_config.Replica(i, "127.0.0.1",
+                                            bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
+                         for i in range(config.n, config.n + config.num_ro_replicas)]
         )
 
         # Copy logging.properties file
@@ -372,7 +376,8 @@ class BftTestNetwork:
 
     def _create_new_client(self, client_class, client_id):
         config = self._bft_config(client_id)
-        return client_class(config, self.replicas, self.background_nursery)
+        ro_replicas = [r.id for r in self.ro_replicas]
+        return client_class(config, self.replicas, self.background_nursery, ro_replicas=ro_replicas)
 
     def _create_reserved_clients(self):
         first_id = self.num_total_replicas() + self.config.num_clients
