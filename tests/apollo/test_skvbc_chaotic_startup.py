@@ -50,6 +50,66 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_inactive_window(self, bft_network):
+        """
+        The goal of this test is to verify full catch up of a Replica only from the Inactive Window.
+        1) Start all Replicas without Replica 1, which will later catch up from the Primary's Inactive Window.
+        2) Advance all Replicas to 1 sequence number beyond the first stable and verify they have all collected
+           Stable Checkpoints.
+        3) Start and isolate the late Replica 1 form all others except the Primary. This way it will not be able
+           to start State Transfer and will only be able to catch up from the Primary's Inactive Window.
+        4) Verify that Replica 1 has managed to catch up.
+        """
+
+        late_replica = 1
+
+        bft_network.start_replicas(bft_network.all_replicas(without={late_replica}))
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        first_stable = 150
+        num_reqs_to_get_to_first_stable = first_stable + 1
+
+        async def write_req(num_req=1):
+            for _ in range(num_req):
+                await skvbc.write_known_kv()
+
+        await write_req(num_reqs_to_get_to_first_stable)
+
+        with trio.fail_after(seconds=30):
+            while True:
+                last_stable_seqs = []
+                for replica_id in bft_network.get_live_replicas():
+                    last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
+                    last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
+                    log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; last_exec = {last_exec}")
+                    last_stable_seqs.append(last_stable)
+    
+                if sum(x == first_stable for x in last_stable_seqs) == bft_network.config.n - 1:  # all except Replica 1
+                    break
+                else:
+                    last_stable_seqs.clear()
+                await trio.sleep(seconds=3)
+
+        with trio.fail_after(seconds=30):
+            with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, {1}, {6, 5, 4, 3, 2}) as adversary:
+                adversary.interfere()
+
+                bft_network.start_replica(late_replica)
+
+                late_replica_catch_up = False
+                while not late_replica_catch_up:
+                    for replica_id in bft_network.get_live_replicas():
+                        last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
+                        last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
+                        log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; lase_exec = {last_exec}")
+                        if replica_id == late_replica and last_exec >= num_reqs_to_get_to_first_stable:
+                            late_replica_catch_up = True
+
+                    await write_req()
+                    await trio.sleep(seconds=3)
+
     @unittest.skip("Edge case scenario - not part of CI")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f == 2)
