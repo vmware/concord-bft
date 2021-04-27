@@ -28,7 +28,8 @@ ClientsManager::ClientsManager(concordMetrics::Component& metrics, std::set<Node
       maxNumOfReqsPerClient_(
           ReplicaConfig::instance().clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1),
       metrics_(metrics),
-      metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")} {
+      metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")},
+      metric_removed_due_to_out_of_boundaries_{metrics_.RegisterCounter("totalRemovedDueToOutOfBoundaries")} {
   ConcordAssert(clientsSet.size() >= 1);
   scratchPage_ = (char*)std::malloc(sizeOfReservedPage_);
   memset(scratchPage_, 0, sizeOfReservedPage_);
@@ -278,6 +279,15 @@ bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqN
   return false;
 }
 
+bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  const auto& reqIt = requestsInfo.find(reqSeqNum);
+  if (reqIt != requestsInfo.end() && !reqIt->second.committed) {
+    return true;
+  }
+  return false;
+}
 // Check that:
 // * max number of pending requests not reached for that client.
 // * request seq number is bigger than the last reply seq number.
@@ -327,6 +337,30 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
   LOG_DEBUG(CL_MNGR, "Request not found" << KVLOG(clientId, reqSeqNum));
 }
 
+/*
+ * We have to keep the following invariant:
+ * The client manager cannot hold request that are out of the bounds of a committed sequence number +
+ * maxNumOfRequestsInBatch We know that the client sequence number are always ascending. In order to keep this invariant
+ * we do the following: Every time we commit or execute a sequence number, we order all of our existing tracked sequence
+ * numbers. Then, we count how many bigger sequence number than the given reqSequenceNumber we have. We know for sure
+ * that we shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
+ */
+void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId reqSequenceNum) {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return;
+  ReqId maxReqId{0};
+  for (const auto& entry : requestsInfo) {
+    if (entry.first > maxReqId) maxReqId = entry.first;
+  }
+
+  // If we don't have room for the sequence number and we see that the highest sequence number is greater
+  // than the given one, it means that the highest sequence number is out of the boundries and can be safely removed
+  if (requestsInfo.size() == maxNumOfRequestsInBatch && maxReqId > reqSequenceNum) {
+    requestsInfo.erase(maxReqId);
+    metric_removed_due_to_out_of_boundaries_.Get().Inc();
+  }
+}
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
