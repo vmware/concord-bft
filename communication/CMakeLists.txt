@@ -12,7 +12,7 @@ if(${BUILD_COMM_TCP_TLS})
     set(bftcommunication_src ${bftcommunication_src}
         src/TlsTCPCommunication.cpp
         src/TlsRunner.cpp
-        src/TlsConnMgr.cpp
+        src/TlsConnectionManager.cpp
         src/AsyncTlsConnection.cpp
     )
 endif()

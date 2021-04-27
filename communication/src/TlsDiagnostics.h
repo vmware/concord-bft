@@ -21,7 +21,7 @@
 
 namespace bft::communication {
 
-inline size_t durationInMicros(const std::chrono::steady_clock::time_point& start) {
+inline int64_t durationInMicros(const std::chrono::steady_clock::time_point& start) {
   return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
 }
 
