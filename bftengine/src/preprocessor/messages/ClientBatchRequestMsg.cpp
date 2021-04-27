@@ -70,19 +70,22 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
         isClientTransactionSigningEnabled ? (cidPosition + singleMsgHeader.cidLength) : nullptr;
     uint32_t requestSignatureLength =
         isClientTransactionSigningEnabled ? sigManager->getSigLength(singleMsgHeader.idOfClientProxy) : 0;
+    auto const cid = string(cidPosition, singleMsgHeader.cidLength);
     auto msg = make_unique<preprocessor::ClientPreProcessRequestMsg>(singleMsgHeader.idOfClientProxy,
                                                                      singleMsgHeader.reqSeqNum,
                                                                      singleMsgHeader.requestLength,
                                                                      requestDataPosition,
                                                                      singleMsgHeader.timeoutMilli,
-                                                                     string(cidPosition, singleMsgHeader.cidLength),
+                                                                     cid,
                                                                      spanContext,
                                                                      requestSignaturePosition,
                                                                      requestSignatureLength);
+    LOG_DEBUG(logger(), KVLOG(msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
                     singleMsgHeader.cidLength;
   }
+  LOG_DEBUG(logger(), KVLOG(msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));
   return clientMsgsList_;
 }
 
