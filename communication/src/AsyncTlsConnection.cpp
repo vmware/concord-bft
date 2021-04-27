@@ -38,10 +38,12 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
   auto buf = asio::buffer(read_size_buf_.data() + offset, bytes_remaining);
   status_.msg_size_header_read_attempts++;
 
+  auto start = std::chrono::steady_clock::now();
   socket_->async_read_some(
       buf,
       asio::bind_executor(
-          strand_, [this, self, bytes_already_read, bytes_remaining](const auto& error_code, auto bytes_transferred) {
+          strand_,
+          [this, self, bytes_already_read, bytes_remaining, start](const auto& error_code, auto bytes_transferred) {
             if (disposed_) {
               return;
             }
@@ -66,6 +68,8 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
               LOG_DEBUG(logger_,
                         "Short read on messsage header occurred"
                             << KVLOG(peer_id_.value(), bytes_remaining, bytes_transferred));
+
+              histograms_.async_read_header_partial->recordAtomic(durationInMicros(start));
               readMsgSizeHeader(MSG_HEADER_SIZE - (bytes_remaining - bytes_transferred));
             } else {
               // The message size header was read completely.
@@ -74,6 +78,11 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
                           "Message Size: " << getReadMsgSize() << " exceeds maximum: " << config_.bufferLength
                                            << " for node " << peer_id_.value());
                 return dispose();
+              }
+              if (!bytes_already_read) {
+                histograms_.async_read_header_full->recordAtomic(durationInMicros(start));
+              } else {
+                histograms_.async_read_header_partial->recordAtomic(durationInMicros(start));
               }
 
               readMsg();
@@ -88,42 +97,46 @@ void AsyncTlsConnection::readMsg() {
   LOG_DEBUG(logger_, KVLOG(peer_id_.value(), msg_size, (void*)read_msg_.data()));
   auto self = shared_from_this();
   status_.msg_reads++;
-  async_read(*socket_,
-             asio::buffer(read_msg_.data(), msg_size),
-             asio::bind_executor(strand_, [this, self](const asio::error_code& error_code, auto bytes_transferred) {
-               if (disposed_) {
-                 return;
-               }
-               if (error_code) {
-                 if (error_code == asio::error::operation_aborted) {
-                   LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
-                   // The socket has already been cleaned up and any references are invalid. Just return.
-                   return;
-                 }
-                 // Remove the connection as it is no longer valid, and then close it, cancelling any ongoing
-                 // operations.
-                 LOG_ERROR(logger_,
-                           "Reading message of size <<" << getReadMsgSize() << " failed for node " << peer_id_.value()
-                                                        << ": " << error_code.message());
-                 return dispose();
-               }
+  auto start = std::chrono::steady_clock::now();
+  async_read(
+      *socket_,
+      asio::buffer(read_msg_.data(), msg_size),
+      asio::bind_executor(strand_, [this, self, start](const asio::error_code& error_code, auto bytes_transferred) {
+        if (disposed_) {
+          return;
+        }
+        if (error_code) {
+          if (error_code == asio::error::operation_aborted) {
+            LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+            // The socket has already been cleaned up and any references are invalid. Just return.
+            return;
+          }
+          // Remove the connection as it is no longer valid, and then close it, cancelling any ongoing
+          // operations.
+          LOG_ERROR(logger_,
+                    "Reading message of size <<" << getReadMsgSize() << " failed for node " << peer_id_.value() << ": "
+                                                 << error_code.message());
+          return dispose();
+        }
 
-               // The Read succeeded.
-               LOG_DEBUG(logger_, "Cancelling read timer: " << KVLOG(peer_id_.value(), (void*)read_msg_.data()));
-               read_timer_.cancel();
-               histograms_.received_msg_size->recordAtomic(bytes_transferred);
-               {
-                 concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
-                 receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred);
-               }
-               if (config_.statusCallback && conn_mgr_.isReplica(peer_id_.value()) && (status_.msg_reads % 1000 == 1)) {
-                 PeerConnectivityStatus pcs{};
-                 pcs.peerId = peer_id_.value();
-                 pcs.statusType = StatusType::MessageReceived;
-                 config_.statusCallback(pcs);
-               }
-               readMsgSizeHeader();
-             }));
+        // The Read succeeded.
+        histograms_.async_read_msg->recordAtomic(durationInMicros(start));
+        LOG_DEBUG(logger_, "Cancelling read timer: " << KVLOG(peer_id_.value(), (void*)read_msg_.data()));
+        read_timer_.cancel();
+        histograms_.received_msg_size->recordAtomic(bytes_transferred);
+        {
+          concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
+          receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred);
+        }
+        if (config_.statusCallback && conn_mgr_.isReplica(peer_id_.value()) && (status_.msg_reads % 1000 == 1)) {
+          concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.msg_received_callback);
+          PeerConnectivityStatus pcs{};
+          pcs.peerId = peer_id_.value();
+          pcs.statusType = StatusType::MessageReceived;
+          config_.statusCallback(pcs);
+        }
+        readMsgSizeHeader();
+      }));
 }
 
 void AsyncTlsConnection::startReadTimer() {
@@ -195,6 +208,7 @@ void AsyncTlsConnection::dispose(bool close_connection) {
 }
 
 void AsyncTlsConnection::send(std::shared_ptr<OutgoingMsg>&& msg) {
+  concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_conn);
   auto self = shared_from_this();
   asio::post(strand_, [this, self, msg{move(msg)}]() { write(msg); });
 }
@@ -213,13 +227,13 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
   LOG_DEBUG(logger_, "Writing" << KVLOG(write_msg_->msg.size()));
 
   // We don't want to include tcp transmission time.
-  auto diff = std::chrono::steady_clock::now() - write_msg_->send_time;
-  histograms_.send_time_in_queue->recordAtomic(std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count());
+  histograms_.send_time_in_queue->recordAtomic(durationInMicros(write_msg_->send_time));
 
   auto self = shared_from_this();
+  auto start = std::chrono::steady_clock::now();
   asio::async_write(*socket_,
                     asio::buffer(write_msg_->msg),
-                    asio::bind_executor(strand_, [this, self](const asio::error_code& ec, auto bytes_written) {
+                    asio::bind_executor(strand_, [this, self, start](const asio::error_code& ec, auto bytes_written) {
                       if (disposed_) return;
                       if (ec) {
                         if (ec == asio::error::operation_aborted) {
@@ -234,6 +248,7 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
                       }
 
                       // The write succeeded.
+                      histograms_.async_write->recordAtomic(durationInMicros(start));
                       write_timer_.cancel();
                       histograms_.sent_msg_size->recordAtomic(write_msg_->msg.size());
                       write_msg_ = nullptr;
