@@ -96,14 +96,15 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       metricsLastDumpTime_(0),
       metricsDumpIntervalInSec_{myReplica_.getReplicaConfig().metricsDumpIntervalSeconds},
       preProcessorMetrics_{metricsComponent_.RegisterCounter("preProcReqReceived"),
+                           metricsComponent_.RegisterCounter("preProcBatchReqReceived"),
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterCounter("preProcReqIgnored"),
                            metricsComponent_.RegisterCounter("preProcReqRejected"),
                            metricsComponent_.RegisterCounter("preProcClientReqSigVerFailed"),
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedOut"),
-                           metricsComponent_.RegisterCounter("preProcReqSentForFurtherProcessing"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
+                           metricsComponent_.RegisterCounter("preProcReqCompleted"),
                            metricsComponent_.RegisterGauge("PreProcInFlyRequestsNum", 0)},
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers},
@@ -204,7 +205,6 @@ void PreProcessor::onRequestsStatusCheckTimer() {
         const auto &reqOffsetInBatch = reqStatePtr->getReqOffsetInBatch();
         SCOPED_MDC_CID(reqStatePtr->getReqCid());
         LOG_INFO(logger(), "Let replica handle request" << KVLOG(reqSeqNum, reqEntryIndex, clientId, reqOffsetInBatch));
-        preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
         incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
         releaseClientPreProcessRequest(reqEntry.second, CANCEL);
       } else if (myReplica_.isCurrentPrimary() && reqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
@@ -360,19 +360,6 @@ bool PreProcessor::isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
 }
 
 // Should be called under reqEntry->mutex lock
-bool PreProcessor::isRequestAlreadyExecuted(ReqId reqSeqNum,
-                                            NodeIdType senderId,
-                                            NodeIdType clientId,
-                                            const string &cid) {
-  const bool replySentToClient = myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum);
-  if (replySentToClient) {
-    preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
-    return true;
-  }
-  return false;
-}
-
-// Should be called under reqEntry->mutex lock
 bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
                                                SeqNum reqSeqNum,
                                                NodeIdType clientId,
@@ -382,7 +369,7 @@ bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqE
     for (const auto &oldReqState : reqEntry->reqProcessingHistory) {
       if (oldReqState->getReqSeqNum() > reqSeqNum) {
         LOG_DEBUG(logger(),
-                  "The request will be ignored as newer request from this client has been already pre-processed"
+                  "The request gets ignored as the newer request from this client has already been pre-processed"
                       << KVLOG(cid, reqSeqNum, clientId, oldReqState->getReqCid(), oldReqState->getReqSeqNum()));
         preProcessorMetrics_.preProcReqIgnored.Get().Inc();
         return true;
@@ -417,7 +404,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       return;
     }
 
-    if (isRequestAlreadyExecuted(reqSeqNum, senderId, clientId, clientMsg->getCid())) {
+    if (myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum)) {
       if (senderId != clientId) {
         sendCancelPreProcessRequestMsg(clientMsg, senderId, msgOffsetInBatch, (reqEntry->reqRetryId)++);
         return;
@@ -445,6 +432,7 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
 
 template <>
 void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
+  preProcessorMetrics_.preProcBatchReqReceived.Get().Inc();
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientBatchPreProcessRequestMsg);
   ClientBatchRequestMsgUniquePtr clientBatch(msg);
   const auto clientId = clientBatch->clientId();
@@ -695,8 +683,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                        reqProcessingStatePtr->getReqSignatureLength());
       LOG_DEBUG(logger(),
                 "Pass pre-processed request to the replica" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
+      preProcessorMetrics_.preProcReqCompleted.Get().Inc();
       incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
-      preProcessorMetrics_.preProcReqSentForFurtherProcessing.Get().Inc();
       releaseClientPreProcessRequest(reqEntry, COMPLETE);
       LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
     }

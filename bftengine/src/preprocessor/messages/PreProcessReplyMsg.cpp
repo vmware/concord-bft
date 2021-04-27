@@ -52,7 +52,7 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
                     msgHeader.senderId, msgHeader.clientId, msgHeader.reqSeqNum, size(), sizeof(Header) + sigLen));
       throw runtime_error(__PRETTY_FUNCTION__ + string(": Message size is too small"));
     }
-    concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->validateMessage);
+    concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->verifyPreProcessReplySig);
     if (!sigManager->verifySig(msgHeader.senderId,
                                (char*)msgBody()->resultsHash,
                                SHA3_256::SIZE_IN_BYTES,
@@ -82,14 +82,11 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
     auto sigManager = SigManager::getInstance();
     sigSize = sigManager->getMySigLength();
     SHA3_256::Digest hash;
+    // Calculate pre-process result hash
+    hash = SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
+    memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
     {
-      concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->calculateHash);
-      // Calculate pre-process result hash
-      hash = SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
-      memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
-    }
-    {
-      concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signHash);
+      concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);
       sigManager->sign((char*)hash.data(), SHA3_256::SIZE_IN_BYTES, body() + headerSize, sigSize);
     }
   }

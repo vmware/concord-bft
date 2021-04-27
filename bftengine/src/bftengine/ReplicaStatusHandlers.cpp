@@ -73,8 +73,8 @@ std::string ReplicaStatusHandlers::preExecutionStatus(std::shared_ptr<concordMet
                        aggregator->GetCounter("preProcessor", "preProcConsensusNotReached").Get()));
   result.insert(toPair(getName(preProcessRequestTimedout),
                        aggregator->GetCounter("preProcessor", "preProcessRequestTimedout").Get()));
-  result.insert(toPair(getName(preProcReqSentForFurtherProcessing),
-                       aggregator->GetCounter("preProcessor", "preProcReqSentForFurtherProcessing").Get()));
+  result.insert(
+      toPair(getName(preProcReqCompleted), aggregator->GetCounter("preProcessor", "preProcReqCompleted").Get()));
   result.insert(toPair(getName(preProcPossiblePrimaryFaultDetected),
                        aggregator->GetCounter("preProcessor", "preProcPossiblePrimaryFaultDetected").Get()));
   result.insert(toPair(getName(preProcReqForwardedByNonPrimaryNotIgnored),

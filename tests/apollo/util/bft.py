@@ -1270,7 +1270,7 @@ class BftTestNetwork:
             with trio.fail_after(5):
                 while pre_proc_req < num_requests or \
                         total_pre_exec_requests_executed < num_requests:
-                    key1 = ["preProcessor", "Counters", "preProcReqSentForFurtherProcessing"]
+                    key1 = ["preProcessor", "Counters", "preProcReqCompleted"]
                     pre_proc_req = await self.metrics.get(replica_id, *key1) - self.initial_preexec_sent
                     key2 = ["replica", "Counters", "totalPreExecRequestsExecuted"]
                     total_pre_exec_requests_executed = await self.metrics.get(replica_id, *key2) - self.initial_preexec_executed
@@ -1285,7 +1285,7 @@ class BftTestNetwork:
 
     async def init_preexec_count(self, replica_id=0):
         # read initial preexecutions count, so we can adjust expectations for individual tests
-        key1 = ["preProcessor", "Counters", "preProcReqSentForFurtherProcessing"]
+        key1 = ["preProcessor", "Counters", "preProcReqCompleted"]
         self.initial_preexec_sent = await self.metrics.get(replica_id, *key1)
         key2 = ["replica", "Counters", "totalPreExecRequestsExecuted"]
         self.initial_preexec_executed = await self.metrics.get(replica_id, *key2)

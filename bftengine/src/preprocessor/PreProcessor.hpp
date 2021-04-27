@@ -38,6 +38,7 @@ struct RequestState {
   // A list of requests passed a pre-processing consensus used for a non-determinism detection at later stage.
   static uint8_t reqProcessingHistoryHeight;
   std::deque<RequestProcessingStateUniquePtr> reqProcessingHistory;
+  // Identity for matching request and reply
   uint64_t reqRetryId = 1;
 };
 
@@ -170,7 +171,6 @@ class PreProcessor {
                                       ReqId reqSeqNum,
                                       NodeIdType clientId,
                                       NodeIdType senderId);
-  bool isRequestAlreadyExecuted(ReqId reqSeqNum, NodeIdType senderId, NodeIdType clientId, const std::string &cid);
   bool isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
                                    SeqNum reqSeqNum,
                                    NodeIdType clientId,
@@ -208,14 +208,15 @@ class PreProcessor {
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
     concordMetrics::CounterHandle preProcReqReceived;
+    concordMetrics::CounterHandle preProcBatchReqReceived;
     concordMetrics::CounterHandle preProcReqInvalid;
     concordMetrics::CounterHandle preProcReqIgnored;
     concordMetrics::CounterHandle preProcReqRejected;
     mutable concordMetrics::CounterHandle preProcClientReqSigVerFailed;
     concordMetrics::CounterHandle preProcConsensusNotReached;
     concordMetrics::CounterHandle preProcessRequestTimedOut;
-    concordMetrics::CounterHandle preProcReqSentForFurtherProcessing;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
+    concordMetrics::CounterHandle preProcReqCompleted;
     concordMetrics::GaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
