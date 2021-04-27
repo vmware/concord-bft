@@ -531,11 +531,12 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
 
   if (isInternalNoop) {
-    LOG_INFO(CNSUS, "Sending PrePrepare message containing internal NOOP");
+    LOG_INFO(CNSUS, "Sending PrePrepare message containing internal NOOP, commit path: " << CommitPathToStr(firstPath));
   } else {
     LOG_INFO(CNSUS,
              "Sending PrePrepare message" << KVLOG(pp->numberOfRequests())
-                                          << " correlation ids: " << pp->getBatchCorrelationIdAsString());
+                                          << " correlation ids: " << pp->getBatchCorrelationIdAsString()
+                                          << ", commit path: " << CommitPathToStr(firstPath));
     consensus_times_.start(primaryLastUsedSeqNum);
   }
 
@@ -699,10 +700,12 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
       if (isNoop) {
-        LOG_INFO(CNSUS, "Internal NOOP PrePrepare received");
+        LOG_INFO(CNSUS, "Internal NOOP PrePrepare received, commit path: " << CommitPathToStr(msg->firstPath()));
       } else {
         LOG_INFO(CNSUS,
-                 "PrePrepare with the following correlation IDs [" << msg->getBatchCorrelationIdAsString() << "]");
+                 "PrePrepare with the following correlation IDs ["
+                     << msg->getBatchCorrelationIdAsString()
+                     << "], commit path: " << CommitPathToStr(msg->firstPath()));
       }
       msgAdded = true;
 
@@ -922,6 +925,9 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
 
   if (!partialProofs.hasFullProof()) {
     // send PartialCommitProofMsg to all collectors
+    LOG_DEBUG(MSGS,
+              "Sending PartialCommitProofMsg, sequence number:" << pp->seqNumber() << ", commit path: "
+                                                                << CommitPathToStr(pp->firstPath()));
 
     PartialCommitProofMsg *part = partialProofs.getSelfPartialCommitProof();
 
@@ -973,7 +979,9 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
 
     ConcordAssertNE(pp, nullptr);
 
-    LOG_DEBUG(MSGS, "Sending PreparePartialMsg. " << KVLOG(pp->seqNumber()));
+    LOG_DEBUG(MSGS,
+              "Sending PreparePartialMsg, sequence number:" << pp->seqNumber()
+                                                            << ", commit path: " << CommitPathToStr(pp->firstPath()));
 
     const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
     PreparePartialMsg *p =
@@ -1005,7 +1013,9 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
   if (seqNumInfo.committedOrHasCommitPartialFromReplica(config_.getreplicaId())) return;  // not needed
 
-  LOG_DEBUG(CNSUS, "Sending CommitPartialMsg");
+  LOG_DEBUG(CNSUS,
+            "Sending CommitPartialMsg, sequence number:" << pp->seqNumber()
+                                                         << ", commit path: " << CommitPathToStr(pp->firstPath()));
 
   Digest d;
   Digest::digestOfDigest(pp->digestOfRequests(), d);
@@ -1036,7 +1046,9 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   ConcordAssert(repsInfo->isIdOfPeerReplica(msgSender));
   ConcordAssert(repsInfo->isCollectorForPartialProofs(msgView, msgSeqNum));
 
-  LOG_DEBUG(MSGS, KVLOG(msgSender, msg->size()));
+  LOG_DEBUG(MSGS,
+            "Received PartialCommitProofMsg. " << KVLOG(msgSender, msgSeqNum, msg->size())
+                                               << ", commit path: " << CommitPathToStr(msg->commitPath()));
 
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_partial_commit_proof_msg");
@@ -1072,7 +1084,10 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
 
-  LOG_DEBUG(CNSUS, "Reached consensus, Received FullCommitProofMsg message");
+  LOG_DEBUG(CNSUS,
+            "Reached consensus, Received FullCommitProofMsg message. "
+                << KVLOG(msg->senderId(), msgSeqNum, msg->size())
+                << ", commit path: " << CommitPathToStr(CommitPath::OPTIMISTIC_FAST));
 
   if (relevantMsgForActiveView(msg)) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
@@ -1284,7 +1299,9 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
 
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(MSGS, "Received relevant PreparePartialMsg." << KVLOG(msgSender));
+    LOG_DEBUG(MSGS,
+              "Received relevant PreparePartialMsg. " << KVLOG(msgSender, msgSeqNum, msg->size())
+                                                      << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
 
     controller->onMessage(msg);
 
@@ -1334,7 +1351,9 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(MSGS, "Received CommitPartialMsg from node " << msgSender);
+    LOG_DEBUG(MSGS,
+              "Received CommitPartialMsg. " << KVLOG(msgSender, msgSeqNum, msg->size())
+                                            << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -1372,7 +1391,9 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(MSGS, "received PrepareFullMsg");
+    LOG_DEBUG(MSGS,
+              "Received PrepareFullMsg. " << KVLOG(msgSender, msgSeqNum, msg->size())
+                                          << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -1413,7 +1434,9 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    LOG_DEBUG(MSGS, "Received CommitFullMsg" << KVLOG(msgSender));
+    LOG_DEBUG(MSGS,
+              "Received CommitFullMsg. " << KVLOG(msgSender, msgSeqNum, msg->size())
+                                         << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
@@ -1478,7 +1501,9 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
     return;
   }
   if ((!currentViewIsActive()) || (curView != view) || (!mainLog->insideActiveWindow(seqNumber))) {
-    LOG_INFO(GL, "Not sending prepare full: Invalid view, or sequence number." << KVLOG(view, curView));
+    LOG_INFO(GL,
+             "Not sending prepare full: Invalid view, or sequence number."
+                 << KVLOG(view, curView) << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
     return;
   }
 
@@ -1493,7 +1518,8 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
   ConcordAssertNE(preFull, nullptr);
 
   if (fcp != nullptr) return;  // don't send if we already have FullCommitProofMsg
-  LOG_DEBUG(CNSUS, "Sending prepare full" << KVLOG(view));
+  LOG_DEBUG(CNSUS,
+            "Sending prepare full" << KVLOG(view, seqNumber) << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setPrepareFullMsgInSeqNumWindow(seqNumber, preFull);
@@ -1604,7 +1630,8 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   ConcordAssertNE(commitFull, nullptr);
   if (fcp != nullptr) return;  // ignore if we already have FullCommitProofMsg
-  LOG_DEBUG(CNSUS, "Sending full commit" << KVLOG(view));
+  LOG_DEBUG(CNSUS,
+            "Sending full commit." << KVLOG(view, seqNumber) << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
   if (ps_) {
     ps_->beginWriteTran();
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
@@ -1660,7 +1687,9 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
     ps_->setCommitFullMsgInSeqNumWindow(seqNumber, commitFull);
     ps_->endWriteTran();
   }
-  LOG_DEBUG(CNSUS, "Request commited, proceeding to try to execute" << KVLOG(view));
+  LOG_DEBUG(CNSUS,
+            "Request committed, proceeding to try to execute"
+                << KVLOG(view) << ", commit path: " << CommitPathToStr(CommitPath::SLOW));
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
