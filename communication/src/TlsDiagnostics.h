@@ -13,12 +13,17 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <sstream>
 
 #include "kvstream.h"
 #include "diagnostics.h"
 
 namespace bft::communication {
+
+inline size_t durationInMicros(const std::chrono::steady_clock::time_point& start) {
+  return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+}
 
 // TLS Status registered with and retrieved by the diagnostics status handler.
 
@@ -117,6 +122,14 @@ struct Recorders {
                                       received_msg_size,
                                       send_time_in_queue,
                                       read_enqueue_time,
+                                      send_post_to_mgr,
+                                      send_post_to_conn,
+                                      async_write,
+                                      async_read_header_partial,
+                                      async_read_header_full,
+                                      async_read_msg,
+                                      msg_sent_callback,
+                                      msg_received_callback,
                                       on_connection_authenticated});
   }
 
@@ -126,6 +139,14 @@ struct Recorders {
   DEFINE_SHARED_RECORDER(write_queue_len, 1, MAX_QUEUE_LENGTH, 3, Unit::COUNT);
   DEFINE_SHARED_RECORDER(send_time_in_queue, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(read_enqueue_time, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(send_post_to_mgr, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(send_post_to_conn, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_write, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_read_header_full, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_read_header_partial, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(async_read_msg, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(msg_sent_callback, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(msg_received_callback, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(on_connection_authenticated, 1, MAX_US, 3, Unit::MICROSECONDS);
 };
 
