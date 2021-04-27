@@ -22,7 +22,7 @@
 
 #include "communication/CommDefs.hpp"
 #include "Logger.hpp"
-#include "TlsConnMgr.h"
+#include "TlsConnectionManager.h"
 #include "TlsDiagnostics.h"
 #include "TlsWriteQueue.h"
 
@@ -43,7 +43,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   static std::shared_ptr<AsyncTlsConnection> create(asio::io_context& io_context,
                                                     asio::ip::tcp::socket&& socket,
                                                     IReceiver* receiver,
-                                                    ConnMgr& conn_mgr,
+                                                    ConnectionManager& conn_mgr,
                                                     TlsTcpConfig& config,
                                                     TlsStatus& status,
                                                     Recorders& histograms) {
@@ -56,7 +56,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   static std::shared_ptr<AsyncTlsConnection> create(asio::io_context& io_context,
                                                     asio::ip::tcp::socket&& socket,
                                                     IReceiver* receiver,
-                                                    ConnMgr& conn_mgr,
+                                                    ConnectionManager& conn_mgr,
                                                     NodeNum destination,
                                                     TlsTcpConfig& config,
                                                     TlsStatus& status,
@@ -71,7 +71,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Constructor for an accepting (server) connection.
   AsyncTlsConnection(asio::io_context& io_context,
                      IReceiver* receiver,
-                     ConnMgr& conn_mgr,
+                     ConnectionManager& conn_mgr,
                      TlsTcpConfig& config,
                      TlsStatus& status,
                      Recorders& histograms)
@@ -80,7 +80,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         strand_(asio::make_strand(io_context_)),
         ssl_context_(asio::ssl::context::tlsv12_server),
         receiver_(receiver),
-        conn_mgr_(conn_mgr),
+        connection_manager_(conn_mgr),
         read_timer_(io_context_),
         write_timer_(io_context_),
         read_msg_(config.bufferLength),
@@ -92,7 +92,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Constructor for a connecting (client) connection.
   AsyncTlsConnection(asio::io_context& io_context,
                      IReceiver* receiver,
-                     ConnMgr& conn_mgr,
+                     ConnectionManager& conn_mgr,
                      NodeNum peer_id,
                      TlsTcpConfig& config,
                      TlsStatus& status,
@@ -103,7 +103,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
         ssl_context_(asio::ssl::context::tlsv12_client),
         peer_id_(peer_id),
         receiver_(receiver),
-        conn_mgr_(conn_mgr),
+        connection_manager_(conn_mgr),
         read_timer_(io_context_),
         write_timer_(io_context_),
         read_msg_(config.bufferLength),
@@ -161,8 +161,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Callbacks triggered from asio for certificate validation
   // On the server side we don't know the identity of the accepted connection until we verify the certificate and read
   // the node id.
-  bool verifyCertificateClient(bool preverified, asio::ssl::verify_context& ctx, NodeNum expected_dest_id);
-  bool verifyCertificateServer(bool preverified, asio::ssl::verify_context& ctx);
+  bool verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id);
+  bool verifyCertificateServer(asio::ssl::verify_context& ctx);
 
   // Certificate pinning
   //
@@ -199,7 +199,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   std::optional<NodeNum> peer_id_ = std::nullopt;
 
   IReceiver* receiver_ = nullptr;
-  ConnMgr& conn_mgr_;
+  ConnectionManager& connection_manager_;
 
   asio::steady_timer read_timer_;
   asio::steady_timer write_timer_;

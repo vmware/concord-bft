@@ -27,14 +27,14 @@ class AsyncTlsConnection;
 // Manage all connections for a client or server in a peer-to-peer model.
 //
 // Peers with higher ids connect to peers with lower ids.
-class ConnMgr {
+class ConnectionManager {
   static constexpr size_t MSG_HEADER_SIZE = 4;
   static constexpr std::chrono::seconds CONNECT_TICK = std::chrono::seconds(1);
   friend class Runner;
   friend class AsyncTlsConnection;
 
  public:
-  ConnMgr(const TlsTcpConfig &, asio::io_context &);
+  ConnectionManager(const TlsTcpConfig &, asio::io_context &);
 
   //
   // Methods required by ICommuncication
