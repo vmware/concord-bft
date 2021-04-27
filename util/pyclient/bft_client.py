@@ -16,7 +16,9 @@ import trio
 import time
 import ssl
 import os
-import struct
+from Crypto.PublicKey import RSA
+from Crypto.Hash import SHA256
+from Crypto.Signature import pkcs1_15
 
 import bft_msgs
 import replica_specific_info as rsi
@@ -88,6 +90,12 @@ class BftClient(ABC):
         self.rsi_replies = dict()
         self.comm_prepared = False
 
+        txn_signing_key_path = self._get_txn_signing_priv_key_path(self.client_id)
+        self.signing_key = None
+        if txn_signing_key_path:
+            with open(txn_signing_key_path, 'rb') as f:
+                self.signing_key = RSA.import_key(f.read())
+
     @abstractmethod
     def __enter__(self):
         """ Context manager method for 'with' statements """
@@ -154,8 +162,14 @@ class BftClient(ABC):
 
         if cid is None:
             cid = str(seq_num)
-        data = bft_msgs.pack_request(
-            self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg, pre_process, reconfiguration=reconfiguration)
+
+        signature = b''
+        if self.signing_key:
+            h = SHA256.new(msg)
+            signature = pkcs1_15.new(self.signing_key).sign(h)
+
+        data = bft_msgs.pack_request(self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg,
+                                    pre_process, reconfiguration=reconfiguration, signature=signature)
 
         if m_of_n_quorum is None:
             m_of_n_quorum = MofNQuorum.LinearizableQuorum(self.config, [r.id for r in self.replicas])
@@ -287,6 +301,30 @@ class BftClient(ABC):
                 self.rsi_replies = self.replies_manager.get_rsi_replies(rsi_msg.get_matched_reply_key())
                 self.primary = self.replicas[header.primary_id]
                 cancel_scope.cancel()
+
+    def _get_txn_signing_priv_key_path(self, client_id):
+        """
+        This method finds the correct participant mapped to the given client_id.
+        Then it finds the appropriate private key file and returns the read key from it.
+        Transaction signing private key is under:
+        <txn_signing_keys_path>/transaction_signing_keys/<participant>/transaction_signing_priv.pem
+        """
+        txn_signing_keys_path = self.config.txn_signing_keys_path
+        principals_to_participant_map = self.config.principals_to_participant_map
+
+        key_path = ""
+        # Check that both configs are not empty
+        if txn_signing_keys_path and principals_to_participant_map:
+            if int(client_id) in principals_to_participant_map:
+                participant = str(principals_to_participant_map[client_id])
+                key_path = os.path.join(txn_signing_keys_path, "transaction_signing_keys", participant, "transaction_signing_priv.pem")
+            else:
+                raise AttributeError("Client id {} not found in bft config property principals_to_participant_map".format(client_id))
+        # If either one is empty, then throw an error
+        elif (bool(txn_signing_keys_path) != bool(principals_to_participant_map)):
+            raise AttributeError("Bft configs txn_signing_keys_path and principals_to_participant_map should be set/unset at the same time")
+
+        return key_path
 
 class UdpClient(BftClient):
     """
