@@ -213,8 +213,7 @@ class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
     LOG_INFO(GL,
              KVLOG(latest_prunable_block.bft_sequence_number,
                    latest_prunable_block.replica = replica_id_,
-                   latest_prunable_block.block_id,
-                   std::string(latest_prunable_block.signature.begin(), latest_prunable_block.signature.end())));
+                   latest_prunable_block.block_id));
     return true;
   }
   // Read only replica doesn't perform the actual pruning
