@@ -10,7 +10,7 @@ jobs:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++"
             ci_build_type:
-                - "-DCMAKE_BUILD_TYPE=DEBUG -DCI_TEST_STORAGE_TYPE=v2merkle"
+                - "-DCMAKE_BUILD_TYPE=DEBUG"
             comm_type:
                 - "-DBUILD_COMM_TCP_PLAIN=FALSE -DBUILD_COMM_TCP_TLS=FALSE" #udp
                 - "-DBUILD_COMM_TCP_PLAIN=FALSE -DBUILD_COMM_TCP_TLS=TRUE" #tls
