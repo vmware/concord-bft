@@ -128,10 +128,11 @@ void AsyncTlsConnection::readMsg() {
           concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
           receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred);
         }
-        if (config_.statusCallback && conn_mgr_.isReplica(peer_id_.value()) && (status_.msg_reads % 1000 == 1)) {
+        if (config_.statusCallback && connection_manager_.isReplica(peer_id_.value()) &&
+            (status_.msg_reads % 1000 == 1)) {
           concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.msg_received_callback);
           PeerConnectivityStatus pcs{};
-          pcs.peerId = peer_id_.value();
+          pcs.peerId = static_cast<int64_t>(peer_id_.value());
           pcs.statusType = StatusType::MessageReceived;
           config_.statusCallback(pcs);
         }
@@ -203,7 +204,7 @@ void AsyncTlsConnection::dispose(bool close_connection) {
   auto self = shared_from_this();
   if (close_connection) {
     // The ConnMgr runs in a separate strand. We must post a message to inform it, rather than calling directly.
-    conn_mgr_.remoteCloseConnection(peer_id_.value());
+    connection_manager_.remoteCloseConnection(peer_id_.value());
   }
 }
 
@@ -231,29 +232,30 @@ void AsyncTlsConnection::write(std::shared_ptr<OutgoingMsg> msg) {
 
   auto self = shared_from_this();
   auto start = std::chrono::steady_clock::now();
-  asio::async_write(*socket_,
-                    asio::buffer(write_msg_->msg),
-                    asio::bind_executor(strand_, [this, self, start](const asio::error_code& ec, auto bytes_written) {
-                      if (disposed_) return;
-                      if (ec) {
-                        if (ec == asio::error::operation_aborted) {
-                          // The socket has already been cleaned up and any references are invalid. Just return.
-                          LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
-                          return;
-                        }
-                        LOG_WARN(logger_,
-                                 "Write failed to node " << peer_id_.value() << " for message with size "
-                                                         << write_msg_->msg.size() << ": " << ec.message());
-                        return dispose();
-                      }
+  asio::async_write(
+      *socket_,
+      asio::buffer(write_msg_->msg),
+      asio::bind_executor(strand_, [this, self, start](const asio::error_code& ec, auto /*bytes_written*/) {
+        if (disposed_) return;
+        if (ec) {
+          if (ec == asio::error::operation_aborted) {
+            // The socket has already been cleaned up and any references are invalid. Just return.
+            LOG_DEBUG(logger_, "Operation aborted: " << KVLOG(peer_id_.value(), disposed_));
+            return;
+          }
+          LOG_WARN(logger_,
+                   "Write failed to node " << peer_id_.value() << " for message with size " << write_msg_->msg.size()
+                                           << ": " << ec.message());
+          return dispose();
+        }
 
-                      // The write succeeded.
-                      histograms_.async_write->recordAtomic(durationInMicros(start));
-                      write_timer_.cancel();
-                      histograms_.sent_msg_size->recordAtomic(write_msg_->msg.size());
-                      write_msg_ = nullptr;
-                      write(write_queue_.pop());
-                    }));
+        // The write succeeded.
+        histograms_.async_write->recordAtomic(durationInMicros(start));
+        write_timer_.cancel();
+        histograms_.sent_msg_size->recordAtomic(static_cast<int64_t>(write_msg_->msg.size()));
+        write_msg_ = nullptr;
+        write(write_queue_.pop());
+      }));
   startWriteTimer();
 }
 
@@ -277,9 +279,9 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
   asio::error_code ec;
   ssl_context_.set_verify_callback(
-      [this, self, destination](auto preverified, auto& ctx) -> bool {
+      [this, self, destination](auto /*preverified*/, auto& ctx) -> bool {
         if (self.expired()) return false;
-        return verifyCertificateClient(preverified, ctx, destination);
+        return verifyCertificateClient(ctx, destination);
       },
       ec);
   if (ec) {
@@ -309,9 +311,9 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   asio::error_code ec;
   ssl_context_.set_verify_callback(
-      [this, self](auto preverified, auto& ctx) -> bool {
+      [this, self](auto /*preverified*/, auto& ctx) -> bool {
         if (self.expired()) return false;
-        return verifyCertificateServer(preverified, ctx);
+        return verifyCertificateServer(ctx);
       },
       ec);
   if (ec) {
@@ -357,9 +359,7 @@ void AsyncTlsConnection::initServerSSLContext() {
   SSL_CTX_set_cipher_list(ssl_context_.native_handle(), config_.cipherSuite.c_str());
 }
 
-bool AsyncTlsConnection::verifyCertificateClient(bool preverified,
-                                                 asio::ssl::verify_context& ctx,
-                                                 NodeNum expected_dest_id) {
+bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id) {
   if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
     return false;
   }
@@ -375,7 +375,7 @@ bool AsyncTlsConnection::verifyCertificateClient(bool preverified,
   return valid;
 }
 
-bool AsyncTlsConnection::verifyCertificateServer(bool preverified, asio::ssl::verify_context& ctx) {
+bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx) {
   if (X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT != X509_STORE_CTX_get_error(ctx.native_handle())) {
     return false;
   }
@@ -487,9 +487,7 @@ const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& p
   std::unique_ptr<ISecretsManagerImpl> secrets_manager;
   if (config_.secretData) {
     pkpath = (path / fs::path("pk.pem.enc")).string();
-    if (secrets_manager == nullptr) {
-      secrets_manager.reset(new SecretsManagerEnc(config_.secretData.value()));
-    }
+    secrets_manager.reset(new SecretsManagerEnc(config_.secretData.value()));
   } else {
     pkpath = (path / fs::path("pk.pem")).string();
     secrets_manager.reset(new SecretsManagerPlain());

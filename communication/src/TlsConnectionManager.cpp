@@ -11,18 +11,19 @@
 
 #include <asio/bind_executor.hpp>
 #include <boost/filesystem.hpp>
+#include <cstdint>
 #include <future>
 #include <string>
 
 #include "assertUtils.hpp"
-#include "TlsConnMgr.h"
+#include "TlsConnectionManager.h"
 #include "AsyncTlsConnection.h"
 
 namespace bft::communication::tls {
 
 void setSocketOptions(asio::ip::tcp::socket& socket) { socket.set_option(asio::ip::tcp::no_delay(true)); }
 
-ConnMgr::ConnMgr(const TlsTcpConfig& config, asio::io_context& io_context)
+ConnectionManager::ConnectionManager(const TlsTcpConfig& config, asio::io_context& io_context)
     : logger_(logging::getLogger("concord-bft.tls.connMgr")),
       config_(config),
       io_context_(io_context),
@@ -38,7 +39,7 @@ ConnMgr::ConnMgr(const TlsTcpConfig& config, asio::io_context& io_context)
   registrar.status.registerHandler(handler);
 }
 
-void ConnMgr::start() {
+void ConnectionManager::start() {
   LOG_INFO(logger_, "Starting connection manager for " << config_.selfId);
 
   if (isReplica()) {
@@ -46,13 +47,13 @@ void ConnMgr::start() {
     accept();
   }
 
-  for (auto i = 0; i <= config_.maxServerId; i++) {
+  for (int32_t i = 0; i <= config_.maxServerId; i++) {
     if (config_.statusCallback) {
       auto node = config_.nodes.at(i);
       PeerConnectivityStatus pcs{};
       pcs.peerId = i;
       pcs.peerHost = node.host;
-      pcs.peerPort = node.port;
+      pcs.peerPort = static_cast<int16_t>(node.port);
       pcs.statusType = StatusType::Started;
       config_.statusCallback(pcs);
     }
@@ -62,7 +63,7 @@ void ConnMgr::start() {
   startConnectTimer();
 }
 
-void ConnMgr::stop() {
+void ConnectionManager::stop() {
   LOG_INFO(logger_, "Stopping connection manager for " << config_.selfId);
   status_->reset();
 
@@ -87,9 +88,9 @@ void ConnMgr::stop() {
   }
 }
 
-void ConnMgr::setReceiver(NodeNum _, IReceiver* receiver) { receiver_ = receiver; }
+void ConnectionManager::setReceiver(NodeNum, IReceiver* receiver) { receiver_ = receiver; }
 
-void ConnMgr::listen() {
+void ConnectionManager::listen() {
   try {
     auto endpoint = syncResolve();
     acceptor_.open(endpoint.protocol());
@@ -105,7 +106,7 @@ void ConnMgr::listen() {
   }
 }
 
-void ConnMgr::startConnectTimer() {
+void ConnectionManager::startConnectTimer() {
   connect_timer_.expires_from_now(CONNECT_TICK);
   connect_timer_.async_wait(asio::bind_executor(strand_, [this](const asio::error_code& ec) {
     if (ec) {
@@ -121,7 +122,7 @@ void ConnMgr::startConnectTimer() {
   }));
 }
 
-void ConnMgr::send(const NodeNum destination, const std::shared_ptr<OutgoingMsg>& msg) {
+void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<OutgoingMsg>& msg) {
   auto max_size = config_.bufferLength - MSG_HEADER_SIZE;
   if (msg->payload_size() > max_size) {
     status_->total_messages_dropped++;
@@ -134,7 +135,7 @@ void ConnMgr::send(const NodeNum destination, const std::shared_ptr<OutgoingMsg>
   }
 }
 
-void ConnMgr::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg> msg) {
+void ConnectionManager::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg> msg) {
   auto it = connections_.find(destination);
   if (it != connections_.end()) {
     it->second->send(std::move(msg));
@@ -142,7 +143,7 @@ void ConnMgr::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg>
     if (config_.statusCallback && isReplica() && (status_->total_messages_sent % 1000 == 1)) {
       concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.msg_sent_callback);
       PeerConnectivityStatus pcs{};
-      pcs.peerId = config_.selfId;
+      pcs.peerId = static_cast<int64_t>(config_.selfId);
       pcs.statusType = StatusType::MessageSent;
       config_.statusCallback(pcs);
     }
@@ -151,11 +152,11 @@ void ConnMgr::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg>
   }
 }
 
-void ConnMgr::handleConnStatus(const NodeNum destination, std::promise<bool>& connected) const {
+void ConnectionManager::handleConnStatus(const NodeNum destination, std::promise<bool>& connected) const {
   connected.set_value(connections_.count(destination) ? true : false);
 }
 
-void ConnMgr::remoteCloseConnection(NodeNum id) {
+void ConnectionManager::remoteCloseConnection(NodeNum id) {
   asio::post(strand_, [this, id]() {
     // This check is because of a race condition.
     // It's possible that the ConnMgr can call conn->remoteDispose() as a result of it destroying
@@ -170,7 +171,7 @@ void ConnMgr::remoteCloseConnection(NodeNum id) {
     status_->num_connections = connections_.size();
     if (config_.statusCallback && isReplica(id)) {
       PeerConnectivityStatus pcs{};
-      pcs.peerId = id;
+      pcs.peerId = static_cast<int64_t>(id);
       pcs.statusType = StatusType::Broken;
       config_.statusCallback(pcs);
     }
@@ -178,16 +179,16 @@ void ConnMgr::remoteCloseConnection(NodeNum id) {
   });
 }
 
-void ConnMgr::closeConnection(std::shared_ptr<AsyncTlsConnection> conn) {
+void ConnectionManager::closeConnection(std::shared_ptr<AsyncTlsConnection> conn) {
   conn->remoteDispose();
   conn->getSocket().lowest_layer().close();
 }
 
-void ConnMgr::syncCloseConnection(std::shared_ptr<AsyncTlsConnection>& conn) {
+void ConnectionManager::syncCloseConnection(std::shared_ptr<AsyncTlsConnection>& conn) {
   conn->getSocket().lowest_layer().close();
 }
 
-void ConnMgr::onConnectionAuthenticated(std::shared_ptr<AsyncTlsConnection> conn) {
+void ConnectionManager::onConnectionAuthenticated(std::shared_ptr<AsyncTlsConnection> conn) {
   // Move the connection into the accepted connections map. If there is an existing connection
   // discard it. In this case it was likely that connecting end of the connection thinks there is
   // something wrong. This is a vector for a denial of service attack on the accepting side. We can
@@ -204,7 +205,7 @@ void ConnMgr::onConnectionAuthenticated(std::shared_ptr<AsyncTlsConnection> conn
   conn->startReading();
 }
 
-void ConnMgr::onServerHandshakeComplete(const asio::error_code& ec, size_t accepted_connection_id) {
+void ConnectionManager::onServerHandshakeComplete(const asio::error_code& ec, size_t accepted_connection_id) {
   auto conn = std::move(accepted_waiting_for_handshake_.at(accepted_connection_id));
   accepted_waiting_for_handshake_.erase(accepted_connection_id);
   status_->num_accepted_waiting_for_handshake = accepted_waiting_for_handshake_.size();
@@ -217,7 +218,7 @@ void ConnMgr::onServerHandshakeComplete(const asio::error_code& ec, size_t accep
   onConnectionAuthenticated(std::move(conn));
 }
 
-void ConnMgr::onClientHandshakeComplete(const asio::error_code& ec, NodeNum destination) {
+void ConnectionManager::onClientHandshakeComplete(const asio::error_code& ec, NodeNum destination) {
   auto conn = std::move(connected_waiting_for_handshake_.at(destination));
   connected_waiting_for_handshake_.erase(destination);
   status_->num_connected_waiting_for_handshake = connected_waiting_for_handshake_.size();
@@ -230,7 +231,7 @@ void ConnMgr::onClientHandshakeComplete(const asio::error_code& ec, NodeNum dest
   onConnectionAuthenticated(std::move(conn));
 }
 
-void ConnMgr::startServerSSLHandshake(asio::ip::tcp::socket&& socket) {
+void ConnectionManager::startServerSSLHandshake(asio::ip::tcp::socket&& socket) {
   auto connection_id = total_accepted_connections_;
   auto conn =
       AsyncTlsConnection::create(io_context_, std::move(socket), receiver_, *this, config_, *status_, histograms_);
@@ -242,7 +243,7 @@ void ConnMgr::startServerSSLHandshake(asio::ip::tcp::socket&& socket) {
                                     }));
 }
 
-void ConnMgr::startClientSSLHandshake(asio::ip::tcp::socket&& socket, NodeNum destination) {
+void ConnectionManager::startClientSSLHandshake(asio::ip::tcp::socket&& socket, NodeNum destination) {
   auto conn = AsyncTlsConnection::create(
       io_context_, std::move(socket), receiver_, *this, destination, config_, *status_, histograms_);
   connected_waiting_for_handshake_.insert({destination, conn});
@@ -253,7 +254,7 @@ void ConnMgr::startClientSSLHandshake(asio::ip::tcp::socket&& socket, NodeNum de
                                     }));
 }
 
-void ConnMgr::accept() {
+void ConnectionManager::accept() {
   acceptor_.async_accept(asio::bind_executor(strand_, [this](asio::error_code ec, asio::ip::tcp::socket sock) {
     if (ec) {
       LOG_WARN(logger_, "async_accept failed: " << ec.message());
@@ -272,7 +273,7 @@ void ConnMgr::accept() {
   }));
 }
 
-void ConnMgr::resolve(NodeNum i) {
+void ConnectionManager::resolve(NodeNum i) {
   resolving_.insert(i);
   status_->num_resolving = resolving_.size();
   auto node = config_.nodes.at(i);
@@ -297,7 +298,7 @@ void ConnMgr::resolve(NodeNum i) {
       }));
 }
 
-void ConnMgr::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoint) {
+void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoint) {
   auto [it, inserted] = connecting_.emplace(i, asio::ip::tcp::socket(io_context_));
   ConcordAssert(inserted);
   status_->num_connecting = connecting_.size();
@@ -318,7 +319,7 @@ void ConnMgr::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoint) {
       }));
 }
 
-void ConnMgr::connect() {
+void ConnectionManager::connect() {
   auto end = std::min<size_t>(config_.selfId, config_.maxServerId + 1);
   for (auto i = 0u; i < end; i++) {
     if (connections_.count(i) == 0 && connecting_.count(i) == 0 && resolving_.count(i) == 0 &&
@@ -328,16 +329,16 @@ void ConnMgr::connect() {
   }
 }
 
-asio::ip::tcp::endpoint ConnMgr::syncResolve() {
+asio::ip::tcp::endpoint ConnectionManager::syncResolve() {
   auto results = resolver_.resolve(asio::ip::tcp::v4(), config_.listenHost, std::to_string(config_.listenPort));
   asio::ip::tcp::endpoint endpoint = *results;
   LOG_INFO(logger_, "Resolved " << config_.listenHost << ":" << config_.listenPort << " to " << endpoint);
   return endpoint;
 }
 
-int ConnMgr::getMaxMessageSize() const { return config_.bufferLength; }
+int ConnectionManager::getMaxMessageSize() const { return static_cast<int>(config_.bufferLength); }
 
-ConnectionStatus ConnMgr::getCurrentConnectionStatus(const NodeNum id) const {
+ConnectionStatus ConnectionManager::getCurrentConnectionStatus(const NodeNum id) const {
   std::promise<bool> connected;
   auto future = connected.get_future();
   asio::post(strand_, [this, id, &connected]() { handleConnStatus(id, connected); });

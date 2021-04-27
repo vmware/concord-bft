@@ -14,7 +14,7 @@
 
 #include "communication/CommDefs.hpp"
 #include "Logger.hpp"
-#include "TlsConnMgr.h"
+#include "TlsConnectionManager.h"
 
 #pragma once
 
@@ -31,7 +31,7 @@ class Runner {
   void start();
   void stop();
   bool isRunning() const;
-  std::map<NodeNum, ConnMgr>& principals() { return principals_; }
+  std::map<NodeNum, ConnectionManager>& principals() { return principals_; }
 
  private:
   logging::Logger logger_;
@@ -43,7 +43,7 @@ class Runner {
 
   asio::io_context io_context_;
 
-  std::map<NodeNum, ConnMgr> principals_;
+  std::map<NodeNum, ConnectionManager> principals_;
 };
 
 }  // namespace bft::communication::tls
