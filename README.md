@@ -1,5 +1,6 @@
 <img src="logoConcord.png"/>
 
+TO REMOVE
 
 # Concord-BFT: a Distributed Trust Infrastructure
 
