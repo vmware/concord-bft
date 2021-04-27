@@ -28,7 +28,8 @@ ClientsManager::ClientsManager(concordMetrics::Component& metrics, std::set<Node
       maxNumOfReqsPerClient_(
           ReplicaConfig::instance().clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1),
       metrics_(metrics),
-      metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")} {
+      metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")},
+      metric_removed_due_to_out_of_boundaries_{metrics_.RegisterCounter("totalRemovedDueToOutOfBoundaries")} {
   ConcordAssert(clientsSet.size() >= 1);
   scratchPage_ = (char*)std::malloc(sizeOfReservedPage_);
   memset(scratchPage_, 0, sizeOfReservedPage_);
@@ -344,10 +345,10 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
  * numbers. Then, we count how many bigger sequence number than the given reqSequenceNumber we have. We know for sure
  * that we shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
  */
-bool ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum) {
+void ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
-  if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return false;
+  if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return;
   ReqId maxReqId{0};
   for (const auto& entry : requestsInfo) {
     if (entry.first > maxReqId) maxReqId = entry.first;
@@ -357,9 +358,8 @@ bool ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, Req
   // than the given one, it means that the highest sequence number is out of the boundries and can be safely removed
   if (requestsInfo.size() == maxNumOfRequestsInBatch && maxReqId > reqSequenceNum) {
     requestsInfo.erase(maxReqId);
+    metric_removed_due_to_out_of_boundaries_.Get().Inc();
   }
-
-  return false;
 }
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);

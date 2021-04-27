@@ -712,8 +712,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
-        if (clientsManager->removeRequestsOutsideBoundsOfBatch(req.clientProxyId(), req.requestSeqNum()))
-          metric_requests_removed_from_pending_.Get().Inc();
+        clientsManager->removeRequestsOutsideBoundsOfBatch(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
       }
@@ -3605,7 +3604,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       metric_client_req_sig_veirification_failed_{metrics_.RegisterCounter("clientReqSigVerFailed")},
-      metric_requests_removed_from_pending_{metrics_.RegisterCounter("requestsRemovedFromPendingDueToTooHighSeqNum")},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),

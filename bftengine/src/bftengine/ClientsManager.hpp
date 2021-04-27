@@ -65,7 +65,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   void markRequestAsCommitted(NodeIdType clientId, ReqId reqSequenceNum);
 
-  bool removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum);
+  void removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum);
   void removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum);
 
   void clearAllPendingRequests();
@@ -120,6 +120,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   const uint16_t maxNumOfReqsPerClient_;
   concordMetrics::Component& metrics_;
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
+  concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;
 };
 
 }  // namespace impl
