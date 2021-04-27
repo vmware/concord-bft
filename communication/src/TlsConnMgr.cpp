@@ -128,7 +128,10 @@ void ConnMgr::send(const NodeNum destination, const std::shared_ptr<OutgoingMsg>
     LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(msg->payload_size(), max_size));
     return;
   }
-  asio::post(strand_, [this, destination, msg]() { handleSend(destination, msg); });
+  {
+    concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_mgr);
+    asio::post(strand_, [this, destination, msg]() { handleSend(destination, msg); });
+  }
 }
 
 void ConnMgr::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg> msg) {
@@ -137,6 +140,7 @@ void ConnMgr::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg>
     it->second->send(std::move(msg));
     status_->total_messages_sent++;
     if (config_.statusCallback && isReplica() && (status_->total_messages_sent % 1000 == 1)) {
+      concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.msg_sent_callback);
       PeerConnectivityStatus pcs{};
       pcs.peerId = config_.selfId;
       pcs.statusType = StatusType::MessageSent;
