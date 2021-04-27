@@ -160,13 +160,14 @@ format: gen_cmake ## Format Concord-BFT source with clang-format
 tidy-check: gen_cmake ## Run clang-tidy
 	docker run ${CONCORD_BFT_USER_GROUP} ${BASIC_RUN_PARAMS} \
 		${CONCORD_BFT_CONTAINER_SHELL} -c \
-		"cd ${CONCORD_BFT_BUILD_DIR} && \
+		"set -eo pipefail && \
+		cd ${CONCORD_BFT_BUILD_DIR} && \
 		make -C ${CONCORD_BFT_KVBC_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
-		run-clang-tidy-10 &> clang-tidy-report.txt && \
+		run-clang-tidy-10 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
 		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \
-		|| ( echo "\nClang-tidy failed. The report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
+		|| ( echo "\nClang-tidy failed. The full report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
 			 \nFor detail information about the checks, please refer to https://clang.llvm.org/extra/clang-tidy/checks/list.html" \
 			 ; exit 1)
 
