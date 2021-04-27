@@ -15,8 +15,7 @@
 from collections import namedtuple
 import bft_msgs
 
-CommonReplyHeader = namedtuple('CommonReplyHeader', ['span_context_size', 'primary_id',
-                                                     'req_seq_num', 'length'])
+CommonReplyHeader = namedtuple('CommonReplyHeader', ['req_seq_num'])
 
 MatchedReplyKey = namedtuple('MatchedReplyKey', ['header', 'data'])
 
@@ -24,12 +23,12 @@ MatchedReplyKey = namedtuple('MatchedReplyKey', ['header', 'data'])
 class MsgWithReplicaSpecificInfo:
     def __init__(self, bare_message, sender_id):
         orig_header, orig_data = bft_msgs.unpack_reply(bare_message)
-        self.common_header = CommonReplyHeader(orig_header.span_context_size, orig_header.primary_id,
-                                               orig_header.req_seq_num, orig_header.length - orig_header.rsi_length)
+        self.common_header = CommonReplyHeader(orig_header.req_seq_num)
         rsi_loc = orig_header.length - orig_header.rsi_length
         self.rsi_data = orig_data[rsi_loc:]
         self.common_data = orig_data[:rsi_loc]
         self.sender_id = sender_id
+        self.primary_id = orig_header.primary_id
 
     def get_common_reply(self):
         return self.common_header, self.common_data
@@ -49,6 +48,8 @@ class MsgWithReplicaSpecificInfo:
     def is_valid(self, req_seq_num):
         return self.common_header.req_seq_num == req_seq_num
 
+    def get_primary(self):
+        return self.primary_id
 
 class RepliesManager:
     def __init__(self):
@@ -90,7 +91,7 @@ class RepliesManager:
             return dict()
         rsi_replies = dict()
         for k,v in self.replies[matched_reply_key].items():
-            rsi_replies[k] = v.get_rsi_data()
+            rsi_replies[k] = v
         return rsi_replies
 
     def get_all_replies(self):
