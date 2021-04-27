@@ -345,7 +345,7 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
  * numbers. Then, we count how many bigger sequence number than the given reqSequenceNumber we have. We know for sure
  * that we shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
  */
-void ClientsManager::removeRequestsOutsideBoundsOfBatch(NodeIdType clientId, ReqId reqSequenceNum) {
+void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId reqSequenceNum) {
   uint16_t idx = clientIdToIndex_.at(clientId);
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return;

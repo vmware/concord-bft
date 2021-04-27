@@ -712,7 +712,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
-        clientsManager->removeRequestsOutsideBoundsOfBatch(req.clientProxyId(), req.requestSeqNum());
+        clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
       }
