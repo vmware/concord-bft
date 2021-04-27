@@ -55,6 +55,8 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
 
   // Requests
 
+  bool isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const;
+
   // Return true IFF there is no pending requests for clientId, and reqSeqNum can become the new pending request
   bool canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const;
 

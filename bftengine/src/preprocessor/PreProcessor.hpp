@@ -120,6 +120,7 @@ class PreProcessor {
                                     const std::string &cid,
                                     const std::string &ongoingCid);
   void sendCancelPreProcessRequestMsg(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
+                                      NodeIdType destId,
                                       uint16_t reqOffsetInBatch,
                                       uint64_t reqRetryId);
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
@@ -162,6 +163,7 @@ class PreProcessor {
   void cancelTimers();
   void onRequestsStatusCheckTimer();
   void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                        NodeIdType senderId,
                                         bool arrivedInBatch,
                                         uint16_t msgOffsetInBatch);
   bool isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,

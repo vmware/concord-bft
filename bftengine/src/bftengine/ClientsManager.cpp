@@ -267,6 +267,17 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   return r;
 }
 
+bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const {
+  uint16_t idx = clientIdToIndex_.at(clientId);
+  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  const auto& reqIt = indexToClientInfo_.at(idx).requestsInfo.find(reqSeqNum);
+  if (reqIt != requestsInfo.end()) {
+    LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
+    return true;
+  }
+  return false;
+}
+
 // Check that:
 // * max number of pending requests not reached for that client.
 // * request seq number is bigger than the last reply seq number.
