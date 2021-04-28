@@ -42,7 +42,7 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
-#include "KeyExchangeManager.h"
+#include "bftengine/KeyExchangeManager.hpp"
 
 #include <memory>
 #include <string>
@@ -185,13 +185,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("cid", m->getCid());
   span.setTag("seq_num", reqSeqNum);
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    // If Multi sig keys haven't been replaced for all replicas and it's not a key ex msg then don't accept the msg.
-    if (!KeyExchangeManager::instance().keysExchanged && !(flags & KEY_EXCHANGE_FLAG)) {
-      LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
-      delete m;
-      return;
-    }
+  // If replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs
+  if (!KeyExchangeManager::instance().exchanged() && !(flags & KEY_EXCHANGE_FLAG)) {
+    LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
+    delete m;
+    return;
   }
 
   // check message validity
@@ -852,10 +850,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
 
   for (SeqNum i = minSeqNum; i <= lastRelatedSeqNum; i++) {
     if (!recentViewChange) {
-      // during exchange we need missing data to be performed in slow path
-      auto exchanging =
-          (!KeyExchangeManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
-      tryToSendReqMissingDataMsg(i, exchanging);
+      tryToSendReqMissingDataMsg(i);
     } else {
       if (isCurrentPrimary()) {
         tryToSendReqMissingDataMsg(i, true);  // This Replica is Primary, need to ask everyone else
@@ -2697,9 +2692,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 
   clientsManager->loadInfoFromReservedPages();
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyExchangeManager::instance().loadKeysFromReservedPages();
-  }
+  KeyExchangeManager::instance().loadPublicKeys();
 
   if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
     const SeqNum refPoint = newCheckpointSeqNum - kWorkWindowSize;
@@ -3362,15 +3355,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
         // examples below)
       }
-      std::shared_ptr<ISecureStore> secStore;
-      // If sm_ has a SecretsManager instance - encrypted config is enabled and EncryptedFileSecureStore is used
-      if (sm_) {
-        secStore.reset(new KeyExchangeManager::EncryptedFileSecureStore(
-            sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.getreplicaId()));
-      } else {
-        secStore.reset(new KeyExchangeManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(),
-                                                               config_.getreplicaId()));
-      }
 
       if (e.getSlowStarted()) {
         seqNumInfo.startSlowPath();
@@ -3386,7 +3370,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         bool added = seqNumInfo.addSelfMsg(p, true);
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
+
           p = PreparePartialMsg::create(curView,
                                         pp->seqNumber(),
                                         config_.getreplicaId(),
@@ -3405,7 +3389,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           failedToAdd = true;
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
           std::cout << e.what() << '\n';
-          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
         }
         if (failedToAdd) seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
 
@@ -3417,7 +3400,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         bool added = seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
           c = CommitPartialMsg::create(
               curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
           seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
@@ -3432,7 +3414,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
           failedToAdd = true;
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
           std::cout << e.what() << '\n';
-          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
         }
         if (failedToAdd) seqNumInfo.addMsg(e.getCommitFullMsg(), true);
 
@@ -3445,7 +3426,6 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         // the message (as in the examples below)
         if (!added) {
           LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          KeyExchangeManager::loadCryptoFromKeyView(secStore, config_.getreplicaId(), config_.getnumReplicas());
           added = pps.addMsg(e.getFullCommitProofMsg());
         }
         ConcordAssert(added);  // we should verify the relevant signature when it is loaded
@@ -3801,38 +3781,18 @@ void ReplicaImp::start() {
   sigManager_->SetAggregator(aggregator_);
   ReplicaForStateTransfer::start();
 
-  // requires the init of state transfer
-  std::shared_ptr<ISecureStore> sec;
-  std::shared_ptr<ISecureStore> backupsec;
-  // If sm_ has a SecretsManager instance - encrypted config is enabled and EncryptedFileSecureStore is used
-  if (sm_) {
-    sec.reset(new KeyExchangeManager::EncryptedFileSecureStore(
-        sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
-    backupsec.reset(new KeyExchangeManager::EncryptedFileSecureStore(
-        sm_, ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
-  } else {
-    sec.reset(
-        new KeyExchangeManager::FileSecureStore(ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId));
-    backupsec.reset(new KeyExchangeManager::FileSecureStore(
-        ReplicaConfig::instance().getkeyViewFilePath(), config_.replicaId, "_backed"));
-  }
-
+  // Initialize and start KeyExchangeManager after State Transfer
   KeyExchangeManager::InitData id{};
   id.cl = internalBFTClient_;
-  id.id = config_.getreplicaId();
-  id.clusterSize = config_.getnumReplicas();
   id.reservedPages = stateTransfer.get();
-  id.sizeOfReservedPage = ReplicaConfig::instance().getsizeOfReservedPage();
   id.kg = &CryptoManager::instance();
   id.ke = &CryptoManager::instance();
-  id.sec = sec;
-  id.backupSec = backupsec;
+  id.secretsMgr = sm_;
   id.timers = &timers_;
   id.a = aggregator_;
-  id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
-  id.keyExchangeOnStart = ReplicaConfig::instance().getkeyExchangeOnStart();
 
   KeyExchangeManager::start(&id);
+
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
   recoverRequests();
@@ -3840,9 +3800,8 @@ void ReplicaImp::start() {
   // The following line will start the processing thread.
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyExchangeManager::instance().sendInitialKey();
-  }
+
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) KeyExchangeManager::instance().sendInitialKey();
 }
 
 void ReplicaImp::recoverRequests() {
@@ -3886,6 +3845,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{clientId,
                                                                               static_cast<uint64_t>(lastExecutedSeqNum),
+                                                                              request->getCid(),
                                                                               request->flags(),
                                                                               request->requestLength(),
                                                                               request->requestBuf(),
@@ -4073,7 +4033,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
       onSeqNumIsSuperStable(lastStableSeqNum);
     }
 
-    KeyExchangeManager::instance().onCheckpoint(checkpointNum);
+    CryptoManager::instance().onCheckpoint(checkpointNum);
   }
 
   if (ps_) ps_->endWriteTran();
@@ -4126,6 +4086,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     accumulatedRequests.push_back(IRequestsHandler::ExecutionRequest{
         clientId,
         static_cast<uint64_t>(lastExecutedSeqNum + 1),
+        ppMsg->getCid(),
         req.flags(),
         req.requestLength(),
         req.requestBuf(),
@@ -4215,10 +4176,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
 
     if (requestMissingInfo && !ready) {
       LOG_INFO(GL, "Asking for missing information: " << KVLOG(nextExecutedSeqNum, curView, lastStableSeqNum));
-      // during exchange we need missing data to be performed in slow path
-      auto exchanging =
-          (!KeyExchangeManager::instance().keysExchanged && ReplicaConfig::instance().getkeyExchangeOnStart());
-      tryToSendReqMissingDataMsg(nextExecutedSeqNum, exchanging);
+      tryToSendReqMissingDataMsg(nextExecutedSeqNum);
     }
 
     if (!ready) break;

@@ -17,8 +17,8 @@
 class IKeyExchanger {
  public:
   virtual ~IKeyExchanger() {}
-  virtual void onPublicKeyExchange(const std::string& msg, const std::uint16_t& signerIndex) = 0;
-  virtual void onPrivateKeyExchange(const std::string& secretKey, const std::string& verificationKey) = 0;
+  virtual void onPublicKeyExchange(const std::string& pub, const std::uint16_t& signerIndex, const int64_t& seqnum) = 0;
+  virtual void onPrivateKeyExchange(const std::string& privKey, const std::string& pubKey, const int64_t& seqnum) = 0;
 };
 
 class IMultiSigKeyGenerator {

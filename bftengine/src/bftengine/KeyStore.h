@@ -11,77 +11,86 @@
 
 #pragma once
 #include "Serializable.h"
-#include "deque"
 #include "IReservedPages.hpp"
 #include "ReservedPages.hpp"
 #include "KeyExchangeMsg.hpp"
+#include <map>
+#include <optional>
+
 namespace bftEngine::impl {
 
-// A replica's key store.
-// A queue with limit on its size.
-// Queue's object is the key msg and its corresponding seq num
-class ReplicaKeyStore : public concord::serialize::SerializableFactory<ReplicaKeyStore> {
- public:
-  struct ReplicaKey : public concord::serialize::SerializableFactory<ReplicaKey> {
-    KeyExchangeMsg msg;
-    uint64_t seqnum{};
+typedef int64_t SeqNum;  // TODO [TK] redefinition
 
-    ReplicaKey(const KeyExchangeMsg& other, const uint64_t& seqnum);
-    ReplicaKey() {}
-
-   protected:
-    const std::string getVersion() const;
-    void serializeDataMembers(std::ostream& outStream) const;
-    void deserializeDataMembers(std::istream& inStream);
-  };
-
-  bool push(const KeyExchangeMsg& kem, const uint64_t& sn);
-  void pop();
-  inline void setKeysLimit(const uint16_t& l) { numOfKeysLimit_ = l; };
-  inline uint16_t numKeys() const { return keys_.size(); };
-
-  // Return by value, since reference might be invalidated.
-  ReplicaKey current() const;
-  // Advance the queue if conditions are met.
-  bool rotate(const uint64_t& chknum);
-
-  static ReplicaKeyStore deserializeReplicaKeyStore(const char* serializedRepStore, const int& size);
-
- protected:
-  const std::string getVersion() const;
-  void serializeDataMembers(std::ostream& outStream) const;
-  void deserializeDataMembers(std::istream& inStream);
-
- private:
-  std::deque<ReplicaKey> keys_;
-  uint16_t numOfKeysLimit_{2};
-  uint16_t seqNumsPerChkPoint_{150};  // TODO init from config
-  uint16_t checkPointsForRotation_{2};
-};
-
-// Holds all replicas key store.
-// Perform operations like rotation and push.
-// Responsible on reserved pages operations.
+/**
+ *  Holds and persists public keys of all replicas.
+ */
 class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
  public:
-  ClusterKeyStore(const uint32_t& clusterSize, IReservedPages* reservedPages, const uint32_t& sizeOfReservedPage);
-  bool push(const KeyExchangeMsg& kem, const uint64_t& sn);
-  // iterate on all replcias
-  std::vector<uint16_t> rotate(const uint64_t& chknum);
-  KeyExchangeMsg getReplicaPublicKey(const uint16_t& repID) const;
-  uint16_t numKeys(const uint16_t& repID) const { return clusterKeys_[repID].numKeys(); }
+  /**
+   * Persistent public keys store
+   */
+  struct PublicKeys : public concord::serialize::SerializableFactory<PublicKeys> {
+    void push(const std::string& pub, const SeqNum& sn) {
+      auto res = keys.insert(std::make_pair(sn, pub));
+      if (!res.second) ConcordAssert(pub == res.first->second)  // if existed expect same key
+    }
+    void serializeDataMembers(std::ostream& outStream) const { serialize(outStream, keys); }
+    void deserializeDataMembers(std::istream& inStream) { deserialize(inStream, keys); }
+    std::map<SeqNum, std::string> keys;
+  };
+
+  ClusterKeyStore(uint32_t size, IReservedPages* reservedPages)
+      : clusterSize_(size), reservedPages_(reservedPages), buffer_(reservedPages->sizeOfReservedPage(), 0) {
+    ConcordAssertGT(reservedPages->sizeOfReservedPage(), 0);
+    loadAllReplicasKeyStoresFromReservedPages();
+  }
+
+  void push(const KeyExchangeMsg& kem, const SeqNum& sn) {
+    LOG_INFO(KEY_EX_LOG, kem.toString() << " seqnum: " << sn);
+    clusterKeys_[kem.repID].push(kem.pubkey, sn);
+    saveReplicaKeyStoreToReserevedPages(kem.repID);
+  }
+
+  const std::string getKey(const uint16_t& repId, const SeqNum& sn) const {
+    try {
+      return clusterKeys_.at(repId).keys.at(sn);
+    } catch (const std::out_of_range& e) {
+      LOG_FATAL(KEY_EX_LOG, "key not found for replica: " << repId << " seqnum: " << sn);
+      ConcordAssert(false);
+    }
+  }
+
+  const uint32_t numOfExchangedReplicas() const { return clusterKeys_.size(); }
+
+  bool keyExists(uint16_t repId) const { return clusterKeys_.find(repId) != clusterKeys_.end(); }
+
+  PublicKeys keys(uint16_t repId) const { return clusterKeys_.at(repId); }
+
+  void log() const {
+    LOG_INFO(KEY_EX_LOG, "Cluster Public Keys (size " << clusterSize_ << "):");
+    for (auto [repid, PKs] : clusterKeys_)
+      for (auto [sn, pubkey] : PKs.keys)
+        LOG_INFO(KEY_EX_LOG, "repId:" << repid << "\tseqnum: " << sn << "\tpubkey: " << pubkey);
+  }
 
   // Reserved Pages
-  bool loadAllReplicasKeyStoresFromReservedPages();
-  std::optional<ReplicaKeyStore> loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID);
+  /**
+   * @return number of replicas with keys
+   */
+  uint16_t loadAllReplicasKeyStoresFromReservedPages();
+  std::optional<PublicKeys> loadReplicaKeyStoreFromReserevedPages(const uint16_t& repID);
 
-  void saveAllReplicasKeyStoresToReservedPages();
+  void saveAllReplicasKeyStoresToReservedPages() {
+    for (uint16_t i = 0; i < (uint16_t)clusterKeys_.size(); i++) saveReplicaKeyStoreToReserevedPages(i);
+  }
   void saveReplicaKeyStoreToReserevedPages(const uint16_t& repID);
-  std::set<uint16_t> exchangedReplicas;
 
  private:
-  std::vector<ReplicaKeyStore> clusterKeys_;
+  // replica id -> public keys
+  std::map<uint16_t, PublicKeys> clusterKeys_;
+  const uint32_t clusterSize_;
   IReservedPages* reservedPages_;
   std::string buffer_;
 };
+
 }  // namespace bftEngine::impl
