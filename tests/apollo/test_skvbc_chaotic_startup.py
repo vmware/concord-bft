@@ -50,6 +50,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_inactive_window(self, bft_network):
