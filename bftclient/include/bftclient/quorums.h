@@ -51,8 +51,12 @@ typedef std::variant<LinearizableQuorum, ByzantineSafeQuorum> WriteQuorum;
 //  * C value
 class QuorumConverter {
  public:
-  QuorumConverter(const std::set<ReplicaId>& all_replicas, uint16_t f_val, uint16_t c_val)
+  QuorumConverter(const std::set<ReplicaId>& all_replicas,
+                  const std::set<ReplicaId>& ro_replicas,
+                  uint16_t f_val,
+                  uint16_t c_val)
       : all_replicas_(all_replicas),
+        ro_replicas_(ro_replicas),
         linearizable_quorum_size_(2 * f_val + c_val + 1),
         bft_safe_quorum_size_(f_val + 1) {}
 
@@ -74,7 +78,7 @@ class QuorumConverter {
   void validateDestinations(const std::set<ReplicaId>& destinations) const;
 
   std::set<ReplicaId> all_replicas_;
-
+  std::set<ReplicaId> ro_replicas_;
   size_t linearizable_quorum_size_;
   size_t bft_safe_quorum_size_;
 };

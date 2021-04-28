@@ -54,6 +54,7 @@ class ClientApiTestFixture : public ::testing::Test {
  public:
   ClientConfig test_config_ = {ClientId{5},
                                {ReplicaId_t{0}, ReplicaId_t{1}, ReplicaId_t{2}, ReplicaId_t{3}},
+                               {},
                                1,
                                0,
                                RetryTimeoutConfig{},
