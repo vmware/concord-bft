@@ -126,7 +126,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(debugPersistentStorageEnabled, bool, false, "whether persistent storage debugging is enabled");
 
   // Messages
-  CONFIG_PARAM(maxExternalMessageSize, uint32_t, 131072, "maximum size of external message");
+  CONFIG_PARAM(maxExternalMessageSize, uint32_t, 1310720, "maximum size of external message");
   CONFIG_PARAM(maxReplyMessageSize, uint32_t, 8192, "maximum size of reply message");
 
   // StateTransfer
