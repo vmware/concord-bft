@@ -18,12 +18,12 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
   constexpr static std::string_view hasKeysTrueReply{"true"};
   constexpr static std::string_view hasKeysFalseReply{"false"};
   uint8_t op{EXCHANGE};
-  std::string key;
+  std::string pubkey;
   uint16_t repID;
 
   std::string toString() const {
     std::stringstream ss;
-    ss << "key [" << key << "] replica id [" << repID << "]";
+    ss << "pubkey [" << pubkey << "] replica id [" << repID << "]";
     return ss.str();
   }
   static KeyExchangeMsg deserializeMsg(const char* serializedMsg, const int& size) {
@@ -38,12 +38,12 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
   const std::string getVersion() const override { return "1"; }
   void serializeDataMembers(std::ostream& outStream) const override {
     serialize(outStream, op);
-    serialize(outStream, key);
+    serialize(outStream, pubkey);
     serialize(outStream, repID);
   }
   void deserializeDataMembers(std::istream& inStream) override {
     deserialize(inStream, op);
-    deserialize(inStream, key);
+    deserialize(inStream, pubkey);
     deserialize(inStream, repID);
   }
 };

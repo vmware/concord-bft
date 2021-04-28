@@ -11,6 +11,8 @@
 // file.
 
 #include "reconfiguration/reconfiguration_handler.hpp"
+
+#include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
@@ -111,7 +113,9 @@ ReconfigurationHandler::ReconfigurationHandler() {
 bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     ReconfigurationErrorMsg&,
                                     uint64_t sequence_number) {
-  LOG_INFO(GL, "KeyExchangeCommand has been executed");
+  LOG_INFO(GL, KVLOG(command.id, command.sender_id, sequence_number));
+  bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
+
   return true;
 }
 

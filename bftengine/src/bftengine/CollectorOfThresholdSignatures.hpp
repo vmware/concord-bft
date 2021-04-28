@@ -416,15 +416,15 @@ class CollectorOfThresholdSignatures {
         if (replicasWithBadSigs.size() == 0) {
           // TODO(GG): print warning / error ??
           LOG_WARN(THRESHSIGN_LOG,
-                   typeid(PART).name() << ": verification failed for sequence: " << expectedSeqNumber
-                                       << ": no replicas with bad signatures");
+                   demangler::demangle<PART>() << ": verification failed for sequence: " << expectedSeqNumber
+                                               << ": no replicas with bad signatures");
         } else {
           std::ostringstream oss;
           std::copy(
               replicasWithBadSigs.begin(), replicasWithBadSigs.end(), std::ostream_iterator<std::uint16_t>(oss, " "));
           LOG_WARN(THRESHSIGN_LOG,
-                   typeid(PART).name() << ": verification failed for sequence: " << expectedSeqNumber
-                                       << ": replicas with bad signatures: " << oss.str());
+                   demangler::demangle<PART>() << ": verification failed for sequence: " << expectedSeqNumber
+                                               << ": replicas with bad signatures: " << oss.str());
         }
 
         auto iMsg(ExternalFunc::createInterCombinedSigFailed(expectedSeqNumber, expectedView, replicasWithBadSigs));
