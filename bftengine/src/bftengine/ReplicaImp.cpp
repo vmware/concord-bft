@@ -2112,6 +2112,15 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
             sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
           }
         }
+        // help from Inactive Window
+        if (mainLog->isPressentInHistory(msg->getLastExecutedSeqNum() + 1)) {
+          for (SeqNum i = msg->getLastExecutedSeqNum() + 1; i < lastStableSeqNum + 1; i++) {
+            PrePrepareMsg *prePrepareMsg = mainLog->getFromHistory(i).getSelfPrePrepareMsg();
+            if (prePrepareMsg != nullptr && !msg->isPrePrepareInActiveWindow(i)) {
+              sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
+            }
+          }
+        }
       } else {
         tryToSendStatusReport();
       }
