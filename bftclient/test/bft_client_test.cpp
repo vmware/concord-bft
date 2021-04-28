@@ -119,6 +119,14 @@ std::set<ReplicaId> destinations(uint16_t n) {
   return replicas;
 }
 
+std::set<ReplicaId> ro_destinations(uint16_t n, uint16_t start_index) {
+  std::set<ReplicaId> replicas;
+  for (uint16_t i = start_index; i < start_index + n; i++) {
+    replicas.insert(ReplicaId{i});
+  }
+  return replicas;
+}
+
 std::vector<ReplicaSpecificInfo> create_rsi(uint16_t n) {
   std::vector<ReplicaSpecificInfo> rsi;
   for (uint16_t i = 0; i < n; i++) {
@@ -238,10 +246,13 @@ TEST(matcher_tests, wait_for_3_out_of_4_with_mismatches_and_dupes) {
 
 TEST(quorum_tests, valid_quorums_without_destinations) {
   auto all_replicas = destinations(4);
+  // Even that we have ro replicas, empty destinations should include only committers. To issue a request to ro replica
+  // the user should explicity specify them in the quorum
+  auto ro_replicas = ro_destinations(2, 4);
   uint16_t f_val = 1;
   uint16_t c_val = 0;
 
-  QuorumConverter qc(all_replicas, f_val, c_val);
+  QuorumConverter qc(all_replicas, ro_replicas, f_val, c_val);
 
   // Quorums without destinations should always work, unless they are MofN.
   {
@@ -272,10 +283,11 @@ TEST(quorum_tests, valid_quorums_without_destinations) {
 
 TEST(quorum_tests, valid_quorums_with_destinations) {
   auto all_replicas = destinations(4);
+  auto ro_replicas = ro_destinations(2, 4);
   uint16_t f_val = 1;
   uint16_t c_val = 0;
 
-  QuorumConverter qc(all_replicas, f_val, c_val);
+  QuorumConverter qc(all_replicas, ro_replicas, f_val, c_val);
 
   {
     auto quorum = LinearizableQuorum{destinations(3)};
@@ -289,6 +301,16 @@ TEST(quorum_tests, valid_quorums_with_destinations) {
     ASSERT_EQ(2, output.wait_for);
     ASSERT_EQ(destinations(2), output.destinations);
   }
+
+  {
+    // Test a quorum with ro replicas
+    auto quorum = All{all_replicas};
+    quorum.destinations.insert(ro_replicas.begin(), ro_replicas.end());
+    auto output = qc.toMofN(quorum);
+    ASSERT_EQ(6, output.wait_for);
+    ASSERT_EQ(quorum.destinations, output.destinations);
+  }
+
   {
     auto quorum = All{destinations(1)};
     auto output = qc.toMofN(quorum);
@@ -306,10 +328,11 @@ TEST(quorum_tests, valid_quorums_with_destinations) {
 
 TEST(quorum_tests, invalid_destinations) {
   auto all_replicas = destinations(4);
+  auto ro_replicas = ro_destinations(2, 4);
   uint16_t f_val = 1;
   uint16_t c_val = 0;
 
-  QuorumConverter qc(all_replicas, f_val, c_val);
+  QuorumConverter qc(all_replicas, ro_replicas, f_val, c_val);
 
   auto invalid_replicas = destinations(2);
   invalid_replicas.insert(ReplicaId{7});
@@ -336,7 +359,7 @@ TEST(quorum_tests, bad_quorum_configs) {
   uint16_t f_val = 1;
   uint16_t c_val = 0;
 
-  QuorumConverter qc(all_replicas, f_val, c_val);
+  QuorumConverter qc(all_replicas, {}, f_val, c_val);
 
   {
     // Destinations is less than 2F + C + 1

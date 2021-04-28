@@ -25,7 +25,7 @@ namespace bft::client {
 Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config)
     : communication_(std::move(comm)),
       config_(config),
-      quorum_converter_(config_.all_replicas, config_.f_val, config_.c_val),
+      quorum_converter_(config_.all_replicas, config.ro_replicas, config.f_val, config_.c_val),
       expected_commit_time_ms_(config_.retry_timeout_config.initial_retry_timeout.count(),
                                config_.retry_timeout_config.number_of_standard_deviations_to_tolerate,
                                config_.retry_timeout_config.max_retry_timeout.count(),
