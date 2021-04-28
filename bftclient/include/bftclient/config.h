@@ -62,6 +62,7 @@ struct RetryTimeoutConfig {
 struct ClientConfig {
   ClientId id;
   std::set<ReplicaId> all_replicas;
+  std::set<ReplicaId> ro_replicas;
   uint16_t f_val;
   uint16_t c_val;
   RetryTimeoutConfig retry_timeout_config;

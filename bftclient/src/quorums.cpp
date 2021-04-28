@@ -82,7 +82,7 @@ void QuorumConverter::validateDestinations(const std::set<ReplicaId>& destinatio
   ReplicaId captured;
   if (std::any_of(destinations.begin(), destinations.end(), [this, &captured](auto replica_id) {
         captured = replica_id;
-        return all_replicas_.count(replica_id) == 0;
+        return all_replicas_.count(replica_id) == 0 && ro_replicas_.count(replica_id) == 0;
       })) {
     throw InvalidDestinationException(captured);
   }
