@@ -14,7 +14,7 @@
 from collections import namedtuple
 
 Config = namedtuple('Config', ['id', 'f', 'c', 'max_msg_size', 'req_timeout_milli',
-    'retry_timeout_milli', "certs_path"])
+    'retry_timeout_milli', "certs_path", "txn_signing_keys_path", "principals_to_participant_map"])
 
 Replica = namedtuple('Replica', ['id', 'ip', 'port', 'metrics_port'])
 
