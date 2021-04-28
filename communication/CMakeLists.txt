@@ -11,7 +11,8 @@ endif()
 if(${BUILD_COMM_TCP_TLS})
     set(bftcommunication_src ${bftcommunication_src}
         src/TlsTCPCommunication.cpp
-        src/TlsTcpImpl.cpp
+        src/TlsRunner.cpp
+        src/TlsConnectionManager.cpp
         src/AsyncTlsConnection.cpp
     )
 endif()
@@ -23,9 +24,9 @@ target_include_directories(bftcommunication PUBLIC include)
 target_link_libraries(bftcommunication PUBLIC util)
 target_include_directories(bftcommunication_shared PUBLIC include)
 target_link_libraries(bftcommunication_shared PUBLIC util_shared)
-
 target_include_directories(bftcommunication PUBLIC ../secretsmanager/include)
 target_include_directories(bftcommunication_shared PUBLIC ../secretsmanager/include)
+
 if(${BUILD_COMM_TCP_TLS})
     target_link_libraries(bftcommunication PUBLIC secretsmanager)
     target_link_libraries(bftcommunication_shared PUBLIC secretsmanager_shared)
@@ -51,16 +52,7 @@ if(${BUILD_COMM_TCP_PLAIN} OR ${BUILD_COMM_TCP_TLS})
         target_include_directories(bftcommunication_shared PUBLIC ${OPENSSL_INCLUDE_DIR})
         target_link_libraries(bftcommunication_shared PUBLIC ${OPENSSL_LIBRARIES} diagnostics)
         target_compile_definitions(bftcommunication_shared PUBLIC USE_COMM_TLS_TCP)
-        if(LEAKCHECK OR THREADCHECK)
-            # Workaround for the issue SSL socket gets stuck on shutdown:
-            # Usually, Apollo tests kill skvbc_replica process with `SIGKILL` but to receive
-            # reports from sanitizers, the replicas have to be stopped with `SIGTERM`. The
-            # problem is that sometimes SSL socket shutdown gets stuck forever. While the
-            # issue is not fully investigated skvbc_replicas for ASAN/TSAN tests are built
-            # with the flag NO_SSL_SOCKET_SHUTDOWN on.
-            target_compile_definitions(bftcommunication_shared PUBLIC NO_SSL_SOCKET_SHUTDOWN)
-            target_compile_definitions(bftcommunication PUBLIC NO_SSL_SOCKET_SHUTDOWN)
-        endif()
+
     endif()
 endif()
 install(DIRECTORY include/communication DESTINATION include)
