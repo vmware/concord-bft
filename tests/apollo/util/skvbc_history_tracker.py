@@ -1085,6 +1085,9 @@ class SkvbcTracker:
             kv = [(key, val)]
             await self.write_and_track_known_kv(kv, client1)
 
+        await self.bft_network.wait_for_replicas_to_collect_stable_checkpoint(self.bft_network.get_live_replicas(),
+                                                                              num_of_checkpoints_to_add)
+
         await self.skvbc.network_wait_for_checkpoint(
             initial_nodes,
             expected_checkpoint_num=lambda ecn: ecn == num_of_checkpoints_to_add,
