@@ -89,7 +89,7 @@ add_test(NAME skvbc_checkpoints COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_checkpoints python3 -m unittest test_skvbc_checkpoints 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_test(NAME skvbc_chaotic_startup COMMAND sh -c
+add_test(NAME skvbc_chaotic_startup COMMAND sudo sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_chaotic_startup python3 -m unittest test_skvbc_chaotic_startup 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
