@@ -127,7 +127,7 @@ class SimpleClient {
 };
 
 // This class is mainly for testing and SimpleClient applications.
-// Users are allowed to generate their own sequence numbers (they do notSUCCESS
+// Users are allowed to generate their own sequence numbers (they do not
 // have to use this class). Other examples of ways to do this include:
 // (1) A simple counter + store the last counter in a persistent storage
 // (2) An approach that utilizes the functions
