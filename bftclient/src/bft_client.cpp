@@ -319,6 +319,12 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
 
   } else if (std::holds_alternative<All>(read_config.quorum)) {
     mc.quorum = quorum_converter_.toMofN(std::get<All>(read_config.quorum));
+    for (const auto& r : std::get<All>(read_config.quorum).destinations) {
+      if (config_.ro_replicas.find(r) != config_.ro_replicas.end()) {
+        // We are about to send a read request to ro replica, so we must ignore the primary in the replies
+        mc.ignore_primary_ = true;
+      }
+    }
 
   } else {
     mc.quorum = quorum_converter_.toMofN(std::get<MofN>(read_config.quorum));
