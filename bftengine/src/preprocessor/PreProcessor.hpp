@@ -28,7 +28,11 @@
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
 
+#include <boost/lockfree/spsc_queue.hpp>
+
 #include <mutex>
+#include <condition_variable>
+#include <functional>
 
 namespace preprocessor {
 
@@ -185,6 +189,15 @@ class PreProcessor {
   }
 
  private:
+  const uint32_t MAX_MSGS = 10000;
+  void msgProcessingLoop();
+
+  boost::lockfree::spsc_queue<MessageBase *> msgs_{MAX_MSGS};
+  std::thread msgLoopThread_;
+  std::mutex msgLock_;
+  std::condition_variable msgLoopSignal_;
+  bool msgLoopDone_ = false;
+
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
