@@ -69,29 +69,22 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         bft_network.start_replicas(bft_network.all_replicas(without={late_replica}))
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
-        first_stable = 150
-        num_reqs_to_get_to_first_stable = first_stable + 1
+        stable_checkpoint_to_reach = 1
+        num_reqs_to_catch_up = 151
 
         async def write_req(num_req=1):
             for _ in range(num_req):
                 await skvbc.write_known_kv()
 
-        await write_req(num_reqs_to_get_to_first_stable)
+        # create checkpoint and wait for checkpoint propagation
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.get_live_replicas(),
+            num_of_checkpoints_to_add=stable_checkpoint_to_reach,
+            verify_checkpoint_persistency=False
+        )
 
-        with trio.fail_after(seconds=30):
-            while True:
-                last_stable_seqs = []
-                for replica_id in bft_network.get_live_replicas():
-                    last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
-                    last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
-                    log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; last_exec = {last_exec}")
-                    last_stable_seqs.append(last_stable)
-    
-                if sum(x == first_stable for x in last_stable_seqs) == bft_network.config.n - 1:  # all except Replica 1
-                    break
-                else:
-                    last_stable_seqs.clear()
-                await trio.sleep(seconds=3)
+        await bft_network.wait_for_replicas_to_collect_stable_checkpoint(bft_network.get_live_replicas(),
+                                                                         stable_checkpoint_to_reach)
 
         with trio.fail_after(seconds=30):
             with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, {1}, {6, 5, 4, 3, 2}) as adversary:
@@ -101,11 +94,11 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
                 late_replica_catch_up = False
                 while not late_replica_catch_up:
-                    for replica_id in bft_network.get_live_replicas():
+                    for replica_id in bft_network.all_replicas():
                         last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
                         last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
                         log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; lase_exec = {last_exec}")
-                        if replica_id == late_replica and last_exec >= num_reqs_to_get_to_first_stable:
+                        if replica_id == late_replica and last_exec >= num_reqs_to_catch_up:
                             late_replica_catch_up = True
 
                     await write_req()
