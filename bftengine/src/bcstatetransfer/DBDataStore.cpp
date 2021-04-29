@@ -303,6 +303,7 @@ void DBDataStore::loadPendingPages() {
 }
 
 void DBDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t inPageLen) {
+  LOG_ERROR(KEY_EX_LOG, "INHERE " << inPageId);
   LOG_DEBUG(logger(), "page: " << inPageId);
   std::ostringstream oss;
   Serializable::serialize(oss, inPageLen);

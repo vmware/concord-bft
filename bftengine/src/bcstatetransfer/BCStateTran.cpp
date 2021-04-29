@@ -285,6 +285,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
     maxNumOfStoredCheckpoints_ = maxNumOfRequiredStoredCheckpoints;
     numberOfReservedPages_ = numberOfRequiredReservedPages;
+    LOG_ERROR(KEY_EX_LOG, "init=" << numberOfRequiredReservedPages);
     metrics_.number_of_reserved_pages_.Get().Set(numberOfReservedPages_);
     metrics_.size_of_reserved_page_.Get().Set(sizeOfReservedPage);
 
@@ -578,16 +579,17 @@ bool BCStateTran::loadReservedPage(uint32_t reservedPageId, uint32_t copyLength,
 // TODO(TK) check if this function can have its own transaction(bftimpl)
 void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char *inReservedPage) {
   try {
-    LOG_DEBUG(getLogger(), reservedPageId);
-
+    LOG_ERROR(getLogger(), reservedPageId);
+    LOG_ERROR(KEY_EX_LOG, "saveReservedPage0=" << numberOfReservedPages_);
     ConcordAssert(!isFetching());
     ConcordAssertLT(reservedPageId, numberOfReservedPages_);
     ConcordAssertLE(copyLength, config_.sizeOfReservedPage);
-
+    LOG_ERROR(KEY_EX_LOG, "saveReservedPage1=" << metrics_.save_reserved_page_.Get().Get());
     metrics_.save_reserved_page_.Get().Inc();
 
     psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
   } catch (std::out_of_range &e) {
+    LOG_ERROR(KEY_EX_LOG, "saveReservedPage3=" << numberOfReservedPages_);
     LOG_ERROR(getLogger(), "Failed to save pending reserved page: " << e.what() << ": " << KVLOG(reservedPageId));
     throw;
   }

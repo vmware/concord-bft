@@ -180,7 +180,7 @@ std::shared_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
   c.repliesInfo.insert_or_assign(requestSeqNum, r);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, "firstPageId=" << firstPageId);
-  uint16_t replyNum = 0;
+  uint32_t replyNum = 0;
   for (auto& rep : c.repliesInfo) {
     uint32_t numOfPages = rep.second->size() / sizeOfReservedPage_;
     uint32_t sizeLastPage = sizeOfReservedPage_;
@@ -198,6 +198,7 @@ std::shared_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
       numOfPages++;
       sizeLastPage = rep.second->size() % sizeOfReservedPage_;
     }
+    LOG_ERROR(KEY_EX_LOG, "NUMPAGES:" << numOfPages << "client=" << clientIdx);
 
     LOG_DEBUG(CL_MNGR, KVLOG(clientId, rep.second->reqSeqNum(), numOfPages, sizeLastPage));
     // write reply message to reserved pages

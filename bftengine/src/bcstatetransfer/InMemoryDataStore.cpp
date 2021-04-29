@@ -161,6 +161,7 @@ uint64_t InMemoryDataStore::getLastRequiredBlock() { return lastRequiredBlock; }
 
 void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage, uint32_t inPageLen) {
   LOG_DEBUG(logger(), inPageId);
+  LOG_ERROR(KEY_EX_LOG, "INHERE1 " << pendingPages.size());
   ConcordAssert(inPageLen <= sizeOfReservedPage_);
 
   auto pos = pendingPages.find(inPageId);
@@ -177,6 +178,7 @@ void InMemoryDataStore::setPendingResPage(uint32_t inPageId, const char* inPage,
   memcpy(page, inPage, inPageLen);
 
   if (inPageLen < sizeOfReservedPage_) memset(page + inPageLen, 0, (sizeOfReservedPage_ - inPageLen));
+  LOG_ERROR(KEY_EX_LOG, "INHERE1 " << pendingPages.size());
 }
 
 bool InMemoryDataStore::hasPendingResPage(uint32_t inPageId) { return (pendingPages.count(inPageId) > 0); }
