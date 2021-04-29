@@ -40,6 +40,13 @@ SeqNumInfo::~SeqNumInfo() {
 }
 
 void SeqNumInfo::acquire(SeqNumInfo& rhs) {
+  primary = rhs.primary;
+  forcedCompleted = rhs.forcedCompleted;
+  slowPathHasStarted = rhs.slowPathHasStarted;
+  firstSeenFromPrimary = rhs.firstSeenFromPrimary;
+  timeOfLastInfoRequest = rhs.timeOfLastInfoRequest;
+  commitUpdateTime = rhs.commitUpdateTime;
+
   prePrepareMsg = rhs.prePrepareMsg;
   rhs.prePrepareMsg = nullptr;
 

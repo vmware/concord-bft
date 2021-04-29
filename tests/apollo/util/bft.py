@@ -966,6 +966,19 @@ class BftTestNetwork:
                                            replica,
                                            nursery.cancel_scope)
 
+    async def wait_for_replicas_to_collect_stable_checkpoint(self, replicas, checkpoint, timeout=30):
+        with trio.fail_after(seconds=timeout):
+            last_stable_seqs = []
+            while True:
+                for replica_id in replicas:
+                    last_stable = await self.get_metric(replica_id, self, 'Gauges', "lastStableSeqNum")
+                    last_stable_seqs.append(last_stable)
+                if sum(x == 150 * checkpoint for x in last_stable_seqs) == len(replicas):
+                    break
+                else:
+                    last_stable_seqs.clear()
+                    await trio.sleep(seconds=0.1)
+
     async def _wait_to_receive_st_msgs(self, replica, cancel_scope):
         """
         Check metrics to see if state transfer started. If so cancel the
