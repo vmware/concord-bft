@@ -455,6 +455,7 @@ TEST(requestPreprocessingState_test, requestTimedOut) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
   usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   timers.evaluate();
@@ -475,6 +476,7 @@ TEST(requestPreprocessingState_test, primaryCrashDetected) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
 
   usleep(reqWaitTimeoutMilli * 1000);
@@ -498,6 +500,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
   auto msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::ClientPreProcessRequest);
   auto* clientReqMsg = new ClientPreProcessRequestMsg(clientId, reqSeqNum, bufLen, buf, reqTimeoutMilli, cid);
   msgHandlerCallback(clientReqMsg);
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == reqSeqNum);
 
   auto* preProcessReqMsg = new PreProcessRequestMsg(
@@ -531,6 +534,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnNonPrimary) {
   }
   auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 5);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 6);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 7);
@@ -569,6 +573,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   }
   auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
+  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 0) == 5);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 1) == 6);
   ConcordAssert(preProcessor.getOngoingReqIdForClient(clientId, 2) == 7);

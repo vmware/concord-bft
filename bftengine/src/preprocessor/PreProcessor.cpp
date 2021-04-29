@@ -130,6 +130,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfThreads = myReplica.getReplicaConfig().numOfClientProxies / numOfReplicas_;
   }
   threadPool_.start(numOfThreads);
+  msgLoopThread_ = std::thread{&PreProcessor::msgProcessingLoop, this};
   LOG_INFO(logger(),
            KVLOG(numOfReplicas_,
                  numOfExternalClients,
@@ -146,8 +147,11 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
 }
 
 PreProcessor::~PreProcessor() {
+  msgLoopDone_ = true;
+  msgLoopSignal_.notify_all();
   cancelTimers();
   threadPool_.stop();
+  if (msgLoopThread_.joinable()) msgLoopThread_.join();
 }
 
 void PreProcessor::addTimers() {
@@ -587,26 +591,71 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
 
 template <typename T>
 void PreProcessor::messageHandler(MessageBase *msg) {
+  if (!msgs_.write_available()) {
+    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
+    incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+    return;
+  }
   T *trueTypeObj = new T(msg);
   delete msg;
-  if (validateMessage(trueTypeObj)) {
-    onMessage<T>(trueTypeObj);
-  } else {
-    preProcessorMetrics_.preProcReqInvalid.Get().Inc();
-    delete trueTypeObj;
-  }
+  msgs_.push(trueTypeObj);
+  msgLoopSignal_.notify_one();
 }
 
 template <>
 void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
+  if (!msgs_.write_available()) {
+    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
+    incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+    return;
+  }
   PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
   trueTypeObj->setPreProcessorHistograms(&histograms_);
   delete msg;
-  if (validateMessage(trueTypeObj)) {
-    onMessage(trueTypeObj);
-  } else {
-    preProcessorMetrics_.preProcReqInvalid.Get().Inc();
-    delete trueTypeObj;
+  msgs_.push(trueTypeObj);
+  msgLoopSignal_.notify_one();
+}
+
+void PreProcessor::msgProcessingLoop() {
+  while (!msgLoopDone_) {
+    int count = 0;
+    {
+      std::unique_lock<std::mutex> l(msgLock_);
+      while (!msgLoopDone_ && msgs_.empty()) msgLoopSignal_.wait(l);
+      if (msgLoopDone_) break;
+      count = msgs_.read_available();
+    }
+
+    while (!msgLoopDone_ && count--) {
+      auto msg = msgs_.front();
+      msgs_.pop();
+      if (validateMessage(msg)) {
+        switch (msg->type()) {
+          case (MsgCode::ClientBatchRequest): {
+            onMessage<ClientBatchRequestMsg>(static_cast<ClientBatchRequestMsg *>(msg));
+            break;
+          }
+          case (MsgCode::ClientPreProcessRequest): {
+            onMessage<ClientPreProcessRequestMsg>(static_cast<ClientPreProcessRequestMsg *>(msg));
+            break;
+          }
+          case (MsgCode::PreProcessRequest): {
+            onMessage<PreProcessRequestMsg>(static_cast<PreProcessRequestMsg *>(msg));
+            break;
+          }
+          case (MsgCode::PreProcessReply): {
+            onMessage<PreProcessReplyMsg>(static_cast<PreProcessReplyMsg *>(msg));
+            break;
+          }
+          default:
+            LOG_ERROR(logger(), "Unknown message" << KVLOG(msg->type()));
+        }
+
+      } else {
+        preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+        delete msg;
+      }
+    }
   }
 }
 
