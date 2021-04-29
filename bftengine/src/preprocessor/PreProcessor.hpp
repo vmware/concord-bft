@@ -124,6 +124,7 @@ class PreProcessor {
                                     const std::string &cid,
                                     const std::string &ongoingCid);
   void sendCancelPreProcessRequestMsg(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
+                                      NodeIdType destId,
                                       uint16_t reqOffsetInBatch,
                                       uint64_t reqRetryId);
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
@@ -166,6 +167,7 @@ class PreProcessor {
   void cancelTimers();
   void onRequestsStatusCheckTimer();
   void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+                                        NodeIdType senderId,
                                         bool arrivedInBatch,
                                         uint16_t msgOffsetInBatch);
   bool isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,
@@ -190,10 +192,10 @@ class PreProcessor {
   void loop();
 
   boost::lockfree::spsc_queue<MessageBase *> msgs_{10000};
-  std::thread msg_proc_thread_;
-  std::mutex msg_lock_;
-  std::condition_variable msg_cv_;
-  bool done_ = false;
+  std::thread msgLoopThread_;
+  std::mutex msgLock_;
+  std::condition_variable msgLoopSignal_;
+  bool msgLoopDone_ = false;
 
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 
