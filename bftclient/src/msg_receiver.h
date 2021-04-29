@@ -35,7 +35,7 @@ struct ReplyMetadata {
     if (primary < other.primary) {
       return true;
     }
-    if (primary == other.primary && seq_num < other.seq_num) {
+    if (seq_num < other.seq_num) {
       return true;
     }
     return false;

@@ -286,7 +286,7 @@ void Client::wait(SeqNumToReplyMap& replies) {
       if (request == reply_certificates_.end()) continue;
       if (pending_requests_.size() > 0 && replies.size() == pending_requests_.size()) return;
       if (auto match = request->second.onReply(std::move(reply))) {
-        primary_ = match->primary;
+        request->second.getPrimary(primary_);
         replies.insert(std::make_pair(request->first, match->reply));
         reply_certificates_.erase(request->first);
       }

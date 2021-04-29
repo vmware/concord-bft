@@ -244,6 +244,28 @@ TEST(matcher_tests, wait_for_3_out_of_4_with_mismatches_and_dupes) {
   }
 }
 
+TEST(matcher_tests, wait_for_replies_with_ignoring_primary) {
+  auto sources = destinations(3);
+  uint64_t seq_num = 5;
+  MatchConfig config{MofN{4, destinations(4)}, seq_num, true};
+  Matcher matcher(config);
+
+  Msg msg = {'h', 'e', 'l', 'l', 'o'};
+  for (const auto& r : sources) {
+    auto rsi = ReplicaSpecificInfo{r, {'r', 's', 'i'}};
+    UnmatchedReply reply{ReplyMetadata{r, seq_num}, msg, rsi};
+    matcher.onReply(std::move(reply));
+  }
+  auto last_rep = ReplicaId{3};
+  auto rsi = ReplicaSpecificInfo{last_rep, {'r', 's', 'i'}};
+  UnmatchedReply reply{ReplyMetadata{last_rep, seq_num}, msg, rsi};
+  auto match = matcher.onReply(std::move(reply));
+  ASSERT_TRUE(match.has_value());
+  ASSERT_EQ(match.value().reply.matched_data, msg);
+  ASSERT_EQ(match.value().reply.rsi[last_rep], rsi.data);
+  ASSERT_EQ(match.value().primary.value(), ReplicaId{0});
+}
+
 TEST(quorum_tests, valid_quorums_without_destinations) {
   auto all_replicas = destinations(4);
   // Even that we have ro replicas, empty destinations should include only committers. To issue a request to ro replica

@@ -15,7 +15,7 @@ namespace bft::client {
 
 std::optional<Match> Matcher::onReply(UnmatchedReply&& reply) {
   if (!valid(reply)) return std::nullopt;
-
+  if (config_.ignore_primary_) reply.metadata.primary = ReplicaId{0};
   auto key = MatchKey{reply.metadata, std::move(reply.data)};
   if (matches_[key].count(reply.rsi.from)) {
     if (matches_[key][reply.rsi.from] != reply.rsi.data) {
@@ -34,6 +34,7 @@ std::optional<Match> Matcher::match() {
     return match.second.size() == config_.quorum.wait_for;
   });
   if (result == matches_.end()) return std::nullopt;
+  primary_ = result->first.metadata.primary;
   return Match{Reply{result->first.data, std::move(result->second)}, result->first.metadata.primary};
 }
 
