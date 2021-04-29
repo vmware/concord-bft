@@ -189,9 +189,10 @@ class PreProcessor {
   }
 
  private:
-  void loop();
+  const uint32_t MAX_MSGS = 10000;
+  void msgProcessingLoop();
 
-  boost::lockfree::spsc_queue<MessageBase *> msgs_{10000};
+  boost::lockfree::spsc_queue<MessageBase *> msgs_{MAX_MSGS};
   std::thread msgLoopThread_;
   std::mutex msgLock_;
   std::condition_variable msgLoopSignal_;

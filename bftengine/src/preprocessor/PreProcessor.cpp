@@ -130,7 +130,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
       numOfThreads = myReplica.getReplicaConfig().numOfClientProxies / numOfReplicas_;
   }
   threadPool_.start(numOfThreads);
-  msgLoopThread_ = std::thread{&PreProcessor::loop, this};
+  msgLoopThread_ = std::thread{&PreProcessor::msgProcessingLoop, this};
   LOG_INFO(logger(),
            KVLOG(numOfReplicas_,
                  numOfExternalClients,
@@ -593,6 +593,10 @@ template <typename T>
 void PreProcessor::messageHandler(MessageBase *msg) {
   T *trueTypeObj = new T(msg);
   delete msg;
+  if (!msgs_.write_available()) {
+    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
+    incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+  }
   msgs_.push(trueTypeObj);
   msgLoopSignal_.notify_one();
 }
@@ -602,11 +606,15 @@ void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
   PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
   trueTypeObj->setPreProcessorHistograms(&histograms_);
   delete msg;
+  if (!msgs_.write_available()) {
+    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
+    incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+  }
   msgs_.push(trueTypeObj);
   msgLoopSignal_.notify_one();
 }
 
-void PreProcessor::loop() {
+void PreProcessor::msgProcessingLoop() {
   while (!msgLoopDone_) {
     int count = 0;
     {
@@ -617,33 +625,34 @@ void PreProcessor::loop() {
     }
 
     while (!msgLoopDone_ && count--) {
-      auto m = msgs_.front();
-      if (validateMessage(m)) {
-        switch (m->type()) {
+      auto msg = msgs_.front();
+      msgs_.pop();
+      if (validateMessage(msg)) {
+        switch (msg->type()) {
           case (MsgCode::ClientBatchRequest): {
-            onMessage<ClientBatchRequestMsg>(static_cast<ClientBatchRequestMsg *>(m));
+            onMessage<ClientBatchRequestMsg>(static_cast<ClientBatchRequestMsg *>(msg));
             break;
           }
           case (MsgCode::ClientPreProcessRequest): {
-            onMessage<ClientPreProcessRequestMsg>(static_cast<ClientPreProcessRequestMsg *>(m));
+            onMessage<ClientPreProcessRequestMsg>(static_cast<ClientPreProcessRequestMsg *>(msg));
             break;
           }
           case (MsgCode::PreProcessRequest): {
-            onMessage<PreProcessRequestMsg>(static_cast<PreProcessRequestMsg *>(m));
+            onMessage<PreProcessRequestMsg>(static_cast<PreProcessRequestMsg *>(msg));
             break;
           }
           case (MsgCode::PreProcessReply): {
-            onMessage<PreProcessReplyMsg>(static_cast<PreProcessReplyMsg *>(m));
+            onMessage<PreProcessReplyMsg>(static_cast<PreProcessReplyMsg *>(msg));
             break;
           }
           default:
-            LOG_ERROR(logger(), "Unknown message" << KVLOG(m->type()));
+            LOG_ERROR(logger(), "Unknown message" << KVLOG(msg->type()));
         }
 
       } else {
         preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+        delete msg;
       }
-      msgs_.pop();
     }
   }
 }
