@@ -591,25 +591,27 @@ void PreProcessor::onMessage<PreProcessReplyMsg>(PreProcessReplyMsg *msg) {
 
 template <typename T>
 void PreProcessor::messageHandler(MessageBase *msg) {
-  T *trueTypeObj = new T(msg);
-  delete msg;
   if (!msgs_.write_available()) {
     LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
     incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+    return;
   }
+  T *trueTypeObj = new T(msg);
+  delete msg;
   msgs_.push(trueTypeObj);
   msgLoopSignal_.notify_one();
 }
 
 template <>
 void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
-  PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
-  trueTypeObj->setPreProcessorHistograms(&histograms_);
-  delete msg;
   if (!msgs_.write_available()) {
     LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
     incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+    return;
   }
+  PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
+  trueTypeObj->setPreProcessorHistograms(&histograms_);
+  delete msg;
   msgs_.push(trueTypeObj);
   msgLoopSignal_.notify_one();
 }
