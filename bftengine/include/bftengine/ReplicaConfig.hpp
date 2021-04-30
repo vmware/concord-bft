@@ -32,7 +32,7 @@ namespace bftEngine {
   CONFIG_PARAM_RO(param, type, default_val, description);   \
   void set##param(const type& val) { param = val; } /* NOLINT(bugprone-macro-parentheses) */
 
-enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM };
+enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM, BATCH_ADAPTIVE };
 
 class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConfig> {
  public:
@@ -65,7 +65,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "1 <= concurrencyLevel <= 30");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
   CONFIG_PARAM(blockAccumulation, bool, false, "whether the block accumulation enabled");
-  CONFIG_PARAM(adaptiveConsensus, bool, true, "whether the consensus batch size adaptive feature is enabled");
   CONFIG_PARAM(viewChangeTimerMillisec, uint16_t, 0, "timeout used by the  view change protocol ");
   CONFIG_PARAM(autoPrimaryRotationEnabled, bool, false, "if automatic primary rotation is enabled");
   CONFIG_PARAM(autoPrimaryRotationTimerMillisec, uint16_t, 0, "timeout for automatic primary rotation");
@@ -100,6 +99,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                uint32_t,
                4,
                "Parameter used to heuristically compute the 'optimal' batch size");
+  CONFIG_PARAM(adaptiveBatchingIncFactor, std::string, "0.1", "The increase/decrease rate");
+  CONFIG_PARAM(adaptiveBatchingMaxIncCond, std::string, "0.95", "The max increase condition");
+  CONFIG_PARAM(adaptiveBatchingMidIncCond, std::string, "0.9", "The mid increase condition");
+  CONFIG_PARAM(adaptiveBatchingMinIncCond, std::string, "0.75", "The min increase condition");
+  CONFIG_PARAM(adaptiveBatchingDecCond, std::string, "0.5", "The decrease condition");
 
   // Crypto system
   // RSA public keys of all replicas. map from replica identifier to a public key
@@ -191,6 +195,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, maxBatchSizeInBytes);
     serialize(outStream, maxInitialBatchSize);
     serialize(outStream, batchingFactorCoefficient);
+    serialize(outStream, adaptiveBatchingIncFactor);
+    serialize(outStream, adaptiveBatchingMaxIncCond);
+    serialize(outStream, adaptiveBatchingMidIncCond);
+    serialize(outStream, adaptiveBatchingMinIncCond);
+    serialize(outStream, adaptiveBatchingDecCond);
 
     serialize(outStream, publicKeysOfReplicas);
     serialize(outStream, replicaPrivateKey);
@@ -213,7 +222,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, metricsDumpIntervalSeconds);
     serialize(outStream, keyExchangeOnStart);
     serialize(outStream, blockAccumulation);
-    serialize(outStream, adaptiveConsensus);
     serialize(outStream, keyViewFilePath);
 
     serialize(outStream, config_params_);
@@ -246,6 +254,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, maxBatchSizeInBytes);
     deserialize(inStream, maxInitialBatchSize);
     deserialize(inStream, batchingFactorCoefficient);
+    deserialize(inStream, adaptiveBatchingIncFactor);
+    deserialize(inStream, adaptiveBatchingMaxIncCond);
+    deserialize(inStream, adaptiveBatchingMidIncCond);
+    deserialize(inStream, adaptiveBatchingMinIncCond);
+    deserialize(inStream, adaptiveBatchingDecCond);
 
     deserialize(inStream, publicKeysOfReplicas);
     deserialize(inStream, replicaPrivateKey);
@@ -268,7 +281,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, metricsDumpIntervalSeconds);
     deserialize(inStream, keyExchangeOnStart);
     deserialize(inStream, blockAccumulation);
-    deserialize(inStream, adaptiveConsensus);
     deserialize(inStream, keyViewFilePath);
 
     deserialize(inStream, config_params_);
@@ -327,7 +339,11 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.clientBatchingMaxMsgsNbr,
               rc.keyViewFilePath,
               rc.clientTransactionSigningEnabled,
-              rc.adaptiveConsensus);
+              rc.adaptiveBatchingIncFactor,
+              rc.adaptiveBatchingMaxIncCond,
+              rc.adaptiveBatchingMidIncCond,
+              rc.adaptiveBatchingMinIncCond,
+              rc.adaptiveBatchingDecCond);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
