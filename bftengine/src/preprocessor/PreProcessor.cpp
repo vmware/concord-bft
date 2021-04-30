@@ -730,6 +730,8 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
     if (reqProcessingStatePtr) {
       const auto cid = reqProcessingStatePtr->getReqCid();
       const auto reqSeqNum = reqProcessingStatePtr->getReqSeqNum();
+      auto &preProcessReqMsg = reqProcessingStatePtr->getPreProcessRequest();
+      const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
       clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
@@ -739,7 +741,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                        reqProcessingStatePtr->getPrimaryPreProcessedResult(),
                                                        reqProcessingStatePtr->getReqTimeoutMilli(),
                                                        cid,
-                                                       concordUtils::SpanContext(),
+                                                       span_context,
                                                        reqProcessingStatePtr->getReqSignature(),
                                                        reqProcessingStatePtr->getReqSignatureLength());
       LOG_DEBUG(logger(),
