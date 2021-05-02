@@ -183,6 +183,10 @@ class PreProcessor {
                                            NodeIdType senderId,
                                            NodeIdType clientId,
                                            const std::string &cid);
+  bool isRequestTheLastPreProcessedOne(const RequestStateSharedPtr &reqEntry,
+                                       SeqNum reqSeqNum,
+                                       NodeIdType clientId,
+                                       const std::string &cid);
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;

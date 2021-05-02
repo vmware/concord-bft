@@ -365,6 +365,19 @@ bool PreProcessor::isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
 }
 
 // Should be called under reqEntry->mutex lock
+bool PreProcessor::isRequestTheLastPreProcessedOne(const RequestStateSharedPtr &reqEntry,
+                                                   SeqNum reqSeqNum,
+                                                   NodeIdType clientId,
+                                                   const string &cid) {
+  // Verify that an arrived request is newer than the last one in the requests history for this client
+  if (!reqEntry->reqProcessingHistory.empty() && reqEntry->reqProcessingHistory.back()->getReqSeqNum() == reqSeqNum) {
+    LOG_DEBUG(logger(), "Arrived request is the last pre-processed one" << KVLOG(cid, reqSeqNum, clientId, reqSeqNum));
+    return true;
+  }
+  return false;
+}
+
+// Should be called under reqEntry->mutex lock
 bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
                                                SeqNum reqSeqNum,
                                                NodeIdType clientId,
@@ -388,7 +401,8 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
                                                     NodeIdType senderId,
                                                     bool arrivedInBatch,
                                                     uint16_t msgOffsetInBatch) {
-  SCOPED_MDC_CID(clientMsg->getCid());
+  const auto &cid = clientMsg->getCid();
+  SCOPED_MDC_CID(cid);
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   PreProcessRequestMsgSharedPtr preProcessRequestMsg;
@@ -397,10 +411,9 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   {
     const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, msgOffsetInBatch)];
     lock_guard<mutex> lock(reqEntry->mutex);
-    const bool reqToBeDeclined =
-        (isRequestPreProcessingRightNow(reqEntry, reqSeqNum, clientId, senderId) ||
-         isRequestPassingConsensusOrPostExec(reqSeqNum, senderId, clientId, clientMsg->getCid()) ||
-         isRequestPreProcessedBefore(reqEntry, reqSeqNum, clientId, clientMsg->getCid()));
+    const bool reqToBeDeclined = (isRequestPreProcessingRightNow(reqEntry, reqSeqNum, clientId, senderId) ||
+                                  isRequestPassingConsensusOrPostExec(reqSeqNum, senderId, clientId, cid) ||
+                                  isRequestPreProcessedBefore(reqEntry, reqSeqNum, clientId, cid));
     if (reqToBeDeclined) {
       if (senderId != clientId)
         // Send 'cancel' request to non-primary replicas to release them from waiting to a 'real' PreProcessRequestMsg,
@@ -409,13 +422,14 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
       return;
     }
 
-    if (myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum)) {
+    if (myReplica_.isReplyAlreadySentToClient(clientId, reqSeqNum) ||
+        isRequestTheLastPreProcessedOne(reqEntry, reqSeqNum, clientId, cid)) {
       if (senderId != clientId) {
         sendCancelPreProcessRequestMsg(clientMsg, senderId, msgOffsetInBatch, (reqEntry->reqRetryId)++);
         return;
       }
       LOG_INFO(logger(),
-               "Request has already been executed - let replica decide how to proceed further"
+               "Request has already been pre-executed or executed - let replica decide how to proceed further"
                    << KVLOG(reqSeqNum, clientId, senderId));
       return incomingMsgsStorage_->pushExternalMsg(clientMsg->convertToClientRequestMsg(false));
     }
