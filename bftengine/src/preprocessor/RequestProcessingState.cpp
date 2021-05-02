@@ -99,7 +99,6 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
   const auto &senderId = preProcessReplyMsg->senderId();
   if (preProcessReplyMsg->status() == STATUS_GOOD) {
     numOfReceivedReplies_++;
-    concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->convertAndCompareHashes);
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
     preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());

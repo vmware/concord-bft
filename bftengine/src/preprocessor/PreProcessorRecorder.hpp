@@ -28,10 +28,8 @@ class PreProcessorRecorder {
                                       handlePreProcessedReqByPrimary,
                                       sendPreProcessRequestToAllReplicas,
                                       finalizePreProcessing,
-                                      validateMessage,
-                                      calculateHash,
-                                      signHash,
-                                      convertAndCompareHashes,
+                                      signPreProcessReplyHash,
+                                      verifyPreProcessReplySig,
                                       totalPreExecutionDuration});
   }
 
@@ -49,11 +47,9 @@ class PreProcessorRecorder {
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByNonPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(sendPreProcessRequestToAllReplicas, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(verifyPreProcessReplySig, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(signPreProcessReplyHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(finalizePreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(validateMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(calculateHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(signHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(convertAndCompareHashes, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(totalPreExecutionDuration, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
 };
 
