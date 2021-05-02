@@ -843,7 +843,7 @@ class BftTestNetwork:
         """
         with log.start_action(action_type="_wait_for_matching_agreed_view", replica=replica_id) as action:
             last_agreed_view = None
-            with trio.fail_after(seconds=30):
+            with trio.fail_after(seconds=60):
                 while True:
                     try:
                         with trio.move_on_after(seconds=1):
