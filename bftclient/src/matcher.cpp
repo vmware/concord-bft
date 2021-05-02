@@ -15,7 +15,7 @@ namespace bft::client {
 
 std::optional<Match> Matcher::onReply(UnmatchedReply&& reply) {
   if (!valid(reply)) return std::nullopt;
-  if (config_.ignore_primary_) reply.metadata.primary = ReplicaId{0};
+  if (!config_.include_primary_) reply.metadata.primary = std::nullopt;
   auto key = MatchKey{reply.metadata, std::move(reply.data)};
   if (matches_[key].count(reply.rsi.from)) {
     if (matches_[key][reply.rsi.from] != reply.rsi.data) {

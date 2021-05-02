@@ -286,7 +286,7 @@ void Client::wait(SeqNumToReplyMap& replies) {
       if (request == reply_certificates_.end()) continue;
       if (pending_requests_.size() > 0 && replies.size() == pending_requests_.size()) return;
       if (auto match = request->second.onReply(std::move(reply))) {
-        request->second.getPrimary(primary_);
+        primary_ = request->second.getPrimary();
         replies.insert(std::make_pair(request->first, match->reply));
         reply_certificates_.erase(request->first);
       }
@@ -322,7 +322,7 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
     for (const auto& r : std::get<All>(read_config.quorum).destinations) {
       if (config_.ro_replicas.find(r) != config_.ro_replicas.end()) {
         // We are about to send a read request to ro replica, so we must ignore the primary in the replies
-        mc.ignore_primary_ = true;
+        mc.include_primary_ = false;
       }
     }
 

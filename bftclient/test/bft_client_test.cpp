@@ -42,7 +42,7 @@ TEST(msg_receiver_tests, unmatched_replies_returned_no_rsi) {
   auto replies = receiver.wait(1ms);
 
   ASSERT_EQ(1, replies.size());
-  ASSERT_EQ(header->currentPrimaryId, replies[0].metadata.primary.val);
+  ASSERT_EQ(header->currentPrimaryId, replies[0].metadata.primary->val);
   ASSERT_EQ(header->reqSeqNum, replies[0].metadata.seq_num);
   ASSERT_EQ(Msg(data_len), replies[0].data);
   ASSERT_EQ(1, replies[0].rsi.from.val);
@@ -71,7 +71,7 @@ TEST(msg_receiver_tests, unmatched_replies_with_rsi) {
   auto replies = receiver.wait(1ms);
 
   ASSERT_EQ(1, replies.size());
-  ASSERT_EQ(header->currentPrimaryId, replies[0].metadata.primary.val);
+  ASSERT_EQ(header->currentPrimaryId, replies[0].metadata.primary->val);
   ASSERT_EQ(header->reqSeqNum, replies[0].metadata.seq_num);
   ASSERT_EQ(Msg(data_len - header->replicaSpecificInfoLength), replies[0].data);
   ASSERT_EQ(1, replies[0].rsi.from.val);
@@ -247,7 +247,7 @@ TEST(matcher_tests, wait_for_3_out_of_4_with_mismatches_and_dupes) {
 TEST(matcher_tests, wait_for_replies_with_ignoring_primary) {
   auto sources = destinations(3);
   uint64_t seq_num = 5;
-  MatchConfig config{MofN{4, destinations(4)}, seq_num, true};
+  MatchConfig config{MofN{4, destinations(4)}, seq_num, false};
   Matcher matcher(config);
 
   Msg msg = {'h', 'e', 'l', 'l', 'o'};
@@ -263,7 +263,7 @@ TEST(matcher_tests, wait_for_replies_with_ignoring_primary) {
   ASSERT_TRUE(match.has_value());
   ASSERT_EQ(match.value().reply.matched_data, msg);
   ASSERT_EQ(match.value().reply.rsi[last_rep], rsi.data);
-  ASSERT_EQ(match.value().primary.value(), ReplicaId{0});
+  ASSERT_FALSE(match.value().primary.has_value());
 }
 
 TEST(quorum_tests, valid_quorums_without_destinations) {
