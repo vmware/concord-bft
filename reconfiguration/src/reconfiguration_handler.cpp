@@ -21,6 +21,10 @@ namespace concord::reconfiguration {
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
                                     concord::messages::ReconfigurationErrorMsg&) {
+  if (cmd.noop) {
+    LOG_INFO(getLogger(), "received noop command, a new block will be written" << KVLOG(bft_seq_num));
+    return true;
+  }
   LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   return true;

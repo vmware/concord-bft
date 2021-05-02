@@ -30,6 +30,7 @@ class Operator:
     def _construct_reconfiguration_wedge_coammand(self):
         wedge_cmd = cmf_msgs.WedgeCommand()
         wedge_cmd.sender = 1000
+        wedge_cmd.noop = False
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = wedge_cmd
         reconf_msg.signature = bytes()
