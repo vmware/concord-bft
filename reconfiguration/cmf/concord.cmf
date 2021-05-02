@@ -1,5 +1,6 @@
 Msg WedgeCommand 3 {
   uint64 sender
+  bool noop
 }
 
 Msg WedgeStatusRequest 5 {

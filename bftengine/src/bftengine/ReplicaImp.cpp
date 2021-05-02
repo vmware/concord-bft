@@ -581,14 +581,6 @@ void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
   startConsensusProcess(pp, isInternalNoop);
 }
 
-void ReplicaImp::bringTheSystemToCheckpointBySendingNoopCommands(SeqNum seqNumToStopAt, CommitPath firstPath) {
-  if (!isCurrentPrimary() || seqNumToStopAt <= primaryLastUsedSeqNum) return;
-  LOG_INFO(GL, "Sending noops for [" << primaryLastUsedSeqNum + 1 << " --> " << seqNumToStopAt << " ]");
-  while (primaryLastUsedSeqNum < seqNumToStopAt) {
-    sendInternalNoopPrePrepareMsg(firstPath);
-  }
-}
-
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
   if (ControlStateManager::instance().getPruningProcessStatus()) return true;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -2902,13 +2894,6 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       stateTransfer->setEraseMetadataFlag();
     }
   }
-
-  // If we want to wedge the system and we got to a stable checkpoint we need to check if we need to send more noops in
-  // order to bring the system to the wedge point
-  if (isCurrentPrimary() && seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() > newStableSeqNum &&
-      primaryLastUsedSeqNum < seq_num_to_stop_at.value()) {
-    bringTheSystemToCheckpointBySendingNoopCommands(seq_num_to_stop_at.value());
-  }
 }
 
 void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly, uint16_t destReplicaId) {
@@ -4253,13 +4238,22 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       }
     }
   }
-  if (ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
-    // If, following the last execution, we discover that we need to jump to the
-    // next checkpoint, the primary sends noop commands until filling the working window.
-    auto checkpointToStopAt = ControlStateManager::instance().getCheckpointToStopAt().value();
-    auto next_checkpoint = checkpointToStopAt - checkpointWindowSize;
-    bringTheSystemToCheckpointBySendingNoopCommands(next_checkpoint);
+  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > seqNumber && isCurrentPrimary()) {
+    // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
+    // messages queue.
+    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
+    concord::messages::ReconfigurationRequest req;
+    req.command = concord::messages::WedgeCommand{config_.replicaId, true};
+    std::vector<uint8_t> data_vec;
+    concord::messages::serialize(data_vec, req);
+    std::string strMsg(data_vec.begin(), data_vec.end());
+    internalBFTClient_->sendRquest(
+        RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
+    // Now, try to send a new prepreare immediately, without waiting to a new batch
+    tryToSendPrePrepareMsg(false);
   }
+
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
       lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
     // We are about to stop execution. To avoid VC we now clear all pending requests
