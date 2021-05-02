@@ -136,7 +136,7 @@ std::vector<ReplicaSpecificInfo> create_rsi(uint16_t n) {
 }
 
 std::vector<UnmatchedReply> unmatched_replies(uint16_t n,
-                                              ReplyMetadata metadata,
+                                              const ReplyMetadata& metadata,
                                               const Msg& msg,
                                               const std::vector<ReplicaSpecificInfo>& rsi) {
   ConcordAssert(n <= rsi.size());
