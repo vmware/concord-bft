@@ -26,6 +26,7 @@ struct MatchConfig {
   // All quorums can be distilled into an MofN quorum.
   MofN quorum;
   uint64_t sequence_number;
+  bool include_primary_ = true;  // by default part of the match is the current primary
 };
 
 // The parts of data that must match in a reply for quorum to be reached
@@ -66,6 +67,11 @@ class Matcher {
 
   void clearReplies() { matches_.clear(); }
 
+  std::optional<ReplicaId> getPrimary() {
+    if (!config_.include_primary_) return std::nullopt;
+    return primary_;
+  }
+
  private:
   // Check the validity of a reply
   bool valid(const UnmatchedReply& reply) const;
@@ -77,7 +83,7 @@ class Matcher {
   std::optional<Match> match();
 
   MatchConfig config_;
-  std::optional<uint16_t> primary_;
+  std::optional<ReplicaId> primary_;
 
   logging::Logger logger_ = logging::getLogger("bftclient.matcher");
 
