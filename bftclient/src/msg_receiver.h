@@ -26,7 +26,7 @@ namespace bft::client {
 // This makes the metadata independent of the structure of the messages, allowing us to change them
 // later without changing the matcher.
 struct ReplyMetadata {
-  ReplicaId primary;
+  std::optional<ReplicaId> primary;
   uint64_t seq_num;
 
   bool operator==(const ReplyMetadata& other) const { return primary == other.primary && seq_num == other.seq_num; }
@@ -35,10 +35,7 @@ struct ReplyMetadata {
     if (primary < other.primary) {
       return true;
     }
-    if (primary == other.primary && seq_num < other.seq_num) {
-      return true;
-    }
-    return false;
+    return primary == other.primary && seq_num < other.seq_num;
   }
 };
 
