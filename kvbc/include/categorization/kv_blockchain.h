@@ -25,6 +25,8 @@
 #include "categorization/types.h"
 #include "thread_pool.hpp"
 #include "Metrics.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 namespace concord::kvbc::categorization {
 
@@ -247,6 +249,50 @@ class KeyValueBlockchain {
     add_metrics_comp_.SetAggregator(aggregator);
   }
   friend struct KeyValueBlockchain_tester;
+
+ private:
+  // 5 Minutes
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
+  // 1 second
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;
+  using Recorder = concord::diagnostics::Recorder;
+  // ToDo: Move this to private and then maybe public of ReplicaImp.h of kvbc
+
+  struct Recorders {
+    Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("kvbc",
+                                       {addBlock,
+                                        addRawBlock,
+                                        getRawBlock,
+                                        deleteBlock,
+                                        deleteLastReachableBlock,
+                                        get,
+                                        getLatest,
+                                        multiGet,
+                                        multiGetLatest});
+    }
+
+    ~Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.unRegisterComponent("kvbc");
+    }
+
+    // DEFINE_SHARED_RECORDER(may_have_conflict_between, 1, MAX_VALUE_NANOSECONDS, 3,
+    // concord::diagnostics::Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(addBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addRawBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(getRawBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(deleteBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        deleteLastReachableBlock, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(get, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(getLatest, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(multiGet, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(multiGetLatest, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+  };
+
+  static Recorders histograms_;
 };
 
 }  // namespace concord::kvbc::categorization
