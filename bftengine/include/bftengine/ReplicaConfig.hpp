@@ -32,7 +32,7 @@ namespace bftEngine {
   CONFIG_PARAM_RO(param, type, default_val, description);   \
   void set##param(const type& val) { param = val; } /* NOLINT(bugprone-macro-parentheses) */
 
-enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM };
+enum BatchingPolicy { BATCH_SELF_ADJUSTED, BATCH_BY_REQ_SIZE, BATCH_BY_REQ_NUM, BATCH_ADAPTIVE };
 
 class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConfig> {
  public:
@@ -99,6 +99,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                uint32_t,
                4,
                "Parameter used to heuristically compute the 'optimal' batch size");
+  CONFIG_PARAM(adaptiveBatchingIncFactor, std::string, "0.1", "The increase/decrease rate");
+  CONFIG_PARAM(adaptiveBatchingMaxIncCond, std::string, "0.95", "The max increase condition");
+  CONFIG_PARAM(adaptiveBatchingMidIncCond, std::string, "0.9", "The mid increase condition");
+  CONFIG_PARAM(adaptiveBatchingMinIncCond, std::string, "0.75", "The min increase condition");
+  CONFIG_PARAM(adaptiveBatchingDecCond, std::string, "0.5", "The decrease condition");
 
   // Crypto system
   // RSA public keys of all replicas. map from replica identifier to a public key
@@ -190,6 +195,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, maxBatchSizeInBytes);
     serialize(outStream, maxInitialBatchSize);
     serialize(outStream, batchingFactorCoefficient);
+    serialize(outStream, adaptiveBatchingIncFactor);
+    serialize(outStream, adaptiveBatchingMaxIncCond);
+    serialize(outStream, adaptiveBatchingMidIncCond);
+    serialize(outStream, adaptiveBatchingMinIncCond);
+    serialize(outStream, adaptiveBatchingDecCond);
 
     serialize(outStream, publicKeysOfReplicas);
     serialize(outStream, replicaPrivateKey);
@@ -244,6 +254,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, maxBatchSizeInBytes);
     deserialize(inStream, maxInitialBatchSize);
     deserialize(inStream, batchingFactorCoefficient);
+    deserialize(inStream, adaptiveBatchingIncFactor);
+    deserialize(inStream, adaptiveBatchingMaxIncCond);
+    deserialize(inStream, adaptiveBatchingMidIncCond);
+    deserialize(inStream, adaptiveBatchingMinIncCond);
+    deserialize(inStream, adaptiveBatchingDecCond);
 
     deserialize(inStream, publicKeysOfReplicas);
     deserialize(inStream, replicaPrivateKey);
@@ -320,8 +335,15 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
   os << ", ";
-  os << KVLOG(
-      rc.clientBatchingEnabled, rc.clientBatchingMaxMsgsNbr, rc.keyViewFilePath, rc.clientTransactionSigningEnabled);
+  os << KVLOG(rc.clientBatchingEnabled,
+              rc.clientBatchingMaxMsgsNbr,
+              rc.keyViewFilePath,
+              rc.clientTransactionSigningEnabled,
+              rc.adaptiveBatchingIncFactor,
+              rc.adaptiveBatchingMaxIncCond,
+              rc.adaptiveBatchingMidIncCond,
+              rc.adaptiveBatchingMinIncCond,
+              rc.adaptiveBatchingDecCond);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
