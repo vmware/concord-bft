@@ -95,7 +95,7 @@ SigManager* SigManager::init(ReplicaId myId,
                             publicKeysOfClients,
                             clientsKeysFormat,
                             replicasInfo);
-  return SigManager::getInstance(sm);
+  return SigManager::instance(sm);
 }
 
 SigManager::SigManager(PrincipalId myId,

@@ -36,7 +36,7 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
                                                              ViewNum v,
                                                              Reason r,
                                                              const concordUtils::SpanContext& spanContext) {
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
   const size_t sigLen = sigManager->getMySigLength();
 
   ReplicaAsksToLeaveViewMsg* m = new ReplicaAsksToLeaveViewMsg(senderId, v, r, sigLen, spanContext);
@@ -51,7 +51,7 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
 }
 
 void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
   auto totalSize = sizeof(Header) + spanContextSize();
   if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
