@@ -74,6 +74,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     } else if (holds_alternative<KeyExchangeCommand>(request.command)) {
       for (auto& handler : reconfig_handlers_)
         rresp.success &= handler->handle(std::get<KeyExchangeCommand>(request.command), error_msg, sequence_num);
+    } else if (holds_alternative<AddRemoveCommand>(request.command)) {
+      for (auto& handler : reconfig_handlers_)
+        rresp.success &= handler->handle(std::get<AddRemoveCommand>(request.command), error_msg, sequence_num);
     } else if (holds_alternative<LatestPrunableBlockRequest>(request.command)) {
       LOG_INFO(getLogger(), "LatestPrunableBlockRequest");
       LatestPrunableBlock last_pruneable_block;
