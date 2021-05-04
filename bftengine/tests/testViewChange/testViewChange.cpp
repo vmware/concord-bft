@@ -28,6 +28,7 @@
 #include "IncomingMsgsStorageImp.hpp"
 #include "ViewsManager.hpp"
 #include "helper.hpp"
+#include "SigManager.hpp"
 
 #include "gtest/gtest.h"
 
@@ -94,7 +95,8 @@ void setUpConfiguration_4() {
   sigManager_.reset(createSigManager(0,
                                      replicaConfig[0].replicaPrivateKey,
                                      KeyFormat::HexaDecimalStrippedFormat,
-                                     replicaConfig[0].publicKeysOfReplicas));
+                                     replicaConfig[0].publicKeysOfReplicas,
+                                     *pRepInfo));
 }
 
 TEST(testViewchangeSafetyLogic_test, computeRestrictions) {

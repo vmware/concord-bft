@@ -28,7 +28,8 @@ class ClientRequestMsgTestFixture : public ::testing::Test {
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
                                     KeyFormat::HexaDecimalStrippedFormat,
-                                    config.publicKeysOfReplicas)) {}
+                                    config.publicKeysOfReplicas,
+                                    replicaInfo)) {}
 
   ReplicaConfig& config;
   ReplicasInfo replicaInfo;

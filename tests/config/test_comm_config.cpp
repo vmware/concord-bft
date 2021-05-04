@@ -55,8 +55,8 @@ void TestCommConfig::GetReplicaConfig(uint16_t replica_id,
                                       std::string keyFilePrefix,
                                       bftEngine::ReplicaConfig* out_config) {
   std::string key_file_name = keyFilePrefix + std::to_string(replica_id);
-  if (Cryptosystem* sys = inputReplicaKeyfileMultisig(key_file_name, *out_config); sys != nullptr)
-    bftEngine::CryptoManager::instance(sys);
+  auto sys = inputReplicaKeyfileMultisig(key_file_name, *out_config);
+  if (sys) bftEngine::CryptoManager::instance(sys);
 }
 
 std::unordered_map<NodeNum, NodeInfo> TestCommConfig::SetUpConfiguredNodes(bool is_replica,
