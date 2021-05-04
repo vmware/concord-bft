@@ -14,6 +14,7 @@
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "OpenTracing.hpp"
+#include "SigManager.hpp"
 
 namespace preprocessor {
 
@@ -61,10 +62,6 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
   try {
     msg->validate(myReplica_.getReplicasInfo());
     return true;
-  } catch (ClientSignatureVerificationFailedException &e) {
-    LOG_ERROR(logger(), "Received invalid message from " << KVLOG(msg->senderId(), msg->type(), e.what()));
-    preProcessorMetrics_.preProcClientReqSigVerFailed.Get().Inc();
-    return false;
   } catch (std::exception &e) {
     LOG_WARN(logger(),
              "Received invalid message from Node " << msg->senderId() << " type: " << msg->type()
@@ -100,7 +97,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcReqInvalid"),
                            metricsComponent_.RegisterCounter("preProcReqIgnored"),
                            metricsComponent_.RegisterCounter("preProcReqRejected"),
-                           metricsComponent_.RegisterCounter("preProcClientReqSigVerFailed"),
                            metricsComponent_.RegisterCounter("preProcConsensusNotReached"),
                            metricsComponent_.RegisterCounter("preProcessRequestTimedOut"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
@@ -257,6 +253,9 @@ bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUni
   for (const auto &msg : clientRequestMsgs) {
     if (!checkClientMsgCorrectness(msg->requestSeqNum(), msg->getCid(), false, msg->clientProxyId(), msg->senderId()))
       return false;
+    if (!validateMessage(msg.get())) {
+      return false;
+    }
   }
   return true;
 }
@@ -286,6 +285,8 @@ void PreProcessor::sendCancelPreProcessRequestMsg(const ClientPreProcessReqMsgUn
                                         0,
                                         nullptr,
                                         clientReqMsg->getCid(),
+                                        nullptr,
+                                        0,
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   SCOPED_MDC_CID(preProcessReqMsg->getCid());
   LOG_DEBUG(logger(), "Sending PreProcessRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId, reqSeqNum, destId));
@@ -453,10 +454,13 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   uint16_t offset = 0;
   for (auto it = clientMsgs.begin(); it != clientMsgs.end(); ++it) {
     auto &clientMsg = *it;
-    LOG_DEBUG(
-        logger(),
-        "Start handling single message from the batch:" << KVLOG(
-            clientMsg->requestSeqNum(), clientMsg->getCid(), senderId, clientId, clientMsg->requestTimeoutMilli()));
+    LOG_DEBUG(logger(),
+              "Start handling single message from the batch:" << KVLOG(clientMsg->requestSeqNum(),
+                                                                       clientMsg->getCid(),
+                                                                       senderId,
+                                                                       clientId,
+                                                                       clientMsg->requestTimeoutMilli(),
+                                                                       clientMsg->requestSignatureLength()));
     // senderId should be taken from ClientBatchRequestMsg as it does not get re-set in batched client messages
     handleSingleClientRequestMessage(move(clientMsg), senderId, true, offset++);
   }
@@ -751,6 +755,9 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
   NodeIdType senderId = 0;
   SeqNum reqSeqNum = 0;
   string cid;
+  uint32_t requestSignatureLength = 0;
+  char *requestSignature = nullptr;
+
   bool clientReqMsgSpecified = false;
   if (clientReqMsg) {
     clientId = clientReqMsg->clientProxyId();
@@ -758,18 +765,29 @@ bool PreProcessor::registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
     reqSeqNum = clientReqMsg->requestSeqNum();
     cid = clientReqMsg->getCid();
     clientReqMsgSpecified = true;
+    requestSignatureLength = clientReqMsg->requestSignatureLength();
+    requestSignature = clientReqMsg->requestSignature();
   } else {
     clientId = preProcessRequestMsg->clientId();
     senderId = preProcessRequestMsg->senderId();
     reqSeqNum = preProcessRequestMsg->reqSeqNum();
     cid = preProcessRequestMsg->getCid();
+    requestSignatureLength = preProcessRequestMsg->requestSignatureLength();
+    requestSignature = preProcessRequestMsg->requestSignature();
   }
   SCOPED_MDC_CID(cid);
   const auto &reqEntry = ongoingRequests_[getOngoingReqIndex(clientId, reqOffsetInBatch)];
-  if (!reqEntry->reqProcessingStatePtr)
-    reqEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(
-        numOfReplicas_, clientId, reqOffsetInBatch, cid, reqSeqNum, move(clientReqMsg), preProcessRequestMsg);
-  else if (!reqEntry->reqProcessingStatePtr->getPreProcessRequest())
+  if (!reqEntry->reqProcessingStatePtr) {
+    reqEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(numOfReplicas_,
+                                                                          clientId,
+                                                                          reqOffsetInBatch,
+                                                                          cid,
+                                                                          reqSeqNum,
+                                                                          move(clientReqMsg),
+                                                                          preProcessRequestMsg,
+                                                                          requestSignature,
+                                                                          requestSignatureLength);
+  } else if (!reqEntry->reqProcessingStatePtr->getPreProcessRequest())
     // The request was registered before as arrived directly from the client
     reqEntry->reqProcessingStatePtr->setPreProcessRequest(preProcessRequestMsg);
   else {
@@ -852,6 +870,8 @@ bool PreProcessor::registerRequestOnPrimaryReplica(ClientPreProcessReqMsgUniqueP
                                         clientReqMsg->requestLength(),
                                         clientReqMsg->requestBuf(),
                                         clientReqMsg->getCid(),
+                                        clientReqMsg->requestSignature(),
+                                        clientReqMsg->requestSignatureLength(),
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   return registerRequest(move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
 }
@@ -884,11 +904,14 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPrePro
   const auto msgType = clientReqMsg->type();
   const auto msgSize = clientReqMsg->size();
   const auto cid = clientReqMsg->getCid();
+  const auto sigLen = clientReqMsg->requestSignatureLength();
+
   // Register a client request message with an empty PreProcessRequestMsg to allow follow up.
   if (registerRequest(move(clientReqMsg), PreProcessRequestMsgSharedPtr(), reqOffsetInBatch)) {
     LOG_INFO(logger(),
              "Start request processing by a non-primary replica"
-                 << KVLOG(reqSeqNum, cid, clientId, reqOffsetInBatch, senderId, reqTimeoutMilli));
+                 << KVLOG(reqSeqNum, cid, clientId, reqOffsetInBatch, senderId, reqTimeoutMilli, msgSize, sigLen));
+
     if (arrivedInBatch) return;  // Need to re-send the whole batch to the primary
     sendMsg(msgBody, myReplica_.currentPrimary(), msgType, msgSize);
     LOG_DEBUG(logger(),
