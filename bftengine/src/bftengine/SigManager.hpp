@@ -36,7 +36,7 @@ class SigManager {
 
   // It is the caller responsibility to deallocate (delete) the object
   // NOTICE: sm should be != nullptr ONLY for testing purpose. In that case it will be used as a set function.
-  static SigManager* getInstance(SigManager* sm = nullptr) {
+  static SigManager* instance(SigManager* sm = nullptr) {
     static SigManager* instance_ = nullptr;
 
     if (sm) {

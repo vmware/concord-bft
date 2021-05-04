@@ -58,7 +58,7 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
   char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(ClientRequestMsgHeader*)dataPosition;
