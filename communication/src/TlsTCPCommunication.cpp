@@ -23,7 +23,10 @@ TlsTCPCommunication::TlsTCPCommunication(const TlsTcpConfig &config) : config_(c
   // Runners can actually support multiple principals. The Communication interface does not though. Currently we are
   // focused on backwards compatibility, and will use the future runner functionality to replace client thread pools.
   const auto configs = std::vector<TlsTcpConfig>{config};
-  runner_.reset(new tls::Runner(configs, NUM_THREADS));
+  if (config.selfId > static_cast<uint64_t>(config.maxServerId))
+    runner_.reset(new tls::Runner(configs, 1));
+  else
+    runner_.reset(new tls::Runner(configs, NUM_THREADS));
 }
 
 TlsTCPCommunication::~TlsTCPCommunication() {}
