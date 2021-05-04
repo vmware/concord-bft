@@ -13,7 +13,11 @@
 
 #include <cstring>
 #include <memory>
+#include <set>
+#include <string>
+
 #include "gtest/gtest.h"
+
 #include "bftengine/ReplicaConfig.hpp"
 #include "Serializable.h"
 #include "messages/MessageBase.hpp"
@@ -21,9 +25,9 @@
 #include "threshsign/IThresholdVerifier.h"
 #include "threshsign/IPublicKey.h"
 #include "CryptoManager.hpp"
+#include "SigManager.hpp"
 
-#include <set>
-#include <string>
+using bftEngine::impl::ReplicasInfo;
 
 class IShareSecretKeyDummy : public IShareSecretKey {
  public:
@@ -77,7 +81,7 @@ class TestCryptoSystem : public Cryptosystem {
   IThresholdSigner *createThresholdSigner() override { return new IThresholdSignerDummy; }
 };
 
-bftEngine::ReplicaConfig &createReplicaConfig();
+bftEngine::ReplicaConfig &createReplicaConfig(uint16_t fVal = 1, uint16_t cVal = 0);
 
 inline void printBody(const char *body, size_t size) {
   for (size_t i = 0; i < size; ++i) {
@@ -112,7 +116,8 @@ void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType sen
 bftEngine::impl::SigManager *createSigManager(size_t myId,
                                               std::string &myPrivateKey,
                                               KeyFormat replicasKeysFormat,
-                                              std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas);
+                                              std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
+                                              ReplicasInfo &replicasInfo);
 
 void loadPrivateAndPublicKeys(std::string &myPrivateKey,
                               std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
