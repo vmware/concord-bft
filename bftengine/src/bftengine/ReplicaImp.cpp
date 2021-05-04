@@ -3792,6 +3792,7 @@ void ReplicaImp::addTimers() {
 
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
+  sigManager_->SetAggregator(aggregator_);
   ReplicaForStateTransfer::start();
 
   // requires the init of state transfer
