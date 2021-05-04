@@ -11,7 +11,8 @@
 
 #pragma once
 #include "PrimitiveTypes.hpp"
-#include "SigManager.hpp"
+
+#include <set>
 
 namespace bftEngine {
 
@@ -36,11 +37,16 @@ class ReplicasInfo {
   bool isIdOfExternalClient(PrincipalId id) const {
     return _idsOfExternalClients.find(id) != _idsOfExternalClients.end();
   }
-  bool isValidParticipantId(PrincipalId id) const { return id < _maxValidPrincipalId; }
+  bool isIdOfInternalClient(PrincipalId id) const {
+    return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
+  }
+
+  bool isValidParticipantId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
   const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
   const std::set<PrincipalId>& idsOfClientProxies() const { return _idsOfClientProxies; }
   const std::set<PrincipalId>& idsOfExternalClients() const { return _idsOfExternalClients; }
+  const std::set<PrincipalId>& idsOfInternalClients() const { return _idsOfInternalClients; }
 
   ReplicaId primaryOfView(ViewNum view) const { return (view % _numberOfReplicas); }
 
@@ -72,11 +78,19 @@ class ReplicasInfo {
     return getExecutionCollectors(v, n, nullptr, nullptr);
   }
 
+  uint16_t getNumberOfReplicas() { return _numberOfReplicas; }
+  uint16_t getNumberOfRoReplicas() { return _numberOfRoReplicas; }
+  uint16_t getNumOfClientProxies() { return _numOfClientProxies; }
+  uint16_t getNumberOfExternalClients() { return _numberOfExternalClients; }
+  uint16_t getNumberOfInternalClients() { return _numberOfInternalClients; }
+
  protected:
   const ReplicaId _myId = 0;
   const uint16_t _numberOfReplicas = 0;
+  const uint16_t _numberOfRoReplicas = 0;
   const uint16_t _numOfClientProxies = 0;
   const uint16_t _numberOfExternalClients = 0;
+  const uint16_t _numberOfInternalClients = 0;
   const uint16_t _maxValidPrincipalId = 0;
   const uint16_t _fVal = 0;
   const uint16_t _cVal = 0;
@@ -88,6 +102,7 @@ class ReplicasInfo {
   const std::set<ReplicaId> _idsOfPeerROReplicas;
   const std::set<PrincipalId> _idsOfClientProxies;
   const std::set<PrincipalId> _idsOfExternalClients;
+  const std::set<PrincipalId> _idsOfInternalClients;
 };
 }  // namespace impl
 }  // namespace bftEngine
