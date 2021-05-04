@@ -608,13 +608,8 @@ void PreProcessor::msgProcessingLoop() {
   while (!msgLoopDone_) {
     {
       std::unique_lock<std::mutex> l(msgLock_);
-      while (!msgLoopDone_ && msgs_.empty()) {
+      while (!msgLoopDone_ && !msgs_.read_available()) {
         msgLoopSignal_.wait_until(l, chrono::steady_clock::now() + std::chrono::milliseconds(WAIT_TIMEOUT_MILLI));
-      }
-      if (msgLoopDone_) break;
-      if (!msgs_.read_available()) {
-        LOG_FATAL(logger(), "queue empty on wakeup");
-        ConcordAssert(false);
       }
     }
 
