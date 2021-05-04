@@ -38,7 +38,6 @@ ClientsManager::ClientsManager(concordMetrics::Component& metrics, std::set<Node
   for (NodeIdType c : clientsSet) {
     clientIdToIndex_.insert(std::pair<NodeIdType, uint16_t>(c, idx));
     highestIdOfNonInternalClient_ = c;
-    indexToClientInfo_.push_back(ClientInfo());
     idx++;
   }
   reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage_, maxReplySize_);
@@ -63,7 +62,6 @@ void ClientsManager::initInternalClientInfo(const int& numReplicas) {
   auto currIdx = clientIdToIndex_[highestIdOfNonInternalClient_];
   for (int i = 0; i < numReplicas; i++) {
     clientIdToIndex_.insert(std::pair<NodeIdType, uint16_t>(++currClId, ++currIdx));
-    indexToClientInfo_.push_back(ClientInfo());
     LOG_DEBUG(CL_MNGR,
               "Adding internal client, id [" << currClId << "] as index [" << currIdx << "] vector size "
                                              << indexToClientInfo_.size());
