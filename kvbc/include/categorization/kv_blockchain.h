@@ -223,6 +223,12 @@ class KeyValueBlockchain {
   concordMetrics::CounterHandle immutable_num_of_keys_;
   concordMetrics::CounterHandle merkle_num_of_keys_;
 
+  std::chrono::seconds dump_delete_metrics_interval_{5 * 60};  // default is 5 minutes
+  std::chrono::seconds last_dump_time_{0};
+  uint64_t latest_deleted_merkle_dump{0};
+  uint64_t latest_deleted_versioned{0};
+  uint64_t latest_deleted_immutbale{0};
+
  public:
   struct KeyValueBlockchain_tester {
     void loadCategories(KeyValueBlockchain& kvbc) { kvbc.loadCategories(); }
