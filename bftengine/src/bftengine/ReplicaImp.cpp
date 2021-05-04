@@ -42,12 +42,12 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
+#include "KeyExchangeManager.h"
 
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <bitset>
-#include "KeyExchangeManager.h"
 
 #define getName(var) #var
 
@@ -135,10 +135,6 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
   try {
     msg->validate(*repsInfo);
     return true;
-  } catch (ClientSignatureVerificationFailedException &e) {
-    metric_client_req_sig_veirification_failed_.Get().Inc();
-    onReportAboutInvalidMessage(msg, e.what());
-    return false;
   } catch (std::exception &e) {
     onReportAboutInvalidMessage(msg, e.what());
     return false;
@@ -3626,7 +3622,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
-      metric_client_req_sig_veirification_failed_{metrics_.RegisterCounter("clientReqSigVerFailed")},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),
@@ -3644,23 +3639,22 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // Register metrics component with the default aggregator.
   metrics_.Register();
 
+  if (firstTime)
+    repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+  else
+    repsInfo = replicasInfo;
+
   sigManager_.reset(SigManager::init(config_.replicaId,
                                      config_.replicaPrivateKey,
                                      config_.publicKeysOfReplicas,
                                      KeyFormat::HexaDecimalStrippedFormat,
-                                     config_.clientTransactionSigningEnabled ? &config.publicKeysOfClients : nullptr,
+                                     config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
                                      KeyFormat::PemFormat,
-                                     config_.numReplicas,
-                                     config_.numRoReplicas,
-                                     config_.numOfClientProxies,
-                                     config_.numOfExternalClients));
-  if (firstTime) {
-    repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+                                     *repsInfo));
+  if (firstTime)
     viewsManager = new ViewsManager(repsInfo);
-  } else {
-    repsInfo = replicasInfo;
+  else
     viewsManager = viewsMgr;
-  }
 
   std::set<NodeIdType> clientsSet;
   const auto numOfEntities = config_.getnumReplicas() + config_.getnumRoReplicas() + config_.getnumOfClientProxies() +

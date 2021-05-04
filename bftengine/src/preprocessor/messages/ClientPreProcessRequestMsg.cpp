@@ -40,7 +40,7 @@ ClientPreProcessRequestMsg::ClientPreProcessRequestMsg(NodeIdType sender,
 }
 
 unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bool emptyReq) {
-  msgBody()->flags &= ~(1 << 1);
+  msgBody()->flags &= ~(1 << 1);  // remove PRE_PROCESS_FLAG
   unique_ptr<MessageBase> clientRequestMsg = make_unique<ClientRequestMsg>(clientProxyId(),
                                                                            flags(),
                                                                            requestSeqNum(),
@@ -49,8 +49,8 @@ unique_ptr<MessageBase> ClientPreProcessRequestMsg::convertToClientRequestMsg(bo
                                                                            requestTimeoutMilli(),
                                                                            getCid(),
                                                                            spanContext<ClientRequestMsg>(),
-                                                                           requestSignature(),
-                                                                           requestSignatureLength());
+                                                                           emptyReq ? nullptr : requestSignature(),
+                                                                           emptyReq ? 0 : requestSignatureLength());
   return clientRequestMsg;
 }
 
