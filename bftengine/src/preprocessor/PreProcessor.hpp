@@ -190,6 +190,7 @@ class PreProcessor {
 
  private:
   const uint32_t MAX_MSGS = 10000;
+  const uint32_t WAIT_TIMEOUT_MILLI = 100;
   void msgProcessingLoop();
 
   boost::lockfree::spsc_queue<MessageBase *> msgs_{MAX_MSGS};

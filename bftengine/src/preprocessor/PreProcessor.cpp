@@ -606,15 +606,14 @@ void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
 
 void PreProcessor::msgProcessingLoop() {
   while (!msgLoopDone_) {
-    int count = 0;
     {
       std::unique_lock<std::mutex> l(msgLock_);
-      while (!msgLoopDone_ && msgs_.empty()) msgLoopSignal_.wait(l);
-      if (msgLoopDone_) break;
-      count = msgs_.read_available();
+      while (!msgLoopDone_ && !msgs_.read_available()) {
+        msgLoopSignal_.wait_until(l, chrono::steady_clock::now() + std::chrono::milliseconds(WAIT_TIMEOUT_MILLI));
+      }
     }
 
-    while (!msgLoopDone_ && count--) {
+    while (!msgLoopDone_ && msgs_.read_available()) {
       auto msg = msgs_.front();
       msgs_.pop();
       if (validateMessage(msg)) {
