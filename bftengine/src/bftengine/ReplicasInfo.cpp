@@ -31,15 +31,25 @@ namespace impl {
 //  [numReplicas+numRoReplicas+numOfClientProxies-1,
 //  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1] inclusive
 //
+// Internal clients address range:
+//  [numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients-1,
+//  numReplicas+numRoReplicas+numOfClientProxies+numOfExternalClients+numOfInternalClients-1] inclusive
+//
+// Example:
+//  numReplicas = 7, numRoReplicas = 1, numOfClientProxies=14, numOfExternalClients=100, numOfInternalClients=7
+//  address range in this order: [0,6], [7,7], [8,21] , [22,121], [122,128] - total 129 participants
+//
 ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
                            bool dynamicCollectorForPartialProofs,
                            bool dynamicCollectorForExecutionProofs)
     : _myId{config.replicaId},
       _numberOfReplicas{config.numReplicas},
+      _numberOfRoReplicas{config.numRoReplicas},
       _numOfClientProxies{config.numOfClientProxies},
       _numberOfExternalClients{config.numOfExternalClients},
+      _numberOfInternalClients{config.numReplicas},
       _maxValidPrincipalId{static_cast<uint16_t>(config.numReplicas + config.numRoReplicas + config.numOfClientProxies +
-                                                 config.numOfExternalClients - 1)},
+                                                 config.numOfExternalClients + _numberOfInternalClients - 1)},
       _fVal{config.fVal},
       _cVal{config.cVal},
       _dynamicCollectorForPartialProofs{dynamicCollectorForPartialProofs},
@@ -48,32 +58,56 @@ ReplicasInfo::ReplicasInfo(const ReplicaConfig& config,
       _idsOfPeerReplicas{[&config]() {
         std::set<ReplicaId> ret;
         for (auto i = 0; i < config.numReplicas; ++i)
-          if (i != config.replicaId) ret.insert(i);
+          if (i != config.replicaId) {
+            ret.insert(i);
+          }
+        LOG_INFO(GL, "Principal ids in _idsOfPeerReplicas: 0 to " << config.numReplicas - 1);
         return ret;
       }()},
 
       _idsOfPeerROReplicas{[&config]() {
         std::set<ReplicaId> ret;
-        for (auto i = config.numReplicas; i < config.numReplicas + config.numRoReplicas; ++i)
-          if (i != config.replicaId) ret.insert(i);
+        uint16_t start = config.numReplicas;
+        uint16_t end = start + config.numRoReplicas;
+        for (uint16_t i{start}; i < end; ++i)
+          if (i != config.replicaId) {
+            ret.insert(i);
+          }
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfPeerROReplicas: " << start << " to " << end - 1);
         return ret;
       }()},
 
       _idsOfClientProxies{[&config]() {
         std::set<ReplicaId> ret;
-        for (auto i = config.numReplicas + config.numRoReplicas;
-             i < config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
-             ++i)
+        auto start = config.numReplicas + config.numRoReplicas;
+        auto end = start + config.numOfClientProxies;
+        for (auto i = start; i < end; ++i) {
           ret.insert(i);
+        }
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfClientProxies: " << start << " to " << end - 1);
         return ret;
       }()},
 
       _idsOfExternalClients{[&config]() {
         std::set<ReplicaId> ret;
-        for (auto i = config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
-             i < config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients;
-             ++i)
+        auto start = config.numReplicas + config.numRoReplicas + config.numOfClientProxies;
+        auto end = start + config.numOfExternalClients;
+        for (auto i = start; i < end; ++i) {
           ret.insert(i);
+        }
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfExternalClients: " << start << " to " << end - 1);
+        return ret;
+      }()},
+
+      _idsOfInternalClients{[&config]() {
+        std::set<ReplicaId> ret;
+        auto start =
+            config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients;
+        auto end = start + config.numReplicas;
+        for (auto i = start; i < end; ++i) {
+          ret.insert(i);
+        }
+        if (start != end) LOG_INFO(GL, "Principal ids in _idsOfInternalClients: " << start << " to " << end - 1);
         return ret;
       }()} {
   ConcordAssert(_numberOfReplicas == (3 * _fVal + 2 * _cVal + 1));
