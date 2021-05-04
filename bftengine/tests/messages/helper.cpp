@@ -48,13 +48,13 @@ const std::string pubKey = {
     "F6605C909F98B6C3F795354BBB988C9695F8A1E27FFC3CE4FFA64B549DD90727634"
     "04FBD352C5C1A05FA3D17377E113600B1EDCAEE17687BC4"
     "C1AA6F3D020111"};
-const std::vector<std::string> replicasPubKeys = {pubKey, pubKey, pubKey, pubKey, pubKey};
+const std::vector<std::string> replicasPubKeys = {pubKey, pubKey, pubKey, pubKey, pubKey, pubKey, pubKey};
 
 void loadPrivateAndPublicKeys(std::string& myPrivateKey,
                               std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
                               ReplicaId myId,
                               size_t numReplicas) {
-  ConcordAssert(numReplicas <= 5);
+  ConcordAssert(numReplicas <= 7);
   myPrivateKey = replicaPrivateKey;
   for (size_t i{0}; i < numReplicas; ++i) {
     if (i == myId) continue;
@@ -62,11 +62,11 @@ void loadPrivateAndPublicKeys(std::string& myPrivateKey,
   }
 }
 
-bftEngine::ReplicaConfig& createReplicaConfig() {
+bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
   bftEngine::ReplicaConfig& config = bftEngine::ReplicaConfig::instance();
-  config.numReplicas = 4;
-  config.fVal = 1;
-  config.cVal = 0;
+  config.numReplicas = 3 * fVal + 2 * cVal + 1;
+  config.fVal = fVal;
+  config.cVal = cVal;
   config.replicaId = 0;
   config.numOfClientProxies = 0;
   config.statusReportTimerMillisec = 15;
@@ -91,15 +91,8 @@ bftEngine::ReplicaConfig& createReplicaConfig() {
 bftEngine::impl::SigManager* createSigManager(size_t myId,
                                               std::string& myPrivateKey,
                                               KeyFormat replicasKeysFormat,
-                                              std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas) {
-  return SigManager::init(myId,
-                          myPrivateKey,
-                          publicKeysOfReplicas,
-                          replicasKeysFormat,
-                          nullptr,
-                          KeyFormat::PemFormat,
-                          publicKeysOfReplicas.size() + 1,
-                          0,
-                          0,
-                          0);
+                                              std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
+                                              ReplicasInfo& replicasInfo) {
+  return SigManager::init(
+      myId, myPrivateKey, publicKeysOfReplicas, replicasKeysFormat, nullptr, KeyFormat::PemFormat, replicasInfo);
 }

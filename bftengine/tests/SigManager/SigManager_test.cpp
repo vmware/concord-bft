@@ -137,16 +137,9 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
     publicKeysOfReplicas.insert(make_pair(pid, pubKey));
   }
 
-  unique_ptr<SigManager> sigManager(SigManager::init(myId,
-                                                     myPrivKey,
-                                                     publicKeysOfReplicas,
-                                                     KeyFormat::PemFormat,
-                                                     nullptr,
-                                                     KeyFormat::PemFormat,
-                                                     numReplicas,
-                                                     0,
-                                                     0,
-                                                     0));
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+  unique_ptr<SigManager> sigManager(SigManager::init(
+      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
 
   for (size_t i{0}; i < numReplicas; ++i) {
     const auto& signer = signers[i];
@@ -207,16 +200,9 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
     publicKeysOfReplicas.insert(make_pair(i - 1, pubKey));
   }
 
-  unique_ptr<SigManager> sigManager(SigManager::init(myId,
-                                                     myPrivKey,
-                                                     publicKeysOfReplicas,
-                                                     KeyFormat::PemFormat,
-                                                     nullptr,
-                                                     KeyFormat::PemFormat,
-                                                     numReplicas,
-                                                     0,
-                                                     0,
-                                                     0));
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+  unique_ptr<SigManager> sigManager(SigManager::init(
+      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
   // sign with SigManager
   expectedSignerSigLen = sigManager->getSigLength(myId);
   sig.reserve(expectedSignerSigLen);
@@ -239,28 +225,29 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   ASSERT_FALSE(verifier->verify(data, RANDOM_DATA_SIZE, sig1.data(), expectedVerifierSigLen));
 }
 
-// Check 1 more replica + 1200 cllients on 6 addicitional participants,
+// Check 1 more replica + 1200 clients on 6 additional participants
 // where each participant hols a client pool of 200 clients
 TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   constexpr size_t numReplicas{7};
   constexpr size_t numRoReplicas{2};
   constexpr size_t numOfClientProxies{36};  // (numRoReplicas+numRoReplicas) * 4
-  constexpr size_t numOfExternaClients{6};
-  constexpr size_t numBftClientsInExternalClient{200};
-  constexpr size_t totalNumberofExternalClients{1200};  // numOfExternaClients * numBftClientsInExternalClient
+  constexpr size_t numParticipantNodes{6};
+  constexpr size_t numBftClientsInParticipantNodes{200};
+  constexpr size_t totalNumberofExternalBftClients{1200};  // numOfExternaClients * numBftClientsInExternalClient
   constexpr PrincipalId myId{0};
   string myPrivKey;
   size_t i, signerIndex{0};
-  unique_ptr<RSASigner> signers[numReplicas + numRoReplicas + numOfExternaClients];
+  unique_ptr<RSASigner>
+      signers[numReplicas + numParticipantNodes];  // only external clients and consensus replicas sign
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
   set<pair<const string, set<uint16_t>>> publicKeysOfClients;
   unordered_map<PrincipalId, size_t> principalIdToSignerIndex;
 
-  generateKeyPairs(numReplicas + numRoReplicas + numOfExternaClients);
+  generateKeyPairs(numReplicas + numParticipantNodes);
 
   // Load replica signers to simulate other replicas
   PrincipalId currPrincipalId{0};
-  for (i = 1; i <= numReplicas + numRoReplicas; ++i, ++currPrincipalId) {
+  for (i = 1; i <= numReplicas; ++i, ++currPrincipalId) {
     string privKey, pubKey;
     string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
     readFile(privateKeyFullPath, privKey);
@@ -279,7 +266,7 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
 
   // Load another group of replica signers to simulate other clients
   currPrincipalId = numReplicas + numRoReplicas + numOfClientProxies;
-  for (; i <= numReplicas + numRoReplicas + numOfExternaClients; ++i) {
+  for (; i <= numReplicas + numParticipantNodes; ++i) {
     string privKey, pubKey;
     string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
     readFile(privateKeyFullPath, privKey);
@@ -288,7 +275,7 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
 
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     set<PrincipalId> principalIds;
-    for (size_t j{0}; j < numBftClientsInExternalClient; ++j) {
+    for (size_t j{0}; j < numBftClientsInParticipantNodes; ++j) {
       principalIds.insert(principalIds.end(), currPrincipalId);
       principalIdToSignerIndex.insert(make_pair(currPrincipalId, signerIndex));
       ++currPrincipalId;
@@ -298,16 +285,20 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
     ++signerIndex;
   }
 
+  auto& config = createReplicaConfig(2, 0);
+  config.numReplicas = numReplicas;
+  config.numRoReplicas = numRoReplicas;
+  config.numOfClientProxies = numOfClientProxies;
+  config.numOfExternalClients = totalNumberofExternalBftClients;
+  ReplicasInfo replicaInfo(config, false, false);
+
   unique_ptr<SigManager> sigManager(SigManager::init(myId,
                                                      myPrivKey,
                                                      publicKeysOfReplicas,
                                                      KeyFormat::PemFormat,
                                                      &publicKeysOfClients,
                                                      KeyFormat::PemFormat,
-                                                     numReplicas,
-                                                     numRoReplicas,
-                                                     numOfClientProxies,
-                                                     totalNumberofExternalClients));
+                                                     replicaInfo));
 
   // principalIdToSignerIndex carries all principal ids for replica, read only replicas and bft-clients.
   // There are some principal Ids in the range [minKey(principalIdToSignerIndex), maxKey(principalIdToSignerIndex)]
