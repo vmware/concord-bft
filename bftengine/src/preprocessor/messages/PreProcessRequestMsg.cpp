@@ -67,7 +67,7 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
   auto* header = msgBody();
   auto* requestSignature = this->requestSignature();
-  auto* sigManager = SigManager::getInstance();
+  auto* sigManager = SigManager::instance();
   auto expectedMsgSize =
       (sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength + header->reqSignatureLength);
 

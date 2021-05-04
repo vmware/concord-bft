@@ -93,7 +93,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   const auto msgSize = size();
   uint16_t expectedSigLen = 0;
   std::stringstream msg;
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
   bool isIdOfExternalClient = repInfo.isIdOfExternalClient(clientId);
   bool doSigVerify = false;

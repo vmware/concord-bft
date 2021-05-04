@@ -317,7 +317,7 @@ void setUpConfiguration_4() {
                                                   *replicasInfo[i].get()));
   }
   replicaConfig.replicaId = replica_0;
-  SigManager::getInstance(sigManager[replicaConfig.replicaId].get());
+  SigManager::instance(sigManager[replicaConfig.replicaId].get());
 }
 
 void setUpConfiguration_7() {
@@ -345,11 +345,11 @@ void setUpCommunication() {
 }
 
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
-  SigManager::getInstance(sigManager[replicaId].get());
+  SigManager::instance(sigManager[replicaId].get());
   auto preProcessReplyMsg =
       make_shared<PreProcessReplyMsg>(&preProcessorRecorder, replicaId, clientId, 0, reqSeqNum, reqRetryId);
   preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
-  SigManager::getInstance(sigManager[repInfo.myId()].get());
+  SigManager::instance(sigManager[repInfo.myId()].get());
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
 }
