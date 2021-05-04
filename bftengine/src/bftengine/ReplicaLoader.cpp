@@ -55,6 +55,15 @@ namespace {
 
 ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
   ld.repsInfo = new ReplicasInfo(ld.repConfig, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+  auto &config = ld.repConfig;
+
+  ld.sigManager = SigManager::init(config.replicaId,
+                                   config.replicaPrivateKey,
+                                   config.publicKeysOfReplicas,
+                                   KeyFormat::HexaDecimalStrippedFormat,
+                                   config.clientTransactionSigningEnabled ? &config.publicKeysOfClients : nullptr,
+                                   KeyFormat::PemFormat,
+                                   *ld.repsInfo);
 
   Cryptosystem *cryptoSys = new Cryptosystem(ld.repConfig.thresholdSystemType_,
                                              ld.repConfig.thresholdSystemSubType_,
