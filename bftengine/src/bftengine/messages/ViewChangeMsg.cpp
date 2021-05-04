@@ -17,6 +17,7 @@
 #include "Crypto.hpp"
 #include "ViewsManager.hpp"
 #include "Logger.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine {
 namespace impl {

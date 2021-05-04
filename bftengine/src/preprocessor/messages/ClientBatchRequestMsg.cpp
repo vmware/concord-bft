@@ -65,11 +65,11 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
     const char* spanDataPosition = dataPosition + sizeof(ClientRequestMsgHeader);
     const char* requestDataPosition = spanDataPosition + singleMsgHeader.spanContextSize;
     const char* cidPosition = requestDataPosition + singleMsgHeader.requestLength;
-    const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
     const char* requestSignaturePosition =
-        isClientTransactionSigningEnabled ? (cidPosition + singleMsgHeader.cidLength) : nullptr;
-    uint32_t requestSignatureLength =
-        isClientTransactionSigningEnabled ? sigManager->getSigLength(singleMsgHeader.idOfClientProxy) : 0;
+        (isClientTransactionSigningEnabled && (singleMsgHeader.reqSignatureLength > 0))
+            ? (cidPosition + singleMsgHeader.cidLength)
+            : nullptr;
+    const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
     auto const cid = string(cidPosition, singleMsgHeader.cidLength);
     auto msg = make_unique<preprocessor::ClientPreProcessRequestMsg>(singleMsgHeader.idOfClientProxy,
                                                                      singleMsgHeader.reqSeqNum,
@@ -79,11 +79,11 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
                                                                      cid,
                                                                      spanContext,
                                                                      requestSignaturePosition,
-                                                                     requestSignatureLength);
+                                                                     singleMsgHeader.reqSignatureLength);
     LOG_DEBUG(logger(), KVLOG(msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
-                    singleMsgHeader.cidLength;
+                    singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }
   LOG_DEBUG(logger(), KVLOG(msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));
   return clientMsgsList_;

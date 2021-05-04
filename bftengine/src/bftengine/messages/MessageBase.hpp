@@ -24,13 +24,6 @@ namespace impl {
 template <typename MessageT>
 size_t sizeOfHeader();
 
-class ClientSignatureVerificationFailedException : public std::runtime_error {
- public:
-  ClientSignatureVerificationFailedException(const std::string &error)
-      : std::runtime_error(("ClientSignatureVerificationFailedException: " + error).c_str()) {}
-  const char *what() const noexcept override { return std::runtime_error::what(); }
-};
-
 class MessageBase {
  public:
 #pragma pack(push, 1)
@@ -102,6 +95,7 @@ class MessageBase {
   Header *msgBody_ = nullptr;
   MsgSize msgSize_ = 0;
   MsgSize storageSize_ = 0;
+  // This might be the direct sender, but not the originator
   NodeIdType sender_;
   // true IFF this instance is not responsible for de-allocating the body:
   bool owner_ = true;

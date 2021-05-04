@@ -34,7 +34,9 @@ class RequestProcessingState {
                          const std::string& cid,
                          ReqId reqSeqNum,
                          ClientPreProcessReqMsgUniquePtr clientReqMsg,
-                         PreProcessRequestMsgSharedPtr preProcessRequestMsg);
+                         PreProcessRequestMsgSharedPtr preProcessRequestMsg,
+                         const char* signature = nullptr,
+                         const uint32_t signatureLen = 0);
   ~RequestProcessingState() = default;
 
   void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
@@ -55,12 +57,12 @@ class RequestProcessingState {
   }
 
   const char* getReqSignature() const {
-    return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestSignature() : nullptr;
+    if (!clientRequestSignature_.empty()) {
+      return clientRequestSignature_.data();
+    }
+    return nullptr;
   }
-
-  uint32_t getReqSignatureLength() const {
-    return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->requestSignatureLength() : 0;
-  }
+  uint32_t getReqSignatureLength() const { return clientRequestSignature_.size(); }
 
   std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId, uint64_t reqRetryId) const;
@@ -96,6 +98,7 @@ class RequestProcessingState {
   const std::string cid_;
   const ReqId reqSeqNum_;
   const uint64_t entryTime_;
+  const std::string clientRequestSignature_;
   ClientPreProcessReqMsgUniquePtr clientPreProcessReqMsg_;
   PreProcessRequestMsgSharedPtr preProcessRequestMsg_;
   uint16_t numOfReceivedReplies_ = 0;

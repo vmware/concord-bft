@@ -62,29 +62,18 @@ class ClientRequestMsg : public MessageBase {
 
   uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
 
-  const char* requestSignature() const;
+  char* requestSignature() const;
 
   uint64_t requestTimeoutMilli() const { return msgBody()->timeoutMilli; }
 
   std::string getCid() const;
 
-  void validate(const ReplicasInfo&) const override;
-  void validateRequest(const ReplicasInfo&, uint16_t) const;
-  void validateRequestSignature(const ReplicasInfo&) const;
-  uint16_t getExpectedSignatureLength() const;
+  void validate(const ReplicasInfo& repInfo) const override { validateImp(repInfo); }
 
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
 
-  struct Recorders {
-    Recorders() {
-      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("client_request", {signatureVerificationduration});
-    }
-    DEFINE_SHARED_RECORDER(signatureVerificationduration, 1, 10000, 3, concord::diagnostics::Unit::MICROSECONDS);
-  };
-
-  static Recorders histograms_;
+  void validateImp(const ReplicasInfo& repInfo) const;
 
  private:
   void setParams(NodeIdType sender,

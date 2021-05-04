@@ -38,6 +38,7 @@
 #include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "PerformanceManager.hpp"
 #include "secrets_manager_impl.h"
+#include "SigManager.hpp"
 
 namespace bftEngine::impl {
 
@@ -239,7 +240,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_slowPath_requests_;
   CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
-  CounterHandle metric_client_req_sig_veirification_failed_;
   //*****************************************************
   RollingAvgAndVar consensus_time_;
   RollingAvgAndVar accumulating_batch_time_;
