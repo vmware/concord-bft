@@ -16,8 +16,9 @@
 #include <unordered_map>
 #include <fstream>
 #include <memory>
-
+#include <iterator>
 #include <functional>
+
 #include "type_traits.h"
 #include "demangle.hpp"
 #include "Logger.hpp"
@@ -40,6 +41,15 @@ class Serializable;
 typedef std::unique_ptr<char[], std::default_delete<char[]>> UniquePtrToChar;
 typedef std::unique_ptr<unsigned char[], std::default_delete<unsigned char[]>> UniquePtrToUChar;
 typedef std::shared_ptr<Serializable> SerializablePtr;
+
+// Overload ostream (<<) for std::set
+template <class T>
+std::ostream& operator<<(std::ostream& stream, const std::set<T>& values) {
+  stream << "[ ";
+  std::copy(std::begin(values), std::end(values), std::ostream_iterator<T>(stream, " "));
+  stream << ']';
+  return stream;
+}
 
 class Serializable {
  public:
