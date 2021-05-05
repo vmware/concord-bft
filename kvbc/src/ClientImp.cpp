@@ -46,7 +46,8 @@ Status ClientImp::start() {
 
 Status ClientImp::stop() {
   // TODO: implement
-  return Status::IllegalOperation("Not implemented");
+  comm_->Stop();
+  return Status::OK();
 }
 
 bool ClientImp::isRunning() { return (bftClient_ != nullptr); }
