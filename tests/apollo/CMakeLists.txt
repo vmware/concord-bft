@@ -108,6 +108,10 @@ add_test(NAME skvbc_consensus_batching COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_consensus_batching python3 -m unittest test_skvbc_consensus_batching ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_test(NAME skvbc_block_accumulation_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_block_accumulation_tests python3 -m unittest test_skvbc_block_accumulation ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 if (BUILD_ROCKSDB_STORAGE)
   add_test(NAME skvbc_persistence_tests COMMAND sh -c
           "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_persistence_tests python3 -m unittest test_skvbc_persistence ${TEST_OUTPUT}"

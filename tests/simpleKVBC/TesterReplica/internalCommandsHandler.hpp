@@ -49,7 +49,10 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                            uint8_t flags,
                            size_t maxReplySize,
                            char *outReply,
-                           uint32_t &outReplySize);
+                           uint32_t &outReplySize,
+                           bool isBlockAccumulationEnabled,
+                           concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
+                           concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates);
 
   bool executeReadOnlyCommand(uint32_t requestSize,
                               const char *request,
@@ -80,6 +83,15 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
   std::string getLatest(const std::string &key) const;
   std::optional<concord::kvbc::BlockId> getLatestVersion(const std::string &key) const;
   std::optional<std::map<std::string, std::string>> getBlockUpdates(concord::kvbc::BlockId blockId) const;
+  void writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequests,
+                             concord::kvbc::categorization::VersionedUpdates &verUpdates,
+                             concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+  void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
+                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+  void addKeys(BasicRandomTests::SimpleCondWriteRequest *writeReq,
+               uint64_t sequenceNum,
+               concord::kvbc::categorization::VersionedUpdates &verUpdates,
+               concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
 
  private:
   concord::kvbc::IReader *m_storage;
