@@ -530,6 +530,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::diagnostics::AsyncTimeRecorder<false> time_in_state_transfer_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
+
+  std::unique_ptr<bftEngine::impl::RSASigner> rsaSigner_;
 };  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl

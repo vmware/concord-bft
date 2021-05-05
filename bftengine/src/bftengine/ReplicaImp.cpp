@@ -3632,7 +3632,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       time_in_active_view_(histograms_.timeInActiveView),
       time_in_state_transfer_(histograms_.timeInStateTransfer),
       reqBatchingLogic_(*this, config_, metrics_, timers),
-      replStatusHandlers_(*this) {
+      replStatusHandlers_(*this),
+      rsaSigner_(std::make_unique<bftEngine::impl::RSASigner>(config.replicaPrivateKey.c_str())) {
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -4245,7 +4246,19 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
     concord::messages::ReconfigurationRequest req;
     req.command = concord::messages::WedgeCommand{config_.replicaId, true};
+    // Mark this request as an internal one
+    req.additional_data = {concord::reconfiguration::ReconfigurationHandler::internalCommandKey()};
     std::vector<uint8_t> data_vec;
+    concord::messages::serialize(data_vec, req);
+    std::string sig(rsaSigner_->signatureLength(), '\0');
+    std::size_t sig_length{0};
+    rsaSigner_->sign(reinterpret_cast<char *>(data_vec.data()),
+                     data_vec.size(),
+                     sig.data(),
+                     rsaSigner_->signatureLength(),
+                     sig_length);
+    req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+    data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());
     internalBFTClient_->sendRquest(
