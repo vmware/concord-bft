@@ -60,7 +60,8 @@ pip3 install \
     eliot eliot-tree \
     tatsu==4.4.0 \
     pytest \
-    pycryptodome
+    pycryptodome \
+    ecdsa
 
 # Build 3rd parties
 cd ${HOME}
