@@ -222,3 +222,39 @@ wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz 
     echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
     ldconfig -v && \
     rm -rf /usr/local/src/openssl-${OPENSSL_VER}
+
+# gRPC
+# https://github.com/grpc/grpc/blob/master/test/distrib/cpp/run_distrib_test_cmake.sh
+cd ${HOME}
+git clone -b v1.37.1 --depth 1 --recurse-submodules https://github.com/grpc/grpc && \
+    cd grpc && \
+    mkdir -p ${HOME}/grpc/third_party/abseil-cpp/cmake/build && \
+    cd ${HOME}/grpc/third_party/abseil-cpp/cmake/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          ../.. && \
+    make -j$(nproc) install && \
+    mkdir -p ${HOME}/grpc/third_party/protobuf/cmake/build && \
+    cd ${HOME}/grpc/third_party/protobuf/cmake/build && \
+    cmake -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          .. && \
+    make -j$(nproc) install && \
+    mkdir -p ${HOME}/grpc/cmake/build && \
+    cd ${HOME}/grpc/cmake/build && \
+    cmake -DgRPC_INSTALL=ON \
+          -DgRPC_ABSL_PROVIDER=package \
+          -DgRPC_PROTOBUF_PROVIDER=package \
+          -DgRPC_SSL_PROVIDER=package \
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          ../.. && \
+    make -j$(nproc) install &&
+    cd ${HOME} && \
+    rm -r ${HOME}/grpc
+
+# After installing all libraries, let's make sure that they will be found at runtime
+ldconfig
