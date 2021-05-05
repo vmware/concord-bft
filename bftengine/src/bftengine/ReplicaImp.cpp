@@ -3505,7 +3505,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     mapOfRequestsThatAreBeingRecovered = b;
   }
 
-  internalThreadPool.start(8);  // TODO(GG): use configuration
+  internalThreadPool.start(config_.getsizeOfInternalThreadPool());
 }
 
 ReplicaImp::ReplicaImp(const ReplicaConfig &config,
