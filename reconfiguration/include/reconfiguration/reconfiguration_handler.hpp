@@ -52,12 +52,18 @@ class ReconfigurationHandler : public IReconfigurationHandler {
   bool verifySignature(const concord::messages::ReconfigurationRequest&,
                        concord::messages::ReconfigurationErrorMsg&) const override;
 
+  static const unsigned char internalCommandKey() {
+    static unsigned char key_ = 0x20;
+    return key_;
+  }
+
  protected:
   logging::Logger getLogger() const {
     static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
   std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
+  std::vector<std::unique_ptr<bftEngine::impl::RSAVerifier>> internal_verifiers_;
 };
 
 }  // namespace concord::reconfiguration
