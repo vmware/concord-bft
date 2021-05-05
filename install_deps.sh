@@ -20,7 +20,6 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     clang \
     clang-format-9 \
     clang-tidy-10 \
-    cmake \
     gdb \
     gdbserver \
     git \
@@ -64,6 +63,10 @@ pip3 install \
     ecdsa
 
 # Build 3rd parties
+wget ${WGET_FLAGS} -O cmake-linux.sh \
+    https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.sh && \
+    sh cmake-linux.sh -- --skip-license --prefix=/usr
+
 cd ${HOME}
 wget ${WGET_FLAGS} \
     https://github.com/HdrHistogram/HdrHistogram_c/archive/0.9.12.tar.gz && \
