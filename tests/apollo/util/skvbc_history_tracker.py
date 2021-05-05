@@ -456,7 +456,7 @@ class SkvbcTracker:
                          self.kvpairs.copy())
         self.outstanding[(req.client_id, req.seq_num)] = cs
 
-    def handle_write_reply(self, client_id, seq_num, reply):
+    def handle_write_reply(self, client_id, seq_num, reply,block_accumulation=False):
         """
         Match a write reply with its outstanding request.
         Check for consistency violations and raise an exception if found.
@@ -465,7 +465,7 @@ class SkvbcTracker:
         self.history.append(rpy)
         req, req_index = self._get_matching_request(rpy)
         if reply.success:
-            if reply.last_block_id in self.blocks:
+            if (block_accumulation is False and reply.last_block_id in self.blocks):
                 # This block_id has already been written!
                 block = self.blocks[reply.last_block_id]
                 raise ConflictingBlockWriteError(reply.last_block_id, block, req)
@@ -474,7 +474,6 @@ class SkvbcTracker:
                                                       rpy,
                                                       reply.last_block_id)
                 self.blocks[reply.last_block_id] = Block(req.writeset, req_index)
-
                 if reply.last_block_id > self.last_known_block:
                     self.last_known_block = reply.last_block_id
 
@@ -846,7 +845,7 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
-    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False):
+    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False, block_accumulation=False):
         msg_batch = []
         batch_seq_nums = []
         client_id = client.client_id
@@ -867,7 +866,7 @@ class SkvbcTracker:
                 self.status.record_client_reply(client_id)
                 for seq_num, reply_msg in replies.items():
                     reply = self.skvbc.parse_reply(reply_msg.get_common_data())
-                    self.handle_write_reply(client_id, seq_num, reply)
+                    self.handle_write_reply(client_id, seq_num, reply,block_accumulation)
             except trio.TooSlowError:
                 self.status.record_client_timeout(client_id)
                 return
@@ -922,7 +921,7 @@ class SkvbcTracker:
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
-    async def run_concurrent_batch_ops(self, num_ops, batch_size):
+    async def run_concurrent_batch_ops(self, num_ops, batch_size, block_accumulation=False):
         with log.start_action(action_type="run_concurrent_batch_ops"):
             max_concurrency = len(self.bft_network.clients) // 2
             max_size = len(self.skvbc.keys) // 2
@@ -933,7 +932,7 @@ class SkvbcTracker:
                 while sent < num_ops:
                     async with trio.open_nursery() as nursery:
                         for client in clients:
-                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size)
+                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size, None, False, block_accumulation)
                             write_count += 1
                     sent += len(clients)
             return write_count
