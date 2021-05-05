@@ -115,6 +115,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
                               actualSigSize);
     ConcordAssert(expected_sig_len == actualSigSize);
     header->reqSignatureLength = actualSigSize;
+    metrics_.transactionSigning.Get().Inc();
   } else {
     header->reqSignatureLength = 0;
   }
