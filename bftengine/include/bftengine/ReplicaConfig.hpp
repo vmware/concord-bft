@@ -57,6 +57,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "replicaId should also represent this replica in ICommunication.");
   CONFIG_PARAM(numOfClientProxies, uint16_t, 0, "number of objects that represent clients, numOfClientProxies >= 1");
   CONFIG_PARAM(numOfExternalClients, uint16_t, 0, "number of objects that represent external clients");
+  CONFIG_PARAM(sizeOfInternalThreadPool, uint16_t, 8, "number of threads in the internal replica thread pool");
   CONFIG_PARAM(statusReportTimerMillisec, uint16_t, 0, "how often the replica sends a status report to other replicas");
   CONFIG_PARAM(concurrencyLevel,
                uint16_t,
@@ -222,6 +223,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, metricsDumpIntervalSeconds);
     serialize(outStream, keyExchangeOnStart);
     serialize(outStream, blockAccumulation);
+    serialize(outStream, sizeOfInternalThreadPool);
     serialize(outStream, keyViewFilePath);
 
     serialize(outStream, config_params_);
@@ -281,6 +283,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, metricsDumpIntervalSeconds);
     deserialize(inStream, keyExchangeOnStart);
     deserialize(inStream, blockAccumulation);
+    deserialize(inStream, sizeOfInternalThreadPool);
     deserialize(inStream, keyViewFilePath);
 
     deserialize(inStream, config_params_);
@@ -343,7 +346,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptiveBatchingMaxIncCond,
               rc.adaptiveBatchingMidIncCond,
               rc.adaptiveBatchingMinIncCond,
-              rc.adaptiveBatchingDecCond);
+              rc.adaptiveBatchingDecCond,
+              rc.sizeOfInternalThreadPool);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
