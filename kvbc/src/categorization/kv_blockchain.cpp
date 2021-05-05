@@ -375,6 +375,30 @@ bool KeyValueBlockchain::deleteBlock(const BlockId& block_id) {
   }
 
   const auto genesis_block_id = block_chain_.getGenesisBlockId();
+
+  auto currTime = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+  if (currTime - last_dump_time_ >= dump_delete_metrics_interval_) {
+    last_dump_time_ = currTime;
+    auto merkle_deleted_from_last_dump = merkle_num_of_deleted_keys_.Get().Get() - latest_deleted_merkle_dump;
+    latest_deleted_merkle_dump = merkle_num_of_deleted_keys_.Get().Get();
+    auto versioned_deleted_from_last_dump = versioned_num_of_deletes_keys_.Get().Get() - latest_deleted_versioned;
+    latest_deleted_versioned = versioned_num_of_deletes_keys_.Get().Get();
+    auto immutable_deleted_from_last_dump = immutable_num_of_deleted_keys_.Get().Get() - latest_deleted_immutbale;
+    latest_deleted_immutbale = immutable_num_of_deleted_keys_.Get().Get();
+    auto total_deleted_keys_from_last_dump =
+        merkle_deleted_from_last_dump + versioned_deleted_from_last_dump + immutable_deleted_from_last_dump;
+    auto total_deleted_keys = merkle_num_of_deleted_keys_.Get().Get() + versioned_num_of_deletes_keys_.Get().Get() +
+                              immutable_num_of_deleted_keys_.Get().Get();
+    LOG_INFO(CAT_BLOCK_LOG,
+             "kv_blockchain delete metrics:" << KVLOG(genesis_block_id,
+                                                      last_reachable_block_id,
+                                                      merkle_deleted_from_last_dump,
+                                                      versioned_deleted_from_last_dump,
+                                                      immutable_deleted_from_last_dump,
+                                                      total_deleted_keys_from_last_dump,
+                                                      total_deleted_keys));
+  }
+
   if (block_id == last_reachable_block_id && block_id == genesis_block_id) {
     throw std::logic_error{"Deleting the only block in the system is not supported"};
   } else if (block_id == last_reachable_block_id) {
