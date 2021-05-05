@@ -20,6 +20,7 @@ struct Metrics {
   Metrics(ClientId id)
       : component_{"clientMetrics_" + std::to_string(id.val), std::make_shared<concordMetrics::Aggregator>()},
         retransmissions{component_.RegisterCounter("retransmissions")},
+        transactionSigning{component_.RegisterCounter("transactionSigning")},
         retransmissionTimer{component_.RegisterGauge("retransmissionTimer", 0)},
         repliesCleared{component_.RegisterCounter("repliesCleared", 0)} {
     component_.Register();
@@ -36,6 +37,7 @@ struct Metrics {
 
  public:
   concordMetrics::CounterHandle retransmissions;
+  concordMetrics::CounterHandle transactionSigning;
   concordMetrics::GaugeHandle retransmissionTimer;
   concordMetrics::CounterHandle repliesCleared;
 };

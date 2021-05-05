@@ -39,13 +39,16 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                const string &cid,
                                                ReqId reqSeqNum,
                                                ClientPreProcessReqMsgUniquePtr clientReqMsg,
-                                               PreProcessRequestMsgSharedPtr preProcessRequestMsg)
+                                               PreProcessRequestMsgSharedPtr preProcessRequestMsg,
+                                               const char *signature,
+                                               const uint32_t signatureLen)
     : numOfReplicas_(numOfReplicas),
       clientId_(clientId),
       reqOffsetInBatch_(reqOffsetInBatch),
       cid_(cid),
       reqSeqNum_(reqSeqNum),
       entryTime_(getMonotonicTimeMilli()),
+      clientRequestSignature_(signature ? signature : "", signature ? signatureLen : 0),
       clientPreProcessReqMsg_(move(clientReqMsg)),
       preProcessRequestMsg_(preProcessRequestMsg) {
   SCOPED_MDC_CID(cid);

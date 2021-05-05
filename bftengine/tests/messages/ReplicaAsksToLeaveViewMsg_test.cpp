@@ -32,8 +32,11 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ReplicasInfo replicaInfo(config, true, true);
-  std::unique_ptr<SigManager> sigManager(createSigManager(
-      config.replicaId, config.replicaPrivateKey, KeyFormat::HexaDecimalStrippedFormat, config.publicKeysOfReplicas));
+  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+                                                          config.replicaPrivateKey,
+                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          config.publicKeysOfReplicas,
+                                                          replicaInfo));
   ViewsManager manager(&replicaInfo);
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg(
       ReplicaAsksToLeaveViewMsg::create(senderId,

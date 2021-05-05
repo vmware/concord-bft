@@ -203,6 +203,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, adaptiveBatchingDecCond);
 
     serialize(outStream, publicKeysOfReplicas);
+    serialize(outStream, publicKeysOfClients);
     serialize(outStream, replicaPrivateKey);
     serialize(outStream, thresholdSystemType_);
     serialize(outStream, thresholdSystemSubType_);
@@ -263,6 +264,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, adaptiveBatchingDecCond);
 
     deserialize(inStream, publicKeysOfReplicas);
+    deserialize(inStream, publicKeysOfClients);
     deserialize(inStream, replicaPrivateKey);
     deserialize(inStream, thresholdSystemType_);
     deserialize(inStream, thresholdSystemSubType_);

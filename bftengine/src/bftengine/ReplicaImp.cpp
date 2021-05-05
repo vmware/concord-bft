@@ -42,12 +42,12 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
+#include "KeyExchangeManager.h"
 
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <bitset>
-#include "KeyExchangeManager.h"
 
 #define getName(var) #var
 
@@ -135,10 +135,6 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
   try {
     msg->validate(*repsInfo);
     return true;
-  } catch (ClientSignatureVerificationFailedException &e) {
-    metric_client_req_sig_veirification_failed_.Get().Inc();
-    onReportAboutInvalidMessage(msg, e.what());
-    return false;
   } catch (std::exception &e) {
     onReportAboutInvalidMessage(msg, e.what());
     return false;
@@ -3252,6 +3248,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  ld.repConfig,
                  requestsHandler,
                  stateTrans,
+                 ld.sigManager,
                  ld.repsInfo,
                  ld.viewsManager,
                  msgsCommunicator,
@@ -3520,8 +3517,18 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                        concordUtil::Timers &timers,
                        shared_ptr<concord::performance::PerformanceManager> &pm,
                        const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm)
-    : ReplicaImp(
-          true, config, requestsHandler, stateTrans, nullptr, nullptr, msgsCommunicator, msgHandlers, timers, pm, sm) {
+    : ReplicaImp(true,
+                 config,
+                 requestsHandler,
+                 stateTrans,
+                 nullptr,
+                 nullptr,
+                 nullptr,
+                 msgsCommunicator,
+                 msgHandlers,
+                 timers,
+                 pm,
+                 sm) {
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3535,6 +3542,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
                        const ReplicaConfig &config,
                        shared_ptr<IRequestsHandler> requestsHandler,
                        IStateTransfer *stateTrans,
+                       SigManager *sigManager,
                        ReplicasInfo *replicasInfo,
                        ViewsManager *viewsMgr,
                        shared_ptr<MsgsCommunicator> msgsCommunicator,
@@ -3626,7 +3634,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
-      metric_client_req_sig_veirification_failed_{metrics_.RegisterCounter("clientReqSigVerFailed")},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),
@@ -3636,7 +3643,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
-  ConcordAssert(firstTime || ((replicasInfo != nullptr) && (viewsMgr != nullptr)));
+  ConcordAssert(firstTime || ((replicasInfo != nullptr) && (viewsMgr != nullptr) && (sigManager != nullptr)));
 
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
@@ -3644,21 +3651,19 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // Register metrics component with the default aggregator.
   metrics_.Register();
 
-  sigManager_.reset(SigManager::init(config_.replicaId,
-                                     config_.replicaPrivateKey,
-                                     config_.publicKeysOfReplicas,
-                                     KeyFormat::HexaDecimalStrippedFormat,
-                                     config_.clientTransactionSigningEnabled ? &config.publicKeysOfClients : nullptr,
-                                     KeyFormat::PemFormat,
-                                     config_.numReplicas,
-                                     config_.numRoReplicas,
-                                     config_.numOfClientProxies,
-                                     config_.numOfExternalClients));
   if (firstTime) {
     repsInfo = new ReplicasInfo(config_, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
+    sigManager_.reset(SigManager::init(config_.replicaId,
+                                       config_.replicaPrivateKey,
+                                       config_.publicKeysOfReplicas,
+                                       KeyFormat::HexaDecimalStrippedFormat,
+                                       config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
+                                       KeyFormat::PemFormat,
+                                       *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {
     repsInfo = replicasInfo;
+    sigManager_.reset(sigManager);
     viewsManager = viewsMgr;
   }
 
@@ -3792,6 +3797,7 @@ void ReplicaImp::addTimers() {
 
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
+  sigManager_->SetAggregator(aggregator_);
   ReplicaForStateTransfer::start();
 
   // requires the init of state transfer

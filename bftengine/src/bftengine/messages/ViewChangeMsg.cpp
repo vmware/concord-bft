@@ -17,6 +17,7 @@
 #include "Crypto.hpp"
 #include "ViewsManager.hpp"
 #include "Logger.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -81,7 +82,7 @@ void ViewChangeMsg::addElement(SeqNum seqNum,
 
   // TODO(GG): we should make sure that this assert will never be violated (by calculating the maximum  size of a
   // ViewChangeMsg message required for the actual configuration)
-  ConcordAssertLE((size_t)(requiredSpace + SigManager::getInstance()->getMySigLength()), (size_t)internalStorageSize());
+  ConcordAssertLE((size_t)(requiredSpace + SigManager::instance()->getMySigLength()), (size_t)internalStorageSize());
 
   Element* pElement = (Element*)(body() + b()->locationAfterLast);
   pElement->seqNum = seqNum;
@@ -112,7 +113,7 @@ void ViewChangeMsg::addComplaint(const ReplicaAsksToLeaveViewMsg* const complain
 
   ConcordAssert(b()->numberOfComplaints > 0 || b()->sizeOfAllComplaints == 0);
   auto bodySize = getBodySize();
-  auto sigSize = SigManager::getInstance()->getMySigLength();
+  auto sigSize = SigManager::instance()->getMySigLength();
   bodySize += sigSize + b()->sizeOfAllComplaints;
 
   auto sizeOfComplaint = complaint->size();
@@ -131,7 +132,7 @@ bool ViewChangeMsg::clearAllComplaints() {
   b()->numberOfComplaints = 0;
   if (reallocSize(ReplicaConfig::instance().getmaxExternalMessageSize())) {
     auto bodySize = getBodySize();
-    auto sigSize = SigManager::getInstance()->getMySigLength();
+    auto sigSize = SigManager::instance()->getMySigLength();
     memset(body() + bodySize + sigSize, 0, storageSize_ - (bodySize + sigSize));
     return true;
   } else {
@@ -141,7 +142,7 @@ bool ViewChangeMsg::clearAllComplaints() {
 
 void ViewChangeMsg::finalizeMessage() {
   auto bodySize = getBodySize();
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
 
   auto sigSize = sigManager->getMySigLength();
 
@@ -165,7 +166,7 @@ void ViewChangeMsg::finalizeMessage() {
 }
 
 void ViewChangeMsg::validate(const ReplicasInfo& repInfo) const {
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
   if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
       idOfGeneratedReplica() == repInfo.myId())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
@@ -362,7 +363,7 @@ ViewChangeMsg::ComplaintsIterator::ComplaintsIterator(const ViewChangeMsg* const
   } else {
     endLoc = m->size();
     auto bodySize = m->getBodySize();
-    currLoc = bodySize + SigManager::getInstance()->getMySigLength();
+    currLoc = bodySize + SigManager::instance()->getMySigLength();
     ConcordAssert(endLoc > currLoc);
     nextComplaintNum = 1;
   }

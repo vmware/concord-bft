@@ -45,8 +45,11 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   ReplicasInfo replicaInfo(config, true, true);
-  std::unique_ptr<SigManager> sigManager(createSigManager(
-      config.replicaId, config.replicaPrivateKey, KeyFormat::HexaDecimalStrippedFormat, config.publicKeysOfReplicas));
+  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+                                                          config.replicaPrivateKey,
+                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          config.publicKeysOfReplicas,
+                                                          replicaInfo));
   ViewsManager manager(&replicaInfo);
   ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
@@ -184,8 +187,11 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
   ReplicasInfo replicaInfo(config, true, true);
-  std::unique_ptr<SigManager> sigManager(createSigManager(
-      config.replicaId, config.replicaPrivateKey, KeyFormat::HexaDecimalStrippedFormat, config.publicKeysOfReplicas));
+  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+                                                          config.replicaPrivateKey,
+                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          config.publicKeysOfReplicas,
+                                                          replicaInfo));
   ViewsManager manager(&replicaInfo);
   ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);

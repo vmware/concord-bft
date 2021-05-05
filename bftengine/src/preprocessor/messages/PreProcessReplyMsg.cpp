@@ -12,6 +12,7 @@
 #include "PreProcessReplyMsg.hpp"
 #include "ReplicaConfig.hpp"
 #include "assertUtils.hpp"
+#include "SigManager.hpp"
 
 namespace preprocessor {
 
@@ -43,7 +44,7 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   auto& msgHeader = *msgBody();
   ConcordAssert(msgHeader.senderId != repInfo.myId());
 
-  auto sigManager = SigManager::getInstance();
+  auto sigManager = SigManager::instance();
   uint16_t sigLen = sigManager->getSigLength(msgHeader.senderId);
   if (msgHeader.status == STATUS_GOOD) {
     if (size() < (sizeof(Header) + sigLen)) {
@@ -79,7 +80,7 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
   const uint16_t headerSize = sizeof(Header);
   uint16_t sigSize = 0;
   if (status == STATUS_GOOD) {
-    auto sigManager = SigManager::getInstance();
+    auto sigManager = SigManager::instance();
     sigSize = sigManager->getMySigLength();
     SHA3_256::Digest hash;
     // Calculate pre-process result hash

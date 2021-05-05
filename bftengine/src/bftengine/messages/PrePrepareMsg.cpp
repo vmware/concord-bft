@@ -64,14 +64,14 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 
   if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 
-  if (SigManager::getInstance()->isClientTransactionSigningEnabled()) {
+  if (SigManager::instance()->isClientTransactionSigningEnabled()) {
     auto it = RequestsIterator(this);
     char* requestBody = nullptr;
+    // Here we validate each of the client requests arriving encapsulated inside the pre-prepare message
+    // This might also include validating the request's client signature
     while (it.getAndGoToNext(requestBody)) {
       ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-      if (req.getExpectedSignatureLength() > 0) {
-        req.validateRequestSignature(repInfo);
-      }
+      req.validate(repInfo);
     }
   }
 }
