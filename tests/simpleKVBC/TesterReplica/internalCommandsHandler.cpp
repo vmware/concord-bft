@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <variant>
+#include "ReplicaConfig.hpp"
 
 using namespace BasicRandomTests;
 using namespace bftEngine;
@@ -67,8 +68,15 @@ static void add(std::string &&key,
 void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
                                       const std::string &batchCid,
                                       concordUtils::SpanWrapper &parent_span) {
+  if (requests.empty()) return;
+
+  // To handle block accumulation if enabled
+  VersionedUpdates verUpdates;
+  BlockMerkleUpdates merkleUpdates;
+
+  auto pre_execute = requests.back().flags & bftEngine::PRE_PROCESS_FLAG;
+
   for (auto &req : requests) {
-    // ReplicaSpecificInfo is not currently used in the TesterReplica
     if (req.outExecutionStatus != 1) continue;
     req.outReplicaSpecificInfoSize = 0;
     int res;
@@ -88,16 +96,28 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                    req.outActualReplySize,
                                    req.outReplicaSpecificInfoSize);
     } else {
+      bool isBlockAccumulationEnabled = (ReplicaConfig::instance().blockAccumulation &&
+                                         (!pre_execute && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)));
+
       res = executeWriteCommand(req.requestSize,
                                 req.request,
                                 req.executionSequenceNum,
                                 req.flags,
                                 req.maxReplySize,
                                 req.outReply,
-                                req.outActualReplySize);
+                                req.outActualReplySize,
+                                isBlockAccumulationEnabled,
+                                verUpdates,
+                                merkleUpdates);
     }
+
     if (!res) LOG_ERROR(m_logger, "Command execution failed!");
     req.outExecutionStatus = res ? 0 : -1;
+  }
+
+  if (!pre_execute && (merkleUpdates.size() > 0 || verUpdates.size() > 0)) {
+    // Write Block accumulated requests
+    writeAccumulatedBlock(requests, verUpdates, merkleUpdates);
   }
 }
 
@@ -187,6 +207,27 @@ std::optional<std::map<std::string, std::string>> InternalCommandsHandler::getBl
   return ret;
 }
 
+void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &blockedRequests,
+                                                    VersionedUpdates &verUpdates,
+                                                    BlockMerkleUpdates &merkleUpdates) {
+  // Only block accumulated requests will be processed here
+  BlockId currBlock = m_storage->getLastBlockId();
+
+  for (auto &req : blockedRequests) {
+    if (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG) {
+      auto *reply = (SimpleReply_ConditionalWrite *)req.outReply;
+      if (reply->success)
+        reply->latestBlock = currBlock + 1;
+      else
+        reply->latestBlock = currBlock;
+      LOG_INFO(
+          m_logger,
+          "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << reply->latestBlock);
+    }
+  }
+  addBlock(verUpdates, merkleUpdates);
+}
+
 bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
                                                  const SimpleCondWriteRequest &request,
                                                  size_t maxReplySize,
@@ -209,13 +250,39 @@ bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
   return true;
 }
 
+void InternalCommandsHandler::addKeys(SimpleCondWriteRequest *writeReq,
+                                      uint64_t sequenceNum,
+                                      VersionedUpdates &verUpdates,
+                                      BlockMerkleUpdates &merkleUpdates) {
+  SimpleKV *keyValArray = writeReq->keyValueArray();
+  for (size_t i = 0; i < writeReq->numOfWrites; i++) {
+    add(std::string(keyValArray[i].simpleKey.key, KV_LEN),
+        std::string(keyValArray[i].simpleValue.value, KV_LEN),
+        verUpdates,
+        merkleUpdates);
+  }
+  addMetadataKeyValue(verUpdates, sequenceNum);
+}
+
+void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkleUpdates &merkleUpdates) {
+  BlockId currBlock = m_storage->getLastBlockId();
+
+  Updates updates;
+  updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
+  updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
+  const auto newBlockId = m_blockAdder->add(std::move(updates));
+  ConcordAssert(newBlockId == currBlock + 1);
+}
 bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   const char *request,
                                                   uint64_t sequenceNum,
                                                   uint8_t flags,
                                                   size_t maxReplySize,
                                                   char *outReply,
-                                                  uint32_t &outReplySize) {
+                                                  uint32_t &outReplySize,
+                                                  bool isBlockAccumulationEnabled,
+                                                  VersionedUpdates &blockAccumulatedVerUpdates,
+                                                  BlockMerkleUpdates &blockAccumulatedMerkleUpdates) {
   auto *writeReq = (SimpleCondWriteRequest *)request;
   LOG_INFO(m_logger,
            "Execute WRITE command:"
@@ -224,7 +291,8 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                << " readVersion=" << writeReq->readVersion
                << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
-               << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false"));
+               << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false")
+               << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled);
 
   if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
     bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
@@ -249,21 +317,16 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
   }
 
   if (!hasConflict) {
-    SimpleKV *keyValArray = writeReq->keyValueArray();
-    Updates updates;
-    VersionedUpdates verUpdates;
-    BlockMerkleUpdates merkleUpdates;
-    for (size_t i = 0; i < writeReq->numOfWrites; i++) {
-      add(std::string(keyValArray[i].simpleKey.key, KV_LEN),
-          std::string(keyValArray[i].simpleValue.value, KV_LEN),
-          verUpdates,
-          merkleUpdates);
+    if (isBlockAccumulationEnabled) {
+      // If Block Accumulation is enabled then blocks are added after all requests are processed
+      addKeys(writeReq, sequenceNum, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates);
+    } else {
+      // If Block Accumulation is not enabled then blocks are added after all requests are processed
+      VersionedUpdates verUpdates;
+      BlockMerkleUpdates merkleUpdates;
+      addKeys(writeReq, sequenceNum, verUpdates, merkleUpdates);
+      addBlock(verUpdates, merkleUpdates);
     }
-    addMetadataKeyValue(verUpdates, sequenceNum);
-    updates.add(VERSIONED_KV_CAT_ID, std::move(verUpdates));
-    updates.add(BLOCK_MERKLE_CAT_ID, std::move(merkleUpdates));
-    const auto newBlockId = m_blockAdder->add(std::move(updates));
-    ConcordAssert(newBlockId == currBlock + 1);
   }
 
   ConcordAssert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
@@ -277,9 +340,11 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
 
   outReplySize = sizeof(SimpleReply_ConditionalWrite);
   ++m_writesCounter;
-  LOG_INFO(
-      m_logger,
-      "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << reply->latestBlock);
+
+  if (!isBlockAccumulationEnabled)
+    LOG_INFO(
+        m_logger,
+        "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << reply->latestBlock);
   return true;
 }
 
