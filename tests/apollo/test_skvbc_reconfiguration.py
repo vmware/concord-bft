@@ -58,7 +58,6 @@ def start_replica_cmd(builddir, replica_id):
 
 
 class SkvbcReconfigurationTest(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls.object_store = ObjectStore()
