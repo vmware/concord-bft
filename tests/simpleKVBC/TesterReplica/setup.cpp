@@ -59,6 +59,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
+    replicaConfig.pathToOperatorPublicKey_ = "/concord-bft/tests/simpleKVBC/scripts/operator_pub.pem";
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
