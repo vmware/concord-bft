@@ -46,7 +46,7 @@ jobs:
                               ${{ matrix.ci_build_type }} \
                               -DBUILD_TESTING=ON \
                               -DBUILD_COMM_TCP_PLAIN=FALSE \
-                              -DCMAKE_CXX_FLAGS_RELEASE=-O3 -g \
+                              -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
                               -DUSE_LOG4CPP=TRUE \
                               -DBUILD_ROCKSDB_STORAGE=TRUE \
                               ${{ matrix.use_s3_obj_store }} \
