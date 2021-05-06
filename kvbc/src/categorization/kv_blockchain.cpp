@@ -262,7 +262,7 @@ Category& KeyValueBlockchain::getCategoryRef(const std::string& cat_id) {
 std::optional<Value> KeyValueBlockchain::get(const std::string& category_id,
                                              const std::string& key,
                                              BlockId block_id) const {
-  diagnostics::TimeRecorder scoped_timer(*histograms_.get);
+  diagnostics::TimeRecorder<true> scoped_timer(*histograms_.get);
   const auto category = getCategoryPtr(category_id);
   if (!category) {
     return std::nullopt;
@@ -273,7 +273,7 @@ std::optional<Value> KeyValueBlockchain::get(const std::string& category_id,
 }
 
 std::optional<Value> KeyValueBlockchain::getLatest(const std::string& category_id, const std::string& key) const {
-  diagnostics::TimeRecorder scoped_timer(*histograms_.getLatest);
+  diagnostics::TimeRecorder<true> scoped_timer(*histograms_.getLatest);
   const auto category = getCategoryPtr(category_id);
   if (!category) {
     return std::nullopt;
@@ -287,7 +287,7 @@ void KeyValueBlockchain::multiGet(const std::string& category_id,
                                   const std::vector<std::string>& keys,
                                   const std::vector<BlockId>& versions,
                                   std::vector<std::optional<Value>>& values) const {
-  diagnostics::TimeRecorder scoped_timer(*histograms_.multiGet);
+  diagnostics::TimeRecorder<true> scoped_timer(*histograms_.multiGet);
   const auto category = getCategoryPtr(category_id);
   if (!category) {
     nullopts(values, keys.size());
@@ -300,7 +300,7 @@ void KeyValueBlockchain::multiGet(const std::string& category_id,
 void KeyValueBlockchain::multiGetLatest(const std::string& category_id,
                                         const std::vector<std::string>& keys,
                                         std::vector<std::optional<Value>>& values) const {
-  diagnostics::TimeRecorder scoped_timer(*histograms_.multiGetLatest);
+  diagnostics::TimeRecorder<true> scoped_timer(*histograms_.multiGetLatest);
   const auto category = getCategoryPtr(category_id);
   if (!category) {
     nullopts(values, keys.size());
@@ -665,7 +665,7 @@ void KeyValueBlockchain::addRawBlock(const RawBlock& block, const BlockId& block
 }
 
 std::optional<RawBlock> KeyValueBlockchain::getRawBlock(const BlockId& block_id) const {
-  diagnostics::TimeRecorder scoped_timer(*histograms_.getRawBlock);
+  diagnostics::TimeRecorder<true> scoped_timer(*histograms_.getRawBlock);
   const auto last_reachable_block = getLastReachableBlockId();
 
   // Try to take it from the ST chain

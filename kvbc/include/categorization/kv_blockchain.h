@@ -256,7 +256,6 @@ class KeyValueBlockchain {
   // 1 second
   static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;
   using Recorder = concord::diagnostics::Recorder;
-  // ToDo: Move this to private and then maybe public of ReplicaImp.h of kvbc
 
   struct Recorders {
     Recorders() {
