@@ -91,9 +91,12 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   struct Recorders {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent(
-          "incomingMsgsStorageImp",
-          {external_queue_len_at_swap, internal_queue_len_at_swap, get_msg_for_processing, dropped_msgs_in_a_row});
+      registrar.perf.registerComponent("incomingMsgsStorageImp",
+                                       {external_queue_len_at_swap,
+                                        internal_queue_len_at_swap,
+                                        get_msg_for_processing,
+                                        evaluate_timers,
+                                        dropped_msgs_in_a_row});
     }
     DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
 
@@ -101,6 +104,8 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
 
     DEFINE_SHARED_RECORDER(
         get_msg_for_processing, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+
+    DEFINE_SHARED_RECORDER(evaluate_timers, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
 
     DEFINE_SHARED_RECORDER(dropped_msgs_in_a_row, 1, 100000, 3, concord::diagnostics::Unit::COUNT);
   };
