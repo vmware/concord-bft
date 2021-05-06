@@ -142,7 +142,10 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
   try {
     while (!stopped_) {
       auto msg = getMsgForProcessing();
-      timers_.evaluate();
+      {
+        TimeRecorder scoped_timer(*histograms_.evaluate_timers);
+        timers_.evaluate();
+      }
 
       MessageBase* message = nullptr;
       MsgHandlerCallback msgHandlerCallback = nullptr;
