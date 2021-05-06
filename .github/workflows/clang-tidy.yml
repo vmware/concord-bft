@@ -27,7 +27,7 @@ jobs:
                             ${{ matrix.ci_build_type }} \
                             -DBUILD_TESTING=ON \
                             ${{ matrix.comm_type }} \
-                            -DCMAKE_CXX_FLAGS_RELEASE=-O3 -g \
+                            -DCMAKE_CXX_FLAGS_RELEASE='-O3 -g' \
                             -DUSE_LOG4CPP=TRUE \
                             -DBUILD_ROCKSDB_STORAGE=TRUE \
                             -DUSE_S3_OBJECT_STORE=TRUE \
