@@ -46,7 +46,10 @@ Status ClientImp::start() {
 
 Status ClientImp::stop() {
   // TODO: implement
-  return Status::IllegalOperation("Not implemented");
+  if (0 != comm_->Stop()) {
+    return Status::GeneralError("No tls runner to stop");
+  }
+  return Status::OK();
 }
 
 bool ClientImp::isRunning() { return (bftClient_ != nullptr); }
