@@ -1,6 +1,6 @@
 CONCORD_BFT_DOCKER_REPO?=concordbft/
 CONCORD_BFT_DOCKER_IMAGE?=concord-bft
-CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.23
+CONCORD_BFT_DOCKER_IMAGE_VERSION?=0.24
 CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 
 CONCORD_BFT_DOCKERFILE?=Dockerfile
@@ -8,6 +8,7 @@ CONCORD_BFT_BUILD_DIR?=build
 CONCORD_BFT_TARGET_SOURCE_PATH?=/concord-bft
 CONCORD_BFT_KVBC_CMF_PATHS?=/concord-bft/build/kvbc/cmf
 CONCORD_BFT_RECONFIGURATION_CMF_PATHS?=/concord-bft/build/reconfiguration/cmf
+CONCORD_BFT_CLIENT_PROTO_PATH?=/concord-bft/build/client/clientservice/proto
 CONCORD_BFT_CONTAINER_SHELL?=/bin/bash
 CONCORD_BFT_CONTAINER_CC?=clang
 CONCORD_BFT_CONTAINER_CXX?=clang++
@@ -166,6 +167,7 @@ tidy-check: gen_cmake ## Run clang-tidy
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		make -C ${CONCORD_BFT_KVBC_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
+		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		run-clang-tidy-10 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
 		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \
