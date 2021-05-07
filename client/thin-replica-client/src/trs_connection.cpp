@@ -25,7 +25,6 @@ using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
 using com::vmware::concord::thin_replica::ThinReplica;
 
-using grpc::Channel;
 using grpc::ChannelArguments;
 using grpc::ClientContext;
 using grpc::InsecureChannelCredentials;
@@ -426,13 +425,13 @@ std::string TrsConnection::getClientIdFromClientCert(const std::string& client_c
 std::string TrsConnection::parseClientIdFromSubject(const std::string& subject_str) {
   std::string delim = "OU = ";
   size_t start = subject_str.find(delim) + delim.length();
-  size_t end = subject_str.find(",", start);
+  size_t end = subject_str.find(',', start);
   std::string raw_str = subject_str.substr(start, end - start);
   size_t fstart = 0;
   size_t fend = raw_str.length();
   // remove surrounding whitespaces and newlines
-  if (raw_str.find_first_not_of(" ") != std::string::npos) fstart = raw_str.find_first_not_of(" ");
-  if (raw_str.find_last_not_of(" ") != std::string::npos) fend = raw_str.find_last_not_of(" ");
+  if (raw_str.find_first_not_of(' ') != std::string::npos) fstart = raw_str.find_first_not_of(' ');
+  if (raw_str.find_last_not_of(' ') != std::string::npos) fend = raw_str.find_last_not_of(' ');
   raw_str.erase(std::remove(raw_str.begin(), raw_str.end(), '\n'), raw_str.end());
   return raw_str.substr(fstart, fend - fstart + 1);
 }
