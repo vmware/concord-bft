@@ -24,6 +24,8 @@
 #include <climits>
 #include <string>
 
+#include "assertUtils.hpp"
+
 namespace thin_replica_client {
 
 // Class of exception wrappers declared in this file may throw in the event they

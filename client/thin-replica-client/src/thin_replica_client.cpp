@@ -105,7 +105,7 @@ unique_ptr<Update> BasicUpdateQueue::Pop() {
   if (release_consumers_) {
     return unique_ptr<Update>(nullptr);
   }
-  assert(queue_data_.size() > 0);
+  ConcordAssert(queue_data_.size() > 0);
   unique_ptr<Update> ret = move(queue_data_.front());
   queue_data_.pop_front();
   return ret;
@@ -162,7 +162,7 @@ void ThinReplicaClient::readUpdateHashFromStream(
     metrics_.read_failures_per_update++;
     return;
   }
-  assert(read_result == TrsConnection::Result::kSuccess);
+  ConcordAssert(read_result == TrsConnection::Result::kSuccess);
 
   if (hash.block_id() < latest_verified_block_id_) {
     LOG4CPLUS_WARN(
@@ -181,7 +181,7 @@ void ThinReplicaClient::readUpdateHashFromStream(
 
   LOG4CPLUS_DEBUG(logger_, "Record hash for block " << hash.block_id());
   string hash_string = hash.hash();
-  assert(hash_string.length() <= kThinReplicaHashLength);
+  ConcordAssert(hash_string.length() <= kThinReplicaHashLength);
   hash_string.resize(kThinReplicaHashLength, '\0');
 
   recordCollectedHash(server_index,
@@ -218,7 +218,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
     metrics_.read_failures_per_update++;
     return {false, nullptr};
   }
-  assert(read_result == TrsConnection::Result::kSuccess);
+  ConcordAssert(read_result == TrsConnection::Result::kSuccess);
 
   auto span = TraceContexts::CreateChildSpanFromBinary(
       update_in.span_context(), "trc_read_block", update_in.correlation_id(), logger_);
@@ -243,7 +243,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
 }
 
 TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index) {
-  assert(server_index != data_conn_index_);
+  ConcordAssert(server_index != data_conn_index_);
   config_->trs_conns[server_index]->cancelHashStream();
 
   SubscriptionRequest request;
@@ -273,7 +273,7 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
   });
 
   for (auto server_index : sorted_servers) {
-    assert(config_->trs_conns[server_index]);
+    ConcordAssertNE(config_->trs_conns[server_index], nullptr);
     if (servers_tried[server_index]) {
       continue;
     }
@@ -287,9 +287,9 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
 
       // Assert the possible TrsConnection::Result values have not changed
       // without updating the following code.
-      assert(stream_open_status == TrsConnection::Result::kSuccess ||
-             stream_open_status == TrsConnection::Result::kTimeout ||
-             stream_open_status == TrsConnection::Result::kFailure);
+      ConcordAssert(stream_open_status == TrsConnection::Result::kSuccess ||
+                    stream_open_status == TrsConnection::Result::kTimeout ||
+                    stream_open_status == TrsConnection::Result::kFailure);
 
       if (stream_open_status == TrsConnection::Result::kTimeout) {
         LOG4CPLUS_DEBUG(logger_, "Opening a hash stream to server " << server_index << " timed out.");
@@ -315,7 +315,7 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
 }
 
 TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) {
-  assert(config_->trs_conns[server_index]);
+  ConcordAssertNE(config_->trs_conns[server_index], nullptr);
   config_->trs_conns[server_index]->cancelDataStream();
   config_->trs_conns[server_index]->cancelHashStream();
   config_->trs_conns[data_conn_index_]->cancelDataStream();
@@ -350,7 +350,7 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
   }
 
   for (const auto server_index : agreeing_subset_members[most_agreed_block]) {
-    assert(server_index < config_->trs_conns.size());
+    ConcordAssert(server_index < config_->trs_conns.size());
     if (stop_subscription_thread_) {
       return false;
     }
@@ -372,7 +372,8 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
       metrics_.read_failures_per_update++;
       continue;
     }
-    assert(open_stream_result == TrsConnection::Result::kSuccess && read_result == TrsConnection::Result::kSuccess);
+    ConcordAssert(open_stream_result == TrsConnection::Result::kSuccess &&
+                  read_result == TrsConnection::Result::kSuccess);
 
     cid.reset();
     cid.reset(new LogCid(update_in.correlation_id()));
@@ -410,8 +411,8 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
 void ThinReplicaClient::logDataStreamResetResult(const TrsConnection::Result& result, size_t server_index) {
   // Assert the possible TrsConnection::Result values have not changed without
   // updating the following code.
-  assert(result == TrsConnection::Result::kSuccess || result == TrsConnection::Result::kTimeout ||
-         result == TrsConnection::Result::kFailure);
+  ConcordAssert(result == TrsConnection::Result::kSuccess || result == TrsConnection::Result::kTimeout ||
+                result == TrsConnection::Result::kFailure);
 
   if (result == TrsConnection::Result::kTimeout) {
     LOG4CPLUS_DEBUG(logger_, "Opening a data stream to server " << server_index << " timed out.");
@@ -424,7 +425,7 @@ void ThinReplicaClient::logDataStreamResetResult(const TrsConnection::Result& re
 }
 
 void ThinReplicaClient::receiveUpdates() {
-  assert(config_->trs_conns.size() > 0);
+  ConcordAssert(config_->trs_conns.size() > 0);
 
   if (stop_subscription_thread_) {
     LOG4CPLUS_WARN(logger_, "Need to stop receiving updates");
@@ -508,10 +509,10 @@ void ThinReplicaClient::receiveUpdates() {
       }
     }
 
-    assert(has_verified_data);
+    ConcordAssert(has_verified_data);
     LOG4CPLUS_DEBUG(logger_, "Read and verified data for block " << update_in.block_id());
 
-    assert(config_->update_queue);
+    ConcordAssertNE(config_->update_queue, nullptr);
 
     unique_ptr<Update> update(new Update());
     update->block_id = update_in.block_id();
@@ -595,13 +596,13 @@ void ThinReplicaClient::resetMetricsBeforeNextUpdate() {
 ThinReplicaClient::~ThinReplicaClient() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
-    assert(subscription_thread_->joinable());
+    ConcordAssert(subscription_thread_->joinable());
     subscription_thread_->join();
   }
 }
 
 void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
-  assert(config_->trs_conns.size() > 0);
+  ConcordAssert(config_->trs_conns.size() > 0);
   // XXX: The following implementation does not achieve Subscribe's specified
   //      interface and behavior (see the comments with Subscribe's declaration
   //      in the Thin Replica Client Library header file for documentation of
@@ -614,7 +615,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
   // Stop any existing subscription before trying to start a new one.
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
-    assert(subscription_thread_->joinable());
+    ConcordAssert(subscription_thread_->joinable());
     subscription_thread_->join();
     subscription_thread_.reset();
   }
@@ -650,7 +651,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
                          << data_server_index << ").");
       received_state_invalid = true;
     }
-    assert(stream_open_result == TrsConnection::Result::kSuccess || received_state_invalid);
+    ConcordAssert(stream_open_result == TrsConnection::Result::kSuccess || received_state_invalid);
 
     Data response;
     TrsConnection::Result read_result;
@@ -677,8 +678,8 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
         state.push_back(move(update));
       }
     }
-    assert(received_state_invalid || read_result == TrsConnection::Result::kFailure ||
-           read_result == TrsConnection::Result::kTimeout);
+    ConcordAssert(received_state_invalid || read_result == TrsConnection::Result::kFailure ||
+                  read_result == TrsConnection::Result::kTimeout);
     if (read_result == TrsConnection::Result::kTimeout) {
       LOG4CPLUS_WARN(logger_,
                      "While trying to fetch initial state for a subscription, "
@@ -705,7 +706,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
                          << data_server_index << ").");
       received_state_invalid = true;
     }
-    assert(stream_close_result == TrsConnection::Result::kSuccess || received_state_invalid);
+    ConcordAssert(stream_close_result == TrsConnection::Result::kSuccess || received_state_invalid);
 
     LOG4CPLUS_DEBUG(logger_, "Got initial state from " << data_server_index);
 
@@ -748,7 +749,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
                                  << " gave error response to ReadStateHash (requested Block ID: " << block_id << ").");
         continue;
       }
-      assert(read_hash_result == TrsConnection::Result::kSuccess);
+      ConcordAssert(read_hash_result == TrsConnection::Result::kSuccess);
       if (hash_response.block_id() != block_id) {
         LOG4CPLUS_WARN(logger_,
                        "Server " << hash_server_index - 1
@@ -802,7 +803,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes, uint64_t block
   // Stop any existing subscription before trying to start a new one.
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
-    assert(subscription_thread_->joinable());
+    ConcordAssert(subscription_thread_->joinable());
     subscription_thread_->join();
     subscription_thread_.reset();
   }
@@ -831,14 +832,14 @@ void ThinReplicaClient::Unsubscribe() {
   LOG4CPLUS_DEBUG(logger_, "Unsubscribe");
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
-    assert(subscription_thread_->joinable());
+    ConcordAssert(subscription_thread_->joinable());
     subscription_thread_->join();
     subscription_thread_.reset();
   }
 
   size_t server_to_send_unsubscription_to = 0;
-  assert(config_->trs_conns.size() > server_to_send_unsubscription_to);
-  assert(config_->trs_conns[server_to_send_unsubscription_to]);
+  ConcordAssert(config_->trs_conns.size() > server_to_send_unsubscription_to);
+  ConcordAssertNE(config_->trs_conns[server_to_send_unsubscription_to], nullptr);
 }
 
 // This is a placeholder implementation as the AckUpdate gRPC call is not yet
@@ -856,6 +857,6 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
   AckMessage.set_block_id(block_id);
 
   size_t server_to_acknowledge_to = 0;
-  assert(config_->trs_conns.size() > server_to_acknowledge_to);
-  assert(config_->trs_conns[server_to_acknowledge_to]);
+  ConcordAssert(config_->trs_conns.size() > server_to_acknowledge_to);
+  ConcordAssertNE(config_->trs_conns[server_to_acknowledge_to], nullptr);
 }
