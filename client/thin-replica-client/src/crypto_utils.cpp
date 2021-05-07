@@ -52,7 +52,7 @@ string thin_replica_client::ComputeSHA256Hash(const string& data) {
         "OpenSSL Crypto unexpectedly failed to hash data with SHA-256.");
   }
 
-  assert(kExpectedSHA256HashLengthInBytes == EVP_MD_size(EVP_sha256()));
+  ConcordAssert(kExpectedSHA256HashLengthInBytes == EVP_MD_size(EVP_sha256()));
 
   string hash(kExpectedSHA256HashLengthInBytes, (char)0);
   unsigned int hash_bytes_written;
