@@ -26,8 +26,6 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
-#include "diagnostics.h"
-#include "performance_handler.h"
 
 namespace concord::kvbc {
 
@@ -179,26 +177,6 @@ class ReplicaImp : public IReplica,
   // and there is no instance of SecretsManagerEnc available
   const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsManager_;
 
-  // 5 Minutes
-  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60 * 5;
-  // 1 second
-  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;
-  using Recorder = concord::diagnostics::Recorder;
-  struct Recorders {
-    Recorders() {
-      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("kvbc",
-                                       {get_value, get_block, get_block_data, may_have_conflict_between, add_block});
-    }
-    DEFINE_SHARED_RECORDER(get_value, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(get_block, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(get_block_data, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        may_have_conflict_between, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(add_block, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-  };
-
-  Recorders histograms_;
 };  // namespace concord::kvbc
 
 }  // namespace concord::kvbc
