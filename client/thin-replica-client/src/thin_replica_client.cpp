@@ -33,9 +33,6 @@ using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
 using std::atomic_bool;
-using std::condition_variable;
-using std::exception;
-using std::hash;
 using std::list;
 using std::lock_guard;
 using std::logic_error;
@@ -44,7 +41,6 @@ using std::map;
 using std::mutex;
 using std::pair;
 using std::runtime_error;
-using std::shared_ptr;
 using std::string;
 using std::stringstream;
 using std::thread;
@@ -130,7 +126,7 @@ uint64_t thin_replica_client::BasicUpdateQueue::Size() { return queue_data_.size
 void ThinReplicaClient::recordCollectedHash(
     size_t update_source,
     uint64_t block_id,
-    string update_hash,
+    const string& update_hash,
     map<pair<uint64_t, string>, unordered_set<size_t>>& server_indexes_by_reported_update,
     size_t& maximal_agreeing_subset_size,
     pair<uint64_t, string>& maximally_agreed_on_update) {
@@ -673,7 +669,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
         update->block_id = block_id;
         update->correlation_id_ = response.correlation_id();
         for (int i = 0; i < response.data_size(); ++i) {
-          KVPair kvp = response.data(i);
+          const KVPair& kvp = response.data(i);
           update->kv_pairs.push_back(make_pair(kvp.key(), kvp.value()));
           size_t update_tail_index = update->kv_pairs.size() - 1;
         }
