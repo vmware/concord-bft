@@ -159,7 +159,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             len(bft_network.procs), 2 * f + 2 * c + 1,
             "Make sure enough replicas are up to allow a successful view change")
 
-        await self._send_random_writes(tracker)
+        await self._send_random_writes(tracker,3)
 
         await bft_network.wait_for_view(
             replica_id=random.choice(bft_network.all_replicas(without=crashed_replicas)),
@@ -501,8 +501,8 @@ class SkvbcViewChangeTest(unittest.TestCase):
                     else:
                         break
 
-    async def _send_random_writes(self, tracker):
-        with trio.move_on_after(seconds=1):
+    async def _send_random_writes(self, tracker, timeout=1):
+        with trio.move_on_after(seconds=timeout):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
 
