@@ -51,6 +51,7 @@
 #include "thin_replica.pb.h"
 #include "trs_connection.hpp"
 #include "update.hpp"
+#include "assertUtils.hpp"
 
 #include <log4cplus/loggingmacros.h>
 #include <opentracing/span.h>

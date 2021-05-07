@@ -20,6 +20,7 @@
 
 #include <grpcpp/grpcpp.h>
 #include <log4cplus/loggingmacros.h>
+#include "assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
 
 using namespace std::chrono_literals;

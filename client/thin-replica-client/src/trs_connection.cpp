@@ -40,7 +40,7 @@ using namespace std::chrono_literals;
 namespace thin_replica_client {
 
 void TrsConnection::createStub() {
-  assert(channel_);
+  ConcordAssertNE(channel_, nullptr);
   stub_ = ThinReplica::NewStub(channel_);
 }
 
@@ -122,9 +122,9 @@ void TrsConnection::disconnect() {
 }
 
 TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& request) {
-  assert(stub_);
-  assert(!data_stream_);
-  assert(!data_context_);
+  ConcordAssertNE(stub_, nullptr);
+  ConcordAssertEQ(data_stream_, nullptr);
+  ConcordAssertEQ(data_context_, nullptr);
 
   data_context_.reset(new grpc::ClientContext());
   data_context_->AddMetadata("client_id", client_id_);
@@ -145,7 +145,7 @@ TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& r
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   data_stream_ = stream.get();
   if (!data_stream_) {
     data_context_.reset();
@@ -157,10 +157,10 @@ TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& r
 
 void TrsConnection::cancelDataStream() {
   if (!data_stream_) {
-    assert(!data_context_);
+    ConcordAssertEQ(data_context_, nullptr);
     return;
   }
-  assert(data_context_);
+  ConcordAssertNE(data_context_, nullptr);
   data_context_->TryCancel();
   data_context_.reset();
   data_stream_.reset();
@@ -169,8 +169,8 @@ void TrsConnection::cancelDataStream() {
 bool TrsConnection::hasDataStream() { return bool(data_stream_); }
 
 TrsConnection::Result TrsConnection::readData(Data* data) {
-  assert(data_stream_);
-  assert(data_context_);
+  ConcordAssertNE(data_stream_, nullptr);
+  ConcordAssertNE(data_context_, nullptr);
 
   auto result = async(launch::async, [this, data] { return data_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
@@ -182,14 +182,14 @@ TrsConnection::Result TrsConnection::readData(Data* data) {
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   return result.get() ? Result::kSuccess : Result::kFailure;
 }
 
 TrsConnection::Result TrsConnection::openStateStream(const ReadStateRequest& request) {
-  assert(stub_);
-  assert(!state_stream_);
-  assert(!state_context_);
+  ConcordAssertNE(stub_, nullptr);
+  ConcordAssertEQ(state_stream_, nullptr);
+  ConcordAssertEQ(state_context_, nullptr);
 
   state_context_.reset(new grpc::ClientContext());
   state_context_->AddMetadata("client_id", client_id_);
@@ -209,7 +209,7 @@ TrsConnection::Result TrsConnection::openStateStream(const ReadStateRequest& req
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   state_stream_ = stream.get();
   if (!state_stream_) {
     state_context_.reset();
@@ -221,10 +221,10 @@ TrsConnection::Result TrsConnection::openStateStream(const ReadStateRequest& req
 
 void TrsConnection::cancelStateStream() {
   if (!state_stream_) {
-    assert(!state_context_);
+    ConcordAssertEQ(state_context_, nullptr);
     return;
   }
-  assert(state_context_);
+  ConcordAssertNE(state_context_, nullptr);
   state_context_->TryCancel();
   state_context_.reset();
   state_stream_.reset();
@@ -234,7 +234,7 @@ TrsConnection::Result TrsConnection::closeStateStream() {
   if (!state_stream_) {
     return Result::kSuccess;
   }
-  assert(state_context_);
+  ConcordAssertNE(state_context_, nullptr);
 
   // "state" is not an infite data stream and we expect proper termination
   auto result = async(launch::async, [this] { return state_stream_->Finish(); });
@@ -247,7 +247,7 @@ TrsConnection::Result TrsConnection::closeStateStream() {
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   state_context_.reset();
   state_stream_.reset();
   Status finish_reported_status = result.get();
@@ -265,8 +265,8 @@ TrsConnection::Result TrsConnection::closeStateStream() {
 bool TrsConnection::hasStateStream() { return bool(state_stream_); }
 
 TrsConnection::Result TrsConnection::readState(Data* data) {
-  assert(state_stream_);
-  assert(state_context_);
+  ConcordAssertNE(state_stream_, nullptr);
+  ConcordAssertNE(state_context_, nullptr);
 
   auto result = async(launch::async, [this, data] { return state_stream_->Read(data); });
   auto status = result.wait_for(data_timeout_);
@@ -278,12 +278,12 @@ TrsConnection::Result TrsConnection::readState(Data* data) {
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   return result.get() ? Result::kSuccess : Result::kFailure;
 }
 
 TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& request, Hash* hash) {
-  assert(stub_);
+  ConcordAssertNE(stub_, nullptr);
 
   ClientContext context;
   context.AddMetadata("client_id", client_id_);
@@ -296,7 +296,7 @@ TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& r
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   Status call_grpc_status = result.get();
   if (!call_grpc_status.ok()) {
     LOG4CPLUS_WARN(logger_,
@@ -307,9 +307,9 @@ TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& r
 }
 
 TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request) {
-  assert(stub_);
-  assert(!hash_stream_);
-  assert(!hash_context_);
+  ConcordAssertNE(stub_, nullptr);
+  ConcordAssertEQ(hash_stream_, nullptr);
+  ConcordAssertEQ(hash_context_, nullptr);
 
   hash_context_.reset(new grpc::ClientContext());
   hash_context_->AddMetadata("client_id", client_id_);
@@ -330,7 +330,7 @@ TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   hash_stream_ = stream.get();
   if (!hash_stream_) {
     hash_context_.reset();
@@ -342,10 +342,10 @@ TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request
 
 void TrsConnection::cancelHashStream() {
   if (!hash_stream_) {
-    assert(!hash_context_);
+    ConcordAssertEQ(hash_context_, nullptr);
     return;
   }
-  assert(hash_context_);
+  ConcordAssertNE(hash_context_, nullptr);
   hash_context_->TryCancel();
   hash_context_.reset();
   hash_stream_.reset();
@@ -354,8 +354,8 @@ void TrsConnection::cancelHashStream() {
 bool TrsConnection::hasHashStream() { return bool(hash_stream_); }
 
 TrsConnection::Result TrsConnection::readHash(Hash* hash) {
-  assert(hash_stream_);
-  assert(hash_context_);
+  ConcordAssertNE(hash_stream_, nullptr);
+  ConcordAssertNE(hash_context_, nullptr);
 
   auto result = async(launch::async, [this, hash] { return hash_stream_->Read(hash); });
   auto status = result.wait_for(hash_timeout_);
@@ -367,7 +367,7 @@ TrsConnection::Result TrsConnection::readHash(Hash* hash) {
     return Result::kTimeout;
   }
 
-  assert(status == future_status::ready);
+  ConcordAssert(status == future_status::ready);
   return result.get() ? Result::kSuccess : Result::kFailure;
 }
 
