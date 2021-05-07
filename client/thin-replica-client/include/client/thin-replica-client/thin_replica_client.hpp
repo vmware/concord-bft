@@ -223,7 +223,7 @@ struct ThinReplicaClientConfig {
   // connection from this TRC to a specific Thin Replica Server.
   std::vector<std::unique_ptr<TrsConnection>> trs_conns;
 
-  ThinReplicaClientConfig(std::string client_id_,
+  ThinReplicaClientConfig(std::string& client_id_,
                           std::shared_ptr<UpdateQueue> update_queue_,
                           std::size_t max_faulty_,
                           std::vector<std::unique_ptr<TrsConnection>> trs_conns_)
@@ -330,7 +330,7 @@ class ThinReplicaClient final {
   void recordCollectedHash(
       size_t update_source,
       uint64_t block_id,
-      std::string update_hash,
+      const std::string& update_hash,
       std::map<std::pair<uint64_t, std::string>, std::unordered_set<size_t>>& server_indexes_by_reported_update,
       size_t& maximal_agreeing_subset_size,
       std::pair<uint64_t, std::string>& maximally_agreed_on_update);
