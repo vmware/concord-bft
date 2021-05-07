@@ -221,16 +221,16 @@ class PreProcessor {
   std::chrono::seconds metricsLastDumpTime_;
   std::chrono::seconds metricsDumpIntervalInSec_;
   struct PreProcessingMetrics {
-    concordMetrics::CounterHandle preProcReqReceived;
+    concordMetrics::AtomicCounterHandle preProcReqReceived;
     concordMetrics::CounterHandle preProcBatchReqReceived;
     concordMetrics::CounterHandle preProcReqInvalid;
-    concordMetrics::CounterHandle preProcReqIgnored;
-    concordMetrics::CounterHandle preProcReqRejected;
+    concordMetrics::AtomicCounterHandle preProcReqIgnored;
+    concordMetrics::AtomicCounterHandle preProcReqRejected;
     concordMetrics::CounterHandle preProcConsensusNotReached;
     concordMetrics::CounterHandle preProcessRequestTimedOut;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
     concordMetrics::CounterHandle preProcReqCompleted;
-    concordMetrics::GaugeHandle preProcInFlyRequestsNum;
+    concordMetrics::AtomicGaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle metricsTimer_;
