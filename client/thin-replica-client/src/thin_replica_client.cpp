@@ -672,7 +672,6 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
         for (int i = 0; i < response.data_size(); ++i) {
           const KVPair& kvp = response.data(i);
           update->kv_pairs.push_back(make_pair(kvp.key(), kvp.value()));
-          size_t update_tail_index = update->kv_pairs.size() - 1;
         }
         update_hashes.push_back(hashUpdate(*update));
         state.push_back(move(update));
