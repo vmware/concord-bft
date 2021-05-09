@@ -49,23 +49,35 @@ bool ReconfigurationHandler::handle(const DownloadCommand&, uint64_t, concord::m
 
 bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest& request,
                                              concord::messages::ReconfigurationErrorMsg& error_msg) const {
-  if (!verifier_) {
+  bool valid = false;
+
+  ReconfigurationRequest request_without_sig = request;
+  request_without_sig.signature = {};
+  std::vector<uint8_t> serialized_cmd;
+  concord::messages::serialize(serialized_cmd, request_without_sig);
+
+  auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
+  auto ser_sig = std::string(request.signature.begin(), request.signature.end());
+
+  if (!request.additional_data.empty() && request.additional_data.front() == internalCommandKey()) {
+    // It means we got an internal command, lets verify it with the internal verifiers
+    for (auto& verifier : internal_verifiers_) {
+      valid |= verifier->verify(ser_data.c_str(), ser_data.size(), ser_sig.c_str(), ser_sig.size());
+      if (valid) break;
+    }
+  } else if (!verifier_) {
     LOG_WARN(getLogger(),
              "The public operator public key is missing, the reconfiguration engine assumes that some higher level "
              "implementation is verifying the operator requests");
     return true;
   } else {
-    ReconfigurationRequest request_without_sig = request;
-    request_without_sig.signature = {};
-    std::vector<uint8_t> serialized_cmd;
-    concord::messages::serialize(serialized_cmd, request_without_sig);
-
-    auto valid = verifier_->verify(std::string(serialized_cmd.begin(), serialized_cmd.end()),
-                                   std::string(request.signature.begin(), request.signature.end()));
-    if (!valid) error_msg.error_msg = "Invalid signature";
-    return valid;
+    valid = verifier_->verify(ser_data, ser_sig);
   }
-  return false;
+  if (!valid) {
+    error_msg.error_msg = "Invalid signature";
+    LOG_ERROR(getLogger(), "The message's signature is invalid!");
+  }
+  return valid;
 }
 
 bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusCommand&,
@@ -84,6 +96,10 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallStatusComman
   return true;
 }
 ReconfigurationHandler::ReconfigurationHandler() {
+  for (const auto& [rep, pk] : bftEngine::ReplicaConfig::instance().publicKeysOfReplicas) {
+    internal_verifiers_.emplace_back(std::make_unique<bftEngine::impl::RSAVerifier>(pk.c_str()));
+    (void)rep;
+  }
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
   if (operatorPubKeyPath.empty()) {
     LOG_WARN(getLogger(),
