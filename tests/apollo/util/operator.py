@@ -25,10 +25,10 @@ from ecdsa import SigningKey
 from ecdsa.util import sigencode_der
 import hashlib
 class Operator:
-    def __init__(self, config, client):
+    def __init__(self, config, client, priv_key_dir):
         self.config = config
         self.client = client
-        with open("/concord-bft/tests/simpleKVBC/scripts/operator_priv.pem") as f:
+        with open(priv_key_dir + "/operator_priv.pem") as f:
             self.private_key = SigningKey.from_pem(f.read(), hashlib.sha256)
 
     def _sign_reconf_msg(self, msg):
