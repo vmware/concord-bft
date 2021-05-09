@@ -207,9 +207,9 @@ class BftTestNetwork:
             self.metrics.__exit__()
             self.stop_all_replicas()
             os.chdir(self.origdir)
-            # shutil.rmtree(self.testdir, ignore_errors=True)
-            # shutil.rmtree(self.certdir, ignore_errors=True)
-            # shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
+            shutil.rmtree(self.testdir, ignore_errors=True)
+            shutil.rmtree(self.certdir, ignore_errors=True)
+            shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
             if self.test_dir and self.test_start_time:
                 with open(f"{self.test_dir}test_duration.log", 'w+') as log_file:
                     log_file.write(f"test duration = {time.time() - self.test_start_time} seconds\n")
