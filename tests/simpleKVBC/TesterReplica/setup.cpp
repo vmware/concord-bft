@@ -59,7 +59,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
-    replicaConfig.pathToOperatorPublicKey_ = "/concord-bft/tests/simpleKVBC/scripts/operator_pub.pem";
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
@@ -86,11 +85,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"consensus-concurrency-level", required_argument, 0, 'y'},
                                           {"principals-mapping", optional_argument, 0, 'p'},
                                           {"txn-signing-key-path", optional_argument, 0, 't'},
+                                          {"operator-public-key-path", optional_argument, 0, 'o'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:t:l:c:e:b:m:q:y:z:p:t", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:p:t:o:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -162,7 +162,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 't': {
           txnSigningKeysPath = optarg;
-        } break;
+          break;
+        }
+        case 'o': {
+          replicaConfig.pathToOperatorPublicKey_ = optarg;
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;

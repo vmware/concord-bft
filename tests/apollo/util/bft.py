@@ -245,6 +245,7 @@ class BftTestNetwork:
         self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() == "true")
         # Setup transaction signing parameters
         self.setup_txn_signing()
+        self._generate_operator_keys()
 
     @classmethod
     def new(cls, config, background_nursery, client_factory=None):
@@ -360,6 +361,19 @@ class BftTestNetwork:
             args.extend(["-r", str(self.config.num_ro_replicas)])
         args.extend(["-o", self.config.key_file_prefix])
         subprocess.run(args, check=True)
+
+    def _generate_operator_keys(self):
+        with open(self.builddir + "/operator_pub.pem", 'w') as f:
+            f.write("-----BEGIN PUBLIC KEY-----\n"
+                    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENEMHcbJgnnYxfa1zDlIF7lzp/Ioa"
+                    "NfwGuJpAg84an5FdPALwZwBp/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
+                    "-----END PUBLIC KEY-----")
+        with open(self.builddir + "/operator_priv.pem", 'w') as f:
+            f.write("-----BEGIN EC PRIVATE KEY-----\n"
+                    "MHcCAQEEIEWf8ZTkCWbdA9WrMSNGCC7GQxvSXiDlU6dlZAi6JaCboAoGCCqGSM49"
+                    "AwEHoUQDQgAENEMHcbJgnnYxfa1zDlIF7lzp/IoaNfwGuJpAg84an5FdPALwZwBp"
+                    "/m/X3d8kwmfZEytqt2PGMNhHMkovIaRI1A==\n"
+                    "-----END EC PRIVATE KEY-----")
 
     def generate_tls_certs(self, num_to_generate, start_index=0):
         """
