@@ -34,7 +34,7 @@ def start_replica_cmd_with_object_store(builddir, replica_id, config):
     Note each arguments is an element in a list.
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
-    ret.extend(["-b", "2", "-q", "1"])
+    ret.extend(["-b", "2", "-q", "1", "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd(builddir, replica_id):
@@ -54,7 +54,8 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
             "-b", "2",
-            "-q", "1"]
+            "-q", "1",
+            "-o", builddir + "/operator_pub.pem"]
 
 
 class SkvbcReconfigurationTest(unittest.TestCase):
@@ -74,7 +75,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
         await op.key_exchange()
 
     @with_trio
@@ -94,7 +95,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.wedge()
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
@@ -130,7 +131,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with log.start_action(action_type="send_wedge_cmd",
                               checkpoint_before=checkpoint_before,
                               late_replicas=list(late_replicas)):
-            op = operator.Operator(bft_network.config, client)
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
             await op.wedge()
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, on_time_replicas)
@@ -163,7 +164,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
         client.config._replace(req_timeout_milli=10000)
 
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.wedge()
 
         with trio.fail_after(seconds=90):
@@ -214,7 +215,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # now, send a wedge command. The wedge command sequence number is 300. Hence, in this point the woeking window
         # is between 150 - 450. But, the wedge command will make the primary to send noops until 600.
         # we want to verify that the primary manages to send the noops as required.
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.wedge()
 
         # now, verify that the system has managed to stop
@@ -250,7 +251,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await client.write(skvbc.write_req([], [(k, v)], 0))
 
         # Get the minimal latest pruneable block among all replicas
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.latest_pruneable_block()
 
         rsi_rep = client.get_rsi_replies()
@@ -292,7 +293,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await client.write(skvbc.write_req([], [(k, v)], 0))
 
             # Get the minimal latest pruneable block among all replicas
-            op = operator.Operator(bft_network.config, client)
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
             await op.latest_pruneable_block()
 
             latest_pruneable_blocks = []
@@ -318,7 +319,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.prune_status()
 
         rsi_rep = client.get_rsi_replies()
@@ -367,7 +368,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
 
         # Create more than 150 blocks in total, including the genesis block we have 101 blocks
         k, v = await skvbc.write_known_kv()
@@ -413,7 +414,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
 
-        op = operator.Operator(bft_network.config, client)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
 
         # Create more than 150 blocks in total, including the genesis block we have 101 blocks
         k, v = await skvbc.write_known_kv()
