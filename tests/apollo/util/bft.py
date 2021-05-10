@@ -837,15 +837,14 @@ class BftTestNetwork:
         Returns the current source replica for state transfer.
         """
         with log.start_action(action_type="wait_for_fetching_state", replica=replica_id) as action:
-            with trio.fail_after(10): # seconds
-                while True:
-                    with trio.move_on_after(.5): # seconds
-                        is_fetching = await self.is_fetching(replica_id)
-                        source_replica_id = await self.source_replica(replica_id)
-                        if is_fetching:
-                            action.add_success_fields(source_replica_id=source_replica_id)
-                            return source_replica_id
-                        await trio.sleep(0.1)
+            async def replica_to_be_in_fetching_state():
+                is_fetching = await self.is_fetching(replica_id)
+                source_replica_id = await self.source_replica(replica_id)
+                if is_fetching:
+                    action.add_success_fields(source_replica_id=source_replica_id)
+                    return source_replica_id
+                
+            return await self.wait_for(replica_to_be_in_fetching_state, 10, .5)
 
     async def is_fetching(self, replica_id):
         """Return whether the current replica is fetching state"""
@@ -891,11 +890,7 @@ class BftTestNetwork:
                         pass # metrics not yet available, continue looping
                     await trio.sleep(0.1)
 
-    async def wait_for_state_transfer_to_stop(
-            self,
-            up_to_date_node,
-            stale_node,
-            stop_on_stable_seq_num=False):
+    async def wait_for_state_transfer_to_stop(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False):
         with log.start_action(action_type="wait_for_state_transfer_to_stop", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num):
             with trio.fail_after(30): # seconds
                 # Get the lastExecutedSeqNumber from a started node
@@ -931,7 +926,7 @@ class BftTestNetwork:
                                     return
 
                                 await trio.sleep(0.5)
-
+                    
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num):
         """
         Wait for every replica in `replicas` to take a checkpoint.
@@ -949,20 +944,19 @@ class BftTestNetwork:
         If none is provided, return the last stored checkpoint.
         """
         with log.start_action(action_type="wait_for_checkpoint", replica=replica_id, expected_checkpoint_num=expected_checkpoint_num) as action:
-            key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
             if expected_checkpoint_num is None:
                 expected_checkpoint_num = lambda _: True
-            with trio.fail_after(30):
-                while True:
-                    with trio.move_on_after(.5): # seconds
-                        try:
-                            last_stored_checkpoint = await self.metrics.get(replica_id, *key)
-                        except KeyError:
-                            await trio.sleep(0.1)
-                        else:
-                            if expected_checkpoint_num(last_stored_checkpoint):
-                                action.add_success_fields(last_stored_checkpoint=last_stored_checkpoint)
-                                return last_stored_checkpoint
+
+            async def expected_checkpoint_to_be_reached():
+                key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
+
+                last_stored_checkpoint = await self.retrieve_metric(replica_id, *key)
+
+                if last_stored_checkpoint is not None and expected_checkpoint_num(last_stored_checkpoint):
+                    action.add_success_fields(last_stored_checkpoint=last_stored_checkpoint)
+                    return last_stored_checkpoint
+                
+        return await self.wait_for(expected_checkpoint_to_be_reached, 30, .5)
 
     async def wait_for_fast_path_to_be_prevalent(self, run_ops, threshold, replica_id=0):
         await self._wait_for_consensus_path_to_be_prevalent(
@@ -1016,19 +1010,14 @@ class BftTestNetwork:
 
     async def wait_for_last_executed_seq_num(self, replica_id=0, expected=0):
         with log.start_action(action_type="wait_for_last_executed_seq_num"):
-            with trio.fail_after(seconds=30):
-                while True:
-                    with trio.move_on_after(seconds=.5):
-                        try:
-                            key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                            last_executed_seq_num = await self.metrics.get(replica_id, *key)
-                        except KeyError:
-                            pass
-                        else:
-                            # success!
-                            if last_executed_seq_num >= expected:
-                                return last_executed_seq_num
-                        await trio.sleep(0.1)
+            async def expected_seq_num_to_be_reached():
+                key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                last_executed_seq_num = await self.retrieve_metric(replica_id, *key)
+
+                if last_executed_seq_num is not None and last_executed_seq_num >= expected:
+                    return last_executed_seq_num
+            
+            return await self.wait_for(expected_seq_num_to_be_reached, 30, .5)
 
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with log.start_action(action_type="assert_state_transfer_not_started_all_up_nodes"):
@@ -1089,58 +1078,61 @@ class BftTestNetwork:
         n = await self.metrics.get(replica.id, *key)
         assert n == 0
 
-    async def wait_for(self, predicate, timeout, interval):
+    async def wait_for(self, task, timeout, interval):
         """
-        Wait for the given async predicate function to return true. Give up
-        waiting for the async function to complete after interval (seconds) and retry
+        Wait for the given async task function to return a value. Give up
+        waiting for the task's completion after interval (seconds) and retry
         until timeout (seconds) expires. Raise trio.TooSlowError when timeout expires.
 
         Important:
-         * The given predicate function must be async
-         * Retries may occur more frequently than interval if the predicate
-           returns false before interval expires. This only matters in that it
+         * The given task function must be async, otherwise a TypeError exception will be thrown.
+         * Retries may occur more frequently than interval if the task
+           returns None before interval expires. This only matters in that it
            uses more CPU.
         """
         with log.start_action(action_type="wait_for"):
             with trio.fail_after(timeout):
                 while True:
                     with trio.move_on_after(interval):
-                        if await predicate():
-                            return
-                        await trio.sleep(0.1)
+                        if inspect.iscoroutinefunction(task):
+                            result = await task()
+                            if result is not None:
+                                return result
+                            else:
+                                await trio.sleep(0.1)
+                        else:
+                            raise TypeError
+
+    async def retrieve_metric(self, replica_id, component_name, type_, key):
+        try:
+            return await self.metrics.get(replica_id, component_name, type_, key)
+        except KeyError:
+            return None    
 
     async def num_of_fast_path_requests(self, replica_id=0):
         """
         Returns the total number of requests processed on the fast commit path
         """
         with log.start_action(action_type="num_of_fast_path_requests"):
-            with trio.fail_after(seconds=5):
-                while True:
-                    with trio.move_on_after(seconds=2):
-                        try:
-                            metric_key = ['replica', 'Counters', 'totalFastPathRequests']
-                            nb_fast_path = await self.metrics.get(replica_id, *metric_key)
-                            return nb_fast_path
-                        except KeyError:
-                            # metrics not yet available, continue looping
-                            await trio.sleep(0.1)
+            async def the_number_of_fast_path_requests():
+                metric_key = ['replica', 'Counters', 'totalFastPathRequests']
+                nb_fast_path = await self.retrieve_metric(replica_id, *metric_key)
+                return nb_fast_path
+
+        return await self.wait_for(the_number_of_fast_path_requests, 5, 2)
 
     async def num_of_slow_path_requests(self, replica_id=0):
         """
         Returns the total number of requests processed on the slow commit path
         """
         with log.start_action(action_type="num_of_slow_path_requests"):
-            with trio.fail_after(seconds=5):
-                while True:
-                    with trio.move_on_after(seconds=.5):
-                        try:
-                            metric_key = ['replica', 'Counters', 'totalSlowPathRequests']
-                            nb_slow_path = await self.metrics.get(replica_id, *metric_key)
-                            return nb_slow_path
-                        except KeyError:
-                            # metrics not yet available, continue looping
-                            await trio.sleep(0.1)
-
+            async def the_number_of_slow_path_requests():
+                metric_key = ['replica', 'Counters', 'totalSlowPathRequests']
+                nb_slow_path = await self.retrieve_metric(replica_id, *metric_key)
+                return nb_slow_path
+            
+        return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
+        
     async def do_key_exchange(self):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
@@ -1197,22 +1189,20 @@ class BftTestNetwork:
         key2 = ["replica", "Counters", "totalPreExecRequestsExecuted"]
         self.initial_preexec_executed = await self.metrics.get(replica_id, *key2)
 
-    async def wait_for_replica_to_ask_for_view_change(self, replica_id, previous_asks_to_leave_view_msg_count=0):
+    async def wait_for_replica_to_ask_for_view_change(self, replica_id, previous_asks_to_leave_view_msg_count = 0):
         """
         Wait for a single replica to send a ReplicaAsksToLeaveViewMsg.
         """
         with log.start_action(action_type="wait_for_replica_asks_to_leave_view_msg", replica=replica_id,
                               previous_asks_to_leave_view_msg_count=previous_asks_to_leave_view_msg_count) as action:
-            key = ['replica', 'Gauges', 'sentReplicaAsksToLeaveViewMsg']
-            with trio.fail_after(60):
-                while True:
-                    with trio.move_on_after(.5): # seconds
-                        try:
-                            replica_asks_to_leave_view_msg_count = await self.metrics.get(replica_id, *key)
-                        except KeyError:
-                            await trio.sleep(0.1)
-                        else:
-                            if replica_asks_to_leave_view_msg_count > previous_asks_to_leave_view_msg_count:
+        
+            async def the_replica_to_ask_for_view_change(): 
+                key = ['replica', 'Gauges', 'sentReplicaAsksToLeaveViewMsg']
+                replica_asks_to_leave_view_msg_count = await self.retrieve_metric(replica_id, *key)
+
+                if replica_asks_to_leave_view_msg_count is not None and replica_asks_to_leave_view_msg_count > previous_asks_to_leave_view_msg_count:
                                 action.add_success_fields(
                                     replica_asks_to_leave_view_msg_count=replica_asks_to_leave_view_msg_count)
                                 return replica_asks_to_leave_view_msg_count
+
+        return await self.wait_for(the_replica_to_ask_for_view_change, 60, .5)
