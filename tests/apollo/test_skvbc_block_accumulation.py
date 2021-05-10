@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2021 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the "License").
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -61,7 +61,7 @@ class SkvbcBlockAccumulationTest(unittest.TestCase):
 
     __test__ = False  # so that PyTest ignores this test scenario
 
-    async def send_single_batch_write_with_pre_execution_and_kv(self, skvbc, client, batch_size, long_exec=False, ):
+    async def send_single_batch_write_with_kv(self, skvbc, client, batch_size, long_exec=False):
         msg_batch = []
         batch_seq_nums = []
         dic_writeset = {}
@@ -101,7 +101,7 @@ class SkvbcBlockAccumulationTest(unittest.TestCase):
             req_timeout_milli=SHORT_REQ_TIMEOUT_MILLI,
             retry_timeout_milli=1000
         )
-        result = await self.send_single_batch_write_with_pre_execution_and_kv(
+        result = await self.send_single_batch_write_with_kv(
             skvbc, client, 3, long_exec=False)
 
         await bft_network.assert_successful_pre_executions_count(0, 3)
