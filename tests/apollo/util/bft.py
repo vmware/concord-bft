@@ -669,12 +669,6 @@ class BftTestNetwork:
                 (bft_msg_port >= bft_config.START_BFT_MSG_PORT))
         return (bft_msg_port - bft_config.START_BFT_MSG_PORT) // 2
 
-    def num_total_replicas(self):
-        return self.config.n + self.config.num_ro_replicas
-
-    def num_total_clients(self):
-        return self.config.num_clients + RESERVED_CLIENTS_QUOTA
-
     def _start_external_replica(self, replica_id):
         with log.start_action(action_type="_start_external_replica"):
             subprocess.run(
