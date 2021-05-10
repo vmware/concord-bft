@@ -291,7 +291,7 @@ SimpleStateTran::SimpleStateTran(
       15000,                                // sourceReplicaReplacementTimeoutMs
       250,                                  // fetchRetransmissionTimeoutMs
       5,                                    // metricsDumpIntervalSec
-      false,                                // runInSeparateThread
+      true,                                // runInSeparateThread
       true                                  // enableReservedPages
   };
 
