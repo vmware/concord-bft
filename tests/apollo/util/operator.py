@@ -89,6 +89,7 @@ class Operator:
     def _construct_reconfiguration_keMsg_coammand(self):
         ke_command = cmf_msgs.KeyExchangeCommand()
         ke_command.sender_id = 1000
+        ke_command.target_replicas = []
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = ke_command
         reconf_msg.additional_data = bytes()
