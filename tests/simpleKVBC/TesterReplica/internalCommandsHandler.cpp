@@ -96,8 +96,9 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                    req.outActualReplySize,
                                    req.outReplicaSpecificInfoSize);
     } else {
-      bool isBlockAccumulationEnabled = (ReplicaConfig::instance().blockAccumulation &&
-                                         (!pre_execute && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)));
+      // Only if requests size is greater than 1 and other conditions are met, block accumulation is enabled.
+      bool isBlockAccumulationEnabled =
+          ((requests.size() > 1) && (!pre_execute && (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG)));
 
       res = executeWriteCommand(req.requestSize,
                                 req.request,
