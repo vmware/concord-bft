@@ -235,7 +235,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     if (isCurrentPrimary()) {
       histograms_.requestsQueueOfPrimarySize->record(requestsQueueOfPrimary.size());
       // TODO(GG): use config/parameter
-      if (requestsQueueOfPrimary.size() >= 700) {
+      if (requestsQueueOfPrimary.size() >= maxPrimaryQueueSize) {
         LOG_WARN(GL,
                  "ClientRequestMsg dropped. Primary request queue is full. "
                      << KVLOG(clientId, reqSeqNum, requestsQueueOfPrimary.size()));

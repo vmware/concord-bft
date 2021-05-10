@@ -64,6 +64,7 @@ static_assert(maxLegalConcurrentAgreementsByPrimary < MaxConcurrentFastPaths,
 ///////////////////////////////////////////////////////////////////////////////
 
 constexpr uint32_t maxNumOfRequestsInBatch = 1024;
+constexpr uint32_t maxPrimaryQueueSize = 1500;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Requests for missing information
