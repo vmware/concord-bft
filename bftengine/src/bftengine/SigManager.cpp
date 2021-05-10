@@ -210,12 +210,12 @@ bool SigManager::verifySig(
   }
   ConcordAssert(idOfPeerReplica || idOfExternalClient);
   if (!result) {  // failure
-    metrics_component_.UpdateAggregator();
     updateAggregatorCounter = 0;
     if (idOfExternalClient)
       metrics_.externalClientReqSigVerificationFailed_.Get().Inc();
     else
       metrics_.replicaSigVerificationFailed_.Get().Inc();
+    metrics_component_.UpdateAggregator();
   } else {  // success
     if (idOfExternalClient)
       metrics_.externalClientReqSigVerified_.Get().Inc();
