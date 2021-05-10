@@ -20,7 +20,6 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     clang \
     clang-format-9 \
     clang-tidy-10 \
-    cmake \
     gdb \
     gdbserver \
     git \
@@ -64,6 +63,10 @@ pip3 install \
     ecdsa
 
 # Build 3rd parties
+wget ${WGET_FLAGS} -O cmake-linux.sh \
+    https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.sh && \
+    sh cmake-linux.sh -- --skip-license --prefix=/usr
+
 cd ${HOME}
 wget ${WGET_FLAGS} \
     https://github.com/HdrHistogram/HdrHistogram_c/archive/0.9.12.tar.gz && \
@@ -120,7 +123,7 @@ wget ${WGET_FLAGS} \
     rm -r ${HOME}/cryptopp-CRYPTOPP_8_2_0
 
 cd ${HOME}
-wget --no-check-certificate https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz && \
+wget ${WGET_FLAGS} https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz && \
     tar --lzip -xf gmp-6.1.2.tar.lz && \
     cd gmp-6.1.2/ && \
     ./configure --with-pic --enable-cxx --disable-fat --build x86_64-linux-gnu && \
@@ -197,6 +200,15 @@ wget ${WGET_FLAGS} \
     cd ../.. && \
     rm -r opentracing-cpp-1.5.0
 
+# ASIO only (without boost). This allows us to upgrade ASIO independently.
+cd ${HOME}
+wget ${WGET_FLAGS} \
+ https://sourceforge.net/projects/asio/files/asio/1.18.1%20%28Stable%29/asio-1.18.1.tar.bz2 && \
+    tar -xf asio-1.18.1.tar.bz2 && \
+    cd asio-1.18.1 && \
+    ./configure && make && make install && \
+    cd .. && rm -rf asio*
+
 # Get the newest openSSL installation (as of 9/2020)
 OPENSSL_VER='1.1.1g'
 cd /usr/local/src/
@@ -211,11 +223,38 @@ wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz 
     ldconfig -v && \
     rm -rf /usr/local/src/openssl-${OPENSSL_VER}
 
-# ASIO only (without boost). This allows us to upgrade ASIO independently.
+# gRPC
+# https://github.com/grpc/grpc/blob/master/test/distrib/cpp/run_distrib_test_cmake.sh
 cd ${HOME}
-wget ${WGET_FLAGS} --no-check-certificate \
- https://sourceforge.net/projects/asio/files/asio/1.18.1%20%28Stable%29/asio-1.18.1.tar.bz2 && \
-    tar -xf asio-1.18.1.tar.bz2 && \
-    cd asio-1.18.1 && \
-    ./configure && make && make install && \
-    cd .. && rm -rf asio*
+git clone -b v1.37.1 --depth 1 --recurse-submodules https://github.com/grpc/grpc && \
+    cd grpc && \
+    mkdir -p ${HOME}/grpc/third_party/abseil-cpp/cmake/build && \
+    cd ${HOME}/grpc/third_party/abseil-cpp/cmake/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=TRUE \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          ../.. && \
+    make -j$(nproc) install && \
+    mkdir -p ${HOME}/grpc/third_party/protobuf/cmake/build && \
+    cd ${HOME}/grpc/third_party/protobuf/cmake/build && \
+    cmake -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          .. && \
+    make -j$(nproc) install && \
+    mkdir -p ${HOME}/grpc/cmake/build && \
+    cd ${HOME}/grpc/cmake/build && \
+    cmake -DgRPC_INSTALL=ON \
+          -DgRPC_ABSL_PROVIDER=package \
+          -DgRPC_PROTOBUF_PROVIDER=package \
+          -DgRPC_SSL_PROVIDER=package \
+          -DBUILD_SHARED_LIBS=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          ../.. && \
+    make -j$(nproc) install &&
+    cd ${HOME} && \
+    rm -r ${HOME}/grpc
+
+# After installing all libraries, let's make sure that they will be found at runtime
+ldconfig
