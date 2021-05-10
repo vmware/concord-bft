@@ -34,8 +34,7 @@ target_link_libraries(timers_tests GTest::Main util)
 
 add_executable(sha_hash_tests sha_hash_tests.cpp)
 add_test(sha_hash_tests sha_hash_tests)
-target_link_libraries(sha_hash_tests GTest::Main util OpenSSL::Crypto
-        )
+target_link_libraries(sha_hash_tests GTest::Main util OpenSSL::Crypto)
 
 add_executable(RollingAvgAndVar_test RollingAvgAndVar_test.cpp )
 add_test(RollingAvgAndVar_test RollingAvgAndVar_test)
@@ -56,3 +55,7 @@ target_link_libraries(callback_registry_test GTest::Main util)
 add_executable(scope_exit_test scope_exit_test.cpp)
 add_test(scope_exit_test scope_exit_test)
 target_link_libraries(scope_exit_test GTest::Main util)
+
+add_executable(lru_cache_test lru_cache_test.cpp )
+add_test(lru_cache_test lru_cache_test)
+target_link_libraries(lru_cache_test GTest::Main util)
