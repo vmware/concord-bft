@@ -64,7 +64,7 @@ void Server::Stop() {
 
   // This will cause `recvfrom` to error in `RecvLoop` and therefore allow it
   // to check for running_ = false without requiring a timeout on the socket.
-  close(sock_);
+  shutdown(sock_, SHUT_RDWR);
 
   // Wait for the recvLoop thread to stop
   if (thread_.joinable()) thread_.join();
@@ -79,12 +79,13 @@ void Server::RecvLoop() {
     running_lock_.lock();
     if (!running_) {
       running_lock_.unlock();
+      close(sock_);
       return;
     }
     running_lock_.unlock();
 
     struct timeval timeout;
-    timeout.tv_sec = 5;
+    timeout.tv_sec = 1;
     timeout.tv_usec = 0;
 
     if (setsockopt(sock_, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
