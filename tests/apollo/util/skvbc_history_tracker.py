@@ -456,7 +456,7 @@ class SkvbcTracker:
                          self.kvpairs.copy())
         self.outstanding[(req.client_id, req.seq_num)] = cs
 
-    def handle_write_reply(self, client_id, seq_num, reply,block_accumulation=False):
+    def handle_write_reply(self, client_id, seq_num, reply, block_accumulation=False):
         """
         Match a write reply with its outstanding request.
         Check for consistency violations and raise an exception if found.
@@ -866,7 +866,7 @@ class SkvbcTracker:
                 self.status.record_client_reply(client_id)
                 for seq_num, reply_msg in replies.items():
                     reply = self.skvbc.parse_reply(reply_msg.get_common_data())
-                    self.handle_write_reply(client_id, seq_num, reply,block_accumulation)
+                    self.handle_write_reply(client_id, seq_num, reply, block_accumulation)
             except trio.TooSlowError:
                 self.status.record_client_timeout(client_id)
                 return
