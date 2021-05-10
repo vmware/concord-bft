@@ -150,8 +150,7 @@ void ThinReplicaClient::readUpdateHashFromStream(
   Hash hash;
   LOG4CPLUS_DEBUG(logger_, "Read hash from " << server_index);
 
-  TrsConnection::Result read_result;
-  read_result = config_->trs_conns[server_index]->readHash(&hash);
+  TrsConnection::Result read_result = config_->trs_conns[server_index]->readHash(&hash);
   if (read_result == TrsConnection::Result::kTimeout) {
     LOG4CPLUS_DEBUG(logger_, "Hash stream " << server_index << " timed out.");
     metrics_.read_timeouts_per_update++;
@@ -357,7 +356,7 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
 
     TrsConnection::Result open_stream_result = resetDataStreamTo(server_index);
 
-    TrsConnection::Result read_result;
+    TrsConnection::Result read_result = TrsConnection::Result::kUnknown;
     if (open_stream_result == TrsConnection::Result::kSuccess) {
       read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
     }
@@ -654,7 +653,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
     ConcordAssert(stream_open_result == TrsConnection::Result::kSuccess || received_state_invalid);
 
     Data response;
-    TrsConnection::Result read_result;
+    TrsConnection::Result read_result = TrsConnection::Result::kUnknown;
     while (!received_state_invalid && (read_result = config_->trs_conns[data_server_index]->readState(&response)) ==
                                           TrsConnection::Result::kSuccess) {
       if ((state.size() > 0) && (response.block_id() < block_id)) {
