@@ -16,6 +16,7 @@ import trio
 import time
 import ssl
 import os
+import random
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256
 from Crypto.Signature import pkcs1_15
@@ -127,15 +128,22 @@ class BftClient(ABC):
     def get_total_num_replicas(self):
         return len(self.replicas)
 
-    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False):
+    async def write(self, msg, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None,
+                    reconfiguration=False, corrupt_params={}, no_retries=False):
         """ A wrapper around sendSync for requests that mutate state """
-        return await self.sendSync(msg, False, seq_num, cid, pre_process, m_of_n_quorum, reconfiguration)
+        return await self.sendSync(
+            msg, False, seq_num, cid, pre_process, m_of_n_quorum, reconfiguration,
+            corrupt_params=corrupt_params, no_retries=no_retries)
 
-    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None, reconfiguration=False, include_ro=False):
+    async def read(self, msg, seq_num=None, cid=None, m_of_n_quorum=None,
+                   reconfiguration=False, include_ro=False, corrupt_params={}, no_retries=False):
         """ A wrapper around sendSync for requests that do not mutate state """
-        return await self.sendSync(msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum, reconfiguration=reconfiguration, include_ro=include_ro)
+        return await self.sendSync(
+            msg, True, seq_num, cid, m_of_n_quorum=m_of_n_quorum,
+            reconfiguration=reconfiguration, include_ro=include_ro, corrupt_params=corrupt_params, no_retries=no_retries)
 
-    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, reconfiguration=False, include_ro=False):
+    async def sendSync(self, msg, read_only, seq_num=None, cid=None, pre_process=False, m_of_n_quorum=None, \
+        reconfiguration=False, include_ro=False, corrupt_params={}, no_retries=False):
         """
         Send a client request and wait for a m_of_n_quorum (if None, it will set to 2F+C+1 quorum) of replies.
 
@@ -168,11 +176,14 @@ class BftClient(ABC):
             cid = str(seq_num)
 
         signature = b''
+        client_id = self.client_id
         if self.signing_key:
             h = SHA256.new(msg)
             signature = pkcs1_15.new(self.signing_key).sign(h)
+            if corrupt_params:
+                msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
-        data = bft_msgs.pack_request(self.client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg,
+        data = bft_msgs.pack_request(client_id, seq_num, read_only, self.config.req_timeout_milli, cid, msg,
                                     pre_process, reconfiguration=reconfiguration, signature=signature)
 
         if m_of_n_quorum is None:
@@ -182,15 +193,16 @@ class BftClient(ABC):
         try:
             with trio.fail_after(self.config.req_timeout_milli / 1000):
                 self._reset_on_new_request([seq_num])
-                replies = await self._send_receive_loop(data, read_only, m_of_n_quorum, include_ro=include_ro)
-                return next(iter(self.replies.values())).get_common_data()
+                replies = await self._send_receive_loop(
+                    data, read_only, m_of_n_quorum, include_ro=include_ro, no_retries=no_retries)
+                return next(iter(self.replies.values())).get_common_data() if replies else None
         except trio.TooSlowError:
             print("TooSlowError thrown from client_id", self.client_id, "for seq_num", seq_num)
             raise trio.TooSlowError
         finally:
             pass
 
-    async def write_batch(self, msg_batch, batch_seq_nums=None, m_of_n_quorum=None):
+    async def write_batch(self, msg_batch, batch_seq_nums=None, m_of_n_quorum=None, corrupt_params=None, no_retries=False):
         if not self.comm_prepared:
             await self._comm_prepare()
 
@@ -203,15 +215,19 @@ class BftClient(ABC):
                 batch_seq_nums.append(self.req_seq_num.next())
 
         msg_data = b''
+        req_index_to_corrupt = random.randint(1, batch_size-1) # don't corrupt the 1st
         for n in range(batch_size):
             msg = msg_batch[n]
             msg_seq_num = batch_seq_nums[n]
             msg_cid = str(msg_seq_num)
 
             signature = b''
+            client_id = self.client_id
             if self.signing_key:
                 h = SHA256.new(msg)
                 signature = pkcs1_15.new(self.signing_key).sign(h)
+                if corrupt_params and (req_index_to_corrupt == n):
+                    msg, signature, client_id = self._corrupt_signing_params(msg, signature, client_id, corrupt_params)
 
             msg_data = b''.join([msg_data, bft_msgs.pack_request(
                 self.client_id, msg_seq_num, False, self.config.req_timeout_milli, msg_cid, msg, True,
@@ -227,8 +243,8 @@ class BftClient(ABC):
         try:
             with trio.fail_after(batch_size * self.config.req_timeout_milli / 1000):
                 self._reset_on_new_request(batch_seq_nums)
-                return await self._send_receive_loop(data, False, m_of_n_quorum, 
-                    batch_size * self.config.retry_timeout_milli / 1000)
+                return await self._send_receive_loop(data, False, m_of_n_quorum,
+                    batch_size * self.config.retry_timeout_milli / 1000, no_retries=no_retries)
         except trio.TooSlowError:
             print(f"TooSlowError thrown from client_id {self.client_id}, for batch msg {cid} {batch_seq_nums}")
             raise trio.TooSlowError
@@ -251,7 +267,7 @@ class BftClient(ABC):
         self.replies_manager.clear_replies()
         self.replies_manager.set_seq_nums(seq_nums)
 
-    async def _send_receive_loop(self, data, read_only, m_of_n_quorum, timeout = None, include_ro=False):
+    async def _send_receive_loop(self, data, read_only, m_of_n_quorum, timeout = None, include_ro=False, no_retries=False):
         """
         Send and wait for a quorum of replies. Keep retrying if a quorum
         isn't received. Eventually the max request timeout from the
@@ -272,6 +288,8 @@ class BftClient(ABC):
                         await self._send_to_primary(data)
                     nursery.start_soon(self._recv_data, m_of_n_quorum.required, dest_replicas, nursery.cancel_scope)
             if self.replies is None:
+                if no_retries:
+                    break
                 self._reset_on_retry()
                 await trio.sleep(0.1)
         return self.replies
@@ -341,6 +359,33 @@ class BftClient(ABC):
             raise AttributeError("Bft configs txn_signing_keys_path and principals_to_participant_map should be set/unset at the same time")
 
         return key_path
+
+    def _corrupt_signing_params(self, msg, signature, client_id, corrupt_params={}):
+
+        if "corrupt_msg" in corrupt_params:
+            pos = random.randint(1, len(msg)-2)
+            val = msg[pos] + 1
+            msg = bytes(msg[0:pos]) + bytes([val]) + bytes(msg[pos+1:])
+        if "corrupt_signature" in corrupt_params:
+            pos = random.randint(1, len(signature)-2)
+            val = signature[pos] + 1
+            signature = bytes(signature[0:pos]) + bytes([val]) + bytes(signature[pos+1:])
+        if "wrong_msg_length" in corrupt_params:
+            pos = random.randint(1, len(msg)-2)
+            val = msg[pos]
+            msg = bytes(msg) + bytes([val])
+        if "wrong_signature_length" in corrupt_params:
+            pos = random.randint(1, len(signature)-2)
+            val = signature[pos]
+            signature = bytes(signature) + bytes([val])
+        if "wrong_client_id_as_replica_id" in corrupt_params:
+            client_id = corrupt_params["wrong_client_id_as_replica_id"]
+        if "wrong_client_id_as_unknown_id" in corrupt_params:
+            client_id = corrupt_params["wrong_client_id_as_unknown_id"]
+        if "wrong_client_id_as_other_participant_client_id" in corrupt_params:
+            client_id = corrupt_params["wrong_client_id_as_other_participant_client_id"]
+
+        return msg, signature, client_id
 
 class UdpClient(BftClient):
     """
