@@ -36,14 +36,14 @@ RequestsBatchingLogic::RequestsBatchingLogic(InternalReplicaApi &replica,
       initialBatchSize_(config.maxNumOfRequestsInBatch),
       maxBatchSizeInBytes_(config.maxBatchSizeInBytes),
       timers_(timers) {
-  if (batchingPolicy_ == BATCH_BY_REQ_SIZE || batchingPolicy_ == BATCH_BY_REQ_NUM)
+  if (batchingPolicy_ != BATCH_SELF_ADJUSTED)
     batchFlushTimer_ = timers_.add(milliseconds(batchFlushPeriodMs_),
                                    Timers::Timer::RECURRING,
                                    [this](Timers::Handle h) { onBatchFlushTimer(h); });
 }
 
 RequestsBatchingLogic::~RequestsBatchingLogic() {
-  if (batchingPolicy_ == BATCH_BY_REQ_SIZE || batchingPolicy_ == BATCH_BY_REQ_NUM) timers_.cancel(batchFlushTimer_);
+  if (batchingPolicy_ != BATCH_SELF_ADJUSTED) timers_.cancel(batchFlushTimer_);
 }
 
 void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {

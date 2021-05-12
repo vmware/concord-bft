@@ -137,7 +137,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'b': {
           auto policy = concord::util::to<std::uint32_t>(std::string(optarg));
-          if (policy < bftEngine::BATCH_SELF_ADJUSTED || policy > bftEngine::BATCH_BY_REQ_NUM)
+          if (policy < bftEngine::BATCH_SELF_ADJUSTED || policy > bftEngine::BATCH_ADAPTIVE)
             throw std::runtime_error{"invalid argument for --consensus-batching-policy"};
           replicaConfig.batchingPolicy = policy;
           break;
