@@ -108,14 +108,14 @@ void deserialize(const uint8_t*& start, const uint8_t* end, T& t) {
  *
  * Strings are preceded by a uint32_t length
  ******************************************************************************/
-static inline void serialize(std::vector<uint8_t>& output, const std::string& s) {
+[[maybe_unused]] static inline void serialize(std::vector<uint8_t>& output, const std::string& s) {
   cmfAssert(s.size() <= 0xFFFFFFFF);
   uint32_t length = s.size() & 0xFFFFFFFF;
   serialize(output, length);
   std::copy(s.begin(), s.end(), std::back_inserter(output));
 }
 
-static inline void deserialize(const uint8_t*& start, const uint8_t* end, std::string& s) {
+[[maybe_unused]] static inline void deserialize(const uint8_t*& start, const uint8_t* end, std::string& s) {
   uint32_t length;
   deserialize(start, end, length);
   if (start + length > end) {
