@@ -33,7 +33,7 @@ bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
 bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
                                     WedgeStatusResponse& response,
                                     concord::messages::ReconfigurationErrorMsg&) {
-  response.stopped = bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint();
+  response.stopped = bftEngine::IControlHandler::instance()->isOnStableCheckpoint();
   return true;
 }
 

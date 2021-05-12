@@ -36,6 +36,14 @@ class StReconfigurationHandler {
   uint64_t getStoredBftSeqNum(BlockId bid);
 
   void stCallBack(uint64_t);
+
+  /*
+   * For wedge, we need to do nothing. The wedge point is being cleared only on termination.
+   * Thus, as long no one did unwedge (currently, restarting the replicas) the late replica will get the data
+   * In the reserved pages and behave accordingly.
+   * TODO: Notice that until we have the unwedge command, we cannot distinguish between restart for unwedge and restart
+   * out of a crash
+   */
   bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t) { return true; }
 

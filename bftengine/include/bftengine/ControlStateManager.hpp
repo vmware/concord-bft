@@ -52,6 +52,11 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
     static ControlStateManager instance_;
     return instance_;
   }
+  ~ControlStateManager() {
+    if (wedged) {
+      clearCheckpointToStopAt();
+    }
+  }
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
 
@@ -59,7 +64,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   std::optional<int64_t> getEraseMetadataFlag();
 
   void clearCheckpointToStopAt();
-
+  void markAsWedged() { wedged = true; }
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
 
@@ -70,11 +75,11 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
-  ~ControlStateManager() = default;
 
   std::string scratchPage_;
   bool enabled_ = true;
   ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
+  bool wedged = false;
 };
 }  // namespace bftEngine
