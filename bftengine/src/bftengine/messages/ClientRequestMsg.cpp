@@ -115,6 +115,10 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
     // 2) request is empty. empty requests are sent from pre-processor in some cases - skip signature
     if (emptyReq) {
       expectedSigLen = 0;
+    } else if ((header->flags & RECONFIG_FLAG) != 0) {
+      // This message arrived from operator - no need at this stage to verifiy the request, since operator
+      // verifies it's own signatures on requests in the reconfiguration handler
+      doSigVerify = false;
     } else {
       expectedSigLen = sigManager->getSigLength(clientId);
       if (0 == expectedSigLen) {
