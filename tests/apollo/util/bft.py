@@ -453,7 +453,7 @@ class BftTestNetwork:
         """ Generates num_participants number of key pairs """
         script_path = "/concord-bft/scripts/linux/create_concord_clients_transaction_signing_keys.sh"
         args = [script_path, "-n", str(self.num_participants), "-o", keys_path]
-        subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def create_principals_mapping(self):
         """
