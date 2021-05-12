@@ -64,7 +64,10 @@ SigManager* SigManager::initImpl(ReplicaId myId,
       ConcordAssert(!p.first.empty());
       publickeys.push_back(make_pair(p.first, clientsKeysFormat));
       for (const auto e : p.second) {
-        ConcordAssert((e >= lowBound) && (e <= highBound));
+        if ((e < lowBound) || (e > highBound)) {
+          LOG_FATAL(GL, "Invalid participant id " << KVLOG(e, lowBound, highBound));
+          std::terminate();
+        }
         publicKeysMapping.insert({e, i});
       }
       ++i;
