@@ -27,6 +27,7 @@
 #include "STDigest.hpp"
 #include "InMemoryDataStore.hpp"
 #include "json_output.hpp"
+#include "ReservedPagesClient.hpp"
 
 #include "DBDataStore.hpp"
 #include "storage/db_interface.h"
@@ -75,7 +76,9 @@ IStateTransfer *create(const Config &config,
     ds = new impl::InMemoryDataStore(config.sizeOfReservedPage);
   else
     ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage, stKeyManipulator, config.enableReservedPages);
-  return new impl::BCStateTran(config, stateApi, ds);
+  auto st = new impl::BCStateTran(config, stateApi, ds);
+  ReservedPagesClientBase::setReservedPages(st);
+  return st;
 }
 
 IStateTransfer *create(const Config &config,

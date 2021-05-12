@@ -63,6 +63,7 @@ struct ReservedPagesMock : public IReservedPages {
       if (!clean) continue;
       memset(c, 0, size);
     }
+    ReservedPagesClientBase::setReservedPages(this);
   }
   ~ReservedPagesMock() {
     for (auto c : resPages) {
@@ -262,8 +263,8 @@ TEST(ReplicaKeyStore, rotate) {
 
 TEST(ClusterKeyStore, push) {
   uint32_t clustersize{7};
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, true);
-  ClusterKeyStore cks{7, &rpm, 4094};
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clustersize, true);
+  ClusterKeyStore cks{7, 4094};
   {
     KeyExchangeMsg kem;
     kem.key = "a";
@@ -306,8 +307,8 @@ TEST(ClusterKeyStore, push) {
 
 TEST(ClusterKeyStore, rotate) {
   uint32_t clustersize{7};
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, true);
-  ClusterKeyStore cks{7, &rpm, 4094};
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clustersize, true);
+  ClusterKeyStore cks{7, 4094};
 
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -364,7 +365,7 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   DummyKeyGen dkg{clusterSize};
   dkg.prv = "private";
   dkg.pub = "public";
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clusterSize, true);
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clusterSize, true);
   concordUtil::Timers timers;
 
   KeyExchangeManager::InitData id{};
@@ -425,7 +426,7 @@ TEST(KeyExchangeManager, endToEnd) {
   DummyKeyGen dkg{clustersize};
   dkg.prv = "private";
   dkg.pub = "public";
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, true);
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clustersize, true);
   concordUtil::Timers timers;
 
   KeyExchangeManager::InitData id{};
@@ -555,8 +556,8 @@ TEST(KeyExchangeManager, endToEnd) {
 
 TEST(ClusterKeyStore, dirty_first_load) {
   uint32_t clustersize{4};
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, false);
-  ClusterKeyStore cks{4, &rpm, 4094};
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clustersize, false);
+  ClusterKeyStore cks{4, 4094};
 
   for (int i = 0; i < 4; i++) {
     ASSERT_EQ(cks.numKeys(i), 0);
@@ -565,8 +566,8 @@ TEST(ClusterKeyStore, dirty_first_load) {
 
 TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
   uint32_t clustersize{4};
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, false);
-  ClusterKeyStore cks{4, &rpm, 4094};
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clustersize, false);
+  ClusterKeyStore cks{4, 4094};
 
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -598,7 +599,7 @@ TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
   kem5.repID = 0;
   cks.push(kem5, 2);
 
-  ClusterKeyStore reloadCks{4, &rpm, 4094};
+  ClusterKeyStore reloadCks{4, 4094};
   for (int i = 0; i < 4; i++) {
     if (i == 0) {
       ASSERT_EQ(reloadCks.numKeys(i), 2);
@@ -610,8 +611,8 @@ TEST(ClusterKeyStore, dirty_first_load_save_keys_and_reload) {
 
 TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
   uint32_t clustersize = 4;
-  ReservedPagesMock rpm(ReservedPages::totalNumberOfPages() + clustersize, false);
-  ClusterKeyStore cks{4, &rpm, 4094};
+  ReservedPagesMock rpm(ReservedPagesClientBase::totalNumberOfPages() + clustersize, false);
+  ClusterKeyStore cks{4, 4094};
 
   KeyExchangeMsg kem;
   kem.key = "a";
@@ -651,7 +652,7 @@ TEST(ClusterKeyStore, clean_first_load_save_keys_rotate_and_reload) {
 
   cks.rotate(2);
 
-  ClusterKeyStore reloadCks{4, &rpm, 4094};
+  ClusterKeyStore reloadCks{4, 4094};
   ASSERT_EQ(reloadCks.exchangedReplicas.size(), 4);
   for (int i = 0; i < 4; i++) {
     if (i == 0) {

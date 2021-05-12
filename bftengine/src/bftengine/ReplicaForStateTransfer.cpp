@@ -10,6 +10,7 @@
 // file.
 
 #include "ReplicaForStateTransfer.hpp"
+
 #include "Timers.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
@@ -18,7 +19,7 @@
 #include "MsgsCommunicator.hpp"
 #include "ReplicasInfo.hpp"
 #include "messages/StateTransferMsg.hpp"
-#include "ReservedPages.hpp"
+#include "ReservedPagesClient.hpp"
 
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
@@ -44,7 +45,7 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 void ReplicaForStateTransfer::start() {
   if (firstTime_ || !config_.debugPersistentStorageEnabled)
     stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
-                        ReservedPages::totalNumberOfPages(),
+                        ReservedPagesClientBase::totalNumberOfPages(),
                         ReplicaConfig::instance().getsizeOfReservedPage());
   const std::chrono::milliseconds defaultTimeout = 5s;
   stateTranTimer_ =
