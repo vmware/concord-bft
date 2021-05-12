@@ -2770,8 +2770,6 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
 
     metric_on_call_back_of_super_stable_cp_.Get().Set(1);
-    // TODO: With state transfered replica, this might be called twice. Consider to clean the reserved page at the
-    // end of this method
     IControlHandler::instance()->onSuperStableCheckpoint();
   }
 }
@@ -2870,7 +2868,6 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
              "Informing control state manager that consensus should be stopped (with n-f/n replicas): " << KVLOG(
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
     IControlHandler::instance()->onStableCheckpoint();
-    ControlStateManager::instance().markAsWedged();
 
     // Mark the metadata storage for deletion if we need to
     auto seq_num_to_remove_metadata_storage = ControlStateManager::instance().getEraseMetadataFlag();
@@ -3722,7 +3719,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
 ReplicaImp::~ReplicaImp() {
   // TODO(GG): rewrite this method !!!!!!!! (notice that the order may be important here ).
   // TODO(GG): don't delete objects that are passed as params (TBD)
-
   internalThreadPool.stop();
 
   delete viewsManager;
@@ -3821,6 +3817,13 @@ void ReplicaImp::start() {
   id.a = aggregator_;
   id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
   id.keyExchangeOnStart = ReplicaConfig::instance().getkeyExchangeOnStart();
+
+  // If we have just unwedged, clear the wedge point
+  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seqNumToStopAt.has_value() && lastStableSeqNum == seqNumToStopAt.value()) {
+    LOG_INFO(GL, "unwedge the system" << KVLOG(lastStableSeqNum));
+    ControlStateManager::instance().clearCheckpointToStopAt();
+  }
 
   KeyExchangeManager::start(&id);
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
