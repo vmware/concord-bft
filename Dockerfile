@@ -30,3 +30,6 @@ path-exclude /usr/share/linda/*' > /etc/dpkg/dpkg.cfg.d/01_nodoc && \
             python3-pip \
             python3-setuptools \
             wget
+
+# For eliot-tree's rendering
+ENV LC_ALL=C.UTF-8
