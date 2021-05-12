@@ -16,12 +16,12 @@
 
 namespace concord::kvbc::reconfiguration {
 template <typename T>
-void ReconfigurationHandler::deserializeCmfMessage(T &msg, const std::string &strval) {
+void StReconfigurationHandler::deserializeCmfMessage(T &msg, const std::string &strval) {
   std::vector<uint8_t> bytesval(strval.begin(), strval.end());
   concord::messages::deserialize(bytesval, msg);
 }
 
-uint64_t ReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
+uint64_t StReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
   auto value = ro_storage_.get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
   auto sequenceNum = uint64_t{0};
   if (value) {
@@ -32,7 +32,7 @@ uint64_t ReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
   return sequenceNum;
 }
 
-void ReconfigurationHandler::stCallBack(uint64_t) {
+void StReconfigurationHandler::stCallBack(uint64_t) {
   concord::messages::ReconfigurationErrorMsg error_msg;
   // Handle reconfiguration state changes if exist
   handlerStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
@@ -47,8 +47,8 @@ void ReconfigurationHandler::stCallBack(uint64_t) {
                                                             error_msg);
 }
 template <typename T>
-bool ReconfigurationHandler::handlerStoredCommand(const std::string &key,
-                                                  concord::messages::ReconfigurationErrorMsg &error_msg) {
+bool StReconfigurationHandler::handlerStoredCommand(const std::string &key,
+                                                    concord::messages::ReconfigurationErrorMsg &error_msg) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
   if (res.has_value()) {
     auto blockid =

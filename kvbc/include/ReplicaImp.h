@@ -176,6 +176,7 @@ class ReplicaImp : public IReplica,
   // secretsManager_ can be nullptr. This means that encrypted configuration is not enabled
   // and there is no instance of SecretsManagerEnc available
   const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsManager_;
+  std::unique_ptr<concord::reconfiguration::IReconfigurationHandler> stReconfigurationSM_;
 
 };  // namespace concord::kvbc
 

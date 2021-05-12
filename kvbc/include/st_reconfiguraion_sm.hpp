@@ -18,9 +18,9 @@
 #include "kvbc_key_types.hpp"
 
 namespace concord::kvbc::reconfiguration {
-class ReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+class StReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
  public:
-  ReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
+  StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
     st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); });
   }
 

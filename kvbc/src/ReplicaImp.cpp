@@ -26,6 +26,7 @@
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
 #include "reconfiguration_add_block_handler.hpp"
+#include "st_reconfiguraion_sm.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -264,6 +265,8 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+  stReconfigurationSM_ =
+      std::make_unique<concord::kvbc::reconfiguration::StReconfigurationHandler>(*m_stateTransfer, *this);
 }
 
 ReplicaImp::~ReplicaImp() {
