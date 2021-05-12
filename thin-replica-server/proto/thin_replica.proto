@@ -1,0 +1,83 @@
+// Copyright 2019 VMware, all rights reserved
+//
+// Thin Replica Protocol
+// Provides a service to subscribe to updates on the KV-Blockchain.
+//
+// Note: Updates are not blocks but KV-pairs that belong to the blockchain.
+//
+
+syntax = "proto3";
+package com.vmware.concord.thin_replica;
+
+import "google/protobuf/empty.proto";
+
+service ThinReplica {
+  // Finite stream which sends the current state that is visible to the Thin Replica client
+  rpc ReadState(ReadStateRequest) returns (stream Data);
+
+  // Return the hash of the state at a given block id
+  rpc ReadStateHash(ReadStateHashRequest) returns (Hash);
+
+  // An endless stream of updates
+  // The client needs to acknowledge the received updates (AckUpdate) in order to help the server manage data growth
+  rpc SubscribeToUpdates(SubscriptionRequest) returns (stream Data);
+
+  // The client acknowledges the receipt of updates based on the given block id
+  rpc AckUpdate(BlockId) returns (google.protobuf.Empty);
+
+  // An endless stream of hashes of updates
+  // The client can use those hashes to verify the integrity of the data from the other stream
+  rpc SubscribeToUpdateHashes(SubscriptionRequest) returns (stream Hash);
+
+  // Cancel the stream gracefully
+  // The server will forget the acknowledgements, meaning data can be pruned
+  // Note: At any given point in time, the client should have only _one_ stream per server open
+  rpc Unsubscribe(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+message ReadStateRequest {
+  // The client's read request is filtered by this prefix
+  bytes key_prefix = 1;
+}
+
+message ReadStateHashRequest {
+  // Block id from a prior ReadState response
+  uint64 block_id = 1;
+  // Same filter as used in the ReadState request
+  bytes key_prefix = 2;
+}
+
+message SubscriptionRequest {
+  // Subscribe from (including) the given block id
+  uint64 block_id = 1;
+  // Filter updates with the given key prefix
+  bytes key_prefix = 2;
+}
+
+message BlockId {
+  uint64 block_id = 1;
+  // TODO: signature
+}
+
+message Data {
+  // The data was found in this block
+  uint64 block_id = 1;
+  repeated KVPair data = 2;
+  string correlation_id = 3;
+  bytes span_context = 4;
+}
+
+message KVPair {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message Hash {
+  uint64 block_id = 1;
+  bytes hash = 2;
+}
+
+// Trace contexts are serialized as the below message in Updates sent to clients.
+message W3cTraceContext {
+  map<string, string> key_values = 1;
+}
