@@ -25,41 +25,71 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
   }
 
  private:
-  void stCallBack(uint64_t) {
-    auto res = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_wedge_key});
-    if (res.has_value()) {
-      concord::messages::WedgeCommand cmd;
-    }
+  template <typename T>
+  void deserializeCmfMessage(T& msg, const std::string& strval);
+  template <typename T>
+  bool handlerStoredCommand(const std::string& key, concord::messages::ReconfigurationErrorMsg& error_msg);
+  uint64_t getStoredBftSeqNum(BlockId bid);
+
+  void stCallBack(uint64_t);
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
   }
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) override;
   bool handle(const concord::messages::WedgeStatusRequest&,
               concord::messages::WedgeStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
+  }
   bool handle(const concord::messages::GetVersionCommand&,
               concord::messages::GetVersionResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
+  }
   bool handle(const concord::messages::DownloadCommand&,
               uint64_t,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
+  }
   bool handle(const concord::messages::DownloadStatusCommand&,
               concord::messages::DownloadStatus&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
+  }
   bool handle(const concord::messages::InstallCommand& cmd,
               uint64_t,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
+  }
   bool handle(const concord::messages::InstallStatusCommand& cmd,
               concord::messages::InstallStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationErrorMsg&) override {
+    return true;
+  }
   bool handle(const concord::messages::KeyExchangeCommand&,
               concord::messages::ReconfigurationErrorMsg&,
-              uint64_t) override;
+              uint64_t) override {
+    return true;
+  }
   bool handle(const concord::messages::AddRemoveCommand&,
               concord::messages::ReconfigurationErrorMsg&,
-              uint64_t) override;
+              uint64_t) override {
+    return true;
+  }
   bool verifySignature(const concord::messages::ReconfigurationRequest&,
-                       concord::messages::ReconfigurationErrorMsg&) const override;
+                       concord::messages::ReconfigurationErrorMsg&) const override {
+    return true;
+  }
+  bool handle(const concord::messages::AddRemoveCommand& cmd,
+              uint64_t bftSeqNum,
+              concord::messages::ReconfigurationErrorMsg& error_msg) {
+    return handle(cmd, error_msg, bftSeqNum);
+  }
 
+  bool handle(const concord::messages::KeyExchangeCommand& cmd,
+              uint64_t bftSeqNum,
+              concord::messages::ReconfigurationErrorMsg& error_msg) {
+    return handle(cmd, error_msg, bftSeqNum);
+  }
   kvbc::IReader& ro_storage_;
-
 };
 }  // namespace concord::kvbc::reconfiguration
