@@ -14,7 +14,7 @@
 #include "hex_tools.h"
 #include "endianness.hpp"
 
-namespace concord::kvbc::reconfiguration {
+namespace concord::kvbc {
 template <typename T>
 void StReconfigurationHandler::deserializeCmfMessage(T &msg, const std::string &strval) {
   std::vector<uint8_t> bytesval(strval.begin(), strval.end());
@@ -32,23 +32,21 @@ uint64_t StReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
   return sequenceNum;
 }
 
-void StReconfigurationHandler::stCallBack(uint64_t) {
-  concord::messages::ReconfigurationErrorMsg error_msg;
+void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
   // Handle reconfiguration state changes if exist
   handlerStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
-                                                        error_msg);
+                                                        current_cp_num);
   handlerStoredCommand<concord::messages::DownloadCommand>(std::string{kvbc::keyTypes::reconfiguration_download_key},
-                                                           error_msg);
+                                                           current_cp_num);
   handlerStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
-                                                          error_msg);
+                                                          current_cp_num);
   handlerStoredCommand<concord::messages::KeyExchangeCommand>(std::string{kvbc::keyTypes::reconfiguration_key_exchange},
-                                                              error_msg);
+                                                              current_cp_num);
   handlerStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
-                                                            error_msg);
+                                                            current_cp_num);
 }
 template <typename T>
-bool StReconfigurationHandler::handlerStoredCommand(const std::string &key,
-                                                    concord::messages::ReconfigurationErrorMsg &error_msg) {
+bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint64_t current_cp_num) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
   if (res.has_value()) {
     auto blockid =
@@ -60,9 +58,9 @@ bool StReconfigurationHandler::handlerStoredCommand(const std::string &key,
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;
     deserializeCmfMessage(cmd, strval);
-    return handle(cmd, seqNum, error_msg);
+    return handle(cmd, seqNum, current_cp_num);
   }
   return false;
 }
 
-}  // namespace concord::kvbc::reconfiguration
+}  // namespace concord::kvbc

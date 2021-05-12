@@ -9,6 +9,7 @@
 #include <string>
 #include <atomic>
 
+#include "st_reconfiguraion_sm.hpp"
 #include "OpenTracing.hpp"
 #include "categorization/kv_blockchain.h"
 #include "communication/ICommunication.hpp"
@@ -26,7 +27,6 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
-
 namespace concord::kvbc {
 
 class ReplicaImp : public IReplica,
@@ -176,7 +176,7 @@ class ReplicaImp : public IReplica,
   // secretsManager_ can be nullptr. This means that encrypted configuration is not enabled
   // and there is no instance of SecretsManagerEnc available
   const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsManager_;
-  std::unique_ptr<concord::reconfiguration::IReconfigurationHandler> stReconfigurationSM_;
+  std::unique_ptr<concord::kvbc::StReconfigurationHandler> stReconfigurationSM_;
 
 };  // namespace concord::kvbc
 
