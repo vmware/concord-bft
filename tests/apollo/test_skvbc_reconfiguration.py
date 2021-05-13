@@ -142,7 +142,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in late_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=True)
+                                                              stop_on_stable_seq_num=False)
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
