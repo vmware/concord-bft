@@ -198,6 +198,11 @@ TEST_F(versioned_kv_category, multi_get_and_multi_get_latest) {
     const auto expected = std::vector<std::optional<categorization::Value>>{
         VersionedValue{{1, "va1"}}, VersionedValue{{1, "vb1"}}, std::nullopt};
     ASSERT_EQ(values, expected);
+
+    // Make sure that subsequent calls with the same vector work.
+    cat.multiGet({"kb"}, {3}, values);
+    const auto expected_subs = std::vector<std::optional<categorization::Value>>{VersionedValue{{3, "vb3"}}};
+    ASSERT_EQ(values, expected_subs);
   }
 
   // Get keys "ka" and "kb" at block 3.
@@ -228,11 +233,18 @@ TEST_F(versioned_kv_category, multi_get_and_multi_get_latest) {
   }
 
   // Get the latest values of keys.
+  auto values = std::vector<std::optional<categorization::Value>>{};
   {
-    auto values = std::vector<std::optional<categorization::Value>>{};
     cat.multiGetLatest({"ka", "kb"}, values);
     const auto expected =
         std::vector<std::optional<categorization::Value>>{VersionedValue{{3, "va3"}}, VersionedValue{{3, "vb3"}}};
+    ASSERT_EQ(values, expected);
+  }
+
+  // Make sure that subsequent calls with the same vector work.
+  {
+    cat.multiGetLatest({"kb"}, values);
+    const auto expected = std::vector<std::optional<categorization::Value>>{VersionedValue{{3, "vb3"}}};
     ASSERT_EQ(values, expected);
   }
 }
@@ -279,11 +291,18 @@ TEST_F(versioned_kv_category, get_latest_ver_and_multi_get_latest_ver) {
   }
 
   // Get multiple latest versions.
+  auto versions = std::vector<std::optional<TaggedVersion>>{};
   {
-    auto versions = std::vector<std::optional<TaggedVersion>>{};
     cat.multiGetLatestVersion({"ka", "non-existent", "kb"}, versions);
     const auto expected =
         std::vector<std::optional<TaggedVersion>>{TaggedVersion{deleted, 3}, std::nullopt, TaggedVersion{deleted, 3}};
+    ASSERT_EQ(versions, expected);
+  }
+
+  // Make sure that subsequent calls with the same vector work.
+  {
+    cat.multiGetLatestVersion({"kb"}, versions);
+    const auto expected = std::vector<std::optional<TaggedVersion>>{TaggedVersion{deleted, 3}};
     ASSERT_EQ(versions, expected);
   }
 }
