@@ -363,6 +363,8 @@ class BftTestNetwork:
         subprocess.run(args, check=True)
 
     def _generate_operator_keys(self):
+        if self.builddir is None:
+            return 
         with open(self.builddir + "/operator_pub.pem", 'w') as f:
             f.write("-----BEGIN PUBLIC KEY-----\n"
                     "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAENEMHcbJgnnYxfa1zDlIF7lzp/Ioa"
