@@ -184,7 +184,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         with trio.fail_after(seconds=30):
             done = False
             while done is False:
-                await op.wedge_status(quorum=bft_client.MofNQuorum(on_time_replicas, len(on_time_replicas)))
+                await op.wedge_status(quorum=bft_client.MofNQuorum(on_time_replicas, len(on_time_replicas)), fullWedge=False)
                 rsi_rep = client.get_rsi_replies()
                 done = True
                 for r in rsi_rep.values():

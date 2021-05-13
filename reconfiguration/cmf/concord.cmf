@@ -5,6 +5,7 @@ Msg WedgeCommand 3 {
 
 Msg WedgeStatusRequest 5 {
 	uint64 sender
+	bool fullWedge
 }
 
 Msg WedgeStatusResponse 6 {
