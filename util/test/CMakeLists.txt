@@ -59,3 +59,7 @@ target_link_libraries(scope_exit_test GTest::Main util)
 add_executable(lru_cache_test lru_cache_test.cpp )
 add_test(lru_cache_test lru_cache_test)
 target_link_libraries(lru_cache_test GTest::Main util)
+
+add_executable(openssl_crypto_wrapper_test openssl_crypto_wrapper_tests.cpp)
+add_test(openssl_crypto_wrapper_test openssl_crypto_wrapper_test)
+target_link_libraries(openssl_crypto_wrapper_test GTest::Main util)
