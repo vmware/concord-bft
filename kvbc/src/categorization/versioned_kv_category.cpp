@@ -377,6 +377,7 @@ void VersionedKeyValueCategory::multiGetLatestVersion(const std::vector<std::str
   auto slices = std::vector<::rocksdb::PinnableSlice>{};
   auto statuses = std::vector<::rocksdb::Status>{};
   db_->multiGet(latest_ver_cf_, keys, slices, statuses);
+  versions.clear();
   for (auto i = 0ull; i < slices.size(); ++i) {
     const auto &status = statuses[i];
     const auto &slice = slices[i];

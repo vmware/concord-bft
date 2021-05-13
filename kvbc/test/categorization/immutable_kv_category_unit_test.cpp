@@ -626,12 +626,22 @@ TEST_F(immutable_kv_category, multi_get_latest) {
     add(2, std::move(update));
   }
 
-  const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
   auto values = std::vector<std::optional<categorization::Value>>{};
-  cat.multiGetLatest(keys, values);
-  const auto expected = std::vector<std::optional<categorization::Value>>{
-      ImmutableValue{{1, "v1"}}, ImmutableValue{{2, "v2"}}, std::nullopt};
-  ASSERT_EQ(values, expected);
+  {
+    const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
+    cat.multiGetLatest(keys, values);
+    const auto expected = std::vector<std::optional<categorization::Value>>{
+        ImmutableValue{{1, "v1"}}, ImmutableValue{{2, "v2"}}, std::nullopt};
+    ASSERT_EQ(values, expected);
+  }
+
+  // Make sure that subsequent calls with the same vector work.
+  {
+    const auto keys = std::vector<std::string>{"k2"};
+    cat.multiGetLatest(keys, values);
+    const auto expected = std::vector<std::optional<categorization::Value>>{ImmutableValue{{2, "v2"}}};
+    ASSERT_EQ(values, expected);
+  }
 }
 
 TEST_F(immutable_kv_category, get_latest_version) {
@@ -667,12 +677,22 @@ TEST_F(immutable_kv_category, multi_get_latest_version) {
     add(2, std::move(update));
   }
 
-  const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
   auto versions = std::vector<std::optional<TaggedVersion>>{};
-  cat.multiGetLatestVersion(keys, versions);
-  const auto expected = std::vector<std::optional<TaggedVersion>>{
-      TaggedVersion{key_deleted, 1}, TaggedVersion{key_deleted, 2}, std::nullopt};
-  ASSERT_EQ(versions, expected);
+  {
+    const auto keys = std::vector<std::string>{"k1", "k2", "k3"};
+    cat.multiGetLatestVersion(keys, versions);
+    const auto expected = std::vector<std::optional<TaggedVersion>>{
+        TaggedVersion{key_deleted, 1}, TaggedVersion{key_deleted, 2}, std::nullopt};
+    ASSERT_EQ(versions, expected);
+  }
+
+  // Make sure that subsequent calls with the same vector work.
+  {
+    const auto keys = std::vector<std::string>{"k2"};
+    cat.multiGetLatestVersion(keys, versions);
+    const auto expected = std::vector<std::optional<TaggedVersion>>{TaggedVersion{key_deleted, 2}};
+    ASSERT_EQ(versions, expected);
+  }
 }
 
 TEST_F(immutable_kv_category, multi_get) {
@@ -690,13 +710,24 @@ TEST_F(immutable_kv_category, multi_get) {
     add(2, std::move(update));
   }
 
-  const auto keys = std::vector<std::string>{"k1", "k2", "k3", "k1"};
-  const auto versions = std::vector<BlockId>{1, 2, 1, 3};
   auto values = std::vector<std::optional<categorization::Value>>{};
-  cat.multiGet(keys, versions, values);
-  const auto expected = std::vector<std::optional<categorization::Value>>{
-      ImmutableValue{{1, "v1"}}, ImmutableValue{{2, "v2"}}, std::nullopt, std::nullopt};
-  ASSERT_EQ(values, expected);
+  {
+    const auto keys = std::vector<std::string>{"k1", "k2", "k3", "k1"};
+    const auto versions = std::vector<BlockId>{1, 2, 1, 3};
+    cat.multiGet(keys, versions, values);
+    const auto expected = std::vector<std::optional<categorization::Value>>{
+        ImmutableValue{{1, "v1"}}, ImmutableValue{{2, "v2"}}, std::nullopt, std::nullopt};
+    ASSERT_EQ(values, expected);
+  }
+
+  // Make sure that subsequent calls with the same vector work.
+  {
+    const auto keys = std::vector<std::string>{"k2"};
+    const auto versions = std::vector<BlockId>{2};
+    cat.multiGet(keys, versions, values);
+    const auto expected = std::vector<std::optional<categorization::Value>>{ImmutableValue{{2, "v2"}}};
+    ASSERT_EQ(values, expected);
+  }
 }
 
 }  // namespace
