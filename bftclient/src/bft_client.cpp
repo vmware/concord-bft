@@ -58,6 +58,13 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
   communication_->Start();
 }
 
+Client::~Client() {
+  try {
+    communication_->Stop();
+  } catch (...) {
+  }
+};
+
 Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {
   uint8_t flags = read_only ? READ_ONLY_REQ : EMPTY_FLAGS_REQ;
   size_t expected_sig_len = 0;

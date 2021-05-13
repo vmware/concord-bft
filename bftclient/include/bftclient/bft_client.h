@@ -34,6 +34,8 @@ class Client {
  public:
   Client(std::unique_ptr<bft::communication::ICommunication> comm, const ClientConfig& config);
 
+  ~Client();
+
   void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
     metrics_.setAggregator(aggregator);
   }
