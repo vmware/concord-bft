@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "IReservedPages.hpp"
 #include <cstdint>
 #include <string>
 #include <typeindex>
@@ -24,7 +25,7 @@
 
 namespace bftEngine {
 
-class ReservedPages {
+class ReservedPagesClientBase {
  public:
   static uint32_t totalNumberOfPages() {
     uint32_t numPages{0};
@@ -32,6 +33,7 @@ class ReservedPages {
 
     return numPages;
   }
+  static void setReservedPages(IReservedPages* rp) { res_pages_ = rp; }
 
  protected:
   // [idx, typeid, numberOfPages]
@@ -41,6 +43,8 @@ class ReservedPages {
     static Registry registry_;
     return registry_;
   }
+
+  static IReservedPages* res_pages_;
 };
 /**
  * Facility for registering Reserved Pages clients
@@ -51,7 +55,7 @@ class ReservedPages {
  * If requiredNumberOfPages is not known at compile time call setNumResPages(requiredNumberOfPages).
  */
 template <typename T, uint8_t Idx, uint32_t NumPages = 0>
-class ResPagesClient : public ReservedPages {
+class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
  public:
   ResPagesClient() { (void)registered_; }
 
@@ -59,8 +63,8 @@ class ResPagesClient : public ReservedPages {
     Registry& reg = registry();
     auto it = std::find_if(reg.begin(), reg.end(), [](const Registry::value_type& v) { return std::get<0>(v) == Idx; });
     if (it != reg.end()) {
-      std::cerr << "BUG: ResPagesClient<" << demangler::demangle(typeid(T).name()) << ", " << (int)Idx
-                << ">: index is used by " << demangler::demangle(std::get<1>(*it).name());
+      std::cerr << "BUG: ResPagesClient<" << demangler::demangle<T>() << ", " << (int)Idx << ">: index is used by "
+                << demangler::demangle(std::get<1>(*it).name());
       std::terminate();
     }
     reg.push_back(Registry::value_type(Idx, std::type_index(typeid(T)), NumPages));
@@ -80,31 +84,38 @@ class ResPagesClient : public ReservedPages {
       return std::get<1>(v) == std::type_index(typeid(T));
     });
     if (it == reg.end()) {
-      std::cerr << __PRETTY_FUNCTION__
-                << " BUG: not registered: " << demangler::demangle(std::type_index(typeid(T)).name()) << std::endl;
+      std::cerr << __PRETTY_FUNCTION__ << " BUG: not registered: " << demangler::demangle<T>() << std::endl;
       std::terminate();
     }
     std::get<2>(*it) = numPages;
   }
 
- protected:
-  /**
-   * is called when calculating absolute pageId
-   */
-  uint32_t resPageOffset() {
-    static uint32_t offset_ = calcOffset();
-    return offset_;
+  uint32_t numberOfReservedPages() const override { return res_pages_->numberOfReservedPages(); }
+  uint32_t sizeOfReservedPage() const override { return res_pages_->sizeOfReservedPage(); }
+  bool loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const override {
+    return res_pages_->loadReservedPage(my_offset() + reservedPageId, copyLength, outReservedPage);
+  }
+  void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage) override {
+    res_pages_->saveReservedPage(my_offset() + reservedPageId, copyLength, inReservedPage);
+  }
+  void zeroReservedPage(uint32_t reservedPageId) override {
+    res_pages_->zeroReservedPage(my_offset() + reservedPageId);
   }
 
  private:
+  /** is called when calculating absolute pageId */
+  uint32_t my_offset() const {
+    static uint32_t offset_ = calc_my_offset();
+    return offset_;
+  }
   // is done once per client
-  uint32_t calcOffset() {
+  uint32_t calc_my_offset() const {
     uint32_t offset = 0;
     for (auto& elt : registry()) {
       if (std::get<1>(elt) == std::type_index(typeid(T))) return offset;
       offset += std::get<2>(elt);
     }
-    std::cerr << __PRETTY_FUNCTION__ << " BUG: not registered: " << demangler::demangle(typeid(T).name()) << std::endl;
+    std::cerr << __PRETTY_FUNCTION__ << " BUG: not registered: " << demangler::demangle<T>() << std::endl;
     std::terminate();
     return 0;
   }

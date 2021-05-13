@@ -32,13 +32,13 @@ void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
   page_.seq_num_to_stop_at_ = seq_num_to_stop_at;
   concord::serialize::Serializable::serialize(outStream, page_);
   auto data = outStream.str();
-  reserved_pages_->saveReservedPage(resPageOffset(), data.size(), data.data());
+  saveReservedPage(0, data.size(), data.data());
 }
 
 std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   if (!enabled_) return {};
   if (page_.seq_num_to_stop_at_ != 0) return page_.seq_num_to_stop_at_;
-  if (!reserved_pages_->loadReservedPage(resPageOffset(), reserved_pages_->sizeOfReservedPage(), scratchPage_.data())) {
+  if (!loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
     return {};
   }
   std::istringstream inStream;
@@ -52,10 +52,6 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   return page_.seq_num_to_stop_at_;
 }
 
-ControlStateManager::ControlStateManager(IReservedPages* reserved_pages) : reserved_pages_{reserved_pages} {
-  scratchPage_.resize(reserved_pages_->sizeOfReservedPage());
-}
-
 void ControlStateManager::setEraseMetadataFlag(int64_t currentSeqNum) {
   if (!enabled_) return;
   uint64_t seq_num_to_erase_at = (currentSeqNum + 2 * checkpointWindowSize);
@@ -64,13 +60,13 @@ void ControlStateManager::setEraseMetadataFlag(int64_t currentSeqNum) {
   page_.erase_metadata_at_seq_num_ = seq_num_to_erase_at;
   concord::serialize::Serializable::serialize(outStream, page_);
   auto data = outStream.str();
-  reserved_pages_->saveReservedPage(resPageOffset(), data.size(), data.data());
+  saveReservedPage(0, data.size(), data.data());
 }
 
 std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
   if (!enabled_) return {};
   if (page_.erase_metadata_at_seq_num_ != 0) return page_.erase_metadata_at_seq_num_;
-  if (!reserved_pages_->loadReservedPage(resPageOffset(), reserved_pages_->sizeOfReservedPage(), scratchPage_.data())) {
+  if (!loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
     return {};
   }
   std::istringstream inStream;
@@ -89,7 +85,7 @@ void ControlStateManager::clearCheckpointToStopAt() {
   std::ostringstream outStream;
   concord::serialize::Serializable::serialize(outStream, tmpPage);
   auto data = outStream.str();
-  reserved_pages_->saveReservedPage(resPageOffset(), data.size(), data.data());
+  saveReservedPage(0, data.size(), data.data());
 }
 
 }  // namespace bftEngine

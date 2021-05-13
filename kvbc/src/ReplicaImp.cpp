@@ -264,7 +264,6 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
-  bftEngine::ControlStateManager::instance(m_stateTransfer);
 }
 
 ReplicaImp::~ReplicaImp() {
