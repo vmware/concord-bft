@@ -22,9 +22,12 @@
 #include "PreProcessor.hpp"
 #include "MsgReceiver.hpp"
 #include "RequestHandler.h"
+#include "ReservedPagesClient.hpp"
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+
+bftEngine::IReservedPages *bftEngine::ReservedPagesClientBase::res_pages_ = nullptr;
 
 namespace bftEngine::impl {
 

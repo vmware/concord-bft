@@ -185,7 +185,8 @@ class SimpleTestReplica {
 
   void start() {
     replica->start();
-    ControlStateManager::instance(inMemoryST_).disable();
+    ControlStateManager::setReservedPages(inMemoryST_);
+    ControlStateManager::instance().disable();
   }
 
   void stop() {

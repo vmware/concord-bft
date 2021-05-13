@@ -77,12 +77,6 @@ int ClientsManager::getIndexOfClient(const NodeIdType& id) const {
 
 ClientsManager::~ClientsManager() { std::free(scratchPage_); }
 
-void ClientsManager::init(IStateTransfer* stateTransfer) {
-  ConcordAssert(stateTransfer != nullptr);
-  ConcordAssert(stateTransfer_ == nullptr);
-  stateTransfer_ = stateTransfer;
-}
-
 uint32_t ClientsManager::numberOfRequiredReservedPages() const { return requiredNumberOfPages_; }
 
 // Per client:
@@ -94,7 +88,7 @@ void ClientsManager::loadInfoFromReservedPages() {
   for (auto const& [clientId, clientIdx] : clientIdToIndex_) {
     const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
 
-    if (!stateTransfer_->loadReservedPage(resPageOffset() + firstPageId, sizeOfReservedPage_, scratchPage_)) continue;
+    if (!loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_)) continue;
 
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
     ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
@@ -199,7 +193,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
   for (uint32_t i = 0; i < numOfPages; i++) {
     const char* ptrPage = r->body() + i * sizeOfReservedPage_;
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
-    stateTransfer_->saveReservedPage(resPageOffset() + firstPageId + i, sizePage, ptrPage);
+    saveReservedPage(firstPageId + i, sizePage, ptrPage);
   }
 
   // write currentPrimaryId to message (we don't store the currentPrimaryId in the reserved pages)
@@ -220,7 +214,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   const uint16_t clientIdx = clientIdToIndex_.at(clientId);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
-  stateTransfer_->loadReservedPage(resPageOffset() + firstPageId, sizeOfReservedPage_, scratchPage_);
+  loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
 
   ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_;
   ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
@@ -242,7 +236,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   for (uint32_t i = 0; i < numOfPages; i++) {
     char* const ptrPage = r->body() + i * sizeOfReservedPage_;
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage_ : sizeLastPage);
-    stateTransfer_->loadReservedPage(resPageOffset() + firstPageId + i, sizePage, ptrPage);
+    loadReservedPage(firstPageId + i, sizePage, ptrPage);
   }
 
   const auto& replySeqNum = r->reqSeqNum();

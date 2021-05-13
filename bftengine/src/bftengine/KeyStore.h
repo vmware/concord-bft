@@ -12,8 +12,7 @@
 #pragma once
 #include "Serializable.h"
 #include "deque"
-#include "IReservedPages.hpp"
-#include "ReservedPages.hpp"
+#include "bftengine/ReservedPagesClient.hpp"
 #include "KeyExchangeMsg.hpp"
 namespace bftEngine::impl {
 
@@ -64,7 +63,7 @@ class ReplicaKeyStore : public concord::serialize::SerializableFactory<ReplicaKe
 // Responsible on reserved pages operations.
 class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
  public:
-  ClusterKeyStore(const uint32_t& clusterSize, IReservedPages* reservedPages, const uint32_t& sizeOfReservedPage);
+  ClusterKeyStore(const uint32_t& clusterSize, const uint32_t& sizeOfReservedPage);
   bool push(const KeyExchangeMsg& kem, const uint64_t& sn);
   // iterate on all replcias
   std::vector<uint16_t> rotate(const uint64_t& chknum);
@@ -81,7 +80,6 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
 
  private:
   std::vector<ReplicaKeyStore> clusterKeys_;
-  IReservedPages* reservedPages_;
   std::string buffer_;
 };
 }  // namespace bftEngine::impl

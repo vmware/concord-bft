@@ -13,7 +13,7 @@
 
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
-#include "ReservedPages.hpp"
+#include "bftengine/ReservedPagesClient.hpp"
 #include "Metrics.hpp"
 #include <map>
 #include <set>
@@ -31,8 +31,6 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  public:
   ClientsManager(concordMetrics::Component& metrics, std::set<NodeIdType>& clientsSet);
   ~ClientsManager();
-
-  void init(IStateTransfer* stateTransfer);
 
   uint32_t numberOfRequiredReservedPages() const;
 
@@ -88,8 +86,6 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
  protected:
   const ReplicaId myId_;
   const uint32_t sizeOfReservedPage_;
-
-  IStateTransfer* stateTransfer_ = nullptr;
 
   char* scratchPage_ = nullptr;
 
