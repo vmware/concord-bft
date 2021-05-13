@@ -75,8 +75,8 @@ std::string ReplicaStatusHandlers::preExecutionStatus(std::shared_ptr<concordMet
       toPair(getName(preProcReqCompleted), aggregator->GetCounter("preProcessor", "preProcReqCompleted").Get()));
   result.insert(toPair(getName(preProcPossiblePrimaryFaultDetected),
                        aggregator->GetCounter("preProcessor", "preProcPossiblePrimaryFaultDetected").Get()));
-  result.insert(toPair(getName(preProcReqForwardedByNonPrimaryNotIgnored),
-                       aggregator->GetCounter("preProcessor", "preProcReqForwardedByNonPrimaryNotIgnored").Get()));
+  result.insert(toPair(getName(preProcBatchReqReceived),
+                       aggregator->GetCounter("preProcessor", "preProcBatchReqReceived").Get()));
   result.insert(
       toPair(getName(preProcInFlyRequestsNum), aggregator->GetGauge("preProcessor", "PreProcInFlyRequestsNum").Get()));
 
