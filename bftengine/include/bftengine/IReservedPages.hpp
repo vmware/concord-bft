@@ -13,6 +13,7 @@
 #pragma once
 #include <cstdint>
 
+namespace bftEngine {
 class IReservedPages {
  public:
   virtual ~IReservedPages(){};
@@ -22,3 +23,4 @@ class IReservedPages {
   virtual void saveReservedPage(uint32_t reservedPageId, uint32_t copyLength, const char *inReservedPage) = 0;
   virtual void zeroReservedPage(uint32_t reservedPageId) = 0;
 };
+}  // namespace bftEngine

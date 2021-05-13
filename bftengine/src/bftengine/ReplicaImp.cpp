@@ -3682,8 +3682,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
       ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(), config.maxReplyMessageSize));
   ClusterKeyStore::setNumResPages(config.numReplicas);
 
-  clientsManager->init(stateTransfer.get());
-
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"
   ConcordAssertOR(!autoPrimaryRotationEnabled, viewChangeProtocolEnabled);

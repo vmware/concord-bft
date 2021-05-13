@@ -14,7 +14,7 @@
 #pragma once
 #include <optional>
 #include "IStateTransfer.hpp"
-#include "ReservedPages.hpp"
+#include "ReservedPagesClient.hpp"
 #include "Serializable.h"
 #include "SysConsts.hpp"
 
@@ -48,8 +48,8 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
                                                   ControlHandlerStateManagerReservedPagesIndex,
                                                   ControlHandlerStateManagerNumOfReservedPages> {
  public:
-  static ControlStateManager& instance(IReservedPages* rp = nullptr) {
-    static ControlStateManager instance_(rp);
+  static ControlStateManager& instance() {
+    static ControlStateManager instance_;
     return instance_;
   }
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
@@ -67,12 +67,11 @@ class ControlStateManager : public ResPagesClient<ControlStateManager,
   void enable() { enabled_ = true; }
 
  private:
-  ControlStateManager(IReservedPages* reserved_pages);
+  ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
   ~ControlStateManager() = default;
 
-  IReservedPages* reserved_pages_;
   std::string scratchPage_;
   bool enabled_ = true;
   ControlStatePage page_;
