@@ -249,17 +249,31 @@ TEST_F(block_merkle_category, multiget) {
   // Get latest versions
   auto out_versions = std::vector<std::optional<TaggedVersion>>{};
   cat.multiGetLatestVersion(keys, out_versions);
+  ASSERT_EQ(keys.size(), out_versions.size());
   ASSERT_EQ(1, out_versions[0]->encode());
   ASSERT_EQ(1, out_versions[1].has_value());
   ASSERT_EQ(1, out_versions[2]->version);
   ASSERT_EQ(false, out_versions[3].has_value());
 
+  // Make sure subsequent calls with the same vector work
+  cat.multiGetLatestVersion({key2}, out_versions);
+  ASSERT_EQ(1, out_versions.size());
+  ASSERT_EQ(1, out_versions[0].has_value());
+  ASSERT_EQ(1, out_versions[0]->encode());
+  ASSERT_EQ(1, out_versions[0]->version);
+
   // Get latest values
   cat.multiGetLatest(keys, values);
+  ASSERT_EQ(keys.size(), values.size());
   ASSERT_EQ((MerkleValue{{block_id, val1}}), asMerkle(*values[0]));
   ASSERT_EQ((MerkleValue{{block_id, val2}}), asMerkle(*values[1]));
   ASSERT_EQ((MerkleValue{{block_id, val3}}), asMerkle(*values[2]));
   ASSERT_EQ(false, values[3].has_value());
+
+  // Make sure subsequent calls with the same vector work
+  cat.multiGetLatest({key2}, values);
+  ASSERT_EQ(1, values.size());
+  ASSERT_EQ((MerkleValue{{block_id, val2}}), asMerkle(*values[0]));
 }
 
 TEST_F(block_merkle_category, overwrite) {
