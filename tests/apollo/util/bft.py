@@ -1322,3 +1322,28 @@ class BftTestNetwork:
                                 return replica_asks_to_leave_view_msg_count
 
         return await self.wait_for(the_replica_to_ask_for_view_change, 60, .5)
+
+    async def wait_for_replicas_to_reach_view(self, replicas_ids, expected_view):
+        """
+        Wait for all replicas to reach the expected view.
+        """
+        with log.start_action(action_type="wait_for_replicas_to_reach_view", replicas_ids=replicas_ids, expected_view=expected_view) as action:
+            with trio.fail_after(seconds=30):
+                async with trio.open_nursery() as nursery:
+                    for replica_id in replicas_ids:
+                        nursery.start_soon(self.wait_for_replica_to_reach_view, replica_id, expected_view)
+            
+    async def wait_for_replica_to_reach_view(self, replica_id, expected_view):
+        """
+        Wait for a single replica to reach the expected view.
+        """
+        with log.start_action(action_type="wait_for_replica_to_reach_view", replica=replica_id, expected_view=expected_view) as action:
+            async def expected_view_to_be_reached():
+                key = ['replica', 'Gauges', 'view']        
+                replica_view = await self.retrieve_metric(replica_id, *key)
+                
+                if replica_view is not None and replica_view == expected_view:
+                    return replica_view
+        
+        return await self.wait_for(expected_view_to_be_reached, 30, .5)
+                

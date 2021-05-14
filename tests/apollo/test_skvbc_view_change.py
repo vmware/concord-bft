@@ -452,6 +452,54 @@ class SkvbcViewChangeTest(unittest.TestCase):
         self.assertEqual(initial_primary, current_primary,
                          "Make sure we are still on the initial view.")
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: c == 0, rotate_keys=True)
+    @verify_linearizability()
+    async def test_recovering_of_replicas_with_initiated_view_change(self, bft_network, tracker):
+        """
+        The goal of this test is to validate fast path's recovery after stopping all replicas during an ongoing view change.
+        The test is valid only when c = 0.
+        Initially N - (F + 1) replicas are started. In order to initiate a view change (because of 3f + 2 * 0 + 1 - f - 1 = 2f),
+        the clients run concurrent operations, which trigger the view change, however it will not be completed (because of 2f < 2f + 1).
+
+        1) Given a BFT network start N - (F + 1) replicas.
+        2) Send some requests to trigger view change from replicas
+        4) Wait for view change to be initiated
+        5) Stop all previously running replicas
+        6) Start all of the replicas
+        7) Wait for fast path to be prevalent
+        """
+
+        replicas_to_start = bft_network.config.n - (bft_network.config.f + 1)
+        replicas = random.sample(bft_network.all_replicas(), replicas_to_start)
+        
+        # start replicas
+        [bft_network.start_replica(i) for i in replicas]
+        
+        # write to trigger vc
+        await tracker.run_concurrent_ops(10)
+
+        # wait for replicas to go to higher view (View 1 in this case)
+        await bft_network.wait_for_replicas_to_reach_view(replicas, 1)
+
+        # stop replicas
+        [bft_network.stop_replica(i) for i in replicas]
+
+        bft_network.start_all_replicas()
+
+        # wait for replicas to go to higher view after the restart (View 1 in this case)
+        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), 1)
+
+        await bft_network.wait_for_view(
+            replica_id=random.choice(
+            bft_network.all_replicas()),
+            expected=lambda v: v == 1,
+            err_msg="Make sure view change has happened"
+        )
+
+        await bft_network.wait_for_fast_path_to_be_prevalent(
+            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+
     async def _single_vc_with_consecutive_failed_replicas(
             self,
             bft_network,
