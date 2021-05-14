@@ -53,6 +53,94 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_inactive_window_catchup_up_to_gap(self, bft_network):
+        """
+        In this test we check the catchup from Inactive Window when we have a gap related to the Peers.
+        The situation can happen if the catching up Replica's last Stable SeqNo is 3 Checkpoints behind its Peers, but
+        its Last Executed is only 2 Checkpoints behind.
+        Steps to recreate:
+        1) Start all replicas.
+        2) Isolate 1 Replica from all but the Primary. We will call it Late Replica.
+        3) Advance all replicas beyond the first Stable Checkpoint. The Late Replica won't be able to collect a
+           Stable Checkpoint.
+        4) Stop the Late Replica and advance all others 2 more Checkpoints.
+        5) Start the late Replica and verify it catches up to the end of its Working Window from the Inactive Windows of
+           its Peers.
+        """
+
+        late_replica = 1
+        primary = 0
+
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        first_stable_checkpoint_to_reach = 1
+        checkpoints_to_advance_after_first = 2
+        seq_nums_per_checkpoint = 150
+        num_reqs_after_first_checkpoint = 4
+
+        async def write_req(num_req=1):
+            for _ in range(num_req):
+                await skvbc.write_known_kv()
+
+        with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(
+                bft_network, {late_replica},
+                bft_network.all_replicas(without={primary, late_replica})) as adversary:
+            adversary.interfere()
+
+            # create checkpoint and wait for checkpoint propagation
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without={late_replica}),
+                num_of_checkpoints_to_add=first_stable_checkpoint_to_reach,
+                verify_checkpoint_persistency=False
+            )
+
+            await bft_network.wait_for_replicas_to_collect_stable_checkpoint(
+                bft_network.all_replicas(without={late_replica}),
+                first_stable_checkpoint_to_reach)
+
+            await write_req(num_reqs_after_first_checkpoint)
+
+            # Wait for late_replica to reach num_reqs_after_first_checkpoint past the 1-st Checkpoint
+            with trio.fail_after(seconds=30):
+                while True:
+                    last_exec = await bft_network.get_metric(late_replica, bft_network, 'Gauges', "lastExecutedSeqNum")
+                    log.log_message(message_type=f"replica = {late_replica}; lase_exec = {last_exec}")
+                    if last_exec == seq_nums_per_checkpoint + num_reqs_after_first_checkpoint:
+                        break
+                    await trio.sleep(seconds=0.3)
+
+            bft_network.stop_replica(late_replica)
+
+            # create 2 checkpoints and wait for checkpoint propagation
+            await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes=bft_network.all_replicas(without={late_replica}),
+                num_of_checkpoints_to_add=checkpoints_to_advance_after_first,
+                verify_checkpoint_persistency=False
+            )
+
+            await bft_network.wait_for_replicas_to_collect_stable_checkpoint(
+                bft_network.all_replicas(without={late_replica}),
+                first_stable_checkpoint_to_reach + checkpoints_to_advance_after_first)
+
+            bft_network.start_replica(late_replica)
+            with trio.fail_after(seconds=30):
+            
+                late_replica_catch_up = False
+                while not late_replica_catch_up:
+                    for replica_id in bft_network.get_live_replicas():
+                        last_stable = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastStableSeqNum")
+                        last_exec = await bft_network.get_metric(replica_id, bft_network, 'Gauges', "lastExecutedSeqNum")
+                        log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable}; lase_exec = {last_exec}")
+                        if replica_id == late_replica and last_exec == 2*seq_nums_per_checkpoint:
+                            late_replica_catch_up = True
+
+                    await write_req()
+                    await trio.sleep(seconds=3)
+
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_inactive_window(self, bft_network):
         """
         The goal of this test is to verify full catch up of a Replica only from the Inactive Window.

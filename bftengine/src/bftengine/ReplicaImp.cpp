@@ -2131,7 +2131,8 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
         }
         // help from Inactive Window
         if (mainLog->isPressentInHistory(msg->getLastExecutedSeqNum() + 1)) {
-          for (SeqNum i = msg->getLastExecutedSeqNum() + 1; i <= lastStableSeqNum; i++) {
+          SeqNum endRange = std::min(lastStableSeqNum, msgLastStable + kWorkWindowSize);
+          for (SeqNum i = msg->getLastExecutedSeqNum() + 1; i <= endRange; i++) {
             PrePrepareMsg *prePrepareMsg = mainLog->getFromHistory(i).getSelfPrePrepareMsg();
             if (prePrepareMsg != nullptr && !msg->isPrePrepareInActiveWindow(i)) {
               sendAndIncrementMetric(prePrepareMsg, msgSenderId, metric_sent_preprepare_msg_due_to_status_);
