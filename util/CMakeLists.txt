@@ -10,7 +10,8 @@ set(util_source_files
     src/sliver.cpp
     src/hex_tools.cpp
     src/OpenTracing.cpp
-    src/throughput.cpp)
+    src/throughput.cpp
+    src/openssl_crypto_utils.cpp)
 
 add_library(util STATIC
     ${util_source_files}
@@ -24,10 +25,11 @@ if(BUILD_ROCKSDB_STORAGE)
     target_compile_definitions(util_shared PUBLIC "USE_ROCKSDB=1")
 endif()
 
-target_link_libraries(util PUBLIC Threads::Threads)
+find_package(OpenSSL REQUIRED)
+target_link_libraries(util PUBLIC Threads::Threads ${OPENSSL_LIBRARIES})
 target_include_directories(util PUBLIC include)
 
-target_link_libraries(util_shared PUBLIC Threads::Threads)
+target_link_libraries(util_shared PUBLIC Threads::Threads ${OPENSSL_LIBRARIES})
 target_include_directories(util_shared PUBLIC include)
 
 if (USE_OPENTRACING)
@@ -57,7 +59,8 @@ set(util_header_files
     include/SimpleThreadPool.hpp
     include/sliver.hpp
     include/status.hpp
-    include/string.hpp)
+    include/string.hpp
+    include/openssl_crypto_utils.hpp)
 install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
