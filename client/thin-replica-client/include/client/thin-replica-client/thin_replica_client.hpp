@@ -224,11 +224,14 @@ struct ThinReplicaClientConfig {
   // connection from this TRC to a specific Thin Replica Server.
   std::vector<std::unique_ptr<TrsConnection>> trs_conns;
 
-  ThinReplicaClientConfig(std::string& client_id_,
+  ThinReplicaClientConfig(std::string client_id_,
                           std::shared_ptr<UpdateQueue> update_queue_,
                           std::size_t max_faulty_,
                           std::vector<std::unique_ptr<TrsConnection>> trs_conns_)
-      : client_id(client_id_), update_queue(update_queue_), max_faulty(max_faulty_), trs_conns(std::move(trs_conns_)) {}
+      : client_id(std::move(client_id_)),
+        update_queue(update_queue_),
+        max_faulty(max_faulty_),
+        trs_conns(std::move(trs_conns_)) {}
 };
 
 // TRC metrics
