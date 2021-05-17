@@ -58,10 +58,10 @@ static_assert((kMaxFaultyIn4NodeCluster * 3 + 1) == 4);
 
 bool UpdateMatchesExpected(const Update& update_received, const Data& update_expected) {
   if ((update_received.block_id != update_expected.block_id()) ||
-      (update_received.kv_pairs.size() != update_expected.data_size())) {
+      (update_received.kv_pairs.size() != (size_t)update_expected.data_size())) {
     return false;
   }
-  for (size_t i = 0; i < update_expected.data_size(); ++i) {
+  for (size_t i = 0; i < (size_t)update_expected.data_size(); ++i) {
     if ((update_received.kv_pairs[i].first != update_expected.data(i).key()) ||
         (update_received.kv_pairs[i].second != update_expected.data(i).value())) {
       return false;
@@ -220,7 +220,7 @@ TEST(trc_byzantine_test, test_read_state_fabricated_state) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   size_t fabricated_update_index = 1;
-  for (int i = fabricated_update_index; i < update_data.size(); ++i) {
+  for (size_t i = fabricated_update_index; i < update_data.size(); ++i) {
     update_data[i].set_block_id(update_data[i].block_id() + 1);
   }
   vector<Data> update_data_with_fabrication = update_data;

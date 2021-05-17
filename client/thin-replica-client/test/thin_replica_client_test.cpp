@@ -385,7 +385,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
     EXPECT_EQ(received_update->kv_pairs.size(), expected_update.data_size())
         << "An update the ThinReplicaClient fetched in the initial state has "
            "an incorrect number of KV-pair updates.";
-    for (size_t j = 0; j < received_update->kv_pairs.size() && j < expected_update.data_size(); ++j) {
+    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.data_size(); ++j) {
       EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.data(j).key())
           << "A key in an update the ThinReplicaClient fetched in the initial "
              "state does not match its expected value.";
@@ -420,7 +420,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
     EXPECT_EQ(received_update->kv_pairs.size(), expected_update.data_size())
         << "An update the ThinReplicaClient received in an ongoing "
            "subscription has an incorrect number of KV-pair updates.";
-    for (size_t j = 0; j < received_update->kv_pairs.size() && j < expected_update.data_size(); ++j) {
+    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.data_size(); ++j) {
       EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.data(j).key())
           << "A key in an update the ThinReplicaClient received in an ongoing "
              "subscription does not match its expected value.";
