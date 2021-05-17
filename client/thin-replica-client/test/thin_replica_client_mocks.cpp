@@ -1038,7 +1038,6 @@ Status ClusterResponsivenessLimiter::HashStreamState::Finish() {
 bool ClusterResponsivenessLimiter::HashStreamState::Read(Hash* hash) {
   bool delay;
   bool result = hashes_->Read(hash);
-  uint64_t block_id = result ? hash->block_id() : UINT64_MAX;
   {
     unique_lock<mutex> responsiveness_lock(responsiveness_limiter_.responsiveness_change_mutex_);
     if (result) {
