@@ -161,7 +161,7 @@ TEST(trc_basic_update_queue_test, test_pop) {
 TEST(test_basic_update_queue_test, test_size) {
   BasicUpdateQueue queue;
   EXPECT_EQ(queue.Size(), 0) << "BasicUpdateQueue::Size gives the wrong size for an empty queue.";
-  for (int i = 0; i < kNumUpdatesToTest; ++i) {
+  for (uint64_t i = 0; i < kNumUpdatesToTest; ++i) {
     queue.Push(MakeUniqueUpdate(i, vector<pair<string, string>>{}));
     EXPECT_EQ(queue.Size(), (i + 1)) << "BasicUpdateQueue::Size gives the wrong size for a queue to which "
                                      << to_string(i + 1) << " updates have been pushed.";
