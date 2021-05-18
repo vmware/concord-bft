@@ -131,8 +131,6 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
-  op_verifier_ =
-      std::make_unique<bftEngine::impl::ECDSAVerifier>(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_);
   // Make sure that blocks from old genesis through the last agreed block are
   // pruned. That might be violated if there was a crash during pruning itself.
   // Therefore, call it every time on startup to ensure no old blocks are
@@ -147,25 +145,29 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
 }
 
 bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
-                            concord::messages::LatestPrunableBlock& latest_prunable_block,
-                            concord::messages::ReconfigurationErrorMsg& error_msg) {
+                            uint64_t,
+                            concord::messages::ReconfigurationResponse& rres) {
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
-
-  if (!pruning_enabled_) return true;
+  concord::messages::LatestPrunableBlock latest_prunable_block;
+  if (!pruning_enabled_) {
+    latest_prunable_block.block_id = 0;
+    rres.response = latest_prunable_block;
+    return true;
+  }
   const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
   if (latest_prunable_block_id > 1)
     latest_prunable_block.bft_sequence_number = getBlockBftSequenceNumber(latest_prunable_block_id);
   latest_prunable_block.replica = replica_id_;
   latest_prunable_block.block_id = latest_prunable_block_id;
   signer_.sign(latest_prunable_block);
+  rres.response = latest_prunable_block;
   return true;
 }
 
 bool PruningHandler::handle(const concord::messages::PruneRequest& request,
-                            kvbc::BlockId& bid,
                             uint64_t bftSeqNum,
-                            concord::messages::ReconfigurationErrorMsg& error_msg) {
+                            concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
 
   const auto sender = request.sender;
@@ -177,10 +179,10 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request,
                  "on the grounds that some non-empty subset of those "
                  "LatestPrunableBlock messages did not bear correct signatures "
                  "from the claimed replicas.";
+    concord::messages::ReconfigurationErrorMsg error_msg;
     LOG_WARN(logger_, error);
     error_msg.error_msg = error;
-    bid = 0;
-
+    rres.response = error_msg;
     return false;
   }
 
@@ -190,7 +192,10 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request,
   persistLastAgreedPrunableBlockId(latest_prunable_block_id, bftSeqNum);
   // Execute actual pruning.
   pruneThroughBlockId(latest_prunable_block_id);
-  bid = latest_prunable_block_id;
+  std::ostringstream oss;
+  oss << std::to_string(latest_prunable_block_id);
+  std::string str = oss.str();
+  std::copy(str.cbegin(), str.cend(), std::back_inserter((rres).additional_data));
   return true;
 }
 
@@ -297,14 +302,16 @@ void PruningHandler::pruneOnStateTransferCompletion(uint64_t checkpoint_number) 
 }
 
 bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
-                            concord::messages::PruneStatus& prune_status,
-                            concord::messages::ReconfigurationErrorMsg& error_msg) {
+                            uint64_t,
+                            concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
+  concord::messages::PruneStatus prune_status;
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   std::lock_guard lock(pruning_status_lock_);
   prune_status.last_pruned_block =
       last_scheduled_block_for_pruning_.has_value() ? last_scheduled_block_for_pruning_.value() : 0;
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
+  rres.response = prune_status;
   return true;
 }
 
@@ -324,30 +331,5 @@ uint64_t PruningHandler::getBlockBftSequenceNumber(kvbc::BlockId bid) const {
   sequenceNum = concordUtils::fromBigEndianBuffer<std::uint64_t>(value.data.data());
   LOG_DEBUG(logger_, "sequenceNum = " << sequenceNum);
   return sequenceNum;
-}
-bool PruningHandler::verifySignature(const messages::ReconfigurationRequest& request,
-                                     messages::ReconfigurationErrorMsg& error_msg) const {
-  bool valid = false;
-  messages::ReconfigurationRequest request_without_sig = request;
-  request_without_sig.signature = {};
-  std::vector<uint8_t> serialized_cmd;
-  concord::messages::serialize(serialized_cmd, request_without_sig);
-
-  auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
-  auto ser_sig = std::string(request.signature.begin(), request.signature.end());
-  if (!op_verifier_) {
-    LOG_WARN(logger_,
-             "The public operator public key is missing, the reconfiguration engine assumes that some higher level "
-             "implementation is verifying the operator requests");
-    // TODO: remove this once we integrate with the product
-    return true;
-  } else {
-    valid = op_verifier_->verify(ser_data, ser_sig);
-  }
-  if (!valid) {
-    error_msg.error_msg = "Invalid signature";
-    LOG_ERROR(logger_, "The message's signature is invalid!");
-  }
-  return valid;
 }
 }  // namespace concord::kvbc::pruning

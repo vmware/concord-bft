@@ -19,13 +19,13 @@
 #include "kvbc_key_types.hpp"
 
 namespace concord::kvbc::reconfiguration {
-class ReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler {
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
       : blocks_adder_{block_adder}, block_metadata_{ro_storage} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
-              concord::messages::ReconfigurationErrorMsg&) override {
+              concord::messages::ReconfigurationResponse&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
@@ -33,19 +33,10 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     LOG_INFO(getLogger(), "WedgeCommand block is " << blockId);
     return true;
   }
-  bool handle(const concord::messages::WedgeStatusRequest&,
-              concord::messages::WedgeStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override {
-    return true;
-  }
-  bool handle(const concord::messages::GetVersionCommand&,
-              concord::messages::GetVersionResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override {
-    return true;
-  }
+
   bool handle(const concord::messages::DownloadCommand& command,
               uint64_t bft_seq_num,
-              concord::messages::ReconfigurationErrorMsg&) override {
+              concord::messages::ReconfigurationResponse&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
@@ -53,14 +44,10 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     LOG_INFO(getLogger(), "DownloadCommand command block is " << blockId);
     return true;
   }
-  bool handle(const concord::messages::DownloadStatusCommand&,
-              concord::messages::DownloadStatus&,
-              concord::messages::ReconfigurationErrorMsg&) override {
-    return true;
-  }
+
   bool handle(const concord::messages::InstallCommand& command,
               uint64_t bft_seq_num,
-              concord::messages::ReconfigurationErrorMsg&) override {
+              concord::messages::ReconfigurationResponse&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
@@ -68,19 +55,10 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
     LOG_INFO(getLogger(), "InstallCommand command block is " << blockId);
     return true;
   }
-  bool handle(const concord::messages::InstallStatusCommand&,
-              concord::messages::InstallStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override {
-    return true;
-  }
-  bool verifySignature(const concord::messages::ReconfigurationRequest&,
-                       concord::messages::ReconfigurationErrorMsg&) const override {
-    return true;
-  }
 
   bool handle(const concord::messages::KeyExchangeCommand& command,
-              concord::messages::ReconfigurationErrorMsg&,
-              uint64_t sequence_number) override {
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
@@ -90,8 +68,8 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
   }
 
   bool handle(const concord::messages::AddRemoveCommand& command,
-              concord::messages::ReconfigurationErrorMsg&,
-              uint64_t sequence_number) override {
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId =
@@ -103,7 +81,6 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
  private:
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
-
   kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data,
                                             const uint64_t bft_seq_num,
                                             const char& key) {
@@ -121,11 +98,6 @@ class ReconfigurationHandler : public concord::reconfiguration::IReconfiguration
       LOG_ERROR(getLogger(), "Reconfiguration Handler failed to persist last agreed prunable block ID");
       throw;
     }
-  }
-
-  logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("concord.kvbc.reconfiguration"));
-    return logger_;
   }
 };
 }  // namespace concord::kvbc::reconfiguration

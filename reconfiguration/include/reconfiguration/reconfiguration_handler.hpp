@@ -20,37 +20,67 @@
 #include "Crypto.hpp"
 
 namespace concord::reconfiguration {
-
-class ReconfigurationHandler : public IReconfigurationHandler {
+class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
-  ReconfigurationHandler();
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) override;
+  BftReconfigurationHandler();
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool handle(const concord::messages::WedgeStatusRequest&,
-              concord::messages::WedgeStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool handle(const concord::messages::GetVersionCommand&,
-              concord::messages::GetVersionResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool handle(const concord::messages::DownloadCommand&,
               uint64_t,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool handle(const concord::messages::DownloadStatusCommand&,
-              concord::messages::DownloadStatus&,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::InstallCommand& cmd,
               uint64_t,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::InstallStatusCommand& cmd,
-              concord::messages::InstallStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
+  bool handle(const concord::messages::InstallCommand&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
+  bool handle(const concord::messages::InstallStatusCommand&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool handle(const concord::messages::KeyExchangeCommand&,
-              concord::messages::ReconfigurationErrorMsg&,
-              uint64_t) override;
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool handle(const concord::messages::AddRemoveCommand&,
-              concord::messages::ReconfigurationErrorMsg&,
-              uint64_t) override;
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
+  bool handle(const concord::messages::LatestPrunableBlockRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
+  bool handle(const concord::messages::PruneStatusRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
+  bool handle(const concord::messages::PruneRequest&, uint64_t, concord::messages::ReconfigurationResponse&) override {
+    return true;
+  }
   bool verifySignature(const concord::messages::ReconfigurationRequest&,
-                       concord::messages::ReconfigurationErrorMsg&) const override;
+                       concord::messages::ReconfigurationResponse&) const override;
 
   static const unsigned char internalCommandKey() {
     static unsigned char key_ = 0x20;
@@ -62,8 +92,20 @@ class ReconfigurationHandler : public IReconfigurationHandler {
     static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
+
   std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
   std::vector<std::unique_ptr<bftEngine::impl::RSAVerifier>> internal_verifiers_;
+};
+class ReconfigurationHandler : public BftReconfigurationHandler {
+ public:
+  ReconfigurationHandler() {}
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::WedgeStatusRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::KeyExchangeCommand&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
 };
 
 }  // namespace concord::reconfiguration
