@@ -70,6 +70,8 @@ class IPruningHandler {
                       kvbc::BlockId&,
                       uint64_t bftSeqNum,
                       concord::messages::ReconfigurationErrorMsg&) = 0;
+  virtual bool verifySignature(const concord::messages::ReconfigurationRequest&,
+                               concord::messages::ReconfigurationErrorMsg&) const = 0;
 
   virtual ~IPruningHandler() = default;
 };

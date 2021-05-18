@@ -131,7 +131,8 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
-
+  op_verifier_ =
+      std::make_unique<bftEngine::impl::ECDSAVerifier>(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_);
   // Make sure that blocks from old genesis through the last agreed block are
   // pruned. That might be violated if there was a crash during pruning itself.
   // Therefore, call it every time on startup to ensure no old blocks are
@@ -323,5 +324,30 @@ uint64_t PruningHandler::getBlockBftSequenceNumber(kvbc::BlockId bid) const {
   sequenceNum = concordUtils::fromBigEndianBuffer<std::uint64_t>(value.data.data());
   LOG_DEBUG(logger_, "sequenceNum = " << sequenceNum);
   return sequenceNum;
+}
+bool PruningHandler::verifySignature(const messages::ReconfigurationRequest& request,
+                                     messages::ReconfigurationErrorMsg& error_msg) const {
+  bool valid = false;
+  messages::ReconfigurationRequest request_without_sig = request;
+  request_without_sig.signature = {};
+  std::vector<uint8_t> serialized_cmd;
+  concord::messages::serialize(serialized_cmd, request_without_sig);
+
+  auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
+  auto ser_sig = std::string(request.signature.begin(), request.signature.end());
+  if (!op_verifier_) {
+    LOG_WARN(logger_,
+             "The public operator public key is missing, the reconfiguration engine assumes that some higher level "
+             "implementation is verifying the operator requests");
+    // TODO: remove this once we integrate with the product
+    return true;
+  } else {
+    valid = op_verifier_->verify(ser_data, ser_sig);
+  }
+  if (!valid) {
+    error_msg.error_msg = "Invalid signature";
+    LOG_ERROR(logger_, "The message's signature is invalid!");
+  }
+  return valid;
 }
 }  // namespace concord::kvbc::pruning

@@ -160,6 +160,8 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   static std::string lastAgreedPrunableBlockIdKey() {
     return std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key};
   }
+  virtual bool verifySignature(const concord::messages::ReconfigurationRequest &,
+                               concord::messages::ReconfigurationErrorMsg &) const override;
 
  protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
@@ -188,6 +190,7 @@ class PruningHandler : public reconfiguration::IPruningHandler {
   mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
+  std::unique_ptr<bftEngine::impl::IVerifier> op_verifier_ = nullptr;
 };
 
 /*
@@ -200,7 +203,10 @@ class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
       : ro_storage_{ro_storage},
         signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
         pruning_enabled_{bftEngine::ReplicaConfig::instance().pruningEnabled_},
-        replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {}
+        replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {
+    op_verifier_ =
+        std::make_unique<bftEngine::impl::ECDSAVerifier>(bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_);
+  }
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               concord::messages::LatestPrunableBlock &latest_prunable_block,
               concord::messages::ReconfigurationErrorMsg &) override {
@@ -230,10 +236,33 @@ class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
     return true;
   }
 
+  bool verifySignature(const messages::ReconfigurationRequest &request,
+                       messages::ReconfigurationErrorMsg &error_msg) const override {
+    bool valid = false;
+    messages::ReconfigurationRequest request_without_sig = request;
+    request_without_sig.signature = {};
+    std::vector<uint8_t> serialized_cmd;
+    concord::messages::serialize(serialized_cmd, request_without_sig);
+
+    auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
+    auto ser_sig = std::string(request.signature.begin(), request.signature.end());
+    if (!op_verifier_) {
+      // TODO: remove this once we integrate with the product
+      return true;
+    } else {
+      valid = op_verifier_->verify(ser_data, ser_sig);
+    }
+    if (!valid) {
+      error_msg.error_msg = "Invalid signature";
+    }
+    return valid;
+  }
+
  private:
   IReader &ro_storage_;
   RSAPruningSigner signer_;
   bool pruning_enabled_{false};
   std::uint64_t replica_id_{0};
+  std::unique_ptr<bftEngine::impl::IVerifier> op_verifier_ = nullptr;
 };
 }  // namespace concord::kvbc::pruning
