@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -27,7 +27,8 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
 
   uint64_t execute(logging::Logger& logger,
                    categorization::KeyValueBlockchain& blockchain,
-                   uint64_t lastExecutedSeqNum) override;
+                   uint64_t lastExecutedSeqNum,
+                   uint32_t maxNumOfBlocksToDelete) override;
 
  protected:
   std::unique_ptr<IBlockMetadata> blockMetadata_;

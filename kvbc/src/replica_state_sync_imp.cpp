@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the
 // "License").  You may not use this product except in compliance with the
@@ -25,7 +25,8 @@ ReplicaStateSyncImp::ReplicaStateSyncImp(IBlockMetadata* blockMetadata) : blockM
 
 uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
                                       categorization::KeyValueBlockchain& blockchain,
-                                      uint64_t lastExecutedSeqNum) {
+                                      uint64_t lastExecutedSeqNum,
+                                      uint32_t maxNumOfBlocksToDelete) {
   if (!lastExecutedSeqNum) {
     LOG_INFO(logger, "Replica's metadata is empty => skip blocks removal");
     return 0;
@@ -45,8 +46,8 @@ uint64_t ReplicaStateSyncImp::execute(logging::Logger& logger,
     }
     // SBFT State Metadata is not in sync with the Blockchain State.
     // Remove blocks which sequence number is greater than lastExecutedSeqNum.
-    if (removedBlocksNum == 1) {
-      std::string error = " Detected more than one block needs to be deleted from the blockchain - unsupported";
+    if (removedBlocksNum >= maxNumOfBlocksToDelete) {
+      std::string error = " Detected too many blocks to be deleted from the blockchain";
       LOG_FATAL(logger, error);
       throw std::runtime_error(__PRETTY_FUNCTION__ + error);
     }
