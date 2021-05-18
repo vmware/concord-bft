@@ -18,6 +18,8 @@
 namespace bftEngine::impl {
 
 class PersistentStorage;
+class SigManager;
+
 /**
  *
  */
@@ -64,6 +66,12 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
+
+  const ReplicaConfig& config_;
+
+  // digital signatures
+  std::unique_ptr<SigManager> sigManager_;
+
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
 };
 

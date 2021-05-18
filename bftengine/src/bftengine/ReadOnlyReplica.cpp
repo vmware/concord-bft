@@ -23,6 +23,7 @@
 #include "ClientsManager.hpp"
 #include "MsgsCommunicator.hpp"
 #include "KeyStore.h"
+#include "SigManager.hpp"
 
 using concordUtil::Timers;
 
@@ -38,7 +39,8 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
-                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
+      config_(config) {
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
@@ -50,6 +52,13 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
       ClientsManager::reservedPagesPerClient(config.sizeOfReservedPage, config.maxReplyMessageSize));
   ClusterKeyStore::setNumResPages(config.numReplicas);
+  sigManager_.reset(SigManager::init(config_.replicaId,
+                                     config_.replicaPrivateKey,
+                                     config_.publicKeysOfReplicas,
+                                     KeyFormat::HexaDecimalStrippedFormat,
+                                     config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
+                                     KeyFormat::PemFormat,
+                                     *repsInfo));
 }
 
 void ReadOnlyReplica::start() {
