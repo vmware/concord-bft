@@ -13,6 +13,8 @@
 
 #include "gtest/gtest.h"
 
+#include "ccron_msgs.cmf.hpp"
+
 #include "ccron/cron_table.hpp"
 #include "ccron/periodic_action.hpp"
 
@@ -61,7 +63,7 @@ struct ReservedPagesMock : public bftEngine::IReservedPages {
 
 class ccron_table_test : public ::testing::Test {
  protected:
-  const std::uint32_t kComponentId = 1;
+  const std::uint32_t kComponentId = 99;
   CronTable table_{kComponentId};
   const Tick tick_{kComponentId, 42, 10ms};
 
@@ -89,7 +91,10 @@ class ccron_table_test : public ::testing::Test {
   }
 
   auto onRemove() {
-    return [this](std::uint32_t position) { on_remove_called_.push_back(position); };
+    return [this](std::uint32_t component_id, std::uint32_t position) {
+      ASSERT_EQ(kComponentId, component_id);
+      on_remove_called_.push_back(position);
+    };
   }
 
   auto trueRule() const {
@@ -108,6 +113,17 @@ class ccron_table_test : public ::testing::Test {
       EXPECT_EQ(t, tick_);
       return false;
     };
+  }
+
+  PeriodicActionSchedule getScheduleFromResPage() const {
+    auto schedule = PeriodicActionSchedule{};
+    EXPECT_EQ(1, res_pages_.pages_.size());
+    const auto& page = res_pages_.pages_.begin()->second;
+    auto page_ptr = reinterpret_cast<const uint8_t*>(page.data());
+    deserialize(page_ptr, page_ptr + page.size(), schedule);
+    EXPECT_EQ(1, schedule.components.size());
+    EXPECT_EQ(1, schedule.components.count(kComponentId));
+    return schedule;
   }
 };
 
@@ -278,6 +294,28 @@ TEST_F(ccron_table_test, periodic_action) {
     ASSERT_EQ(position2, actions_called_[3]);
     ASSERT_EQ(position1, actions_called_[4]);
     ASSERT_EQ(position2, actions_called_[5]);
+  }
+
+  // Make sure that removing an entry removes its saved schedule only.
+  {
+    auto new_table = CronTable{kComponentId};
+    new_table.addEntry(periodicAction(position1, action(position1, check_tick), 2s, res_pages_));
+    new_table.addEntry(periodicAction(position2, action(position2, check_tick), 1s, res_pages_));
+
+    auto schedule_before = getScheduleFromResPage();
+    const auto& saved_table_before = schedule_before.components[kComponentId];
+    ASSERT_EQ(2, saved_table_before.size());
+    ASSERT_EQ(1, saved_table_before.count(position1));
+    ASSERT_EQ(1, saved_table_before.count(position2));
+
+    // Remove the entry at position1.
+    ASSERT_TRUE(new_table.removeEntry(position1));
+
+    // Verify that only position2 is left.
+    auto schedule_after = getScheduleFromResPage();
+    const auto& saved_table_after = schedule_after.components[kComponentId];
+    ASSERT_EQ(1, saved_table_after.size());
+    ASSERT_EQ(1, saved_table_after.count(position2));
   }
 }
 

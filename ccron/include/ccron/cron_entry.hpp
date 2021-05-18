@@ -21,7 +21,7 @@ namespace concord::cron {
 using Rule = std::function<bool(const Tick&)>;
 using Action = std::function<void(const Tick&)>;
 using ScheduleNext = std::function<void(const Tick&)>;
-using OnRemove = std::function<void(std::uint32_t)>;  // Receives the entry position as an argument.
+using OnRemove = std::function<void(std::uint32_t component_id, std::uint32_t position)>;
 
 struct CronEntry {
   // Absolute position in the cron table.

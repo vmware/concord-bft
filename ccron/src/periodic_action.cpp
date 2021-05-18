@@ -73,8 +73,8 @@ CronEntry periodicAction(std::uint32_t position,
     saveSchedule(reserved_pages);
   };
 
-  auto on_remove = [&reserved_pages](std::uint32_t component_id) {
-    schedule.components[component_id].clear();
+  auto on_remove = [&reserved_pages](std::uint32_t component_id, std::uint32_t position) {
+    schedule.components[component_id].erase(position);
     saveSchedule(reserved_pages);
   };
 

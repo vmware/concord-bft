@@ -26,7 +26,7 @@ bool CronTable::removeEntry(std::uint32_t position) {
   }
   auto& entry = it->second;
   if (entry.on_remove) {
-    (*entry.on_remove)(position);
+    (*entry.on_remove)(component_id_, position);
   }
   entries_.erase(it);
   return true;
@@ -35,7 +35,7 @@ bool CronTable::removeEntry(std::uint32_t position) {
 std::uint32_t CronTable::removeAllEntries() {
   for (const auto& [position, entry] : entries_) {
     if (entry.on_remove) {
-      (*entry.on_remove)(position);
+      (*entry.on_remove)(component_id_, position);
     }
   }
   const auto count = entries_.size();
