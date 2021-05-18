@@ -116,6 +116,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
     if (emptyReq) {
       expectedSigLen = 0;
     } else if ((header->flags & RECONFIG_FLAG) != 0) {
+      expectedSigLen = header->reqSignatureLength;
       // This message arrived from operator - no need at this stage to verifiy the request, since operator
       // verifies it's own signatures on requests in the reconfiguration handler
       doSigVerify = false;

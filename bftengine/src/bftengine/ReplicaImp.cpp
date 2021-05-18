@@ -2771,14 +2771,7 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
 
     metric_on_call_back_of_super_stable_cp_.Get().Set(1);
-    // TODO: With state transfered replica, this might be called twice. Consider to clean the reserved page at the
-    // end of this method
     IControlHandler::instance()->onSuperStableCheckpoint();
-    // Now, we know that the inmemory var in controlStateManager_ is set to the correct point.
-    // We want that when the replicas resume, they won't have the wedge point in their reserved pages (otherwise they
-    // will simply try to wedge again). Yet, as the reserved pages are transferred via ST we can cleat this data only in
-    // an n/n checkpoint that is about to be wedged because we know that there is no ST going on now.
-    ControlStateManager::instance().clearCheckpointToStopAt();
   }
 }
 
@@ -2869,18 +2862,14 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
-  // Below we handle the case of removing a node. Note that when removing nodes we cannot assume we will have n/n
-  // checkpoint because some of the replicas may not be responsive. For that we also mark that we got to a stable (n-f)
-  // checkpoint.
-  // Note: Currently this is not sage to rely on this n-f wedged checkpoint on any other reconfiguration action except
-  // of removing nodes.
-  // TODO (YB): we need to improve this mechanism so that it will be supported by many reconfiguration actions as
-  // possible.
+  // Once a replica is has got the the wedge point, it mark itself as wedged. Then, once it restarts, it cleans the
+  // the wedge point.
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newStableSeqNum) {
     LOG_INFO(GL,
-             "Informing control state manager that consensus should be stopped (without n/n replicas): " << KVLOG(
+             "Informing control state manager that consensus should be stopped (with n-f/n replicas): " << KVLOG(
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
     IControlHandler::instance()->onStableCheckpoint();
+
     // Mark the metadata storage for deletion if we need to
     auto seq_num_to_remove_metadata_storage = ControlStateManager::instance().getEraseMetadataFlag();
     // We would want to set this flag only when we sure that the replica needs to remove the metadata.
@@ -3731,7 +3720,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
 ReplicaImp::~ReplicaImp() {
   // TODO(GG): rewrite this method !!!!!!!! (notice that the order may be important here ).
   // TODO(GG): don't delete objects that are passed as params (TBD)
-
   internalThreadPool.stop();
 
   delete viewsManager;
@@ -3830,6 +3818,13 @@ void ReplicaImp::start() {
   id.a = aggregator_;
   id.interval = std::chrono::seconds(config_.getmetricsDumpIntervalSeconds());
   id.keyExchangeOnStart = ReplicaConfig::instance().getkeyExchangeOnStart();
+
+  // If we have just unwedged, clear the wedge point
+  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seqNumToStopAt.has_value() && lastStableSeqNum == seqNumToStopAt.value()) {
+    LOG_INFO(GL, "unwedge the system" << KVLOG(lastStableSeqNum));
+    ControlStateManager::instance().clearCheckpointToStopAt();
+  }
 
   KeyExchangeManager::start(&id);
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
