@@ -80,8 +80,15 @@ void ReplicaImp::createReplicaAndSyncState() {
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
     try {
-      uint64_t removedBlocksNum = replicaStateSync_->execute(logger, *m_kvBlockchain, lastExecutedSeqNum);
-      LOG_INFO(logger, KVLOG(lastExecutedSeqNum, removedBlocksNum, getLastBlockNum(), getLastReachableBlockNum()));
+      const auto maxNumOfBlocksToDelete = replicaConfig_.maxNumOfRequestsInBatch;
+      const auto removedBlocksNum =
+          replicaStateSync_->execute(logger, *m_kvBlockchain, lastExecutedSeqNum, maxNumOfBlocksToDelete);
+      LOG_INFO(logger,
+               KVLOG(lastExecutedSeqNum,
+                     removedBlocksNum,
+                     getLastBlockNum(),
+                     getLastReachableBlockNum(),
+                     maxNumOfBlocksToDelete));
     } catch (std::exception &e) {
       std::terminate();
     }
