@@ -990,6 +990,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
       clientId,
       reqSeqNum,
+      cid,
       PRE_PROCESS_FLAG,
       reqLength,
       reqBuf,
