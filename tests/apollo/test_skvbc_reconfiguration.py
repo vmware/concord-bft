@@ -142,10 +142,81 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in late_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=True)
+                                                              stop_on_stable_seq_num=False)
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
 
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_wedge_command_with_f_failures(self, bft_network):
+        """
+            This test checks that even a replica that received the super stable checkpoint via the state transfer mechanism
+            is able to stop at the super stable checkpoint.
+            The test does the following:
+            1. Start all replicas but 2
+            2. A client sends a wedge command
+            3. Validate that all started replicas have reached the wedge point
+            4. Restart the live replicas and validate the system is able to make progress
+            5. Start the late replica
+            6. Validate that the late replicas completed the state transfer
+            7. Join the late replicas to the quorum and make sure the system is able to make progress
+        """
+        initial_prim = 0
+        late_replicas = bft_network.random_set_of_replicas(2, {initial_prim})
+        on_time_replicas = bft_network.all_replicas(without=late_replicas)
+        bft_network.start_replicas(on_time_replicas)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.wait_for_liveness()
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        with log.start_action(action_type="send_wedge_cmd",
+                              checkpoint_before=checkpoint_before,
+                              late_replicas=list(late_replicas)):
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+            await op.wedge()
+
+        with trio.fail_after(seconds=30):
+            done = False
+            while done is False:
+                await op.wedge_status(quorum=bft_client.MofNQuorum(on_time_replicas, len(on_time_replicas)), fullWedge=False)
+                rsi_rep = client.get_rsi_replies()
+                done = True
+                for r in rsi_rep.values():
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    status = res[0].response.stopped
+                    if status is False:
+                        done = False
+                        break
+
+
+        # Make sure the system is able to make progress
+        bft_network.stop_replicas(on_time_replicas)
+        bft_network.start_replicas(on_time_replicas)
+        for i in range(100):
+            await skvbc.write_known_kv()
+
+        # Start late replicas and wait for state transfer to stop
+        bft_network.start_replicas(late_replicas)
+
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in late_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+
+        replicas_to_stop = bft_network.random_set_of_replicas(2, late_replicas | {initial_prim})
+
+        # Make sure the system is able to make progress
+        for i in range(100):
+            await skvbc.write_known_kv()
+
+
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
