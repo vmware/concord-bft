@@ -78,7 +78,7 @@ class Serializable {
   /**
    * the class version
    */
-  virtual const std::string getVersion() const = 0;
+  virtual const std::string getVersion() const { return "1"; };
   /**
    * each class knows how to serialize its data members
    */
