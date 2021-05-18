@@ -17,6 +17,7 @@
 #include "replica_state_sync_imp.hpp"
 #include "block_metadata.hpp"
 #include "SimpleBCStateTransfer.hpp"
+#include "secrets_manager_plain.h"
 #include "assertUtils.hpp"
 #include <csignal>
 
@@ -47,7 +48,7 @@ void run_replica(int argc, char** argv) {
                                    std::map<std::string, categorization::CATEGORY_TYPE>{
                                        {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
                                        {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                   nullptr /*SecretsManagerEnc*/);
+                                   std::make_shared<concord::secretsmanager::SecretsManagerPlain>());
 
   auto* blockMetadata = new BlockMetadata(*replica);
 
