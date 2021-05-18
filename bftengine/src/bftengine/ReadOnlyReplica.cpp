@@ -93,25 +93,27 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     return;
   }
   ro_metrics_.received_checkpoint_msg_.Get().Inc();
-  const ReplicaId msgSenderId = msg->senderId();
+  const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
 
-  LOG_INFO(GL, KVLOG(msgSenderId, msgSeqNum, msg->size(), msgIsStable) << ", digest: " << msgDigest.toString());
+  LOG_INFO(GL,
+           KVLOG(msg->senderId(), msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable)
+               << ", digest: " << msgDigest.toString());
 
   // not relevant
   if (!msgIsStable || msgSeqNum <= lastExecutedSeqNum) return;
 
   // previous CheckpointMsg from the same sender
-  auto pos = tableOfStableCheckpoints.find(msgSenderId);
+  auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
   if (pos != tableOfStableCheckpoints.end() && pos->second->seqNumber() >= msgSeqNum) return;
   if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-  CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
-  tableOfStableCheckpoints[msgSenderId] = x;
+  CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+  tableOfStableCheckpoints[msgGenReplicaId] = x;
   LOG_INFO(GL,
-           "Added stable Checkpoint message to tableOfStableCheckpoints (message from node "
-               << msgSenderId << " for seqNumber " << msgSeqNum << ")");
+           "Added stable Checkpoint message to tableOfStableCheckpoints (message generated from node "
+               << msgGenReplicaId << " for seqNumber " << msgSeqNum << " sender node " << msg->senderId() << ")");
 
   // not enough CheckpointMsg's
   if ((uint16_t)tableOfStableCheckpoints.size() < config_.fVal + 1) return;
