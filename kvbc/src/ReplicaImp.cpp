@@ -69,6 +69,7 @@ Status ReplicaImp::start() {
 
 void ReplicaImp::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+  stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   requestHandler->setReconfigurationHandler(

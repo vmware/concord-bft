@@ -16,6 +16,7 @@
 #include "db_interfaces.h"
 #include "kvbc_key_types.hpp"
 #include "concord.cmf.hpp"
+#include "reconfiguration/ireconfiguration.hpp"
 
 namespace concord::kvbc {
 /*
@@ -26,6 +27,10 @@ class StReconfigurationHandler {
  public:
   StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
     st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); });
+  }
+
+  void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
+    orig_reconf_handlers_.push_back(handler);
   }
 
  private:
@@ -52,5 +57,6 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t) { return true; }
   kvbc::IReader& ro_storage_;
+  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
 };
 }  // namespace concord::kvbc
