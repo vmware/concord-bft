@@ -80,10 +80,9 @@ std::optional<int64_t> ControlStateManager::getEraseMetadataFlag() {
   return page_.erase_metadata_at_seq_num_;
 }
 void ControlStateManager::clearCheckpointToStopAt() {
-  ControlStatePage tmpPage = page_;
-  tmpPage.seq_num_to_stop_at_ = 0;
+  page_.seq_num_to_stop_at_ = 0;
   std::ostringstream outStream;
-  concord::serialize::Serializable::serialize(outStream, tmpPage);
+  concord::serialize::Serializable::serialize(outStream, page_);
   auto data = outStream.str();
   saveReservedPage(0, data.size(), data.data());
 }

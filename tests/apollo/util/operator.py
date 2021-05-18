@@ -55,9 +55,10 @@ class Operator:
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
 
-    def _construct_reconfiguration_wedge_status(self):
+    def _construct_reconfiguration_wedge_status(self, fullWedge=True):
         wedge_status_cmd = cmf_msgs.WedgeStatusRequest()
         wedge_status_cmd.sender = 1000
+        wedge_status_cmd.fullWedge = fullWedge
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = wedge_status_cmd
         reconf_msg.additional_data = bytes()
@@ -101,10 +102,11 @@ class Operator:
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
-    async def wedge_status(self):
-        msg = self._construct_reconfiguration_wedge_status()
-        return await self.client.read(msg.serialize(), m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
-            self.config.n)]), reconfiguration=True)
+    async def wedge_status(self, quorum=None, fullWedge=True):
+        if quorum is None:
+            quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
+        msg = self._construct_reconfiguration_wedge_status(fullWedge)
+        return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
     async def latest_pruneable_block(self):
         reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()

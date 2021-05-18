@@ -26,6 +26,7 @@
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
 #include "reconfiguration_add_block_handler.hpp"
+#include "st_reconfiguraion_sm.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -68,6 +69,7 @@ Status ReplicaImp::start() {
 
 void ReplicaImp::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+  stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   requestHandler->setReconfigurationHandler(
@@ -264,6 +266,9 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+  if (!replicaConfig.isReadOnly) {
+    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
+  }
 }
 
 ReplicaImp::~ReplicaImp() {
