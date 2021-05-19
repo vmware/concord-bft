@@ -27,6 +27,7 @@
 #include "Metrics.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "bftengine/ReplicaConfig.hpp"
 
 namespace concord::kvbc::categorization {
 
@@ -225,7 +226,7 @@ class KeyValueBlockchain {
   concordMetrics::CounterHandle immutable_num_of_keys_;
   concordMetrics::CounterHandle merkle_num_of_keys_;
 
-  std::chrono::seconds dump_delete_metrics_interval_{5 * 60};  // default is 5 minutes
+  std::chrono::seconds dump_delete_metrics_interval_{bftEngine::ReplicaConfig::instance().deleteMetricsDumpInterval};
   std::chrono::seconds last_dump_time_{0};
   uint64_t latest_deleted_merkle_dump{0};
   uint64_t latest_deleted_versioned{0};
