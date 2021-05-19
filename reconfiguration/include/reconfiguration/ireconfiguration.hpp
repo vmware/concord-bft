@@ -66,19 +66,4 @@ class IReconfigurationHandler {
   virtual ~IReconfigurationHandler() = default;
 };
 
-class IPruningHandler {
- public:
-  virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
-                      uint64_t,
-                      concord::messages::ReconfigurationResponse&) = 0;
-  virtual bool handle(const concord::messages::PruneStatusRequest&,
-                      uint64_t,
-                      concord::messages::ReconfigurationResponse&) = 0;
-  virtual bool handle(const concord::messages::PruneRequest&,
-                      uint64_t,
-                      concord::messages::ReconfigurationResponse&) = 0;
-
-  virtual ~IPruningHandler() = default;
-};
-
 }  // namespace concord::reconfiguration
