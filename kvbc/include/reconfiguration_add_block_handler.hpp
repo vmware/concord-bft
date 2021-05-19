@@ -93,7 +93,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     try {
       return blocks_adder_.add(std::move(updates));
     } catch (...) {
-      LOG_ERROR(getLogger(), "Reconfiguration Handler failed to persist last agreed prunable block ID");
+      LOG_ERROR(getLogger(), "Reconfiguration Handler failed to persist the reconfiguration block");
       throw;
     }
   }
