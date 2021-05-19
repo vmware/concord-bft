@@ -94,7 +94,6 @@ class BftReconfigurationHandler : public IReconfigurationHandler {
   }
 
   std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
-  std::vector<std::unique_ptr<bftEngine::impl::RSAVerifier>> internal_verifiers_;
 };
 class ReconfigurationHandler : public BftReconfigurationHandler {
  public:
@@ -107,5 +106,4 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
 };
-
 }  // namespace concord::reconfiguration

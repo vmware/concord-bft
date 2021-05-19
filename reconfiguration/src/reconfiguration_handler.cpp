@@ -23,10 +23,6 @@ namespace concord::reconfiguration {
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
                                     concord::messages::ReconfigurationResponse&) {
-  if (cmd.noop) {
-    LOG_INFO(getLogger(), "received noop command, a new block will be written" << KVLOG(bft_seq_num));
-    return true;
-  }
   LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   return true;
@@ -61,10 +57,6 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command, uint64_t 
 }
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
-  for (const auto& [rep, pk] : bftEngine::ReplicaConfig::instance().publicKeysOfReplicas) {
-    internal_verifiers_.emplace_back(std::make_unique<bftEngine::impl::RSAVerifier>(pk.c_str()));
-    (void)rep;
-  }
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
   verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
 }
@@ -79,16 +71,7 @@ bool BftReconfigurationHandler::verifySignature(const ReconfigurationRequest& re
 
   auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
   auto ser_sig = std::string(request.signature.begin(), request.signature.end());
-
-  if (!request.additional_data.empty() && request.additional_data.front() == internalCommandKey()) {
-    // It means we got an internal command, lets verify it with the internal verifiers
-    for (auto& verifier : internal_verifiers_) {
-      valid |= verifier->verify(ser_data.c_str(), ser_data.size(), ser_sig.c_str(), ser_sig.size());
-      if (valid) break;
-    }
-  } else {
-    valid = verifier_->verify(ser_data, ser_sig);
-  }
+  valid = verifier_->verify(ser_data, ser_sig);
   if (!valid) {
     error_msg.error_msg = "Invalid signature";
     rres.response = error_msg;
