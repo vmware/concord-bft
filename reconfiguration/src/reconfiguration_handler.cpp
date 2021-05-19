@@ -58,6 +58,11 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command, uint64_t 
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
+  if (operatorPubKeyPath.empty()) {
+    LOG_WARN(getLogger(),
+             "The operator public key is missing, the reconfiguration handler won't be able to execute the requests");
+    return;
+  }
   verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
 }
 bool BftReconfigurationHandler::verifySignature(const ReconfigurationRequest& request,
