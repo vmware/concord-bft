@@ -14,8 +14,6 @@
 
 using namespace concord::messages;
 
-using std::holds_alternative;
-
 namespace concord::reconfiguration {
 
 #define ADDITIONAL_DATA(resp, x)                                                     \
