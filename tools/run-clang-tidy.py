@@ -36,6 +36,7 @@ http://clang.llvm.org/docs/HowToSetupToolingForLLVM.html
 from __future__ import print_function
 
 import argparse
+import fnmatch
 import glob
 import json
 import multiprocessing
@@ -59,6 +60,27 @@ if is_py2:
     import Queue as queue
 else:
     import queue as queue
+
+def filter_files(files):
+  """Filter out all files specified via globs in DEFAULT_CLANG_TIDY_IGNORE.
+  """
+  DEFAULT_CLANG_TIDY_IGNORE=".clang-tidy-ignore"
+  globs = list()
+  with open(DEFAULT_CLANG_TIDY_IGNORE, 'r') as tidy_ignore:
+    for l in tidy_ignore:
+      line = l.strip()
+      # Tolerate comments and empty lines
+      if not line or line.startswith('#'):
+        continue
+      globs.append(line)
+
+  exclude = set()
+  for g in globs:
+    for entry in files:
+      if fnmatch.fnmatch(entry, g):
+        exclude.add(entry)
+
+  return list(set(files) - exclude), exclude
 
 def find_compilation_database(path):
   """Adjusts the directory until a compilation database is found."""
@@ -256,6 +278,9 @@ def main():
   database = json.load(open(os.path.join(build_path, db_path)))
   files = [make_absolute(entry['file'], entry['directory'])
            for entry in database]
+  files, excluded = filter_files(files)
+  if excluded:
+    print("Excluding the following files:\n" + "\n".join(excluded) + "\n")
 
   max_task = args.j
   if max_task == 0:
