@@ -23,62 +23,6 @@ namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
   BftReconfigurationHandler();
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::WedgeStatusRequest&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::GetVersionCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::DownloadCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::DownloadStatusCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::InstallCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::InstallStatusCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::KeyExchangeCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::AddRemoveCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::LatestPrunableBlockRequest&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::PruneStatusRequest&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
-  bool handle(const concord::messages::PruneRequest&, uint64_t, concord::messages::ReconfigurationResponse&) override {
-    return true;
-  }
   bool verifySignature(const concord::messages::ReconfigurationRequest&,
                        concord::messages::ReconfigurationResponse&) const override;
 
