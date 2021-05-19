@@ -32,7 +32,9 @@ WarningsAsErrors:   'bugprone-*,
 # -misc-unused-parameters - too many errors, fix later
 
 # Include all headers in the project
-HeaderFilterRegex: 'concord-bft'
+# Except for protobuf/gRPC generated header files
+# Note: '(?<!' starts a negative look behind expression
+HeaderFilterRegex: 'concord-bft.*(?<!\.pb\.h)$'
 AnalyzeTemporaryDtors: false
 FormatStyle:     file
 CheckOptions:
