@@ -15,6 +15,7 @@ CONCORD_BFT_CONTAINER_CC?=clang
 CONCORD_BFT_CONTAINER_CXX?=clang++
 CONCORD_BFT_CMAKE_BUILD_TYPE?=Release
 CONCORD_BFT_CMAKE_BUILD_TESTING?=TRUE
+CONCORD_BFT_CLANG_TIDY?=/concord-bft/tools/run-clang-tidy.py
 
 # UDP | TLS | TCP
 CONCORD_BFT_CMAKE_TRANSPORT?=TLS
@@ -170,7 +171,8 @@ tidy-check: gen_cmake ## Run clang-tidy
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_THIN_REPLICA_PROTO_PATH} &> /dev/null && \
-		run-clang-tidy-10 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
+		cp ../.clang-tidy-ignore . && \
+		${CONCORD_BFT_CLANG_TIDY} 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
 		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \
 		|| ( echo "\nClang-tidy failed. The full report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
