@@ -28,14 +28,6 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               concord::messages::ReconfigurationResponse&) override {
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
-    //    if (command.noop) {
-    //      auto seq_num_to_stop_at = bftEngine::ControlStateManager::instance().getCheckpointToStopAt();
-    //      if (!seq_num_to_stop_at.has_value() || bft_seq_num > seq_num_to_stop_at) {
-    //        LOG_ERROR(getLogger(), "Invalid noop wedge command, it won't be writen to the blockchain");
-    //        return false;
-    //      }
-    //      LOG_INFO(getLogger(), "received noop command, a new block will be written" << KVLOG(bft_seq_num));
-    //    }
     auto blockId =
         persistReconfigurationBlock(serialized_command, bft_seq_num, kvbc::keyTypes::reconfiguration_wedge_key);
     LOG_INFO(getLogger(), "WedgeCommand block is " << blockId);
