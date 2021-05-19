@@ -17,6 +17,7 @@ namespace bftEngine {
 namespace impl {
 class StateTransferMsg : public MessageBase {
  public:
+  BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(StateTransferMsg)
   void validate(const ReplicasInfo&) const override;
 };
 

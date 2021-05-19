@@ -1787,10 +1787,12 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     time_in_state_transfer_.start();
     clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
     stateTransfer->startCollectingState();
-  } else if (msgSenderId == msgGenReplicaId && msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
-    onReportAboutAdvancedReplica(msgGenReplicaId, msgSeqNum);
-  } else if (msgSenderId == msgGenReplicaId && msgSeqNum + kWorkWindowSize < lastStableSeqNum) {
-    onReportAboutLateReplica(msgGenReplicaId, msgSeqNum);
+  } else if (msgSenderId == msgGenReplicaId) {
+    if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
+      onReportAboutAdvancedReplica(msgGenReplicaId, msgSeqNum);
+    } else if (msgSeqNum + kWorkWindowSize < lastStableSeqNum) {
+      onReportAboutLateReplica(msgGenReplicaId, msgSeqNum);
+    }
   }
 }
 /**

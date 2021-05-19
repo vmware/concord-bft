@@ -54,7 +54,7 @@ class CheckpointMsg : public MessageBase {
     uint8_t flags;           // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 2 + 1), "Header is 47B");
+  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 2 + 1), "Header is 49B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

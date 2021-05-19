@@ -44,11 +44,17 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
 
   auto sigManager = SigManager::instance();
-  auto sigLen = sigManager->getMySigLength();
 
-  if (size() < sizeof(Header) + spanContextSize() + sigLen || (!repInfo.isIdOfReplica(senderId())) ||
-      (seqNumber() % checkpointWindowSize != 0) || (digestOfState().isZero()))
+  if (size() < sizeof(Header) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
+      (!repInfo.isIdOfReplica(idOfGeneratedReplica())) || (seqNumber() % checkpointWindowSize != 0) ||
+      (digestOfState().isZero()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
+
+  auto sigLen = sigManager->getSigLength(idOfGeneratedReplica());
+
+  if (size() < sizeof(Header) + spanContextSize() + sigLen) {
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
+  }
 
   if (!sigManager->verifySig(
           idOfGeneratedReplica(), body(), sizeof(Header), body() + sizeof(Header) + spanContextSize(), sigLen))
