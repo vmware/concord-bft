@@ -3,17 +3,6 @@ find_package(GRPC REQUIRED)
 
 include_directories(${GRPC_INCLUDE_DIR})
 
-# Avoid checking auto-generated code
-# There is no generic way to avoid a file so we only enable one simple check
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/.clang-tidy "\
----
-Checks:          '-*,misc-static-assert'
-WarningsAsErrors: ''
-AnalyzeTemporaryDtors: false
-FormatStyle:    none
-...
-")
-
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_BINARY_DIR}
   thin_replica.proto
 )
