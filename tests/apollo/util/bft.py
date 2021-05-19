@@ -853,19 +853,15 @@ class BftTestNetwork:
         """
         with log.start_action(action_type="_wait_for_matching_agreed_view", replica=replica_id) as action:
             last_agreed_view = None
-            with trio.fail_after(seconds=30):
-                while True:
-                    try:
-                        with trio.move_on_after(seconds=1):
-                            key = ['replica', 'Gauges', 'lastAgreedView']
-                            view = await self.metrics.get(replica_id, *key)
-                            if expected(view):
-                                last_agreed_view = view
-                                break
-                    except KeyError:
-                        # metrics not yet available, continue looping
-                        pass
-                    await trio.sleep(0.1)
+
+            async def the_last_agreed_view():
+                key = ['replica', 'Gauges', 'lastAgreedView']
+                view = await self.retrieve_metric(replica_id, *key)
+
+                if view is not None and expected(view):
+                    return view
+                
+            last_agreed_view = await self.wait_for(the_last_agreed_view, 45, 1)
             action.add_success_fields(last_agreed_view=last_agreed_view)
             return last_agreed_view
 
@@ -874,7 +870,7 @@ class BftTestNetwork:
         Wait for a view to become active on enough (n-f) replicas
         """
         with log.start_action(action_type="_wait_for_active_view", view=view):
-            with trio.fail_after(seconds=30):
+            with trio.fail_after(seconds=45):
                 while True:
                     nb_replicas_in_view = await self._count_replicas_in_view(view)
 
