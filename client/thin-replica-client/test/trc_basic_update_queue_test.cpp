@@ -36,7 +36,7 @@ const milliseconds kBriefDelayDuration = 10ms;
 const uint64_t kNumUpdatesToTest = (uint64_t)1 << 18;
 const size_t kRacingThreadsToTest = 4;
 
-unique_ptr<Update> MakeUniqueUpdate(uint64_t block_id, const vector<pair<string, string>> kv_pairs) {
+unique_ptr<Update> MakeUniqueUpdate(uint64_t block_id, const vector<pair<string, string>>& kv_pairs) {
   auto update = make_unique<Update>();
   update->block_id = block_id;
   update->kv_pairs = kv_pairs;

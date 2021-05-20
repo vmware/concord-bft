@@ -45,7 +45,6 @@ using thin_replica_client::BasicUpdateQueue;
 using thin_replica_client::kThinReplicaHashLength;
 using thin_replica_client::ThinReplicaClient;
 using thin_replica_client::ThinReplicaClientConfig;
-using thin_replica_client::TrsConnection;
 using thin_replica_client::Update;
 using thin_replica_client::UpdateQueue;
 
