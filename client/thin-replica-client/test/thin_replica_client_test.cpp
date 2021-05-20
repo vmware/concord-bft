@@ -27,7 +27,6 @@ using std::condition_variable;
 using std::make_shared;
 using std::make_unique;
 using std::mutex;
-using std::pair;
 using std::shared_ptr;
 using std::string;
 using std::thread;
@@ -39,7 +38,6 @@ using std::this_thread::sleep_for;
 using thin_replica_client::BasicUpdateQueue;
 using thin_replica_client::ThinReplicaClient;
 using thin_replica_client::ThinReplicaClientConfig;
-using thin_replica_client::TrsConnection;
 using thin_replica_client::Update;
 using thin_replica_client::UpdateQueue;
 

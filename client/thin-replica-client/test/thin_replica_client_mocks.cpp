@@ -64,7 +64,7 @@ Data FilterUpdate(const Data& raw_update, const string& filter) {
   filtered_update.set_block_id(raw_update.block_id());
   filtered_update.set_correlation_id(raw_update.correlation_id());
   for (const KVPair& raw_kvp : raw_update.data()) {
-    const string key = raw_kvp.key();
+    const string& key = raw_kvp.key();
     if ((key.length() >= filter.length()) && (key.compare(0, filter.size(), filter) == 0)) {
       KVPair* filtered_kvp = filtered_update.add_data();
       *filtered_kvp = raw_kvp;

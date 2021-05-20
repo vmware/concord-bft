@@ -35,8 +35,6 @@ using std::vector;
 using thin_replica_client::BasicUpdateQueue;
 using thin_replica_client::ThinReplicaClient;
 using thin_replica_client::ThinReplicaClientConfig;
-using thin_replica_client::TrsConnection;
-using thin_replica_client::UpdateQueue;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
