@@ -65,23 +65,7 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
   }
   verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
 }
-bool BftReconfigurationHandler::verifySignature(const ReconfigurationRequest& request,
-                                                ReconfigurationResponse& rres) const {
-  bool valid = false;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  ReconfigurationRequest request_without_sig = request;
-  request_without_sig.signature = {};
-  std::vector<uint8_t> serialized_cmd;
-  concord::messages::serialize(serialized_cmd, request_without_sig);
-
-  auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
-  auto ser_sig = std::string(request.signature.begin(), request.signature.end());
-  valid = verifier_->verify(ser_data, ser_sig);
-  if (!valid) {
-    error_msg.error_msg = "Invalid signature";
-    rres.response = error_msg;
-    LOG_ERROR(getLogger(), "The message's signature is invalid!");
-  }
-  return valid;
+bool BftReconfigurationHandler::verifySignature(const std::string& data, const std::string& signature) const {
+  return verifier_->verify(data, signature);
 }
 }  // namespace concord::reconfiguration

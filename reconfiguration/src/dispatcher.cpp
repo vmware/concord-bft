@@ -28,10 +28,20 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   ReconfigurationResponse rresp;
   concord::messages::ReconfigurationErrorMsg error_msg;
   bool valid = false;
+  ReconfigurationRequest request_without_sig = request;
+  request_without_sig.signature = {};
+  std::vector<uint8_t> serialized_cmd;
+  concord::messages::serialize(serialized_cmd, request_without_sig);
+  auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
+  auto ser_sig = std::string(request.signature.begin(), request.signature.end());
   try {
     for (auto& handler : reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(request, rresp)) continue;
+      if (!handler->verifySignature(ser_data, ser_sig)) {
+        error_msg.error_msg = "Invalid signature";
+        continue;
+      }
+      error_msg.error_msg.clear();
       valid = true;
       rresp.success &=
           std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);

@@ -109,24 +109,11 @@ class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::
       (void)rep;
     }
   }
-  bool verifySignature(const concord::messages::ReconfigurationRequest& request,
-                       concord::messages::ReconfigurationResponse&) const override {
+  bool verifySignature(const std::string& data, const std::string& signature) const override {
     bool valid = false;
-    concord::messages::ReconfigurationErrorMsg error_msg;
-    concord::messages::ReconfigurationRequest request_without_sig = request;
-    request_without_sig.signature = {};
-    std::vector<uint8_t> serialized_cmd;
-    concord::messages::serialize(serialized_cmd, request_without_sig);
-
-    auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
-    auto ser_sig = std::string(request.signature.begin(), request.signature.end());
-
-    if (!request.additional_data.empty() && request.additional_data.front() == internalCommandKey()) {
-      // It means we got an internal command, lets verify it with the internal verifiers
-      for (auto& verifier : internal_verifiers_) {
-        valid |= verifier->verify(ser_data.c_str(), ser_data.size(), ser_sig.c_str(), ser_sig.size());
-        if (valid) break;
-      }
+    for (auto& verifier : internal_verifiers_) {
+      valid |= verifier->verify(data.c_str(), data.size(), signature.c_str(), signature.size());
+      if (valid) break;
     }
     return valid;
   }

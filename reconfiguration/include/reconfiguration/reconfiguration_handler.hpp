@@ -23,17 +23,11 @@ namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
   BftReconfigurationHandler();
-  bool verifySignature(const concord::messages::ReconfigurationRequest&,
-                       concord::messages::ReconfigurationResponse&) const override;
-
-  static const unsigned char internalCommandKey() {
-    static unsigned char key_ = 0x20;
-    return key_;
-  }
+  bool verifySignature(const std::string& data, const std::string& signature) const override;
 
  protected:
   logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
+    static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
     return logger_;
   }
 

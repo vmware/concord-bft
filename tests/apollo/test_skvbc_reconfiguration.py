@@ -194,7 +194,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             op = operator.Operator(bft_network.config, client,  bft_network.builddir)
             await op.wedge()
 
-        with trio.fail_after(seconds=30):
+        with trio.fail_after(seconds=60):
             done = False
             while done is False:
                 await op.wedge_status(quorum=bft_client.MofNQuorum(on_time_replicas, len(on_time_replicas)), fullWedge=False)
