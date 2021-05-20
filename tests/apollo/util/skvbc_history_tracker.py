@@ -29,7 +29,7 @@ from util.skvbc_exceptions import(
 MAX_LOOKBACK=10
 
 
-def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
+def verify_linearizability(pre_exec_enabled=False, no_conflicts=False, block_Accumulation=False):
     """
     Creates a tracker and provide it to the decorated method.
     In the end of the method it checks the linearizability of the resulting history.
@@ -44,7 +44,7 @@ def verify_linearizability(pre_exec_enabled=False, no_conflicts=False):
             bft_network = kwargs['bft_network']
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             init_state = skvbc.initial_state()
-            tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled, no_conflicts)
+            tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled, no_conflicts, block_Accumulation)
             await async_fn(*args, **kwargs, tracker=tracker)
             await tracker.fill_missing_blocks_and_verify()
 
@@ -376,7 +376,7 @@ class SkvbcTracker:
     clusters with lots of blocks, but we may want to add it as an optional check
     in the future.
     """
-    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, pre_exec_all=False, no_conflicts=False):
+    def __init__(self, initial_kvpairs={}, skvbc=None, bft_network=None, pre_exec_all=False, no_conflicts=False, block_Accumulation=False):
 
         # If this flag is set to True, it means that all the tracker requests will
         # go through the pre_execution mechanism
@@ -386,6 +386,7 @@ class SkvbcTracker:
         # conflicts
         self.no_conflicts = no_conflicts
 
+        self.block_Accumulation = block_Accumulation
         # A partial order of all requests (SkvbcWriteRequest | SkvbcReadRequest)
         # issued against SimpleKVBC.  History tracks requests and responses. A
         # happens-before relationship exists between responses and requests
@@ -456,7 +457,7 @@ class SkvbcTracker:
                          self.kvpairs.copy())
         self.outstanding[(req.client_id, req.seq_num)] = cs
 
-    def handle_write_reply(self, client_id, seq_num, reply, block_accumulation=False):
+    def handle_write_reply(self, client_id, seq_num, reply):
         """
         Match a write reply with its outstanding request.
         Check for consistency violations and raise an exception if found.
@@ -465,7 +466,7 @@ class SkvbcTracker:
         self.history.append(rpy)
         req, req_index = self._get_matching_request(rpy)
         if reply.success:
-            if (block_accumulation is False and reply.last_block_id in self.blocks):
+            if (self.block_Accumulation is False and reply.last_block_id in self.blocks):
                 # This block_id has already been written!
                 block = self.blocks[reply.last_block_id]
                 raise ConflictingBlockWriteError(reply.last_block_id, block, req)
@@ -473,6 +474,9 @@ class SkvbcTracker:
                 self._record_concurrent_write_success(req_index,
                                                       rpy,
                                                       reply.last_block_id)
+                log.log_message(message_type=f'Reply client_id {client_id}')
+                log.log_message(message_type=f'Reply.last_block_id {reply.last_block_id}')
+                log.log_message(message_type=f'Reply seq_num {seq_num}')
                 self.blocks[reply.last_block_id] = Block(req.writeset, req_index)
                 if reply.last_block_id > self.last_known_block:
                     self.last_known_block = reply.last_block_id
@@ -845,7 +849,7 @@ class SkvbcTracker:
         msg = kvbc.SimpleKVBCProtocol.get_last_block_req()
         return kvbc.SimpleKVBCProtocol.parse_reply(await client.read(msg))
 
-    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False, block_accumulation=False):
+    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False):
         msg_batch = []
         batch_seq_nums = []
         client_id = client.client_id
@@ -859,14 +863,13 @@ class SkvbcTracker:
             seq_num = client.req_seq_num.next()
             batch_seq_nums.append(seq_num)
             self.send_write(client_id, seq_num, readset, dict(writeset), read_version)
-        
         with log.start_action(action_type="send_tracked_kv_set_batch"):
             try:
                 replies = await client.write_batch(msg_batch, batch_seq_nums)
                 self.status.record_client_reply(client_id)
                 for seq_num, reply_msg in replies.items():
                     reply = self.skvbc.parse_reply(reply_msg.get_common_data())
-                    self.handle_write_reply(client_id, seq_num, reply, block_accumulation)
+                    self.handle_write_reply(client_id, seq_num, reply)
             except trio.TooSlowError:
                 self.status.record_client_timeout(client_id)
                 return
@@ -921,7 +924,7 @@ class SkvbcTracker:
         writeset_values = self.skvbc.random_values(len(writeset_keys))
         return list(zip(writeset_keys, writeset_values))
 
-    async def run_concurrent_batch_ops(self, num_ops, batch_size, block_accumulation=False):
+    async def run_concurrent_batch_ops(self, num_ops, batch_size):
         with log.start_action(action_type="run_concurrent_batch_ops"):
             max_concurrency = len(self.bft_network.clients) // 2
             max_size = len(self.skvbc.keys) // 2
@@ -932,7 +935,10 @@ class SkvbcTracker:
                 while sent < num_ops:
                     async with trio.open_nursery() as nursery:
                         for client in clients:
-                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size, None, False, block_accumulation)
+                            client.config = client.config._replace(
+                                retry_timeout_milli=500
+                            )
+                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size, None, False)
                             write_count += 1
                     sent += len(clients)
             return write_count
