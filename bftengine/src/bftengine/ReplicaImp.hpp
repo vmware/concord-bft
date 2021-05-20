@@ -168,10 +168,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   ReplicasAskedToLeaveViewInfo complainedReplicas;
 
-  shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
+  shared_ptr<concord::performance::PerformanceManager> pm_;
 
-  // secretsManager_ can be nullptr. This means that encrypted configuration is not enabled
-  // and there is no instance of SecretsManagerEnc available
+  // sm_ MUST be initialized. If nullptr sm provided in constructor
+  // it will be initialized to a SecretsManagerPlain
   shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
 
   //******** METRICS ************************************
@@ -253,8 +253,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
-             shared_ptr<concord::performance::PerformanceManager>& pm,
-             const shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm);
+             shared_ptr<concord::performance::PerformanceManager> pm,
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
 
   ReplicaImp(const LoadedReplicaData&,
              shared_ptr<IRequestsHandler>,
@@ -263,8 +263,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<PersistentStorage> persistentStorage,
              shared_ptr<MsgHandlersRegistrator> msgHandlers,
              concordUtil::Timers& timers,
-             shared_ptr<concord::performance::PerformanceManager>& pm,
-             const shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm);
+             shared_ptr<concord::performance::PerformanceManager> pm,
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
 
   virtual ~ReplicaImp();
 
@@ -314,8 +314,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
              shared_ptr<MsgsCommunicator>,
              shared_ptr<MsgHandlersRegistrator>,
              concordUtil::Timers& timers,
-             shared_ptr<concord::performance::PerformanceManager>& pm,
-             const shared_ptr<concord::secretsmanager::ISecretsManagerImpl>& sm);
+             shared_ptr<concord::performance::PerformanceManager> pm,
+             shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm);
 
   void registerMsgHandlers();
 
