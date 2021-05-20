@@ -14,6 +14,7 @@
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trs_connection.hpp"
 
+#include "assertUtils.hpp"
 #include "gmock/gmock.h"
 #include "thin_replica_client_mocks.hpp"
 #include "client/thin-replica-client/trc_hash.hpp"
@@ -89,7 +90,7 @@ Status VectorMockDataStreamPreparer::DataQueue::Finish() {
 }
 
 bool VectorMockDataStreamPreparer::DataQueue::Read(Data* msg) {
-  assert(msg);
+  ConcordAssertNE(msg, nullptr);
 
   if (queue_.empty()) {
     return false;
@@ -109,7 +110,7 @@ bool VectorMockDataStreamPreparer::DataQueue::Read(Data* msg) {
 ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareInitialStateDataStream(const string& filter) const {
   auto data_stream = new MockThinReplicaStream<Data>();
   list<Data> data_queue;
-  assert(num_updates_in_initial_state_ <= data_.size());
+  ConcordAssert(num_updates_in_initial_state_ <= data_.size());
   for (size_t i = 0; i < num_updates_in_initial_state_; ++i) {
     data_queue.push_back(FilterUpdate(data_[i], filter));
   }
@@ -184,7 +185,7 @@ Status RepeatedMockDataStreamPreparer::DataRepeater::Finish() {
 }
 
 bool RepeatedMockDataStreamPreparer::DataRepeater::Read(Data* msg) {
-  assert(msg);
+  ConcordAssertNE(msg, nullptr);
 
   lock_guard<mutex> block_id_lock(block_id_mutex_);
   if (finite_length_ && (num_updates_ < 1)) {
@@ -256,7 +257,7 @@ Status DelayedMockDataStreamPreparer::DataDelayer::Finish() {
 }
 
 bool DelayedMockDataStreamPreparer::DataDelayer::Read(Data* msg) {
-  assert(msg);
+  ConcordAssertNE(msg, nullptr);
 
   while (*spurious_wakeup_) {
     unique_lock<mutex> condition_lock(*condition_mutex_);
@@ -302,7 +303,7 @@ MockOrderedDataStreamHasher::StreamHasher::~StreamHasher() {}
 Status MockOrderedDataStreamHasher::StreamHasher::Finish() { return data_stream_->Finish(); }
 
 bool MockOrderedDataStreamHasher::StreamHasher::Read(Hash* msg) {
-  assert(msg);
+  ConcordAssertNE(msg, nullptr);
 
   Data data;
   bool read_status = data_stream_->Read(&data);
@@ -334,7 +335,7 @@ MockOrderedDataStreamHasher::MockOrderedDataStreamHasher(shared_ptr<MockDataStre
 Status MockOrderedDataStreamHasher::ReadStateHash(ClientContext* context,
                                                   const ReadStateHashRequest& request,
                                                   Hash* response) const {
-  assert(response);
+  ConcordAssertNE(response, nullptr);
 
   list<string> update_hashes;
   auto data_context = make_unique<ClientContext>();
@@ -447,8 +448,8 @@ MockThinReplicaServerRecorder::MockThinReplicaServerRecorder(shared_ptr<MockData
 
 ClientReaderInterface<Data>* MockThinReplicaServerRecorder::ReadStateRaw(ClientContext* context,
                                                                          const ReadStateRequest& request) {
-  assert(data_preparer_);
-  assert(record_);
+  ConcordAssertNE(data_preparer_, nullptr);
+  ConcordAssertNE(record_, nullptr);
 
   record_->RecordReadState(server_index_, request);
   return data_preparer_->ReadStateRaw(context, request);
@@ -457,8 +458,8 @@ ClientReaderInterface<Data>* MockThinReplicaServerRecorder::ReadStateRaw(ClientC
 Status MockThinReplicaServerRecorder::ReadStateHash(ClientContext* context,
                                                     const ReadStateHashRequest& request,
                                                     Hash* response) {
-  assert(hasher_);
-  assert(record_);
+  ConcordAssertNE(hasher_, nullptr);
+  ConcordAssertNE(record_, nullptr);
 
   record_->RecordReadStateHash(server_index_, request);
   return hasher_->ReadStateHash(context, request, response);
@@ -466,15 +467,15 @@ Status MockThinReplicaServerRecorder::ReadStateHash(ClientContext* context,
 
 ClientReaderInterface<Data>* MockThinReplicaServerRecorder::SubscribeToUpdatesRaw(ClientContext* context,
                                                                                   const SubscriptionRequest& request) {
-  assert(data_preparer_);
-  assert(record_);
+  ConcordAssertNE(data_preparer_, nullptr);
+  ConcordAssertNE(record_, nullptr);
 
   record_->RecordSubscribeToUpdates(server_index_, request);
   return data_preparer_->SubscribeToUpdatesRaw(context, request);
 }
 
 Status MockThinReplicaServerRecorder::AckUpdate(ClientContext* context, const BlockId& block_id, Empty* response) {
-  assert(record_);
+  ConcordAssertNE(record_, nullptr);
 
   record_->RecordAckUpdate(server_index_, block_id);
   return Status::OK;
@@ -482,15 +483,15 @@ Status MockThinReplicaServerRecorder::AckUpdate(ClientContext* context, const Bl
 
 ClientReaderInterface<Hash>* MockThinReplicaServerRecorder::SubscribeToUpdateHashesRaw(
     ClientContext* context, const SubscriptionRequest& request) {
-  assert(hasher_);
-  assert(record_);
+  ConcordAssertNE(hasher_, nullptr);
+  ConcordAssertNE(record_, nullptr);
 
   record_->RecordSubscribeToUpdateHashes(server_index_, request);
   return hasher_->SubscribeToUpdateHashesRaw(context, request);
 }
 
 Status MockThinReplicaServerRecorder::Unsubscribe(ClientContext* context, const Empty& request, Empty* response) {
-  assert(record_);
+  ConcordAssertNE(record_, nullptr);
 
   record_->RecordUnsubscribe(server_index_);
   return Status::OK;
@@ -576,8 +577,8 @@ ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::ByzantineMockServer
 
 ClientReaderInterface<Data>* ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::ReadStateRaw(
     ClientContext* context, const ReadStateRequest& request) {
-  assert(non_faulty_data_);
-  assert(byzantine_behavior_);
+  ConcordAssertNE(non_faulty_data_, nullptr);
+  ConcordAssertNE(byzantine_behavior_, nullptr);
 
   return byzantine_behavior_->ReadStateRaw(index_, context, request, non_faulty_data_->ReadStateRaw(context, request));
 }
@@ -585,8 +586,8 @@ ClientReaderInterface<Data>* ByzantineMockThinReplicaServerPreparer::ByzantineMo
 Status ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::ReadStateHash(ClientContext* context,
                                                                                   const ReadStateHashRequest& request,
                                                                                   Hash* response) {
-  assert(non_faulty_hasher_);
-  assert(byzantine_behavior_);
+  ConcordAssertNE(non_faulty_hasher_, nullptr);
+  ConcordAssertNE(byzantine_behavior_, nullptr);
 
   return byzantine_behavior_->ReadStateHash(
       index_, context, request, response, non_faulty_hasher_->ReadStateHash(context, request, response));
@@ -594,8 +595,8 @@ Status ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::ReadStateHas
 
 ClientReaderInterface<Data>* ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::SubscribeToUpdatesRaw(
     ClientContext* context, const SubscriptionRequest& request) {
-  assert(non_faulty_data_);
-  assert(byzantine_behavior_);
+  ConcordAssertNE(non_faulty_data_, nullptr);
+  ConcordAssertNE(byzantine_behavior_, nullptr);
 
   return byzantine_behavior_->SubscribeToUpdatesRaw(
       index_, context, request, non_faulty_data_->SubscribeToUpdatesRaw(context, request));
@@ -604,15 +605,15 @@ ClientReaderInterface<Data>* ByzantineMockThinReplicaServerPreparer::ByzantineMo
 Status ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::AckUpdate(ClientContext* context,
                                                                               const BlockId& block_id,
                                                                               Empty* response) {
-  assert(byzantine_behavior_);
+  ConcordAssertNE(byzantine_behavior_, nullptr);
 
   return byzantine_behavior_->AckUpdate(index_, context, block_id, response, Status::OK);
 }
 
 ClientReaderInterface<Hash>* ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::SubscribeToUpdateHashesRaw(
     ClientContext* context, const SubscriptionRequest& request) {
-  assert(non_faulty_hasher_);
-  assert(byzantine_behavior_);
+  ConcordAssertNE(non_faulty_hasher_, nullptr);
+  ConcordAssertNE(byzantine_behavior_, nullptr);
 
   return byzantine_behavior_->SubscribeToUpdateHashesRaw(
       index_, context, request, non_faulty_hasher_->SubscribeToUpdateHashesRaw(context, request));
@@ -621,7 +622,7 @@ ClientReaderInterface<Hash>* ByzantineMockThinReplicaServerPreparer::ByzantineMo
 Status ByzantineMockThinReplicaServerPreparer::ByzantineMockServer::Unsubscribe(ClientContext* context,
                                                                                 const Empty& request,
                                                                                 Empty* response) {
-  assert(byzantine_behavior_);
+  ConcordAssertNE(byzantine_behavior_, nullptr);
 
   return byzantine_behavior_->Unsubscribe(index_, context, request, response, Status::OK);
 }
@@ -952,7 +953,7 @@ size_t ClusterResponsivenessLimiter::GetMaxFaulty() const { return max_faulty_; 
 size_t ClusterResponsivenessLimiter::GetClusterSize() const { return cluster_size_; }
 
 bool ClusterResponsivenessLimiter::IsUnresponsive(size_t server_index) const {
-  assert(server_index < server_responsiveness_.size());
+  ConcordAssert(server_index < server_responsiveness_.size());
   return !(server_responsiveness_[server_index]);
 }
 
@@ -967,12 +968,12 @@ size_t ClusterResponsivenessLimiter::GetNumUnresponsiveServers() const {
 }
 
 void ClusterResponsivenessLimiter::SetResponsive(size_t server_index) {
-  assert(server_index < server_responsiveness_.size());
+  ConcordAssert(server_index < server_responsiveness_.size());
   server_responsiveness_[server_index] = true;
 }
 
 void ClusterResponsivenessLimiter::SetUnresponsive(size_t server_index) {
-  assert(server_index < server_responsiveness_.size());
+  ConcordAssert(server_index < server_responsiveness_.size());
   server_responsiveness_[server_index] = false;
 }
 
