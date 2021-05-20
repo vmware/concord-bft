@@ -6,15 +6,16 @@ CONCORD_BFT_DOCKER_CONTAINER?=concord-bft
 CONCORD_BFT_DOCKERFILE?=Dockerfile
 CONCORD_BFT_BUILD_DIR?=build
 CONCORD_BFT_TARGET_SOURCE_PATH?=/concord-bft
-CONCORD_BFT_KVBC_CMF_PATHS?=/concord-bft/build/kvbc/cmf
-CONCORD_BFT_RECONFIGURATION_CMF_PATHS?=/concord-bft/build/reconfiguration/cmf
-CONCORD_BFT_CLIENT_PROTO_PATH?=/concord-bft/build/client/clientservice/proto
-CONCORD_BFT_THIN_REPLICA_PROTO_PATH?=/concord-bft/build/thin-replica-server/proto
+CONCORD_BFT_KVBC_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/cmf
+CONCORD_BFT_RECONFIGURATION_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/reconfiguration/cmf
+CONCORD_BFT_CLIENT_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/client/clientservice/proto
+CONCORD_BFT_THIN_REPLICA_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/thin-replica-server/proto
 CONCORD_BFT_CONTAINER_SHELL?=/bin/bash
 CONCORD_BFT_CONTAINER_CC?=clang
 CONCORD_BFT_CONTAINER_CXX?=clang++
 CONCORD_BFT_CMAKE_BUILD_TYPE?=Release
 CONCORD_BFT_CMAKE_BUILD_TESTING?=TRUE
+CONCORD_BFT_CLANG_TIDY?=${CONCORD_BFT_TARGET_SOURCE_PATH}/tools/run-clang-tidy.py
 
 # UDP | TLS | TCP
 CONCORD_BFT_CMAKE_TRANSPORT?=TLS
@@ -170,7 +171,7 @@ tidy-check: gen_cmake ## Run clang-tidy
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_THIN_REPLICA_PROTO_PATH} &> /dev/null && \
-		run-clang-tidy-10 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
+		${CONCORD_BFT_CLANG_TIDY} -ignore ../.clang-tidy-ignore 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
 		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \
 		|| ( echo "\nClang-tidy failed. The full report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \
