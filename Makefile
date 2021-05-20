@@ -171,8 +171,7 @@ tidy-check: gen_cmake ## Run clang-tidy
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_THIN_REPLICA_PROTO_PATH} &> /dev/null && \
-		cp ../.clang-tidy-ignore . && \
-		${CONCORD_BFT_CLANG_TIDY} 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
+		${CONCORD_BFT_CLANG_TIDY} -ignore ../.clang-tidy-ignore 2>&1 | tee clang-tidy-report.txt | ( ! grep 'error:\|note:' ) && \
 		../scripts/check-forbidden-usage.sh .." \
 		&& (echo "\nClang-tidy finished successfully.") \
 		|| ( echo "\nClang-tidy failed. The full report is in ${CURDIR}/${CONCORD_BFT_BUILD_DIR}/clang-tidy-report.txt. \

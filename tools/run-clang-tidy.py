@@ -61,12 +61,13 @@ if is_py2:
 else:
     import queue as queue
 
-def filter_files(files):
+DEFAULT_CLANG_TIDY_IGNORE=".clang-tidy-ignore"
+
+def filter_files(ignore_config, files):
   """Filter out all files specified via globs in DEFAULT_CLANG_TIDY_IGNORE.
   """
-  DEFAULT_CLANG_TIDY_IGNORE=".clang-tidy-ignore"
   globs = list()
-  with open(DEFAULT_CLANG_TIDY_IGNORE, 'r') as tidy_ignore:
+  with open(ignore_config, 'r') as tidy_ignore:
     for l in tidy_ignore:
       line = l.strip()
       # Tolerate comments and empty lines
@@ -246,6 +247,8 @@ def main():
                       action='append', default=[],
                       help='Additional argument to prepend to the compiler '
                       'command line.')
+  parser.add_argument('-ignore', default=DEFAULT_CLANG_TIDY_IGNORE,
+                      help='File path to clang-tidy-ignore')
   parser.add_argument('-quiet', action='store_true',
                       help='Run clang-tidy in quiet mode')
   args = parser.parse_args()
@@ -278,7 +281,7 @@ def main():
   database = json.load(open(os.path.join(build_path, db_path)))
   files = [make_absolute(entry['file'], entry['directory'])
            for entry in database]
-  files, excluded = filter_files(files)
+  files, excluded = filter_files(args.ignore, files)
   if excluded:
     print("Excluding the following files:\n" + "\n".join(excluded) + "\n")
 
