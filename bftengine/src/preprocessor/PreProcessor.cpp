@@ -115,8 +115,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
-    // Allocate a buffer for the pre-execution result per client * batch
-    preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
   RequestState::reqProcessingHistoryHeight *= clientMaxBatchSize_;
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
@@ -920,19 +918,17 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPrePro
   }
 }
 
-const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
-                                                    ReqId reqSeqNum,
-                                                    uint16_t reqOffsetInBatch) const {
-  // Pre-allocated buffers scheme:
-  // |first client's first buffer|...|first client's last buffer|......
-  // |last client's first buffer|...|last client's last buffer|
-  // First client id starts after the last replica id.
-  // First buffer offset = numOfReplicas_ * batchSize_
-  // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
-  const auto bufferOffset =
-      (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
-  LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
-  return preProcessResultBuffers_[bufferOffset].data();
+const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
+  LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch));
+  if (preProcessResultBuffers_.find(clientId) == preProcessResultBuffers_.end()) {
+    preProcessResultBuffers_[clientId] = std::unordered_map<uint16_t, concordUtils::Sliver>();
+  }
+  if (preProcessResultBuffers_[clientId].find(reqOffsetInBatch) == preProcessResultBuffers_[clientId].end()) {
+    // Allocate a permanent buffer for a clientId and reqOffsetInBatch on first use
+    preProcessResultBuffers_[clientId][reqOffsetInBatch] =
+        Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_);
+  }
+  return preProcessResultBuffers_[clientId][reqOffsetInBatch].data();
 }
 
 const uint16_t PreProcessor::getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const {
