@@ -17,6 +17,7 @@
 
 #include <log4cplus/configurator.h>
 #include "gtest/gtest.h"
+#include "assertUtils.hpp"
 #include "thin_replica_client_mocks.hpp"
 
 using com::vmware::concord::thin_replica::Data;
@@ -349,7 +350,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_subset_erased) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 2;
-  assert(update_data[corrupted_update_index].data_size() > 1);
+  ConcordAssert(update_data[corrupted_update_index].data_size() > 1);
   vector<Data> corrupted_update_data = update_data;
   corrupted_update_data[corrupted_update_index].clear_data();
   KVPair* non_erased_data = corrupted_update_data[corrupted_update_index].add_data();
@@ -468,7 +469,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_swap) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 2;
-  assert(update_data[corrupted_update_index].data_size() > 1);
+  ConcordAssert(update_data[corrupted_update_index].data_size() > 1);
   vector<Data> corrupted_update_data = update_data;
   Data& corrupted_update = corrupted_update_data[corrupted_update_index];
   string swap_temp = corrupted_update.data(0).value();
@@ -491,7 +492,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_kvp_moved) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   vector<Data> corrupted_update_data = update_data;
-  assert(update_data[2].data_size() == 2);
+  ConcordAssert(update_data[2].data_size() == 2);
   *(corrupted_update_data[1].add_data()) = corrupted_update_data[2].data(1);
 
   // Protobuf message objects do not appear to have a function for removing a
@@ -519,10 +520,10 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_swapped_between_updat
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   vector<Data> corrupted_update_data = update_data;
-  assert(update_data[0].data_size() == 2);
-  assert(update_data[2].data_size() == 2);
-  assert(update_data[0].data(1).key() == update_data[2].data(1).key());
-  assert(update_data[0].data(1).value() != update_data[2].data(1).value());
+  ConcordAssert(update_data[0].data_size() == 2);
+  ConcordAssert(update_data[2].data_size() == 2);
+  ConcordAssert(update_data[0].data(1).key() == update_data[2].data(1).key());
+  ConcordAssert(update_data[0].data(1).value() != update_data[2].data(1).value());
   string swap_temp = update_data[0].data(1).value();
   update_data[0].mutable_data(1)->set_value(update_data[2].data(1).value());
   update_data[2].mutable_data(1)->set_value(swap_temp);
@@ -639,7 +640,7 @@ TEST(trc_byzantine_test, test_read_state_hash_wrong_hash) {
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
         string hash_string = response->hash();
-        assert(hash_string.length() > 0);
+        ConcordAssert(hash_string.length() > 0);
         ++(hash_string[0]);
         response->set_hash(hash_string);
       }
@@ -671,9 +672,9 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_too_short) {
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
         string hash_string = response->hash();
-        assert(hash_string.length() > 1);
+        ConcordAssert(hash_string.length() > 1);
         hash_string = hash_string.substr(1);
-        assert(hash_string.length() < kThinReplicaHashLength);
+        ConcordAssert(hash_string.length() < kThinReplicaHashLength);
         response->set_hash(hash_string);
       }
       return correct_status;
@@ -704,7 +705,7 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_too_long) {
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
         string hash_string = response->hash();
-        assert(hash_string.length() > 1);
+        ConcordAssert(hash_string.length() > 1);
         while (hash_string.length() < kThinReplicaHashLength) {
           hash_string.append(hash_string);
         }
@@ -890,7 +891,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_stream_ends_unexpectedly) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t num_updates_to_truncate = 3;
-  assert((num_initial_updates + num_updates_to_truncate) < update_data.size());
+  ConcordAssert((num_initial_updates + num_updates_to_truncate) < update_data.size());
   vector<Data> truncated_update_data(update_data.begin(), update_data.end() - num_updates_to_truncate);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -910,7 +911,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_prefix_of_updates_omitted) {
   size_t num_initial_updates = 2;
   vector<Data> incomplete_update_data = update_data;
   size_t num_updates_to_omit = 2;
-  assert((num_initial_updates + num_updates_to_omit) < update_data.size());
+  ConcordAssert((num_initial_updates + num_updates_to_omit) < update_data.size());
   for (size_t i = 0; i < num_updates_to_omit; ++i) {
     incomplete_update_data.erase(incomplete_update_data.begin() + num_initial_updates);
   }
@@ -932,7 +933,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_infix_of_updates_omitted) {
   vector<Data> incomplete_update_data = update_data;
   size_t num_updates_to_omit = 2;
   size_t omitted_update_offset = num_initial_updates + 2;
-  assert((omitted_update_offset + num_updates_to_omit) < update_data.size());
+  ConcordAssert((omitted_update_offset + num_updates_to_omit) < update_data.size());
   for (size_t i = 0; i < num_updates_to_omit; ++i) {
     incomplete_update_data.erase(incomplete_update_data.begin() + omitted_update_offset);
   }
@@ -953,7 +954,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_updates_reordered) {
   size_t num_initial_updates = 2;
   vector<Data> reordered_update_data = update_data;
   size_t reordered_update_offset = num_initial_updates + 2;
-  assert((reordered_update_offset + 1) < update_data.size());
+  ConcordAssert((reordered_update_offset + 1) < update_data.size());
   Data swap_temp = reordered_update_data[reordered_update_offset];
   reordered_update_data[reordered_update_offset] = reordered_update_data[reordered_update_offset + 1];
   reordered_update_data[reordered_update_offset + 1] = swap_temp;
@@ -974,7 +975,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_fabricated_update) {
   size_t num_initial_updates = 2;
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
-  assert(fabricated_update_offset < update_data.size());
+  ConcordAssert(fabricated_update_offset < update_data.size());
 
   // Note erasing an update from the correct data is simpler to implement and
   // will achieve the same desired result as inserting a fabricated update to
@@ -998,7 +999,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_omitted) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_offset < update_data.size());
   corrupted_update_data[corrupted_update_offset].clear_block_id();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1017,7 +1018,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_incorrect) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert((corrupted_update_offset + 1) < update_data.size());
+  ConcordAssert((corrupted_update_offset + 1) < update_data.size());
   corrupted_update_data[corrupted_update_offset].set_block_id(update_data[corrupted_update_offset + 1].block_id());
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1036,7 +1037,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_decreasing) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_offset < update_data.size());
   corrupted_update_data[corrupted_update_offset].set_block_id(update_data[corrupted_update_offset - 1].block_id() - 1);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1055,8 +1056,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_kvps_omitted) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
   corrupted_update_data[corrupted_update_offset].clear_data();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1075,8 +1076,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_kvps_partially_omitted
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 1);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 1);
   corrupted_update_data[corrupted_update_offset].clear_data();
   KVPair* non_erased_data = corrupted_update_data[corrupted_update_offset].add_data();
   *non_erased_data = update_data[corrupted_update_offset].data(0);
@@ -1097,7 +1098,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_includes_fabricated_kv
   size_t num_initial_updates = 2;
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
-  assert(fabricated_update_offset < update_data.size());
+  ConcordAssert(fabricated_update_offset < update_data.size());
   KVPair* fabricated_data = update_data_with_fabrication[fabricated_update_offset].add_data();
   fabricated_data->set_key("fabricated_key");
   fabricated_data->set_value("fabricated_value");
@@ -1118,8 +1119,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_key_omitted) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
   corrupted_update_data[corrupted_update_offset].mutable_data(0)->clear_key();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1138,8 +1139,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_value_omitted) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
   corrupted_update_data[corrupted_update_offset].mutable_data(0)->clear_value();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1158,8 +1159,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_incorrect_key) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
   corrupted_update_data[corrupted_update_offset].mutable_data(0)->set_key("incorrect_key");
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1179,8 +1180,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_incorrect_value) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
   corrupted_update_data[corrupted_update_offset].mutable_data(0)->set_value("incorrect_value");
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1200,8 +1201,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_keys_swapped_within_updat) {
   size_t num_initial_updates = 2;
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
-  assert(corrupted_update_offset < update_data.size());
-  assert(corrupted_update_data[corrupted_update_offset].data_size() > 1);
+  ConcordAssert(corrupted_update_offset < update_data.size());
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 1);
   string swap_temp = corrupted_update_data[corrupted_update_offset].data(0).key();
   corrupted_update_data[corrupted_update_offset].mutable_data(0)->set_key(
       corrupted_update_data[corrupted_update_offset].data(1).key());
@@ -1303,7 +1304,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_stream_ends_unexpectedl
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t num_updates_to_truncate = 3;
-  assert((num_initial_updates + num_updates_to_truncate) < update_data.size());
+  ConcordAssert((num_initial_updates + num_updates_to_truncate) < update_data.size());
   vector<Data> truncated_update_data(update_data.begin(), update_data.end() - num_updates_to_truncate);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1323,7 +1324,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_prefix_of_hashes_omitte
   size_t num_initial_updates = 2;
   vector<Data> incomplete_update_data = update_data;
   size_t num_updates_to_omit = 2;
-  assert((num_initial_updates + num_updates_to_omit) < update_data.size());
+  ConcordAssert((num_initial_updates + num_updates_to_omit) < update_data.size());
   for (size_t i = 0; i < num_updates_to_omit; ++i) {
     incomplete_update_data.erase(incomplete_update_data.begin() + num_initial_updates);
   }
@@ -1345,7 +1346,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_infix_of_hashes_omitted
   vector<Data> incomplete_update_data = update_data;
   size_t num_updates_to_omit = 2;
   size_t omitted_update_offset = num_initial_updates + 2;
-  assert((omitted_update_offset + num_updates_to_omit) < update_data.size());
+  ConcordAssert((omitted_update_offset + num_updates_to_omit) < update_data.size());
   for (size_t i = 0; i < num_updates_to_omit; ++i) {
     incomplete_update_data.erase(incomplete_update_data.begin() + omitted_update_offset);
   }
@@ -1366,7 +1367,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hashes_reordered) {
   size_t num_initial_updates = 2;
   vector<Data> reordered_update_data = update_data;
   size_t reordered_update_offset = num_initial_updates + 2;
-  assert((reordered_update_offset + 1) < update_data.size());
+  ConcordAssert((reordered_update_offset + 1) < update_data.size());
   Data swap_temp = reordered_update_data[reordered_update_offset];
   reordered_update_data[reordered_update_offset] = reordered_update_data[reordered_update_offset + 1];
   reordered_update_data[reordered_update_offset + 1] = swap_temp;
@@ -1387,7 +1388,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_fabricated_hash) {
   size_t num_initial_updates = 2;
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
-  assert(fabricated_update_offset < update_data.size());
+  ConcordAssert(fabricated_update_offset < update_data.size());
 
   // Note erasing an update from the correct data is simpler to implement and
   // will achieve the same desired result as inserting a fabricated update to
@@ -1410,7 +1411,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_omitted) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class OmitBlockId : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override { hash->clear_block_id(); }
@@ -1431,7 +1432,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_incorrect) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class CorruptBlockId : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override { hash->set_block_id(hash->block_id() + 1); }
@@ -1452,9 +1453,9 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_decreasing) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
-  assert(update_data[num_initial_updates + corrupted_hash_offset - 1].block_id() > 1);
+  ConcordAssert(update_data[num_initial_updates + corrupted_hash_offset - 1].block_id() > 1);
   class MakeBlockIdDecreasing : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override { hash->set_block_id(1); }
   };
@@ -1475,7 +1476,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_omitted) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class OmitHash : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override { hash->clear_hash(); }
@@ -1495,12 +1496,12 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_incorrect) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class MakeHashIncorrect : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override {
       string hash_value = hash->hash();
-      assert(hash_value.length() > 0);
+      ConcordAssert(hash_value.length() > 0);
       ++hash_value[0];
       hash->set_hash(hash_value);
     }
@@ -1521,12 +1522,12 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_too_short) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class TruncateHash : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override {
       string hash_value = hash->hash();
-      assert(hash_value.length() > 0);
+      ConcordAssert(hash_value.length() > 0);
       while (hash_value.length() >= kThinReplicaHashLength) {
         hash_value = hash_value.substr(1);
       }
@@ -1550,12 +1551,12 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_too_long) {
   vector<Data> update_data = GenerateSampleUpdateData(8);
   size_t num_initial_updates = 2;
   size_t corrupted_hash_offset = 2;
-  assert(num_initial_updates + corrupted_hash_offset < update_data.size());
+  ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class ExtendHash : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override {
       string hash_value = hash->hash();
-      assert(hash_value.length() > 0);
+      ConcordAssert(hash_value.length() > 0);
       while (hash_value.length() <= kThinReplicaHashLength) {
         hash_value += hash_value[0];
       }
@@ -1864,7 +1865,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_state_hashes) {
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, max_faulty_)) {
         string hash_string = response->hash();
-        assert(hash_string.length() > 0);
+        ConcordAssert(hash_string.length() > 0);
         ++(hash_string[0]);
         response->set_hash(hash_string);
       }
@@ -1891,7 +1892,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_updates) {
   size_t num_initial_updates = 2;
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
-  assert(fabricated_update_offset < update_data.size());
+  ConcordAssert(fabricated_update_offset < update_data.size());
 
   // Note erasing an update from the correct data is simpler to implement and
   // will achieve the same desired result as inserting a fabricated update to
@@ -1922,7 +1923,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_update_hashes) {
   size_t num_initial_updates = 2;
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
-  assert(fabricated_update_offset < update_data.size());
+  ConcordAssert(fabricated_update_offset < update_data.size());
 
   // Note erasing an update from the correct data is simpler to implement and
   // will achieve the same desired result as inserting a fabricated update to
@@ -1985,7 +1986,7 @@ TEST(trc_byzantine_test, test_f_servers_collude_on_streaming_fabricated_update) 
   size_t num_initial_updates = 2;
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
-  assert(fabricated_update_offset < update_data.size());
+  ConcordAssert(fabricated_update_offset < update_data.size());
 
   // Note erasing an update from the correct data is simpler to implement and
   // will achieve the same desired result as inserting a fabricated update to
