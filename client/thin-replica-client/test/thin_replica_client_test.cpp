@@ -18,11 +18,8 @@
 #include "gtest/gtest.h"
 #include "thin_replica_client_mocks.hpp"
 
-using namespace std::chrono_literals;
-
 using com::vmware::concord::thin_replica::Data;
 using com::vmware::concord::thin_replica::KVPair;
-using std::chrono_literals::operator""ms;
 using std::condition_variable;
 using std::make_shared;
 using std::make_unique;

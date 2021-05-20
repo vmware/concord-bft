@@ -15,8 +15,6 @@
 
 #include "gtest/gtest.h"
 
-using namespace std::chrono_literals;
-
 using std::make_unique;
 using std::pair;
 using std::ref;
@@ -26,7 +24,6 @@ using std::to_string;
 using std::unique_ptr;
 using std::vector;
 using std::chrono::milliseconds;
-using std::chrono_literals::operator""ms;
 using std::this_thread::sleep_for;
 
 using thin_replica_client::BasicUpdateQueue;
