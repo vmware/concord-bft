@@ -474,9 +474,6 @@ class SkvbcTracker:
                 self._record_concurrent_write_success(req_index,
                                                       rpy,
                                                       reply.last_block_id)
-                log.log_message(message_type=f'Reply client_id {client_id}')
-                log.log_message(message_type=f'Reply.last_block_id {reply.last_block_id}')
-                log.log_message(message_type=f'Reply seq_num {seq_num}')
                 self.blocks[reply.last_block_id] = Block(req.writeset, req_index)
                 if reply.last_block_id > self.last_known_block:
                     self.last_known_block = reply.last_block_id
