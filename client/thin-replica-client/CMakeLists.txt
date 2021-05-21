@@ -27,3 +27,8 @@ target_link_libraries(thin_replica_client
 
 install(TARGETS thin_replica_client DESTINATION lib)
 install(FILES include/client/thin-replica-client/thin_replica_client.hpp include/client/thin-replica-client/health_status.hpp include/client/thin-replica-client/update.hpp DESTINATION "include/thin_replica_client")
+
+# Unit tests
+if (BUILD_TESTING)
+    add_subdirectory(test)
+endif()
