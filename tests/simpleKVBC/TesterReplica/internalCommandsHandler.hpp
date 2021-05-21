@@ -92,6 +92,10 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                uint64_t sequenceNum,
                concord::kvbc::categorization::VersionedUpdates &verUpdates,
                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
+  bool checkKeyInBlockAccumulatedRequests(
+      const std::string &key,
+      concord::kvbc::categorization::VersionedUpdates &blockAccumulatedVerUpdates,
+      concord::kvbc::categorization::BlockMerkleUpdates &blockAccumulatedMerkleUpdates) const;
 
  private:
   concord::kvbc::IReader *m_storage;

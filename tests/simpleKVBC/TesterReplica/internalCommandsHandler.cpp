@@ -217,10 +217,7 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
   for (auto &req : blockedRequests) {
     if (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG) {
       auto *reply = (SimpleReply_ConditionalWrite *)req.outReply;
-      if (reply->success)
-        reply->latestBlock = currBlock + 1;
-      else
-        reply->latestBlock = currBlock;
+      reply->latestBlock = currBlock + 1;
       LOG_INFO(
           m_logger,
           "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << reply->latestBlock);
@@ -274,6 +271,22 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
   const auto newBlockId = m_blockAdder->add(std::move(updates));
   ConcordAssert(newBlockId == currBlock + 1);
 }
+
+bool InternalCommandsHandler::checkKeyInBlockAccumulatedRequests(
+    const std::string &key,
+    VersionedUpdates &blockAccumulatedVerUpdates,
+    BlockMerkleUpdates &blockAccumulatedMerkleUpdates) const {
+  if (auto it = blockAccumulatedVerUpdates.getData().kv.find(key);
+      it != blockAccumulatedVerUpdates.getData().kv.end()) {
+    return true;
+  }
+  if (auto it = blockAccumulatedMerkleUpdates.getData().kv.find(key);
+      it != blockAccumulatedMerkleUpdates.getData().kv.end()) {
+    return true;
+  }
+  return false;
+}
+
 bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   const char *request,
                                                   uint64_t sequenceNum,
@@ -315,6 +328,11 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     const auto key = std::string(readSetArray[i].key, KV_LEN);
     const auto latest_ver = getLatestVersion(key);
     hasConflict = (latest_ver && latest_ver > writeReq->readVersion);
+    if (isBlockAccumulationEnabled && !hasConflict) {
+      if (checkKeyInBlockAccumulatedRequests(key, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates)) {
+        hasConflict = true;
+      }
+    }
   }
 
   if (!hasConflict) {
