@@ -23,15 +23,12 @@ import util.bft_network_partitioning as net
 import util.eliot_logging as log
 
 SKVBC_INIT_GRACE_TIME = 2
-BATCH_SIZE = 10
+BATCH_SIZE = 4
 NUM_OF_SEQ_WRITES = 1
 NUM_OF_PARALLEL_WRITES = 100
 MAX_CONCURRENCY = 10
 SHORT_REQ_TIMEOUT_MILLI = 3000
 LONG_REQ_TIMEOUT_MILLI = 15000
-BATCH_BY_REQ_NUM = "2"
-MAX_REQ_NUM_IN_BATCH = 5
-BATCH_FLUSH_PERIOD = "250"
 
 def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
@@ -51,9 +48,6 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
             "-i", str(replica_id),
             "-s", status_timer_milli,
             "-v", view_change_timeout_milli,
-            "-b", BATCH_BY_REQ_NUM,
-            "-q", str(MAX_REQ_NUM_IN_BATCH),
-            "-z", BATCH_FLUSH_PERIOD,
             "-u", str(True)
             ]
 
@@ -116,7 +110,7 @@ class SkvbcBlockAccumulationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
+    @verify_linearizability(pre_exec_enabled=True, no_conflicts=True, block_Accumulation=True)
     async def test_batch_block_accumulation_request_block_count_validation(self, bft_network, tracker):
         """
         Launch concurrent requests from different clients. Ensure that created accumulated block count is as expected.
@@ -127,11 +121,11 @@ class SkvbcBlockAccumulationTest(unittest.TestCase):
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
-        wr = await tracker.run_concurrent_batch_ops(num_of_requests, BATCH_SIZE, block_accumulation = True)
+        wr = await tracker.run_concurrent_batch_ops(num_of_requests, BATCH_SIZE)
         self.assertTrue(wr >= num_of_requests)
 
         await bft_network.assert_successful_pre_executions_count(0, wr * BATCH_SIZE)
-        computed_block_count = ((wr * BATCH_SIZE)/MAX_REQ_NUM_IN_BATCH);
+        computed_block_count = ((wr * BATCH_SIZE))
         await trio.sleep(seconds=3)
 
         read_client = bft_network.random_client()
