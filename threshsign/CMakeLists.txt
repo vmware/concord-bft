@@ -124,7 +124,7 @@ endfunction()
 #  and
 # http://cmake.3232098.n2.nabble.com/Trying-to-set-up-a-quot-superbuild-quot-with-external-project-and-install-it-td6353184.html
 #
-find_package(relic REQUIRED)
+find_package(RELIC REQUIRED)
 include_directories(${RELIC_INCLUDE_DIRS})
 get_directory_property(hasParent PARENT_DIRECTORY)
 if(hasParent)
