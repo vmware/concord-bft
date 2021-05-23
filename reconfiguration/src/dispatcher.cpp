@@ -34,6 +34,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   concord::messages::serialize(serialized_cmd, request_without_sig);
   auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
   auto ser_sig = std::string(request.signature.begin(), request.signature.end());
+  rresp.success = true;
   try {
     for (auto& handler : reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
