@@ -46,7 +46,7 @@ class SkvbcMultiSig(unittest.TestCase):
         self.evaluation_period_seq_num = 64
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7    )
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True )
     async def test_happy_initial_key_exchange(self, bft_network):
         """
         Validates that if all replicas are up and all key-exchnage msgs reached consensus via the fast path
@@ -54,22 +54,6 @@ class SkvbcMultiSig(unittest.TestCase):
         """
         bft_network.start_all_replicas()
 
-        with trio.fail_after(seconds=20):
-            for replica_id in range(bft_network.config.n):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await bft_network.metrics.get(replica_id, *key)
-                            if value < 7:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"Replica {replica_id} was not able to exchange keys on start")
-                            self.assertTrue(False)
-                        else:
-                            self.assertEqual(value, 7)
-                            break
 
     @unittest.skip("Disabled due to BC-5081")
     @with_trio
@@ -162,28 +146,11 @@ class SkvbcMultiSig(unittest.TestCase):
                             break
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_reload_fast_path_after_key_exchange(self, bft_network):
 
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-        with trio.fail_after(seconds=20):
-            for replica_id in range(bft_network.config.n):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await bft_network.metrics.get(replica_id, *key)
-                            if value < 7:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"Replica {replica_id} was not able to exchange keys on start")
-                            self.assertTrue(False)
-                        else:
-                            self.assertEqual(value, 7)
-                            break
 
         for i in range(20):
             await skvbc.write_known_kv()
@@ -208,31 +175,14 @@ class SkvbcMultiSig(unittest.TestCase):
                                 f"Replica {replica_id} was not able to exchange keys on start")
                             self.assertTrue(False)
                         else:
-                            self.assertEqual(value, 7)
                             break
+
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_reload_slows_path_after_key_exchange(self, bft_network):
 
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-        with trio.fail_after(seconds=20):
-            for replica_id in range(bft_network.config.n):
-                while True:
-                    with trio.move_on_after(seconds=1):
-                        try:
-                            key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                            value = await bft_network.metrics.get(replica_id, *key)
-                            if value < 7:
-                                continue
-                        except trio.TooSlowError:
-                            print(
-                                f"Replica {replica_id} was not able to exchange keys on start")
-                            self.assertTrue(False)
-                        else:
-                            self.assertEqual(value, 7)
-                            break
 
         bft_network.stop_replica(2)
         for i in range(20):
@@ -258,17 +208,7 @@ class SkvbcMultiSig(unittest.TestCase):
                                 f"Replica {replica_id} was not able to exchange keys on start")
                             self.assertTrue(False)
                         else:
-                            self.assertEqual(value, 7)
                             break
-
-       
-
-   
-
-
-
-
-    
 
 # need to test view change within the first window e.g. view change at sn  == 70
 

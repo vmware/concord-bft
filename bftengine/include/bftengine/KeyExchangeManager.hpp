@@ -181,8 +181,11 @@ class KeyExchangeManager {
     std::chrono::seconds metricsDumpIntervalInSec;
     std::shared_ptr<concordMetrics::Aggregator> aggregator;
     concordMetrics::Component component;
-    concordMetrics::CounterHandle keyExchangedCounter;
-    concordMetrics::CounterHandle keyExchangedOnStartCounter;
+    concordMetrics::StatusHandle sent_key_exchange_on_start_status;
+    concordMetrics::CounterHandle sent_key_exchange_counter;
+    concordMetrics::CounterHandle self_key_exchange_counter;
+    concordMetrics::CounterHandle public_key_exchange_for_peer_counter;
+
     void setAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
       aggregator = a;
       component.SetAggregator(aggregator);
@@ -191,9 +194,11 @@ class KeyExchangeManager {
         : lastMetricsDumpTime{0},
           metricsDumpIntervalInSec{interval},
           aggregator(a),
-          component{"KeyManager", aggregator},
-          keyExchangedCounter{component.RegisterCounter("KeyExchangedCounter")},
-          keyExchangedOnStartCounter{component.RegisterCounter("KeyExchangedOnStartCounter")} {}
+          component{"KeyExchangeManager", aggregator},
+          sent_key_exchange_on_start_status{component.RegisterStatus("sent_key_exchange_on_start", "False")},
+          sent_key_exchange_counter{component.RegisterCounter("sent_key_exchange")},
+          self_key_exchange_counter{component.RegisterCounter("self_key_exchange")},
+          public_key_exchange_for_peer_counter{component.RegisterCounter("public_key_exchange_for_peer")} {}
   };
 
   std::unique_ptr<Metrics> metrics_;
