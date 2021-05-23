@@ -11,11 +11,15 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <cstdlib>
 #include <cstring>
+#include <chrono>
+#include "Replica.hpp"
 #include "helper.hpp"
 #include "gtest/gtest.h"
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
+#include "serialize.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
@@ -154,6 +158,43 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
   EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
   EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
   EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
+  EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
+}
+
+TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
+  NodeIdType senderId = 1u;
+  uint8_t flags = MsgFlag::TIME_SERVICE_FLAG;
+  uint64_t reqSeqNum = 100u;
+  auto millis = std::chrono::system_clock::now().time_since_epoch();
+  auto request = concord::util::serialize(millis.count());
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {""};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  ClientRequestMsg originalMsg(senderId,
+                               flags,
+                               reqSeqNum,
+                               request.size(),
+                               request.data(),
+                               requestTimeoutMilli,
+                               correlationId,
+                               concordUtils::SpanContext{spanContext});
+
+  ClientRequestMsg copy_msg((ClientRequestMsgHeader*)originalMsg.body());
+
+  EXPECT_EQ(originalMsg.clientProxyId(), copy_msg.clientProxyId());
+  EXPECT_EQ(originalMsg.flags(), copy_msg.flags());
+  EXPECT_EQ(originalMsg.requestSeqNum(), copy_msg.requestSeqNum());
+  EXPECT_EQ(originalMsg.requestLength(), copy_msg.requestLength());
+  EXPECT_EQ(originalMsg.requestBuf(), copy_msg.requestBuf());
+  EXPECT_TRUE(std::memcmp(originalMsg.requestBuf(), copy_msg.requestBuf(), request.size()) == 0u);
+  EXPECT_EQ(originalMsg.getCid(), copy_msg.getCid());
+  EXPECT_EQ(originalMsg.spanContext<ClientRequestMsg>().data(), copy_msg.spanContext<ClientRequestMsg>().data());
+  EXPECT_EQ(originalMsg.requestTimeoutMilli(), requestTimeoutMilli);
+
+  EXPECT_EQ(concord::util::deserialize<std::chrono::milliseconds::rep>(
+                originalMsg.requestBuf(), originalMsg.requestBuf() + originalMsg.requestLength()),
+            millis.count());
   EXPECT_NO_THROW(originalMsg.validate(replicaInfo));
 }
 

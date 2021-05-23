@@ -40,7 +40,8 @@ enum MsgFlag : uint8_t {
   HAS_PRE_PROCESSED_FLAG = 0x4,
   KEY_EXCHANGE_FLAG = 0x8,  // TODO [TK] use reconfig_flag
   EMPTY_CLIENT_FLAG = 0x10,
-  RECONFIG_FLAG = 0x20
+  RECONFIG_FLAG = 0x20,
+  TIME_SERVICE_FLAG = 0x40,
 };
 
 // The IControlHandler is a group of methods that enables the userRequestHandler to perform infrastructure
