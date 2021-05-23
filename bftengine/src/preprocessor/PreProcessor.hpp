@@ -48,7 +48,7 @@ struct RequestState {
 };
 
 // Pre-allocated (clientId * dataSize) buffers
-typedef std::vector<concordUtils::Sliver> PreProcessResultBuffers;
+typedef std::unordered_map<uint16_t, concordUtils::Sliver> PreProcessResultBuffers;
 typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
 // (clientId * dataSize + reqOffsetInBatch) -> RequestStateSharedPtr
 typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
@@ -137,7 +137,7 @@ class PreProcessor {
                                       NodeIdType destId,
                                       uint16_t reqOffsetInBatch,
                                       uint64_t reqRetryId);
-  const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) const;
+  const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
   const uint16_t getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const;
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,

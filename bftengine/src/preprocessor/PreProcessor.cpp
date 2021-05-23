@@ -119,8 +119,6 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
-    // Allocate a buffer for the pre-execution result per client * batch
-    preProcessResultBuffers_.push_back(Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_));
   }
   RequestState::reqProcessingHistoryHeight *= clientMaxBatchSize_;
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
@@ -1027,9 +1025,7 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPrePro
   }
 }
 
-const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
-                                                    ReqId reqSeqNum,
-                                                    uint16_t reqOffsetInBatch) const {
+const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
   // Pre-allocated buffers scheme:
   // |first client's first buffer|...|first client's last buffer|......
   // |last client's first buffer|...|last client's last buffer|
@@ -1039,6 +1035,8 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId,
   const auto bufferOffset =
       (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
   LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
+  if (preProcessResultBuffers_.find(bufferOffset) == preProcessResultBuffers_.end())
+    preProcessResultBuffers_[bufferOffset] = Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_);
   return preProcessResultBuffers_[bufferOffset].data();
 }
 
