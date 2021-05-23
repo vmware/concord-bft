@@ -27,9 +27,9 @@
 #include "PreProcessorRecorder.hpp"
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
+#include <RollingAvgAndVar.hpp>
 
 #include <boost/lockfree/spsc_queue.hpp>
-
 #include <mutex>
 #include <condition_variable>
 #include <functional>
@@ -98,7 +98,8 @@ class PreProcessor {
   bool registerRequestOnPrimaryReplica(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                        PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                        uint16_t reqOffsetInBatch,
-                                       uint64_t reqRetryId);
+                                       RequestStateSharedPtr reqEntry);
+  void countRetriedRequests(const ClientPreProcessReqMsgUniquePtr &clientReqMsg, const RequestStateSharedPtr &reqEntry);
   bool registerRequest(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg,
                        uint16_t reqOffsetInBatch);
@@ -230,8 +231,11 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcessRequestTimedOut;
     concordMetrics::CounterHandle preProcPossiblePrimaryFaultDetected;
     concordMetrics::CounterHandle preProcReqCompleted;
+    concordMetrics::CounterHandle preProcReqRetried;
+    concordMetrics::AtomicGaugeHandle preProcessingTimeAvg;
     concordMetrics::AtomicGaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
+  bftEngine::impl::RollingAvgAndVar totalPreProcessingTime_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle metricsTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
@@ -259,6 +263,7 @@ class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
   void release() override;
 
  private:
+  const int32_t resetFrequency_ = 5000;
   PreProcessor &preProcessor_;
   PreProcessRequestMsgSharedPtr preProcessReqMsg_;
   bool isPrimary_ = false;
