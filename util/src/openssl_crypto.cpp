@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "openssl_crypto_utils.hpp"
+#include "openssl_crypto.hpp"
 
 #include <openssl/ec.h>
 #include <openssl/evp.h>

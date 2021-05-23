@@ -18,7 +18,7 @@
 #include "ireconfiguration.hpp"
 #include "OpenTracing.hpp"
 #include "Crypto.hpp"
-#include "openssl_crypto_utils.hpp"
+#include "openssl_crypto.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {

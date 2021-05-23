@@ -11,7 +11,7 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-    src/openssl_crypto_utils.cpp)
+        src/openssl_crypto.cpp)
 
 add_library(util STATIC
     ${util_source_files}
@@ -60,7 +60,7 @@ set(util_header_files
     include/sliver.hpp
     include/status.hpp
     include/string.hpp
-    include/openssl_crypto_utils.hpp)
+        include/openssl_crypto.hpp)
 install(FILES ${util_header_files} DESTINATION include/util)
 
 set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES

@@ -13,7 +13,7 @@
 
 #include "gtest/gtest.h"
 
-#include "openssl_crypto_utils.hpp"
+#include "openssl_crypto.hpp"
 
 using concord::util::openssl_utils::AsymmetricPrivateKey;
 using concord::util::openssl_utils::AsymmetricPublicKey;
