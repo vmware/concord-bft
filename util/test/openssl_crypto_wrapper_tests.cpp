@@ -15,13 +15,13 @@
 
 #include "openssl_crypto_utils.hpp"
 
-using concord::util::openssl_crypto::AsymmetricPrivateKey;
-using concord::util::openssl_crypto::AsymmetricPublicKey;
-using concord::util::openssl_crypto::deserializePrivateKey;
-using concord::util::openssl_crypto::deserializePrivateKeyFromPemString;
-using concord::util::openssl_crypto::deserializePublicKey;
-using concord::util::openssl_crypto::generateAsymmetricCryptoKeyPair;
-using concord::util::openssl_crypto::kPermittedAsymmetricCryptoSchemes;
+using concord::util::openssl_utils::AsymmetricPrivateKey;
+using concord::util::openssl_utils::AsymmetricPublicKey;
+using concord::util::openssl_utils::deserializePrivateKey;
+using concord::util::openssl_utils::deserializePrivateKeyFromPemString;
+using concord::util::openssl_utils::deserializePublicKey;
+using concord::util::openssl_utils::generateAsymmetricCryptoKeyPair;
+using concord::util::openssl_utils::kPermittedAsymmetricCryptoSchemes;
 using std::invalid_argument;
 using std::pair;
 using std::string;

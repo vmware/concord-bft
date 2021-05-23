@@ -31,7 +31,7 @@ class BftReconfigurationHandler : public IReconfigurationHandler {
     static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
     return logger_;
   }
-  std::unique_ptr<concord::util::openssl_crypto::AsymmetricPublicKey> pub_key_ = nullptr;
+  std::unique_ptr<concord::util::openssl_utils::AsymmetricPublicKey> pub_key_ = nullptr;
   std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
 };
 class ReconfigurationHandler : public BftReconfigurationHandler {
