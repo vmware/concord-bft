@@ -17,12 +17,13 @@
 #include "hex_tools.h"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
+#include "st_reconfiguraion_sm.hpp"
 
 namespace concord::kvbc::reconfiguration {
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler {
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : blocks_adder_{block_adder}, block_metadata_{ro_storage} {}
+      : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
               concord::messages::ReconfigurationResponse&) override {
@@ -77,6 +78,23 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     LOG_INFO(getLogger(), "AddRemoveCommand command block is " << blockId);
     return true;
   }
+  bool handle(const concord::messages::AddRemoveStatus& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse& response) override {
+    auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
+                                     std::string{kvbc::keyTypes::reconfiguration_add_remove});
+    if (res.has_value()) {
+      auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
+      concord::messages::AddRemoveCommand cmd;
+      std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+      concord::messages::deserialize(bytesval, cmd);
+      concord::messages::AddRemoveStatusResponse addRemoveResponse;
+      addRemoveResponse.reconfiguration = cmd.reconfiguration;
+      LOG_INFO(getLogger(), "AddRemoveCommand response: " << addRemoveResponse.reconfiguration);
+      response.response = std::move(addRemoveResponse);
+    }
+    return true;
+  }
 
  protected:
   kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key) {
@@ -99,6 +117,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
  private:
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
+  kvbc::IReader& ro_storage_;
 };
 class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::ReconfigurationHandler {
  public:
