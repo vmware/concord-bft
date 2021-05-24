@@ -18,52 +18,31 @@
 #include "ireconfiguration.hpp"
 #include "OpenTracing.hpp"
 #include "Crypto.hpp"
+#include "openssl_crypto.hpp"
 
 namespace concord::reconfiguration {
-
-class ReconfigurationHandler : public IReconfigurationHandler {
+class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
-  ReconfigurationHandler();
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::WedgeStatusRequest&,
-              concord::messages::WedgeStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::GetVersionCommand&,
-              concord::messages::GetVersionResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::DownloadCommand&,
-              uint64_t,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::DownloadStatusCommand&,
-              concord::messages::DownloadStatus&,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::InstallCommand& cmd,
-              uint64_t,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::InstallStatusCommand& cmd,
-              concord::messages::InstallStatusResponse&,
-              concord::messages::ReconfigurationErrorMsg&) override;
-  bool handle(const concord::messages::KeyExchangeCommand&,
-              concord::messages::ReconfigurationErrorMsg&,
-              uint64_t) override;
-  bool handle(const concord::messages::AddRemoveCommand&,
-              concord::messages::ReconfigurationErrorMsg&,
-              uint64_t) override;
-  bool verifySignature(const concord::messages::ReconfigurationRequest&,
-                       concord::messages::ReconfigurationErrorMsg&) const override;
-
-  static const unsigned char internalCommandKey() {
-    static unsigned char key_ = 0x20;
-    return key_;
-  }
+  BftReconfigurationHandler();
+  bool verifySignature(const std::string& data, const std::string& signature) const override;
 
  protected:
   logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
+    static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
     return logger_;
   }
+  std::unique_ptr<concord::util::openssl_utils::AsymmetricPublicKey> pub_key_ = nullptr;
   std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
-  std::vector<std::unique_ptr<bftEngine::impl::RSAVerifier>> internal_verifiers_;
 };
-
+class ReconfigurationHandler : public BftReconfigurationHandler {
+ public:
+  ReconfigurationHandler() {}
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::WedgeStatusRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::KeyExchangeCommand&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+};
 }  // namespace concord::reconfiguration

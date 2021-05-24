@@ -32,7 +32,7 @@
 
 namespace concord {
 namespace util {
-namespace openssl_crypto {
+namespace openssl_utils {
 
 // Note these utilities may use std::strings to pass arond byte strings; note
 // this should work since C++ should guarantee std::string is a string of chars
@@ -195,7 +195,7 @@ class UnexpectedOpenSSLCryptoFailureException : public std::exception {
   virtual const char* what() const noexcept override { return message.c_str(); }
 };
 
-}  // namespace openssl_crypto
+}  // namespace openssl_utils
 }  // namespace util
 }  // namespace concord
 

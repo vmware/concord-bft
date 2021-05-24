@@ -27,14 +27,8 @@ class RequestHandler : public IRequestsHandler {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;
       reconfig_handler_ = userHdlr->getReconfigurationHandler();
-      pruning_handler_ = userHdlr->getPruningHandler();
       reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
-      reconfig_dispatcher_.addPruningHandler(userHdlr->getPruningHandler());
     }
-  }
-
-  void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) override {
-    reconfig_dispatcher_.addPruningHandler(ph);
   }
 
   void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) override {

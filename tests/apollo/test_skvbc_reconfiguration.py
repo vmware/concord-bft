@@ -113,7 +113,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
-
+    
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command_with_state_transfer(self, bft_network):
@@ -194,7 +194,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             op = operator.Operator(bft_network.config, client,  bft_network.builddir)
             await op.wedge()
 
-        with trio.fail_after(seconds=30):
+        with trio.fail_after(seconds=60):
             done = False
             while done is False:
                 await op.wedge_status(quorum=bft_client.MofNQuorum(on_time_replicas, len(on_time_replicas)), fullWedge=False)

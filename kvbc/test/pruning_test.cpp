@@ -654,8 +654,9 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
 
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  sm.handle(req, resp, error_msg);
+  concord::messages::ReconfigurationResponse rres;
+  sm.handle(req, 0, rres);
+  resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
   CheckLatestPrunableResp(resp, replica_idx, verifier);
   ASSERT_EQ(resp.block_id, LAST_BLOCK_ID - num_blocks_to_keep);
 }
@@ -674,8 +675,9 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_big_num_blocks_to_keep) {
 
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  sm.handle(req, resp, error_msg);
+  concord::messages::ReconfigurationResponse rres;
+  sm.handle(req, 0, rres);
+  resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
   CheckLatestPrunableResp(resp, replica_idx, verifier);
   // Verify that the returned block ID is 0 when pruning_num_blocks_to_keep is
   // bigger than the latest block ID.
@@ -700,8 +702,9 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
 
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  sm.handle(req, resp, error_msg);
+  concord::messages::ReconfigurationResponse rres;
+  sm.handle(req, 0, rres);
+  resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
   CheckLatestPrunableResp(resp, 1, verifier);
   // Verify that when pruning is enabled and both pruning_num_blocks_to_keep and
   // duration_to_keep_minutes are set to 0, then LAST_BLOCK_ID will be returned.
@@ -726,11 +729,11 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
 
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  sm.handle(req, resp, error_msg);
+  concord::messages::ReconfigurationResponse rres;
+  sm.handle(req, 0, rres);
 
-  // Verify that when pruning is disabled, 0 is returned.
-  ASSERT_EQ(resp.block_id, 0);
+  // Verify that when pruning is disabled, there is no answer.
+  ASSERT_EQ(std::holds_alternative<concord::messages::LatestPrunableBlock>(rres.response), false);
 }
 TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   const auto num_blocks_to_keep = 30;
@@ -746,10 +749,8 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
 
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
-  BlockId agreed_pruned_block = 0;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  auto res = sm.handle(req, agreed_pruned_block, 0, error_msg);
-  ASSERT_EQ(agreed_pruned_block, 0);
+  concord::messages::ReconfigurationResponse rres;
+  auto res = sm.handle(req, 0, rres);
   ASSERT_TRUE(res);
 }
 TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
@@ -770,12 +771,10 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   const auto latest_prunable_block_id = storage.getLastBlockId() - num_blocks_to_keep;
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas, latest_prunable_block_id);
   blocks_deleter.deleteBlocksUntil(latest_prunable_block_id + 1);
-  BlockId prunedBlock;
-  concord::messages::ReconfigurationErrorMsg error_msg;
-  auto res = sm.handle(req, prunedBlock, 0, error_msg);
+  concord::messages::ReconfigurationResponse rres;
+  auto res = sm.handle(req, 0, rres);
 
   ASSERT_TRUE(res);
-  ASSERT_EQ(prunedBlock, latest_prunable_block_id);
 
   // Make sure the state machine has added the last agreed prunable block ID
   // key.
@@ -898,9 +897,8 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     latest_prunnable_block.replica = block.replica;
     latest_prunnable_block.signature = block.signature;
     req.latest_prunable_block.push_back(std::move(latest_prunnable_block));
-    BlockId agreed_pruned_block;
-    concord::messages::ReconfigurationErrorMsg error_msg;
-    auto res = sm.handle(req, agreed_pruned_block, 0, error_msg);
+    concord::messages::ReconfigurationResponse rres;
+    auto res = sm.handle(req, 0, rres);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
@@ -910,9 +908,8 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
   {
     auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
     req.latest_prunable_block.pop_back();
-    BlockId agreed_pruned_block;
-    concord::messages::ReconfigurationErrorMsg error_msg;
-    auto res = sm.handle(req, agreed_pruned_block, 0, error_msg);
+    concord::messages::ReconfigurationResponse rres;
+    auto res = sm.handle(req, 0, rres);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
@@ -923,9 +920,8 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
     auto &block = req.latest_prunable_block[req.latest_prunable_block.size() - 1];
     block.signature[0] += 1;
-    BlockId agreed_pruned_block;
-    concord::messages::ReconfigurationErrorMsg error_msg;
-    auto res = sm.handle(req, agreed_pruned_block, 0, error_msg);
+    concord::messages::ReconfigurationResponse rres;
+    auto res = sm.handle(req, 0, rres);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);

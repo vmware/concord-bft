@@ -22,101 +22,28 @@ namespace concord::reconfiguration {
 
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
-                                    concord::messages::ReconfigurationErrorMsg&) {
-  if (cmd.noop) {
-    LOG_INFO(getLogger(), "received noop command, a new block will be written" << KVLOG(bft_seq_num));
-    return true;
-  }
+                                    concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   return true;
 }
 
 bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
-                                    WedgeStatusResponse& response,
-                                    concord::messages::ReconfigurationErrorMsg&) {
+                                    uint64_t,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::WedgeStatusResponse response;
   if (req.fullWedge) {
     response.stopped = bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint();
   } else {
     response.stopped = bftEngine::IControlHandler::instance()->isOnStableCheckpoint();
   }
+  rres.response = response;
   return true;
 }
 
-bool ReconfigurationHandler::handle(const GetVersionCommand&,
-                                    concord::messages::GetVersionResponse&,
-                                    concord::messages::ReconfigurationErrorMsg&) {
-  return true;
-}
-
-bool ReconfigurationHandler::handle(const DownloadCommand&, uint64_t, concord::messages::ReconfigurationErrorMsg&) {
-  return true;
-}
-
-bool ReconfigurationHandler::verifySignature(const concord::messages::ReconfigurationRequest& request,
-                                             concord::messages::ReconfigurationErrorMsg& error_msg) const {
-  bool valid = false;
-
-  ReconfigurationRequest request_without_sig = request;
-  request_without_sig.signature = {};
-  std::vector<uint8_t> serialized_cmd;
-  concord::messages::serialize(serialized_cmd, request_without_sig);
-
-  auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
-  auto ser_sig = std::string(request.signature.begin(), request.signature.end());
-
-  if (!request.additional_data.empty() && request.additional_data.front() == internalCommandKey()) {
-    // It means we got an internal command, lets verify it with the internal verifiers
-    for (auto& verifier : internal_verifiers_) {
-      valid |= verifier->verify(ser_data.c_str(), ser_data.size(), ser_sig.c_str(), ser_sig.size());
-      if (valid) break;
-    }
-  } else if (!verifier_) {
-    LOG_WARN(getLogger(),
-             "The public operator public key is missing, the reconfiguration engine assumes that some higher level "
-             "implementation is verifying the operator requests");
-    return true;
-  } else {
-    valid = verifier_->verify(ser_data, ser_sig);
-  }
-  if (!valid) {
-    error_msg.error_msg = "Invalid signature";
-    LOG_ERROR(getLogger(), "The message's signature is invalid!");
-  }
-  return valid;
-}
-
-bool ReconfigurationHandler::handle(const concord::messages::DownloadStatusCommand&,
-                                    concord::messages::DownloadStatus&,
-                                    concord::messages::ReconfigurationErrorMsg&) {
-  return true;
-}
-bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd,
-                                    uint64_t,
-                                    concord::messages::ReconfigurationErrorMsg&) {
-  return true;
-}
-bool ReconfigurationHandler::handle(const concord::messages::InstallStatusCommand& cmd,
-                                    concord::messages::InstallStatusResponse& response,
-                                    concord::messages::ReconfigurationErrorMsg&) {
-  return true;
-}
-ReconfigurationHandler::ReconfigurationHandler() {
-  for (const auto& [rep, pk] : bftEngine::ReplicaConfig::instance().publicKeysOfReplicas) {
-    internal_verifiers_.emplace_back(std::make_unique<bftEngine::impl::RSAVerifier>(pk.c_str()));
-    (void)rep;
-  }
-  auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
-  if (operatorPubKeyPath.empty()) {
-    LOG_WARN(getLogger(),
-             "The operator public key is missing, the replica won't be able to validate the operator requests");
-  } else {
-    verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
-  }
-}
 bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
-                                    ReconfigurationErrorMsg&,
-                                    uint64_t sequence_number) {
+                                    uint64_t sequence_number,
+                                    concord::messages::ReconfigurationResponse&) {
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
 
@@ -131,9 +58,17 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
   return true;
 }
 
-bool ReconfigurationHandler::handle(const concord::messages::AddRemoveCommand&,
-                                    concord::messages::ReconfigurationErrorMsg&,
-                                    uint64_t) {
-  return true;
+BftReconfigurationHandler::BftReconfigurationHandler() {
+  auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
+  if (operatorPubKeyPath.empty()) {
+    LOG_WARN(getLogger(),
+             "The operator public key is missing, the reconfiguration handler won't be able to execute the requests");
+    return;
+  }
+  pub_key_ = concord::util::openssl_utils::deserializePublicKeyFromPem(operatorPubKeyPath, "secp256r1");
+  verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
+}
+bool BftReconfigurationHandler::verifySignature(const std::string& data, const std::string& signature) const {
+  return pub_key_->verify(data, signature) || verifier_->verify(data, signature);
 }
 }  // namespace concord::reconfiguration
