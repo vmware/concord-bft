@@ -149,12 +149,10 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
                             concord::messages::ReconfigurationResponse& rres) {
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
-  concord::messages::LatestPrunableBlock latest_prunable_block;
   if (!pruning_enabled_) {
-    latest_prunable_block.block_id = 0;
-    rres.response = latest_prunable_block;
     return true;
   }
+  concord::messages::LatestPrunableBlock latest_prunable_block;
   const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
   if (latest_prunable_block_id > 1)
     latest_prunable_block.bft_sequence_number = getBlockBftSequenceNumber(latest_prunable_block_id);

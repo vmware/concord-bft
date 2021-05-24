@@ -731,10 +731,9 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
   concord::messages::LatestPrunableBlock resp;
   concord::messages::ReconfigurationResponse rres;
   sm.handle(req, 0, rres);
-  resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
 
-  // Verify that when pruning is disabled, 0 is returned.
-  ASSERT_EQ(resp.block_id, 0);
+  // Verify that when pruning is disabled, there is no answer.
+  ASSERT_EQ(std::holds_alternative<concord::messages::LatestPrunableBlock>(rres.response), false);
 }
 TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
   const auto num_blocks_to_keep = 30;
