@@ -66,6 +66,7 @@ class TestAppState : public IAppState {
 
   // TODO(AJS): How does this differ from getLastBlockNum?
   uint64_t getLastReachableBlockNum() const override { return last_block_; }
+  uint64_t getGenesisBlockNum() const override { return 1; }
   uint64_t getLastBlockNum() const override { return last_block_; };
 
  private:
