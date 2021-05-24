@@ -215,6 +215,25 @@ class Serializable {
     LOG_TRACE(logger(), t);
     delete[] str;
   }
+
+  /** *****************************************************************************************************************
+   * duration types
+   */
+  template <typename T, typename std::enable_if_t<is_duration_v<T>>* = nullptr>
+  static void serialize_impl(std::ostream& outStream, const T& duration, int) {
+    auto raw_value = duration.count();
+    LOG_TRACE(logger(), raw_value);
+    outStream.write((char*)&raw_value, sizeof(raw_value));
+  }
+
+  template <typename T, typename std::enable_if_t<is_duration_v<T>>* = nullptr>
+  static void deserialize_impl(std::istream& inStream, T& t, int) {
+    typename T::rep raw_value = 0;
+    inStream.read((char*)&raw_value, sizeof(raw_value));
+    t = T(raw_value);
+    LOG_TRACE(logger(), raw_value);
+  }
+
   /** *****************************************************************************************************************
    * integral types
    */
