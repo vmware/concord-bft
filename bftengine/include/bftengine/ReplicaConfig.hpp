@@ -17,6 +17,7 @@
 #include <ostream>
 #include <vector>
 #include <unordered_map>
+#include <chrono>
 #include "string.hpp"
 #include "kvstream.h"
 
@@ -147,6 +148,21 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
 
+  // Time Service
+  CONFIG_PARAM(timeServiceEnabled, bool, false, "whether time service enabled");
+  CONFIG_PARAM(timeServiceSoftLimitMillis,
+               std::chrono::milliseconds,
+               std::chrono::milliseconds{500},
+               "if delta between primary's time is greater than the soft limit, a warning log message to be printed");
+  CONFIG_PARAM(timeServiceHardLimitMillis,
+               std::chrono::milliseconds,
+               std::chrono::seconds{1} * 3,
+               "if delta between primary's time is greater than the hard limit, the consesnus does not proceed");
+  CONFIG_PARAM(timeServiceEpsilonMillis,
+               std::chrono::milliseconds,
+               std::chrono::milliseconds{1},
+               "time provided to execution is max(consensus_time, last_time + timeServiceEpsilonMillis)");
+
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);
@@ -228,6 +244,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, blockAccumulation);
     serialize(outStream, sizeOfInternalThreadPool);
     serialize(outStream, keyViewFilePath);
+    serialize(outStream, timeServiceEnabled);
+    serialize(outStream, timeServiceHardLimitMillis);
+    serialize(outStream, timeServiceSoftLimitMillis);
+    serialize(outStream, timeServiceEpsilonMillis);
 
     serialize(outStream, config_params_);
   }
@@ -290,6 +310,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, blockAccumulation);
     deserialize(inStream, sizeOfInternalThreadPool);
     deserialize(inStream, keyViewFilePath);
+    deserialize(inStream, timeServiceEnabled);
+    deserialize(inStream, timeServiceHardLimitMillis);
+    deserialize(inStream, timeServiceSoftLimitMillis);
+    deserialize(inStream, timeServiceEpsilonMillis);
 
     deserialize(inStream, config_params_);
   }
@@ -352,7 +376,11 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptiveBatchingMidIncCond,
               rc.adaptiveBatchingMinIncCond,
               rc.adaptiveBatchingDecCond,
-              rc.sizeOfInternalThreadPool);
+              rc.sizeOfInternalThreadPool,
+              rc.timeServiceEnabled,
+              rc.timeServiceSoftLimitMillis.count(),
+              rc.timeServiceHardLimitMillis.count(),
+              rc.timeServiceEpsilonMillis.count());
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
 
