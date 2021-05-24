@@ -315,7 +315,7 @@ class BCStateTran : public IStateTransfer {
   void checkConsistency(bool checkAllBlocks);
   void checkConfig();
   void checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
-  void checkReachableBlocks(uint64_t lastReachableBlockNum);
+  void checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastReachableBlockNum);
   void checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
   void checkBlocksBeingFetchedNow(bool checkAllBlocks, uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
   void checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);

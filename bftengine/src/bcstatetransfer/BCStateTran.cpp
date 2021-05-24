@@ -2318,6 +2318,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
 
   const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
   const uint64_t lastBlockNum = as_->getLastBlockNum();
+  const uint64_t genesisBlockNum = as_->getGenesisBlockNum();
   LOG_INFO(getLogger(), KVLOG(lastBlockNum, lastReachableBlockNum));
 
   const uint64_t firstStoredCheckpoint = psd_->getFirstStoredCheckpoint();
@@ -2327,7 +2328,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
   checkConfig();
   checkFirstAndLastCheckpoint(firstStoredCheckpoint, lastStoredCheckpoint);
   if (checkAllBlocks) {
-    checkReachableBlocks(lastReachableBlockNum);
+    checkReachableBlocks(genesisBlockNum, lastReachableBlockNum);
   }
   checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum);
   checkBlocksBeingFetchedNow(checkAllBlocks, lastReachableBlockNum, lastBlockNum);
@@ -2369,9 +2370,9 @@ void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, ui
   }
 }
 
-void BCStateTran::checkReachableBlocks(uint64_t lastReachableBlockNum) {
+void BCStateTran::checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastReachableBlockNum) {
   if (lastReachableBlockNum > 0) {
-    for (uint64_t currBlock = lastReachableBlockNum - 1; currBlock >= 1; currBlock--) {
+    for (uint64_t currBlock = lastReachableBlockNum - 1; currBlock >= genesisBlockNum; currBlock--) {
       auto currDigest = getBlockAndComputeDigest(currBlock);
       ConcordAssert(!currDigest.isZero());
       STDigest prevFromNextBlockDigest;

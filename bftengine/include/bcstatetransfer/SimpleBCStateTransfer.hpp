@@ -89,6 +89,9 @@ class IAppState {
   // returns the maximal block number n such that all blocks 1 <= i <= n exist.
   // if block 1 does not exist, returns 0.
   virtual uint64_t getLastReachableBlockNum() const = 0;
+
+  // returns the current genesis block in the system
+  virtual uint64_t getGenesisBlockNum() const = 0;
   // returns the maximum block number that is currently stored in
   // the application/storage layer.
   virtual uint64_t getLastBlockNum() const = 0;
