@@ -172,7 +172,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                                                          + "_c=" + str(bft_config['c'])
                             with log.start_task(action_type=f"{bft_network.current_test}_num_clients={config.num_clients}"):
                                 if rotate_keys:
-                                    await bft_network.do_key_exchange()
+                                    await bft_network.check_initital_key_exchange()
                                 bft_network.test_start_time = time.time()
                                 await async_fn(*args, **kwargs, bft_network=bft_network)
         return wrapper
@@ -1245,28 +1245,36 @@ class BftTestNetwork:
             
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
         
-    async def do_key_exchange(self):
+    async def check_initital_key_exchange(self):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
-        with log.start_action(action_type="do_key_exchange"):
+        with log.start_action(action_type="check_initital_key_exchange"):
             self.start_all_replicas()
             with trio.fail_after(seconds=120):
                 for replica_id in range(self.config.n):
                     while True:
                         with trio.move_on_after(seconds=1):
                             try:
-                                key = ['KeyManager', 'Counters', 'KeyExchangedOnStartCounter']
-                                value = await self.metrics.get(replica_id, *key)
-                                if value < self.config.n:
+                                sent_key_exchange_on_start_status = await self.metrics.get(replica_id, *["KeyExchangeManager", "Statuses", "sent_key_exchange_on_start"])
+                                sent_key_exchange_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+                                self_key_exchange_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                                public_key_exchange_for_peer_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+                                if  sent_key_exchange_on_start_status == 'False' or \
+                                    sent_key_exchange_counter < 1 or \
+                                    self_key_exchange_counter < 1 or \
+                                    public_key_exchange_for_peer_counter < self.config.n - 1 :
                                     await trio.sleep(0.1)
                                     continue
                             except trio.TooSlowError:
                                 print(f"Replica {replica_id} was not able to exchange keys on start")
                                 raise KeyExchangeError
                             else:
-                                assert value == self.config.n
+                                assert sent_key_exchange_on_start_status == 'True'
+                                assert sent_key_exchange_counter == 1
+                                assert self_key_exchange_counter == 1
+                                assert public_key_exchange_for_peer_counter == self.config.n - 1
                                 break
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']

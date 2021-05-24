@@ -85,7 +85,7 @@ class SkvbcTest(unittest.TestCase):
         """
 
         if exchange_keys:
-            await bft_network.do_key_exchange()
+            await bft_network.check_initital_key_exchange()
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
