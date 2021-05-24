@@ -17,6 +17,7 @@
 #include <deque>
 #include <map>
 #include <unordered_map>
+#include <chrono>
 
 namespace concord {
 
@@ -78,6 +79,15 @@ struct is_std_container
 
 template <class T>
 inline constexpr bool is_std_container_v = is_std_container<T>::value;
+
+template <class T>
+struct is_duration : std::false_type {};
+
+template <class Rep, class Period>
+struct is_duration<std::chrono::duration<Rep, Period>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_duration_v = is_duration<T>::value;
 
 // Taken from https://stackoverflow.com/a/22759544
 template <typename S, typename T>
