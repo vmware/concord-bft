@@ -41,7 +41,9 @@ bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
   return true;
 }
 
-bool ReconfigurationHandler::handle(const KeyExchangeCommand& command, uint64_t sequence_number, concord::messages::ReconfigurationResponse&) {
+bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
+                                    uint64_t sequence_number,
+                                    concord::messages::ReconfigurationResponse&) {
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
 
