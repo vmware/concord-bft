@@ -23,7 +23,6 @@
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
-class IPruningHandler;
 }  // namespace concord::reconfiguration
 
 namespace bftEngine {
@@ -59,15 +58,10 @@ class IRequestsHandler {
   virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) {
     reconfig_handler_ = rh;
   }
-  std::shared_ptr<concord::reconfiguration::IPruningHandler> getPruningHandler() const { return pruning_handler_; }
-  virtual void setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler> ph) {
-    pruning_handler_ = ph;
-  }
 
   virtual ~IRequestsHandler() = default;
 
  protected:
   std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> reconfig_handler_;
-  std::shared_ptr<concord::reconfiguration::IPruningHandler> pruning_handler_;
 };
 }  // namespace bftEngine

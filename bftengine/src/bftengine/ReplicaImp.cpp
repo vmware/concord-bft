@@ -4206,7 +4206,6 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     concord::messages::ReconfigurationRequest req;
     req.command = concord::messages::WedgeCommand{config_.replicaId, true};
     // Mark this request as an internal one
-    req.additional_data = {concord::reconfiguration::ReconfigurationHandler::internalCommandKey()};
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
     std::string sig(rsaSigner_->signatureLength(), '\0');

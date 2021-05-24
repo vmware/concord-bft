@@ -41,17 +41,20 @@ class Dispatcher {
   void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h) {
     if (h) reconfig_handlers_.push_back(h);
   }
-  void addPruningHandler(std::shared_ptr<IPruningHandler> h) {
-    if (h) pruning_handlers_.push_back(h);
-  }
 
  private:
   logging::Logger getLogger() {
     static logging::Logger logger_(logging::getLogger("concord.reconfiguration"));
     return logger_;
   }
+  template <typename T>
+  bool handleRequest(const T& msg,
+                     uint64_t bft_seq_num,
+                     concord::messages::ReconfigurationResponse& rres,
+                     std::shared_ptr<IReconfigurationHandler> handler) {
+    return handler->handle(msg, bft_seq_num, rres);
+  }
   std::vector<std::shared_ptr<IReconfigurationHandler>> reconfig_handlers_;
-  std::vector<std::shared_ptr<IPruningHandler>> pruning_handlers_;
 };
 
 }  // namespace concord::reconfiguration

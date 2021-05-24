@@ -52,7 +52,7 @@ Status ReplicaImp::start() {
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
-    requestHandler->setPruningHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
+    requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
   } else {
     createReplicaAndSyncState();
@@ -70,10 +70,12 @@ Status ReplicaImp::start() {
 void ReplicaImp::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
-  requestHandler->setPruningHandler(std::shared_ptr<concord::reconfiguration::IPruningHandler>(
-      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this));
+  requestHandler->setReconfigurationHandler(std::shared_ptr<kvbc::pruning::PruningHandler>(
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();

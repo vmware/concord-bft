@@ -11,7 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "openssl_crypto_utils.hpp"
+#include "openssl_crypto.hpp"
 
 #include <openssl/ec.h>
 #include <openssl/evp.h>
@@ -19,10 +19,10 @@
 #include <stdio.h>
 #include <cassert>
 
-using concord::util::openssl_crypto::AsymmetricPrivateKey;
-using concord::util::openssl_crypto::AsymmetricPublicKey;
-using concord::util::openssl_crypto::kExpectedSHA256HashLengthInBytes;
-using concord::util::openssl_crypto::UnexpectedOpenSSLCryptoFailureException;
+using concord::util::openssl_utils::AsymmetricPrivateKey;
+using concord::util::openssl_utils::AsymmetricPublicKey;
+using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
+using concord::util::openssl_utils::UnexpectedOpenSSLCryptoFailureException;
 using std::invalid_argument;
 using std::pair;
 using std::string;
@@ -255,7 +255,7 @@ class EVPPKEYPublicKey : public AsymmetricPublicKey {
 };
 
 pair<unique_ptr<AsymmetricPrivateKey>, unique_ptr<AsymmetricPublicKey>>
-concord::util::openssl_crypto::generateAsymmetricCryptoKeyPair(const string& scheme_name) {
+concord::util::openssl_utils::generateAsymmetricCryptoKeyPair(const string& scheme_name) {
   if (scheme_name == "secp256r1") {
     // prime256v1 is an alternative name for the same curve parameters as
     // secp256r1; prime256v1 happens to be the name OpenSSL's Crypto library
@@ -313,7 +313,7 @@ concord::util::openssl_crypto::generateAsymmetricCryptoKeyPair(const string& sch
 
 const string kLegalHexadecimalDigits = "0123456789ABCDEFabcdef";
 
-unique_ptr<AsymmetricPrivateKey> concord::util::openssl_crypto::deserializePrivateKey(const string& input) {
+unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializePrivateKey(const string& input) {
   size_t first_split_point = input.find(':');
   size_t second_split_point = input.rfind(':');
   if ((first_split_point == string::npos) || (first_split_point == second_split_point)) {
@@ -422,7 +422,7 @@ unique_ptr<AsymmetricPrivateKey> concord::util::openssl_crypto::deserializePriva
   }
 }
 
-std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_crypto::deserializePrivateKeyFromPem(
+std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializePrivateKeyFromPem(
     const std::string& path_to_file, const std::string& scheme) {
   if (scheme != "secp256r1") {
     throw invalid_argument("Failed to deserialize private key: scheme \"" + scheme +
@@ -458,7 +458,7 @@ std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_crypto::deserialize
   return std::make_unique<EVPPKEYPrivateKey>(std::move(private_pkey), "secp256r1");
 }
 
-std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_crypto::deserializePrivateKeyFromPemString(
+std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializePrivateKeyFromPemString(
     const std::string& pem_contents, const std::string& scheme) {
   if (scheme != "secp256r1") {
     throw invalid_argument("Failed to deserialize private key from string: scheme \"" + scheme +
@@ -510,7 +510,7 @@ std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_crypto::deserialize
   return std::make_unique<EVPPKEYPrivateKey>(std::move(private_pkey), "secp256r1");
 }
 
-std::unique_ptr<AsymmetricPublicKey> concord::util::openssl_crypto::deserializePublicKeyFromPem(
+std::unique_ptr<AsymmetricPublicKey> concord::util::openssl_utils::deserializePublicKeyFromPem(
     const std::string& path_to_file, const std::string& scheme) {
   if (scheme != "secp256r1") {
     throw invalid_argument("Failed to deserialize private key: scheme \"" + scheme +
@@ -543,7 +543,7 @@ std::unique_ptr<AsymmetricPublicKey> concord::util::openssl_crypto::deserializeP
   return std::make_unique<EVPPKEYPublicKey>(std::move(public_pkey), "secp256r1");
 }
 
-unique_ptr<AsymmetricPublicKey> concord::util::openssl_crypto::deserializePublicKey(const string& input) {
+unique_ptr<AsymmetricPublicKey> concord::util::openssl_utils::deserializePublicKey(const string& input) {
   size_t first_split_point = input.find(':');
   size_t second_split_point = input.rfind(':');
   if ((first_split_point == string::npos) || (first_split_point == second_split_point)) {
@@ -629,11 +629,11 @@ unique_ptr<AsymmetricPublicKey> concord::util::openssl_crypto::deserializePublic
   }
 }
 
-string concord::util::openssl_crypto::computeSHA256Hash(const string& data) {
+string concord::util::openssl_utils::computeSHA256Hash(const string& data) {
   return computeSHA256Hash(data.data(), data.length());
 }
 
-string concord::util::openssl_crypto::computeSHA256Hash(const char* data, size_t length) {
+string concord::util::openssl_utils::computeSHA256Hash(const char* data, size_t length) {
   unique_ptr<EVP_MD_CTX, EVPMDCTXDeleter> digest_context(EVP_MD_CTX_new(), EVPMDCTXDeleter());
   if (!digest_context) {
     throw UnexpectedOpenSSLCryptoFailureException(

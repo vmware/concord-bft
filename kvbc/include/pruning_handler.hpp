@@ -21,6 +21,7 @@
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include <future>
+#include "reconfiguration/reconfiguration_handler.hpp"
 
 namespace concord::kvbc::pruning {
 
@@ -95,7 +96,7 @@ class RSAPruningVerifier {
   // once during construction.
   std::unordered_set<std::uint64_t> replica_ids_;
 };
-class PruningHandler : public reconfiguration::IPruningHandler {
+class PruningHandler : public concord::reconfiguration::BftReconfigurationHandler {
   // This class implements the KVB pruning state machine. Main functionalities
   // include executing pruning based on configuration policy and replica states as
   // well as providing read-only information to the operator node.
@@ -148,15 +149,12 @@ class PruningHandler : public reconfiguration::IPruningHandler {
                  bftEngine::IStateTransfer &,
                  bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
-              concord::messages::LatestPrunableBlock &,
-              concord::messages::ReconfigurationErrorMsg &) override;
-  bool handle(const concord::messages::PruneRequest &,
-              kvbc::BlockId &,
-              uint64_t bftSeqNum,
-              concord::messages::ReconfigurationErrorMsg &) override;
+              uint64_t,
+              concord::messages::ReconfigurationResponse &) override;
+  bool handle(const concord::messages::PruneRequest &, uint64_t, concord::messages::ReconfigurationResponse &) override;
   bool handle(const concord::messages::PruneStatusRequest &,
-              concord::messages::PruneStatus &,
-              concord::messages::ReconfigurationErrorMsg &) override;
+              uint64_t,
+              concord::messages::ReconfigurationResponse &) override;
   static std::string lastAgreedPrunableBlockIdKey() {
     return std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key};
   }
@@ -194,7 +192,7 @@ class PruningHandler : public reconfiguration::IPruningHandler {
  * The read only pruning handler knows to answer only getLatestPruneableBlock.
  * As it doesn't participant the consensus, the only thing we want to know is what the latest reachable block is.
  */
-class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
+class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconfigurationHandler {
  public:
   ReadOnlyReplicaPruningHandler(IReader &ro_storage)
       : ro_storage_{ro_storage},
@@ -202,9 +200,10 @@ class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
         pruning_enabled_{bftEngine::ReplicaConfig::instance().pruningEnabled_},
         replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {}
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
-              concord::messages::LatestPrunableBlock &latest_prunable_block,
-              concord::messages::ReconfigurationErrorMsg &) override {
+              uint64_t,
+              concord::messages::ReconfigurationResponse &rres) override {
     if (!pruning_enabled_) return true;
+    concord::messages::LatestPrunableBlock latest_prunable_block;
     const auto latest_prunable_block_id = pruning_enabled_ ? ro_storage_.getLastBlockId() : 0;
     latest_prunable_block.bft_sequence_number = 0;  // Read only replica doesn't know the block sequence number
     latest_prunable_block.replica = replica_id_;
@@ -214,19 +213,19 @@ class ReadOnlyReplicaPruningHandler : public reconfiguration::IPruningHandler {
              KVLOG(latest_prunable_block.bft_sequence_number,
                    latest_prunable_block.replica = replica_id_,
                    latest_prunable_block.block_id));
+    rres.response = latest_prunable_block;
     return true;
   }
   // Read only replica doesn't perform the actual pruning
   bool handle(const concord::messages::PruneRequest &,
-              kvbc::BlockId &,
-              uint64_t bftSeqNum,
-              concord::messages::ReconfigurationErrorMsg &) override {
+              uint64_t,
+              concord::messages::ReconfigurationResponse &) override {
     return true;
   }
   // Read only replica doesn't know the pruning status
   bool handle(const concord::messages::PruneStatusRequest &,
-              concord::messages::PruneStatus &,
-              concord::messages::ReconfigurationErrorMsg &) override {
+              uint64_t,
+              concord::messages::ReconfigurationResponse &) override {
     return true;
   }
 

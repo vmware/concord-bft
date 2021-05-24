@@ -25,53 +25,64 @@ namespace concord::reconfiguration {
 class IReconfigurationHandler {
  public:
   // Message handlers
-  virtual bool handle(const concord::messages::WedgeCommand&,
-                      uint64_t,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
+  virtual bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::WedgeStatusRequest&,
-                      concord::messages::WedgeStatusResponse&,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::GetVersionCommand&,
-                      concord::messages::GetVersionResponse&,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::DownloadCommand&,
                       uint64_t,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::DownloadStatusCommand&,
-                      concord::messages::DownloadStatus&,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
-  virtual bool handle(const concord::messages::InstallCommand& cmd,
                       uint64_t,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
-  virtual bool handle(const concord::messages::InstallStatusCommand& cmd,
-                      concord::messages::InstallStatusResponse&,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::InstallCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::InstallStatusCommand&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::KeyExchangeCommand&,
-                      concord::messages::ReconfigurationErrorMsg&,
-                      uint64_t) = 0;
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::AddRemoveCommand&,
-                      concord::messages::ReconfigurationErrorMsg&,
-                      uint64_t) = 0;
-  virtual bool verifySignature(const concord::messages::ReconfigurationRequest&,
-                               concord::messages::ReconfigurationErrorMsg&) const = 0;
-
-  virtual ~IReconfigurationHandler() = default;
-};
-
-class IPruningHandler {
- public:
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
-                      concord::messages::LatestPrunableBlock&,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::PruneStatusRequest&,
-                      concord::messages::PruneStatus&,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
-  virtual bool handle(const concord::messages::PruneRequest&,
-                      kvbc::BlockId&,
-                      uint64_t bftSeqNum,
-                      concord::messages::ReconfigurationErrorMsg&) = 0;
-
-  virtual ~IPruningHandler() = default;
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::PruneRequest&, uint64_t, concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
+  // requests.
+  virtual bool verifySignature(const std::string& data, const std::string& signature) const = 0;
+  virtual ~IReconfigurationHandler() = default;
 };
 
 }  // namespace concord::reconfiguration

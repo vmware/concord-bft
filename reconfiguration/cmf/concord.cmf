@@ -25,10 +25,6 @@ Msg DownloadStatus 11 {
     bool in_progress
 }
 
-Msg TestCommand 12 {
-  string test
-}
-
 Msg LatestPrunableBlockRequest 13 {
     uint64 sender
 }
@@ -95,7 +91,6 @@ Msg ReconfigurationRequest 1 {
   oneof {
     WedgeCommand
     WedgeStatusRequest
-    TestCommand
     GetVersionCommand
     DownloadCommand
     DownloadStatusCommand
