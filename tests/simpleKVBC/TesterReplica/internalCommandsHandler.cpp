@@ -272,16 +272,17 @@ void InternalCommandsHandler::addBlock(VersionedUpdates &verUpdates, BlockMerkle
   ConcordAssert(newBlockId == currBlock + 1);
 }
 
-bool InternalCommandsHandler::checkKeyInBlockAccumulatedRequests(
+bool InternalCommandsHandler::hasConflictInBlockAccumulatedRequests(
     const std::string &key,
     VersionedUpdates &blockAccumulatedVerUpdates,
     BlockMerkleUpdates &blockAccumulatedMerkleUpdates) const {
-  if (auto it = blockAccumulatedVerUpdates.getData().kv.find(key);
-      it != blockAccumulatedVerUpdates.getData().kv.end()) {
+  auto itVersionUpdates = blockAccumulatedVerUpdates.getData().kv.find(key);
+  if (itVersionUpdates != blockAccumulatedVerUpdates.getData().kv.end()) {
     return true;
   }
-  if (auto it = blockAccumulatedMerkleUpdates.getData().kv.find(key);
-      it != blockAccumulatedMerkleUpdates.getData().kv.end()) {
+
+  auto itMerkleUpdates = blockAccumulatedMerkleUpdates.getData().kv.find(key);
+  if (itMerkleUpdates != blockAccumulatedMerkleUpdates.getData().kv.end()) {
     return true;
   }
   return false;
@@ -329,7 +330,7 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
     const auto latest_ver = getLatestVersion(key);
     hasConflict = (latest_ver && latest_ver > writeReq->readVersion);
     if (isBlockAccumulationEnabled && !hasConflict) {
-      if (checkKeyInBlockAccumulatedRequests(key, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates)) {
+      if (hasConflictInBlockAccumulatedRequests(key, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates)) {
         hasConflict = true;
       }
     }
