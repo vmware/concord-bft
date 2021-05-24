@@ -44,9 +44,6 @@ void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator>
           LOG_INFO(KEY_EX_LOG, "-- KeyManager metrics dump--" + metrics_->component.ToJson());
         }
       });
-  for (uint32_t i = 0; i < (uint32_t)publicKeys_.numOfExchangedReplicas(); ++i) {
-    metrics_->keyExchangedOnStartCounter.Get().Inc();
-  }
 }
 
 std::string KeyExchangeManager::generateCid() {
@@ -67,22 +64,19 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
-  if (!exchanged())
-    metrics_->keyExchangedOnStartCounter.Get().Inc();
-  else
-
-    metrics_->keyExchangedCounter.Get().Inc();
 
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
     private_keys_.onKeyExchange(cid, sn);
     for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], kemsg.pubkey, sn);
+    metrics_->self_key_exchange_counter.Get().Inc();
   } else {  // initiated by others
     for (auto e : registryToExchange_) e->onPublicKeyExchange(kemsg.pubkey, kemsg.repID, sn);
+    metrics_->public_key_exchange_for_peer_counter.Get().Inc();
   }
-
-  LOG_INFO(KEY_EX_LOG, "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << clusterSize_ << "]");
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= clusterSize_))
+    LOG_INFO(KEY_EX_LOG, "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << clusterSize_ << "]");
   return "ok";
 }
 
@@ -134,6 +128,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
   client_->sendRquest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  metrics_->sent_key_exchange_counter.Get().Inc();
 }
 
 void KeyExchangeManager::sendInitialKey() {
@@ -148,6 +143,7 @@ void KeyExchangeManager::sendInitialKey() {
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
     waitForFullCommunication();
     sendKeyExchange(0);
+    metrics_->sent_key_exchange_on_start_status.Get().Set("True");
   });
 }
 

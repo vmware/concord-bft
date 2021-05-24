@@ -117,8 +117,16 @@ ReconfigurationHandler::ReconfigurationHandler() {
 bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     ReconfigurationErrorMsg&,
                                     uint64_t sequence_number) {
-  LOG_INFO(GL, KVLOG(command.id, command.sender_id, sequence_number));
-  bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
+  std::ostringstream oss;
+  std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
+
+  LOG_INFO(GL, KVLOG(command.id, command.sender_id, sequence_number) << " target replicas: [" << oss.str() << "]");
+  if (std::find(command.target_replicas.begin(),
+                command.target_replicas.end(),
+                bftEngine::ReplicaConfig::instance().getreplicaId()) != command.target_replicas.end())
+    bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
+  else
+    LOG_INFO(GL, "not among target replicas, ignoring...");
 
   return true;
 }

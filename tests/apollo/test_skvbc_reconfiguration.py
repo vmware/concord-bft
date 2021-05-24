@@ -70,14 +70,27 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_key_exchange_command(self, bft_network):
+        """
+            No initial key rotation
+            Sends key exchange command to replica 0
+            New keys for replica 0 should get effective at checkpoint 2, i.e. seqnum 300
+        """
         bft_network.start_all_replicas()
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
-        client.config._replace(req_timeout_milli=10000)
+         
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        await op.key_exchange()
+        await op.key_exchange([0])
+        for i in range(450):
+            await skvbc.write_known_kv()
 
+        sent_key_exchange_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+        assert sent_key_exchange_counter == 1
+        self_key_exchange_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+        assert self_key_exchange_counter == 1
+        public_key_exchange_for_peer_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+        assert public_key_exchange_for_peer_counter == 1
+        
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):

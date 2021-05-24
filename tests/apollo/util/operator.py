@@ -87,10 +87,10 @@ class Operator:
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
 
-    def _construct_reconfiguration_keMsg_coammand(self):
+    def _construct_reconfiguration_keMsg_coammand(self, target_replicas = []):
         ke_command = cmf_msgs.KeyExchangeCommand()
         ke_command.sender_id = 1000
-        ke_command.target_replicas = []
+        ke_command.target_replicas = target_replicas
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = ke_command
         reconf_msg.additional_data = bytes()
@@ -125,6 +125,6 @@ class Operator:
                           m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
                               self.config.n)]), reconfiguration=True)
 
-    async def key_exchange(self):
-        reconf_msg = self._construct_reconfiguration_keMsg_coammand()
+    async def key_exchange(self, target_replicas):
+        reconf_msg = self._construct_reconfiguration_keMsg_coammand(target_replicas)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
