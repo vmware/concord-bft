@@ -530,6 +530,29 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is False
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_addRemove_command(self, bft_network):
+        """
+             Sends a addRemove command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a addRemove command
+             2. The client verifies reads the configuration back and verifies the configuration
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration'
+        await op.add_remove(test_config)
+        await op.add_remove_status()
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            assert status.response.reconfiguration == test_config
+
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
           with log.start_action(action_type="validate_stop_on_super_stable_checkpoint") as action:

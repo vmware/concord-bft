@@ -98,6 +98,29 @@ class Operator:
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
 
+    def _construct_reconfiguration_addRemove_coammand(self, new_config):
+        addRemove_command = cmf_msgs.AddRemoveCommand()
+        addRemove_command.reconfiguration = new_config
+        addRemove_command.target_replicas = []
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = addRemove_command
+        reconf_msg.additional_data = bytes()
+        reconf_msg.signature = bytes(0)
+        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        return reconf_msg
+
+    def _construct_reconfiguration_addRemoveStatus_coammand(self):
+        addRemoveStatus_command = cmf_msgs.AddRemoveStatus()
+        addRemoveStatus_command.sender_id = 1000
+        addRemoveStatus_command.target_replicas = []
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = addRemoveStatus_command
+        reconf_msg.additional_data = bytes()
+        reconf_msg.signature = bytes(0)
+        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        return reconf_msg
+
+
     async def wedge(self):
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
@@ -128,3 +151,13 @@ class Operator:
     async def key_exchange(self, target_replicas):
         reconf_msg = self._construct_reconfiguration_keMsg_coammand(target_replicas)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+
+    async def add_remove(self, new_config):
+        reconf_msg = self._construct_reconfiguration_addRemove_coammand(new_config)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+
+    async def add_remove_status(self):
+        reconf_msg = self._construct_reconfiguration_addRemoveStatus_coammand()
+        return await self.client.read(reconf_msg.serialize(),
+                          m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
+                              self.config.n)]), reconfiguration=True)

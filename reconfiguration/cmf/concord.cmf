@@ -86,6 +86,14 @@ Msg AddRemoveCommand 26 {
     string reconfiguration
 }
 
+Msg AddRemoveStatus 27 {
+    uint64 sender_id
+}
+
+Msg AddRemoveStatusResponse 28 {
+    string reconfiguration
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -101,6 +109,7 @@ Msg ReconfigurationRequest 1 {
     InstallStatusCommand
     KeyExchangeCommand
     AddRemoveCommand
+    AddRemoveStatus
   } command
   bytes additional_data
 }
@@ -115,6 +124,7 @@ Msg ReconfigurationResponse 2 {
     InstallStatusResponse
     GetVersionResponse
     ReconfigurationErrorMsg
+    AddRemoveStatusResponse
   } response
   bytes additional_data
 }

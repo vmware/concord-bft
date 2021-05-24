@@ -66,6 +66,11 @@ class IReconfigurationHandler {
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
+  virtual bool handle(const concord::messages::AddRemoveStatus&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
                       uint64_t,
                       concord::messages::ReconfigurationResponse&) {
