@@ -182,7 +182,10 @@ std::optional<categorization::Updates> ReplicaImp::getBlockUpdates(BlockId block
   return m_kvBlockchain->getBlockUpdates(block_id);
 }
 
-BlockId ReplicaImp::getGenesisBlockId() const { return m_kvBlockchain->getGenesisBlockId(); }
+BlockId ReplicaImp::getGenesisBlockId() const {
+  if (replicaConfig_.isReadOnly) return m_bcDbAdapter->getGenesisBlockId();
+  return m_kvBlockchain->getGenesisBlockId();
+}
 
 BlockId ReplicaImp::getLastBlockId() const {
   if (replicaConfig_.isReadOnly) {
@@ -347,6 +350,8 @@ uint64_t ReplicaImp::getLastReachableBlockNum() const {
   }
   return m_kvBlockchain->getLastReachableBlockId();
 }
+
+uint64_t ReplicaImp::getGenesisBlockNum() const { return getGenesisBlockId(); }
 
 uint64_t ReplicaImp::getLastBlockNum() const {
   if (replicaConfig_.isReadOnly) {
