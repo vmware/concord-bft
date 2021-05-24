@@ -17,7 +17,6 @@
 #include "hex_tools.h"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
-#include "st_reconfiguraion_sm.hpp"
 
 namespace concord::kvbc::reconfiguration {
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler {
