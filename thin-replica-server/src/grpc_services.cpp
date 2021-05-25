@@ -19,7 +19,6 @@ using grpc::ServerWriter;
 using com::vmware::concord::thin_replica::BlockId;
 using com::vmware::concord::thin_replica::Data;
 using com::vmware::concord::thin_replica::Hash;
-using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;

@@ -40,8 +40,6 @@ using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
 using concord::thin_replica::IgnoreTrsMetrics;
 
-using concordUtils::Status;
-
 using concord::thin_replica::SubUpdateBuffer;
 
 using Block = std::pair<BlockId, ImmutableInput>;

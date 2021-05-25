@@ -21,8 +21,6 @@
 
 namespace {
 
-using std::make_pair;
-
 using concord::kvbc::categorization::ImmutableInput;
 using concord::kvbc::categorization::ImmutableValueUpdate;
 using concord::thin_replica::ConsumerTooSlow;
