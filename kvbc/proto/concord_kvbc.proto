@@ -1,0 +1,96 @@
+// Concord
+//
+// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
+//
+// This product is licensed to you under the Apache 2.0 license (the "License").
+// You may not use this product except in compliance with the Apache 2.0
+// License.
+//
+// This product may include a number of subcomponents with separate copyright
+// notices and license terms. Your use of these subcomponents is subject to the
+// terms and conditions of the subcomponent's license, as noted in the LICENSE
+// file.
+
+syntax = "proto3";
+
+package com.vmware.concord.kvbc;
+
+import "google/protobuf/timestamp.proto";
+
+// Store a value with ThinReplica IDs attached.
+// Those IDs are used to filter the KV pair for a ThinReplica subscriber.
+// NOTE: For now, this is used for the DAML only.
+message ValueWithTrids {
+   // List of Thin Replica IDs that are allowed to view the KV-pair
+   repeated bytes trid = 1;
+   optional bytes value = 2;
+   optional google.protobuf.Timestamp expires_after = 3;
+}
+
+message Block {
+   optional int64 version = 1;
+   optional int64 number = 2;
+   optional bytes hash = 3;             // 32 bytes
+   optional bytes parent_hash = 4;      // 32 bytes
+   repeated bytes transaction = 5;      // 32 bytes
+   optional int64 timestamp = 6;
+   optional int64 gas_limit = 7;
+   optional int64 gas_used = 8;
+}
+
+message Transaction {
+   optional int64 version = 1;
+   optional int64 block_number = 2;
+   optional int64 nonce = 3;
+   optional bytes block_hash = 4;       // 32 bytes
+   optional bytes from = 5;             // 20 bytes
+   optional bytes to = 6;               // 20 bytes
+   optional bytes contract_address = 7; // 20 bytes
+   optional bytes input = 8;
+   optional int64 status = 9;
+   optional bytes value = 10;
+   optional int64 gas_price = 11;
+   optional int64 gas_limit = 12;
+   optional bytes sig_r = 13;           // 32 bytes
+   optional bytes sig_s = 14;           // 32 bytes
+   optional uint32 sig_v = 15;
+   repeated Log log = 16;
+   optional int64 gas_used = 17;
+}
+
+message Log {
+   optional bytes address = 1;          // 20 bytes
+   repeated bytes topic = 2;            // 32 bytes each
+   optional bytes data = 3;
+}
+
+message Balance {
+   optional int64 version = 1;
+   optional bytes balance = 2;          // 32 bytes
+}
+
+message Code {
+   optional int64 version = 1;
+   optional bytes code = 2;
+   optional bytes hash = 3;             // 32 bytes
+}
+
+message Nonce {
+   optional int64 version = 1;
+   optional int64 nonce = 2;
+}
+
+message BlockMetadata {
+   optional int64 version = 1;
+   optional uint64 bft_sequence_num = 2;
+}
+
+message Time {
+   message Sample {
+     optional bytes source = 1;
+     optional google.protobuf.Timestamp time = 2;
+     optional bytes signature = 3;
+   }
+   optional int64 version = 1;
+   repeated Sample sample = 2;
+}
