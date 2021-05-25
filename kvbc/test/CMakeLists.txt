@@ -12,6 +12,20 @@ if(Boost_FOUND)
     )
 endif()
 
+add_test(NAME kvbc_filter_test COMMAND kvbc_filter_test)
+add_executable(kvbc_filter_test
+        kvbc_app_filter/kvbc_filter_test.cpp)
+
+target_link_libraries(kvbc_filter_test
+        ${Boost_LIBRARIES}
+        GTest::Main
+        GTest::GTest
+        ${yaml-cpp_LIBRARIES}
+        kvbc
+        concord-kvbc-proto
+        concordbft_reconfiguration
+        logging)
+
 add_executable(order_test order_test.cpp )
 add_test(order_test order_test)
 target_link_libraries(order_test GTest::Main kvbc util)
@@ -114,9 +128,9 @@ add_test(multiIO_test multiIO_test)
 target_link_libraries(multiIO_test PUBLIC
     GTest::Main
     GTest::GTest
-        util
+    util
     kvbc
-        corebft
+    corebft
 )
 
 add_executable(sparse_merkle_db_editor_test sparse_merkle_storage/sparse_merkle_db_editor_test.cpp )
