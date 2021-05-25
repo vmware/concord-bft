@@ -25,7 +25,11 @@ namespace bftEngine::impl {
 IncomingMsgsStorageImp::IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
                                                std::chrono::milliseconds msgWaitTimeout,
                                                uint16_t replicaId)
-    : IncomingMsgsStorage(), msgHandlers_(msgHandlersPtr), msgWaitTimeout_(msgWaitTimeout) {
+    : IncomingMsgsStorage(),
+      msgHandlers_(msgHandlersPtr),
+      msgWaitTimeout_(msgWaitTimeout),
+      take_lock_recorder_(histograms_.take_lock),
+      wait_for_cv_recorder_(histograms_.wait_for_cv) {
   replicaId_ = replicaId;
   ptrProtectedQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
   ptrProtectedQueueForInternalMessages_ = new queue<InternalMessage>();
@@ -92,14 +96,18 @@ void IncomingMsgsStorageImp::pushInternalMsg(InternalMessage&& msg) {
 
 // should only be called by the dispatching thread
 IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
-  TimeRecorder scoped_timer(*histograms_.get_msg_for_processing);
   auto msg = popThreadLocal();
   if (msg.tag != IncomingMsg::INVALID) return msg;
   {
+    take_lock_recorder_.start();
     std::unique_lock<std::mutex> mlock(lock_);
+    take_lock_recorder_.end();
     {
-      if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty())
+      if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty()) {
+        wait_for_cv_recorder_.start();
         condVar_.wait_for(mlock, msgWaitTimeout_);
+        wait_for_cv_recorder_.end();
+      }
 
       // no new message
       if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty()) {

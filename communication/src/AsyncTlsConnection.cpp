@@ -128,14 +128,6 @@ void AsyncTlsConnection::readMsg() {
           concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.read_enqueue_time);
           receiver_->onNewMessage(peer_id_.value(), read_msg_.data(), bytes_transferred);
         }
-        if (config_.statusCallback && connection_manager_.isReplica(peer_id_.value()) &&
-            (status_.msg_reads % 1000 == 1)) {
-          concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.msg_received_callback);
-          PeerConnectivityStatus pcs{};
-          pcs.peerId = static_cast<int64_t>(peer_id_.value());
-          pcs.statusType = StatusType::MessageReceived;
-          config_.statusCallback(pcs);
-        }
         readMsgSizeHeader();
       }));
 }
