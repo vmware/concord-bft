@@ -128,8 +128,6 @@ struct Recorders {
                                       async_read_header_partial,
                                       async_read_header_full,
                                       async_read_msg,
-                                      msg_sent_callback,
-                                      msg_received_callback,
                                       on_connection_authenticated});
   }
 
@@ -145,8 +143,6 @@ struct Recorders {
   DEFINE_SHARED_RECORDER(async_read_header_full, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(async_read_header_partial, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(async_read_msg, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(msg_sent_callback, 1, MAX_US, 3, Unit::MICROSECONDS);
-  DEFINE_SHARED_RECORDER(msg_received_callback, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(on_connection_authenticated, 1, MAX_US, 3, Unit::MICROSECONDS);
 };
 
