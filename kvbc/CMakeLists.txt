@@ -20,6 +20,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/tree.cpp
     src/sparse_merkle/update_cache.cpp
     src/sparse_merkle/walker.cpp
+    src/kvbc_app_filter/kvbc_app_filter.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)
@@ -33,7 +34,6 @@ if (BUILD_ROCKSDB_STORAGE)
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
 target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs)
-
 
 target_include_directories(kvbc PUBLIC include util)
 
