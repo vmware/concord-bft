@@ -278,13 +278,13 @@ class ThinReplicaImpl {
   static std::string parseClientIdFromSubject(const std::string& subject_str) {
     std::string delim = "OU = ";
     size_t start = subject_str.find(delim) + delim.length();
-    size_t end = subject_str.find(",", start);
+    size_t end = subject_str.find(',', start);
     std::string raw_str = subject_str.substr(start, end - start);
     size_t fstart = 0;
     size_t fend = raw_str.length();
     // remove surrounding whitespaces and newlines
-    if (raw_str.find_first_not_of(" ") != std::string::npos) fstart = raw_str.find_first_not_of(" ");
-    if (raw_str.find_last_not_of(" ") != std::string::npos) fend = raw_str.find_last_not_of(" ");
+    if (raw_str.find_first_not_of(' ') != std::string::npos) fstart = raw_str.find_first_not_of(' ');
+    if (raw_str.find_last_not_of(' ') != std::string::npos) fend = raw_str.find_last_not_of(' ');
     raw_str.erase(std::remove(raw_str.begin(), raw_str.end(), '\n'), raw_str.end());
     return raw_str.substr(fstart, fend - fstart + 1);
   }
@@ -326,7 +326,7 @@ class ThinReplicaImpl {
       // parse the OU field i.e., the client_id from the certificate
       std::string delim = "OU=";
       size_t start = result.find(delim) + delim.length();
-      size_t end = result.find("/", start);
+      size_t end = result.find('/', start);
       client_id = result.substr(start, end - start);
       return client_id;
     }
@@ -402,7 +402,7 @@ class ThinReplicaImpl {
         }
       }
     }
-    assert(queue.empty());
+    ConcordAssert(queue.empty());
 
     // Throws exception if something goes wrong
     kvb_reader.get();
@@ -454,7 +454,7 @@ class ThinReplicaImpl {
                    ServerWriterT* stream,
                    std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
-    assert(start <= end);
+    ConcordAssert(start <= end);
 
     // Let's not wait for a live update yet due to there might be lots of
     // history we have to catch up with first
@@ -486,7 +486,7 @@ class ThinReplicaImpl {
     // Overlap:
     // If we read updates from KVB that were added to the live updates already
     // then we just need to drop the overlap and return
-    assert(live_updates->oldestBlockId() <= end);
+    ConcordAssert(live_updates->oldestBlockId() <= end);
     SubUpdate update;
     do {
       live_updates->Pop(update);
@@ -518,7 +518,7 @@ class ThinReplicaImpl {
   }
 
   template <typename ServerWriterT>
-  void sendHash(ServerWriterT* stream, kvbc::BlockId block_id, std::string update_hash) {
+  void sendHash(ServerWriterT* stream, kvbc::BlockId block_id, const std::string& update_hash) {
     com::vmware::concord::thin_replica::Hash hash;
     hash.set_block_id(block_id);
     hash.set_hash(update_hash);

@@ -181,7 +181,7 @@ class SubBufferList {
   // Note: This is potentially expensive depending on the update size and the
   // number of subscribers. If TRC/TRS stays then we might want to think about
   // an optimization.
-  virtual void updateSubBuffers(SubUpdate update) {
+  virtual void updateSubBuffers(SubUpdate& update) {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& it : subscriber_) {
       it->Push(update);

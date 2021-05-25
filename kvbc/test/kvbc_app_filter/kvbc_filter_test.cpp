@@ -43,15 +43,10 @@ using com::vmware::concord::kvbc::ValueWithTrids;
 using boost::lockfree::spsc_queue;
 using concord::kvbc::BlockId;
 using concord::kvbc::InvalidBlockRange;
-using concord::kvbc::kKvbKeyEthBlock;
 using concord::kvbc::KvbAppFilter;
 using concord::kvbc::KvbFilteredUpdate;
-using concord::kvbc::KvbReadError;
 using concord::kvbc::KvbUpdate;
-using concord::storage::memorydb::Sliver;
 using concord::util::openssl_utils::computeSHA256Hash;
-using concordUtils::Status;
-using concord::storage::rocksdb::NativeClient;
 
 namespace {
 
@@ -382,7 +377,7 @@ TEST(kvbc_filter_test, kvbfilter_stop_exec_in_the_middle) {
                                std::ref(stop_exec));
   while (queue_out.read_available() < 5) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    if (end < std::chrono::steady_clock::now()) assert(false);
+    if (end < std::chrono::steady_clock::now()) ConcordAssert(false);
   }
   stop_exec = true;
   kvb_reader.get();
@@ -542,7 +537,7 @@ TEST(kvbc_filter_test, updates_order) {
   auto imm_var_updates = updates.categoryUpdates(concord::kvbc::categorization::kExecutionEventsCategory);
   EXPECT_TRUE(imm_var_updates != std::nullopt);
 
-  auto imm_updates = std::get<concord::kvbc::categorization::ImmutableInput>((*imm_var_updates).get());
+  auto &imm_updates = std::get<concord::kvbc::categorization::ImmutableInput>((*imm_var_updates).get());
 
   auto ordered_kv_pairs = kvb_filter.filterKeyValuePairs(imm_updates);
   EXPECT_EQ(ordered_kv_pairs.size(), order.size());
