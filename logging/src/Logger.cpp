@@ -33,3 +33,4 @@ logging::Logger ST_DST_LOG = logging::getLogger("concord.bft.st.dst");
 logging::Logger ST_SRC_LOG = logging::getLogger("concord.bft.st.src");
 logging::Logger MSGS = logging::getLogger("concord.bft.msgs");
 logging::Logger CL_MNGR = logging::getLogger("concord.bft.client-manager");
+logging::Logger TS_MNGR = logging::getLogger("concord.bft.time-service-manager");
