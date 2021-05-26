@@ -542,6 +542,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
          """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100):
+            await skvbc.write_known_kv()
         client = bft_network.random_client()
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
