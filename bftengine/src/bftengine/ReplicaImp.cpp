@@ -334,7 +334,7 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
                  << lastExecutedSeqNum + config_.getconcurrencyLevel() << "]");
     return false;
   }
-
+  metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + 1 - lastExecutedSeqNum);
   ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
   // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
   ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
