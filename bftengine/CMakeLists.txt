@@ -64,6 +64,7 @@ set(corebft_source_files
     src/bftengine/ControlStateManager.cpp
     src/bftengine/InternalBFTClient.cpp
     src/bftengine/KeyStore.cpp
+    src/bftengine/TimeServiceResPageClient.cpp
 )
 
 #
