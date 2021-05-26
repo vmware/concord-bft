@@ -91,6 +91,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
       addRemoveResponse.reconfiguration = cmd.reconfiguration;
       LOG_INFO(getLogger(), "AddRemoveCommand response: " << addRemoveResponse.reconfiguration);
       response.response = std::move(addRemoveResponse);
+    } else {
+      concord::messages::ReconfigurationErrorMsg error_msg;
+      error_msg.error_msg = "key_not_found";
+      response.response = std::move(error_msg);
+      LOG_INFO(getLogger(), "AddRemoveCommand key not found");
+      return false;
     }
     return true;
   }
