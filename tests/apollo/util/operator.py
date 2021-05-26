@@ -101,7 +101,6 @@ class Operator:
     def _construct_reconfiguration_addRemove_coammand(self, new_config):
         addRemove_command = cmf_msgs.AddRemoveCommand()
         addRemove_command.reconfiguration = new_config
-        addRemove_command.target_replicas = []
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemove_command
         reconf_msg.additional_data = bytes()
@@ -112,7 +111,6 @@ class Operator:
     def _construct_reconfiguration_addRemoveStatus_coammand(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveStatus()
         addRemoveStatus_command.sender_id = 1000
-        addRemoveStatus_command.target_replicas = []
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemoveStatus_command
         reconf_msg.additional_data = bytes()
