@@ -36,6 +36,7 @@ extern logging::Logger ST_SRC_LOG;
 extern logging::Logger ST_DST_LOG;
 extern logging::Logger MSGS;
 extern logging::Logger CL_MNGR;
+extern logging::Logger TS_MNGR;
 
 namespace logging {
 

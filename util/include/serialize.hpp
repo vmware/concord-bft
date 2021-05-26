@@ -14,37 +14,41 @@
 #pragma once
 
 #include <cstring>
-#include <type_traits>
+#include "type_traits"
 #include "assertUtils.hpp"
 
 // Please note that methods in this file do not take endianness into consideration
 
 namespace concord::util {
 
-template <typename T>
+template <typename T, typename std::enable_if_t<std::is_integral_v<T>>* = nullptr>
 std::string serialize(const T& value) {
-  static_assert(std::is_integral_v<T>);
   auto serialized = std::string(sizeof(value), 0);
   std::memcpy(serialized.data(), &value, sizeof(T));
   return serialized;
 }
 
-template <typename T>
-T deserialize(const std::string& serialized) {
-  static_assert(std::is_integral_v<T>);
-  ConcordAssert(serialized.size() == sizeof(T));
-  auto value = T{};
-  std::memcpy(&value, serialized.data(), sizeof(T));
-  return value;
+template <typename T, typename std::enable_if_t<is_duration_v<T>>* = nullptr>
+std::string serialize(const T& value) {
+  return serialize(value.count());
 }
 
-template <typename T>
+template <typename T, typename std::enable_if_t<std::is_integral_v<T>>* = nullptr>
+T deserialize(const std::string& serialized) {
+  return deserialize<T>(serialized.cbegin(), serialized.cend());
+}
+
+template <typename T, typename std::enable_if_t<std::is_integral_v<T>>* = nullptr>
 T deserialize(const char* begin, const char* end) {
-  static_assert(std::is_integral_v<T>);
   ConcordAssertEQ((end - begin), sizeof(T));
   auto value = T{};
   std::memcpy(&value, begin, sizeof(T));
   return value;
+}
+
+template <typename T, typename std::enable_if_t<is_duration_v<T>>* = nullptr>
+T deserialize(const char* begin, const char* end) {
+  return T{deserialize<typename T::rep>(begin, end)};
 }
 
 }  // namespace concord::util
