@@ -28,8 +28,6 @@
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
 
-#include <boost/lockfree/spsc_queue.hpp>
-
 #include <mutex>
 #include <condition_variable>
 #include <functional>
@@ -183,6 +181,9 @@ class PreProcessor {
                                            NodeIdType senderId,
                                            NodeIdType clientId,
                                            const std::string &cid);
+  void handleIncomingMsg(MessageBase *msg);
+  void msgProcessingLoop();
+
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
@@ -190,14 +191,14 @@ class PreProcessor {
 
  private:
   const uint32_t MAX_MSGS = 10000;
-  const uint32_t WAIT_TIMEOUT_MILLI = 100;
-  void msgProcessingLoop();
+  const uint32_t WAIT_TIMEOUT_MILLI = 50;
 
-  boost::lockfree::spsc_queue<MessageBase *> msgs_{MAX_MSGS};
-  std::thread msgLoopThread_;
-  std::mutex msgLock_;
+  std::deque<MessageBase *> msgsQueue_;
+  std::mutex msgsQueueLock_;
   std::condition_variable msgLoopSignal_;
   bool msgLoopDone_ = false;
+  static const uint32_t msgLoopThreadsNum_ = 3;
+  std::thread msgLoopThreads_[msgLoopThreadsNum_];
 
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 
@@ -213,7 +214,7 @@ class PreProcessor {
   const uint16_t numOfInternalClients_;
   const bool clientBatchingEnabled_;
   const uint16_t clientMaxBatchSize_;
-  util::SimpleThreadPool threadPool_;
+  util::SimpleThreadPool preProcessingThreadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   PreProcessResultBuffers preProcessResultBuffers_;
   OngoingReqMap ongoingRequests_;  // clientId + reqOffsetInBatch -> RequestStateSharedPtr
@@ -238,14 +239,12 @@ class PreProcessor {
   concordUtil::Timers &timers_;
   PreProcessorRecorder histograms_;
   std::shared_ptr<concord::diagnostics::Recorder> recorder_;
-  ViewNum lastViewNum_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
 //**************** Class AsyncPreProcessJob ****************//
 
-// This class is used to send messages to other replicas in parallel
-
+// This class is used to pre-process requests in parallel
 class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
  public:
   AsyncPreProcessJob(PreProcessor &preProcessor,
