@@ -1026,7 +1026,7 @@ void PreProcessor::registerAndHandleClientPreProcessReqOnNonPrimary(ClientPrePro
 }
 
 const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch) {
-  // Pre-allocated buffers scheme:
+  // Allocate on first use buffers scheme:
   // |first client's first buffer|...|first client's last buffer|......
   // |last client's first buffer|...|last client's last buffer|
   // First client id starts after the last replica id.
