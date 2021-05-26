@@ -2688,7 +2688,6 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
   }
-  bool askAnotherStateTransfer = false;
 
   timeOfLastStateSynch = getMonotonicTime();  // TODO(GG): handle restart/pause
 
@@ -2729,33 +2728,9 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 
   sendToAllOtherReplicas(checkpointMsg);
 
-  if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) {
-    uint16_t numOfStableCheckpoints = 0;
-    auto tableItrator = tableOfStableCheckpoints.begin();
-    while (tableItrator != tableOfStableCheckpoints.end()) {
-      if (tableItrator->second->seqNumber() >= newCheckpointSeqNum) numOfStableCheckpoints++;
-
-      if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
-        delete tableItrator->second;
-        tableItrator = tableOfStableCheckpoints.erase(tableItrator);
-      } else {
-        tableItrator++;
-      }
-    }
-    if (numOfStableCheckpoints >= config_.getfVal() + 1) onSeqNumIsStable(newCheckpointSeqNum);
-
-    if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) askAnotherStateTransfer = true;
-  }
-
-  if (askAnotherStateTransfer) {
-    LOG_INFO(GL, "Call to another startCollectingState()");
-    clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
-    stateTransfer->startCollectingState();
-  } else {
-    if (!currentViewIsActive()) {
-      LOG_INFO(GL, "tryToEnterView after State Transfer finished ...");
-      tryToEnterView();
-    }
+  if (!currentViewIsActive()) {
+    LOG_INFO(GL, "tryToEnterView after State Transfer finished ...");
+    tryToEnterView();
   }
 }
 
