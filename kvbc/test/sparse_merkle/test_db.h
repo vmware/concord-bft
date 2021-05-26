@@ -34,10 +34,19 @@ class TestDB : public concord::kvbc::sparse_merkle::IDBReader {
       return BatchedInternalNode();
     }
     auto root_key = InternalNodeKey::root(latest_version_);
-    return internal_nodes_.at(root_key);
+    return get_internal(root_key);
   }
 
-  BatchedInternalNode get_internal(const InternalNodeKey& key) const override { return internal_nodes_.at(key); }
+  BatchedInternalNode get_internal(const InternalNodeKey& key) const override { 
+    try {
+      return internal_nodes_.at(key); 
+    }
+    catch(const std::out_of_range& e) {
+      LOG_FATAL(GL, e.what());
+      LOG_FATAL(GL, "internal_nodes_.at() has failed!");
+      throw;
+    }    
+  }
 
  private:
   Version latest_version_ = 0;

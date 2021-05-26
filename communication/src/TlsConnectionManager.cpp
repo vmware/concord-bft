@@ -128,6 +128,13 @@ void ConnectionManager::handleSend(const NodeNum destination, std::shared_ptr<Ou
   if (it != connections_.end()) {
     it->second->send(std::move(msg));
     status_->total_messages_sent++;
+    if (config_.statusCallback && isReplica() && (status_->total_messages_sent % 1000 == 1)) {
+      concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.msg_sent_callback);
+      PeerConnectivityStatus pcs{};
+      pcs.peerId = static_cast<int64_t>(config_.selfId);
+      pcs.statusType = StatusType::MessageSent;
+      config_.statusCallback(pcs);
+    }
   } else {
     status_->total_messages_dropped++;
   }
@@ -150,6 +157,12 @@ void ConnectionManager::remoteCloseConnection(NodeNum id) {
     auto conn = std::move(connections_.at(id));
     connections_.erase(id);
     status_->num_connections = connections_.size();
+    if (config_.statusCallback && isReplica(id)) {
+      PeerConnectivityStatus pcs{};
+      pcs.peerId = static_cast<int64_t>(id);
+      pcs.statusType = StatusType::Broken;
+      config_.statusCallback(pcs);
+    }
     conn->getSocket().lowest_layer().close();
   });
 }

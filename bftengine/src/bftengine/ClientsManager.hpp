@@ -82,7 +82,7 @@ class ClientsManager : public ResPagesClient<ClientsManager, 0> {
   // General
   static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
   int getIndexOfClient(const NodeIdType& id) const;
-
+  
  protected:
   const ReplicaId myId_;
   const uint32_t sizeOfReservedPage_;
