@@ -152,6 +152,13 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
   if (!pruning_enabled_) {
     return true;
   }
+  std::lock_guard lock(pruning_status_lock_);
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    concord::messages::ReconfigurationErrorMsg error_msg;
+    error_msg.error_msg = "latestPruneableBlock can't retrieved while pruning is going on";
+    rres.response = error_msg;
+    return false;
+  }
   concord::messages::LatestPrunableBlock latest_prunable_block;
   const auto latest_prunable_block_id = pruning_enabled_ ? latestBasedOnNumBlocksConfig() : 0;
   if (latest_prunable_block_id > 1)
@@ -304,12 +311,12 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
                             concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
   concord::messages::PruneStatus prune_status;
-  LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   std::lock_guard lock(pruning_status_lock_);
   prune_status.last_pruned_block =
       last_scheduled_block_for_pruning_.has_value() ? last_scheduled_block_for_pruning_.value() : 0;
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
   rres.response = prune_status;
+  LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
   return true;
 }
 
