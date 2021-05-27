@@ -2001,11 +2001,12 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
     CheckpointMsg *checkMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
 
     if (checkMsg == nullptr || !checkMsg->isStableState()) {
-      LOG_WARN(GL, "Misalignment in lastStableSeqNum and my CheckpointMsg for it");
+      LOG_WARN(
+          GL, "Misalignment in lastStableSeqNum and my CheckpointMsg for it" << KVLOG(lastStableSeqNum, msgLastStable));
     }
 
-    auto &CheckpointInfo = checkpointsLog->get(lastStableSeqNum);
-    for (const auto &it : CheckpointInfo.getAllCheckpointMsgs()) {
+    auto &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+    for (const auto &it : checkpointInfo.getAllCheckpointMsgs()) {
       if (msgSenderId != it.first) {
         sendAndIncrementMetric(it.second, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
       }
