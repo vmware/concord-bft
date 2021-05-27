@@ -116,7 +116,14 @@ void ClientsManager::loadInfoFromReservedPages() {
 }
 
 bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
   const auto& elem = repliesInfo.find(reqSeqNum);
   const bool found = (elem != repliesInfo.end());
@@ -128,7 +135,14 @@ void ClientsManager::deleteOldestReply(NodeIdType clientId) {
   // YS TBD: Once multiple replies for client batching are sorted by incoming time, they could be deleted properly
   Time earliestTime = MaxTime;
   ReqId earliestReplyId = 0;
-  const uint16_t clientIdx = clientIdToIndex_.at(clientId);
+  uint16_t clientIdx = 0;
+  try {
+    clientIdx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
   for (const auto& reply : repliesInfo) {
     if (earliestTime > reply.second) {
@@ -160,7 +174,14 @@ bool ClientsManager::isValidClient(NodeIdType clientId) const { return (clientId
 // * save the reply to the reserved pages.
 std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToStorage(
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
-  const uint16_t clientIdx = clientIdToIndex_.at(clientId);
+  uint16_t clientIdx = 0;
+  try {
+    clientIdx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   ClientInfo& c = indexToClientInfo_.at(clientIdx);
   if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
   if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
@@ -211,7 +232,14 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
                                                                           ReqId requestSeqNum,
                                                                           uint16_t currentPrimaryId) {
-  const uint16_t clientIdx = clientIdToIndex_.at(clientId);
+  uint16_t clientIdx = 0;
+  try {
+    clientIdx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum, firstPageId));
   loadReservedPage(firstPageId, sizeOfReservedPage_, scratchPage_);
@@ -261,7 +289,14 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
 }
 
 bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   const auto& reqIt = indexToClientInfo_.at(idx).requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
@@ -272,7 +307,14 @@ bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqN
 }
 
 bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end() && !reqIt->second.committed) {
@@ -284,7 +326,14 @@ bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
 // * max number of pending requests not reached for that client.
 // * request seq number is bigger than the last reply seq number.
 bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   if (requestsInfo.size() == maxNumOfReqsPerClient_) {
     LOG_DEBUG(CL_MNGR,
@@ -307,7 +356,14 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
 }
 
 void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid) {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   if (requestsInfo.find(reqSeqNum) != requestsInfo.end()) {
     LOG_WARN(CL_MNGR, "The request already exists - skip adding" << KVLOG(clientId, reqSeqNum));
@@ -318,7 +374,14 @@ void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, con
 }
 
 void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum) {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
@@ -338,7 +401,14 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
  * that we shouldn't have more than maxNumOfRequestsInBatch. Thus, we can safely remove them from the client manager.
  */
 void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId reqSequenceNum) {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return;
   ReqId maxReqId{0};
@@ -354,7 +424,14 @@ void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId r
   }
 }
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
-  uint16_t idx = clientIdToIndex_.at(clientId);
+  uint16_t idx = 0;
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
+    throw;
+  }
+
   auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {

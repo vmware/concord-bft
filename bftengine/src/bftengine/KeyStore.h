@@ -62,7 +62,14 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
 
   bool keyExists(uint16_t repId) const { return clusterKeys_.find(repId) != clusterKeys_.end(); }
 
-  PublicKeys keys(uint16_t repId) const { return clusterKeys_.at(repId); }
+  PublicKeys keys(uint16_t repId) const {
+    try {
+      return clusterKeys_.at(repId);
+    } catch (const std::out_of_range& e) {
+      LOG_FATAL(KEY_EX_LOG, "clusterKeys_.at() has failed for " << KVLOG(repId) << e.what());
+      throw;
+    }
+  }
 
   void log() const {
     LOG_INFO(KEY_EX_LOG, "Cluster Public Keys (size " << clusterSize_ << "):");
