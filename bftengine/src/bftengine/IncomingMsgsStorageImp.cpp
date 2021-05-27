@@ -64,6 +64,8 @@ void IncomingMsgsStorageImp::stop() {
 
 // can be called by any thread
 void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
+  MsgCode::Type type = static_cast<MsgCode::Type>(msg->type());
+  LOG_TRACE(MSGS, type);
   std::unique_lock<std::mutex> mlock(lock_);
   if (ptrProtectedQueueForExternalMessages_->size() >= maxNumberOfPendingExternalMsgs_) {
     Time now = getMonotonicTime();
@@ -104,6 +106,7 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
     take_lock_recorder_.end();
     {
       if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty()) {
+        LOG_TRACE(MSGS, "Waiting for condition variable");
         wait_for_cv_recorder_.start();
         condVar_.wait_for(mlock, msgWaitTimeout_);
         wait_for_cv_recorder_.end();
@@ -111,6 +114,7 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
 
       // no new message
       if (ptrProtectedQueueForExternalMessages_->empty() && ptrProtectedQueueForInternalMessages_->empty()) {
+        LOG_DEBUG(MSGS, "No pending messages");
         return IncomingMsg();
       }
 
@@ -161,7 +165,9 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
         case IncomingMsg::INVALID:
           LOG_TRACE(GL, "Invalid message - ignore");
           break;
-        case IncomingMsg::EXTERNAL:
+        case IncomingMsg::EXTERNAL: {
+          MsgCode::Type type = static_cast<MsgCode::Type>(msg.external->type());
+          LOG_TRACE(MSGS, type);
           // TODO: (AJS) Don't turn this back into a raw pointer.
           // Pass the smart pointer through the message handlers so they take ownership.
           message = msg.external.release();
@@ -174,7 +180,7 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
                 "Received unknown external Message: " << KVLOG(message->type(), message->senderId(), message->size()));
             delete message;
           }
-          break;
+        } break;
         case IncomingMsg::INTERNAL:
           msgHandlers_->handleInternalMsg(std::move(msg.internal));
       };

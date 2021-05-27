@@ -644,6 +644,7 @@ void BCStateTran::startCollectingState() {
 // this function can be executed in context of another thread.
 void BCStateTran::onTimerImp() {
   if (!running_) return;
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.on_timer);
 
   metrics_.on_timer_.Get().Inc();
   // Send all metrics to the aggregator
