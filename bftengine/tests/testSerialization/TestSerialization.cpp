@@ -18,6 +18,8 @@
 #include "../../src/bftengine/PersistentStorageWindows.hpp"
 #include "Logger.hpp"
 #include "Serializable.h"
+#include "helper.hpp"
+#include "SigManager.hpp"
 #include <string>
 #include <cassert>
 
@@ -104,8 +106,11 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   Digest stateDigest;
   const bool stateIsStable = true;
   CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
+  checkpointInitialMsg0.sign();
   CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  checkpointInitialMsg1.sign();
   CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  checkpointInitialMsg2.sign();
 
   const bool completed = true;
 
@@ -325,6 +330,13 @@ void testSetSimpleParams(bool toSet) {
 }
 
 int main() {
+  auto &config = createReplicaConfig();
+  ReplicasInfo replicaInfo(config, false, false);
+  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+                                                          config.replicaPrivateKey,
+                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          config.publicKeysOfReplicas,
+                                                          replicaInfo));
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
   descriptorOfLastExitFromView = new DescriptorOfLastExitFromView();
   descriptorOfLastNewView = new DescriptorOfLastNewView();

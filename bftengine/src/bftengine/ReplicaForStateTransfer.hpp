@@ -47,10 +47,12 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
 
   template <typename T>
   void messageHandler(MessageBase* msg) {
-    if (validateMessage(msg))
-      onMessage<T>(static_cast<T*>(msg));
+    T* trueTypeObj = new T(msg);
+    delete msg;
+    if (validateMessage(trueTypeObj))
+      onMessage<T>(static_cast<T*>(trueTypeObj));
     else
-      delete msg;
+      delete trueTypeObj;
   }
 
   template <class T>

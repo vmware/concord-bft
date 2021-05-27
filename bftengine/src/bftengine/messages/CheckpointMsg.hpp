@@ -19,7 +19,7 @@ namespace impl {
 
 class CheckpointMsg : public MessageBase {
  public:
-  CheckpointMsg(ReplicaId senderId,
+  CheckpointMsg(ReplicaId genReplica,
                 SeqNum seqNum,
                 const Digest& stateDigest,
                 bool stateIsStable,
@@ -31,11 +31,15 @@ class CheckpointMsg : public MessageBase {
 
   Digest& digestOfState() const { return b()->stateDigest; }
 
+  uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
+
   bool isStableState() const { return (b()->flags & 0x1) != 0; }
 
   void setStateAsStable() { b()->flags |= 0x1; }
 
   void validate(const ReplicasInfo& repInfo) const override;
+
+  void sign();
 
  protected:
   template <typename MessageT>
@@ -46,10 +50,11 @@ class CheckpointMsg : public MessageBase {
     MessageBase::Header header;
     SeqNum seqNum;
     Digest stateDigest;
-    uint8_t flags;
+    ReplicaId genReplicaId;  // the replica that originally generated this message
+    uint8_t flags;           // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 1), "Header is 47B");
+  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 2 + 1), "Header is 49B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

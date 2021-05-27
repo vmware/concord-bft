@@ -23,6 +23,7 @@
 #include "ClientsManager.hpp"
 #include "MsgsCommunicator.hpp"
 #include "KeyStore.h"
+#include "SigManager.hpp"
 
 using concordUtil::Timers;
 
@@ -38,7 +39,8 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
-                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
+      config_(config) {
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
@@ -50,6 +52,13 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
       ClientsManager::reservedPagesPerClient(config.sizeOfReservedPage, config.maxReplyMessageSize));
   ClusterKeyStore::setNumResPages(config.numReplicas);
+  sigManager_.reset(SigManager::init(config_.replicaId,
+                                     config_.replicaPrivateKey,
+                                     config_.publicKeysOfReplicas,
+                                     KeyFormat::HexaDecimalStrippedFormat,
+                                     config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
+                                     KeyFormat::PemFormat,
+                                     *repsInfo));
 }
 
 void ReadOnlyReplica::start() {
@@ -93,25 +102,27 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     return;
   }
   ro_metrics_.received_checkpoint_msg_.Get().Inc();
-  const ReplicaId msgSenderId = msg->senderId();
+  const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
 
-  LOG_INFO(GL, KVLOG(msgSenderId, msgSeqNum, msg->size(), msgIsStable) << ", digest: " << msgDigest.toString());
+  LOG_INFO(GL,
+           KVLOG(msg->senderId(), msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable)
+               << ", digest: " << msgDigest.toString());
 
   // not relevant
   if (!msgIsStable || msgSeqNum <= lastExecutedSeqNum) return;
 
   // previous CheckpointMsg from the same sender
-  auto pos = tableOfStableCheckpoints.find(msgSenderId);
+  auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
   if (pos != tableOfStableCheckpoints.end() && pos->second->seqNumber() >= msgSeqNum) return;
   if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-  CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
-  tableOfStableCheckpoints[msgSenderId] = x;
+  CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+  tableOfStableCheckpoints[msgGenReplicaId] = x;
   LOG_INFO(GL,
-           "Added stable Checkpoint message to tableOfStableCheckpoints (message from node "
-               << msgSenderId << " for seqNumber " << msgSeqNum << ")");
+           "Added stable Checkpoint message to tableOfStableCheckpoints (message generated from node "
+               << msgGenReplicaId << " for seqNumber " << msgSeqNum << " sender node " << msg->senderId() << ")");
 
   // not enough CheckpointMsg's
   if ((uint16_t)tableOfStableCheckpoints.size() < config_.fVal + 1) return;
