@@ -48,6 +48,7 @@ RequestsBatchingLogic::~RequestsBatchingLogic() {
 
 void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {
   if (replica_.isCurrentPrimary()) {
+    concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onBatchFlushTimer);
     lock_guard<mutex> lock(batchProcessingLock_);
     if (replica_.tryToSendPrePrepareMsg(false)) {
       LOG_INFO(GL, "Batching flush period expired" << KVLOG(batchFlushPeriodMs_));

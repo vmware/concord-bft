@@ -16,6 +16,8 @@
 #include "InternalReplicaApi.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "Timers.hpp"
+#include "diagnostics.h"
+#include "performance_handler.h"
 
 namespace bftEngine::batchingLogic {
 
@@ -64,6 +66,18 @@ class RequestsBatchingLogic {
   concordUtil::Timers &timers_;
   concordUtil::Timers::Handle batchFlushTimer_;
   std::mutex batchProcessingLock_;
+
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60;
+  using Recorder = concord::diagnostics::Recorder;
+
+  struct Recorders {
+    Recorders() {
+      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.registerComponent("batching", {onBatchFlushTimer});
+    }
+    DEFINE_SHARED_RECORDER(onBatchFlushTimer, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+  };
+  Recorders histograms_;
 };
 
 }  // namespace bftEngine::batchingLogic

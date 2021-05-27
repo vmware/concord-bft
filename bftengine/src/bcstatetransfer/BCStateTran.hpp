@@ -445,15 +445,17 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
  private:
   static constexpr int64_t MAX_VALUE_MILLISECONDS = 1000 * 60;  // 60 Seconds
+  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60;
   using Recorder = concord::diagnostics::Recorder;
 
   struct Recorders {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("state_transfer", {fetch_blocks_msg_latency});
+      registrar.perf.registerComponent("state_transfer", {fetch_blocks_msg_latency, on_timer});
     }
-    std::shared_ptr<Recorder> fetch_blocks_msg_latency = std::make_shared<Recorder>(
-        "fetch_blocks_msg_latency", 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(
+        fetch_blocks_msg_latency, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
+    DEFINE_SHARED_RECORDER(on_timer, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 
