@@ -18,6 +18,8 @@
 namespace bftEngine::impl {
 
 class PersistentStorage;
+class SigManager;
+
 /**
  *
  */
@@ -42,10 +44,12 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
 
   template <typename T>
   void messageHandler(MessageBase* msg) {
-    if (validateMessage(msg))
-      onMessage<T>(static_cast<T*>(msg));
+    T* trueTypeObj = new T(msg);
+    delete msg;
+    if (validateMessage(trueTypeObj))
+      onMessage<T>(trueTypeObj);
     else
-      delete msg;
+      delete trueTypeObj;
   }
 
   template <class T>
@@ -64,6 +68,12 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
+
+  const ReplicaConfig& config_;
+
+  // digital signatures
+  std::unique_ptr<SigManager> sigManager_;
+
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
 };
 

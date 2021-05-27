@@ -20,26 +20,56 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "helper.hpp"
+#include "SigManager.hpp"
 
-TEST(CheckpointMsg, base_methods) {
-  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+using namespace bftEngine;
+
+class CheckpointMsgTestsFixture : public ::testing::Test {
+ public:
+  CheckpointMsgTestsFixture()
+      : config(createReplicaConfig()),
+        replicaInfo(config, false, false),
+        sigManager(createSigManager(config.replicaId,
+                                    config.replicaPrivateKey,
+                                    KeyFormat::HexaDecimalStrippedFormat,
+                                    config.publicKeysOfReplicas,
+                                    replicaInfo))
+
+  {}
+  ReplicaConfig& config;
+  ReplicasInfo replicaInfo;
+  std::unique_ptr<SigManager> sigManager;
+
+  static const char rawSpanContext[];
+  static const std::string spanContext;
+
+  void CheckpointMsgBaseTests(const std::string& spanContext = "");
+};
+
+const char CheckpointMsgTestsFixture::rawSpanContext[] = {"span_\0context"};
+const std::string CheckpointMsgTestsFixture::spanContext = {rawSpanContext, sizeof(rawSpanContext)};
+
+void CheckpointMsgTestsFixture::CheckpointMsgBaseTests(const std::string& spanContext) {
   NodeIdType senderId = 1u;
   uint64_t reqSeqNum = 150u;
   char digestContext[DIGEST_SIZE] = "digest_content";
   Digest digest(digestContext, sizeof(digestContext));
   bool isStable = false;
   const std::string correlationId = "correlationId";
-  const char rawSpanContext[] = {"span_\0context"};
-  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();
+  msg.sign();
   EXPECT_EQ(msg.isStableState(), !isStable);
   EXPECT_EQ(msg.digestOfState(), digest);
   EXPECT_NO_THROW(msg.validate(replicaInfo));
   testMessageBaseMethods(msg, MsgCode::Checkpoint, senderId, spanContext);
 }
+
+TEST_F(CheckpointMsgTestsFixture, base_methods_no_span) { CheckpointMsgBaseTests(); }
+
+TEST_F(CheckpointMsgTestsFixture, base_methods_with_span) { CheckpointMsgBaseTests(spanContext); }
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

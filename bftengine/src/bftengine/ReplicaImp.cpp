@@ -1685,13 +1685,14 @@ template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   metric_received_checkpoints_.Get().Inc();
   const ReplicaId msgSenderId = msg->senderId();
+  const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
-  LOG_INFO(
-      GL,
-      "Received checkpoint message from node. " << KVLOG(msgSenderId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
+  LOG_INFO(GL,
+           "Received checkpoint message from node. "
+               << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
   LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
@@ -1699,10 +1700,10 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize)) {
     ConcordAssert(mainLog->insideActiveWindow(msgSeqNum));
     CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
-    bool msgAdded = checkInfo.addCheckpointMsg(msg, msg->senderId());
+    bool msgAdded = checkInfo.addCheckpointMsg(msg, msgGenReplicaId);
 
     if (msgAdded) {
-      LOG_DEBUG(GL, "Added checkpoint message: " << KVLOG(msgSenderId));
+      LOG_DEBUG(GL, "Added checkpoint message: " << KVLOG(msgGenReplicaId));
     }
 
     if (checkInfo.isCheckpointCertificateComplete()) {  // 2f + 1
@@ -1713,7 +1714,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     }
   } else if (checkpointsLog->insideActiveWindow(msgSeqNum)) {
     CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
-    bool msgAdded = checkInfo.addCheckpointMsg(msg, msg->senderId());
+    bool msgAdded = checkInfo.addCheckpointMsg(msg, msgGenReplicaId);
     if (msgAdded && checkInfo.isCheckpointSuperStable()) {
       onSeqNumIsSuperStable(msgSeqNum);
     }
@@ -1724,20 +1725,21 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   bool askForStateTransfer = false;
 
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
-    auto pos = tableOfStableCheckpoints.find(msgSenderId);
+    auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-      CheckpointMsg *x = new CheckpointMsg(msgSenderId, msgSeqNum, msgDigest, msgIsStable);
-      tableOfStableCheckpoints[msgSenderId] = x;
-      LOG_INFO(GL, "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId));
+      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+      tableOfStableCheckpoints[msgGenReplicaId] = x;
+      LOG_INFO(GL,
+               "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, msgGenReplicaId));
       for (auto &[r, cp] : tableOfStableCheckpoints) {
         if (cp->seqNumber() == msgSeqNum && cp->digestOfState() != x->digestOfState()) {
           metric_indicator_of_non_determinism_.Get().Inc();
           LOG_ERROR(GL,
                     "Detect non determinism, for checkpoint: "
-                        << msgSeqNum << " [replica: " << r << ", digest: " << cp->digestOfState()
-                        << "] Vs [replica: " << msgSenderId << ", digest: " << x->digestOfState() << "]");
+                        << msgSeqNum << " [replica: " << r << ", digest: " << cp->digestOfState() << "] Vs [replica: "
+                        << msgGenReplicaId << ", sender: " << msgSenderId << ", digest: " << x->digestOfState() << "]");
         }
       }
       if ((uint16_t)tableOfStableCheckpoints.size() >= config_.getfVal() + 1) {
@@ -1785,10 +1787,12 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     time_in_state_transfer_.start();
     clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
     stateTransfer->startCollectingState();
-  } else if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
-    onReportAboutAdvancedReplica(msgSenderId, msgSeqNum);
-  } else if (msgSeqNum + kWorkWindowSize < lastStableSeqNum) {
-    onReportAboutLateReplica(msgSenderId, msgSeqNum);
+  } else if (msgSenderId == msgGenReplicaId) {
+    if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
+      onReportAboutAdvancedReplica(msgGenReplicaId, msgSeqNum);
+    } else if (msgSeqNum + kWorkWindowSize < lastStableSeqNum) {
+      onReportAboutLateReplica(msgGenReplicaId, msgSeqNum);
+    }
   }
 }
 /**
@@ -2710,6 +2714,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   stateTransfer->getDigestOfCheckpoint(newStateCheckpoint, sizeof(Digest), (char *)&digestOfNewState);
   CheckpointMsg *checkpointMsg =
       new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, digestOfNewState, false);
+  checkpointMsg->sign();
   CheckpointInfo &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
   checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
   checkpointInfo.setCheckpointSentAllOrApproved();
@@ -2805,9 +2810,13 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
       stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfState);
       checkpointMsg = new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, digestOfState, true);
+      checkpointMsg->sign();
       checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
     } else {
-      checkpointMsg->setStateAsStable();
+      if (!checkpointMsg->isStableState()) {
+        checkpointMsg->setStateAsStable();
+        checkpointMsg->sign();
+      }
     }
 
     if (!checkpointInfo.isCheckpointCertificateComplete()) checkpointInfo.tryToMarkCheckpointCertificateCompleted();
@@ -3986,6 +3995,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
     stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&checkDigest);
     CheckpointMsg *checkMsg = new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkDigest, false);
+    checkMsg->sign();
     CheckpointInfo &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
 
