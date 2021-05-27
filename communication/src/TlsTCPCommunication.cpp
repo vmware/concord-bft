@@ -33,7 +33,14 @@ TlsTCPCommunication::~TlsTCPCommunication() {}
 
 TlsTCPCommunication *TlsTCPCommunication::create(const TlsTcpConfig &config) { return new TlsTCPCommunication(config); }
 
-int TlsTCPCommunication::getMaxMessageSize() { return runner_->principals().at(config_.selfId).getMaxMessageSize(); }
+int TlsTCPCommunication::getMaxMessageSize() {
+  try {
+    return runner_->principals().at(config_.selfId).getMaxMessageSize();
+  } catch (const std::out_of_range &e) {
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    throw;
+  }
+}
 
 int TlsTCPCommunication::Start() {
   runner_->start();
@@ -51,12 +58,22 @@ int TlsTCPCommunication::Stop() {
 bool TlsTCPCommunication::isRunning() const { return runner_->isRunning(); }
 
 ConnectionStatus TlsTCPCommunication::getCurrentConnectionStatus(const NodeNum node) {
-  return runner_->principals().at(config_.selfId).getCurrentConnectionStatus(node);
+  try {
+    return runner_->principals().at(config_.selfId).getCurrentConnectionStatus(node);
+  } catch (const std::out_of_range &e) {
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    throw;
+  }
 }
 
 int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
   auto omsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
-  runner_->principals().at(config_.selfId).send(destNode, omsg);
+  try {
+    runner_->principals().at(config_.selfId).send(destNode, omsg);
+  } catch (const std::out_of_range &e) {
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    throw;
+  }
   return 0;
 }
 
@@ -64,13 +81,23 @@ std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector
   std::set<NodeNum> failed_nodes;
   auto omsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
   for (auto &d : dests) {
-    runner_->principals().at(config_.selfId).send(d, omsg);
+    try {
+      runner_->principals().at(config_.selfId).send(d, omsg);
+    } catch (const std::out_of_range &e) {
+      LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+      throw;
+    }
   }
   return failed_nodes;
 }
 
 void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
-  runner_->principals().at(config_.selfId).setReceiver(id, receiver);
+  try {
+    runner_->principals().at(config_.selfId).setReceiver(id, receiver);
+  } catch (const std::out_of_range &e) {
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    throw;
+  }
 }
 
 }  // namespace bft::communication

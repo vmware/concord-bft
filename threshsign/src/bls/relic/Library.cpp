@@ -14,6 +14,7 @@
 
 #include "threshsign/bls/relic/Library.h"
 
+#include "kvstream.h"
 #include "Logger.hpp"
 #include "Utils.h"
 
@@ -93,12 +94,22 @@ Library::~Library() {}
 
 int Library::getCurveByName(const char* curveName) {
   // NOTE: Will throw std::out_of_range if curve is not in
-  return Get().curveNameToId.at(std::string(curveName));
+  try {
+    return Get().curveNameToId.at(std::string(curveName));
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(BLS_LOG, "curveNameToId.at() has failed for" << KVLOG(curveName));
+    throw;
+  }
 }
 
 std::string Library::getCurveName(int curveType) {
   // NOTE: Will throw std::out_of_range if curve is not in
-  return Get().curveIdToName.at(curveType);
+  try {
+    return Get().curveIdToName.at(curveType);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(BLS_LOG, "curveIdToName.at() has failed for" << KVLOG(curveType));
+    throw;
+  }
 }
 
 } /* namespace Relic */

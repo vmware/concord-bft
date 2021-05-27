@@ -54,8 +54,16 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   // IMultiSigKeyGenerator methodsKEY_EX_LOG
   std::pair<std::string, std::string> generateMultisigKeyPair() override {
     // use default Cryptosystem for key generation
-    LOG_INFO(logger(), "Generating new multisig key pair");
-    return cryptoSystems_.at(0)->cryptosys_->generateNewKeyPair();
+    auto log = logger();
+    LOG_INFO(log, "Generating new multisig key pair");
+
+    try {
+      auto cryptoSystem = cryptoSystems_.at(0);
+      return cryptoSystem->cryptosys_->generateNewKeyPair();
+    } catch (const std::out_of_range& e) {
+      LOG_FATAL(log, "cryptoSystems_.at(0) has failed!" << e.what());
+      throw;
+    }
   }
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.

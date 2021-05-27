@@ -47,8 +47,16 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
 }
 
 void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID) {
+  PublicKeys clusterKey;
+  try {
+    clusterKey = clusterKeys_.at(repID);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(KEY_EX_LOG, "clusterKeys_.at() failed for " << KVLOG(repID) << e.what());
+    throw;
+  }
+
   std::ostringstream oss;
-  concord::serialize::Serializable::serialize(oss, clusterKeys_.at(repID));
+  concord::serialize::Serializable::serialize(oss, clusterKey);
   auto rkStr = oss.str();
   saveReservedPage(repID, rkStr.size(), rkStr.c_str());
 }
