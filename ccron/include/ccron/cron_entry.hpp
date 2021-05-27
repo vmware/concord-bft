@@ -23,6 +23,8 @@ using Action = std::function<void(const Tick&)>;
 using ScheduleNext = std::function<void(const Tick&)>;
 using OnRemove = std::function<void(std::uint32_t component_id, std::uint32_t position)>;
 
+// Represents a cron table entry.
+// Note: All callbacks should be `noexcept`. If a callback throws an exception, the behaviour is undefined.
 struct CronEntry {
   // Absolute position in the cron table.
   std::uint32_t position{0};

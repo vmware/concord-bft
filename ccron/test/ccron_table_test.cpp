@@ -57,6 +57,14 @@ struct ReservedPagesMock : public bftEngine::IReservedPages {
     }
   }
 
+  bool isReservedPageZeroed(uint32_t page_id) const {
+    auto it = pages_.find(page_id);
+    if (it == pages_.cend()) {
+      return false;
+    }
+    return (it->second.find_first_not_of('\0') == std::string::npos);
+  }
+
   // reserved page ID -> contents
   std::map<uint32_t, std::string> pages_;
 };
@@ -66,6 +74,7 @@ class ccron_table_test : public ::testing::Test {
   const std::uint32_t kComponentId = 99;
   CronTable table_{kComponentId};
   const Tick tick_{kComponentId, 42, 10ms};
+  const std::uint32_t kPersistSchedulePos = 100;
 
   std::vector<std::uint32_t> actions_called_;
   std::vector<std::uint32_t> schedule_next_called_;
@@ -235,6 +244,7 @@ TEST_F(ccron_table_test, periodic_action) {
   const auto tick7 = Tick{kComponentId, 7, 7s};
 
   table_.addEntry(periodicAction(position1, action(position1, check_tick), 2s, res_pages_));
+  table_.addEntry(persistPeriodicSchedule(kPersistSchedulePos, res_pages_));
 
   // First tick always executes the action. We schedule the next invocation for 1s + 2s = 3s.
   table_.evaluate(tick1);
@@ -256,6 +266,7 @@ TEST_F(ccron_table_test, periodic_action) {
   {
     auto new_table = CronTable{kComponentId};
     new_table.addEntry(periodicAction(position1, action(position1, check_tick), 2s, res_pages_));
+    new_table.addEntry(persistPeriodicSchedule(kPersistSchedulePos, res_pages_));
 
     // tick4 should not execute the action.
     new_table.evaluate(tick4);
@@ -276,6 +287,7 @@ TEST_F(ccron_table_test, periodic_action) {
     auto new_table = CronTable{kComponentId};
     new_table.addEntry(periodicAction(position1, action(position1, check_tick), 2s, res_pages_));
     new_table.addEntry(periodicAction(position2, action(position2, check_tick), 1s, res_pages_));
+    new_table.addEntry(persistPeriodicSchedule(kPersistSchedulePos, res_pages_));
 
     // tick6 should execute the second action for the first time and not call the first action.
     new_table.evaluate(tick6);
@@ -301,6 +313,7 @@ TEST_F(ccron_table_test, periodic_action) {
     auto new_table = CronTable{kComponentId};
     new_table.addEntry(periodicAction(position1, action(position1, check_tick), 2s, res_pages_));
     new_table.addEntry(periodicAction(position2, action(position2, check_tick), 1s, res_pages_));
+    new_table.addEntry(persistPeriodicSchedule(kPersistSchedulePos, res_pages_));
 
     auto schedule_before = getScheduleFromResPage();
     const auto& saved_table_before = schedule_before.components[kComponentId];
@@ -316,6 +329,16 @@ TEST_F(ccron_table_test, periodic_action) {
     const auto& saved_table_after = schedule_after.components[kComponentId];
     ASSERT_EQ(1, saved_table_after.size());
     ASSERT_EQ(1, saved_table_after.count(position2));
+  }
+
+  // Make sure that removing the schedule entry zeroes the reserved page.
+  {
+    auto new_table = CronTable{kComponentId};
+    new_table.addEntry(persistPeriodicSchedule(kPersistSchedulePos, res_pages_));
+
+    ASSERT_FALSE(res_pages_.isReservedPageZeroed(kPeriodicCronReservedPageId));
+    ASSERT_TRUE(new_table.removeEntry(kPersistSchedulePos));
+    ASSERT_TRUE(res_pages_.isReservedPageZeroed(kPeriodicCronReservedPageId));
   }
 }
 

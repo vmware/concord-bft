@@ -21,29 +21,30 @@
 namespace concord::cron {
 
 static PeriodicActionSchedule schedule;
+static auto persist_schedule_pending = false;
 static std::once_flag init_once;
 
-static const auto periodicCronReservedPageId = 3;
-
-static void saveSchedule(bftEngine::IReservedPages& reserved_pages) {
+static void persistSchedule(bftEngine::IReservedPages& reserved_pages) {
   auto output = std::vector<std::uint8_t>{};
   serialize(output, schedule);
   // TODO: implement a client that inherits from ResPagesClient in order to genearate the correct reserved page ID
   reserved_pages.saveReservedPage(
-      periodicCronReservedPageId, output.size(), reinterpret_cast<const char*>(output.data()));
+      kPeriodicCronReservedPageId, output.size(), reinterpret_cast<const char*>(output.data()));
+}
+
+static void loadSchedule(bftEngine::IReservedPages& reserved_pages) {
+  auto input = std::vector<std::uint8_t>(reserved_pages.sizeOfReservedPage());
+  if (reserved_pages.loadReservedPage(
+          kPeriodicCronReservedPageId, input.size(), reinterpret_cast<char*>(input.data()))) {
+    deserialize(input, schedule);
+  }
 }
 
 CronEntry periodicAction(std::uint32_t position,
                          const Action& action,
                          const std::chrono::milliseconds& period,
                          bftEngine::IReservedPages& reserved_pages) {
-  std::call_once(init_once, [&reserved_pages]() {
-    auto input = std::vector<std::uint8_t>(reserved_pages.sizeOfReservedPage());
-    if (reserved_pages.loadReservedPage(
-            periodicCronReservedPageId, input.size(), reinterpret_cast<char*>(input.data()))) {
-      deserialize(input, schedule);
-    }
-  });
+  std::call_once(init_once, [&reserved_pages]() { loadSchedule(reserved_pages); });
 
   auto rule = [position](const Tick& tick) {
     // Periodic actions cannot be implemented without time.
@@ -66,19 +67,37 @@ CronEntry periodicAction(std::uint32_t position,
     return false;
   };
 
-  auto schedule_next = [position, &reserved_pages, period](const Tick& tick) {
+  auto schedule_next = [position, period](const Tick& tick) {
     // If schedule next is called, then we know the tick has time.
-    auto next = NextInvocation{(*tick.ms_since_epoch + period).count()};
-    schedule.components[tick.component_id][position] = next;
-    saveSchedule(reserved_pages);
+    schedule.components[tick.component_id][position] = NextInvocation{(*tick.ms_since_epoch + period).count()};
+    persist_schedule_pending = true;
   };
 
   auto on_remove = [&reserved_pages](std::uint32_t component_id, std::uint32_t position) {
     schedule.components[component_id].erase(position);
-    saveSchedule(reserved_pages);
+    persistSchedule(reserved_pages);
+    // No need to persist the schedule after removal of this entry, because we do it here. We still might need to do it,
+    // but it would be due to another entry being scheduled.
   };
 
   return CronEntry{position, std::move(rule), action, std::move(schedule_next), std::move(on_remove)};
+}
+
+CronEntry persistPeriodicSchedule(std::uint32_t position, bftEngine::IReservedPages& reserved_pages) {
+  std::call_once(init_once, [&reserved_pages]() { loadSchedule(reserved_pages); });
+
+  auto rule = [](const Tick&) { return persist_schedule_pending; };
+
+  auto action = [&reserved_pages](const Tick&) {
+    persistSchedule(reserved_pages);
+    persist_schedule_pending = false;
+  };
+
+  auto on_remove = [&reserved_pages](std::uint32_t, std::uint32_t) {
+    reserved_pages.zeroReservedPage(kPeriodicCronReservedPageId);
+  };
+
+  return CronEntry{position, std::move(rule), std::move(action), std::nullopt, std::move(on_remove)};
 }
 
 }  // namespace concord::cron
