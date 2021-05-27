@@ -189,6 +189,7 @@ void PreProcessor::resendPreProcessRequest(const RequestProcessingStateUniquePtr
 }
 
 void PreProcessor::onRequestsStatusCheckTimer() {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onRequestsStatusCheckTimer);
   // Pass through all ongoing requests and abort the pre-execution for those that are timed out.
   for (const auto &reqEntry : ongoingRequests_) {
     lock_guard<mutex> lock(reqEntry.second->mutex);
