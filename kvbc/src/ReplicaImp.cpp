@@ -27,6 +27,7 @@
 #include "IRequestHandler.hpp"
 #include "reconfiguration_add_block_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
+#include "bftengine/ControlHandler.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -281,6 +282,9 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
+  // Instantiate IControlHandler.
+  // If an application instantiation has already taken a place this will have no effect.
+  bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
 }
 
 ReplicaImp::~ReplicaImp() {

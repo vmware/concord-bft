@@ -3666,10 +3666,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
     time_in_active_view_.start();
   }
 
-  // Instantiate IControlHandler.
-  // If an application instantiation has already taken a place this will have no effect.
-  IControlHandler::instance(new ControlHandler);
-
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
 }
 
