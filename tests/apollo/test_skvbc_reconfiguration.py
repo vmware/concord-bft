@@ -578,6 +578,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in rsi_rep.values():
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.error_msg == 'key_not_found'
+            assert status.success is False
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
