@@ -110,8 +110,9 @@ class TimeRecorder {
   // In some cases we don't want to record on destruction.
   void doNotRecord() { record_ = false; }
 
-  ~TimeRecorder() {
-    if (!record_) return;
+  int64_t wrapUpRecording() {
+    int64_t durationInNano = 0;
+    if (!record_) return durationInNano;
     switch (recorder_->unit) {
       case Unit::NANOSECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start_);
@@ -120,6 +121,7 @@ class TimeRecorder {
         } else {
           recorder_->record(interval.count());
         }
+        durationInNano = interval.count();
       } break;
       case Unit::MICROSECONDS: {
         auto interval =
@@ -129,6 +131,7 @@ class TimeRecorder {
         } else {
           recorder_->record(interval.count());
         }
+        durationInNano = interval.count() * 1000;
       } break;
       case Unit::MILLISECONDS: {
         auto interval =
@@ -138,6 +141,7 @@ class TimeRecorder {
         } else {
           recorder_->record(interval.count());
         }
+        durationInNano = interval.count() * 1000000;
       } break;
       case Unit::SECONDS: {
         auto interval = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_);
@@ -146,6 +150,7 @@ class TimeRecorder {
         } else {
           recorder_->record(interval.count());
         }
+        durationInNano = interval.count() * 1000000000;
       } break;
       case Unit::MINUTES: {
         auto interval = std::chrono::duration_cast<std::chrono::minutes>(std::chrono::steady_clock::now() - start_);
@@ -154,11 +159,16 @@ class TimeRecorder {
         } else {
           recorder_->record(interval.count());
         }
+        durationInNano = interval.count() * 1000000000000;
       } break;
       default:
         ConcordAssert(false);
     }
+    return durationInNano;
   }
+
+  ~TimeRecorder() { wrapUpRecording(); }
+
   TimeRecorder(const TimeRecorder&) = delete;
   TimeRecorder& operator=(const TimeRecorder&) = delete;
 

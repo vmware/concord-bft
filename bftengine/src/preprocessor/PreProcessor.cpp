@@ -101,7 +101,10 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcessRequestTimedOut"),
                            metricsComponent_.RegisterCounter("preProcPossiblePrimaryFaultDetected"),
                            metricsComponent_.RegisterCounter("preProcReqCompleted"),
+                           metricsComponent_.RegisterCounter("preProcReqRetried"),
+                           metricsComponent_.RegisterAtomicGauge("preProcessingTimeAvg", 0),
                            metricsComponent_.RegisterAtomicGauge("PreProcInFlyRequestsNum", 0)},
+      totalPreProcessingTime_(true),
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers},
       recorder_{histograms_.totalPreExecutionDuration},
@@ -422,8 +425,8 @@ void PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
     }
 
     if (myReplica_.isCurrentPrimary())
-      registerSucceeded = registerRequestOnPrimaryReplica(
-          move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, (reqEntry->reqRetryId)++);
+      registerSucceeded =
+          registerRequestOnPrimaryReplica(move(clientMsg), preProcessRequestMsg, msgOffsetInBatch, reqEntry);
     else
       registerAndHandleClientPreProcessReqOnNonPrimary(move(clientMsg), arrivedInBatch, msgOffsetInBatch);
   }
@@ -533,8 +536,9 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   }
   if (registerSucceeded) {
     preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();  // Increase the metric on non-primary replica
+    auto time_recorder = TimeRecorder(*recorder_.get());
     // Pre-process the request, calculate a hash of the result and send a reply back
-    launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false);
+    launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false, std::move(time_recorder));
   }
 }
 
@@ -857,17 +861,33 @@ void PreProcessor::sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize
 }
 
 // This function should be called under a reqEntry->mutex lock
+void PreProcessor::countRetriedRequests(const ClientPreProcessReqMsgUniquePtr &clientReqMsg,
+                                        const RequestStateSharedPtr &reqEntry) {
+  if (!reqEntry->reqProcessingHistory.empty() &&
+      reqEntry->reqProcessingHistory.back()->getReqSeqNum() == (SeqNum)clientReqMsg->requestSeqNum()) {
+    LOG_DEBUG(logger(),
+              "The request is going to be retried" << KVLOG(clientReqMsg->getCid(),
+                                                            clientReqMsg->requestSeqNum(),
+                                                            clientReqMsg->clientProxyId(),
+                                                            clientReqMsg->senderId()));
+    preProcessorMetrics_.preProcReqRetried.Get().Inc();
+  }
+}
+
+// This function should be called under a reqEntry->mutex lock
 bool PreProcessor::registerRequestOnPrimaryReplica(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                    PreProcessRequestMsgSharedPtr &preProcessRequestMsg,
                                                    uint16_t reqOffsetInBatch,
-                                                   uint64_t reqRetryId) {
+                                                   RequestStateSharedPtr reqEntry) {
+  (reqEntry->reqRetryId)++;
+  countRetriedRequests(clientReqMsg, reqEntry);
   preProcessRequestMsg =
       make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
                                         myReplicaId_,
                                         clientReqMsg->clientProxyId(),
                                         reqOffsetInBatch,
                                         clientReqMsg->requestSeqNum(),
-                                        reqRetryId,
+                                        reqEntry->reqRetryId,
                                         clientReqMsg->requestLength(),
                                         clientReqMsg->requestBuf(),
                                         clientReqMsg->getCid(),
@@ -1125,6 +1145,17 @@ void AsyncPreProcessJob::execute() {
   preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, isPrimary_, isRetry_);
 }
 
-void AsyncPreProcessJob::release() { delete this; }
+void AsyncPreProcessJob::release() {
+  const auto preExecDurationInMs = time_recorder_.wrapUpRecording() / 1000000;
+  preProcessor_.totalPreProcessingTime_.add((double)preExecDurationInMs);
+  preProcessor_.preProcessorMetrics_.preProcessingTimeAvg.Get().Set(
+      (uint64_t)preProcessor_.totalPreProcessingTime_.avg());
+  if (preProcessor_.totalPreProcessingTime_.numOfElements() == resetFrequency_) {
+    LOG_DEBUG(preProcessor_.logger(),
+              "Total pre-processing average duration in ms" << KVLOG(preProcessor_.totalPreProcessingTime_.avg()));
+    preProcessor_.totalPreProcessingTime_.reset();
+  }
+  delete this;
+}
 
 }  // namespace preprocessor
