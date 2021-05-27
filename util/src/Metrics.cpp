@@ -106,17 +106,16 @@ void Aggregator::RegisterComponent(Component& component) {
 // throw.
 void Aggregator::UpdateValues(const string& name, Values&& values) {
   std::lock_guard<std::mutex> lock(lock_);
-  try{
+  try {
     components_.at(name).SetValues(std::move(values));
-  }
-  catch (const std::out_of_range& e){
-    throw std::out_of_range("components_.at() failed for name = " + name);   
+  } catch (const std::out_of_range& e) {
+    throw std::out_of_range("components_.at() failed for name = " + name);
   }
 }
 
 Gauge Aggregator::GetGauge(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
-  try{
+  try {
     auto& component = components_.at(component_name);
     auto& gauges = component.names_.gauge_names_;
     if (std::find(gauges.begin(), gauges.end(), val_name) != gauges.end()) {
@@ -125,26 +124,24 @@ Gauge Aggregator::GetGauge(const string& component_name, const string& val_name)
     auto atomic_gauge =
         FindValue(kCounterName, val_name, component.names_.atomic_gauge_names_, component.values_.atomic_gauges_);
     return Gauge(atomic_gauge.Get());
-  }
-  catch (const std::out_of_range& e){
-    throw std::out_of_range("components_.at() failed for component_name = " + component_name);  
+  } catch (const std::out_of_range& e) {
+    throw std::out_of_range("components_.at() failed for component_name = " + component_name);
   }
 }
 
 Status Aggregator::GetStatus(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
-  try{
+  try {
     auto& component = components_.at(component_name);
     return FindValue(kStatusName, val_name, component.names_.status_names_, component.values_.statuses_);
-  }
-  catch(const std::out_of_range& e) {
-    throw std::out_of_range("components_.at() failed for component_name = " + component_name);  
+  } catch (const std::out_of_range& e) {
+    throw std::out_of_range("components_.at() failed for component_name = " + component_name);
   }
 }
 
 Counter Aggregator::GetCounter(const string& component_name, const string& val_name) {
   std::lock_guard<std::mutex> lock(lock_);
-  try{
+  try {
     auto& component = components_.at(component_name);
     auto& counters = component.names_.counter_names_;
     if (std::find(counters.begin(), counters.end(), val_name) != counters.end()) {
@@ -153,10 +150,9 @@ Counter Aggregator::GetCounter(const string& component_name, const string& val_n
     auto atomic_counter =
         FindValue(kCounterName, val_name, component.names_.atomic_counter_names_, component.values_.atomic_counters_);
     return Counter(atomic_counter.Get());
-  }
-  catch(const std::out_of_range& e) {
+  } catch (const std::out_of_range& e) {
     throw std::out_of_range("components_.at() failed for component_name = " + component_name);
-  }  
+  }
 }
 
 // Generate a JSON string of all aggregated components. To save space we don't

@@ -94,10 +94,9 @@ Library::~Library() {}
 
 int Library::getCurveByName(const char* curveName) {
   // NOTE: Will throw std::out_of_range if curve is not in
-  try{
+  try {
     return Get().curveNameToId.at(std::string(curveName));
-  }
-  catch(const std::out_of_range& e){
+  } catch (const std::out_of_range& e) {
     LOG_FATAL(BLS_LOG, "curveNameToId.at() has failed for" << KVLOG(curveName));
     throw;
   }
@@ -105,10 +104,9 @@ int Library::getCurveByName(const char* curveName) {
 
 std::string Library::getCurveName(int curveType) {
   // NOTE: Will throw std::out_of_range if curve is not in
-  try{
+  try {
     return Get().curveIdToName.at(curveType);
-  }
-  catch(const std::out_of_range& e){
+  } catch (const std::out_of_range& e) {
     LOG_FATAL(BLS_LOG, "curveIdToName.at() has failed for" << KVLOG(curveType));
     throw;
   }

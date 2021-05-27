@@ -60,12 +60,10 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
     try {
       auto cryptoSystem = cryptoSystems_.at(0);
       return cryptoSystem->cryptosys_->generateNewKeyPair();
-    }
-    catch(const std::out_of_range& e) {
-      LOG_FATAL(log, e.what());
-      LOG_FATAL(log, "cryptoSystems_.at(0) has failed!");
+    } catch (const std::out_of_range& e) {
+      LOG_FATAL(log, "cryptoSystems_.at(0) has failed!" << e.what());
       throw;
-    }    
+    }
   }
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.

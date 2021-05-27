@@ -118,14 +118,12 @@ void ClientsManager::loadInfoFromReservedPages() {
 bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = 0;
   try {
-     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
-  
+
   const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
   const auto& elem = repliesInfo.find(reqSeqNum);
   const bool found = (elem != repliesInfo.end());
@@ -139,11 +137,9 @@ void ClientsManager::deleteOldestReply(NodeIdType clientId) {
   ReqId earliestReplyId = 0;
   uint16_t clientIdx = 0;
   try {
-     clientIdx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+    clientIdx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -180,11 +176,9 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
     NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength) {
   uint16_t clientIdx = 0;
   try {
-     clientIdx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+    clientIdx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -237,14 +231,12 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
 // * set primary id.
 std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeIdType clientId,
                                                                           ReqId requestSeqNum,
-                                                                          uint16_t currentPrimaryId) {  
+                                                                          uint16_t currentPrimaryId) {
   uint16_t clientIdx = 0;
-  try{
-     clientIdx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  try {
+    clientIdx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -298,12 +290,10 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
 
 bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const {
   uint16_t idx = 0;
-  try{
-     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -318,12 +308,10 @@ bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqN
 
 bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
   uint16_t idx = 0;
-  try{
-     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -339,12 +327,10 @@ bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
 // * request seq number is bigger than the last reply seq number.
 bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) const {
   uint16_t idx = 0;
-  try{
-     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  try {
+    idx = clientIdToIndex_.at(clientId);
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -371,12 +357,10 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
 
 void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, const std::string& cid) {
   uint16_t idx = 0;
-  try{
+  try {
     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -391,12 +375,10 @@ void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, con
 
 void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = 0;
-  try{
+  try {
     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -420,12 +402,10 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
  */
 void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId reqSequenceNum) {
   uint16_t idx = 0;
-  try{
+  try {
     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
@@ -445,12 +425,10 @@ void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId r
 }
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
   uint16_t idx = 0;
-  try{
+  try {
     idx = clientIdToIndex_.at(clientId);
-  }
-  catch(const std::out_of_range& e) {
-    LOG_FATAL(CL_MNGR, e.what());
-    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for" << KVLOG(clientId));
+  } catch (const std::out_of_range& e) {
+    LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
 
