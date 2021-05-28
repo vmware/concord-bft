@@ -1996,15 +1996,21 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   // Checkpoints
   /////////////////////////////////////////////////////////////////////////
 
-  if (lastStableSeqNum > msgLastStable + kWorkWindowSize) {
+  if ((lastStableSeqNum > msgLastStable + kWorkWindowSize) ||
+      (!currentViewIsActive() && (lastStableSeqNum > msgLastStable))) {
     CheckpointMsg *checkMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
 
     if (checkMsg == nullptr || !checkMsg->isStableState()) {
-      // TODO(GG): warning
-    } else {
-      sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
+      LOG_WARN(
+          GL, "Misalignment in lastStableSeqNum and my CheckpointMsg for it" << KVLOG(lastStableSeqNum, msgLastStable));
     }
 
+    auto &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+    for (const auto &it : checkpointInfo.getAllCheckpointMsgs()) {
+      if (msgSenderId != it.first) {
+        sendAndIncrementMetric(it.second, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
+      }
+    }
   } else if (msgLastStable > lastStableSeqNum + kWorkWindowSize) {
     tryToSendStatusReport();  // ask for help
   } else {
