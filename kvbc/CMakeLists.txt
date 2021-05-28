@@ -1,6 +1,14 @@
 cmake_minimum_required (VERSION 3.2)
 project(libkvbc VERSION 0.1.0.0 LANGUAGES CXX)
 
+add_subdirectory("proto")
+
+add_library(concord_block_update INTERFACE)
+target_include_directories(concord_block_update INTERFACE
+  block_update
+  include
+)
+
 add_library(kvbc  src/ClientImp.cpp
     src/ReplicaImp.cpp
     src/replica_state_sync_imp.cpp
@@ -20,6 +28,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/tree.cpp
     src/sparse_merkle/update_cache.cpp
     src/sparse_merkle/walker.cpp
+    src/kvbc_app_filter/kvbc_app_filter.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)
@@ -33,7 +42,7 @@ if (BUILD_ROCKSDB_STORAGE)
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
 target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs)
-
+target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
 target_include_directories(kvbc PUBLIC include util)
 
