@@ -48,9 +48,9 @@ using std::this_thread::sleep_for;
 using testing::Invoke;
 using testing::InvokeWithoutArgs;
 using testing::Return;
-using thin_replica_client::hashState;
-using thin_replica_client::hashUpdate;
-using thin_replica_client::TrsConnection;
+using client::thin_replica_client::hashState;
+using client::thin_replica_client::hashUpdate;
+using client::thin_replica_client::TrsConnection;
 
 MockTrsConnection::MockTrsConnection() : TrsConnection("mock_address", "mock_client_id", 1, 1) {
   this->data_timeout_ = kTestingTimeout;

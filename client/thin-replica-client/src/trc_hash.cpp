@@ -22,8 +22,8 @@ using std::invalid_argument;
 using std::list;
 using std::map;
 using std::string;
-using thin_replica_client::ComputeSHA256Hash;
-using thin_replica_client::kExpectedSHA256HashLengthInBytes;
+
+namespace client::thin_replica_client {
 
 // Hash functions in this file may be defined in a way assuming char is an 8 bit
 // type.
@@ -67,7 +67,7 @@ static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, str
   return ComputeSHA256Hash(concatenated_entry_hashes);
 }
 
-string thin_replica_client::hashUpdate(const Update& update) {
+string hashUpdate(const Update& update) {
   map<string, string> entry_hashes;
   for (const auto& kvp : update.kv_pairs) {
     string key_hash = ComputeSHA256Hash(kvp.first);
@@ -80,7 +80,7 @@ string thin_replica_client::hashUpdate(const Update& update) {
   return hashUpdateFromEntryHashes(update.block_id, entry_hashes);
 }
 
-string thin_replica_client::hashUpdate(const Data& update) {
+string hashUpdate(const Data& update) {
   map<string, string> entry_hashes;
   for (const auto& kvp : update.data()) {
     string key_hash = ComputeSHA256Hash(kvp.key());
@@ -93,7 +93,7 @@ string thin_replica_client::hashUpdate(const Data& update) {
   return hashUpdateFromEntryHashes(update.block_id(), entry_hashes);
 }
 
-string thin_replica_client::hashState(const list<string>& state) {
+string hashState(const list<string>& state) {
   string concatenated_update_hashes;
   concatenated_update_hashes.reserve(state.size() * kThinReplicaHashLength);
   for (const auto& update_hash : state) {
@@ -107,3 +107,5 @@ string thin_replica_client::hashState(const list<string>& state) {
 
   return ComputeSHA256Hash(concatenated_update_hashes);
 }
+
+}  // namespace client::thin_replica_client

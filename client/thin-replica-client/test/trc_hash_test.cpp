@@ -20,8 +20,8 @@ using com::vmware::concord::thin_replica::Data;
 using std::make_pair;
 using std::string;
 using std::to_string;
-using thin_replica_client::hashUpdate;
-using thin_replica_client::Update;
+using client::thin_replica_client::hashUpdate;
+using client::thin_replica_client::Update;
 
 const string kSampleUpdateExpectedHash({'\x02', '\x3D', '\x0D', '\x8B', '\xC6', '\x54', '\x07', '\xD7',
                                         '\x33', '\x94', '\x99', '\xFE', '\x9F', '\x6E', '\x8E', '\xB3',
