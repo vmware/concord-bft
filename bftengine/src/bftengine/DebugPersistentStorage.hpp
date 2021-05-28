@@ -35,6 +35,7 @@ class DebugPersistentStorage : public PersistentStorage {
   void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView& prevViewDesc) override;
   void setDescriptorOfLastNewView(const DescriptorOfLastNewView& prevViewDesc) override;
   void setDescriptorOfLastExecution(const DescriptorOfLastExecution& prevViewDesc) override;
+  void setDescriptorOfLastStableCheckpoint(const DescriptorOfLastStableCheckpoint& stableCheckDesc) override;
   void setLastStableSeqNum(SeqNum seqNum) override;
   void clearSeqNumWindow() override;
   void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg* msg) override;
@@ -55,6 +56,7 @@ class DebugPersistentStorage : public PersistentStorage {
   DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView() override;
   bool hasDescriptorOfLastExecution() override;
   DescriptorOfLastExecution getDescriptorOfLastExecution() override;
+  DescriptorOfLastStableCheckpoint getDescriptorOfLastStableCheckpoint() override;
   SeqNum getLastStableSeqNum() override;
   PrePrepareMsg* getAndAllocatePrePrepareMsgInSeqNumWindow(SeqNum seqNum) override;
   bool getSlowStartedInSeqNumWindow(SeqNum seqNum) override;
