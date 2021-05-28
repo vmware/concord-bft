@@ -17,11 +17,10 @@ using opentracing::expected;
 using opentracing::string_view;
 using opentracing::TextMapReader;
 using opentracing::TextMapWriter;
-using thin_replica_client::Update;
 
 using SpanPtr = std::unique_ptr<opentracing::Span>;
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 const std::string kCorrelationIdTag = "cid";
 
@@ -92,4 +91,4 @@ SpanPtr TraceContexts::CreateChildSpanFromBinary(const std::string& trace_contex
     }
   }
 }
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client

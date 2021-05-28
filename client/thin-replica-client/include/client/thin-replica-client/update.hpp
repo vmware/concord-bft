@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 // Type for updates the Thin Replica Client streams from Thin Replica Servers.
 struct Update {
@@ -35,6 +35,6 @@ struct Update {
   std::string span_context;
 };
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client
 
 #endif  // THIN_REPLICA_CLIENT_UPDATE_HPP_

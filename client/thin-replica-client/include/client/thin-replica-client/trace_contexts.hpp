@@ -11,7 +11,7 @@
 
 using opentracing::expected;
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 class TraceContexts {
  public:
@@ -25,6 +25,6 @@ class TraceContexts {
                                            const log4cplus::Logger& logger);
 };
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client
 
 #endif  // THIN_REPLICA_CLIENT_TRACE_CONTEXTS_HPP_

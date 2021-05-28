@@ -58,7 +58,7 @@
 #include <condition_variable>
 #include <thread>
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 // Interface for a synchronized queue to be used to transfer updates between a
 // ThinReplicaClient and an application. The Thin Replica Client Library
@@ -487,6 +487,6 @@ class ThinReplicaClient final {
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
 };
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client
 
 #endif  // THIN_REPLICA_CLIENT_HPP_

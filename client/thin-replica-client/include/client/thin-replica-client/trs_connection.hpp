@@ -25,7 +25,7 @@
 
 using namespace std::chrono_literals;
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 struct TrsConnectionConfig {
   // thin_replica_tls_cert_path specifies the path of the certificates used for
@@ -198,6 +198,6 @@ class TrsConnection {
   std::string parseClientIdFromSubject(const std::string& subject_str);
 };
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client
 
 #endif  // THIN_REPLICA_CLIENT_TRS_CONNECTION_HPP_

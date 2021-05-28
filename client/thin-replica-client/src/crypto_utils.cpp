@@ -24,8 +24,8 @@
 
 using std::string;
 using std::unique_ptr;
-using thin_replica_client::kExpectedSHA256HashLengthInBytes;
-using thin_replica_client::UnexpectedCryptoImplementationFailureException;
+
+namespace client::thin_replica_client {
 
 // Deleter class for deleting EVP_MD_CTX objects; this is needed to construct
 // smart pointers that correctly memory manage EVP_MD_CTX objects as they use a
@@ -35,7 +35,7 @@ class EVPMDCTXDeleter {
   void operator()(EVP_MD_CTX* obj) const { EVP_MD_CTX_free(obj); }
 };
 
-string thin_replica_client::ComputeSHA256Hash(const string& data) {
+string ComputeSHA256Hash(const string& data) {
   unique_ptr<EVP_MD_CTX, EVPMDCTXDeleter> digest_context(EVP_MD_CTX_new(), EVPMDCTXDeleter());
   if (!digest_context) {
     throw UnexpectedCryptoImplementationFailureException(
@@ -71,3 +71,5 @@ string thin_replica_client::ComputeSHA256Hash(const string& data) {
 
   return hash;
 }
+
+}  // namespace client::thin_replica_client

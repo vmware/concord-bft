@@ -32,9 +32,9 @@ using std::make_unique;
 using std::shared_ptr;
 using std::string;
 using std::vector;
-using thin_replica_client::BasicUpdateQueue;
-using thin_replica_client::ThinReplicaClient;
-using thin_replica_client::ThinReplicaClientConfig;
+using client::thin_replica_client::BasicUpdateQueue;
+using client::thin_replica_client::ThinReplicaClient;
+using client::thin_replica_client::ThinReplicaClientConfig;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";

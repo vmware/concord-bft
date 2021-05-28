@@ -26,7 +26,7 @@
 
 #include "assertUtils.hpp"
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 // Class of exception wrappers declared in this file may throw in the event they
 // unexpectedly get a failure from some call into the underlying trusted
@@ -58,6 +58,6 @@ const size_t kExpectedSHA256HashLengthInBytes = (256 / 8);
 // a failure unexpectedly.
 std::string ComputeSHA256Hash(const std::string& data);
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client
 
 #endif  // TRC_CRYPTO_UTILS_HPP_

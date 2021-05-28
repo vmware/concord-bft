@@ -26,8 +26,8 @@ using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
-using thin_replica_client::BasicUpdateQueue;
-using thin_replica_client::Update;
+using client::thin_replica_client::BasicUpdateQueue;
+using client::thin_replica_client::Update;
 
 const milliseconds kBriefDelayDuration = 10ms;
 const uint64_t kNumUpdatesToTest = (uint64_t)1 << 18;

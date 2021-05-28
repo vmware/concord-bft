@@ -50,11 +50,8 @@ using std::unique_ptr;
 using std::unordered_set;
 using std::vector;
 using std::chrono::steady_clock;
-using thin_replica_client::BasicUpdateQueue;
-using thin_replica_client::LogCid;
-using thin_replica_client::ThinReplicaClient;
-using thin_replica_client::TrsConnection;
-using thin_replica_client::Update;
+
+namespace client::thin_replica_client {
 
 const string LogCid::cid_key_ = "cid";
 atomic_bool LogCid::cid_set_ = false;
@@ -858,3 +855,5 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
   ConcordAssert(config_->trs_conns.size() > server_to_acknowledge_to);
   ConcordAssertNE(config_->trs_conns[server_to_acknowledge_to], nullptr);
 }
+
+}  // namespace client::thin_replica_client

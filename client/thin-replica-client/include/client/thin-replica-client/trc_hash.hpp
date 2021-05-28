@@ -21,7 +21,7 @@
 #include "thin_replica.grpc.pb.h"
 #include "update.hpp"
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 const size_t kThinReplicaHashLength = kExpectedSHA256HashLengthInBytes;
 
@@ -43,6 +43,6 @@ std::string hashUpdate(const com::vmware::concord::thin_replica::Data& update);
 // hash.
 std::string hashState(const std::list<std::string>& state);
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client
 
 #endif  // TRC_HASH_HPP_
