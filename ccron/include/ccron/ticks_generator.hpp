@@ -72,7 +72,7 @@ class TicksGenerator {
   std::map<std::uint32_t, concordUtil::Timers::Handle> timer_handles_;
 
   // Following methods are for testing only, do not use in production.
- public:
+ protected:
   void evaluateTimers(const std::chrono::steady_clock::time_point &now);
 
   struct DoNotStartThread {};

@@ -107,6 +107,14 @@ struct PendingRequestMock : public IPendingRequest {
   std::vector<PendingRequest> pending_;
 };
 
+struct TicksGeneratorForTest : public TicksGenerator {
+  TicksGeneratorForTest(const std::shared_ptr<bftEngine::impl::IInternalBFTClient>& bft_client,
+                        const IPendingRequest& pending_req,
+                        const std::shared_ptr<IncomingMsgsStorage>& msgs_storage)
+      : TicksGenerator{bft_client, pending_req, msgs_storage, TicksGenerator::DoNotStartThread{}} {}
+  void evaluateTimers(const std::chrono::steady_clock::time_point& now) { TicksGenerator::evaluateTimers(now); }
+};
+
 class ccron_ticks_generator_test : public ::testing::Test {
  protected:
   const std::uint32_t kComponentId1 = 1;
@@ -115,7 +123,7 @@ class ccron_ticks_generator_test : public ::testing::Test {
   std::shared_ptr<InternalBFTClientMock> bft_client_ = std::make_shared<InternalBFTClientMock>();
   PendingRequestMock pending_req_;
   std::shared_ptr<IncomingMsgsStorageMock> msgs_ = std::make_shared<IncomingMsgsStorageMock>();
-  TicksGenerator gen_{bft_client_, pending_req_, msgs_, TicksGenerator::DoNotStartThread{}};
+  TicksGeneratorForTest gen_{bft_client_, pending_req_, msgs_};
 
   static std::chrono::steady_clock::time_point now() { return std::chrono::steady_clock::now(); }
 };
