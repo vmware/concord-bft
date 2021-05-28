@@ -345,6 +345,7 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
 }
 
 void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
+  TimeRecorder scoped_timer(*histograms_.removeDuplicatedRequestsFromQueue);
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
   ClientRequestMsg *first = requestsQueueOfPrimary.front();
   while (first != nullptr && !clientsManager->canBecomePending(first->clientProxyId(), first->requestSeqNum())) {
@@ -456,7 +457,10 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
     delete prePrepareMsg;
     return nullptr;
   }
-  prePrepareMsg->finishAddingRequests();
+  {
+    TimeRecorder scoped_timer(*histograms_.finishAddingRequestsToPrePrepareMsg);
+    prePrepareMsg->finishAddingRequests();
+  }
   LOG_DEBUG(GL,
             KVLOG(prePrepareMsg->seqNumber(),
                   prePrepareMsg->getCid(),
@@ -469,14 +473,18 @@ PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&p
 }
 
 PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
+  TimeRecorder scoped_timer(*histograms_.buildPrePrepareMessage);
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return nullptr;
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
-  ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
-  while (nextRequest != nullptr)
-    nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+  {
+    TimeRecorder scoped_timer(*histograms_.addAllRequestsToPrePrepare);
+    ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+    while (nextRequest != nullptr)
+      nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
+  }
 
   return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
 }
@@ -515,6 +523,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   if (!isCurrentPrimary()) return;
+  TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
   auto firstPath = pp->firstPath();
   if (config_.getdebugStatisticsEnabled()) {
     DebugStatistics::onSendPrePrepareMessage(pp->numberOfRequests(), requestsQueueOfPrimary.size());
@@ -536,9 +545,13 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   }
 
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
-  seqNumInfo.addSelfMsg(pp);
+  {
+    TimeRecorder scoped_timer(*histograms_.addSelfMsgPrePrepare);
+    seqNumInfo.addSelfMsg(pp);
+  }
 
   if (ps_) {
+    TimeRecorder scoped_timer(*histograms_.prePrepareWriteTransaction);
     ps_->beginWriteTran();
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
     ps_->setPrePrepareMsgInSeqNumWindow(primaryLastUsedSeqNum, pp);
@@ -546,15 +559,20 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
     ps_->endWriteTran();
   }
 
-  for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
-    sendRetransmittableMsgToReplica(pp, x, primaryLastUsedSeqNum);
+  {
+    TimeRecorder scoped_timer(*histograms_.broadcastPrePrepare);
+    for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
+      sendRetransmittableMsgToReplica(pp, x, primaryLastUsedSeqNum);
+    }
   }
 
   if (firstPath == CommitPath::SLOW) {
     seqNumInfo.startSlowPath();
     metric_slow_path_count_.Get().Inc();
+    TimeRecorder scoped_timer(*histograms_.sendPreparePartialToSelf);
     sendPreparePartial(seqNumInfo);
   } else {
+    TimeRecorder scoped_timer(*histograms_.sendPartialProofToSelf);
     sendPartialProof(seqNumInfo);
   }
 }
@@ -1727,7 +1745,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
-      // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active window
+      // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
+      // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgGenReplicaId] = x;
@@ -2787,8 +2806,8 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
   // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
   // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
-  // candidate for becoming super stable. So, once a checkpoint becomes stable we check if the previous checkpoint is in
-  // the log, and if so we advance the log to that previous checkpoint.
+  // candidate for becoming super stable. So, once a checkpoint becomes stable we check if the previous checkpoint is
+  // in the log, and if so we advance the log to that previous checkpoint.
   if (checkpointsLog->insideActiveWindow(newStableSeqNum - checkpointWindowSize)) {
     checkpointsLog->advanceActiveWindow(newStableSeqNum - checkpointWindowSize);
   } else {

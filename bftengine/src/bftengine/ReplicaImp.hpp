@@ -495,7 +495,17 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         consensus,
                                         timeInActiveView,
                                         timeInStateTransfer,
-                                        checkpointFromCreationToStable});
+                                        checkpointFromCreationToStable,
+                                        removeDuplicatedRequestsFromQueue,
+                                        buildPrePrepareMessage,
+                                        startConsensusProcess,
+                                        finishAddingRequestsToPrePrepareMsg,
+                                        addAllRequestsToPrePrepare,
+                                        addSelfMsgPrePrepare,
+                                        prePrepareWriteTransaction,
+                                        broadcastPrePrepare,
+                                        sendPreparePartialToSelf,
+                                        sendPartialProofToSelf});
     }
 
     DEFINE_SHARED_RECORDER(send, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
@@ -518,6 +528,18 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     DEFINE_SHARED_RECORDER(timeInActiveView, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
     DEFINE_SHARED_RECORDER(timeInStateTransfer, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
     DEFINE_SHARED_RECORDER(checkpointFromCreationToStable, 1, MAX_VALUE_SECONDS, 3, Unit::SECONDS);
+
+    // Measurements related to PrePrepare creation and sending
+    DEFINE_SHARED_RECORDER(removeDuplicatedRequestsFromQueue, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(buildPrePrepareMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(startConsensusProcess, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(finishAddingRequestsToPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addAllRequestsToPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(addSelfMsgPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(prePrepareWriteTransaction, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(broadcastPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(sendPreparePartialToSelf, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(sendPartialProofToSelf, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   };
 
   Recorders histograms_;
