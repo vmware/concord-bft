@@ -4057,7 +4057,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-    if (!requestSet.get(tmp) || req.requestLength() == 0 || (req.flags() & EMPTY_CLIENT_FLAG)) {
+    if (!requestSet.get(tmp) || req.requestLength() == 0) {
       if (clientsManager->isValidClient(req.clientProxyId()))
         clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
@@ -4206,7 +4206,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());
-    internalBFTClient_->sendRquest(
+    internalBFTClient_->sendRequest(
         RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
     tryToSendPrePrepareMsg(false);
