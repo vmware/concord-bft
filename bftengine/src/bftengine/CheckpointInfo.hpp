@@ -49,6 +49,8 @@ class CheckpointInfo {
 
   CheckpointMsg* selfCheckpointMsg() const;
 
+  const auto& getAllCheckpointMsgs() const { return checkpointCertificate->getAllMsgs(); }
+
   void tryToMarkCheckpointCertificateCompleted();
 
   bool checkpointSentAllOrApproved() const;
