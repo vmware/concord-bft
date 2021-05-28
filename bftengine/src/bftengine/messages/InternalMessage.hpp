@@ -16,6 +16,7 @@
 
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/RetranProcResultInternalMsg.hpp"
+#include "messages/TickInternalMsg.hpp"
 #include "SignatureInternalMsgs.hpp"
 
 namespace bftEngine::impl {
@@ -56,6 +57,9 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      RetranProcResultInternalMsg,
 
                                      // Diagnostics related
-                                     GetStatus>;
+                                     GetStatus,
+
+                                     // Concord Cron related
+                                     TickInternalMsg>;
 
 }  // namespace bftEngine::impl

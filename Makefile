@@ -8,6 +8,7 @@ CONCORD_BFT_BUILD_DIR?=build
 CONCORD_BFT_TARGET_SOURCE_PATH?=/concord-bft
 CONCORD_BFT_KVBC_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/cmf
 CONCORD_BFT_RECONFIGURATION_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/reconfiguration/cmf
+CONCORD_BFT_CCRON_CMF_PATHS?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/ccron/cmf
 CONCORD_BFT_CLIENT_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/client/clientservice/proto
 CONCORD_BFT_THIN_REPLICA_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/thin-replica-server/proto
 CONCORD_BFT_KVBC_PROTO_PATH?=${CONCORD_BFT_TARGET_SOURCE_PATH}/build/kvbc/proto
@@ -170,6 +171,7 @@ tidy-check: gen_cmake ## Run clang-tidy
 		cd ${CONCORD_BFT_BUILD_DIR} && \
 		make -C ${CONCORD_BFT_KVBC_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_RECONFIGURATION_CMF_PATHS} &> /dev/null && \
+		make -C ${CONCORD_BFT_CCRON_CMF_PATHS} &> /dev/null && \
 		make -C ${CONCORD_BFT_CLIENT_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_THIN_REPLICA_PROTO_PATH} &> /dev/null && \
 		make -C ${CONCORD_BFT_KVBC_PROTO_PATH} &> /dev/null && \

@@ -20,11 +20,15 @@ InternalBFTClient::InternalBFTClient(const int& id,
                                      std::shared_ptr<MsgsCommunicator>& msgComm)
     : repID_(id), startIdForInternalClient_(nonInternalNum + 1), msgComm_(msgComm) {}
 
-void InternalBFTClient::sendRquest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) {
+uint64_t InternalBFTClient::sendRequest(uint8_t flags,
+                                        uint32_t requestLength,
+                                        const char* request,
+                                        const std::string& cid) {
   auto now = getMonotonicTime().time_since_epoch();
   auto now_ms = std::chrono::duration_cast<std::chrono::microseconds>(now);
   auto sn = now_ms.count();
   auto crm = new ClientRequestMsg(getClientId(), flags, sn, requestLength, request, 60000, cid);
   msgComm_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
   LOG_DEBUG(GL, "Sent internal consensus: seq num [" << sn << "] client id [" << getClientId() << "]");
+  return sn;
 }

@@ -39,7 +39,7 @@ enum MsgFlag : uint8_t {
   PRE_PROCESS_FLAG = 0x2,
   HAS_PRE_PROCESSED_FLAG = 0x4,
   KEY_EXCHANGE_FLAG = 0x8,  // TODO [TK] use reconfig_flag
-  EMPTY_CLIENT_FLAG = 0x10,
+  TICK_FLAG = 0x10,
   RECONFIG_FLAG = 0x20,
   TIME_SERVICE_FLAG = 0x40,
 };

@@ -1,0 +1,13 @@
+Msg ClientReqMsgTickPayload 1 {
+  uint32 component_id
+}
+
+# Next invocation time for periodic actions.
+Msg NextInvocation 2 {
+  int64 ms_since_epoch
+}
+
+Msg PeriodicActionSchedule 3 {
+  # [component ID -> [cron table position -> NextInvocation]]
+  map uint32 map uint32 NextInvocation components 
+}

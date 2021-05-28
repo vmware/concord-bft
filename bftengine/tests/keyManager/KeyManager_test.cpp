@@ -323,9 +323,9 @@ TEST(ClusterKeyStore, rotate) {
 
 struct DummyClient : public IInternalBFTClient {
   inline NodeIdType getClientId() const { return 1; };
-  void sendRquest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) {}
+  uint64_t sendRequest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) { return 0; }
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return clusterSize; }
-  bool isUdp() { return false; }
+  bool isUdp() const { return false; }
 };
 
 TEST(KeyExchangeManager, initialKeyExchange) {
