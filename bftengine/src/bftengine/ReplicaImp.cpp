@@ -2857,6 +2857,17 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     }
   }
 
+  if (ps_) {
+    auto &CheckpointInfo = checkpointsLog->get(lastStableSeqNum);
+    std::vector<CheckpointMsg *> msgs;
+    msgs.reserve(CheckpointInfo.getAllCheckpointMsgs().size());
+    for (const auto &m : CheckpointInfo.getAllCheckpointMsgs()) {
+      msgs.push_back(m.second);
+    }
+    DescriptorOfLastStableCheckpoint desc(config_.getnumReplicas(), msgs);
+    ps_->setDescriptorOfLastStableCheckpoint(desc);
+  }
+
   if (ps_) ps_->endWriteTran();
 
   if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.getreplicaId()) && !isCollectingState()) {
@@ -3296,6 +3307,13 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                                                                      maxSeqNumTransferredFromPrevViews,
                                                                      lastViewThatTransferredSeqNumbersFullyExecuted));
 
+  if (ld.lastStableSeqNum > 0) {
+    auto &CheckpointInfo = checkpointsLog->get(ld.lastStableSeqNum);
+    for (const auto &m : ld.lastStableCheckpointProof) {
+      CheckpointInfo.addCheckpointMsg(m, m->idOfGeneratedReplica());
+    }
+  }
+
   if (inView) {
     const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == config_.getreplicaId());
 
@@ -3458,8 +3476,10 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     ConcordAssertEQ(e.getCheckpointMsg()->senderId(), config_.getreplicaId());
     ConcordAssertOR((s != ld.lastStableSeqNum), e.getCheckpointMsg()->isStableState());
 
-    checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
-    ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+    if (s != ld.lastStableSeqNum) {  // We have already added all msgs for our last stable Checkpoint
+      checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
+      ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+    }
 
     if (e.getCompletedMark()) checkInfo.tryToMarkCheckpointCertificateCompleted();
   }

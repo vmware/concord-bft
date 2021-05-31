@@ -329,5 +329,55 @@ void DescriptorOfLastExecution::deserialize(char *buf, size_t bufLen, uint32_t &
   actualSize = seqNumSize + bitMapSize;
 }
 
+/***** DescriptorOfLastStableCheckpoint *****/
+
+bool DescriptorOfLastStableCheckpoint::equals(const DescriptorOfLastStableCheckpoint &other) const {
+  if (checkpointMsgs.size() != other.checkpointMsgs.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < checkpointMsgs.size(); i++) {
+    if (other.checkpointMsgs[i] == nullptr ||
+        checkpointMsgs[i]->idOfGeneratedReplica() != other.checkpointMsgs[i]->idOfGeneratedReplica() ||
+        checkpointMsgs[i]->seqNumber() != other.checkpointMsgs[i]->seqNumber() ||
+        checkpointMsgs[i]->digestOfState() != other.checkpointMsgs[i]->digestOfState()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void DescriptorOfLastStableCheckpoint::serialize(char *&buf, size_t bufLen, size_t &actualSize) const {
+  ConcordAssert(bufLen >= maxSize(numOfReplicas));
+
+  actualSize = 0;
+
+  numMsgs = checkpointMsgs.size();
+
+  size_t numMsgsSize = sizeof(numMsgs);
+  memcpy(buf, &numMsgs, numMsgsSize);
+  buf += numMsgsSize;
+  actualSize += numMsgsSize;
+
+  for (auto *msg : checkpointMsgs) {
+    actualSize += MessageBase::serializeMsg(buf, msg);
+  }
+}
+
+void DescriptorOfLastStableCheckpoint::deserialize(char *buf, size_t bufLen, size_t &actualSize) {
+  size_t numMsgsSize = sizeof(numMsgs);
+  memcpy(&numMsgs, buf, numMsgsSize);
+  buf += numMsgsSize;
+  actualSize += numMsgsSize;
+
+  for (size_t i = 0; i < numMsgs; i++) {
+    std::unique_ptr<MessageBase> msgBase(MessageBase::deserializeMsg(buf, bufLen, actualSize));
+    CheckpointMsg *msg = nullptr;
+    if (msgBase) {
+      msg = new CheckpointMsg(msgBase.get());
+    }
+    checkpointMsgs.push_back(msg);
+  }
+}
+
 }  // namespace impl
 }  // namespace bftEngine

@@ -199,6 +199,11 @@ void DebugPersistentStorage::setDescriptorOfLastExecution(const DescriptorOfLast
   descriptorOfLastExecution_ = DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
 }
 
+void DebugPersistentStorage::setDescriptorOfLastStableCheckpoint(
+    const DescriptorOfLastStableCheckpoint &stableCheckDesc) {
+  (void)stableCheckDesc;
+}
+
 void DebugPersistentStorage::setLastStableSeqNum(SeqNum seqNum) {
   ConcordAssert(seqNum >= lastStableSeqNum_);
   lastStableSeqNum_ = seqNum;
@@ -363,6 +368,10 @@ DescriptorOfLastExecution DebugPersistentStorage::getDescriptorOfLastExecution()
   DescriptorOfLastExecution &d = descriptorOfLastExecution_;
 
   return DescriptorOfLastExecution{d.executedSeqNum, d.validRequests};
+}
+
+DescriptorOfLastStableCheckpoint DebugPersistentStorage::getDescriptorOfLastStableCheckpoint() {
+  return {uint16_t(3 * fVal_ + 2 * cVal_ + 1), {}};
 }
 
 SeqNum DebugPersistentStorage::getLastStableSeqNum() {

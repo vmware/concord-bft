@@ -13,6 +13,7 @@
 
 #include "MessageBase.hpp"
 #include "Digest.hpp"
+#include "ReplicaConfig.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -58,5 +59,10 @@ class CheckpointMsg : public MessageBase {
 
   Header* b() const { return (Header*)msgBody_; }
 };
+
+template <>
+inline MsgSize maxMessageSize<CheckpointMsg>() {
+  return ReplicaConfig::instance().getmaxExternalMessageSize() + MessageBase::SPAN_CONTEXT_MAX_SIZE;
+}
 }  // namespace impl
 }  // namespace bftEngine

@@ -43,6 +43,7 @@ struct LoadedReplicaData {
   SeqNum lastStableSeqNum = 0;
   SeqNum lastExecutedSeqNum = 0;
   SeqNum strictLowerBoundOfSeqNums = 0;
+  std::vector<CheckpointMsg *> lastStableCheckpointProof;
 
   ViewNum lastViewThatTransferredSeqNumbersFullyExecuted = 0;
 

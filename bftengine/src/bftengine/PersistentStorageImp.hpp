@@ -92,6 +92,7 @@ const uint16_t numOfLastExitFromViewDescObjs = kWorkWindowSize + 1;
 enum DescMetadataParameterIds {
   LAST_EXIT_FROM_VIEW_DESC = WIN_PARAMETERS_NUM + reservedWindowParamsNum,
   LAST_EXEC_DESC = LAST_EXIT_FROM_VIEW_DESC + numOfLastExitFromViewDescObjs,
+  LAST_STABLE_CHECKPOINT_DESC,
   LAST_NEW_VIEW_DESC
 };
 
@@ -99,7 +100,7 @@ typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
-  PersistentStorageImp(uint16_t fVal, uint16_t cVal);
+  PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal);
   ~PersistentStorageImp() override = default;
 
   uint8_t beginWriteTran() override;
@@ -115,6 +116,7 @@ class PersistentStorageImp : public PersistentStorage {
   void setDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &prevViewDesc) override;
   void setDescriptorOfLastNewView(const DescriptorOfLastNewView &prevViewDesc) override;
   void setDescriptorOfLastExecution(const DescriptorOfLastExecution &prevViewDesc) override;
+  void setDescriptorOfLastStableCheckpoint(const DescriptorOfLastStableCheckpoint &stableCheckDesc) override;
 
   void setLastStableSeqNum(SeqNum seqNum) override;
   void setPrePrepareMsgInSeqNumWindow(SeqNum seqNum, PrePrepareMsg *msg) override;
@@ -144,6 +146,7 @@ class PersistentStorageImp : public PersistentStorage {
   DescriptorOfLastExitFromView getAndAllocateDescriptorOfLastExitFromView() override;
   DescriptorOfLastNewView getAndAllocateDescriptorOfLastNewView() override;
   DescriptorOfLastExecution getDescriptorOfLastExecution() override;
+  DescriptorOfLastStableCheckpoint getDescriptorOfLastStableCheckpoint() override;
 
   PrePrepareMsg *getAndAllocatePrePrepareMsgInSeqNumWindow(SeqNum seqNum) override;
   bool getSlowStartedInSeqNumWindow(SeqNum seqNum) override;
@@ -189,6 +192,7 @@ class PersistentStorageImp : public PersistentStorage {
   void saveDescriptorOfLastExecution(const DescriptorOfLastExecution &newDesc);
   void setDescriptorOfLastExecution(const DescriptorOfLastExecution &desc, bool init);
   void initDescriptorOfLastExecution();
+  void initDescriptorOfLastStableCheckpoint();
 
   void setVersion() const;
 
@@ -227,6 +231,7 @@ class PersistentStorageImp : public PersistentStorage {
 
   const uint32_t maxVersionSize_ = 80;
 
+  const uint16_t numReplicas_;
   const uint16_t fVal_;
   const uint16_t cVal_;
 

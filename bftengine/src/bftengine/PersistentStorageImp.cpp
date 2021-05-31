@@ -23,8 +23,8 @@ namespace impl {
 
 const string METADATA_PARAMS_VERSION = "1.1";
 
-PersistentStorageImp::PersistentStorageImp(uint16_t fVal, uint16_t cVal)
-    : fVal_(fVal), cVal_(cVal), version_(METADATA_PARAMS_VERSION) {
+PersistentStorageImp::PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal)
+    : numReplicas_(numReplicas), fVal_(fVal), cVal_(cVal), version_(METADATA_PARAMS_VERSION) {
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);
 }
 
@@ -75,6 +75,7 @@ void PersistentStorageImp::setDefaultsInMetadataStorage() {
   initDescriptorOfLastExitFromView();
   initDescriptorOfLastNewView();
   initDescriptorOfLastExecution();
+  initDescriptorOfLastStableCheckpoint();
   endWriteTran();
 }
 
@@ -120,6 +121,8 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC].maxSize = DescriptorOfLastExitFromView::simpleParamsSize();
   metadataObjectsArray.get()[LAST_EXEC_DESC].maxSize = DescriptorOfLastExecution::maxSize();
   metadataObjectsArray.get()[LAST_NEW_VIEW_DESC].maxSize = DescriptorOfLastNewView::simpleParamsSize();
+  metadataObjectsArray.get()[LAST_STABLE_CHECKPOINT_DESC].maxSize =
+      DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
 
   return metadataObjectsArray;
 }
@@ -290,9 +293,25 @@ void PersistentStorageImp::setDescriptorOfLastExecution(const DescriptorOfLastEx
   saveDescriptorOfLastExecution(desc);
 }
 
+void PersistentStorageImp::setDescriptorOfLastStableCheckpoint(
+    const DescriptorOfLastStableCheckpoint &stableCheckDesc) {
+  const size_t bufLen = DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
+  UniquePtrToChar descBuf(new char[bufLen]);
+  char *descBufPtr = descBuf.get();
+  size_t actualSize = 0;
+  stableCheckDesc.serialize(descBufPtr, bufLen, actualSize);
+  ConcordAssert(actualSize != 0);
+  metadataStorage_->writeInBatch(LAST_STABLE_CHECKPOINT_DESC, descBuf.get(), actualSize);
+}
+
 void PersistentStorageImp::initDescriptorOfLastExecution() {
   DescriptorOfLastExecution desc;
   setDescriptorOfLastExecution(desc, true);
+}
+
+void PersistentStorageImp::initDescriptorOfLastStableCheckpoint() {
+  DescriptorOfLastStableCheckpoint desc{numReplicas_, {}};
+  setDescriptorOfLastStableCheckpoint(desc);
 }
 
 void PersistentStorageImp::setDescriptorOfLastExecution(const DescriptorOfLastExecution &desc) {
@@ -601,6 +620,21 @@ DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
     descriptorOfLastExecution_ = dbDesc;
     hasDescriptorOfLastExecution_ = true;
   }
+  return dbDesc;
+}
+
+DescriptorOfLastStableCheckpoint PersistentStorageImp::getDescriptorOfLastStableCheckpoint() {
+  ConcordAssert(getIsAllowed());
+  DescriptorOfLastStableCheckpoint dbDesc{numReplicas_, {}};
+  uint32_t dbDescSize = DescriptorOfLastStableCheckpoint::maxSize(numReplicas_);
+  uint32_t sizeInDb = 0;
+
+  UniquePtrToChar simpleParamsBuf(new char[dbDescSize]);
+  metadataStorage_->read(LAST_STABLE_CHECKPOINT_DESC, dbDescSize, simpleParamsBuf.get(), sizeInDb);
+
+  size_t actualSize = 0;
+  dbDesc.deserialize(simpleParamsBuf.get(), dbDescSize, actualSize);
+
   return dbDesc;
 }
 
