@@ -465,6 +465,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
                                                                        clientId,
                                                                        clientMsg->requestTimeoutMilli(),
                                                                        clientMsg->requestSignatureLength()));
+    preProcessorMetrics_.preProcReqReceived.Get().Inc();
     // senderId should be taken from ClientBatchRequestMsg as it does not get re-set in batched client messages
     handleSingleClientRequestMessage(move(clientMsg), senderId, true, offset++);
   }
