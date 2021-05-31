@@ -124,10 +124,10 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     if (std::chrono::duration_cast<std::chrono::seconds>(now - last_snapshot_).count() >= time_between_snapshots_sec_) {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.snapshot(histograms_->getComponenetName());
-      LOG_INFO(logger_,
-               "Signing duration snapshot #"
-                   << snapshot_counter_++ << std::endl
-                   << registrar.perf.toString(registrar.perf.get(histograms_->getComponenetName())));
+      LOG_DEBUG(logger_,
+                "Signing duration snapshot #"
+                    << snapshot_counter_++ << std::endl
+                    << registrar.perf.toString(registrar.perf.get(histograms_->getComponenetName())));
       last_snapshot_ = now;
     }
   } else {
