@@ -65,10 +65,25 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
              "The operator public key is missing, the reconfiguration handler won't be able to execute the requests");
     return;
   }
-  pub_key_ = concord::util::openssl_utils::deserializePublicKeyFromPem(operatorPubKeyPath, "secp256r1");
-  verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
+  try {
+    pub_key_ = concord::util::openssl_utils::deserializePublicKeyFromPem(operatorPubKeyPath, "secp256r1");
+  } catch (const std::exception& e) {
+    LOG_ERROR(
+        getLogger(),
+        "(1) Unable to read operator key, the replica won't be able to perform reconfiguration actions " << e.what());
+    pub_key_ = nullptr;
+  }
+  try {
+    verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
+  } catch (const std::exception& e) {
+    LOG_ERROR(
+        getLogger(),
+        "(2) Unable to read operator key, the replica won't be able to perform reconfiguration actions " << e.what());
+    verifier_ = nullptr;
+  }
 }
 bool BftReconfigurationHandler::verifySignature(const std::string& data, const std::string& signature) const {
+  if (pub_key_ == nullptr && verifier_ == nullptr) return false;
   return pub_key_->verify(data, signature) || verifier_->verify(data, signature);
 }
 }  // namespace concord::reconfiguration
