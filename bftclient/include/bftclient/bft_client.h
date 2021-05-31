@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <optional>
+#include <chrono>
 
 #include "communication/ICommunication.hpp"
 #include "Logger.hpp"
@@ -129,10 +130,15 @@ class Client {
       registrar.perf.unRegisterComponent(component_name_);
     }
 
+    const std::string& getComponenetName() { return component_name_; }
+
    private:
     std::string component_name_;
   };
 
+  static constexpr uint16_t time_between_snapshots_sec_ = 180;  // snapshot every 3 minutes
+  std::chrono::time_point<std::chrono::steady_clock> last_snapshot_;
+  uint32_t snapshot_counter_ = 0;
   std::unique_ptr<Recorders> histograms_;
 };
 

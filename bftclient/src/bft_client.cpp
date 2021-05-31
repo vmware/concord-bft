@@ -35,6 +35,7 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
                                config_.retry_timeout_config.max_increasing_factor,
                                config_.retry_timeout_config.max_decreasing_factor),
       metrics_(config.id),
+      last_snapshot_(std::chrono::steady_clock::now()),
       histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))) {
   // secrets_manager_config can be set only if transaction_signing_private_key_file_path is set
   if (config.secrets_manager_config) ConcordAssert(config.transaction_signing_private_key_file_path != std::nullopt);
@@ -105,17 +106,30 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
 
   if (transaction_signer_) {
     // Sign the request data, add the signature at the end of the request
-    TimeRecorder scoped_timer(*histograms_->sign_duration);
     size_t actualSigSize = 0;
     position += config.correlation_id.size();
-    transaction_signer_->sign(reinterpret_cast<const char*>(request.data()),
-                              request.size(),
-                              reinterpret_cast<char*>(position),
-                              expected_sig_len,
-                              actualSigSize);
-    ConcordAssert(expected_sig_len == actualSigSize);
-    header->reqSignatureLength = actualSigSize;
+    {
+      TimeRecorder scoped_timer(*histograms_->sign_duration);
+      transaction_signer_->sign(reinterpret_cast<const char*>(request.data()),
+                                request.size(),
+                                reinterpret_cast<char*>(position),
+                                expected_sig_len,
+                                actualSigSize);
+      ConcordAssert(expected_sig_len == actualSigSize);
+      header->reqSignatureLength = actualSigSize;
+    }
+
     metrics_.transactionSigning.Get().Inc();
+    const auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_snapshot_).count() >= time_between_snapshots_sec_) {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.snapshot(histograms_->getComponenetName());
+      LOG_INFO(logger_,
+               "Signing duration snapshot #"
+                   << snapshot_counter_++ << std::endl
+                   << registrar.perf.toString(registrar.perf.get(histograms_->getComponenetName())));
+      last_snapshot_ = now;
+    }
   } else {
     header->reqSignatureLength = 0;
   }
