@@ -42,6 +42,7 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "messages/ReplicasRestartReadyProofMsg.hpp"
+#include "messages/PreProcessResultMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
@@ -99,6 +100,9 @@ void ReplicaImp::registerMsgHandlers() {
 
   msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
                                    bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PreProcessResult,
+                                   bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
                                    bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
@@ -300,6 +304,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     }
   }
   delete m;
+}
+
+template <>
+void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreProcessResultMsg *m) {
+  LOG_DEBUG(GL,
+            "Handling PreProcessResultMsg via ClientRequestMsg handler "
+                << KVLOG(m->clientProxyId(), m->getCid(), m->requestSeqNum()));
+  return onMessage<ClientRequestMsg>(m);
 }
 
 template <>
@@ -673,6 +685,32 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   }
 }
 
+bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg,
+                                             const bftEngine::impl::ReplicasInfo &replicasInfo) {
+  RequestsIterator reqIter(msg);
+  char *requestBody = nullptr;
+  while (reqIter.getAndGoToNext(requestBody)) {
+    const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
+    if (hdr->msgType == MsgCode::PreProcessResult) {
+      preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
+
+      if (auto err = req.validatePreProcessResultSignatures(getReplicaConfig().replicaId, getReplicaConfig().fVal);
+          err) {
+        // trigger view change
+        LOG_INFO(VC_LOG,
+                 "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
+                     << *err << ". Ask to leave view " << getCurrentView());
+        askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+        return false;
+      }
+    } else {
+      // ClientRequest messages are handled in PrePrepare::validate()
+      continue;
+    }
+  }
+  return true;
+}
+
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   if (isSeqNumToStopAt(msg->seqNumber())) {
@@ -681,6 +719,12 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
              "etc...)");
     return;
   }
+
+  if (!validatePreProcessedResults(msg, getReplicasInfo())) {
+    // validatePreProcessedResults() logs the error
+    return;
+  }
+
   metric_received_pre_prepares_.Get().Inc();
   const SeqNum msgSeqNum = msg->seqNumber();
 
