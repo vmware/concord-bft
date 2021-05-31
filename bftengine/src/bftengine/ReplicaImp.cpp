@@ -422,7 +422,6 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
 PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
   CommitPath firstPath = controller->getCurrentFirstPath();
-
   ConcordAssertOR((config_.getcVal() != 0), (firstPath != CommitPath::FAST_WITH_THRESHOLD));
   if (requestsQueueOfPrimary.empty()) {
     LOG_INFO(GL, "PrePrepareMessage has not created - requestsQueueOfPrimary is empty");
@@ -430,6 +429,18 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
   }
 
   controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
+
+  if (config_.timeServiceEnabled) {
+    auto timeServiceMsg = time_service_manager_->createClientRequestMsg();
+    auto pp = new PrePrepareMsg(config_.getreplicaId(),
+                                getCurrentView(),
+                                (primaryLastUsedSeqNum + 1),
+                                firstPath,
+                                requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
+                                primaryCombinedReqSize + timeServiceMsg->size());
+    pp->addRequest(timeServiceMsg->body(), timeServiceMsg->size());
+    return pp;
+  }
   return new PrePrepareMsg(config_.getreplicaId(),
                            getCurrentView(),
                            (primaryLastUsedSeqNum + 1),
@@ -601,8 +612,23 @@ void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
                   << "]");
     return;
   }
-  PrePrepareMsg *pp = new PrePrepareMsg(
-      config_.getreplicaId(), getCurrentView(), (primaryLastUsedSeqNum + 1), firstPath, sizeof(ClientRequestMsgHeader));
+  PrePrepareMsg *pp = nullptr;
+  if (config_.timeServiceEnabled) {
+    auto timeServiceMsg = time_service_manager_->createClientRequestMsg();
+    pp = new PrePrepareMsg(config_.getreplicaId(),
+                           getCurrentView(),
+                           (primaryLastUsedSeqNum + 1),
+                           firstPath,
+                           sizeof(ClientRequestMsgHeader) + timeServiceMsg->size());
+    pp->addRequest(timeServiceMsg->body(), timeServiceMsg->size());
+  } else {
+    pp = new PrePrepareMsg(config_.getreplicaId(),
+                           getCurrentView(),
+                           (primaryLastUsedSeqNum + 1),
+                           firstPath,
+                           sizeof(ClientRequestMsgHeader));
+  }
+
   ClientRequestMsg emptyClientRequest(config_.getreplicaId());
   pp->addRequest(emptyClientRequest.body(), emptyClientRequest.size());
   pp->finishAddingRequests();
@@ -737,6 +763,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       char *requestBody = nullptr;
       while (reqIter.getAndGoToNext(requestBody)) {
         ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) continue;
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
         clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
@@ -749,14 +776,28 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         ps_->endWriteTran();
       }
 
-      if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
-                         // before PrePrepareMsg
-      {
-        sendPartialProof(seqNumInfo);
-      } else {
-        seqNumInfo.startSlowPath();
-        metric_slow_path_count_.Get().Inc();
-        sendPreparePartial(seqNumInfo);
+      bool time_is_ok = true;
+      if (config_.timeServiceEnabled &&
+          msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
+        ConcordAssertGE(msg->numberOfRequests(), 1);
+
+        auto it = RequestsIterator(msg);
+        char *requestBody = nullptr;
+        ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(req);
+      }
+      if (time_is_ok) {
+        if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
+                           // before PrePrepareMsg
+        {
+          sendPartialProof(seqNumInfo);
+        } else {
+          seqNumInfo.startSlowPath();
+          metric_slow_path_count_.Get().Inc();
+          sendPreparePartial(seqNumInfo);
+        }
       }
     }
   }
@@ -2761,6 +2802,9 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+  if (config_.timeServiceEnabled) {
+    time_service_manager_->load();
+  }
 
   if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
     const SeqNum refPoint = newCheckpointSeqNum - kWorkWindowSize;
@@ -3892,6 +3936,10 @@ void ReplicaImp::start() {
   KeyExchangeManager::instance().setAggregator(aggregator_);
   ReplicaForStateTransfer::start();
 
+  if (config_.timeServiceEnabled) {
+    time_service_manager_.emplace();
+    LOG_INFO(GL, "Time Service enabled");
+  }
   // If we have just unwedged, clear the wedge point
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
   if (seqNumToStopAt.has_value() && lastStableSeqNum == seqNumToStopAt.value()) {
@@ -4029,6 +4077,10 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         SCOPED_MDC_CID(req.getCid());
         NodeIdType clientId = req.clientProxyId();
 
+        if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
+          reqIdx++;
+          continue;
+        }
         const bool validNoop = ((clientId == currentPrimary()) && (req.requestLength() == 0));
         if (validNoop) {
           ++numValidNoOps;
@@ -4185,6 +4237,14 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    if (config_.timeServiceEnabled) {
+      if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
+        auto time = concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
+        time = time_service_manager_->compareAndSwap(time);
+        LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << time.count() << "ms");
+        continue;
+      }
+    }
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
       if (clientsManager->isValidClient(req.clientProxyId()))
         clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
@@ -4259,6 +4319,7 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
   char *requestBody = nullptr;
   while (reqIter.getAndGoToNext(requestBody)) {
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) continue;
     if (!clientsManager->isValidClient(req.clientProxyId())) continue;
     auto clientId = req.clientProxyId();
     LOG_DEBUG(GL, "removing pending requests for client" << KVLOG(clientId));

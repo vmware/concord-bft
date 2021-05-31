@@ -31,6 +31,12 @@ class TimeServiceManager {
   ~TimeServiceManager() = default;
   TimeServiceManager(const TimeServiceManager&) = delete;
 
+  // Loads timestamp from reserved pages, to be called once ST is done
+  void load() {
+    client_.load();
+    LOG_INFO(TS_MNGR, "Loaded time data from reserved pages");
+  }
+
   // Checks if the new time is less or equal to the one reserved pages,
   // if this is the case, returns reserved pages time + epsilon
   // otherwise, returns the new time
@@ -61,7 +67,8 @@ class TimeServiceManager {
                                                     0U,
                                                     serialized.size(),
                                                     serialized.data(),
-                                                    std::numeric_limits<uint64_t>::max());
+                                                    std::numeric_limits<uint64_t>::max(),
+                                                    "TIME_SERVICE");
   }
 
   [[nodiscard]] bool isPrimarysTimeWithinBounds(impl::ClientRequestMsg& msg) const {
@@ -77,7 +84,8 @@ class TimeServiceManager {
       // TODO(DD): Add metrics
       LOG_ERROR(TS_MNGR,
                 "Current primary's time reached hard limit, requests will be ignored. Please synchronize local clocks! "
-                    << "Primary's time: " << t.count() << ", local time: " << now.count() << ", time limits: +/-"
+                    << "Primary's time: " << t.count() << ", local time: " << now.count()
+                    << ", difference: " << (t - now).count() << ", time limits: +/-"
                     << config.timeServiceHardLimitMillis.count() << ". Time is presented as ms since epoch");
       return false;
     }
@@ -88,7 +96,8 @@ class TimeServiceManager {
       // TODO(DD): Add metrics
       LOG_WARN(TS_MNGR,
                "Current primary's time reached soft limit, please synchronize local clocks! "
-                   << "Primary's time: " << t.count() << ", local time: " << now.count() << ", time limits: +/-"
+                   << "Primary's time: " << t.count() << ", local time: " << now.count()
+                   << ", difference: " << (t - now).count() << ", time limits: +/-"
                    << config.timeServiceSoftLimitMillis.count() << ". Time is presented as ms since epoch");
     }
     return true;
