@@ -25,12 +25,14 @@ class PreProcessorRecorder {
                                       onPreProcessReplyMsg,
                                       launchReqPreProcessing,
                                       handlePreProcessedReqByNonPrimary,
+                                      handlePreProcessedReqPrimaryRetry,
                                       handlePreProcessedReqByPrimary,
                                       sendPreProcessRequestToAllReplicas,
                                       finalizePreProcessing,
                                       signPreProcessReplyHash,
                                       verifyPreProcessReplySig,
                                       totalPreExecutionDuration,
+                                      launchAsyncPreProcessJob,
                                       onRequestsStatusCheckTimer});
   }
 
@@ -46,12 +48,14 @@ class PreProcessorRecorder {
   DEFINE_SHARED_RECORDER(onPreProcessReplyMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(launchReqPreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByNonPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(handlePreProcessedReqPrimaryRetry, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(sendPreProcessRequestToAllReplicas, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(verifyPreProcessReplySig, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(signPreProcessReplyHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(finalizePreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(totalPreExecutionDuration, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(launchAsyncPreProcessJob, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onRequestsStatusCheckTimer, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
 };
 
