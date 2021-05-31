@@ -36,6 +36,8 @@ namespace preprocessor {
 // inheritance for this message won't be needed. For the moment (Jun 2021) this change is not implemented though.
 class PreProcessResultMsg : public ClientRequestMsg {
  public:
+  using ErrorMessage = std::optional<std::string>;
+
   PreProcessResultMsg(NodeIdType sender,
                       uint64_t reqSeqNum,
                       uint32_t resultLength,
@@ -52,6 +54,7 @@ class PreProcessResultMsg : public ClientRequestMsg {
   PreProcessResultMsg(MessageBase* msgBase) : ClientRequestMsg(msgBase) {}
 
   std::pair<char*, uint32_t> getResultSignaturesBuf();
+  ErrorMessage validatePreProcessResultSignatures(ReplicaId myReplicaId, int16_t fVal);
 };
 
 struct PreProcessResultSignature {

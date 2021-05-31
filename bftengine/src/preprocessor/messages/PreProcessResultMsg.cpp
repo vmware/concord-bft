@@ -11,7 +11,10 @@
 
 #include "PreProcessResultMsg.hpp"
 #include "Replica.hpp"  // for HAS_PRE_PROCESSED_FLAG
+#include "SigManager.hpp"
 #include "endianness.hpp"
+#include "sha_hash.hpp"
+
 namespace preprocessor {
 
 PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
@@ -47,6 +50,45 @@ PreProcessResultMsg::PreProcessResultMsg(NodeIdType sender,
 PreProcessResultMsg::PreProcessResultMsg(bftEngine::ClientRequestMsgHeader* body) : ClientRequestMsg(body) {}
 
 std::pair<char*, uint32_t> PreProcessResultMsg::getResultSignaturesBuf() { return getExtraBufPtr(); }
+
+std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatures(ReplicaId myReplicaId,
+                                                                                   int16_t fVal) {
+  auto sigManager_ = SigManager::instance();
+  const auto [buf, buf_len] = getResultSignaturesBuf();
+  auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatureList(buf, buf_len);
+
+  // f because the primary also executes the request (check PreProcessor::numOfRequiredReplies())
+  const auto expectedSignatureCount = fVal;
+  if (sigs.size() < static_cast<uint16_t>(expectedSignatureCount)) {
+    std::stringstream err;
+    err << "PreProcessResult signatures validation failure - not enough signatures. Expected " << expectedSignatureCount
+        << " got " << sigs.size() << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+    return err.str();
+  }
+
+  auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
+  for (const auto& s : sigs) {
+    bool verificationResult = false;
+    if (myReplicaId == s.sender_replica) {
+      std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
+      sigManager_->sign(
+          reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data(), mySignature.size());
+      verificationResult = mySignature == s.signature;
+    } else {
+      verificationResult = sigManager_->verifySig(
+          s.sender_replica, (const char*)hash.data(), hash.size(), s.signature.data(), s.signature.size());
+    }
+
+    if (!verificationResult) {
+      std::stringstream err;
+      err << "PreProcessResult signatures validation failure - invalid signature from replica " << s.sender_replica
+          << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+      return err.str();
+    }
+  }
+
+  return {};
+}
 
 std::string PreProcessResultSignature::serializeResultSignatureList(
     const std::list<PreProcessResultSignature>& signatures) {
