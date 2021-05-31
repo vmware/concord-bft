@@ -330,6 +330,47 @@ void testSetSimpleParams(bool toSet) {
   ConcordAssert(persistentStorageImp->getLastViewThatTransferredSeqNumbersFullyExecuted() == view);
 }
 
+void testCheckDescriptorOfLastStableCheckpoint(bool init) {
+  const SeqNum checkpointSeqNum0 = 0;
+  const SeqNum checkpointSeqNum1 = 150;
+  const SeqNum checkpointSeqNum2 = 300;
+  const ReplicaId sender = 3;
+  const Digest stateDigest('d');
+  const bool stateIsStable = true;
+  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
+  checkpointInitialMsg0.sign();
+  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  checkpointInitialMsg1.sign();
+  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  checkpointInitialMsg2.sign();
+  std::vector<CheckpointMsg *> msgs;
+  msgs.push_back(&checkpointInitialMsg0);
+  msgs.push_back(&checkpointInitialMsg1);
+  msgs.push_back(&checkpointInitialMsg2);
+
+  if (init) {
+    auto initialDesc = persistentStorageImp->getDescriptorOfLastStableCheckpoint();
+    ConcordAssert(initialDesc.checkpointMsgs.size() == 0);
+    ConcordAssert(initialDesc.numMsgs == 0);
+
+    DescriptorOfLastStableCheckpoint desc{numReplicas, msgs};
+
+    persistentStorageImp->beginWriteTran();
+    persistentStorageImp->setDescriptorOfLastStableCheckpoint(desc);
+    persistentStorageImp->endWriteTran();
+  } else {
+    auto desc = persistentStorageImp->getDescriptorOfLastStableCheckpoint();
+    ConcordAssert(desc.checkpointMsgs.size() == msgs.size());
+    for (size_t i = 0; i < msgs.size(); i++) {
+      ConcordAssert(desc.checkpointMsgs[i]->equals(*msgs[i]));
+    }
+    for (auto m : desc.checkpointMsgs) {
+      delete m;
+    }
+    desc.checkpointMsgs.clear();
+  }
+}
+
 int main() {
   auto &config = createReplicaConfig();
   ReplicasInfo replicaInfo(config, false, false);
@@ -371,6 +412,7 @@ int main() {
     testSetSimpleParams(init);
     testSetDescriptors(init);
     testWindows(init);
+    testCheckDescriptorOfLastStableCheckpoint(init);
     if (!init) testWindowsAdvance();
     init = false;
   }
