@@ -57,6 +57,15 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
 
   return true;
 }
+bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand&,
+                                    uint64_t bft_seq_num,
+                                    concord::messages::ReconfigurationResponse&) {
+  LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at sequence number " << bft_seq_num);
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+      [=]() { bftEngine::ControlStateManager::instance().setEraseMetadataFlag(bft_seq_num); });
+  return true;
+}
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;

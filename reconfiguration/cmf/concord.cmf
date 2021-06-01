@@ -94,6 +94,11 @@ Msg AddRemoveStatusResponse 28 {
     string reconfiguration
 }
 
+Msg AddRemoveWithWedgeCommand 29 {
+    uint64 sender_id
+    string reconfiguration
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -110,6 +115,7 @@ Msg ReconfigurationRequest 1 {
     KeyExchangeCommand
     AddRemoveCommand
     AddRemoveStatus
+    AddRemoveWithWedgeCommand
   } command
   bytes additional_data
 }
