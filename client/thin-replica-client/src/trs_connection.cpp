@@ -37,7 +37,7 @@ using std::launch;
 
 using namespace std::chrono_literals;
 
-namespace thin_replica_client {
+namespace client::thin_replica_client {
 
 void TrsConnection::createStub() {
   ConcordAssertNE(channel_, nullptr);
@@ -436,4 +436,4 @@ std::string TrsConnection::parseClientIdFromSubject(const std::string& subject_s
   return raw_str.substr(fstart, fend - fstart + 1);
 }
 
-}  // namespace thin_replica_client
+}  // namespace client::thin_replica_client

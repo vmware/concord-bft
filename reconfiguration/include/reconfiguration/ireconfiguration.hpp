@@ -18,7 +18,7 @@
 #include "Replica.hpp"
 
 namespace concord::reconfiguration {
-
+enum ReconfigurationHandlerType : unsigned int { PRE, REGULAR, POST };
 // The IReconfigurationHandler interface defines all message handler. It is
 // tightly coupled with the messages inside ReconfigurationSmRequest in the
 // message definition.

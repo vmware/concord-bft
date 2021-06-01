@@ -36,6 +36,20 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   auto ser_sig = std::string(request.signature.begin(), request.signature.end());
   rresp.success = true;
   try {
+    // Run pre-reconfiguration handlers
+    for (auto& handler : pre_reconfig_handlers_) {
+      // Each reconfiguration handler handles only what it can validate
+      if (!handler->verifySignature(ser_data, ser_sig)) {
+        error_msg.error_msg = "Invalid signature";
+        continue;
+      }
+      error_msg.error_msg.clear();
+      valid = true;
+      rresp.success &=
+          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
+    }
+
+    // Run regular reconfiguration handlers
     for (auto& handler : reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
       if (!handler->verifySignature(ser_data, ser_sig)) {
@@ -47,6 +61,20 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       rresp.success &=
           std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
     }
+
+    // Run post-reconfiguration handlers
+    for (auto& handler : post_reconfig_handlers_) {
+      // Each reconfiguration handler handles only what it can validate
+      if (!handler->verifySignature(ser_data, ser_sig)) {
+        error_msg.error_msg = "Invalid signature";
+        continue;
+      }
+      error_msg.error_msg.clear();
+      valid = true;
+      rresp.success &=
+          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
+    }
+
     if (!valid) rresp.success = false;  // If no handler was able to verify the request, it is an invalid request
   } catch (const std::exception& e) {
     ADDITIONAL_DATA(rresp,

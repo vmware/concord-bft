@@ -127,7 +127,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
-  client_->sendRquest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), cid);
   metrics_->sent_key_exchange_counter.Get().Inc();
 }
 

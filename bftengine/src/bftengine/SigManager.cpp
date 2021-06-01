@@ -224,8 +224,7 @@ bool SigManager::verifySig(
       metrics_.externalClientReqSigVerified_.Get().Inc();
     else
       metrics_.replicaSigVerified_.Get().Inc();
-    ++updateAggregatorCounter;
-    if ((updateAggregatorCounter % updateMetricsAggregatorThresh) == 0) {
+    if ((++updateAggregatorCounter % updateMetricsAggregatorThresh) == 0) {
       metrics_component_.UpdateAggregator();
     }
   }

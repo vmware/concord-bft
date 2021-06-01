@@ -1,0 +1,9 @@
+find_package(GTest REQUIRED)
+
+add_executable(ccron_table_test ccron_table_test.cpp)
+add_test(ccron_table_test ccron_table_test)
+target_link_libraries(ccron_table_test GTest::Main ccron corebft)
+
+add_executable(ccron_ticks_generator_test ccron_ticks_generator_test.cpp)
+add_test(ccron_ticks_generator_test ccron_ticks_generator_test)
+target_link_libraries(ccron_ticks_generator_test GTest::Main ccron corebft)

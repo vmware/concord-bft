@@ -1996,15 +1996,21 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   // Checkpoints
   /////////////////////////////////////////////////////////////////////////
 
-  if (lastStableSeqNum > msgLastStable + kWorkWindowSize) {
+  if ((lastStableSeqNum > msgLastStable + kWorkWindowSize) ||
+      (!currentViewIsActive() && (lastStableSeqNum > msgLastStable))) {
     CheckpointMsg *checkMsg = checkpointsLog->get(lastStableSeqNum).selfCheckpointMsg();
 
     if (checkMsg == nullptr || !checkMsg->isStableState()) {
-      // TODO(GG): warning
-    } else {
-      sendAndIncrementMetric(checkMsg, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
+      LOG_WARN(
+          GL, "Misalignment in lastStableSeqNum and my CheckpointMsg for it" << KVLOG(lastStableSeqNum, msgLastStable));
     }
 
+    auto &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+    for (const auto &it : checkpointInfo.getAllCheckpointMsgs()) {
+      if (msgSenderId != it.first) {
+        sendAndIncrementMetric(it.second, msgSenderId, metric_sent_checkpoint_msg_due_to_status_);
+      }
+    }
   } else if (msgLastStable > lastStableSeqNum + kWorkWindowSize) {
     tryToSendStatusReport();  // ask for help
   } else {
@@ -2832,10 +2838,22 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     }
   }
 
+  if (ps_) {
+    auto &CheckpointInfo = checkpointsLog->get(lastStableSeqNum);
+    std::vector<CheckpointMsg *> msgs;
+    msgs.reserve(CheckpointInfo.getAllCheckpointMsgs().size());
+    for (const auto &m : CheckpointInfo.getAllCheckpointMsgs()) {
+      msgs.push_back(m.second);
+    }
+    DescriptorOfLastStableCheckpoint desc(config_.getnumReplicas(), msgs);
+    ps_->setDescriptorOfLastStableCheckpoint(desc);
+  }
+
   if (ps_) ps_->endWriteTran();
 
-  if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.getreplicaId()) && !isCollectingState()) {
-    tryToSendPrePrepareMsg();
+  if (((BatchingPolicy)config_.batchingPolicy == BATCH_SELF_ADJUSTED) && !oldSeqNum && currentViewIsActive() &&
+      (currentPrimary() == config_.getreplicaId()) && !isCollectingState()) {
+    tryToSendPrePrepareMsg(false);
   }
 
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -3271,6 +3289,13 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                                                                      maxSeqNumTransferredFromPrevViews,
                                                                      lastViewThatTransferredSeqNumbersFullyExecuted));
 
+  if (ld.lastStableSeqNum > 0) {
+    auto &CheckpointInfo = checkpointsLog->get(ld.lastStableSeqNum);
+    for (const auto &m : ld.lastStableCheckpointProof) {
+      CheckpointInfo.addCheckpointMsg(m, m->idOfGeneratedReplica());
+    }
+  }
+
   if (inView) {
     const bool isPrimaryOfView = (repsInfo->primaryOfView(curView) == config_.getreplicaId());
 
@@ -3433,8 +3458,10 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     ConcordAssertEQ(e.getCheckpointMsg()->senderId(), config_.getreplicaId());
     ConcordAssertOR((s != ld.lastStableSeqNum), e.getCheckpointMsg()->isStableState());
 
-    checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
-    ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+    if (s != ld.lastStableSeqNum) {  // We have already added all msgs for our last stable Checkpoint
+      checkInfo.addCheckpointMsg(e.getCheckpointMsg(), config_.getreplicaId());
+      ConcordAssert(checkInfo.selfCheckpointMsg()->equals(*e.getCheckpointMsg()));
+    }
 
     if (e.getCompletedMark()) checkInfo.tryToMarkCheckpointCertificateCompleted();
   }
@@ -4051,7 +4078,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-    if (!requestSet.get(tmp) || req.requestLength() == 0 || (req.flags() & EMPTY_CLIENT_FLAG)) {
+    if (!requestSet.get(tmp) || req.requestLength() == 0) {
       if (clientsManager->isValidClient(req.clientProxyId()))
         clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
@@ -4200,10 +4227,10 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());
-    internalBFTClient_->sendRquest(
+    internalBFTClient_->sendRequest(
         RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
-    tryToSendPrePrepareMsg(false);
+    if ((BatchingPolicy)config_.batchingPolicy == BATCH_SELF_ADJUSTED) tryToSendPrePrepareMsg(false);
   }
 
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
