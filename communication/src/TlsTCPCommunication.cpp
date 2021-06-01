@@ -80,13 +80,11 @@ int TlsTCPCommunication::send(NodeNum destNode, std::vector<uint8_t> &&msg) {
 std::set<NodeNum> TlsTCPCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) {
   std::set<NodeNum> failed_nodes;
   auto omsg = std::make_shared<tls::OutgoingMsg>(std::move(msg));
-  for (auto &d : dests) {
-    try {
-      runner_->principals().at(config_.selfId).send(d, omsg);
-    } catch (const std::out_of_range &e) {
-      LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
-      throw;
-    }
+  try {
+    runner_->principals().at(config_.selfId).send(dests, omsg);
+  } catch (const std::out_of_range &e) {
+    LOG_FATAL(GL, "runner_->principals.at() failed for " << KVLOG(config_.selfId) << e.what());
+    throw;
   }
   return failed_nodes;
 }
