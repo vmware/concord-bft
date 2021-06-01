@@ -192,7 +192,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                     await write_req()
                     await trio.sleep(seconds=3)
 
-    @unittest.skip("Edge case scenario - not part of CI")
+    # @unittest.skip("Edge case scenario - not part of CI")
+    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f == 2)
     async def test_view_change_with_f_replicas_collected_stable_checkpoint(self, bft_network):
@@ -205,12 +206,16 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         3) Stop Replicas 1 and 2.
         4) Isolate Replica 3 from 6, 5 and 4 only in one direction - 3 will be able to send messages to all, but won't
            receive from 6, 5 and 4. this way 3 won't be able to collect a Stable Checkpoint.
-        5) With the isolation on Replica 3, send Client Requests until 2*F replicas collect a Stable Checkpoint.
-           Only Replicas 0, 6, 5 and 4 will collect, 3 will not because it does not receive messages from 6, 5 and 4.
-        6) We stop Replicas 0 and 6 and start 1 and 2. This way we will cause View Change and we will have only 2
-           Replicas with a Stable Checkpoint (5 and 4).
-        7) Within this state the system must be able to finalize a View Change, because we have (2*F + 1) live Replicas,
-           but we have only F that have collected a Stable Checkpoint that are live.
+           Do the same for 6, isolating in the same manner from 3, 4 and 5
+           Do the same for 4, isolating in the same manner from 3, 5 and 6
+           This way only 0 and 5 will collect a Stable Checkpoint for SeqNo 150.
+        5) With the isolation scenario, send Client Requests until F replicas collect a Stable Checkpoint.
+           Only Replicas 0 and 5 will collect.
+        6) We stop Replicas 0, 5 and 6 and start 1 and 2. This way we will cause View Change and we will have only 2
+           Replicas with a Stable Checkpoint (5 and 0).
+        7) Start Replicas 5 and 0. Within this state the system must be able to finalize a View Change,
+           because we have (N - 1) live Replicas, but we have only F that have collected a Stable Checkpoint
+           that are live.
         """
 
         # step 1
@@ -248,6 +253,8 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         # step 4
         with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(bft_network, {3}, {6, 5, 4}) as adversary:
+            adversary.add_rule({6}, {3, 4, 5})
+            adversary.add_rule({4}, {3, 5, 6})
             adversary.interfere()
 
             while True:
@@ -257,7 +264,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                     log.log_message(message_type=f"replica = {replica_id}; last_stable = {last_stable};\
                                                    lase_exec = {last_exec}")
                     last_stable_seqs.append(last_stable)
-                if sum(x == num_reqs_before_first_stable + 1 for x in last_stable_seqs) == 2 * bft_network.config.f:
+                if sum(x == num_reqs_before_first_stable + 1 for x in last_stable_seqs) == bft_network.config.f:
                     # step 5 completed
                     break
                 else:
@@ -265,11 +272,19 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                     await write_req()
                     await trio.sleep(seconds=3)
 
-        # step 6
-        bft_network.stop_replica(0)
-        bft_network.stop_replica(6)
-        bft_network.start_replica(1)
-        bft_network.start_replica(2)
+            # step 6
+            bft_network.stop_replica(0)
+            bft_network.stop_replica(6)
+            bft_network.stop_replica(5)
+            bft_network.start_replica(1)
+            bft_network.start_replica(2)
+
+            # Send a Client Request to trigger View Change
+            with trio.move_on_after(seconds=3):
+                await write_req()
+
+            bft_network.start_replica(5)
+            bft_network.start_replica(0)
 
         # Send a Client Request to trigger View Change
         with trio.move_on_after(seconds=3):
@@ -277,7 +292,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         # step 7
         await bft_network.wait_for_view(
-            replica_id=1,
+            replica_id=3,
             expected=lambda v: v == 1,
             err_msg="Make sure a view change happens from 0 to 1"
         )
