@@ -29,7 +29,7 @@ class KeyExchangeManager {
  public:
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
-  // Generates and publish the first key
+  // Generates and publish the first replica's key,
   void sendInitialKey();
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid);
@@ -42,6 +42,21 @@ class KeyExchangeManager {
     return ReplicaConfig::instance().getkeyExchangeOnStart() ? (publicKeys_.numOfExchangedReplicas() == clusterSize_)
                                                              : true;
   }
+  const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
+  const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
+  ///////// Clients public keys interface///////////////
+  // whether clients keys were published
+  bool clientKeysPublished() { return clientsPublicKeys_.published_; }
+  void setClientKeysAsPublished() { clientsPublicKeys_.published_ = true; }
+  void saveClientsPublicKeys(const std::string& keys) {
+    metrics_->clients_keys_published_status.Get().Set("True");
+    clientsPublicKeys_.save(keys);
+  }
+  // Publish the public keys of the clients
+  void sendInitialClientsKeys(const std::string&);
+  void onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys);
+  ///////// end - Clients public keys interface///////////////
+
   std::string getStatus() const;
   /*
    * Persistent private keys store.
@@ -149,7 +164,7 @@ class KeyExchangeManager {
 
  private:  // methods
   KeyExchangeManager(InitData* id);
-  std::string generateCid();
+  std::string generateCid(std::string);
   // build cryptosystem
   void notifyRegistry();
   /**
@@ -169,6 +184,9 @@ class KeyExchangeManager {
   uint32_t clusterSize_{};
   ClusterKeyStore publicKeys_;
   PrivateKeys private_keys_;
+  ClientKeyStore clientsPublicKeys_;
+  // A flag to prevent race on the replica's internal client.
+  std::atomic_bool initial_exchange_;
   // Raw pointer is ok, since this class does not manage this resource.
   std::shared_ptr<IInternalBFTClient> client_;
   std::vector<IKeyExchanger*> registryToExchange_;
@@ -180,6 +198,7 @@ class KeyExchangeManager {
     std::shared_ptr<concordMetrics::Aggregator> aggregator;
     concordMetrics::Component component;
     concordMetrics::StatusHandle sent_key_exchange_on_start_status;
+    concordMetrics::StatusHandle clients_keys_published_status;
     concordMetrics::CounterHandle sent_key_exchange_counter;
     concordMetrics::CounterHandle self_key_exchange_counter;
     concordMetrics::CounterHandle public_key_exchange_for_peer_counter;
@@ -194,6 +213,7 @@ class KeyExchangeManager {
           aggregator(a),
           component{"KeyExchangeManager", aggregator},
           sent_key_exchange_on_start_status{component.RegisterStatus("sent_key_exchange_on_start", "False")},
+          clients_keys_published_status{component.RegisterStatus("clients_keys_published", "False")},
           sent_key_exchange_counter{component.RegisterCounter("sent_key_exchange")},
           self_key_exchange_counter{component.RegisterCounter("self_key_exchange")},
           public_key_exchange_for_peer_counter{component.RegisterCounter("public_key_exchange_for_peer")} {}

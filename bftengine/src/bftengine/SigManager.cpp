@@ -133,14 +133,20 @@ SigManager::SigManager(PrincipalId myId,
     ConcordAssert(p.first != myId_);
 
     auto iter = publicKeyIndexToVerifier.find(p.second);
+    const auto& [key, format] = publickeys[p.second];
     if (iter == publicKeyIndexToVerifier.end()) {
-      const auto& keyPair = publickeys[p.second];
-      verifiers_[p.first] = new RSAVerifier(keyPair.first.c_str(), keyPair.second);
+      verifiers_[p.first] = new RSAVerifier(key.c_str(), format);
       publicKeyIndexToVerifier[p.second] = verifiers_[p.first];
-    } else
+    } else {
       verifiers_[p.first] = iter->second;
+    }
+    if (replicasInfo_.isIdOfExternalClient(p.first)) {
+      clientsPublicKeys_.ids_to_keys[p.first] = concord::messages::keys_and_signatures::PublicKey{key, (uint8_t)format};
+      LOG_DEBUG(KEY_EX_LOG, "Adding key of client " << p.first << " key size " << key.size());
+    }
   }
-
+  clientsPublicKeys_.version = 1;  // version `1` suggests RSAVerifier.
+  LOG_DEBUG(KEY_EX_LOG, "Map contains " << clientsPublicKeys_.ids_to_keys.size() << " public clients keys");
   metrics_component_.Register();
 
   // This is done mainly for debugging and sanity check:
