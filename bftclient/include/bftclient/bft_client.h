@@ -115,15 +115,16 @@ class Client {
   // Transaction RSA signer
   std::optional<bftEngine::impl::RSASigner> transaction_signer_;
 
-  // 1 second
-  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;
+  static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;  // 1 second
+  static constexpr int64_t MAX_TRANSACTION_SIZE = 100 * 1024 * 1024;    // 100MB
   struct Recorders {
     using Recorder = concord::diagnostics::Recorder;
     Recorders(ClientId client_id) : component_name_("bft_client_" + std::to_string(client_id.val)) {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent(component_name_, {sign_duration});
+      registrar.perf.registerComponent(component_name_, {sign_duration, transaction_size});
     }
     DEFINE_SHARED_RECORDER(sign_duration, 1, MAX_VALUE_NANOSECONDS, 3, concord::diagnostics::Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(transaction_size, 1, MAX_TRANSACTION_SIZE, 3, concord::diagnostics::Unit::BYTES);
 
     ~Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
