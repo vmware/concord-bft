@@ -34,6 +34,7 @@ class MsgsCommunicator {
 
   [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }
   int sendAsyncMessage(bft::communication::NodeNum destNode, char* message, size_t messageLength);
+  void send(std::set<bft::communication::NodeNum> dests, char* message, size_t messageLength);
 
   std::shared_ptr<IncomingMsgsStorage>& getIncomingMsgsStorage() { return incomingMsgsStorage_; }
 

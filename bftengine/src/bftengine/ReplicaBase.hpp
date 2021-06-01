@@ -77,11 +77,7 @@ class ReplicaBase {
 
   virtual void send(MessageBase* m, NodeIdType dest) { sendRaw(m, dest); }
 
-  void sendToAllOtherReplicas(MessageBase* m, bool includeRo = false) {
-    for (ReplicaId dest : repsInfo->idsOfPeerReplicas()) sendRaw(m, dest);
-    if (includeRo)
-      for (ReplicaId dest : repsInfo->idsOfPeerROReplicas()) sendRaw(m, dest);
-  }
+  void sendToAllOtherReplicas(MessageBase* m, bool includeRo = false);
 
   void sendRaw(MessageBase* m, NodeIdType dest);
 
