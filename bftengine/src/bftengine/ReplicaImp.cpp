@@ -2870,8 +2870,9 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   if (ps_) ps_->endWriteTran();
 
-  if (!oldSeqNum && currentViewIsActive() && (currentPrimary() == config_.getreplicaId()) && !isCollectingState()) {
-    tryToSendPrePrepareMsg();
+  if (((BatchingPolicy)config_.batchingPolicy == BATCH_SELF_ADJUSTED) && !oldSeqNum && currentViewIsActive() &&
+      (currentPrimary() == config_.getreplicaId()) && !isCollectingState()) {
+    tryToSendPrePrepareMsg(false);
   }
 
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -4248,7 +4249,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     internalBFTClient_->sendRequest(
         RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
-    tryToSendPrePrepareMsg(false);
+    if ((BatchingPolicy)config_.batchingPolicy == BATCH_SELF_ADJUSTED) tryToSendPrePrepareMsg(false);
   }
 
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
