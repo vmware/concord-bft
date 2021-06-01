@@ -231,6 +231,11 @@ ViewsManager* ViewsManager::createInsideView(const ReplicasInfo* const r,
   return v;
 }
 
+void ViewsManager::setHigherView(ViewNum higherViewNum) {
+  ConcordAssertLT(myCurrentView, higherViewNum);
+  myCurrentView = higherViewNum;
+}
+
 ViewChangeMsg* ViewsManager::getMyLatestViewChangeMsg() const {
   ViewChangeMsg* vc = viewChangeMsgsOfPendingView[myId];
   if (vc == nullptr) vc = viewChangeMessages[myId];
@@ -365,16 +370,16 @@ bool ViewsManager::hasNewViewMessage(ViewNum v) {
   return (nv != nullptr && nv->newView() == v);
 }
 
-bool ViewsManager::hasViewChangeMessageForFutureView(uint16_t repId, ViewNum curView) {
+bool ViewsManager::hasViewChangeMessageForFutureView(uint16_t repId) {
   ConcordAssert(repId < N);
 
   if (stat != Stat::NO_VIEW) return true;
 
   ViewChangeMsg* vc = viewChangeMessages[repId];
 
-  // If we have moved to higher view (reflected in curView) we need the
+  // If we have moved to higher view (reflected in myCurrentView) we need the
   // View Change Messages from peer Replicas for it.
-  return ((vc != nullptr) && (vc->newView() >= curView));
+  return ((vc != nullptr) && (vc->newView() >= myCurrentView));
 }
 
 NewViewMsg* ViewsManager::getMyNewViewMsgForCurrentView() {
