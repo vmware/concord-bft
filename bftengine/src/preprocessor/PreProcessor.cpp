@@ -119,6 +119,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
+    preProcessResultBuffers_[i] = std::make_pair(false, Sliver());
   }
   RequestState::reqProcessingHistoryHeight *= clientMaxBatchSize_;
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;
@@ -1034,10 +1035,20 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId req
   // The number of buffers per client comes from the configuration parameter clientBatchingMaxMsgsNbr.
   const auto bufferOffset =
       (clientId - numOfReplicas_ - numOfInternalClients_) * clientMaxBatchSize_ + reqOffsetInBatch;
-  LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset));
-  if (preProcessResultBuffers_.find(bufferOffset) == preProcessResultBuffers_.end())
-    preProcessResultBuffers_[bufferOffset] = Sliver(new char[maxPreExecResultSize_], maxPreExecResultSize_);
-  return preProcessResultBuffers_[bufferOffset].data();
+  LOG_INFO(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, reqSeqNum));
+  char *buf = nullptr;
+  if (!preProcessResultBuffers_[bufferOffset].first) {
+    buf = new char[maxPreExecResultSize_];
+    {
+      std::unique_lock lock(resultBufferLock_);
+      if (!preProcessResultBuffers_[bufferOffset].first) {
+        preProcessResultBuffers_[bufferOffset].second = Sliver(buf, maxPreExecResultSize_);
+        preProcessResultBuffers_[bufferOffset].first = true;
+      } else
+        delete[] buf;
+    }
+  }
+  return preProcessResultBuffers_[bufferOffset].second.data();
 }
 
 const uint16_t PreProcessor::getOngoingReqIndex(uint16_t clientId, uint16_t reqOffsetInBatch) const {

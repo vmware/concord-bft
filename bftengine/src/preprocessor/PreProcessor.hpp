@@ -48,7 +48,7 @@ struct RequestState {
 };
 
 // Pre-allocated (clientId * dataSize) buffers
-typedef std::unordered_map<uint16_t, concordUtils::Sliver> PreProcessResultBuffers;
+typedef std::vector<std::pair<std::atomic_bool, concordUtils::Sliver>> PreProcessResultBuffers;
 typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
 // (clientId * dataSize + reqOffsetInBatch) -> RequestStateSharedPtr
 typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
@@ -209,6 +209,7 @@ class PreProcessor {
   boost::lockfree::spsc_queue<MessageBase *> msgs_{MAX_MSGS};
   std::thread msgLoopThread_;
   std::mutex msgLock_;
+  std::mutex resultBufferLock_;
   std::condition_variable msgLoopSignal_;
   std::atomic_bool msgLoopDone_{false};
 
