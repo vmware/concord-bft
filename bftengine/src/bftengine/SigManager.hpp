@@ -109,7 +109,7 @@ class SigManager {
 
   mutable concordMetrics::Component metrics_component_;
   mutable Metrics metrics_;
-  mutable uint64_t updateAggregatorCounter = 0;
+  mutable std::atomic<uint64_t> updateAggregatorCounter = 0;
 
   // These methods bypass the singelton, and can be used (STRICTLY) for testing.
   // Define the below flag in order to use them in your test.
