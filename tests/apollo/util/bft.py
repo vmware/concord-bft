@@ -1258,10 +1258,12 @@ class BftTestNetwork:
                         with trio.move_on_after(seconds=1):
                             try:
                                 sent_key_exchange_on_start_status = await self.metrics.get(replica_id, *["KeyExchangeManager", "Statuses", "sent_key_exchange_on_start"])
+                                clients_keys_published_status = await self.metrics.get(replica_id, *["KeyExchangeManager", "Statuses", "clients_keys_published"])
                                 sent_key_exchange_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
                                 self_key_exchange_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "self_key_exchange"])
                                 public_key_exchange_for_peer_counter = await self.metrics.get(replica_id, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
                                 if  sent_key_exchange_on_start_status == 'False' or \
+                                    clients_keys_published_status == 'False' or \
                                     sent_key_exchange_counter < 1 or \
                                     self_key_exchange_counter < 1 or \
                                     public_key_exchange_for_peer_counter < self.config.n - 1 :
@@ -1272,6 +1274,7 @@ class BftTestNetwork:
                                 raise KeyExchangeError
                             else:
                                 assert sent_key_exchange_on_start_status == 'True'
+                                assert clients_keys_published_status == 'True'
                                 assert sent_key_exchange_counter == 1
                                 assert self_key_exchange_counter == 1
                                 assert public_key_exchange_for_peer_counter == self.config.n - 1

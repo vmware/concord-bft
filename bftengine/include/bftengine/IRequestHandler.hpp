@@ -18,7 +18,6 @@
 #include <string>
 #include <functional>
 #include <deque>
-
 #include "OpenTracing.hpp"
 
 namespace concord::reconfiguration {

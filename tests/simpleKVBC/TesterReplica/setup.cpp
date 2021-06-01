@@ -121,6 +121,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         } break;
         case 'e': {
           replicaConfig.keyExchangeOnStart = true;
+          replicaConfig.publishClientKeys = true;
         } break;
         case 'y': {
           const auto concurrencyLevel = concord::util::to<std::uint16_t>(std::string(optarg));

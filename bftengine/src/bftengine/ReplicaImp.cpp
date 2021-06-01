@@ -186,11 +186,15 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("cid", m->getCid());
   span.setTag("seq_num", reqSeqNum);
 
-  // If replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs
-  if (!KeyExchangeManager::instance().exchanged() && !(flags & KEY_EXCHANGE_FLAG)) {
-    LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
-    delete m;
-    return;
+  // Drop external msgs ff:
+  // -  replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs.
+  // -  the public keys of clients havn't been published yet.
+  if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().published()) {
+    if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
+      LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
+      delete m;
+      return;
+    }
   }
 
   // check message validity
@@ -2641,6 +2645,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   LOG_INFO(VC_LOG, "Start working in new view: " << KVLOG(curView));
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
+  // pubish clients public keys, in case prev primar failed to publish
+  if (primaryIsMe) KeyExchangeManager::instance().publishClientsPublicKeys(SigManager::instance()->ClientsPublicKeys());
   metric_current_active_view_.Get().Set(curView);
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
 }
@@ -2723,6 +2729,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+  KeyExchangeManager::instance().onTransferringClientKeys(SigManager::instance()->ClientsPublicKeys());
 
   if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
     const SeqNum refPoint = newCheckpointSeqNum - kWorkWindowSize;
@@ -3804,6 +3811,7 @@ void ReplicaImp::start() {
   id.secretsMgr = sm_;
   id.timers = &timers_;
   id.a = aggregator_;
+  id.clientsPublicKeys = SigManager::instance()->ClientsPublicKeys();
 
   // If we have just unwedged, clear the wedge point
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
@@ -3822,7 +3830,11 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) KeyExchangeManager::instance().sendInitialKey();
+  std::optional<std::string> clientsPublicKeys{std::nullopt};
+  if (isCurrentPrimary()) clientsPublicKeys = SigManager::instance()->ClientsPublicKeys();
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
+    KeyExchangeManager::instance().sendInitialKey(clientsPublicKeys);
+  }
 }
 
 void ReplicaImp::recoverRequests() {

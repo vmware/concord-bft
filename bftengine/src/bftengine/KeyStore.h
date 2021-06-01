@@ -16,6 +16,8 @@
 #include "KeyExchangeMsg.hpp"
 #include <map>
 #include <optional>
+#include "sha_hash.hpp"
+
 namespace bftEngine::impl {
 
 typedef int64_t SeqNum;  // TODO [TK] redefinition
@@ -96,5 +98,54 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
   const uint32_t clusterSize_;
 
   std::string buffer_;
+};
+
+// Manages the BFT state of the clients public keys:
+// It stores the digest of the keys in reserved pages.
+// On construction it compares the input keys (replica keys) against the reserved pages and set the `published` flag
+// accordingly.
+class ClientKeyStore : public ResPagesClient<ClientKeyStore, 4, 1> {
+ public:
+  bool published_{false};
+
+  ClientKeyStore(const std::string& keys) { checkAndSetState(keys); }
+
+  ClientKeyStore() = delete;
+
+  // Save digest of client keys to res pages and sets `published` to true.
+  void commit(const std::string& keys) {
+    auto hashed_keys = concord::util::SHA3_256().digest(keys.c_str(), keys.size());
+    auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
+    ConcordAssertEQ(strHashed_keys.size(), concord::util::SHA3_256::SIZE_IN_BYTES);
+    saveReservedPage(0, strHashed_keys.size(), strHashed_keys.c_str());
+    published_ = true;
+    LOG_INFO(ON_CHAIN_LOG, "Clients keys were updated");
+  }
+
+  bool compareAgainstReservedPage(const std::string& keys) {
+    auto hashed_keys = concord::util::SHA3_256().digest(keys.c_str(), keys.size());
+    auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
+    std::string res_page_version(concord::util::SHA3_256::SIZE_IN_BYTES, '\0');
+    loadReservedPage(0, res_page_version.length(), res_page_version.data());
+    return strHashed_keys == res_page_version;
+  }
+
+  void saveToReservedPages(const std::string& keys) {
+    auto hashed_keys = concord::util::SHA3_256().digest(keys.c_str(), keys.size());
+    auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
+    saveReservedPage(0, strHashed_keys.size(), strHashed_keys.c_str());
+  }
+
+  // Checks if the input param keys (the replica keys) is equal to the keys stored in reserved pages.
+  // and sets the publish flag accordingly.
+  void checkAndSetState(const std::string& keys) {
+    if (!compareAgainstReservedPage(keys)) {
+      LOG_WARN(ON_CHAIN_LOG, "Clients keys are not dated or empty, will not accept msgs until an update");
+      published_ = false;
+      return;
+    }
+    LOG_DEBUG(ON_CHAIN_LOG, "Clients keys were publish");
+    published_ = true;
+  }
 };
 }  // namespace bftEngine::impl

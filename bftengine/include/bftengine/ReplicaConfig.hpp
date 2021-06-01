@@ -148,6 +148,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
 
+  CONFIG_PARAM(publishClientKeys, bool, false, "whether to publish clients public keys");
+
   // Time Service
   CONFIG_PARAM(timeServiceEnabled, bool, false, "whether time service enabled");
   CONFIG_PARAM(timeServiceSoftLimitMillis,
@@ -241,6 +243,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, debugStatisticsEnabled);
     serialize(outStream, metricsDumpIntervalSeconds);
     serialize(outStream, keyExchangeOnStart);
+    serialize(outStream, publishClientKeys);
     serialize(outStream, blockAccumulation);
     serialize(outStream, sizeOfInternalThreadPool);
     serialize(outStream, keyViewFilePath);
@@ -307,6 +310,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, debugStatisticsEnabled);
     deserialize(inStream, metricsDumpIntervalSeconds);
     deserialize(inStream, keyExchangeOnStart);
+    deserialize(inStream, publishClientKeys);
     deserialize(inStream, blockAccumulation);
     deserialize(inStream, sizeOfInternalThreadPool);
     deserialize(inStream, keyViewFilePath);
@@ -378,6 +382,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.adaptiveBatchingDecCond,
               rc.sizeOfInternalThreadPool,
               rc.timeServiceEnabled,
+              rc.publishClientKeys,
               rc.timeServiceSoftLimitMillis.count(),
               rc.timeServiceHardLimitMillis.count(),
               rc.timeServiceEpsilonMillis.count());
