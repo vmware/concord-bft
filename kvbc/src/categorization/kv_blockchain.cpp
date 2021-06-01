@@ -747,11 +747,11 @@ std::string KeyValueBlockchain::getPruningStatus() {
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result;
 
-  result.insert(toPair("versioned_num_of_deletes_keys_",
+  result.insert(toPair("versionedNumOfDeletedKeys",
                        aggregator_->GetCounter("kv_blockchain_deletes", "numOfVersionedKeysDeleted").Get()));
-  result.insert(toPair("immutable_num_of_deleted_keys_",
+  result.insert(toPair("immutableNumOfDeletedKeys",
                        aggregator_->GetCounter("kv_blockchain_deletes", "numOfImmutableKeysDeleted").Get()));
-  result.insert(toPair("merkle_num_of_deleted_keys_",
+  result.insert(toPair("merkleNumOfDeletedKeys",
                        aggregator_->GetCounter("kv_blockchain_deletes", "numOfMerkleKeysDeleted").Get()));
   result.insert(toPair("getGenesisBlockId()", getGenesisBlockId()));
   result.insert(toPair("getLastReachableBlockId()", getLastReachableBlockId()));
