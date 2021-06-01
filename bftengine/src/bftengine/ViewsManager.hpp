@@ -71,6 +71,9 @@ class ViewsManager {
                                                                           // in viewChangeMsgs
                                         std::vector<ViewChangeMsg *> viewChangeMsgs);
 
+  ViewNum getCurrentView() const { return myCurrentView; }
+  void setHigherView(ViewNum higherViewNum);
+  void setViewFromRecovery(ViewNum explicitViewNum) { myCurrentView = explicitViewNum; }
   ViewNum latestActiveView() const { return myLatestActiveView; }
   bool viewIsActive(ViewNum v) const { return (inView() && (myLatestActiveView == v)); }
   bool viewIsPending(ViewNum v) const {
@@ -129,7 +132,7 @@ class ViewsManager {
 
   bool getNumbersOfMissingPP(SeqNum currentLastStable, std::vector<SeqNum> *outMissingPPNumbers);
 
-  bool hasViewChangeMessageForFutureView(uint16_t repId, ViewNum curView);
+  bool hasViewChangeMessageForFutureView(uint16_t repId);
 
  protected:
   bool inView() const { return (stat == Stat::IN_VIEW); }
@@ -167,7 +170,7 @@ class ViewsManager {
   ///////////////////////////////////////////////////////////////////////////
 
   Stat stat;
-
+  ViewNum myCurrentView;
   // myLatestPendingView always >=  myLatestActiveView
   ViewNum myLatestActiveView;
   ViewNum myLatestPendingView;
