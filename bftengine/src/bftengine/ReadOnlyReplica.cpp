@@ -154,10 +154,10 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const NodeIdType clientId = m->clientProxyId();
   const bool reconfig_flag = (m->flags() & MsgFlag::RECONFIG_FLAG) != 0;
   const ReqId reqSeqNum = m->requestSeqNum();
-  const uint8_t flags = m->flags();
+  const uint64_t flags = m->flags();
 
   SCOPED_MDC_CID(m->getCid());
-  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<8>(flags));
+  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
 
   const auto &span_context = m->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");

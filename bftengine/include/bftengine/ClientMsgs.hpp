@@ -34,7 +34,7 @@ struct ClientRequestMsgHeader {
   uint16_t msgType;  // always == REQUEST_MSG_TYPE
   uint32_t spanContextSize = 0u;
   uint16_t idOfClientProxy;  // TODO - rename - now used mostly as id of external client
-  uint8_t flags;             // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
+  uint64_t flags;            // bit 0 == isReadOnly, bit 1 = preProcess, bits 2-7 are reserved
   uint64_t reqSeqNum;
   uint32_t requestLength;
   uint64_t timeoutMilli;

@@ -26,13 +26,13 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 35, "ClientRequestMsgHeader size is 35B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 42, "ClientRequestMsgHeader size is 42B");
   static concord::diagnostics::Recorder sigNatureVerificationRecorder;
   // TODO(GG): more asserts
 
  public:
   ClientRequestMsg(NodeIdType sender,
-                   uint8_t flags,
+                   uint64_t flags,
                    uint64_t reqSeqNum,
                    uint32_t requestLength,
                    const char* request,
@@ -52,7 +52,7 @@ class ClientRequestMsg : public MessageBase {
 
   bool isReadOnly() const;
 
-  uint8_t flags() const { return msgBody()->flags; }
+  uint64_t flags() const { return msgBody()->flags; }
 
   ReqId requestSeqNum() const { return msgBody()->reqSeqNum; }
 
@@ -79,7 +79,7 @@ class ClientRequestMsg : public MessageBase {
   void setParams(NodeIdType sender,
                  ReqId reqSeqNum,
                  uint32_t requestLength,
-                 uint8_t flags,
+                 uint64_t flags,
                  uint64_t reqTimeoutMilli,
                  const std::string& cid,
                  uint32_t requestSignatureLen);
