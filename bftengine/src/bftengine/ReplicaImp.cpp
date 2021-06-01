@@ -174,11 +174,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const NodeIdType clientId = m->clientProxyId();
   const bool readOnly = m->isReadOnly();
   const ReqId reqSeqNum = m->requestSeqNum();
-  const uint8_t flags = m->flags();
+  const auto flags = m->flags();
 
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
   SCOPED_MDC_CID(m->getCid());
-  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<8>(flags));
+  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
 
   const auto &span_context = m->spanContext<std::remove_pointer<decltype(m)>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
@@ -187,10 +187,12 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("seq_num", reqSeqNum);
 
   // If replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs
-  if (!KeyExchangeManager::instance().exchanged() && !(flags & KEY_EXCHANGE_FLAG)) {
-    LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
-    delete m;
-    return;
+  if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().published()) {
+    if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
+      LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
+      delete m;
+      return;
+    }
   }
 
   // check message validity
@@ -2622,6 +2624,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   LOG_INFO(VC_LOG, "Start working in new view: " << KVLOG(curView));
 
   controller->onNewView(curView, primaryLastUsedSeqNum);
+  // pubish clients public keys, in case prev primar failed to publish
+  if (primaryIsMe) KeyExchangeManager::instance().publishClientsPublicKeys(SigManager::instance()->ClientsPublicKeys());
   metric_current_active_view_.Get().Set(curView);
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
 }
@@ -2704,6 +2708,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   clientsManager->loadInfoFromReservedPages();
 
   KeyExchangeManager::instance().loadPublicKeys();
+  KeyExchangeManager::instance().onClientsKeysStateTransfer(SigManager::instance()->ClientsPublicKeys());
 
   if (newCheckpointSeqNum > lastStableSeqNum + kWorkWindowSize) {
     const SeqNum refPoint = newCheckpointSeqNum - kWorkWindowSize;
@@ -3802,7 +3807,11 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) KeyExchangeManager::instance().sendInitialKey();
+  std::optional<std::string> clientsPublicKeys{std::nullopt};
+  if (isCurrentPrimary()) clientsPublicKeys = SigManager::instance()->ClientsPublicKeys();
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
+    KeyExchangeManager::instance().sendInitialKey(clientsPublicKeys);
+  }
 }
 
 void ReplicaImp::recoverRequests() {

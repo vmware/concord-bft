@@ -1,0 +1,9 @@
+
+Msg PublicKey 1 {
+    string key
+    uint8 format
+}
+
+Msg ClientsPublicKeys 2 {
+    map uint16 PublicKey ids_to_keys
+}

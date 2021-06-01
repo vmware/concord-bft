@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "bftengine/KeyExchangeManager.hpp"
+#include "SigManager.hpp"
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
@@ -65,6 +66,25 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     if (req.flags & READ_ONLY_FLAG) {
       // Backward compatible with read only flag prior BC-5126
       req.flags = READ_ONLY_FLAG;
+    }
+    // The primary can send an object to persist on chain e.g public_keys, configuration file, etc
+    // this object pass consensus and need to be validated that is equal to the object that is stored in memory of the
+    // replica (per Ittai advice).
+    if (req.flags & bftEngine::MsgFlag::VALIDATE_ON_CHAIN_OBJECT_FLAG) {
+      // if replica recieved client keys, it means that the primary has detected that its keys are outdated or empty.
+      // the recieved keys must be equal to the sigmanager keys.
+      if (req.flags & bftEngine::MsgFlag::CLIENTS_PUB_KEYS_FLAG) {
+        std::string recieved_keys(req.request, req.requestSize);
+        auto current_keys = impl::SigManager::instance()->ClientsPublicKeys();
+        if (recieved_keys != current_keys) {
+          LOG_INFO(ON_CHAIN_LOG, "Published Clients keys and replica client keys do not match");
+          ConcordAssertEQ(recieved_keys, current_keys);
+        }
+        impl::KeyExchangeManager::instance().commitClientsPublicKeys(recieved_keys);
+        req.outExecutionStatus = 0;
+        req.outReply[0] = '1';
+        req.outActualReplySize = 1;
+      }
     }
   }
   if (userRequestsHandler_) return userRequestsHandler_->execute(requests, batchCid, parent_span);

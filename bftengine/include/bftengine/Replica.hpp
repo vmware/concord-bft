@@ -32,8 +32,9 @@ class ISecretsManagerImpl;
 }
 
 namespace bftEngine {
+
 // Possible values for 'flags' parameter
-enum MsgFlag : uint8_t {
+enum MsgFlag : uint64_t {
   EMPTY_FLAGS = 0x0,
   READ_ONLY_FLAG = 0x1,
   PRE_PROCESS_FLAG = 0x2,
@@ -42,6 +43,8 @@ enum MsgFlag : uint8_t {
   TICK_FLAG = 0x10,
   RECONFIG_FLAG = 0x20,
   TIME_SERVICE_FLAG = 0x40,
+  VALIDATE_ON_CHAIN_OBJECT_FLAG = 0x80,
+  CLIENTS_PUB_KEYS_FLAG = 0x100
 };
 
 // The IControlHandler is a group of methods that enables the userRequestHandler to perform infrastructure

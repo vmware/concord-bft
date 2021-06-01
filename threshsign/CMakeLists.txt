@@ -68,7 +68,7 @@ endif()
 enable_testing()
 
 # When building with 'cmake -DCMAKE_BUILD_TYPE=Trace'
-string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
+string(APPEND CMAKE_CXX_uint64_tRACE " -DTRACE")
 
 #
 # Helper functions
