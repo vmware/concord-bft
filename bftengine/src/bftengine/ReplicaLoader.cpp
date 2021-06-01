@@ -113,6 +113,7 @@ ReplicaLoader::ErrorCode loadViewInfo(shared_ptr<PersistentStorage> &p, LoadedRe
   if (!hasDescLastExitFromView && !hasDescOfLastNewView) {
     viewsManager = ViewsManager::createInsideViewZero(ld.repsInfo);
 
+    ConcordAssert(viewsManager->getCurrentView() == 0);
     ConcordAssert(viewsManager->latestActiveView() == 0);
     ConcordAssert(viewsManager->viewIsActive(0));
 
