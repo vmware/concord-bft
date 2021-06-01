@@ -23,12 +23,14 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       clusterSize_{ReplicaConfig::instance().getnumReplicas()},
       publicKeys_{clusterSize_},
       private_keys_(id->secretsMgr),
+      clientsPublicKeys_(id->clientsPublicKeys),
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
       timers_(*(id->timers)) {
   registerForNotification(id->ke);
   if (publicKeys_.numOfExchangedReplicas() == clusterSize_)  // don't notify on first start
     notifyRegistry();
+  if (!ReplicaConfig::instance().getkeyExchangeOnStart()) initial_exchange_ = true;
 }
 
 void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
@@ -46,8 +48,7 @@ void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator>
       });
 }
 
-std::string KeyExchangeManager::generateCid() {
-  std::string cid{"KEY-EXCHANGE-"};
+std::string KeyExchangeManager::generateCid(std::string cid) {
   auto now = getMonotonicTime().time_since_epoch();
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now);
   auto sn = now_ms.count();
@@ -77,6 +78,7 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
   }
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= clusterSize_))
     LOG_INFO(KEY_EX_LOG, "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << clusterSize_ << "]");
+  if (!initial_exchange_ && exchanged()) initial_exchange_ = true;
   return "ok";
 }
 
@@ -113,7 +115,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     return;
   }
   KeyExchangeMsg msg;
-  auto cid = generateCid();
+  auto cid = generateCid("KEY-EXCHANGE-");
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
   private_keys_.key_data().generated.priv = prv;
   private_keys_.key_data().generated.pub = pub;
@@ -131,19 +133,38 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   metrics_->sent_key_exchange_counter.Get().Inc();
 }
 
-void KeyExchangeManager::sendInitialKey() {
+// sends a the clients keys via the internal client if keys weren't published or outdated.
+void KeyExchangeManager::publishClientsPublicKeys(const std::string& keys) {
+  if (clientsPublicKeys_.published_) {
+    LOG_INFO(ON_CHAIN_LOG, "Clients public keys were already published");
+    return;
+  }
+  auto cid = generateCid("CLIENTS-PUB-KEYS-");
+  LOG_DEBUG(ON_CHAIN_LOG, "Primary sends keys of participants cid: " << cid << " payload size " << keys.size());
+  client_->sendRequest(
+      bftEngine::CLIENTS_PUB_KEYS_FLAG | bftEngine::VALIDATE_ON_CHAIN_OBJECT_FLAG, keys.size(), keys.c_str(), cid);
+}
+
+void KeyExchangeManager::sendInitialKey(std::optional<std::string> clientsPublicKeys) {
   LOG_INFO(KEY_EX_LOG, "");
   if (private_keys_.hasGeneratedKeys()) {
     LOG_INFO(KEY_EX_LOG, "Replica has already generated keys");
+    if (clientsPublicKeys) publishClientsPublicKeys(*clientsPublicKeys);
     return;
   }
   // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
   // In order not to block it's done as async operation.
-  auto ret = std::async(std::launch::async, [this]() {
+  auto ret = std::async(std::launch::async, [this, clientsPublicKeys]() {
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
     waitForFullCommunication();
     sendKeyExchange(0);
-    metrics_->sent_key_exchange_on_start_status.Get().Set("True");
+    if (!clientsPublicKeys) return;
+    // In order to prevent race on the client, we'll wait till we know replicas finished processing the key exchange
+    // requests, need to protect it
+    while (!initial_exchange_) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    publishClientsPublicKeys(*clientsPublicKeys);
   });
 }
 

@@ -1,0 +1,4 @@
+cmf_generate_cpp(header cpp concord::messages::keys_and_signatures keys_and_signatures.cmf)
+add_library(keys_and_signatures_cmf ${cpp})
+set_target_properties(keys_and_signatures_cmf PROPERTIES LINKER_LANGUAGE CXX)
+target_include_directories(keys_and_signatures_cmf PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
