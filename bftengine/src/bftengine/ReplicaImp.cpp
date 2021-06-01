@@ -561,8 +561,12 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
 
   {
     TimeRecorder scoped_timer(*histograms_.broadcastPrePrepare);
-    for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
-      sendRetransmittableMsgToReplica(pp, x, primaryLastUsedSeqNum);
+    if (!retransmissionsLogicEnabled) {
+      sendToAllOtherReplicas(pp);
+    } else {
+      for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
+        sendRetransmittableMsgToReplica(pp, x, primaryLastUsedSeqNum);
+      }
     }
   }
 
@@ -807,8 +811,12 @@ void ReplicaImp::tryToStartSlowPaths() {
 
     StartSlowCommitMsg *startSlow = new StartSlowCommitMsg(config_.getreplicaId(), curView, i);
 
-    for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
-      sendRetransmittableMsgToReplica(startSlow, x, i);
+    if (!retransmissionsLogicEnabled) {
+      sendToAllOtherReplicas(startSlow);
+    } else {
+      for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
+        sendRetransmittableMsgToReplica(startSlow, x, i);
+      }
     }
 
     delete startSlow;
@@ -1528,7 +1536,13 @@ void ReplicaImp::onPrepareCombinedSigSucceeded(SeqNum seqNumber,
     ps_->endWriteTran();
   }
 
-  for (ReplicaId x : repsInfo->idsOfPeerReplicas()) sendRetransmittableMsgToReplica(preFull, x, seqNumber);
+  if (!retransmissionsLogicEnabled) {
+    sendToAllOtherReplicas(preFull);
+  } else {
+    for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
+      sendRetransmittableMsgToReplica(preFull, x, seqNumber);
+    }
+  }
 
   ConcordAssert(seqNumInfo.isPrepared());
 
@@ -1640,7 +1654,13 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
     ps_->endWriteTran();
   }
 
-  for (ReplicaId x : repsInfo->idsOfPeerReplicas()) sendRetransmittableMsgToReplica(commitFull, x, seqNumber);
+  if (!retransmissionsLogicEnabled) {
+    sendToAllOtherReplicas(commitFull);
+  } else {
+    for (ReplicaId x : repsInfo->idsOfPeerReplicas()) {
+      sendRetransmittableMsgToReplica(commitFull, x, seqNumber);
+    }
+  }
 
   ConcordAssert(seqNumInfo.isCommitted__gg());
 
