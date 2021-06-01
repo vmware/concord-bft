@@ -677,8 +677,8 @@ std::string BCStateTran::getStatus() {
   result.insert(STRPAIR(lastMsgSeqNum_));
   result.insert(toPair("cacheOfVirtualBlockForResPagesSize", cacheOfVirtualBlockForResPages.size()));
 
-  auto currentSource = sourceSelector_.currentReplica();
-  auto preferredReplicas = sourceSelector_.preferredReplicasToString();
+  auto current_source = sourceSelector_.currentReplica();
+  auto preferred_replicas = sourceSelector_.preferredReplicasToString();
 
   for (auto &[id, seq_num] : lastMsgSeqNumOfReplicas_) {
     nested_data.insert(toPair(std::to_string(id), seq_num));
@@ -698,8 +698,8 @@ std::string BCStateTran::getStatus() {
   nested_data.clear();
 
   if (isFetching()) {
-    nested_data.insert(STRPAIR(currentSource));
-    nested_data.insert(STRPAIR(preferredReplicas));
+    nested_data.insert(toPair("currentSource", current_source));
+    nested_data.insert(toPair("preferredReplicas", preferred_replicas));
     nested_data.insert(toPair("nextRequiredBlock", nextRequiredBlock_));
     nested_data.insert(STRPAIR(totalSizeOfPendingItemDataMsgs));
     result.insert(toPair("fetchingStateDetails",
