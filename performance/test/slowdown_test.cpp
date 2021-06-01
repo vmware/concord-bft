@@ -21,7 +21,7 @@
 #include <chrono>
 #include <mutex>
 #include <condition_variable>
-#include <ReplicaImp.h>
+#include <Replica.h>
 #include <communication/ICommunication.hpp>
 #include <ReplicaConfig.hpp>
 #include "merkle_tree_storage_factory.h"

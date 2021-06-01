@@ -10,7 +10,7 @@ target_include_directories(concord_block_update INTERFACE
 )
 
 add_library(kvbc  src/ClientImp.cpp
-    src/ReplicaImp.cpp
+    src/Replica.cpp
     src/replica_state_sync_imp.cpp
     src/block_metadata.cpp
     src/direct_kv_db_adapter.cpp

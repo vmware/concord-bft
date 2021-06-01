@@ -29,11 +29,11 @@
 #include "ControlStateManager.hpp"
 namespace concord::kvbc {
 
-class ReplicaImp : public IReplica,
-                   public IBlocksDeleter,
-                   public IReader,
-                   public IBlockAdder,
-                   public bftEngine::bcst::IAppState {
+class Replica : public IReplica,
+                public IBlocksDeleter,
+                public IReader,
+                public IBlockAdder,
+                public bftEngine::bcst::IAppState {
  public:
   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // IReplica implementation
@@ -106,19 +106,19 @@ class ReplicaImp : public IReplica,
   bool getPrevDigestFromObjectStoreBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *);
   bool putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize);
 
-  ReplicaImp(bft::communication::ICommunication *comm,
-             const bftEngine::ReplicaConfig &config,
-             std::unique_ptr<IStorageFactory> storageFactory,
-             std::shared_ptr<concordMetrics::Aggregator> aggregator,
-             const std::shared_ptr<concord::performance::PerformanceManager> &pm,
-             std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
-             const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager);
+  Replica(bft::communication::ICommunication *comm,
+          const bftEngine::ReplicaConfig &config,
+          std::unique_ptr<IStorageFactory> storageFactory,
+          std::shared_ptr<concordMetrics::Aggregator> aggregator,
+          const std::shared_ptr<concord::performance::PerformanceManager> &pm,
+          std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
+          const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager);
 
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
   bftEngine::IStateTransfer &getStateTransfer() { return *m_stateTransfer; }
 
-  ~ReplicaImp() override;
+  ~Replica() override;
 
  protected:
   RawBlock getBlockInternal(BlockId blockId) const;
