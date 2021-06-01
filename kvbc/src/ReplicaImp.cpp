@@ -74,7 +74,8 @@ void ReplicaImp::createReplicaAndSyncState() {
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this));
+      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
   m_replicaPtr = bftEngine::IReplica::createNewReplica(

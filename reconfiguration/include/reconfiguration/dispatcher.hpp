@@ -18,7 +18,6 @@
 #include "Logger.hpp"
 
 namespace concord::reconfiguration {
-
 // The dispatcher forwards all messages to their appropriate handlers.
 // All handled messages are defined in the IReconfigurationHandler interface.
 class Dispatcher {
@@ -38,8 +37,21 @@ class Dispatcher {
   concord::messages::ReconfigurationResponse dispatch(const concord::messages::ReconfigurationRequest&,
                                                       uint64_t sequence_num);
 
-  void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h) {
-    if (h) reconfig_handlers_.push_back(h);
+  void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h,
+                                 ReconfigurationHandlerType type = ReconfigurationHandlerType::REGULAR) {
+    if (h) {
+      switch (type) {
+        case PRE:
+          pre_reconfig_handlers_.push_back(h);
+          break;
+        case REGULAR:
+          reconfig_handlers_.push_back(h);
+          break;
+        case POST:
+          post_reconfig_handlers_.push_back(h);
+          break;
+      }
+    }
   }
 
  private:
@@ -54,7 +66,9 @@ class Dispatcher {
                      std::shared_ptr<IReconfigurationHandler> handler) {
     return handler->handle(msg, bft_seq_num, rres);
   }
+  std::vector<std::shared_ptr<IReconfigurationHandler>> pre_reconfig_handlers_;
   std::vector<std::shared_ptr<IReconfigurationHandler>> reconfig_handlers_;
+  std::vector<std::shared_ptr<IReconfigurationHandler>> post_reconfig_handlers_;
 };
 
 }  // namespace concord::reconfiguration

@@ -31,8 +31,10 @@ class RequestHandler : public IRequestsHandler {
     }
   }
 
-  void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) override {
-    reconfig_dispatcher_.addReconfigurationHandler(rh);
+  void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
+                                 concord::reconfiguration::ReconfigurationHandlerType type =
+                                     concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override {
+    reconfig_dispatcher_.addReconfigurationHandler(rh, type);
   }
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
 

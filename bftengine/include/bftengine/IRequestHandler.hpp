@@ -23,6 +23,7 @@
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
+enum ReconfigurationHandlerType : unsigned int;
 }  // namespace concord::reconfiguration
 
 namespace bftEngine {
@@ -55,7 +56,9 @@ class IRequestsHandler {
   std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> getReconfigurationHandler() const {
     return reconfig_handler_;
   }
-  virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh) {
+  virtual void setReconfigurationHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> rh,
+                                         concord::reconfiguration::ReconfigurationHandlerType type =
+                                             static_cast<concord::reconfiguration::ReconfigurationHandlerType>(1)) {
     reconfig_handler_ = rh;
   }
 
