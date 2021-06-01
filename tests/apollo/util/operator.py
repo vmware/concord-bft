@@ -107,6 +107,17 @@ class Operator:
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
+    
+    def _construct_reconfiguration_addRemoveWithWedge_coammand(self, new_config):
+        addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
+        addRemove_command.sender_id = 1000
+        addRemove_command.reconfiguration = new_config
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = addRemove_command
+        reconf_msg.additional_data = bytes()
+        reconf_msg.signature = bytes(0)
+        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        return reconf_msg
 
     def _construct_reconfiguration_addRemoveStatus_coammand(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveStatus()
@@ -152,6 +163,10 @@ class Operator:
 
     async def add_remove(self, new_config):
         reconf_msg = self._construct_reconfiguration_addRemove_coammand(new_config)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+    
+    async def add_remove_with_wedge(self, new_config):
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_coammand(new_config)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def add_remove_status(self):

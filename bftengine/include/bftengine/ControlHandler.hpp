@@ -25,7 +25,10 @@ class ControlHandler : public IControlHandler {
     onNoutOfNCheckpoint_ = true;
     for (auto& cb : onSuperStableCheckpointCallBack) cb();
   };
-  void onStableCheckpoint() override { onNMinusFOutOfNCheckpoint_ = true; }
+  void onStableCheckpoint() override {
+    onNMinusFOutOfNCheckpoint_ = true;
+    for (auto& cb : onStableCheckpointCallBack) cb();
+  }
   bool onPruningProcess() override { return onPruningProcess_; }
   bool isOnNOutOfNCheckpoint() const override { return onNoutOfNCheckpoint_; }
   bool isOnStableCheckpoint() const override { return onNMinusFOutOfNCheckpoint_; }
@@ -33,12 +36,16 @@ class ControlHandler : public IControlHandler {
   void addOnSuperStableCheckpointCallBack(const std::function<void()>& cb) override {
     onSuperStableCheckpointCallBack.emplace_back(cb);
   }
+  void addOnStableCheckpointCallBack(const std::function<void()>& cb) override {
+    onStableCheckpointCallBack.emplace_back(cb);
+  }
 
  private:
   bool onNoutOfNCheckpoint_ = false;
   bool onNMinusFOutOfNCheckpoint_ = false;
   bool onPruningProcess_ = false;
   std::vector<std::function<void()>> onSuperStableCheckpointCallBack;
+  std::vector<std::function<void()>> onStableCheckpointCallBack;
 };
 
 }  // namespace bftEngine

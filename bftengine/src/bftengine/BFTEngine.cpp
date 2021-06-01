@@ -148,6 +148,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     bool erasedMetaData;
     ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr), erasedMetaData);
     if (erasedMetaData) isNewStorage = true;
+    LOG_INFO(GL, "erasedMetaData flag = "<<erasedMetaData);
   }
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());

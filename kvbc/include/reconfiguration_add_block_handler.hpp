@@ -77,6 +77,23 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     LOG_INFO(getLogger(), "AddRemoveCommand command block is " << blockId);
     return true;
   }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse&) override {
+    std::vector<uint8_t> serialized_command;
+    concord::messages::serialize(serialized_command, command);
+    auto blockId = persistReconfigurationBlock(
+        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_add_remove});
+    LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
+
+    concord::messages::WedgeCommand wedgeCommand{command.id, false};
+    serialized_command.clear();
+    concord::messages::serialize(serialized_command, wedgeCommand);
+    blockId = persistReconfigurationBlock(
+        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_wedge_key});
+    LOG_INFO(getLogger(), "AddRemove, wedge command block is " << blockId);
+    return true;
+  }
   bool handle(const concord::messages::AddRemoveStatus& command,
               uint64_t sequence_number,
               concord::messages::ReconfigurationResponse& response) override {
