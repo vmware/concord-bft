@@ -61,8 +61,8 @@ class ReplicaInternal : public IReplica {
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
 
 void ReplicaInternal::start() {
-  replica_->start();
   preprocessor::PreProcessor::setAggregator(replica_->getAggregator());
+  replica_->start();
 }
 
 void ReplicaInternal::stop() {
