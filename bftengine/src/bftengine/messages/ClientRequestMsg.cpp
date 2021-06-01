@@ -37,7 +37,7 @@ uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
 
 // class ClientRequestMsg
 ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
-                                   uint8_t flags,
+                                   uint64_t flags,
                                    uint64_t reqSeqNum,
                                    uint32_t requestLength,
                                    const char* request,
@@ -175,7 +175,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
 void ClientRequestMsg::setParams(NodeIdType sender,
                                  ReqId reqSeqNum,
                                  uint32_t requestLength,
-                                 uint8_t flags,
+                                 uint64_t flags,
                                  uint64_t reqTimeoutMilli,
                                  const std::string& cid,
                                  uint32_t requestSignatureLen) {
