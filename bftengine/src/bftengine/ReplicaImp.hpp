@@ -90,9 +90,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // view change logic
   ViewsManager* viewsManager = nullptr;
 
-  // the current view of this replica
-  ViewNum curView = 0;
-
   // the last SeqNum used to generate a new SeqNum (valid when this replica is the primary)
   SeqNum primaryLastUsedSeqNum = 0;
 
@@ -291,10 +288,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
   bool isIdOfReplica(NodeIdType id) const override { return repsInfo->isIdOfReplica(id); }
   const std::set<ReplicaId>& getIdsOfPeerReplicas() const override { return repsInfo->idsOfPeerReplicas(); }
-  ViewNum getCurrentView() const override { return curView; }
-  ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(curView); }
+  ViewNum getCurrentView() const override { return viewsManager->getCurrentView(); }
+  ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(getCurrentView()); }
   bool isCurrentPrimary() const override { return (currentPrimary() == config_.replicaId); }
-  bool currentViewIsActive() const override { return (viewsManager->viewIsActive(curView)); }
+  bool currentViewIsActive() const override { return (viewsManager->viewIsActive(getCurrentView())); }
   bool isReplyAlreadySentToClient(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->hasReply(clientId, reqSeqNum);
   }
