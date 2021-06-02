@@ -68,7 +68,7 @@ class SimpleTestClient {
     LOG_INFO(clientLogger,
              "ClientParams: clientId: " << cp.clientId << ", numOfReplicas: " << cp.numOfReplicas << ", numOfClients: "
                                         << cp.numOfClients << ", numOfIterations: " << cp.numOfOperations
-                                        << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfFaulty);
+                                        << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfSlow);
 
     ICommunication* comm = bft::communication::CommFactory::create(conf);
 
