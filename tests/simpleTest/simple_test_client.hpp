@@ -68,7 +68,7 @@ class SimpleTestClient {
     LOG_INFO(clientLogger,
              "ClientParams: clientId: " << cp.clientId << ", numOfReplicas: " << cp.numOfReplicas << ", numOfClients: "
                                         << cp.numOfClients << ", numOfIterations: " << cp.numOfOperations
-                                        << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfSlow);
+                                        << ", fVal: " << cp.numOfFaulty << ", cVal: " << cp.numOfFaulty);
 
     ICommunication* comm = bft::communication::CommFactory::create(conf);
 
@@ -76,6 +76,14 @@ class SimpleTestClient {
     auto aggregator = std::make_shared<concordMetrics::Aggregator>();
     client->setAggregator(aggregator);
     comm->Start();
+
+    // hack that copies the behaviour of the protected function of SimpleClient (
+    auto readyReplicas = 0;
+    while (readyReplicas < cp.numOfReplicas - cp.numOfFaulty) {
+      this_thread::sleep_for(1s);
+      for (int i = 0; i < cp.numOfReplicas; ++i)
+        readyReplicas += (comm->getCurrentConnectionStatus(i) == ConnectionStatus::Connected);
+    }
 
     // The state number that the latest write operation returned.
     uint64_t expectedStateNum = 0;
