@@ -29,8 +29,8 @@ class BasicGauge;
 template <class T>
 class BasicCounter;
 
-using Gauge = BasicGauge<uint64_t>;
-using Counter = BasicCounter<uint64_t>;
+using Gauge = BasicGauge<std::atomic_uint64_t>;
+using Counter = BasicCounter<std::atomic_uint64_t>;
 using AtomicGauge = BasicGauge<std::atomic_uint64_t>;
 using AtomicCounter = BasicCounter<std::atomic_uint64_t>;
 
