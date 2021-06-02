@@ -35,7 +35,6 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
                                config_.retry_timeout_config.max_increasing_factor,
                                config_.retry_timeout_config.max_decreasing_factor),
       metrics_(config.id),
-      last_snapshot_(std::chrono::steady_clock::now()),
       histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))) {
   // secrets_manager_config can be set only if transaction_signing_private_key_file_path is set
   if (config.secrets_manager_config) ConcordAssert(config.transaction_signing_private_key_file_path != std::nullopt);
@@ -121,15 +120,14 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     }
 
     metrics_.transactionSigning.Get().Inc();
-    const auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration_cast<std::chrono::seconds>(now - last_snapshot_).count() >= time_between_snapshots_sec_) {
+    if ((metrics_.transactionSigning.Get().Get() % count_between_snapshots) == 0) {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.snapshot(histograms_->getComponenetName());
+      auto& name = histograms_->getComponenetName();
+      registrar.perf.snapshot(name);
       LOG_DEBUG(logger_,
-                "Signing duration snapshot #"
-                    << snapshot_counter_++ << std::endl
-                    << registrar.perf.toString(registrar.perf.get(histograms_->getComponenetName())));
-      last_snapshot_ = now;
+                "Signing stats snapshot #" << snapshot_index_ << " for " << name << std::endl
+                                           << registrar.perf.toString(registrar.perf.get(name)));
+      snapshot_index_++;
     }
   } else {
     header->reqSignatureLength = 0;
