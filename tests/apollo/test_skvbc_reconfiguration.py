@@ -615,7 +615,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         For that the operator performs the following steps:
         1. Stop 2 nodes (f=2)
         2. Send a remove_node command - this command also wedges the system
-        3. Verify that all live (including the removed candidates) nodes have stopped
+        3. Verify that all live nodes have stopped
         4. Load  a new configuration to the bft network
         5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
         """
@@ -638,7 +638,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
         await op.add_remove_with_wedge(test_config)
-        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(len(live_replicas)))
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, live_replicas)
         expectedSeqNum = (checkpoint_before  + 2) * 150
         for r in live_replicas:
             lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
