@@ -137,9 +137,8 @@ class Client {
     std::string component_name_;
   };
 
-  static constexpr uint16_t time_between_snapshots_sec_ = 180;  // snapshot every 3 minutes
-  std::chrono::time_point<std::chrono::steady_clock> last_snapshot_;
-  uint32_t snapshot_counter_ = 0;
+  static constexpr uint32_t count_between_snapshots = 200;
+  uint32_t snapshot_index_ = 0;
   std::unique_ptr<Recorders> histograms_;
 };
 
