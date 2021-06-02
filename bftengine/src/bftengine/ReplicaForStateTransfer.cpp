@@ -20,6 +20,8 @@
 #include "ReplicasInfo.hpp"
 #include "messages/StateTransferMsg.hpp"
 #include "ReservedPagesClient.hpp"
+#include "ClientsManager.hpp"
+#include "KeyStore.h"
 
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
@@ -36,22 +38,30 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
       metric_received_state_transfers_{metrics_.RegisterCounter("receivedStateTransferMsgs")},
       metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)},
       firstTime_(firstTime) {
+  LOG_INFO(GL, "");
   msgHandlers_->registerMsgHandler(
       MsgCode::StateTransfer,
       std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
-}
 
-void ReplicaForStateTransfer::start() {
+  // Reserved Pages and State Transfer initialization
+  ClientsManager::setNumResPages(
+      (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
+      ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(), config.maxReplyMessageSize));
+  ClusterKeyStore::setNumResPages(config.numReplicas);
+
   if (firstTime_ || !config_.debugPersistentStorageEnabled)
     stateTransfer->init(kWorkWindowSize / checkpointWindowSize + 1,
                         ReservedPagesClientBase::totalNumberOfPages(),
                         ReplicaConfig::instance().getsizeOfReservedPage());
   const std::chrono::milliseconds defaultTimeout = 5s;
-  stateTranTimer_ =
-      timers_.add(defaultTimeout, Timers::Timer::RECURRING, [this](Timers::Handle h) { stateTransfer->onTimer(); });
+  stateTranTimer_ = timers_.add(
+      defaultTimeout, Timers::Timer::RECURRING, [stateTransfer](Timers::Handle h) { stateTransfer->onTimer(); });
   metric_state_transfer_timer_.Get().Set(defaultTimeout.count());
   stateTransfer->startRunning(this);
+}
+
+void ReplicaForStateTransfer::start() {
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
 
