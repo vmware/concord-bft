@@ -56,6 +56,7 @@ class StReconfigurationHandler {
 
   bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t) { return true; }
   kvbc::IReader& ro_storage_;
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
 };

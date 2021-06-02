@@ -95,8 +95,15 @@ Msg AddRemoveStatusResponse 28 {
 }
 
 Msg AddRemoveWithWedgeCommand 29 {
+    string config_descriptor
+    bool bft
+}
+
+Msg AddRemoveWithWedgeStatus 30 {
     uint64 sender_id
-    string reconfiguration
+}
+Msg AddRemoveWithWedgeStatusResponse 31 {
+    string config_descriptor
 }
 
 Msg ReconfigurationRequest 1 {
@@ -116,6 +123,7 @@ Msg ReconfigurationRequest 1 {
     AddRemoveCommand
     AddRemoveStatus
     AddRemoveWithWedgeCommand
+    AddRemoveWithWedgeStatus
   } command
   bytes additional_data
 }
@@ -131,6 +139,7 @@ Msg ReconfigurationResponse 2 {
     GetVersionResponse
     ReconfigurationErrorMsg
     AddRemoveStatusResponse
+    AddRemoveWithWedgeStatusResponse
   } response
   bytes additional_data
 }
