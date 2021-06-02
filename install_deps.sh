@@ -188,17 +188,17 @@ wget ${WGET_FLAGS} \
 
 cd ${HOME}
 wget ${WGET_FLAGS} \
-    https://github.com/opentracing/opentracing-cpp/archive/v1.5.0.tar.gz && \
-    tar -xzf v1.5.0.tar.gz && \
-    rm v1.5.0.tar.gz && \
-    cd opentracing-cpp-1.5.0 && \
+    https://github.com/opentracing/opentracing-cpp/archive/v1.6.0.tar.gz && \
+    tar -xzf v1.6.0.tar.gz && \
+    rm v1.6.0.tar.gz && \
+    cd opentracing-cpp-1.6.0 && \
     mkdir build && \
     cd build && \
     cmake .. && \
     make -j$(nproc) && \
     make install && \
     cd ../.. && \
-    rm -r opentracing-cpp-1.5.0
+    rm -r opentracing-cpp-1.6.0
 
 # ASIO only (without boost). This allows us to upgrade ASIO independently.
 cd ${HOME}
