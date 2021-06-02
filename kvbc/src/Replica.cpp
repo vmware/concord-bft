@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "ReplicaImp.h"
+#include "Replica.h"
 #include <inttypes.h>
 #include <algorithm>
 #include <cassert>
@@ -41,8 +41,8 @@ namespace concord::kvbc {
  * Opens the database and creates the replica thread. Replica state moves to
  * Starting.
  */
-Status ReplicaImp::start() {
-  LOG_INFO(logger, "ReplicaImp::Start() id = " << replicaConfig_.replicaId);
+Status Replica::start() {
+  LOG_INFO(logger, "Replica::Start() id = " << replicaConfig_.replicaId);
 
   if (m_currentRepStatus != RepStatus::Idle) {
     return Status::IllegalOperation("todo");
@@ -68,7 +68,7 @@ Status ReplicaImp::start() {
   return Status::OK();
 }
 
-void ReplicaImp::createReplicaAndSyncState() {
+void Replica::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
@@ -102,18 +102,18 @@ void ReplicaImp::createReplicaAndSyncState() {
 /**
  * Closes the database. Call `wait()` after this to wait for thread to stop.
  */
-Status ReplicaImp::stop() {
+Status Replica::stop() {
   m_currentRepStatus = RepStatus::Stopping;
   m_replicaPtr->stop();
   m_currentRepStatus = RepStatus::Idle;
   return Status::OK();
 }
 
-ReplicaImp::RepStatus ReplicaImp::getReplicaStatus() const { return m_currentRepStatus; }
+Replica::RepStatus Replica::getReplicaStatus() const { return m_currentRepStatus; }
 
-const IReader &ReplicaImp::getReadOnlyStorage() const { return *this; }
+const IReader &Replica::getReadOnlyStorage() const { return *this; }
 
-BlockId ReplicaImp::addBlockToIdleReplica(categorization::Updates &&updates) {
+BlockId Replica::addBlockToIdleReplica(categorization::Updates &&updates) {
   if (getReplicaStatus() != IReplica::RepStatus::Idle) {
     throw std::logic_error{"addBlockToIdleReplica() called on a non-idle replica"};
   }
@@ -121,7 +121,7 @@ BlockId ReplicaImp::addBlockToIdleReplica(categorization::Updates &&updates) {
   return m_kvBlockchain->addBlock(std::move(updates));
 }
 
-void ReplicaImp::deleteGenesisBlock() {
+void Replica::deleteGenesisBlock() {
   const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
   if (genesisBlock == 0) {
     throw std::logic_error{"Cannot delete the genesis block from an empty blockchain"};
@@ -129,7 +129,7 @@ void ReplicaImp::deleteGenesisBlock() {
   m_kvBlockchain->deleteBlock(genesisBlock);
 }
 
-BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
+BlockId Replica::deleteBlocksUntil(BlockId until) {
   const auto genesisBlock = m_kvBlockchain->getGenesisBlockId();
   if (genesisBlock == 0) {
     throw std::logic_error{"Cannot delete a block range from an empty blockchain"};
@@ -145,69 +145,68 @@ BlockId ReplicaImp::deleteBlocksUntil(BlockId until) {
   return lastDeletedBlock;
 }
 
-BlockId ReplicaImp::add(categorization::Updates &&updates) { return m_kvBlockchain->addBlock(std::move(updates)); }
+BlockId Replica::add(categorization::Updates &&updates) { return m_kvBlockchain->addBlock(std::move(updates)); }
 
-std::optional<categorization::Value> ReplicaImp::get(const std::string &category_id,
-                                                     const std::string &key,
-                                                     BlockId block_id) const {
+std::optional<categorization::Value> Replica::get(const std::string &category_id,
+                                                  const std::string &key,
+                                                  BlockId block_id) const {
   return m_kvBlockchain->get(category_id, key, block_id);
 }
 
-std::optional<categorization::Value> ReplicaImp::getLatest(const std::string &category_id,
-                                                           const std::string &key) const {
+std::optional<categorization::Value> Replica::getLatest(const std::string &category_id, const std::string &key) const {
   return m_kvBlockchain->getLatest(category_id, key);
 }
 
-void ReplicaImp::multiGet(const std::string &category_id,
-                          const std::vector<std::string> &keys,
-                          const std::vector<BlockId> &versions,
-                          std::vector<std::optional<categorization::Value>> &values) const {
+void Replica::multiGet(const std::string &category_id,
+                       const std::vector<std::string> &keys,
+                       const std::vector<BlockId> &versions,
+                       std::vector<std::optional<categorization::Value>> &values) const {
   return m_kvBlockchain->multiGet(category_id, keys, versions, values);
 }
 
-void ReplicaImp::multiGetLatest(const std::string &category_id,
-                                const std::vector<std::string> &keys,
-                                std::vector<std::optional<categorization::Value>> &values) const {
+void Replica::multiGetLatest(const std::string &category_id,
+                             const std::vector<std::string> &keys,
+                             std::vector<std::optional<categorization::Value>> &values) const {
   return m_kvBlockchain->multiGetLatest(category_id, keys, values);
 }
 
-std::optional<categorization::TaggedVersion> ReplicaImp::getLatestVersion(const std::string &category_id,
-                                                                          const std::string &key) const {
+std::optional<categorization::TaggedVersion> Replica::getLatestVersion(const std::string &category_id,
+                                                                       const std::string &key) const {
   return m_kvBlockchain->getLatestVersion(category_id, key);
 }
 
-void ReplicaImp::multiGetLatestVersion(const std::string &category_id,
-                                       const std::vector<std::string> &keys,
-                                       std::vector<std::optional<categorization::TaggedVersion>> &versions) const {
+void Replica::multiGetLatestVersion(const std::string &category_id,
+                                    const std::vector<std::string> &keys,
+                                    std::vector<std::optional<categorization::TaggedVersion>> &versions) const {
   return m_kvBlockchain->multiGetLatestVersion(category_id, keys, versions);
 }
 
-std::optional<categorization::Updates> ReplicaImp::getBlockUpdates(BlockId block_id) const {
+std::optional<categorization::Updates> Replica::getBlockUpdates(BlockId block_id) const {
   return m_kvBlockchain->getBlockUpdates(block_id);
 }
 
-BlockId ReplicaImp::getGenesisBlockId() const {
+BlockId Replica::getGenesisBlockId() const {
   if (replicaConfig_.isReadOnly) return m_bcDbAdapter->getGenesisBlockId();
   return m_kvBlockchain->getGenesisBlockId();
 }
 
-BlockId ReplicaImp::getLastBlockId() const {
+BlockId Replica::getLastBlockId() const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->getLastReachableBlockId();
   }
   return m_kvBlockchain->getLastReachableBlockId();
 }
 
-void ReplicaImp::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
+void Replica::set_command_handler(std::shared_ptr<ICommandsHandler> handler) { m_cmdHandler = handler; }
 
-ReplicaImp::ReplicaImp(ICommunication *comm,
-                       const bftEngine::ReplicaConfig &replicaConfig,
-                       std::unique_ptr<IStorageFactory> storageFactory,
-                       std::shared_ptr<concordMetrics::Aggregator> aggregator,
-                       const std::shared_ptr<concord::performance::PerformanceManager> &pm,
-                       std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
-                       const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager)
-    : logger(logging::getLogger("skvbc.replicaImp")),
+Replica::Replica(ICommunication *comm,
+                 const bftEngine::ReplicaConfig &replicaConfig,
+                 std::unique_ptr<IStorageFactory> storageFactory,
+                 std::shared_ptr<concordMetrics::Aggregator> aggregator,
+                 const std::shared_ptr<concord::performance::PerformanceManager> &pm,
+                 std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
+                 const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager)
+    : logger(logging::getLogger("skvbc.replica")),
       m_currentRepStatus(RepStatus::Idle),
       m_dbSet{storageFactory->newDatabaseSet()},
       m_bcDbAdapter{std::move(m_dbSet.dbAdapter)},
@@ -288,7 +287,7 @@ ReplicaImp::ReplicaImp(ICommunication *comm,
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
 }
 
-ReplicaImp::~ReplicaImp() {
+Replica::~Replica() {
   if (m_replicaPtr) {
     if (m_replicaPtr->isRunning()) {
       m_replicaPtr->stop();
@@ -300,7 +299,7 @@ ReplicaImp::~ReplicaImp() {
  * This method can't return false by current insertBlockInternal impl.
  * It is used only by State Transfer to synchronize state between replicas.
  */
-bool ReplicaImp::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
   if (replicaConfig_.isReadOnly) {
     return putBlockToObjectStore(blockId, blockData, blockSize);
   }
@@ -326,7 +325,7 @@ bool ReplicaImp::putBlock(const uint64_t blockId, const char *blockData, const u
   return true;
 }
 
-bool ReplicaImp::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
   Sliver block = Sliver::copy(blockData, blockSize);
 
   if (m_bcDbAdapter->hasBlock(blockId)) {
@@ -351,16 +350,16 @@ bool ReplicaImp::putBlockToObjectStore(const uint64_t blockId, const char *block
   return true;
 }
 
-uint64_t ReplicaImp::getLastReachableBlockNum() const {
+uint64_t Replica::getLastReachableBlockNum() const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->getLastReachableBlockId();
   }
   return m_kvBlockchain->getLastReachableBlockId();
 }
 
-uint64_t ReplicaImp::getGenesisBlockNum() const { return getGenesisBlockId(); }
+uint64_t Replica::getGenesisBlockNum() const { return getGenesisBlockId(); }
 
-uint64_t ReplicaImp::getLastBlockNum() const {
+uint64_t Replica::getLastBlockNum() const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->getLatestBlockId();
   }
@@ -371,13 +370,13 @@ uint64_t ReplicaImp::getLastBlockNum() const {
   return m_kvBlockchain->getLastReachableBlockId();
 }
 
-RawBlock ReplicaImp::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
+RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter->getRawBlock(blockId); }
 
 /*
  * This method assumes that *outBlock is big enough to hold block content
  * The caller is the owner of the memory
  */
-bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
   if (replicaConfig_.isReadOnly) {
     return getBlockFromObjectStore(blockId, outBlock, outBlockSize);
   }
@@ -392,7 +391,7 @@ bool ReplicaImp::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSi
   return true;
 }
 
-bool ReplicaImp::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+bool Replica::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
   try {
     RawBlock block = getBlockInternal(blockId);
     *outBlockSize = block.length();
@@ -404,14 +403,14 @@ bool ReplicaImp::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint3
   }
 }
 
-bool ReplicaImp::hasBlock(BlockId blockId) const {
+bool Replica::hasBlock(BlockId blockId) const {
   if (replicaConfig_.isReadOnly) {
     return m_bcDbAdapter->hasBlock(blockId);
   }
   return m_kvBlockchain->hasBlock(blockId);
 }
 
-bool ReplicaImp::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
+bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPrevBlockDigest) {
   if (replicaConfig_.isReadOnly) {
     return getPrevDigestFromObjectStoreBlock(blockId, outPrevBlockDigest);
   }
@@ -424,8 +423,8 @@ bool ReplicaImp::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *ou
   return true;
 }
 
-bool ReplicaImp::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
-                                                   bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) {
+bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
+                                                bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) {
   ConcordAssert(blockId > 0);
   try {
     const auto rawBlockSer = m_bcDbAdapter->getRawBlock(blockId);
