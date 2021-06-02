@@ -21,7 +21,7 @@ class IInternalBFTClient {
   virtual ~IInternalBFTClient() {}
   virtual NodeIdType getClientId() const = 0;
   // Returns the sent client request sequence number.
-  virtual uint64_t sendRequest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) = 0;
+  virtual uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid) = 0;
   virtual uint32_t numOfConnectedReplicas(uint32_t clusterSize) = 0;
   virtual bool isUdp() const = 0;
 };
@@ -30,7 +30,7 @@ class InternalBFTClient : public IInternalBFTClient {
  public:
   InternalBFTClient(const int& id, const NodeIdType& nonInternalNum, std::shared_ptr<MsgsCommunicator>& msgComm);
   inline NodeIdType getClientId() const { return repID_ + startIdForInternalClient_; };
-  uint64_t sendRequest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid);
+  uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid);
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return msgComm_->numOfConnectedReplicas(clusterSize); }
   bool isUdp() const { return msgComm_->isUdp(); }
 

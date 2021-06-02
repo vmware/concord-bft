@@ -20,7 +20,7 @@ InternalBFTClient::InternalBFTClient(const int& id,
                                      std::shared_ptr<MsgsCommunicator>& msgComm)
     : repID_(id), startIdForInternalClient_(nonInternalNum + 1), msgComm_(msgComm) {}
 
-uint64_t InternalBFTClient::sendRequest(uint8_t flags,
+uint64_t InternalBFTClient::sendRequest(uint64_t flags,
                                         uint32_t requestLength,
                                         const char* request,
                                         const std::string& cid) {

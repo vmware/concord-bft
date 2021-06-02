@@ -42,7 +42,7 @@ class ClientRequestMsgTestFixture : public ::testing::Test {
 
 TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
   NodeIdType senderId = 1u;
-  uint8_t flags = 'F';
+  uint64_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
@@ -72,7 +72,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare) {
 
 TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
   NodeIdType senderId = 1u;
-  uint8_t flags = 'F';
+  uint64_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
@@ -101,7 +101,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_span) {
 
 TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
   NodeIdType senderId = 1u;
-  uint8_t flags = 'F';
+  uint64_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
@@ -131,7 +131,7 @@ TEST_F(ClientRequestMsgTestFixture, create_and_compare_with_empty_cid) {
 
 TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
   NodeIdType senderId = 1u;
-  uint8_t flags = 'F';
+  uint64_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;
@@ -163,7 +163,7 @@ TEST_F(ClientRequestMsgTestFixture, create_from_buffer) {
 
 TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
   NodeIdType senderId = 1u;
-  uint8_t flags = MsgFlag::TIME_SERVICE_FLAG;
+  uint64_t flags = MsgFlag::TIME_SERVICE_FLAG;
   uint64_t reqSeqNum = 100u;
   auto millis = std::chrono::system_clock::now().time_since_epoch();
   auto request = concord::util::serialize(millis.count());
@@ -200,7 +200,7 @@ TEST_F(ClientRequestMsgTestFixture, test_with_timestamp) {
 
 TEST_F(ClientRequestMsgTestFixture, base_methods) {
   NodeIdType senderId = 1u;
-  uint8_t flags = 'F';
+  uint64_t flags = 'F';
   uint64_t reqSeqNum = 100u;
   const char request[] = {"request body"};
   const uint64_t requestTimeoutMilli = 0;

@@ -50,7 +50,7 @@ struct InternalBFTClientMock : public IInternalBFTClient {
   NodeIdType getClientId() const override { return 42; }
 
   // Returns the sent client request sequence number.
-  uint64_t sendRequest(uint8_t flags, uint32_t size, const char* request, const std::string& cid) override {
+  uint64_t sendRequest(uint64_t flags, uint32_t size, const char* request, const std::string& cid) override {
     auto seq_num = 0;
     if (!requests_.empty()) {
       seq_num = std::prev(requests_.cend())->first + 1;
@@ -65,7 +65,7 @@ struct InternalBFTClientMock : public IInternalBFTClient {
   bool isUdp() const override { return false; }
 
   struct Request {
-    uint8_t flags{0};
+    uint64_t flags{0};
     std::vector<uint8_t> contents;
     std::string cid;
 
