@@ -195,7 +195,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
     # @unittest.skip("Edge case scenario - not part of CI")
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f == 2)
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_view_change_with_f_replicas_collected_stable_checkpoint(self, bft_network):
         """
         The goal of this test is to leave the system with F Replicas that have collected a Stable Checkpoint and to
@@ -248,7 +248,6 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
         bft_network.stop_replica(1)
         bft_network.stop_replica(2)
 
-        await write_req()
         last_stable_seqs = []
 
         # step 4
