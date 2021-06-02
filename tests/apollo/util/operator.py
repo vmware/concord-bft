@@ -108,10 +108,10 @@ class Operator:
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
     
-    def _construct_reconfiguration_addRemoveWithWedge_coammand(self, new_config):
+    def _construct_reconfiguration_addRemoveWithWedge_coammand(self, new_config, bft=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
-        addRemove_command.sender_id = 1000
-        addRemove_command.reconfiguration = new_config
+        addRemove_command.config_descriptor = new_config
+        addRemove_command.bft = bft
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemove_command
         reconf_msg.additional_data = bytes()
@@ -129,6 +129,15 @@ class Operator:
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
 
+    def _construct_reconfiguration_addRemoveWithWedgeStatus_coammand(self):
+        addRemoveStatus_command = cmf_msgs.AddRemoveWithWedgeStatus()
+        addRemoveStatus_command.sender_id = 1000
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.command = addRemoveStatus_command
+        reconf_msg.additional_data = bytes()
+        reconf_msg.signature = bytes(0)
+        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        return reconf_msg
 
     async def wedge(self):
         reconf_msg = self._construct_reconfiguration_wedge_coammand()
@@ -165,12 +174,18 @@ class Operator:
         reconf_msg = self._construct_reconfiguration_addRemove_coammand(new_config)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
-    async def add_remove_with_wedge(self, new_config):
-        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_coammand(new_config)
+    async def add_remove_with_wedge(self, new_config, bft=True):
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_coammand(new_config, bft)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def add_remove_status(self):
         reconf_msg = self._construct_reconfiguration_addRemoveStatus_coammand()
-        return await self.client.read(reconf_msg.serialize(),
-                          m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
-                              self.config.n)]), reconfiguration=True)
+        return await self.client.read(reconf_msg.serialize(), 
+                                m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
+                                self.config.n)]), reconfiguration=True)
+    
+    async def add_remove_with_wedge_status(self, quorum=None):
+        if quorum is None:
+            quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_coammand()
+        return await self.client.read(reconf_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)

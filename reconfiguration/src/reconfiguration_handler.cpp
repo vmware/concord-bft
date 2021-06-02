@@ -57,15 +57,20 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
 
   return true;
 }
-bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand&,
+bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,
                                     uint64_t bft_seq_num,
                                     concord::messages::ReconfigurationResponse&) {
-  LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at sequence number " << bft_seq_num);
+  LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
-  bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-      [=]() { bftEngine::ControlStateManager::instance().setEraseMetadataFlag(bft_seq_num); });
+  if (command.bft) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().setEraseMetadataFlag(bft_seq_num); });
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().setEraseMetadataFlag(bft_seq_num); });
+  }
   return true;
-}
+}  // namespace concord::reconfiguration
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
