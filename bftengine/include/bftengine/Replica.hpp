@@ -33,7 +33,7 @@ class ISecretsManagerImpl;
 
 namespace bftEngine {
 // Possible values for 'flags' parameter
-enum MsgFlag : uint8_t {
+enum MsgFlag : uint64_t {
   EMPTY_FLAGS = 0x0,
   READ_ONLY_FLAG = 0x1,
   PRE_PROCESS_FLAG = 0x2,
