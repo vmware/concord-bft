@@ -123,6 +123,19 @@ void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<Ou
   }
 }
 
+void ConnectionManager::send(const std::set<NodeNum>& destinations, const std::shared_ptr<OutgoingMsg>& msg) {
+  auto max_size = config_.bufferLength - MSG_HEADER_SIZE;
+  if (msg->payload_size() > max_size) {
+    status_->total_messages_dropped++;
+    LOG_ERROR(logger_, "Msg Dropped. Size exceeds max message size: " << KVLOG(msg->payload_size(), max_size));
+    return;
+  }
+  {
+    concord::diagnostics::TimeRecorder<true> scoped_timer(*histograms_.send_post_to_mgr);
+    asio::post(strand_, [this, destinations, msg]() { handleSend(destinations, msg); });
+  }
+}
+
 void ConnectionManager::handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg> msg) {
   auto it = connections_.find(destination);
   if (it != connections_.end()) {
@@ -130,6 +143,19 @@ void ConnectionManager::handleSend(const NodeNum destination, std::shared_ptr<Ou
     status_->total_messages_sent++;
   } else {
     status_->total_messages_dropped++;
+  }
+}
+
+void ConnectionManager::handleSend(const std::set<NodeNum>& destinations, const std::shared_ptr<OutgoingMsg>& msg) {
+  for (auto destination : destinations) {
+    auto it = connections_.find(destination);
+    if (it != connections_.end()) {
+      auto cheap_copy = msg;
+      it->second->send(std::move(cheap_copy));
+      status_->total_messages_sent++;
+    } else {
+      status_->total_messages_dropped++;
+    }
   }
 }
 

@@ -43,6 +43,7 @@ class ConnectionManager {
   ConnectionStatus getCurrentConnectionStatus(const NodeNum node) const;
   void setReceiver(NodeNum nodeId, IReceiver *receiver);
   void send(const NodeNum destination, const std::shared_ptr<OutgoingMsg> &msg);
+  void send(const std::set<NodeNum> &destinations, const std::shared_ptr<OutgoingMsg> &msg);
   int getMaxMessageSize() const;
 
  private:
@@ -107,6 +108,7 @@ class ConnectionManager {
   // strand so it can lookup a connection and send it a message. This strategy avoids the need to
   // take a lock over connections_.
   void handleSend(const NodeNum destination, std::shared_ptr<OutgoingMsg> msg);
+  void handleSend(const std::set<NodeNum> &destinations, const std::shared_ptr<OutgoingMsg> &msg);
 
   // Answer connection status requests from other threads
   // Returns true in the promise if the destination is connected, false otherwise.

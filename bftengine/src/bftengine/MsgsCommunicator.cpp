@@ -53,6 +53,10 @@ int MsgsCommunicator::sendAsyncMessage(NodeNum destNode, char* message, size_t m
   return communication_->send(destNode, std::vector<uint8_t>(message, message + messageLength));
 }
 
+void MsgsCommunicator::send(std::set<NodeNum> dests, char* message, size_t messageLength) {
+  communication_->send(std::move(dests), std::vector<uint8_t>(message, message + messageLength));
+}
+
 uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
   uint32_t ret{0};
   for (uint32_t i = 0; i < clusterSize; ++i) {
