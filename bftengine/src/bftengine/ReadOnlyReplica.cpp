@@ -20,9 +20,7 @@
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "PersistentStorage.hpp"
-#include "ClientsManager.hpp"
 #include "MsgsCommunicator.hpp"
-#include "KeyStore.h"
 #include "SigManager.hpp"
 
 using concordUtil::Timers;
@@ -39,19 +37,15 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
-                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
-      config_(config) {
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
+  LOG_INFO(GL, "");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
   msgHandlers_->registerMsgHandler(
       MsgCode::ClientRequest, bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
   metrics_.Register();
-  // must be initialized although is not used by ReadOnlyReplica for proper behavior of StateTransfer
-  ClientsManager::setNumResPages(
-      (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
-      ClientsManager::reservedPagesPerClient(config.sizeOfReservedPage, config.maxReplyMessageSize));
-  ClusterKeyStore::setNumResPages(config.numReplicas);
+
   sigManager_.reset(SigManager::init(config_.replicaId,
                                      config_.replicaPrivateKey,
                                      config_.publicKeysOfReplicas,
