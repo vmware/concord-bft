@@ -103,12 +103,14 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                            metricsComponent_.RegisterCounter("preProcReqCompleted"),
                            metricsComponent_.RegisterCounter("preProcReqRetried"),
                            metricsComponent_.RegisterAtomicGauge("preProcessingTimeAvg", 0),
+                           metricsComponent_.RegisterAtomicGauge("launchAsyncPreProcessJobTimeAvg", 0),
                            metricsComponent_.RegisterAtomicGauge("PreProcInFlyRequestsNum", 0)},
       totalPreProcessingTime_(true),
+      launchAsyncJobTimeAvg_(true),
       preExecReqStatusCheckPeriodMilli_(myReplica_.getReplicaConfig().preExecReqStatusCheckTimerMillisec),
       timers_{timers},
-      recorder_{histograms_.totalPreExecutionDuration},
-      lastViewNum_(myReplica.getCurrentView()),
+      totalPreExecDurationRecorder_{histograms_.totalPreExecutionDuration},
+      launchAsyncPreProcessJobRecorder_{histograms_.launchAsyncPreProcessJob},
       pm_{pm} {
   registerMsgHandlers();
   metricsComponent_.Register();
@@ -537,9 +539,9 @@ void PreProcessor::onMessage<PreProcessRequestMsg>(PreProcessRequestMsg *msg) {
   }
   if (registerSucceeded) {
     preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();  // Increase the metric on non-primary replica
-    auto time_recorder = TimeRecorder(*recorder_.get());
+    auto totalPreExecDurationRecorder = TimeRecorder(*totalPreExecDurationRecorder_.get());
     // Pre-process the request, calculate a hash of the result and send a reply back
-    launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false, std::move(time_recorder));
+    launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false, std::move(totalPreExecDurationRecorder));
   }
 }
 
@@ -903,7 +905,7 @@ void PreProcessor::handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSh
   const auto &reqSeqNum = preProcessRequestMsg->reqSeqNum();
   const auto &clientId = preProcessRequestMsg->clientId();
   const auto &senderId = preProcessRequestMsg->senderId();
-  auto time_recorder = TimeRecorder(*recorder_.get());
+  auto time_recorder = TimeRecorder(*totalPreExecDurationRecorder_.get());
   LOG_INFO(logger(),
            "Start request processing by a primary replica"
                << KVLOG(reqSeqNum, preProcessRequestMsg->getCid(), clientId, senderId));
@@ -990,9 +992,15 @@ void PreProcessor::setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffse
 void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                                   bool isPrimary,
                                                   bool isRetry,
-                                                  TimeRecorder &&time_recorder) {
+                                                  TimeRecorder &&totalPreExecDurationRecorder) {
+  auto launchAsyncPreProcessJobRecorder = TimeRecorder(*launchAsyncPreProcessJobRecorder_.get());
   setPreprocessingRightNow(preProcessReqMsg->clientId(), preProcessReqMsg->reqOffsetInBatch(), true);
-  auto *preProcessJob = new AsyncPreProcessJob(*this, preProcessReqMsg, isPrimary, isRetry, std::move(time_recorder));
+  auto *preProcessJob = new AsyncPreProcessJob(*this,
+                                               preProcessReqMsg,
+                                               isPrimary,
+                                               isRetry,
+                                               std::move(totalPreExecDurationRecorder),
+                                               std::move(launchAsyncPreProcessJobRecorder));
   threadPool_.add(preProcessJob);
 }
 
@@ -1055,6 +1063,7 @@ PreProcessingResult PreProcessor::handlePreProcessedReqByPrimaryAndGetConsensusR
 void PreProcessor::handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
                                                      uint16_t reqOffsetInBatch,
                                                      uint32_t resultBufLen) {
+  concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqPrimaryRetry);
   if (handlePreProcessedReqByPrimaryAndGetConsensusResult(clientId, reqOffsetInBatch, resultBufLen) == COMPLETE)
     finalizePreProcessing(clientId, reqOffsetInBatch);
   else
@@ -1133,21 +1142,32 @@ AsyncPreProcessJob::AsyncPreProcessJob(PreProcessor &preProcessor,
                                        const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                        bool isPrimary,
                                        bool isRetry,
-                                       TimeRecorder &&time_recorder)
+                                       TimeRecorder &&totalPreExecDurationRecorder,
+                                       TimeRecorder &&launchAsyncPreProcessJobRecorder)
     : preProcessor_(preProcessor),
       preProcessReqMsg_(preProcessReqMsg),
       isPrimary_(isPrimary),
       isRetry_(isRetry),
-      time_recorder_(std::move(time_recorder)) {}
+      totalJobDurationRecorder_(std::move(totalPreExecDurationRecorder)),
+      launchAsyncPreProcessJobRecorder_(std::move(launchAsyncPreProcessJobRecorder)) {}
 
 void AsyncPreProcessJob::execute() {
+  const auto launchAsyncJobDurationInMs = launchAsyncPreProcessJobRecorder_.wrapUpRecording() / 1000000;
+  preProcessor_.launchAsyncJobTimeAvg_.add((double)launchAsyncJobDurationInMs);
+  preProcessor_.preProcessorMetrics_.launchAsyncPreProcessJobTimeAvg.Get().Set(
+      (uint64_t)preProcessor_.launchAsyncJobTimeAvg_.avg());
+  if (preProcessor_.launchAsyncJobTimeAvg_.numOfElements() == resetFrequency_) {
+    LOG_DEBUG(preProcessor_.logger(),
+              "Launch async job average duration in ms" << KVLOG(preProcessor_.launchAsyncJobTimeAvg_.avg()));
+    preProcessor_.launchAsyncJobTimeAvg_.reset();
+  }
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(preProcessor_.myReplicaId_));
   MDC_PUT(MDC_THREAD_KEY, "async-preprocess");
   preProcessor_.handleReqPreProcessingJob(preProcessReqMsg_, isPrimary_, isRetry_);
 }
 
 void AsyncPreProcessJob::release() {
-  const auto preExecDurationInMs = time_recorder_.wrapUpRecording() / 1000000;
+  const auto preExecDurationInMs = totalJobDurationRecorder_.wrapUpRecording() / 1000000;
   preProcessor_.totalPreProcessingTime_.add((double)preExecDurationInMs);
   preProcessor_.preProcessorMetrics_.preProcessingTimeAvg.Get().Set(
       (uint64_t)preProcessor_.totalPreProcessingTime_.avg());

@@ -134,7 +134,7 @@ class PreProcessor {
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       bool isPrimary,
                                       bool isRetry,
-                                      TimeRecorder &&time_recorder = TimeRecorder());
+                                      TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
   uint32_t launchReqPreProcessing(uint16_t clientId,
                                   uint16_t reqOffsetInBatch,
                                   const std::string &cid,
@@ -233,16 +233,18 @@ class PreProcessor {
     concordMetrics::CounterHandle preProcReqCompleted;
     concordMetrics::CounterHandle preProcReqRetried;
     concordMetrics::AtomicGaugeHandle preProcessingTimeAvg;
+    concordMetrics::AtomicGaugeHandle launchAsyncPreProcessJobTimeAvg;
     concordMetrics::AtomicGaugeHandle preProcInFlyRequestsNum;
   } preProcessorMetrics_;
   bftEngine::impl::RollingAvgAndVar totalPreProcessingTime_;
+  bftEngine::impl::RollingAvgAndVar launchAsyncJobTimeAvg_;
   concordUtil::Timers::Handle requestsStatusCheckTimer_;
   concordUtil::Timers::Handle metricsTimer_;
   const uint64_t preExecReqStatusCheckPeriodMilli_;
   concordUtil::Timers &timers_;
   PreProcessorRecorder histograms_;
-  std::shared_ptr<concord::diagnostics::Recorder> recorder_;
-  ViewNum lastViewNum_;
+  std::shared_ptr<concord::diagnostics::Recorder> totalPreExecDurationRecorder_;
+  std::shared_ptr<concord::diagnostics::Recorder> launchAsyncPreProcessJobRecorder_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
 
@@ -256,7 +258,8 @@ class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
                      const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                      bool isPrimary,
                      bool isRetry,
-                     TimeRecorder &&time_recorder);
+                     TimeRecorder &&totalPreExecDurationRecorder,
+                     TimeRecorder &&launchAsyncPreProcessJobRecorder);
   virtual ~AsyncPreProcessJob() = default;
 
   void execute() override;
@@ -268,7 +271,8 @@ class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
   PreProcessRequestMsgSharedPtr preProcessReqMsg_;
   bool isPrimary_ = false;
   bool isRetry_ = false;
-  TimeRecorder time_recorder_;
+  TimeRecorder totalJobDurationRecorder_;
+  TimeRecorder launchAsyncPreProcessJobRecorder_;
 };
 
 }  // namespace preprocessor
