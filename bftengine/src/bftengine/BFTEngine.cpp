@@ -26,7 +26,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <stdio.h>
+#include <cstdio>
 
 bftEngine::IReservedPages *bftEngine::ReservedPagesClientBase::res_pages_ = nullptr;
 
