@@ -12,11 +12,13 @@
 #pragma once
 
 #include "ReservedPagesClient.hpp"
+#include "ReservedPagesClientIndex.hpp"
 #include <chrono>
 
 namespace bftEngine {
 using ConsensusTime = std::chrono::milliseconds;
-class TimeServiceResPageClient : private ResPagesClient<TimeServiceResPageClient, 3, 1> {
+class TimeServiceResPageClient
+    : private ResPagesClient<TimeServiceResPageClient, ReservedPagesClientIndex::kTimeService, 1> {
  public:
   TimeServiceResPageClient();
   ~TimeServiceResPageClient() = default;

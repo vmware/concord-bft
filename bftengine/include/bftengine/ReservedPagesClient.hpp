@@ -22,6 +22,7 @@
 #include <vector>
 #include <iostream>
 #include "demangle.hpp"
+#include "ReservedPagesClientIndex.hpp"
 
 namespace bftEngine {
 
@@ -37,7 +38,7 @@ class ReservedPagesClientBase {
 
  protected:
   // [idx, typeid, numberOfPages]
-  typedef std::vector<std::tuple<std::uint8_t, std::type_index, std::uint32_t>> Registry;
+  typedef std::vector<std::tuple<ReservedPagesClientIndex, std::type_index, std::uint32_t>> Registry;
 
   static Registry& registry() {
     static Registry registry_;
@@ -51,10 +52,10 @@ class ReservedPagesClientBase {
  *
  * Become a Reserved Pages client by sub-classing:
  * class MyClass: public ResPagesClient<MyClass, idx, requiredNumberOfPages> {};
- * where idx is a unique integer used for dividing a reserved pages space into sub-spaces.
+ * where idx is a unique identifier used for dividing a reserved pages space into sub-spaces.
  * If requiredNumberOfPages is not known at compile time call setNumResPages(requiredNumberOfPages).
  */
-template <typename T, uint8_t Idx, uint32_t NumPages = 0>
+template <typename T, ReservedPagesClientIndex Idx, uint32_t NumPages = 0>
 class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
  public:
   ResPagesClient() { (void)registered_; }
@@ -122,7 +123,7 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
   static bool registered_;
 };
 // static registration
-template <typename T, uint8_t Idx, uint32_t NumPages>
+template <typename T, ReservedPagesClientIndex Idx, uint32_t NumPages>
 bool ResPagesClient<T, Idx, NumPages>::registered_ = ResPagesClient<T, Idx, NumPages>::registerT();
 
 }  // namespace bftEngine

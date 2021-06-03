@@ -13,6 +13,7 @@
 #include "Serializable.h"
 #include "IReservedPages.hpp"
 #include "ReservedPagesClient.hpp"
+#include "ReservedPagesClientIndex.hpp"
 #include "KeyExchangeMsg.hpp"
 #include <map>
 #include <optional>
@@ -23,7 +24,7 @@ typedef int64_t SeqNum;  // TODO [TK] redefinition
 /**
  *  Holds and persists public keys of all replicas.
  */
-class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
+class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, ReservedPagesClientIndex::kClusterKeyStore> {
  public:
   /**
    * Persistent public keys store

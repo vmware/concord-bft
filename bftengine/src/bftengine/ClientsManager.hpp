@@ -14,6 +14,7 @@
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
 #include "bftengine/ReservedPagesClient.hpp"
+#include "bftengine/ReservedPagesClientIndex.hpp"
 #include "Metrics.hpp"
 #include "IPendingRequest.hpp"
 #include <map>
@@ -28,7 +29,8 @@ namespace impl {
 class ClientReplyMsg;
 class ClientRequestMsg;
 
-class ClientsManager : public ResPagesClient<ClientsManager, 0>, public IPendingRequest {
+class ClientsManager : public ResPagesClient<ClientsManager, ReservedPagesClientIndex::kClientsManager>,
+                       public IPendingRequest {
  public:
   ClientsManager(concordMetrics::Component& metrics, std::set<NodeIdType>& clientsSet);
   ~ClientsManager();

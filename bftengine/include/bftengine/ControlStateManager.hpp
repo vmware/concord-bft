@@ -15,6 +15,7 @@
 #include <optional>
 #include "IStateTransfer.hpp"
 #include "ReservedPagesClient.hpp"
+#include "ReservedPagesClientIndex.hpp"
 #include "Serializable.h"
 #include "SysConsts.hpp"
 
@@ -41,11 +42,10 @@ class ControlStatePage : public concord::serialize::SerializableFactory<ControlS
   }
 };
 
-static constexpr uint32_t ControlHandlerStateManagerReservedPagesIndex = 1;
 static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
 
 class ControlStateManager : public ResPagesClient<ControlStateManager,
-                                                  ControlHandlerStateManagerReservedPagesIndex,
+                                                  ReservedPagesClientIndex::kControlStateManager,
                                                   ControlHandlerStateManagerNumOfReservedPages> {
  public:
   static ControlStateManager& instance() {
