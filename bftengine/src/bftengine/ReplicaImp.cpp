@@ -4269,7 +4269,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     internalBFTClient_->sendRequest(
         RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
-    if ((BatchingPolicy)config_.batchingPolicy == BATCH_SELF_ADJUSTED) tryToSendPrePrepareMsg(false);
+    tryToSendPrePrepareMsg(false);
   }
 
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
