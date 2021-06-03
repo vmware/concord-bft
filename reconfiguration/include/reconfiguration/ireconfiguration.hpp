@@ -66,7 +66,17 @@ class IReconfigurationHandler {
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
+  virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
   virtual bool handle(const concord::messages::AddRemoveStatus&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
                       uint64_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;

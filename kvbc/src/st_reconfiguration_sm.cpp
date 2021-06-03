@@ -44,16 +44,14 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                               current_cp_num);
   handlerStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
                                                             current_cp_num);
+  handlerStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
+      std::string{kvbc::keyTypes::reconfiguration_add_remove}, current_cp_num);
 }
 template <typename T>
 bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint64_t current_cp_num) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
   if (res.has_value()) {
-    auto blockid =
-        ro_storage_
-            .getLatestVersion(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_wedge_key})
-            .value()
-            .version;
+    auto blockid = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key).value().version;
     auto seqNum = getStoredBftSeqNum(blockid);
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;

@@ -77,6 +77,16 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     LOG_INFO(getLogger(), "AddRemoveCommand command block is " << blockId);
     return true;
   }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse&) override {
+    std::vector<uint8_t> serialized_command;
+    concord::messages::serialize(serialized_command, command);
+    auto blockId = persistReconfigurationBlock(
+        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_add_remove});
+    LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
+    return true;
+  }
   bool handle(const concord::messages::AddRemoveStatus& command,
               uint64_t sequence_number,
               concord::messages::ReconfigurationResponse& response) override {
@@ -96,6 +106,30 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
       error_msg.error_msg = "key_not_found";
       response.response = std::move(error_msg);
       LOG_INFO(getLogger(), "AddRemoveCommand key not found");
+      return false;
+    }
+    return true;
+  }
+
+  bool handle(const concord::messages::AddRemoveWithWedgeStatus& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse& response) override {
+    auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
+                                     std::string{kvbc::keyTypes::reconfiguration_add_remove});
+    if (res.has_value()) {
+      auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
+      concord::messages::AddRemoveWithWedgeCommand cmd;
+      std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+      concord::messages::deserialize(bytesval, cmd);
+      concord::messages::AddRemoveWithWedgeStatusResponse addRemoveResponse;
+      addRemoveResponse.config_descriptor = cmd.config_descriptor;
+      LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand response: " << addRemoveResponse.config_descriptor);
+      response.response = std::move(addRemoveResponse);
+    } else {
+      concord::messages::ReconfigurationErrorMsg error_msg;
+      error_msg.error_msg = "key_not_found";
+      response.response = std::move(error_msg);
+      LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand key not found");
       return false;
     }
     return true;
