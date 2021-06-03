@@ -1192,7 +1192,7 @@ std::string ReplicaImp::getReplicaLastStableSeqNum() const {
 
   nested_data.insert(toPair(getName(lastStableSeqNum), lastStableSeqNum));
   result.insert(
-      toPair("Sequence Numbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+      toPair("sequenceNumbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
@@ -1203,9 +1203,9 @@ std::string ReplicaImp::getReplicaState() const {
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result, nested_data;
 
-  result.insert(toPair("Replica ID", std::to_string(getReplicasInfo().myId())));
+  result.insert(toPair("replicaID", std::to_string(getReplicasInfo().myId())));
 
-  result.insert(toPair("Primary ", std::to_string(primary)));
+  result.insert(toPair("primary", std::to_string(primary)));
 
   nested_data.insert(toPair(getName(viewChangeProtocolEnabled), viewChangeProtocolEnabled));
   nested_data.insert(toPair(getName(autoPrimaryRotationEnabled), autoPrimaryRotationEnabled));
@@ -1216,7 +1216,7 @@ std::string ReplicaImp::getReplicaState() const {
   nested_data.insert(toPair(getName(viewChangeTimerMilli), viewChangeTimerMilli));
   nested_data.insert(toPair(getName(autoPrimaryRotationTimerMilli), autoPrimaryRotationTimerMilli));
   result.insert(
-      toPair("View Change ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+      toPair("viewChange", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
 
   nested_data.insert(toPair(getName(primaryLastUsedSeqNum), primaryLastUsedSeqNum));
@@ -1229,7 +1229,7 @@ std::string ReplicaImp::getReplicaState() const {
   nested_data.insert(
       toPair(getName(lastViewThatTransferredSeqNumbersFullyExecuted), lastViewThatTransferredSeqNumbersFullyExecuted));
   result.insert(
-      toPair("Sequence Numbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+      toPair("sequenceNumbers", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
 
   nested_data.insert(toPair(getName(restarted_), restarted_));

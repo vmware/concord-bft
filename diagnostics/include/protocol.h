@@ -33,7 +33,7 @@ inline std::string usage() {
   usage += "        Get the status of the given key(s).\n\n";
   usage += "    status describe [KEY1] [KEY2]..[KEY_N]\n";
   usage += "        Get the description of the given keys, or all keys if none is given.\n\n";
-  usage += "    status list-keys\n";
+  usage += "    status list\n";
   usage += "        List all status keys.\n\n";
   usage += "  perf <COMMAND> [ARGS]\n\n";
   usage += "    perf get <COMPONENT> [HISTOGRAM]\n";
@@ -78,7 +78,7 @@ inline std::string run(const std::vector<std::string>& tokens, Registrar& regist
       });
     }
 
-    if (command == "list-keys") {
+    if (command == "list") {
       if (tokens.size() != 2) return usage();
       return registrar.status.listKeys();
     }
