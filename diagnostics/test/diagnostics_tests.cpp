@@ -97,7 +97,7 @@ TEST(diagnostics_tests, protocol) {
   ASSERT_EQ(0, std::memcmp("Usage:", run({"status", "bad_command"}, registrar).c_str(), 6));
 
   // Listing keys works
-  ASSERT_EQ(keylist, run({"status", "list-keys"}, registrar));
+  ASSERT_EQ(keylist, run({"status", "list"}, registrar));
 
   // Describing a status handler works
   ASSERT_EQ(async_handler_description + "\n", run({"status", "describe", async_handler_name}, registrar));

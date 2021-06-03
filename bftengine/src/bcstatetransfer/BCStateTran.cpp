@@ -685,7 +685,7 @@ std::string BCStateTran::getStatus() {
     nested_data.insert(toPair(std::to_string(id), seq_num));
   }
 
-  result.insert(toPair("LastMsgSequenceNumbers(ReplicaID:SeqNum)",
+  result.insert(toPair("lastMsgSequenceNumbers(ReplicaID:SeqNum)",
                        concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
 
@@ -699,17 +699,17 @@ std::string BCStateTran::getStatus() {
   nested_data.clear();
 
   if (isFetching()) {
-    nested_data.insert(STRPAIR(current_source));
-    nested_data.insert(STRPAIR(preferred_replicas));
-    nested_data.insert(STRPAIR(nextRequiredBlock_));
+    nested_data.insert(toPair("currentSource", current_source));
+    nested_data.insert(toPair("preferredReplicas", preferred_replicas));
+    nested_data.insert(toPair("nextRequiredBlock", nextRequiredBlock_));
     nested_data.insert(STRPAIR(totalSizeOfPendingItemDataMsgs));
-    result.insert(toPair("FetchingStateDetails",
+    result.insert(toPair("fetchingStateDetails",
                          concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
 
-    result.insert(toPair("CollectingDetails", logsForCollectingStatus(psd_->getFirstRequiredBlock())));
+    result.insert(toPair("collectingDetails", logsForCollectingStatus(psd_->getFirstRequiredBlock())));
   }
 
-  result.insert(toPair("GeneralStateTransferMetrics", metrics_component_.ToJson()));
+  result.insert(toPair("generalStateTransferMetrics", metrics_component_.ToJson()));
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
@@ -2036,18 +2036,18 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
   auto bytes_overall_r = bytes_collected_.getOverallResults();
 
   nested_data.insert(toPair(
-      "CollectRange", std::to_string(firstRequiredBlock) + ", " + std::to_string(first_collected_block_num_.value())));
-  nested_data.insert(toPair("LastCollectedBlock", nextRequiredBlock_));
-  nested_data.insert(toPair("BlocksLeft", (nextRequiredBlock_ - firstRequiredBlock)));
-  nested_data.insert(toPair("ElapsedTime", std::to_string(blocks_overall_r.elapsed_time_ms_) + " ms"));
-  nested_data.insert(toPair("Collected",
+      "collectRange", std::to_string(firstRequiredBlock) + ", " + std::to_string(first_collected_block_num_.value())));
+  nested_data.insert(toPair("lastCollectedBlock", nextRequiredBlock_));
+  nested_data.insert(toPair("blocksLeft", (nextRequiredBlock_ - firstRequiredBlock)));
+  nested_data.insert(toPair("elapsedTime", std::to_string(blocks_overall_r.elapsed_time_ms_) + " ms"));
+  nested_data.insert(toPair("collected",
                             std::to_string(blocks_overall_r.num_processed_items_) + " blk & " +
                                 std::to_string(bytes_overall_r.num_processed_items_) + " B"));
-  nested_data.insert(toPair("Thoughput",
+  nested_data.insert(toPair("thoughput",
                             std::to_string(blocks_overall_r.throughput_) + " blk/s & " +
                                 std::to_string(bytes_overall_r.throughput_) + " B/s"));
   result.insert(
-      toPair("OverallStats", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+      toPair("overallStats", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
 
   if (get_missing_blocks_summary_window_size > 0) {
@@ -2055,26 +2055,26 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
     auto bytes_win_r = bytes_collected_.getPrevWinResults();
     auto prev_win_index = blocks_collected_.getPrevWinIndex();
 
-    nested_data.insert(toPair("Index", prev_win_index));
-    nested_data.insert(toPair("ElapsedTime", std::to_string(blocks_win_r.elapsed_time_ms_) + " ms"));
-    nested_data.insert(toPair("Collected",
+    nested_data.insert(toPair("index", prev_win_index));
+    nested_data.insert(toPair("elapsedTime", std::to_string(blocks_win_r.elapsed_time_ms_) + " ms"));
+    nested_data.insert(toPair("collected",
                               std::to_string(blocks_win_r.num_processed_items_) + " blk & " +
                                   std::to_string(bytes_win_r.num_processed_items_) + " B"));
     nested_data.insert(toPair(
-        "Thoughput",
+        "thoughput",
         std::to_string(blocks_win_r.throughput_) + " blk/s & " + std::to_string(bytes_win_r.throughput_) + " B/s"));
     result.insert(
-        toPair("LastWindow", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+        toPair("lastWindow", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
     nested_data.clear();
   }
 
-  nested_data.insert(toPair("LastStored", psd_->getLastStoredCheckpoint()));
+  nested_data.insert(toPair("lastStored", psd_->getLastStoredCheckpoint()));
   nested_nested_data.insert(toPair("checkpointNum", fetched_cp.checkpointNum));
   nested_nested_data.insert(toPair("lastBlock", fetched_cp.lastBlock));
   nested_data.insert(
-      toPair("BeingFetched", concordUtils::kvContainerToJson(nested_nested_data, [](const auto &arg) { return arg; })));
+      toPair("beingFetched", concordUtils::kvContainerToJson(nested_nested_data, [](const auto &arg) { return arg; })));
   result.insert(
-      toPair("CheckpointInfo", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+      toPair("checkpointInfo", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str().c_str();
