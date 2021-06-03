@@ -27,6 +27,10 @@
 #include "PerformanceManager.hpp"
 #include "IRequestHandler.hpp"
 
+namespace concord::cron {
+class TicksGenerator;
+}
+
 namespace concord::secretsmanager {
 class ISecretsManagerImpl;
 }
@@ -110,6 +114,9 @@ class IReplica {
   // TODO(GG) : move the following methods to an "advanced interface"
   virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator>) = 0;
   virtual void restartForDebug(uint32_t delayMillis) = 0;  // for debug only.
+
+  // Returns the internal ticks generator or nullptr if not applicable.
+  virtual std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const = 0;
 };
 
 }  // namespace bftEngine

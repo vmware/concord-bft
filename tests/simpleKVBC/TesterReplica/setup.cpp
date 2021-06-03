@@ -68,6 +68,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string logPropsFile = "logging.properties";
     std::string principalsMapping;
     std::string txnSigningKeysPath;
+    std::optional<std::uint32_t> cronEntryNumberOfExecutes;
 
     static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
                                           {"key-file-prefix", required_argument, 0, 'k'},
@@ -87,11 +88,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"principals-mapping", optional_argument, 0, 'p'},
                                           {"txn-signing-key-path", optional_argument, 0, 't'},
                                           {"operator-public-key-path", optional_argument, 0, 'o'},
+                                          {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:r:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -173,6 +175,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.pathToOperatorPublicKey_ = optarg;
           break;
         }
+        case 'r': {
+          cronEntryNumberOfExecutes = concord::util::to<std::uint32_t>(optarg);
+          break;
+        }
         case '?': {
           throw std::runtime_error("invalid arguments");
         } break;
@@ -223,7 +229,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                                     metricsPort,
                                                     persistMode == PersistencyMode::RocksDB,
                                                     s3ConfigFile,
-                                                    logPropsFile});
+                                                    logPropsFile,
+                                                    cronEntryNumberOfExecutes});
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
