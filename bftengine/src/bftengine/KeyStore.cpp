@@ -30,6 +30,7 @@ uint16_t ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
 
 std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(
     const uint16_t& repID) {
+  LOG_INFO(KEY_EX_LOG, "rid: " << repID);
   if (!loadReservedPage(repID, buffer_.size(), buffer_.data())) {
     LOG_INFO(KEY_EX_LOG, "Failed to load reserved page for replica " << repID << ", first start?");
     return {};

@@ -69,8 +69,6 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
 
-  const ReplicaConfig& config_;
-
   // digital signatures
   std::unique_ptr<SigManager> sigManager_;
 

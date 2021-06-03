@@ -3281,6 +3281,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                  timers,
                  pm,
                  sm) {
+  LOG_INFO(GL, "");
   ConcordAssertNE(persistentStorage, nullptr);
 
   ps_ = persistentStorage;
@@ -3406,68 +3407,40 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
                                       config_.getreplicaId(),
                                       pp->digestOfRequests(),
                                       CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()));
-        bool added = seqNumInfo.addSelfMsg(p, true);
-        if (!added) {
-          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-
-          p = PreparePartialMsg::create(curView,
-                                        pp->seqNumber(),
-                                        config_.getreplicaId(),
-                                        pp->digestOfRequests(),
-                                        CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()));
-          added = seqNumInfo.addSelfMsg(p, true);
-        }
-        ConcordAssert(added);
+        ConcordAssert(seqNumInfo.addSelfMsg(p, true));
       }
 
       if (e.isPrepareFullMsgSet()) {
-        bool failedToAdd = false;
         try {
-          seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
+          ConcordAssert(seqNumInfo.addMsg(e.getPrepareFullMsg(), true));
         } catch (const std::exception &e) {
-          failedToAdd = true;
-          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          std::cout << e.what() << '\n';
+          LOG_ERROR(GL, "Failed to add sn " << s << " to main log, reason: " << e.what());
+          throw;
         }
-        if (failedToAdd) seqNumInfo.addMsg(e.getPrepareFullMsg(), true);
 
         Digest d;
         Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
         CommitPartialMsg *c = CommitPartialMsg::create(
             curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
 
-        bool added = seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
-        if (!added) {
-          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          c = CommitPartialMsg::create(
-              curView, s, config_.getreplicaId(), d, CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
-          seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true);
-        }
+        ConcordAssert(seqNumInfo.addSelfCommitPartialMsgAndDigest(c, d, true));
       }
 
       if (e.isCommitFullMsgSet()) {
-        bool failedToAdd = false;
         try {
-          seqNumInfo.addMsg(e.getCommitFullMsg(), true);
+          ConcordAssert(seqNumInfo.addMsg(e.getCommitFullMsg(), true));
         } catch (const std::exception &e) {
-          failedToAdd = true;
-          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          std::cout << e.what() << '\n';
+          LOG_ERROR(GL, "Failed to add sn [" << s << "] to main log, reason: " << e.what());
+          throw;
         }
-        if (failedToAdd) seqNumInfo.addMsg(e.getCommitFullMsg(), true);
 
         ConcordAssert(e.getCommitFullMsg()->equals(*seqNumInfo.getValidCommitFullMsg()));
       }
 
       if (e.isFullCommitProofMsgSet()) {
         PartialProofsSet &pps = seqNumInfo.partialProofs();
-        bool added = pps.addMsg(e.getFullCommitProofMsg());  // TODO(GG): consider using a method that directly adds
+        ConcordAssert(pps.addMsg(e.getFullCommitProofMsg()));  // TODO(GG): consider using a method that directly adds
         // the message (as in the examples below)
-        if (!added) {
-          LOG_INFO(GL, "Failed to add sn [" << s << "] to main log, trying different crypto system");
-          added = pps.addMsg(e.getFullCommitProofMsg());
-        }
-        ConcordAssert(added);  // we should verify the relevant signature when it is loaded
         ConcordAssert(e.getFullCommitProofMsg()->equals(*pps.getFullProof()));
       }
 
@@ -3550,6 +3523,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
                  timers,
                  pm,
                  sm) {
+  LOG_INFO(GL, "");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
   }
@@ -3662,6 +3636,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this),
       rsaSigner_(std::make_unique<bftEngine::impl::RSASigner>(config.replicaPrivateKey.c_str())) {
+  LOG_INFO(GL, "");
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
@@ -3697,11 +3672,6 @@ ReplicaImp::ReplicaImp(bool firstTime,
   clientsManager->initInternalClientInfo(config_.getnumReplicas());
   internalBFTClient_.reset(new InternalBFTClient(
       config_.getreplicaId(), clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
-
-  ClientsManager::setNumResPages(
-      (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
-      ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(), config.maxReplyMessageSize));
-  ClusterKeyStore::setNumResPages(config.numReplicas);
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"
@@ -3740,6 +3710,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
   if (currentViewIsActive()) {
     time_in_active_view_.start();
   }
+
+  KeyExchangeManager::InitData id{
+      internalBFTClient_, &CryptoManager::instance(), &CryptoManager::instance(), sm_, &timers_};
+
+  KeyExchangeManager::instance(&id);
 
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
 }
@@ -3813,17 +3788,8 @@ void ReplicaImp::addTimers() {
 void ReplicaImp::start() {
   LOG_INFO(GL, "Running ReplicaImp");
   sigManager_->SetAggregator(aggregator_);
+  KeyExchangeManager::instance().setAggregator(aggregator_);
   ReplicaForStateTransfer::start();
-
-  // Initialize and start KeyExchangeManager after State Transfer
-  KeyExchangeManager::InitData id{};
-  id.cl = internalBFTClient_;
-  id.reservedPages = stateTransfer.get();
-  id.kg = &CryptoManager::instance();
-  id.ke = &CryptoManager::instance();
-  id.secretsMgr = sm_;
-  id.timers = &timers_;
-  id.a = aggregator_;
 
   // If we have just unwedged, clear the wedge point
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
@@ -3831,8 +3797,6 @@ void ReplicaImp::start() {
     LOG_INFO(GL, "unwedge the system" << KVLOG(lastStableSeqNum));
     ControlStateManager::instance().clearCheckpointToStopAt();
   }
-
-  KeyExchangeManager::start(&id);
 
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
   addTimers();
