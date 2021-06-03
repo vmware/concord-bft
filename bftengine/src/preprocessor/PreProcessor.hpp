@@ -198,7 +198,7 @@ class PreProcessor {
   std::thread msgLoopThread_;
   std::mutex msgLock_;
   std::condition_variable msgLoopSignal_;
-  bool msgLoopDone_ = false;
+  std::atomic_bool msgLoopDone_{false};
 
   static std::vector<std::shared_ptr<PreProcessor>> preProcessors_;  // The place holder for PreProcessor objects
 
