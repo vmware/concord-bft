@@ -98,16 +98,16 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
   msgSize_ = headerSize + sigSize + msgBody()->cidLength;
 
   SCOPED_MDC_CID(cid);
-  LOG_INFO(logger(),
-           KVLOG(status,
-                 msgBody()->senderId,
-                 msgBody()->clientId,
-                 msgBody()->reqSeqNum,
-                 headerSize,
-                 sigSize,
-                 cid.size(),
-                 preProcessResultBufLen,
-                 msgSize_));
+  LOG_DEBUG(logger(),
+            KVLOG(status,
+                  msgBody()->senderId,
+                  msgBody()->clientId,
+                  msgBody()->reqSeqNum,
+                  headerSize,
+                  sigSize,
+                  cid.size(),
+                  preProcessResultBufLen,
+                  msgSize_));
 }
 
 std::string PreProcessReplyMsg::getCid() const {
