@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <cstdio>
 
 bftEngine::IReservedPages *bftEngine::ReservedPagesClientBase::res_pages_ = nullptr;
 
@@ -147,7 +148,17 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
     bool erasedMetaData;
     ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr), erasedMetaData);
-    if (erasedMetaData) isNewStorage = true;
+    if (erasedMetaData) {
+      isNewStorage = true;
+      auto secFile = ReplicaConfig::instance().getkeyViewFilePath() + std::string("/" + secFilePrefix + ".") +
+                     std::to_string(ReplicaConfig::instance().getreplicaId());
+      LOG_INFO(GL, "removing " << secFile << " if exist");
+      try {
+        std::remove(secFile.c_str());
+      } catch (std::exception &e) {
+        LOG_FATAL(GL, "unable to remove the secret file, as we erased the metadata we won't be able to restart");
+      }
+    }
     LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
   }
   auto replicaInternal = std::make_unique<ReplicaInternal>();
