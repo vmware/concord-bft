@@ -763,6 +763,71 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
 
     @with_trio
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    async def test_remove_nodes_with_failures(self, bft_network):
+        """
+        In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
+        to 4 nodes cluster even when f nodes are not responding
+        For that the operator performs the following steps:
+        1. Stop 2 nodes (f=2)
+        2. Send a remove_node command - this command also wedges the system
+        3. Verify that all live nodes have stopped
+        4. Load  a new configuration to the bft network
+        5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        for i in range(100):
+            await skvbc.write_known_kv()
+        # choose two replicas to crash and crash them
+        crashed_replicas = {3} # For simplicity, we crash the last two replicas
+        bft_network.stop_replicas(crashed_replicas)
+        key, val = await skvbc.write_known_kv()
+        live_replicas = bft_network.all_replicas(without=crashed_replicas)
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_n_4_f_1_c_0'
+        await op.add_remove_with_wedge(test_config, False)
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, live_replicas)
+        expectedSeqNum = (checkpoint_before  + 2) * 150
+        for r in live_replicas:
+            lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
+            self.assertEqual(expectedSeqNum, lastExecSn)
+
+        # Start replica 3 and wait for state transfer to finish
+        bft_network.start_replica(3)
+        await self._wait_for_st(bft_network, 3, 150)
+
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, bft_network.all_replicas())
+
+        bft_network.stop_all_replicas()
+        # We now expect the replicas to start with a fresh new configuration
+        # Metadata is erased on replicas startup
+        conf = TestConfig(n=4,
+                          f=1,
+                          c=0,
+                          num_clients=10,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd_with_key_exchange,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=0)
+        await bft_network.change_configuration(conf)
+        bft_network.start_all_replicas()
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 0)
+        await self.validate_state_consistency(skvbc, key, val)
+        for i in range(100):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            assert (r < 4)
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
+
+    @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, rotate_keys=True, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
     async def test_add_nodes(self, bft_network):
         """
