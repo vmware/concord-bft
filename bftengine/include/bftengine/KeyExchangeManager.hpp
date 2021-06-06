@@ -17,6 +17,7 @@
 #include "Timers.hpp"
 #include "Metrics.hpp"
 #include "secrets_manager_impl.h"
+#include "SysConsts.hpp"
 
 namespace bftEngine::impl {
 
@@ -90,7 +91,7 @@ class KeyExchangeManager {
 
     PrivateKeys(std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsMgr)
         : secretsMgr_{secretsMgr},
-          secrets_file_{ReplicaConfig::instance().getkeyViewFilePath() + std::string("/gen-sec.") +
+          secrets_file_{ReplicaConfig::instance().getkeyViewFilePath() + std::string("/" + secFilePrefix + ".") +
                         std::to_string(ReplicaConfig::instance().getreplicaId())} {
       load();
     }
