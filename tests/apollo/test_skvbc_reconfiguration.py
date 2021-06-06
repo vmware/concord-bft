@@ -598,7 +598,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
-        await op.add_remove_with_wedge(test_config)
+        await op.add_remove_with_wedge(test_config, False)
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
@@ -650,7 +650,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
-        await op.add_remove_with_wedge(test_config) # Block 150 contains the addRemove command
+        await op.add_remove_with_wedge(test_config, False) # Block 150 contains the addRemove command
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, 1, range(bft_network.config.n))
 
         await self._wait_for_st(bft_network, ro_replica_id, 150)
@@ -847,7 +847,106 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
-    
+
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_key_exchange, rotate_keys=True, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
+    async def test_add_nodes(self, bft_network):
+        """
+             Sends a addRemove command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a add node command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Load a new configuration to the bft network
+             4. Add node is done in phases, (n=4,f=1,c=0)->(n=6,f=1,c=0)->(n=7,f=2,c=0)
+                Note: For new replicas to catch up with exiting replicas through ST, existing replicas must
+                      move the checkpoint window, that means for n=7 configuration, there must be 5 non-faulty
+                      replicas to move the checkpoint window, hence new replicas are added in two phases
+             5. Rerun the cluster with only new configuration and make sure they succeed to perform transactions in fast path
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100):
+            await skvbc.write_known_kv()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_n_6_f_1_c_0'
+        await op.add_remove_with_wedge(test_config)
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
+        await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
+        await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
+        await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        bft_network.stop_all_replicas()
+        # We now expect the replicas to start with a fresh new configuration
+        # Metadata is erased on replicas startup
+        conf = TestConfig(n=6,
+                          f=1,
+                          c=0,
+                          num_clients=10,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=0)
+        await bft_network.change_configuration(conf)
+        initial_prim = 0
+        new_replicas = {4, 5}
+        on_time_replicas = bft_network.all_replicas(without=new_replicas)
+        bft_network.start_replicas(on_time_replicas)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(151):
+            await skvbc.write_known_kv()
+        bft_network.start_replicas(new_replicas)
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in new_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
+        for i in range(200):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_n_7_f_2_c_0'
+        await op.add_remove_with_wedge(test_config)
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
+        await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
+        await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
+        await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        bft_network.stop_all_replicas()
+
+        conf = TestConfig(n=7,
+                          f=2,
+                          c=0,
+                          num_clients=10,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=0)
+        await bft_network.change_configuration(conf)
+        initial_prim = 0
+        new_replicas = {6}
+        on_time_replicas = bft_network.all_replicas(without=new_replicas)
+        bft_network.start_replicas(on_time_replicas)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(151):
+            await skvbc.write_known_kv()
+        bft_network.start_replicas(new_replicas)
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in new_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
+        for i in range(300):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
     
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
