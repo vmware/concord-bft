@@ -92,7 +92,13 @@ class RocksDbStorageMetrics {
                                ::rocksdb::Tickers::COMPACT_READ_BYTES,
                                ::rocksdb::Tickers::COMPACT_WRITE_BYTES,
                                ::rocksdb::Tickers::FLUSH_WRITE_BYTES,
-                               ::rocksdb::Tickers::STALL_MICROS}) {}
+                               ::rocksdb::Tickers::STALL_MICROS,
+                               ::rocksdb::Tickers::BLOCK_CACHE_MISS,
+                               ::rocksdb::Tickers::BLOCK_CACHE_HIT,
+                               ::rocksdb::Tickers::BLOOM_FILTER_PREFIX_USEFUL,
+                               ::rocksdb::Tickers::BLOOM_FILTER_FULL_POSITIVE,
+                               ::rocksdb::Tickers::BLOOM_FILTER_FULL_TRUE_POSITIVE}) {}
+
   ~RocksDbStorageMetrics() { update_metrics_.reset(); }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     rocksdb_comp_.SetAggregator(aggregator);
