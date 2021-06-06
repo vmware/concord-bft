@@ -626,7 +626,65 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert( r < 4 )
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
-    
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    async def test_remove_nodes_with_ror(self, bft_network):
+        """
+             Sends a addRemove command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a remove command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Load  a new configuration to the bft network
+             4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+         """
+        bft_network.start_all_replicas()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(149): # Produce 299 new blocks
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_n_4_f_1_c_0'
+        await op.add_remove_with_wedge(test_config) # Block 150 contains the addRemove command
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, 1, range(bft_network.config.n))
+
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+
+        bft_network.stop_all_replicas()
+        # We now expect the replicas to start with a fresh new configuration
+        # Metadata is erased on replicas startup
+        conf = TestConfig(n=4,
+                          f=1,
+                          c=0,
+                          num_clients=10,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd_with_object_store,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=1)
+        await bft_network.change_configuration(conf)
+        ro_replica_id = bft_network.config.n
+        bft_network.start_all_replicas()
+        bft_network.start_replica(ro_replica_id)
+
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 0)
+        await self.validate_state_consistency(skvbc, key, val)
+        for i in range(150):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            assert( r < 4 )
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
+
+        # Wait for the read only replica to catch with the state
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_remove_nodes_with_f_failures(self, bft_network):
