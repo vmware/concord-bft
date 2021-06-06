@@ -626,7 +626,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                    stop_replica_cmd=None,
                    num_ro_replicas=0)
         await bft_network.change_configuration(conf)
-        bft_network.start_all_replicas()
+        await bft_network.check_initital_key_exchange(stop_replicas=False)
+
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -682,7 +683,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           num_ro_replicas=1)
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
-        bft_network.start_all_replicas()
+        await bft_network.check_initital_key_exchange(stop_replicas=False)
         bft_network.start_replica(ro_replica_id)
 
         for r in bft_network.all_replicas():
@@ -750,7 +751,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 stop_replica_cmd=None,
                 num_ro_replicas=0)
         await bft_network.change_configuration(conf)
-        bft_network.start_all_replicas()
+        await bft_network.check_initital_key_exchange(stop_replicas=False)
+
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -778,7 +780,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
-        for i in range(100):
+        for i in range(151):
             await skvbc.write_known_kv()
         # choose two replicas to crash and crash them
         crashed_replicas = {3} # For simplicity, we crash the last two replicas
@@ -815,7 +817,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           stop_replica_cmd=None,
                           num_ro_replicas=0)
         await bft_network.change_configuration(conf)
-        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await bft_network.check_initital_key_exchange(stop_replicas=False)
+
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
