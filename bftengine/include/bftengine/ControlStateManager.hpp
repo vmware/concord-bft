@@ -41,12 +41,9 @@ class ControlStatePage : public concord::serialize::SerializableFactory<ControlS
   }
 };
 
-static constexpr uint32_t ControlHandlerStateManagerReservedPagesIndex = 1;
 static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
 
-class ControlStateManager : public ResPagesClient<ControlStateManager,
-                                                  ControlHandlerStateManagerReservedPagesIndex,
-                                                  ControlHandlerStateManagerNumOfReservedPages> {
+class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHandlerStateManagerNumOfReservedPages> {
  public:
   static ControlStateManager& instance() {
     static ControlStateManager instance_;

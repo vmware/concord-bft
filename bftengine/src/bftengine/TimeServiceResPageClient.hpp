@@ -16,7 +16,7 @@
 
 namespace bftEngine {
 using ConsensusTime = std::chrono::milliseconds;
-class TimeServiceResPageClient : private ResPagesClient<TimeServiceResPageClient, 3, 1> {
+class TimeServiceResPageClient : private ResPagesClient<TimeServiceResPageClient, 1> {
  public:
   TimeServiceResPageClient();
   ~TimeServiceResPageClient() = default;
