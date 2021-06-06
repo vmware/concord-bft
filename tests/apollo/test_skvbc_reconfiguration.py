@@ -636,8 +636,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
              The test does the following:
              1. A client sends a remove command which will also wedge the system on next next checkpoint
              2. Validate that all replicas have stopped
+             3. Wait for read only replica to done with state transfer
              3. Load  a new configuration to the bft network
              4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+             5. Make sure the read only replica is able to catch up with the new state
          """
         bft_network.start_all_replicas()
         ro_replica_id = bft_network.config.n
