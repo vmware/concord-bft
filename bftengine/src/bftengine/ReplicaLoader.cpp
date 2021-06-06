@@ -35,14 +35,6 @@
     }                                         \
   }
 
-#define VerifyAND(expr1, expr2, errorCode)    \
-  {                                           \
-    ConcordAssertAND(expr1, expr2);           \
-    if ((expr1) != true || (expr2) != true) { \
-      return errorCode;                       \
-    }                                         \
-  }
-
 #define Succ ReplicaLoader::ErrorCode::Success
 #define InconsistentErr ReplicaLoader::ErrorCode::InconsistentData
 #define NoDataErr ReplicaLoader::ErrorCode::NoDataInStorage
