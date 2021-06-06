@@ -828,7 +828,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
 
     @with_trio
-    @with_bft_network(start_replica_cmd_with_key_exchange, rotate_keys=True, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
+    @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
     async def test_add_nodes(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -865,7 +865,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           c=0,
                           num_clients=10,
                           key_file_prefix=KEY_FILE_PREFIX,
-                          start_replica_cmd=start_replica_cmd_with_key_exchange,
+                          start_replica_cmd=start_replica_cmd,
                           stop_replica_cmd=None,
                           num_ro_replicas=0)
         await bft_network.change_configuration(conf)
@@ -904,7 +904,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           c=0,
                           num_clients=10,
                           key_file_prefix=KEY_FILE_PREFIX,
-                          start_replica_cmd=start_replica_cmd_with_key_exchange,
+                          start_replica_cmd=start_replica_cmd,
                           stop_replica_cmd=None,
                           num_ro_replicas=0)
         await bft_network.change_configuration(conf)
