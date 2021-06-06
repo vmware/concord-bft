@@ -126,3 +126,5 @@ constexpr uint32_t maxSizeOfCombinedSignature = 1024;  // TODO(GG): should be ch
 
 constexpr uint32_t MaxSizeOfPrivateKey = 1024;  // TODO(GG): should be checked
 constexpr uint32_t MaxSizeOfPublicKey = 1024;   // TODO(GG): should be checked
+
+static const std::string secFilePrefix = "gen-sec";

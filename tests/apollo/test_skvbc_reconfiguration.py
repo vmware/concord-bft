@@ -58,6 +58,27 @@ def start_replica_cmd(builddir, replica_id):
             "-o", builddir + "/operator_pub.pem"]
 
 
+def start_replica_cmd_with_key_exchange(builddir, replica_id):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-b", "2",
+            "-q", "1",
+            "-e", str(True),
+            "-o", builddir + "/operator_pub.pem"]
+
 class SkvbcReconfigurationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -556,7 +577,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert status.response.reconfiguration == test_config
 
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_remove_nodes(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -607,7 +628,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
     
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_remove_nodes_with_f_failures(self, bft_network):
         """
         In this test we show how a system operator can remove nodes (and thus reduce the cluster) from 7 nodes cluster
@@ -670,7 +691,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertGreater(nb_fast_path, 0)
     
     @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    @with_bft_network(start_replica_cmd_with_key_exchange, rotate_keys=True, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
     async def test_add_nodes(self, bft_network):
         """
              Sends a addRemove command and checks that new configuration is written to blockchain.
@@ -685,15 +706,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                       replicas to move the checkpoint window, hence new replicas are added in two phases
              5. Rerun the cluster with only new configuration and make sure they succeed to perform transactions in fast path
          """
-        conf = TestConfig(n=4,
-                   f=1,
-                   c=0,
-                   num_clients=10,
-                   key_file_prefix=KEY_FILE_PREFIX,
-                   start_replica_cmd=start_replica_cmd,
-                   stop_replica_cmd=None,
-                   num_ro_replicas=0)
-        await bft_network.change_configuration(conf)
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
