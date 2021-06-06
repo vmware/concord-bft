@@ -23,6 +23,7 @@ class IReplicaForStateTransfer;  // forward definition
 
 class IStateTransfer : public IReservedPages {
  public:
+  enum StateTransferCallBacksPriorities { HIGH = 0, DEFAULT = 20, LOW = 40 };
   virtual ~IStateTransfer() {}
 
   // The methods of this interface will always be called by the same thread of
@@ -68,7 +69,9 @@ class IStateTransfer : public IReservedPages {
   // Accepts the checkpoint number as a parameter.
   // Callbacks must not throw.
   // Multiple callbacks can be added.
-  virtual void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) = 0;
+  virtual void addOnTransferringCompleteCallback(
+      std::function<void(uint64_t)>,
+      StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) = 0;
 
   virtual void setEraseMetadataFlag() = 0;
 };
