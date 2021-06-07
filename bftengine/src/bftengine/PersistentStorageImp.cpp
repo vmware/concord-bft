@@ -135,7 +135,7 @@ uint8_t PersistentStorageImp::beginWriteTran() {
 }
 
 uint8_t PersistentStorageImp::endWriteTran() {
-  ConcordAssert(numOfNestedTransactions_ != 0);
+  ConcordAssertNE(numOfNestedTransactions_, 0);
   if (--numOfNestedTransactions_ == 0) {
     metadataStorage_->commitAtomicWriteOnlyBatch();
   }
@@ -166,7 +166,7 @@ void PersistentStorageImp::setLastExecutedSeqNumInternal(SeqNum seqNum) {
 
 void PersistentStorageImp::setLastExecutedSeqNum(SeqNum seqNum) {
   ConcordAssert(setIsAllowed());
-  ConcordAssert(lastExecutedSeqNum_ <= seqNum);
+  ConcordAssertLE(lastExecutedSeqNum_, seqNum);
   setLastExecutedSeqNumInternal(seqNum);
 }
 
@@ -197,7 +197,7 @@ void PersistentStorageImp::setLastViewTransferredSeqNumbersInternal(ViewNum view
 
 void PersistentStorageImp::setLastViewThatTransferredSeqNumbersFullyExecuted(ViewNum view) {
   ConcordAssert(nonExecSetIsAllowed());
-  ConcordAssert(lastViewTransferredSeqNum_ <= view);
+  ConcordAssertLE(lastViewTransferredSeqNum_, view);
   setLastViewTransferredSeqNumbersInternal(view);
 }
 
@@ -217,9 +217,9 @@ void PersistentStorageImp::saveDescriptorOfLastExitFromView(const DescriptorOfLa
   UniquePtrToChar elementBuf(new char[maxElementSize]);
   for (size_t i = 0; i < elementsNum; ++i) {
     newDesc.serializeElement(i, elementBuf.get(), maxElementSize, actualElementSize);
-    ConcordAssert(actualElementSize != 0);
+    ConcordAssertNE(actualElementSize, 0);
     uint32_t itemId = LAST_EXIT_FROM_VIEW_DESC + 1 + i;
-    ConcordAssert(itemId < LAST_EXEC_DESC);
+    ConcordAssertLT(itemId, LAST_EXEC_DESC);
     metadataStorage_->writeInBatch(itemId, elementBuf.get(), actualElementSize);
   }
 }
@@ -255,7 +255,7 @@ void PersistentStorageImp::saveDescriptorOfLastNewView(const DescriptorOfLastNew
   UniquePtrToChar elementBuf(new char[maxElementSize]);
   for (uint32_t i = 0; i < numOfMessages; ++i) {
     newDesc.serializeElement(i, elementBuf.get(), maxElementSize, actualElementSize);
-    ConcordAssert(actualElementSize != 0);
+    ConcordAssertNE(actualElementSize, 0);
     metadataStorage_->writeInBatch(LAST_NEW_VIEW_DESC + 1 + i, elementBuf.get(), actualElementSize);
   }
 }
@@ -284,7 +284,7 @@ void PersistentStorageImp::saveDescriptorOfLastExecution(const DescriptorOfLastE
   char *descBufPtr = descBuf.get();
   size_t actualSize = 0;
   newDesc.serialize(descBufPtr, bufLen, actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
   metadataStorage_->writeInBatch(LAST_EXEC_DESC, descBuf.get(), actualSize);
 }
 
@@ -300,7 +300,7 @@ void PersistentStorageImp::setDescriptorOfLastStableCheckpoint(
   char *descBufPtr = descBuf.get();
   size_t actualSize = 0;
   stableCheckDesc.serialize(descBufPtr, bufLen, actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
   metadataStorage_->writeInBatch(LAST_STABLE_CHECKPOINT_DESC, descBuf.get(), actualSize);
 }
 
@@ -336,41 +336,41 @@ void PersistentStorageImp::setSeqNumDataElement(SeqNum index, const SeqNumData &
   char *movablePtr = buf.get();
   size_t actualSize = seqNumData.serializePrePrepareMsg(movablePtr);
   uint32_t itemId = BEGINNING_OF_SEQ_NUM_WINDOW + PRE_PREPARE_MSG + shift;
-  ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeFullCommitProofMsg(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + FULL_COMMIT_PROOF_MSG + shift;
-  ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializePrepareFullMsg(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + PRE_PREPARE_FULL_MSG + shift;
-  ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeCommitFullMsg(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + COMMIT_FULL_MSG + shift;
-  ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeForceCompleted(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + FORCE_COMPLETED + shift;
-  ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
 
   movablePtr = buf.get();
   actualSize = seqNumData.serializeSlowStarted(movablePtr);
   itemId = BEGINNING_OF_SEQ_NUM_WINDOW + SLOW_STARTED + shift;
-  ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
 }
 
@@ -387,13 +387,13 @@ void PersistentStorageImp::setCheckDataElement(SeqNum index, const CheckData &ch
   size_t actualSize = checkData.serializeCheckpointMsg(movablePtr);
 
   uint32_t itemId = BEGINNING_OF_CHECK_WINDOW + CHECK_DATA_FIRST_PARAM + shift;
-  ConcordAssert(itemId < WIN_PARAMETERS_NUM);
+  ConcordAssertLT(itemId, WIN_PARAMETERS_NUM);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
   movablePtr = buf.get();
   actualSize = checkData.serializeCompletedMark(movablePtr);
   itemId = BEGINNING_OF_CHECK_WINDOW + COMPLETED_MARK + shift;
-  ConcordAssert(itemId < WIN_PARAMETERS_NUM);
+  ConcordAssertLT(itemId, WIN_PARAMETERS_NUM);
   metadataStorage_->writeInBatch(itemId, buf.get(), actualSize);
 }
 
@@ -445,9 +445,9 @@ void PersistentStorageImp::setMsgInSeqNumWindow(SeqNum seqNum,
   UniquePtrToChar buf(new char[msgSize]);
   char *movablePtr = buf.get();
   const size_t actualSize = SeqNumData::serializeMsg(movablePtr, msg);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
-  ConcordAssert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(convertedIndex, BEGINNING_OF_CHECK_WINDOW);
   LOG_DEBUG(GL, "PersistentStorageImp::setMsgInSeqNumWindow convertedIndex=" << convertedIndex);
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
@@ -489,7 +489,7 @@ void PersistentStorageImp::setCompletedMarkInCheckWindow(SeqNum seqNum, bool com
   char *movablePtr = buf;
   CheckData::serializeCompletedMark(movablePtr, completed);
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + COMPLETED_MARK + convertCheckWindowIndex(seqNum);
-  ConcordAssert(convertedIndex < WIN_PARAMETERS_NUM);
+  ConcordAssertLT(convertedIndex, WIN_PARAMETERS_NUM);
   metadataStorage_->writeInBatch(convertedIndex, buf, sizeOfCompleted);
 }
 
@@ -498,9 +498,9 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   UniquePtrToChar buf(new char[bufLen]);
   char *movablePtr = buf.get();
   size_t actualSize = CheckData::serializeCheckpointMsg(movablePtr, (CheckpointMsg *)msg);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(seqNum);
-  ConcordAssert(convertedIndex < WIN_PARAMETERS_NUM);
+  ConcordAssertLT(convertedIndex, WIN_PARAMETERS_NUM);
   LOG_DEBUG(GL, "PersistentStorageImp::setCheckpointMsgInCheckWindow convertedIndex=" << convertedIndex);
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
@@ -521,7 +521,7 @@ string PersistentStorageImp::getStoredVersion() {
   outBufPtr += sizeof(sizeOfVersion);
   string savedVersion;
   savedVersion.assign(outBufPtr, sizeOfVersion);
-  ConcordAssert(version_ == savedVersion);
+  ConcordAssertEQ(version_, savedVersion);
 
   return version_;
 }
@@ -567,7 +567,7 @@ DescriptorOfLastExitFromView PersistentStorageImp::getAndAllocateDescriptorOfLas
   // Read first simple params.
   UniquePtrToChar simpleParamsBuf(new char[simpleParamsSize]);
   metadataStorage_->read(LAST_EXIT_FROM_VIEW_DESC, simpleParamsSize, simpleParamsBuf.get(), sizeInDb);
-  ConcordAssert(sizeInDb == simpleParamsSize);
+  ConcordAssertEQ(sizeInDb, simpleParamsSize);
   uint32_t actualSize = 0;
   dbDesc.deserializeSimpleParams(simpleParamsBuf.get(), simpleParamsSize, actualSize);
 
@@ -577,10 +577,10 @@ DescriptorOfLastExitFromView PersistentStorageImp::getAndAllocateDescriptorOfLas
   uint32_t elementsNum = dbDesc.elements.size();
   for (uint32_t i = 0; i < elementsNum; ++i) {
     uint32_t itemId = LAST_EXIT_FROM_VIEW_DESC + 1 + i;
-    ConcordAssert(itemId < LAST_EXEC_DESC);
+    ConcordAssertLT(itemId, LAST_EXEC_DESC);
     metadataStorage_->read(itemId, maxElementSize, elementBuf.get(), actualSize);
     dbDesc.deserializeElement(i, elementBuf.get(), actualSize, actualElementSize);
-    ConcordAssert(actualElementSize != 0);
+    ConcordAssertNE(actualElementSize, 0);
   }
   return dbDesc;
 }
@@ -602,7 +602,7 @@ DescriptorOfLastNewView PersistentStorageImp::getAndAllocateDescriptorOfLastNewV
   for (uint32_t i = 0; i < viewChangeMsgsNum; ++i) {
     metadataStorage_->read(LAST_NEW_VIEW_DESC + 1 + i, maxElementSize, elementBuf.get(), actualSize);
     dbDesc.deserializeElement(i, elementBuf.get(), actualSize, actualElementSize);
-    ConcordAssert(actualElementSize != 0);
+    ConcordAssertNE(actualElementSize, 0);
   }
   return dbDesc;
 }
@@ -615,7 +615,7 @@ DescriptorOfLastExecution PersistentStorageImp::getDescriptorOfLastExecution() {
   UniquePtrToChar buf(new char[maxSize]);
   metadataStorage_->read(LAST_EXEC_DESC, maxSize, buf.get(), actualSize);
   dbDesc.deserialize(buf.get(), maxSize, actualSize);
-  ConcordAssert(actualSize != 0);
+  ConcordAssertNE(actualSize, 0);
   if (!dbDesc.equals(emptyDescriptorOfLastExecution_)) {
     descriptorOfLastExecution_ = dbDesc;
     hasDescriptorOfLastExecution_ = true;
@@ -670,7 +670,7 @@ void PersistentStorageImp::readSeqNumDataElementFromDisk(SeqNum index, const Sha
   char *movablePtr = buf.get();
   for (auto i = 0; i < numOfSeqNumWinParameters; ++i) {
     uint32_t itemId = BEGINNING_OF_SEQ_NUM_WINDOW + SEQ_NUM_FIRST_PARAM + i + shift;
-    ConcordAssert(itemId < BEGINNING_OF_CHECK_WINDOW);
+    ConcordAssertLT(itemId, BEGINNING_OF_CHECK_WINDOW);
     metadataStorage_->read(itemId, SeqNumData::maxSize(), movablePtr, actualParameterSize);
     movablePtr += actualParameterSize;
     actualElementSize += actualParameterSize;
@@ -687,14 +687,14 @@ void PersistentStorageImp::readCheckDataElementFromDisk(SeqNum index, const Shar
   const SeqNum shift = index * numOfCheckWinParameters;
   for (auto i = 0; i < numOfCheckWinParameters; ++i) {
     uint32_t itemId = BEGINNING_OF_CHECK_WINDOW + CHECK_DATA_FIRST_PARAM + i + shift;
-    ConcordAssert(itemId < WIN_PARAMETERS_NUM);
+    ConcordAssertLT(itemId, WIN_PARAMETERS_NUM);
     metadataStorage_->read(itemId, CheckData::maxSize(), movablePtr, actualParameterSize);
     movablePtr += actualParameterSize;
     actualElementSize += actualParameterSize;
   }
   uint32_t actualSize = 0;
   checkWindow.get()->deserializeElement(index, buf.get(), CheckData::maxSize(), actualSize);
-  ConcordAssert(actualSize == actualElementSize);
+  ConcordAssertEQ(actualSize, actualElementSize);
 }
 
 const SeqNum PersistentStorageImp::convertSeqNumWindowIndex(SeqNum seqNum) const {
@@ -709,7 +709,7 @@ uint8_t PersistentStorageImp::readOneByteFromDisk(SeqNum index, SeqNum parameter
   uint8_t oneByte = 0;
   uint32_t actualSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(index);
-  ConcordAssert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(convertedIndex, BEGINNING_OF_CHECK_WINDOW);
   metadataStorage_->read(convertedIndex, sizeof(oneByte), (char *)&oneByte, actualSize);
   return oneByte;
 }
@@ -718,13 +718,13 @@ MessageBase *PersistentStorageImp::readMsgFromDisk(SeqNum seqNum, SeqNum paramet
   UniquePtrToChar buf(new char[msgSize]);
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_SEQ_NUM_WINDOW + parameterId + convertSeqNumWindowIndex(seqNum);
-  ConcordAssert(convertedIndex < BEGINNING_OF_CHECK_WINDOW);
+  ConcordAssertLT(convertedIndex, BEGINNING_OF_CHECK_WINDOW);
   LOG_DEBUG(GL, "PersistentStorageImp::readMsgFromDisk seqNum=" << seqNum << " dbIndex=" << convertedIndex);
   metadataStorage_->read(convertedIndex, msgSize, buf.get(), actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf.get();
   auto *msg = SeqNumData::deserializeMsg(movablePtr, msgSize, actualSize);
-  ConcordAssert(actualSize == actualMsgSize);
+  ConcordAssertEQ(actualSize, actualMsgSize);
   return msg;
 }
 
@@ -754,9 +754,9 @@ uint8_t PersistentStorageImp::readCompletedMarkFromDisk(SeqNum index) const {
   uint8_t completedMark = 0;
   uint32_t actualSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + COMPLETED_MARK + convertCheckWindowIndex(index);
-  ConcordAssert(convertedIndex < WIN_PARAMETERS_NUM);
+  ConcordAssertLT(convertedIndex, WIN_PARAMETERS_NUM);
   metadataStorage_->read(convertedIndex, sizeof(completedMark), (char *)&completedMark, actualSize);
-  ConcordAssert(sizeof(completedMark) == actualSize);
+  ConcordAssertEQ(sizeof(completedMark), actualSize);
   return completedMark;
 }
 
@@ -765,13 +765,13 @@ CheckpointMsg *PersistentStorageImp::readCheckpointMsgFromDisk(SeqNum index) con
   UniquePtrToChar buf(new char[bufLen]);
   uint32_t actualMsgSize = 0;
   const SeqNum convertedIndex = BEGINNING_OF_CHECK_WINDOW + CHECKPOINT_MSG + convertCheckWindowIndex(index);
-  ConcordAssert(convertedIndex < WIN_PARAMETERS_NUM);
+  ConcordAssertLT(convertedIndex, WIN_PARAMETERS_NUM);
   LOG_DEBUG(GL, "PersistentStorageImp::readCheckpointMsgFromDisk convertedIndex=" << convertedIndex);
   metadataStorage_->read(convertedIndex, bufLen, buf.get(), actualMsgSize);
   size_t actualSize = 0;
   char *movablePtr = buf.get();
   auto *checkpointMsg = CheckData::deserializeCheckpointMsg(movablePtr, bufLen, actualSize);
-  ConcordAssert(actualSize == actualMsgSize);
+  ConcordAssertEQ(actualSize, actualMsgSize);
   return checkpointMsg;
 }
 
@@ -780,7 +780,7 @@ SeqNum PersistentStorageImp::readBeginningOfActiveWindow(uint32_t index) const {
   uint32_t actualSize = 0;
   SeqNum beginningOfActiveWindow = 0;
   metadataStorage_->read(index, paramSize, (char *)&beginningOfActiveWindow, actualSize);
-  ConcordAssert(actualSize == paramSize);
+  ConcordAssertEQ(actualSize, paramSize);
   return beginningOfActiveWindow;
 }
 
@@ -846,49 +846,49 @@ bool PersistentStorageImp::getSlowStartedInSeqNumWindow(SeqNum seqNum) {
 
 void PersistentStorageImp::verifySetDescriptorOfLastExitFromView(const DescriptorOfLastExitFromView &desc) {
   ConcordAssert(setIsAllowed());
-  ConcordAssert(desc.view >= 0);
+  ConcordAssertGE(desc.view, 0);
   // Here we assume that the first view is always 0
   // (even if we load the initial state from disk)
-  ConcordAssert(hasDescriptorOfLastNewView() || desc.view == 0);
-  ConcordAssert(desc.elements.size() <= kWorkWindowSize);
+  ConcordAssertOR(hasDescriptorOfLastNewView(), (desc.view == 0));
+  ConcordAssertLE(desc.elements.size(), kWorkWindowSize);
 }
 
 void PersistentStorageImp::verifyPrevViewInfo(const DescriptorOfLastExitFromView &desc) const {
   for (auto elem : desc.elements) {
-    ConcordAssert(elem.prePrepare->viewNumber() == desc.view);
-    ConcordAssert(elem.prepareFull == nullptr || elem.prepareFull->viewNumber() == desc.view);
-    ConcordAssert(elem.prepareFull == nullptr || elem.prepareFull->seqNumber() == elem.prePrepare->seqNumber());
+    ConcordAssertEQ(elem.prePrepare->viewNumber(), desc.view);
+    ConcordAssertOR((elem.prepareFull == nullptr), (elem.prepareFull->viewNumber() == desc.view));
+    ConcordAssertOR((elem.prepareFull == nullptr), (elem.prepareFull->seqNumber() == elem.prePrepare->seqNumber()));
   }
 }
 
 void PersistentStorageImp::verifyLastNewViewMsgs(const DescriptorOfLastNewView &desc) const {
   for (uint32_t i = 0; i < desc.viewChangeMsgs.size(); i++) {
     const ViewChangeMsg *viewChangeMsg = desc.viewChangeMsgs[i];
-    ConcordAssert(viewChangeMsg->newView() == desc.view);
+    ConcordAssertEQ(viewChangeMsg->newView(), desc.view);
     Digest digestOfViewChangeMsg;
     viewChangeMsg->getMsgDigest(digestOfViewChangeMsg);
     const NewViewMsg *newViewMsg = desc.newViewMsg;
     if (newViewMsg->elementsCount())
-      ConcordAssert(newViewMsg->elementsCount() && newViewMsg->includesViewChangeFromReplica(
-                                                       viewChangeMsg->idOfGeneratedReplica(), digestOfViewChangeMsg));
+      ConcordAssert(
+          newViewMsg->includesViewChangeFromReplica(viewChangeMsg->idOfGeneratedReplica(), digestOfViewChangeMsg));
   }
 }
 
 void PersistentStorageImp::verifySetDescriptorOfLastNewView(const DescriptorOfLastNewView &desc) {
   ConcordAssert(setIsAllowed());
-  ConcordAssert(desc.view >= 1);
+  ConcordAssertGE(desc.view, 1);
   ConcordAssert(hasDescriptorOfLastExitFromView());
-  ConcordAssert(desc.newViewMsg->newView() == desc.view);
+  ConcordAssertEQ(desc.newViewMsg->newView(), desc.view);
   const size_t numOfVCMsgs = 2 * fVal_ + 2 * cVal_ + 1;
-  ConcordAssert(desc.viewChangeMsgs.size() == numOfVCMsgs);
+  ConcordAssertEQ(desc.viewChangeMsgs.size(), numOfVCMsgs);
 }
 
 void PersistentStorageImp::verifyDescriptorOfLastExecution(const DescriptorOfLastExecution &desc) {
   ConcordAssert(setIsAllowed());
-  ConcordAssert(!hasDescriptorOfLastExecution() || descriptorOfLastExecution_.executedSeqNum < desc.executedSeqNum);
-  ConcordAssert(lastExecutedSeqNum_ + 1 == desc.executedSeqNum);
-  ConcordAssert(desc.validRequests.numOfBits() >= 1);
-  ConcordAssert(desc.validRequests.numOfBits() <= maxNumOfRequestsInBatch);
+  ConcordAssertOR(!hasDescriptorOfLastExecution(), (descriptorOfLastExecution_.executedSeqNum < desc.executedSeqNum));
+  ConcordAssertEQ(lastExecutedSeqNum_ + 1, desc.executedSeqNum);
+  ConcordAssertGE(desc.validRequests.numOfBits(), 1);
+  ConcordAssertLE(desc.validRequests.numOfBits(), maxNumOfRequestsInBatch);
 }
 
 // Helper function for getting different kinds of sequence numbers.
@@ -896,7 +896,7 @@ SeqNum PersistentStorageImp::getSeqNum(ConstMetadataParameterIds id, uint32_t si
   uint32_t actualObjectSize = 0;
   SeqNum seqNum = 0;
   metadataStorage_->read(id, size, (char *)&seqNum, actualObjectSize);
-  ConcordAssert(actualObjectSize == size);
+  ConcordAssertEQ(actualObjectSize, size);
   return seqNum;
 }
 
