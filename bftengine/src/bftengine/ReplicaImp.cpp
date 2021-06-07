@@ -540,7 +540,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
     LOG_INFO(CNSUS,
              "Sending PrePrepare message" << KVLOG(pp->numberOfRequests())
                                           << " correlation ids: " << pp->getBatchCorrelationIdAsString()
-                                          << ", commit path: " << CommitPathToStr(firstPath));
+                                          << " commit path: " << CommitPathToStr(firstPath));
     consensus_times_.start(primaryLastUsedSeqNum);
   }
 
@@ -712,9 +712,10 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         LOG_INFO(CNSUS, "Internal NOOP PrePrepare received, commit path: " << CommitPathToStr(msg->firstPath()));
       } else {
         LOG_INFO(CNSUS,
-                 "PrePrepare with the following correlation IDs ["
-                     << msg->getBatchCorrelationIdAsString()
-                     << "], commit path: " << CommitPathToStr(msg->firstPath()));
+                 "Received PrePrepare message" << KVLOG(msg->numberOfRequests())
+                                               << " with the following correlation IDs ["
+                                               << msg->getBatchCorrelationIdAsString()
+                                               << "], commit path: " << CommitPathToStr(msg->firstPath()));
       }
       msgAdded = true;
 
@@ -3894,7 +3895,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
                                                 bool recoverFromErrorInRequestsExecution) {
   TimeRecorder scoped_timer(*histograms_.executeRequestsInPrePrepareMsg);
   auto span = concordUtils::startChildSpan("bft_execute_requests_in_preprepare", parent_span);
-  ConcordAssertAND(!isCollectingState(), currentViewIsActive());
+  if (!isCollectingState()) ConcordAssert(currentViewIsActive());
   ConcordAssertNE(ppMsg, nullptr);
   ConcordAssertEQ(ppMsg->viewNumber(), curView);
   ConcordAssertEQ(ppMsg->seqNumber(), lastExecutedSeqNum + 1);
@@ -3922,17 +3923,17 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         SCOPED_MDC_CID(req.getCid());
         NodeIdType clientId = req.clientProxyId();
 
-        const bool validClient = isValidClient(clientId);
-        if (!validClient) {
-          ++numInvalidClients;
-        }
         const bool validNoop = ((clientId == currentPrimary()) && (req.requestLength() == 0));
         if (validNoop) {
           ++numValidNoOps;
+          reqIdx++;
           continue;
         }
+        const bool validClient = isValidClient(clientId);
         if (!validClient) {
-          LOG_WARN(GL, "The client is not valid. " << KVLOG(clientId));
+          ++numInvalidClients;
+          LOG_WARN(GL, "The client is not valid" << KVLOG(clientId));
+          reqIdx++;
           continue;
         }
         if (isReplyAlreadySentToClient(clientId, req.requestSeqNum())) {
@@ -3943,8 +3944,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           reqIdx++;
           continue;
         }
-        requestSet.set(reqIdx);
-        reqIdx++;
+        requestSet.set(reqIdx++);
       }
       reqIter.restart();
 
@@ -4162,7 +4162,7 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
 void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span,
                                               SeqNum seqNumber,
                                               const bool requestMissingInfo) {
-  ConcordAssertAND(!isCollectingState(), currentViewIsActive());
+  if (!isCollectingState()) ConcordAssert(currentViewIsActive());
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
   consensus_times_.end(seqNumber);
