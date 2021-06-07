@@ -609,10 +609,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
-        await op.add_remove_with_wedge(test_config, False)
-        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
-        await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
-        await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
+        await op.add_remove_with_wedge(test_config, bft=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -658,17 +656,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         ro_replica_id = bft_network.config.n
         bft_network.start_replica(ro_replica_id)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(148): # Produce 149 new blocks
+        for i in range(100): # Produce 149 new blocks
             await skvbc.write_known_kv()
         key, val = await skvbc.write_known_kv()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_4_f_1_c_0'
-        await op.add_remove_with_wedge(test_config, False) # Block 150 contains the addRemove command
-        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, 1, range(bft_network.config.n))
-
-        await self._wait_for_st(bft_network, ro_replica_id, 150)
+        await op.add_remove_with_wedge(test_config, bft=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        await self._wait_for_st(bft_network, ro_replica_id, 300)
 
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -737,7 +734,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in live_replicas:
             lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
             self.assertEqual(expectedSeqNum, lastExecSn)
-        await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -779,14 +776,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        client = bft_network.random_client()
-        for i in range(151):
+        for i in range(100):
             await skvbc.write_known_kv()
-        # choose two replicas to crash and crash them
-        crashed_replicas = {3} # For simplicity, we crash the last two replicas
-        bft_network.stop_replicas(crashed_replicas)
+
+        crashed_replica = 3
+        bft_network.stop_replicas({crashed_replica})
         key, val = await skvbc.write_known_kv()
-        live_replicas = bft_network.all_replicas(without=crashed_replicas)
+        live_replicas = bft_network.all_replicas(without={crashed_replica})
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -800,10 +796,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(expectedSeqNum, lastExecSn)
 
         # Start replica 3 and wait for state transfer to finish
-        bft_network.start_replica(3)
-        await self._wait_for_st(bft_network, 3, 150)
-
-        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, bft_network.all_replicas())
+        bft_network.start_replica(crashed_replica)
+        await self._wait_for_st(bft_network, crashed_replica, 300)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
 
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -859,7 +854,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await op.add_remove_with_wedge(test_config)
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
-        await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -899,7 +894,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await op.add_remove_with_wedge(test_config)
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
-        await self.validate_stop_on_stable_checkpoint(bft_network, skvbc)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
         bft_network.stop_all_replicas()
 
@@ -956,15 +951,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert status.response.error_msg == 'key_not_found'
             assert status.success is False
 
-    async def validate_stop_on_stable_checkpoint(self, bft_network, skvbc):
+    async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
             with trio.fail_after(seconds=60):
                 client = bft_network.random_client()
+                client.config._replace(req_timeout_milli=10000)
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 done = False
                 while done is False:
-                    await op.wedge_status(quorum=bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas]),
-                    fullWedge=False)
+                    quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
+                    await op.wedge_status(quorum=quorum, fullWedge=fullWedge)
                     rsi_rep = client.get_rsi_replies()
                     done = True
                     for r in rsi_rep.values():
@@ -973,9 +969,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         if status is False:
                             done = False
                             break
-                    with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
-                        with self.assertRaises(trio.TooSlowError):
-                            await skvbc.write_known_kv()
+                with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
+                    with self.assertRaises(trio.TooSlowError):
+                        await skvbc.write_known_kv()
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
