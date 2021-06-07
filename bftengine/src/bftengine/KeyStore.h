@@ -23,7 +23,7 @@ typedef int64_t SeqNum;  // TODO [TK] redefinition
 /**
  *  Holds and persists public keys of all replicas.
  */
-class ClusterKeyStore : public ResPagesClient<ClusterKeyStore, 2> {
+class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
  public:
   /**
    * Persistent public keys store
