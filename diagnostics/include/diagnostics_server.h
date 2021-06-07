@@ -45,7 +45,7 @@ static logging::Logger logger = logging::getLogger("concord.diagnostics");
 inline std::string readline(int sock) {
   std::array<char, MAX_INPUT_SIZE> buf;
   buf.fill(0);
-  int count = 0;
+  size_t count = 0;
   auto start = std::chrono::steady_clock::now();
   auto timeout = std::chrono::microseconds(999999);
   auto remaining = timeout;
@@ -62,16 +62,16 @@ inline std::string readline(int sock) {
     }
     if (rv < 0 && errno == EINTR) continue;
     if (rv < 0) {
-      throw std::runtime_error("diagnostics server readline select failed: " + errnoString(rv));
+      throw std::runtime_error("diagnostics server readline select failed: " + errnoString(errno));
     }
 
     if (count == MAX_INPUT_SIZE) {
       throw std::runtime_error("Request exceeded max size: " + std::to_string(MAX_INPUT_SIZE));
     }
 
-    rv = read(sock, buf.data() + count, buf.size() - count);
-    if (rv <= 0) {
-      throw std::runtime_error("diagnostics server read failed: " + errnoString(rv));
+    ssize_t read_rv = read(sock, buf.data() + count, buf.size() - count);
+    if (read_rv <= 0) {
+      throw std::runtime_error("diagnostics server read failed: " + errnoString(errno));
     }
     count += rv;
 
@@ -85,6 +85,9 @@ inline std::string readline(int sock) {
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     remaining = timeout - duration;
+    if (remaining.count() <= 0) {
+      throw std::runtime_error("timeout");
+    }
   }
 }
 
