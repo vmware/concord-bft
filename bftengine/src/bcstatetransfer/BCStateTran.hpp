@@ -95,7 +95,9 @@ class BCStateTran : public IStateTransfer {
 
   std::string getStatus() override;
 
-  void addOnTransferringCompleteCallback(std::function<void(uint64_t)>) override;
+  void addOnTransferringCompleteCallback(
+      std::function<void(uint64_t)>,
+      StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) override;
 
   void setEraseMetadataFlag() override { psd_->setEraseDataStoreFlag(); }
 
@@ -426,7 +428,7 @@ class BCStateTran : public IStateTransfer {
 
   mutable Metrics metrics_;
 
-  concord::util::CallbackRegistry<uint64_t> on_transferring_complete_cb_registry_;
+  std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
 
   ///////////////////////////////////////////////////////////////////////////
   // Internal Statistics
