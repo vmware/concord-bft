@@ -26,7 +26,8 @@ namespace concord::kvbc {
 class StReconfigurationHandler {
  public:
   StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
-    st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); });
+    st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); },
+                                         bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
   }
 
   void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
@@ -56,7 +57,7 @@ class StReconfigurationHandler {
 
   bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t);
   kvbc::IReader& ro_storage_;
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
 };

@@ -2904,16 +2904,6 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
              "Informing control state manager that consensus should be stopped (with n-f/n replicas): " << KVLOG(
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
     IControlHandler::instance()->onStableCheckpoint();
-
-    // Mark the metadata storage for deletion if we need to
-    auto seq_num_to_remove_metadata_storage = ControlStateManager::instance().getEraseMetadataFlag();
-    // We would want to set this flag only when we sure that the replica needs to remove the metadata.
-    if (seq_num_to_remove_metadata_storage.has_value() &&
-        seq_num_to_remove_metadata_storage.value() == newStableSeqNum) {
-      LOG_INFO(GL, "informing metadata storage to clean the data before shutting down (without n/n replicas)");
-      if (ps_) ps_->setEraseMetadataStorageFlag();
-      stateTransfer->setEraseMetadataFlag();
-    }
   }
 }
 
@@ -3285,6 +3275,10 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   ConcordAssertNE(persistentStorage, nullptr);
 
   ps_ = persistentStorage;
+  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&]() {
+    ps_->setEraseMetadataStorageFlag();
+    stateTransfer->setEraseMetadataFlag();
+  });
 
   lastAgreedView = ld.viewsManager->latestActiveView();
 
@@ -3526,6 +3520,10 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
   LOG_INFO(GL, "");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
+    bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&]() {
+      ps_->setEraseMetadataStorageFlag();
+      stateTransfer->setEraseMetadataFlag();
+    });
   }
 
   auto numThreads = 8;

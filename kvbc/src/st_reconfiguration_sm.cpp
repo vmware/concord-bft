@@ -13,6 +13,8 @@
 #include "st_reconfiguraion_sm.hpp"
 #include "hex_tools.h"
 #include "endianness.hpp"
+#include "SysConsts.hpp"
+#include "ControlStateManager.hpp"
 
 namespace concord::kvbc {
 template <typename T>
@@ -59,6 +61,25 @@ bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint
     return handle(cmd, seqNum, current_cp_num);
   }
   return false;
+}
+
+bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t current_cp_num) {
+  auto cp_sn = checkpointWindowSize * current_cp_num;
+  auto wedge_point = (bft_seq_num + 2 * checkpointWindowSize);
+  wedge_point = wedge_point - (wedge_point % checkpointWindowSize);
+  if (cp_sn == wedge_point) {  // We got to the wedge point, we now need to set a flag to remove the metadata and to
+                               // wait for restart
+    if (command.bft) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    } else {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    }
+  }
+  return true;
 }
 
 }  // namespace concord::kvbc

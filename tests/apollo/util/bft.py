@@ -1246,7 +1246,7 @@ class BftTestNetwork:
             
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
         
-    async def check_initital_key_exchange(self):
+    async def check_initital_key_exchange(self, stop_replicas=True):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
@@ -1280,7 +1280,8 @@ class BftTestNetwork:
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
                 lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
-            self.stop_all_replicas()
+            if stop_replicas:
+                self.stop_all_replicas()
             return lastExecutedVal
 
     async def assert_successful_pre_executions_count(self, replica_id, num_requests):
