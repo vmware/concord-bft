@@ -774,15 +774,15 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         4. Load  a new configuration to the bft network
         5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
         """
-        bft_network.start_all_replicas()
+        crashed_replica = 3
+        live_replicas = bft_network.all_replicas(without={crashed_replica})
+
+        bft_network.start_replicas(live_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
             await skvbc.write_known_kv()
 
-        crashed_replica = 3
-        bft_network.stop_replicas({crashed_replica})
         key, val = await skvbc.write_known_kv()
-        live_replicas = bft_network.all_replicas(without={crashed_replica})
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -795,10 +795,14 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
             self.assertEqual(expectedSeqNum, lastExecSn)
 
+        # Verify that all live replicas have got to the wedge point
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
+
         # Start replica 3 and wait for state transfer to finish
         bft_network.start_replica(crashed_replica)
         await self._wait_for_st(bft_network, crashed_replica, 300)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+
 
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -953,22 +957,25 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
-            with trio.fail_after(seconds=60):
+            with trio.fail_after(seconds=90):
                 client = bft_network.random_client()
                 client.config._replace(req_timeout_milli=10000)
                 op = operator.Operator(bft_network.config, client,  bft_network.builddir)
                 done = False
+                quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
                 while done is False:
-                    quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
+                    stopped_replicas = 0
                     await op.wedge_status(quorum=quorum, fullWedge=fullWedge)
                     rsi_rep = client.get_rsi_replies()
                     done = True
                     for r in rsi_rep.values():
                         res = cmf_msgs.ReconfigurationResponse.deserialize(r)
                         status = res[0].response.stopped
-                        if status is False:
-                            done = False
-                            break
+                        if status:
+                            stopped_replicas += 1
+                    stop_condition = bft_network.config.n if fullWedge is True else (bft_network.config.n - bft_network.config.f)
+                    if stopped_replicas < stop_condition:
+                        done = False
                 with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
                     with self.assertRaises(trio.TooSlowError):
                         await skvbc.write_known_kv()
