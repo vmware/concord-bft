@@ -248,13 +248,11 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
     timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
   }
-
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
-  on_transferring_complete_cb_registry_.add(
+  addOnTransferringCompleteCallback(
       [this](uint64_t checkpoint_num) { replicaForStateTransfer_->onTransferringComplete(checkpoint_num); });
 }
-
 BCStateTran::~BCStateTran() {
   ConcordAssert(!running_);
   ConcordAssert(cacheOfVirtualBlockForResPages.empty());
@@ -715,8 +713,12 @@ std::string BCStateTran::getStatus() {
   return oss.str();
 }
 
-void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)> callback) {
-  on_transferring_complete_cb_registry_.add(std::move(callback));
+void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)> callback,
+                                                    StateTransferCallBacksPriorities priority) {
+  if (on_transferring_complete_cb_registry_.find((uint64_t)priority) == on_transferring_complete_cb_registry_.end()) {
+    on_transferring_complete_cb_registry_[(uint64_t)priority];  // Create a new callback registry for this priority
+  }
+  on_transferring_complete_cb_registry_.at(uint64_t(priority)).add(std::move(callback));
 }
 
 // this function can be executed in context of another thread.
@@ -2287,7 +2289,10 @@ void BCStateTran::processData() {
       LOG_INFO(getLogger(),
                "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_.Get().Inc();
-      on_transferring_complete_cb_registry_.invokeAll(cp.checkpointNum);
+      std::set<uint64_t> cb_keys;
+      for (const auto &kv : on_transferring_complete_cb_registry_) {
+        kv.second.invokeAll(cp.checkpointNum);
+      }
       g.txn()->setIsFetchingState(false);
       break;
     }

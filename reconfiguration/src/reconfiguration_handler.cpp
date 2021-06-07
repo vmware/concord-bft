@@ -64,10 +64,10 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   if (command.bft) {
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().setEraseMetadataFlag(bft_seq_num); });
+        [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
   } else {
     bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().setEraseMetadataFlag(bft_seq_num); });
+        [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
   }
   return true;
 }  // namespace concord::reconfiguration

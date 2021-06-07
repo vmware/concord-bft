@@ -439,7 +439,10 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
 
 class TestStateTransfer : public bftEngine::impl::NullStateTransfer {
  public:
-  void addOnTransferringCompleteCallback(std::function<void(uint64_t)> callback) override { callback_ = callback; }
+  void addOnTransferringCompleteCallback(std::function<void(uint64_t)> callback,
+                                         StateTransferCallBacksPriorities priority) override {
+    callback_ = callback;
+  }
 
   void complete() { callback_(0); }
 
