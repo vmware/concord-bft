@@ -28,7 +28,7 @@ namespace impl {
 class ClientReplyMsg;
 class ClientRequestMsg;
 
-class ClientsManager : public ResPagesClient<ClientsManager, 0>, public IPendingRequest {
+class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingRequest {
  public:
   ClientsManager(concordMetrics::Component& metrics, std::set<NodeIdType>& clientsSet);
   ~ClientsManager();

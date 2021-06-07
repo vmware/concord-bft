@@ -10,6 +10,7 @@
 // file.
 
 #include "TimeServiceResPageClient.hpp"
+#include "assertUtils.hpp"
 
 namespace {
 constexpr auto RESERVED_PAGE_ID = uint32_t{0};
