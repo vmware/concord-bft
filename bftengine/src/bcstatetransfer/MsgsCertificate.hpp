@@ -18,6 +18,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <forward_list>
+#include <atomic>
 
 namespace bftEngine {
 namespace bcst {
@@ -74,7 +75,7 @@ class MsgsCertificate {
   const uint16_t required;
   const uint16_t selfId;
 
-  std::unordered_map<uint16_t, T*> msgsFromReplicas;
+  std::unordered_map<uint16_t, std::atomic<T*>> msgsFromReplicas;
 
   struct MsgClassInfo {
     uint16_t size;
