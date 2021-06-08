@@ -122,7 +122,7 @@ class Replica : public IReplica,
 
   bftEngine::IStateTransfer &getStateTransfer() { return *m_stateTransfer; }
 
-  const std::shared_ptr<cron::CronTableRegistry> &cronTableRegistry() const { return cronTableRegistry_; }
+  std::shared_ptr<cron::CronTableRegistry> cronTableRegistry() const { return cronTableRegistry_; }
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
 
   ~Replica() override;

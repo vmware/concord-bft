@@ -13,8 +13,6 @@
 import os.path
 import unittest
 
-import trio
-
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 expected_number_of_executes = 3
@@ -41,8 +39,11 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcTestCron(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
 
-    period_after_executes_seconds = 7
     expected_component_id = "42"
+    # Since the cron entry is called every second, wait for the number of expected executes + some grace period
+    # to allow for proper custer startup.
+    wait_for_timeout_sec = expected_number_of_executes + 30
+    wait_for_interval_sec = 1
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
@@ -51,23 +52,44 @@ class SkvbcTestCron(unittest.TestCase):
         Test that Concord Cron actions are called the correct number of times.
 
         Instruct TesterReplica to add a cron entry that is executed a specific
-        number of times. Verify that number after an additional period of time,
-        ensuring that the cron table doesn't execute the entry any more, even
+        number of times. Verify that the entry is not executed more times, even
         though ticks generation is proceeding.
         """
         bft_network.start_all_replicas()
 
-        # Since the cron entry is called every second, wait for the number of expected executes + a period after them.
-        await trio.sleep(seconds=expected_number_of_executes + self.period_after_executes_seconds)
+        async def wait_for_executes():
+          nums = []
+          component_ids = []
+          for r in bft_network.all_replicas():
+            num = await bft_network.retrieve_metric(r, "cron_test", "Gauges", "cron_entry_number_of_executes")
+            nums.append(num)
 
+            component_id = await bft_network.retrieve_metric(r, "cron_test", "Statuses", "cron_ticks_component_id")
+            component_ids.append(component_id)
+
+          for component_id in component_ids:
+            if component_id:
+              self.assertEqual(component_id, self.expected_component_id)
+
+          for num in nums:
+            if num != expected_number_of_executes:
+              return None
+          return True
+
+        # Wait for the expected number of executes.
+        await bft_network.wait_for(wait_for_executes, self.wait_for_timeout_sec, self.wait_for_interval_sec)
+
+        # Get the last executed seq number of all replicas.
+        seq_nums = {}
         for r in bft_network.all_replicas():
-          # Make sure the number of executes is exactly as expected and not more, even after an additional period has elapsed.
-          num_executes = await bft_network.get_metric(r, bft_network, "Gauges", "cron_entry_number_of_executes", "cron_test")
-          self.assertEqual(num_executes, expected_number_of_executes)
+          seq_num = await bft_network.wait_for_last_executed_seq_num(r)
+          seq_nums[r] = seq_num
 
-          # Make sure the component ID in ticks is correct.
-          component_id = await bft_network.get_metric(r, bft_network, "Statuses", "cron_ticks_component_id", "cron_test")
-          self.assertEqual(component_id, self.expected_component_id)
+        # Wait until all replicas have executed at least one more tick and verify that
+        # the entry is not executed anymore.
+        for r in bft_network.all_replicas():
+          await bft_network.wait_for_last_executed_seq_num(r, seq_nums[r] + 1)
+        await bft_network.wait_for(wait_for_executes, self.wait_for_timeout_sec, self.wait_for_interval_sec)
 
 if __name__ == '__main__':
     unittest.main()

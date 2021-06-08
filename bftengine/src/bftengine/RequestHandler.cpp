@@ -83,7 +83,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         auto req_ptr = reinterpret_cast<const uint8_t*>(req.request);
         deserialize(req_ptr, req_ptr + req.requestSize, payload);
         const auto tick = Tick{payload.component_id, req.executionSequenceNum};
-        cron_table_registry_->operator[](payload.component_id).evaluate(tick);
+        (*cron_table_registry_)[payload.component_id].evaluate(tick);
       } else {
         LOG_ERROR(GL, "Received a Tick, but the cron table registry is not initialized");
         req.outExecutionStatus = 2;
