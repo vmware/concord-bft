@@ -28,23 +28,21 @@ using namespace std::chrono_literals;
 namespace client::thin_replica_client {
 
 struct TrsConnectionConfig {
+  // use_tls determines if a TLS enabled secure channel will be opened
+  // by the thin replica client, or an insecure channel will be employed.
+  const bool use_tls;
   // thin_replica_tls_cert_path specifies the path of the certificates used for
   // the TLS channel.
   const std::string thin_replica_tls_cert_path;
-  // is_insecure_trc_val determines if TLS enabled secure channel will be opened
-  // by the thin replica client, or an insecure channel will be employed.
-  const std::string is_insecure_trc_val;
   // client_key is the private key used by TRC to create a secure channel if
   // `is_insecure_trc_val` is false.
   const std::string client_key;
   const std::string client_cert_path;
   const std::string server_cert_path;
 
-  TrsConnectionConfig(const std::string& thin_replica_tls_cert_path_,
-                      const std::string& is_insecure_trc_val_,
-                      const std::string& client_key_)
-      : thin_replica_tls_cert_path(thin_replica_tls_cert_path_),
-        is_insecure_trc_val(is_insecure_trc_val_),
+  TrsConnectionConfig(bool use_tls_, const std::string& thin_replica_tls_cert_path_, const std::string& client_key_)
+      : use_tls(use_tls_),
+        thin_replica_tls_cert_path(thin_replica_tls_cert_path_),
         client_key(client_key_),
         client_cert_path(thin_replica_tls_cert_path + "/client.cert"),
         server_cert_path(thin_replica_tls_cert_path + "/server.cert") {}
