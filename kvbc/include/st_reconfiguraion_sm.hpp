@@ -33,6 +33,7 @@ class StReconfigurationHandler {
   void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
     orig_reconf_handlers_.push_back(handler);
   }
+  void stCallBack(uint64_t);
 
  private:
   template <typename T>
@@ -40,9 +41,6 @@ class StReconfigurationHandler {
   template <typename T>
   bool handlerStoredCommand(const std::string& key, uint64_t current_cp_num);
   uint64_t getStoredBftSeqNum(BlockId bid);
-
-  void stCallBack(uint64_t);
-
   /*
    * For wedge, we need to do nothing. The wedge point is being cleared only on termination.
    * Thus, as long no one did unwedge (currently, restarting the replicas) the late replica will get the data

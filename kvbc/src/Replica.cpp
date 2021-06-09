@@ -78,7 +78,7 @@ void Replica::createReplicaAndSyncState() {
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
-      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true));
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
   stReconfigurationSM_->registerHandler(pruning_handler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
@@ -100,6 +100,10 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
+  // the stReconfigurationSM_ also serves as a recovering mechanism if the replica crashed before/after the
+  // reconfiguration request. So once we done initialize the replica, we try to execute its main handler
+  uint64_t lastCheckpointNum = lastExecutedSeqNum / checkpointWindowSize;
+  stReconfigurationSM_->stCallBack(lastCheckpointNum);
 }
 
 /**

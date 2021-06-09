@@ -143,11 +143,7 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   // exception if there is an issue with the configuration (for example, if the
   // configuration enables pruning but does not provide a purning operator
   // public key).
-  PruningHandler(kvbc::IReader &,
-                 kvbc::IBlockAdder &,
-                 kvbc::IBlocksDeleter &,
-                 bftEngine::IStateTransfer &,
-                 bool run_async = false);
+  PruningHandler(kvbc::IReader &, kvbc::IBlockAdder &, kvbc::IBlocksDeleter &, bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               concord::messages::ReconfigurationResponse &) override;

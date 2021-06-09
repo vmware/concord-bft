@@ -118,7 +118,6 @@ const RSAPruningVerifier::Replica& RSAPruningVerifier::getReplica(ReplicaVector:
 PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
                                kvbc::IBlockAdder& blocks_adder,
                                kvbc::IBlocksDeleter& blocks_deleter,
-                               bftEngine::IStateTransfer& state_transfer,
                                bool run_async)
     : logger_{logging::getLogger("concord.pruning")},
       signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
@@ -131,17 +130,6 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
-  // Make sure that blocks from old genesis through the last agreed block are
-  // pruned. That might be violated if there was a crash during pruning itself.
-  // Therefore, call it every time on startup to ensure no old blocks are
-  // present before we allow the system to proceed.
-  pruneThroughLastAgreedBlockId();
-
-  // If a replica has missed Prune commands for whatever reason, we still need
-  // to execute them. We do that by saving pruning data in the state and later
-  // using it to prune relevant blocks when we receive it from state transfer.
-  state_transfer.addOnTransferringCompleteCallback(
-      [this](uint64_t checkpoint_number) { pruneOnStateTransferCompletion(checkpoint_number); });
 }
 
 bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
@@ -192,9 +180,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request,
   }
 
   const auto latest_prunable_block_id = agreedPrunableBlockId(request);
-  // Make sure we have persisted the agreed prunable block ID before proceeding.
-  // Rationale is that we want to be able to pick up in case of a crash.
-  persistLastAgreedPrunableBlockId(latest_prunable_block_id, bftSeqNum);
+
   // Execute actual pruning.
   pruneThroughBlockId(latest_prunable_block_id);
   std::ostringstream oss;
