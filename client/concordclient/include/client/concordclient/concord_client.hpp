@@ -17,7 +17,6 @@
 #include "bftclient/bft_client.h"
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
-#include "client/thin-replica-client/trs_connection.hpp"
 
 namespace client::concordclient {
 
@@ -60,11 +59,22 @@ struct TransportConfig {
   std::string tls_cipher_suite;
 };
 
-struct ThinReplicaConfig {
-  // Thin Replica Client ID
-  std::string trc_id;
-  // List of Thin Replica Server endpoints
-  std::vector<client::thin_replica_client::TrsConnectionConfig> thin_replica_servers;
+struct SubscribeServer {
+  // If set to false then the fields below won't be evaluated
+  const bool use_tls;
+  // Buffer with the server's PEM encoded certififactes
+  const std::string pem_certs;
+};
+
+struct SubscribeConfig {
+  // Subscription ID
+  const std::string id;
+  // Buffer with the client's PEM encoded certififacte chain
+  const std::string pem_cert_chain;
+  // Buffer with the client's PEM encoded private key
+  const std::string pem_private_key;
+  // List of SubscribeServer endpoints
+  std::vector<SubscribeServer> servers;
 };
 
 struct ConcordClientConfig {
@@ -74,8 +84,8 @@ struct ConcordClientConfig {
   TransportConfig transport;
   // BFT client descriptors
   std::vector<BftClientInfo> bft_clients;
-  // Thin Replica Client configurationg
-  ThinReplicaConfig tr_config;
+  // Configuration for subscribe requests
+  SubscribeConfig subscribe_config;
 };
 
 // ConcordClient combines two different client functionalities into one interface.
@@ -85,7 +95,6 @@ class ConcordClient {
  public:
   ConcordClient(const ConcordClientConfig& config) : config_(config) {}
 
-  // Client Pool API
   // Register a callback that gets invoked once the handling BFT client returns
   // void callback(SendResult result);
   template <class CallbackT>
@@ -99,7 +108,6 @@ class ConcordClient {
             const std::unique_ptr<opentracing::Span>& parent_span,
             CallbackT callback);
 
-  // Thin Replica Client API
   // Register a callback that gets invoked for every validated event received.
   // void callback(client::thin_replica_client::SubscribeResult result);
   template <class CallbackT>
