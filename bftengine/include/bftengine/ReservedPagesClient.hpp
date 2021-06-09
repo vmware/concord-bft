@@ -63,8 +63,9 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
       std::terminate();
     }
     reg[std::type_index(typeid(T))] = NumPages;
-    std::cout << __PRETTY_FUNCTION__ << " hash: " << std::type_index(typeid(T)).hash_code() << " pages: " << NumPages
-              << std::endl;
+    //    std::cout << __PRETTY_FUNCTION__ << " hash: " << std::type_index(typeid(T)).hash_code() << " pages: " <<
+    //    NumPages
+    //              << std::endl;
     return true;
   }
   /**
