@@ -155,9 +155,7 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
               concord::messages::ReconfigurationResponse &) override;
-  static std::string lastAgreedPrunableBlockIdKey() {
-    return std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key};
-  }
+  static std::string lastAgreedPrunableBlockIdKey() { return std::string{kvbc::keyTypes::reconfiguration_pruning_key}; }
 
  protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;

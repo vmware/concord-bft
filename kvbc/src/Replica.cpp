@@ -70,14 +70,17 @@ Status Replica::start() {
 
 void Replica::createReplicaAndSyncState() {
   auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
+  stReconfigurationSM_->registerHandler(requestHandler->getReconfigurationHandler());
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(std::shared_ptr<kvbc::pruning::PruningHandler>(
-      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
+  auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true));
+  requestHandler->setReconfigurationHandler(pruning_handler);
+  stReconfigurationSM_->registerHandler(pruning_handler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();

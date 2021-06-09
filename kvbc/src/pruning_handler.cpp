@@ -221,8 +221,8 @@ kvbc::BlockId PruningHandler::agreedPrunableBlockId(const concord::messages::Pru
 }
 
 std::optional<kvbc::BlockId> PruningHandler::lastAgreedPrunableBlockId() const {
-  auto opt_val = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
-                                       std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key});
+  auto opt_val =
+      ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_pruning_key});
   // if it's not found return nullopt, if any other error occurs storage throws.
   if (!opt_val) {
     return std::nullopt;
@@ -233,7 +233,7 @@ std::optional<kvbc::BlockId> PruningHandler::lastAgreedPrunableBlockId() const {
 
 void PruningHandler::persistLastAgreedPrunableBlockId(kvbc::BlockId block_id, uint64_t bft_seq_num) const {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key},
+  ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_pruning_key},
                         concordUtils::toBigEndianStringBuffer(block_id));
 
   // All blocks are expected to have the BFT sequence number as a key.

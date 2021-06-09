@@ -14,7 +14,7 @@
 
 namespace concord::kvbc::keyTypes {
 static const char bft_seq_num_key = 0x21;
-static const char pruning_last_agreed_prunable_block_id_key = 0x24;
+static const char reconfiguration_pruning_key = 0x24;
 static const char reconfiguration_wedge_key = 0x25;
 static const char reconfiguration_download_key = 0x26;
 static const char reconfiguration_install_key = 0x27;
