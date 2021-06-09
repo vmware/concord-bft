@@ -40,6 +40,8 @@
 #include "secrets_manager_impl.h"
 #include "SigManager.hpp"
 
+#include <ccron/ticks_generator.hpp>
+
 namespace bftEngine::impl {
 
 class ClientRequestMsg;
@@ -174,6 +176,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // it will be initialized to a SecretsManagerPlain
   shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
 
+  std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
+
   //******** METRICS ************************************
   GaugeHandle metric_view_;
   GaugeHandle metric_last_stable_seq_num_;
@@ -270,6 +274,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void start() override;
   void stop() override;
+
+  std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const { return ticks_gen_; }
 
   virtual bool isReadOnly() const override { return false; }
 

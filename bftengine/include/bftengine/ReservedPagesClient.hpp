@@ -92,12 +92,13 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     res_pages_->zeroReservedPage(my_offset() + reservedPageId);
   }
 
- private:
   /** is called when calculating absolute pageId */
   uint32_t my_offset() const {
     static uint32_t offset_ = calc_my_offset();
     return offset_;
   }
+
+ private:
   // is done once per client
   uint32_t calc_my_offset() const {
     uint32_t offset = 0;

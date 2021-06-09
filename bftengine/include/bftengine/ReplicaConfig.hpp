@@ -163,6 +163,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::milliseconds{1},
                "time provided to execution is max(consensus_time, last_time + timeServiceEpsilonMillis)");
 
+  // Ticks Generator
+  CONFIG_PARAM(ticksGeneratorPollPeriod,
+               std::chrono::seconds,
+               std::chrono::seconds{1},
+               "wake up the ticks generator every ticksGeneratorPollPeriod seconds and fire pending ticks");
+
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);

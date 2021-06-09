@@ -27,6 +27,10 @@
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
+
+#include <ccron/cron_table_registry.hpp>
+#include <ccron/ticks_generator.hpp>
+
 namespace concord::kvbc {
 
 class Replica : public IReplica,
@@ -118,6 +122,9 @@ class Replica : public IReplica,
 
   bftEngine::IStateTransfer &getStateTransfer() { return *m_stateTransfer; }
 
+  std::shared_ptr<cron::CronTableRegistry> cronTableRegistry() const { return cronTableRegistry_; }
+  std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
+
   ~Replica() override;
 
  protected:
@@ -178,7 +185,7 @@ class Replica : public IReplica,
   // and there is no instance of SecretsManagerEnc available
   const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsManager_;
   std::unique_ptr<concord::kvbc::StReconfigurationHandler> stReconfigurationSM_;
-
+  std::shared_ptr<cron::CronTableRegistry> cronTableRegistry_{std::make_shared<cron::CronTableRegistry>()};
 };  // namespace concord::kvbc
 
 }  // namespace concord::kvbc

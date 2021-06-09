@@ -15,6 +15,9 @@
 
 #include "bftengine/KeyExchangeManager.hpp"
 
+#include <ccron/cron_table_registry.hpp>
+#include "ccron_msgs.cmf.hpp"
+
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
 
@@ -61,7 +64,32 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         req.outActualReplySize = 0;
       }
       req.outExecutionStatus = 0;  // stop further processing of this request
+    } else if (req.flags & TICK_FLAG) {
+      // Make sure the reply always contains one dummy 0 byte. Needed as empty replies are not supported at that stage.
+      // Also, set replica specific information size to 0.
+      req.outActualReplySize = 1;
+      req.outReply[0] = '\0';
+      req.outReplicaSpecificInfoSize = 0;
+
+      // Default is success (0).
+      req.outExecutionStatus = 0;
+
+      if (req.flags & READ_ONLY_FLAG) {
+        LOG_ERROR(GL, "Received a read-only Tick, ignoring");
+        req.outExecutionStatus = 1;
+      } else if (cron_table_registry_) {
+        using namespace concord::cron;
+        auto payload = ClientReqMsgTickPayload{};
+        auto req_ptr = reinterpret_cast<const uint8_t*>(req.request);
+        deserialize(req_ptr, req_ptr + req.requestSize, payload);
+        const auto tick = Tick{payload.component_id, req.executionSequenceNum};
+        (*cron_table_registry_)[payload.component_id].evaluate(tick);
+      } else {
+        LOG_ERROR(GL, "Received a Tick, but the cron table registry is not initialized");
+        req.outExecutionStatus = 2;
+      }
     }
+
     if (req.flags & READ_ONLY_FLAG) {
       // Backward compatible with read only flag prior BC-5126
       req.flags = READ_ONLY_FLAG;

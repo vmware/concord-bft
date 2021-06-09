@@ -52,7 +52,7 @@ Status Replica::start() {
 
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
   } else {
@@ -69,7 +69,7 @@ Status Replica::start() {
 }
 
 void Replica::createReplicaAndSyncState() {
-  auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+  auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));

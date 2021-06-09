@@ -26,6 +26,10 @@ class IReconfigurationHandler;
 enum ReconfigurationHandlerType : unsigned int;
 }  // namespace concord::reconfiguration
 
+namespace concord::cron {
+class CronTableRegistry;
+}
+
 namespace bftEngine {
 class IRequestsHandler {
  public:
@@ -44,7 +48,8 @@ class IRequestsHandler {
     int outExecutionStatus = 1;
   };
 
-  static std::shared_ptr<IRequestsHandler> createRequestsHandler(std::shared_ptr<IRequestsHandler> userReqHandler);
+  static std::shared_ptr<IRequestsHandler> createRequestsHandler(
+      std::shared_ptr<IRequestsHandler> userReqHandler, const std::shared_ptr<concord::cron::CronTableRegistry> &);
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,

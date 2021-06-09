@@ -27,6 +27,9 @@
 #include <memory>
 #include <mutex>
 #include <cstdio>
+#include <utility>
+
+#include <ccron/ticks_generator.hpp>
 
 bftEngine::IReservedPages *bftEngine::ReservedPagesClientBase::res_pages_ = nullptr;
 
@@ -41,6 +44,8 @@ class ReplicaInternal : public IReplica {
   friend class IReplica;
 
  public:
+  ReplicaInternal(const std::shared_ptr<concord::cron::TicksGenerator> &ticks_gen = nullptr) : ticks_gen_{ticks_gen} {}
+
   bool isRunning() const override;
 
   int64_t getLastExecutedSequenceNum() const override { return replica_->getLastExecutedSequenceNum(); }
@@ -53,10 +58,13 @@ class ReplicaInternal : public IReplica {
 
   void restartForDebug(uint32_t delayMillis) override;
 
+  std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const override;
+
  private:
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
   std::mutex debugWaitLock_;
+  std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
 };
 
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
@@ -111,6 +119,8 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
   }
   replica_->start();
 }
+
+std::shared_ptr<concord::cron::TicksGenerator> ReplicaInternal::ticksGenerator() const { return ticks_gen_; }
 
 }  // namespace bftEngine::impl
 
@@ -171,7 +181,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
   if (isNewStorage) {
-    replicaInternal->replica_.reset(new ReplicaImp(replicaConfig,
+    auto replicaImp = std::make_unique<ReplicaImp>(replicaConfig,
                                                    requestsHandler,
                                                    stateTransfer,
                                                    msgsCommunicatorPtr,
@@ -179,7 +189,9 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    msgHandlersPtr,
                                                    timers,
                                                    pm,
-                                                   sm));
+                                                   sm);
+    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator());
+    replicaInternal->replica_ = std::move(replicaImp);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
     auto loadedReplicaData = ReplicaLoader::loadReplica(persistentStoragePtr, loadErrCode);
@@ -188,7 +200,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
       return nullptr;
     }
     // TODO(GG): compare ld.repConfig and replicaConfig
-    replicaInternal->replica_.reset(new ReplicaImp(loadedReplicaData,
+    auto replicaImp = std::make_unique<ReplicaImp>(loadedReplicaData,
                                                    requestsHandler,
                                                    stateTransfer,
                                                    msgsCommunicatorPtr,
@@ -196,7 +208,9 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    msgHandlersPtr,
                                                    timers,
                                                    pm,
-                                                   sm));
+                                                   sm);
+    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator());
+    replicaInternal->replica_ = std::move(replicaImp);
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,
                                                  incomingMsgsStoragePtr,
@@ -235,9 +249,11 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
 }
 
 std::shared_ptr<IRequestsHandler> IRequestsHandler::createRequestsHandler(
-    std::shared_ptr<IRequestsHandler> userReqHandler) {
+    std::shared_ptr<IRequestsHandler> userReqHandler,
+    const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry) {
   auto reqHandler = new bftEngine::RequestHandler();
   reqHandler->setUserRequestHandler(userReqHandler);
+  reqHandler->setCronTableRegistry(cronTableRegistry);
   return std::shared_ptr<IRequestsHandler>(reqHandler);
 }
 

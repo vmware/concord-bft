@@ -1184,6 +1184,10 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return onInternalMsg(*get_status);
   }
 
+  if (auto *tick = std::get_if<TickInternalMsg>(&msg)) {
+    return ticks_gen_->onInternalTick(*tick);
+  }
+
   ConcordAssert(false);
 }
 
@@ -3705,6 +3709,11 @@ ReplicaImp::ReplicaImp(bool firstTime,
         new RetransmissionsManager(&internalThreadPool, &getIncomingMsgsStorage(), kWorkWindowSize, 0);
   else
     retransmissionsManager = nullptr;
+
+  ticks_gen_ = std::make_shared<concord::cron::TicksGenerator>(internalBFTClient_,
+                                                               *clientsManager,
+                                                               msgsCommunicator_->getIncomingMsgsStorage(),
+                                                               config.ticksGeneratorPollPeriod);
 
   if (currentViewIsActive()) {
     time_in_active_view_.start();

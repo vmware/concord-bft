@@ -10,10 +10,13 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
 #include "IRequestHandler.hpp"
-#pragma once
+
+#include <ccron/cron_table_registry.hpp>
 
 namespace bftEngine {
 
@@ -36,11 +39,17 @@ class RequestHandler : public IRequestsHandler {
                                      concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override {
     reconfig_dispatcher_.addReconfigurationHandler(rh, type);
   }
+
+  void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg) {
+    cron_table_registry_ = reg;
+  }
+
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
 
  private:
   std::shared_ptr<IRequestsHandler> userRequestsHandler_ = nullptr;
   concord::reconfiguration::Dispatcher reconfig_dispatcher_;
+  std::shared_ptr<concord::cron::CronTableRegistry> cron_table_registry_;
 };
 
 }  // namespace bftEngine
