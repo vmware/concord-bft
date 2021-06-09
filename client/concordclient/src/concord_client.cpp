@@ -17,8 +17,6 @@ using bft::client::Msg;
 using bft::client::WriteConfig;
 using bft::client::ReadConfig;
 
-using client::thin_replica_client::SubscribeRequest;
-
 using opentracing::Span;
 
 namespace client::concordclient {
