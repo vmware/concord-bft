@@ -16,11 +16,6 @@
 
 namespace concord::client::clientservice {
 
-ClientService::ClientService() {
-  request_service_ = std::make_unique<RequestServiceImpl>();
-  event_service_ = std::make_unique<EventServiceImpl>();
-}
-
 void ClientService::start(const std::string& addr) {
   grpc::EnableDefaultHealthCheckService(true);
 

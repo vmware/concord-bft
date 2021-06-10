@@ -12,13 +12,19 @@
 #include <grpcpp/grpcpp.h>
 #include <concord_client.grpc.pb.h>
 
+#include "Logger.hpp"
+
 namespace concord::client::clientservice {
 
 class RequestServiceImpl final : public vmware::concord::client::v1::RequestService::Service {
  public:
+  RequestServiceImpl() : logger_(logging::getLogger("concord.client.clientservice.request")){};
   grpc::Status Send(grpc::ServerContext* context,
                     const vmware::concord::client::v1::Request* request,
                     vmware::concord::client::v1::Response* response) override;
+
+ private:
+  logging::Logger logger_;
 };
 
 }  // namespace concord::client::clientservice

@@ -14,18 +14,24 @@
 
 #include "event_service.hpp"
 #include "request_service.hpp"
+#include "Logger.hpp"
 
 namespace concord::client::clientservice {
 
 class ClientService {
  public:
-  ClientService();
+  ClientService()
+      : logger_(logging::getLogger("concord.client.clientservice")),
+        event_service_(std::make_unique<EventServiceImpl>()),
+        request_service_(std::make_unique<RequestServiceImpl>()){};
+
   void start(const std::string& addr);
 
   const std::string kRequestService{"vmware.concord.client.v1.RequestService"};
   const std::string kEventService{"vmware.concord.client.v1.EventService"};
 
  private:
+  logging::Logger logger_;
   std::unique_ptr<EventServiceImpl> event_service_;
   std::unique_ptr<RequestServiceImpl> request_service_;
 };

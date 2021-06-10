@@ -25,7 +25,7 @@ namespace concord::client::clientservice {
 Status EventServiceImpl::StreamEventGroups(ServerContext* context,
                                            const StreamEventGroupsRequest* request,
                                            ServerWriter<EventGroup>* stream) {
-  std::cout << "EventServiceImpl::StreamEventGroups called" << std::endl;
+  LOG_INFO(logger_, "EventServiceImpl::StreamEventGroups called");
   return grpc::Status::OK;
 }
 

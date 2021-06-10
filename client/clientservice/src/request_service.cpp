@@ -22,7 +22,7 @@ using vmware::concord::client::v1::Response;
 namespace concord::client::clientservice {
 
 Status RequestServiceImpl::Send(ServerContext* context, const Request* request, Response* response) {
-  std::cout << "RequestService::Send called" << std::endl;
+  LOG_INFO(logger_, "RequestService::Send called");
   return grpc::Status::OK;
 }
 

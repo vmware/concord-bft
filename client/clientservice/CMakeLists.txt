@@ -9,4 +9,5 @@ target_link_libraries(clientservice PRIVATE
   clientservice-proto
   gRPC::grpc++
   gRPC::grpc++_reflection
+  logging
 )

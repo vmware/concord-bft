@@ -13,16 +13,21 @@
 #include <memory>
 #include <grpcpp/grpcpp.h>
 
+#include "Logger.hpp"
 #include "client_service.hpp"
 
 using concord::client::clientservice::ClientService;
 
 int main(int argc, char** argv) {
-  std::cout << "Starting Clientservice" << std::endl;
+  // TODO: Use config file and watch thread
+  auto logger = logging::getLogger("concord.client.clientservice.main");
+
+  std::string addr = "localhost:1337";
+  LOG_INFO(logger, "Starting clientservice at " << addr);
 
   // TODO: Create ConcordClient
   ClientService service;
-  service.start("localhost:1337");
+  service.start(addr);
 
   return 0;
 }
