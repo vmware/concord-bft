@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <utility>
+#include <type_traits>
 #include "assertUtils.hpp"
 
 // TODO(GG): ItemFuncs should have operations on ItemType: init, free, reset, save, load
@@ -94,7 +95,8 @@ template <uint16_t WindowSize,
           typename NumbersType,
           typename ItemType,
           typename ItemFuncs,
-          uint16_t WindowHistory = 0>
+          uint16_t WindowHistory = 0,
+          bool TypeSelection = true>
 class SequenceWithActiveWindow {
   static_assert(WindowSize >= 8, "");
   static_assert(WindowSize < UINT16_MAX, "");
@@ -105,7 +107,7 @@ class SequenceWithActiveWindow {
  protected:
   static const uint16_t numItems = WindowSize / Resolution;
 
-  NumbersType beginningOfActiveWindow;
+  typename std::conditional<TypeSelection, NumbersType, std::atomic<NumbersType>>::type beginningOfActiveWindow;
   ItemType activeWindow[numItems];
   InactiveStorage<Resolution, NumbersType, ItemType, ItemFuncs> inactiveStorage;
 
