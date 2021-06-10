@@ -69,11 +69,11 @@ inline std::string readline(int sock) {
       throw std::runtime_error("Request exceeded max size: " + std::to_string(MAX_INPUT_SIZE));
     }
 
-    ssize_t read_rv = read(sock, buf.data() + count, buf.size() - count);
+    const auto read_rv = read(sock, buf.data() + count, buf.size() - count);
     if (read_rv <= 0) {
       throw std::runtime_error("diagnostics server read failed: " + errnoString(errno));
     }
-    count += rv;
+    count += read_rv;
 
     // Check to see if we have a complete command
     auto it = std::find(buf.begin(), buf.end(), '\n');
