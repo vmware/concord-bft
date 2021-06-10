@@ -30,6 +30,11 @@ void ClientService::start(const std::string& addr) {
   builder.RegisterService(event_service_.get());
 
   auto clientservice_server = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
+
+  auto health = clientservice_server->GetHealthCheckService();
+  health->SetServingStatus(kRequestService, true);
+  health->SetServingStatus(kEventService, true);
+
   clientservice_server->Wait();
 }
 

@@ -22,6 +22,9 @@ class ClientService {
   ClientService();
   void start(const std::string& addr);
 
+  const std::string kRequestService{"vmware.concord.client.v1.RequestService"};
+  const std::string kEventService{"vmware.concord.client.v1.EventService"};
+
  private:
   std::unique_ptr<EventServiceImpl> event_service_;
   std::unique_ptr<RequestServiceImpl> request_service_;
