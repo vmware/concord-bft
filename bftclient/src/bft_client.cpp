@@ -346,11 +346,12 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
   return mc;
 }
 
-bool Client::isServing(int numOfReplicas, int requiredNumOfReplicas) const {
+bool Client::isServing(int num_replicas, int num_replicas_required) const {
+  ConcordAssert(num_replicas >= num_replicas_required);
   int connected = 0;
-  for (int i = 0; i < numOfReplicas; i++) {
+  for (int i = 0; i < num_replicas; i++) {
     if (communication_->getCurrentConnectionStatus(i) == communication::ConnectionStatus::Connected) connected++;
-    if (connected == requiredNumOfReplicas) return true;
+    if (connected == num_replicas_required) return true;
   }
   return false;
 }
