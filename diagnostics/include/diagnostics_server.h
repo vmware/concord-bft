@@ -29,6 +29,7 @@
 
 #include "Logger.hpp"
 #include "errnoString.hpp"
+#include "kvstream.h"
 #include "protocol.h"
 
 using concordUtils::errnoString;
@@ -45,7 +46,7 @@ static logging::Logger logger = logging::getLogger("concord.diagnostics");
 inline std::string readline(int sock) {
   std::array<char, MAX_INPUT_SIZE> buf;
   buf.fill(0);
-  int count = 0;
+  size_t count = 0;
   auto start = std::chrono::steady_clock::now();
   auto timeout = std::chrono::microseconds(999999);
   auto remaining = timeout;
@@ -60,50 +61,63 @@ inline std::string readline(int sock) {
     if (rv == 0) {
       throw std::runtime_error("timeout");
     }
-    if (rv < 0 && errno == EINTR) continue;
+    if (rv < 0 && errno == EINTR) {
+      LOG_DEBUG(logger, "EINTR");
+      continue;
+    }
     if (rv < 0) {
-      throw std::runtime_error("diagnostics server readline select failed: " + errnoString(rv));
+      throw std::runtime_error("diagnostics server readline select failed: " + errnoString(errno));
     }
 
     if (count == MAX_INPUT_SIZE) {
       throw std::runtime_error("Request exceeded max size: " + std::to_string(MAX_INPUT_SIZE));
     }
 
-    rv = read(sock, buf.data() + count, buf.size() - count);
-    if (rv <= 0) {
-      throw std::runtime_error("diagnostics server read failed: " + errnoString(rv));
+    const auto read_rv = read(sock, buf.data() + count, buf.size() - count);
+    LOG_DEBUG(logger, KVLOG(read_rv, count));
+    if (read_rv <= 0) {
+      throw std::runtime_error("diagnostics server read failed: " + errnoString(errno));
     }
-    count += rv;
+    count += read_rv;
 
     // Check to see if we have a complete command
     auto it = std::find(buf.begin(), buf.end(), '\n');
     if (it != buf.end()) {
       return std::string(buf.begin(), it);
     }
+    LOG_DEBUG(logger, "More data to read. Got: " << std::string(buf.begin(), buf.begin() + count));
 
     // We may not have received all the data yet. Update the timeout.
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     remaining = timeout - duration;
+    if (remaining.count() <= 0) {
+      throw std::runtime_error("timeout");
+    }
   }
 }
 
 inline void handleRequest(Registrar& registrar, int sock) {
   try {
     LOG_DEBUG(logger, "Handle Diagnostics Request");
-    std::stringstream ss(readline(sock));
+    const auto cmd = readline(sock);
+    LOG_DEBUG(logger, "Command: " << cmd);
+    std::stringstream ss(cmd);
     std::vector<std::string> tokens;
     std::string token;
     while (std::getline(ss, token, ' ')) {
       tokens.push_back(token);
     }
+    LOG_DEBUG(logger, "Running command");
     std::string output = run(tokens, registrar);
     if (write(sock, output.data(), output.size()) < 0) {
       LOG_WARN(logger, "Failed to write to client socket: " << errnoString(errno));
     }
+    LOG_DEBUG(logger, "Command completed");
     close(sock);
   } catch (const std::exception& e) {
     std::string out = std::string("Error: ") + e.what() + "\n";
+    LOG_WARN(logger, out);
     if (write(sock, out.data(), out.size()) < 0) {
       LOG_WARN(logger, "Failed to write to client socket: " << errnoString(errno));
     }
