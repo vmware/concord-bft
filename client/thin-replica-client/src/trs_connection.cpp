@@ -48,7 +48,7 @@ void TrsConnection::createChannel() {
   grpc::ChannelArguments args;
   args.SetMaxReceiveMessageSize(kGrpcMaxInboundMsgSizeInBytes);
 
-  if (config_->is_insecure_trc_val == "false") {
+  if (config_->use_tls) {
     LOG4CPLUS_INFO(logger_,
                    "TLS for thin replica client is enabled, certificate path: " << config_->thin_replica_tls_cert_path
                                                                                 << ", server: " << address_);
