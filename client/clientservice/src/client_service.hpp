@@ -9,20 +9,22 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <iostream>
 #include <memory>
-#include <grpcpp/grpcpp.h>
+#include <string>
 
-#include "client_service.hpp"
+#include "event_service.hpp"
+#include "request_service.hpp"
 
-using concord::client::clientservice::ClientService;
+namespace concord::client::clientservice {
 
-int main(int argc, char** argv) {
-  std::cout << "Starting Clientservice" << std::endl;
+class ClientService {
+ public:
+  ClientService();
+  void start(const std::string& addr);
 
-  // TODO: Create ConcordClient
-  ClientService service;
-  service.start("localhost:1337");
+ private:
+  std::unique_ptr<EventServiceImpl> event_service_;
+  std::unique_ptr<RequestServiceImpl> request_service_;
+};
 
-  return 0;
-}
+}  // namespace concord::client::clientservice

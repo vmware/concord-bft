@@ -12,7 +12,7 @@
 #include <grpcpp/grpcpp.h>
 #include <concord_client.grpc.pb.h>
 
-namespace concord::client {
+namespace concord::client::clientservice {
 
 class EventServiceImpl final : public vmware::concord::client::v1::EventService::Service {
  public:
@@ -21,4 +21,4 @@ class EventServiceImpl final : public vmware::concord::client::v1::EventService:
                                  grpc::ServerWriter<vmware::concord::client::v1::EventGroup>* stream) override;
 };
 
-}  // namespace concord::client
+}  // namespace concord::client::clientservice

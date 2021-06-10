@@ -12,7 +12,7 @@
 #include <grpcpp/grpcpp.h>
 #include <concord_client.grpc.pb.h>
 
-namespace concord::client {
+namespace concord::client::clientservice {
 
 class RequestServiceImpl final : public vmware::concord::client::v1::RequestService::Service {
  public:
@@ -21,4 +21,4 @@ class RequestServiceImpl final : public vmware::concord::client::v1::RequestServ
                     vmware::concord::client::v1::Response* response) override;
 };
 
-}  // namespace concord::client
+}  // namespace concord::client::clientservice

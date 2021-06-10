@@ -20,7 +20,7 @@ using grpc::ServerWriter;
 using vmware::concord::client::v1::StreamEventGroupsRequest;
 using vmware::concord::client::v1::EventGroup;
 
-namespace concord::client {
+namespace concord::client::clientservice {
 
 Status EventServiceImpl::StreamEventGroups(ServerContext* context,
                                            const StreamEventGroupsRequest* request,
@@ -29,4 +29,4 @@ Status EventServiceImpl::StreamEventGroups(ServerContext* context,
   return grpc::Status::OK;
 }
 
-}  // namespace concord::client
+}  // namespace concord::client::clientservice
