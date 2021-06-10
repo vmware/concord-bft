@@ -51,19 +51,10 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
   std::shared_ptr<IThresholdVerifier> thresholdVerifierForOptimisticCommit(const SeqNum sn) const {
     return get(sn)->thresholdVerifierForOptimisticCommit_;
   }
-  // IMultiSigKeyGenerator methodsKEY_EX_LOG
+  // IMultiSigKeyGenerator methods
   std::pair<std::string, std::string> generateMultisigKeyPair() override {
-    // use default Cryptosystem for key generation
-    auto log = logger();
-    LOG_INFO(log, "Generating new multisig key pair");
-
-    try {
-      auto cryptoSystem = cryptoSystems_.at(0);
-      return cryptoSystem->cryptosys_->generateNewKeyPair();
-    } catch (const std::out_of_range& e) {
-      LOG_FATAL(log, "cryptoSystems_.at(0) has failed!" << e.what());
-      throw;
-    }
+    LOG_INFO(logger(), "Generating new multisig key pair");
+    return cryptoSystems_.rbegin()->second->cryptosys_->generateNewKeyPair();
   }
   // IKeyExchanger methods
   // onPrivateKeyExchange and onPublicKeyExchange callbacks for a given checkpoint may be called in a different order.
@@ -88,7 +79,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
 
   void onCheckpoint(const uint64_t& checkpoint) {
     LOG_INFO(logger(), "chckp: " << checkpoint);
-    clearOldKeys();
+    // clearOldKeys();
   }
 
  private:
@@ -128,11 +119,12 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
     auto it = cryptoSystems_.rbegin();
     while (it != cryptoSystems_.rend()) {
       if (it->first <= chckp) {
-        // LOG_TRACE(logging::getLogger("concord.bft.crypto-mgr"), KVLOG(sn, chckp, it->first, it->second));
+        // LOG_TRACE(logger(), KVLOG(sn, chckp, it->first, it->second));
         return it->second;
       }
       it++;
     }
+    LOG_FATAL(logger(), "Cryptosystem not found for checkpoint: " << chckp << "seqnum: " << sn);
     ConcordAssert(false && "should never reach here");
   }
   // create CryptoSys for sn if still doesn't exist
@@ -159,7 +151,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
     cryptoSystems_.insert(std::make_pair(0, std::make_shared<CryptoSystemWrapper>(cryptoSys)));
     cryptoSystems_.begin()->second->init();
   }
-  logging::Logger& logger() {
+  logging::Logger& logger() const {
     static logging::Logger logger_ = logging::getLogger("concord.bft.crypto-mgr");
     return logger_;
   }
