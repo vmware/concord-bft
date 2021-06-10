@@ -8,11 +8,16 @@ questions about the CLA process, please refer to our [FAQ](https://cla.vmware.co
 
 This is a rough outline of what a contributor's workflow looks like:
 
-- Create a topic branch from where you want to base your work
+- Fork the repository
+- Create a topic branch on *your fork*<sup>\*</sup> from where you want to base your work
 - Make commits of logical units
 - Make sure your commit messages are in the proper format (see below)
 - Push your changes to a topic branch in your fork of the repository
 - Submit a pull request
+
+<sup>\*</sup> Make sure that you create a branch on your fork and not the main repository. 
+If you push your changes together with your PR from a branch you created on the main repository, it would 
+trigger the CI twice (on push and on PR), resulting in unecessary load on Github Actions.
 
 Example:
 
