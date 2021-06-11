@@ -48,6 +48,7 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
     LOG_INFO(KEY_EX_LOG, kem.toString() << " seqnum: " << sn);
     clusterKeys_[kem.repID].push(kem.pubkey, sn);
     saveReplicaKeyStoreToReserevedPages(kem.repID);
+    log();
   }
 
   const std::string getKey(const uint16_t& repId, const SeqNum& sn) const {
