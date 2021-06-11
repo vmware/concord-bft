@@ -23,14 +23,12 @@ uint16_t ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
     if (!repKeys.has_value()) continue;
     clusterKeys_[i] = std::move(repKeys.value());
   }
-
   log();
   return clusterKeys_.size();
 }
 
 std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(
     const uint16_t& repID) {
-  LOG_INFO(KEY_EX_LOG, "rid: " << repID);
   if (!loadReservedPage(repID, buffer_.size(), buffer_.data())) {
     LOG_INFO(KEY_EX_LOG, "Failed to load reserved page for replica " << repID << ", first start?");
     return {};
@@ -39,6 +37,7 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
     std::istringstream iss(buffer_);
     PublicKeys ks;
     PublicKeys::deserialize(iss, ks);
+    for (auto [sn, pk] : ks.keys) LOG_DEBUG(KEY_EX_LOG, "rid: " << repID << " seqnum: " << sn << " pubkey: " << pk);
     return ks;
   } catch (const std::exception& e) {
     LOG_FATAL(KEY_EX_LOG,
