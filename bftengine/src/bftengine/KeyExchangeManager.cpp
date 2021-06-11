@@ -27,8 +27,7 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       multiSigKeyHdlr_(id->kg),
       timers_(*(id->timers)) {
   registerForNotification(id->ke);
-  if (publicKeys_.numOfExchangedReplicas() == clusterSize_)  // don't notify on first start
-    notifyRegistry();
+  notifyRegistry();
 }
 
 void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
@@ -41,7 +40,7 @@ void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator>
             std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
         if (currTime - metrics_->lastMetricsDumpTime >= metrics_->metricsDumpIntervalInSec) {
           metrics_->lastMetricsDumpTime = currTime;
-          LOG_INFO(KEY_EX_LOG, "-- KeyManager metrics dump--" + metrics_->component.ToJson());
+          LOG_INFO(KEY_EX_LOG, "-- KeyExchangeManager metrics dump--" + metrics_->component.ToJson());
         }
       });
 }
@@ -81,20 +80,21 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
 }
 
 void KeyExchangeManager::notifyRegistry() {
-  for (auto ke : registryToExchange_) {
-    for (auto [sn, pk] : private_keys_.key_data().keys)
-      ke->onPrivateKeyExchange(pk, publicKeys_.getKey(repID_, sn), sn);
+  // sort public keys by sequence number in order to "replay" ordered key exchange operations for proper initialization
+  // sequence number may be not unique due to batching - therefore a multimap
+  // seqnum -> [repid, pubkey]
+  std::multimap<SeqNum, std::pair<uint16_t, std::string>> ordered_public_keys;
+  for (uint32_t i = 0; i < clusterSize_; i++) {
+    if (!publicKeys_.keyExists(i)) continue;
+    for (auto [sn, pk] : publicKeys_.keys(i).keys) ordered_public_keys.insert({sn, std::make_pair(i, pk)});
   }
 
-  for (uint32_t i = 0; i < clusterSize_; i++) {  // for every replica
-    if (!publicKeys_.keyExists(i)) {
-      LOG_WARN(KEY_EX_LOG, "public key doesn't exist for replica: " << i);
-      continue;
-    }
-    for (auto ke : registryToExchange_) {  // update other replicas' public keys
-      for (auto [sn, pk] : publicKeys_.keys(i).keys) ke->onPublicKeyExchange(pk, i, sn);
-    }
-  }
+  for (auto [sn, pk_info] : ordered_public_keys)
+    for (auto ke : registryToExchange_) ke->onPublicKeyExchange(pk_info.second, pk_info.first, sn);
+
+  for (auto ke : registryToExchange_)
+    for (auto [sn, pk] : private_keys_.key_data().keys)
+      ke->onPrivateKeyExchange(pk, publicKeys_.getKey(repID_, sn), sn);
 }
 
 void KeyExchangeManager::loadPublicKeys() {
@@ -168,12 +168,12 @@ std::string KeyExchangeManager::getStatus() const {
   using concordUtils::toPair;
   std::ostringstream oss;
   std::unordered_map<std::string, std::string> result;
-  result.insert(toPair("isInitialKeyExchangeCompleted", exchanged()));
-  result.insert(
-      toPair("keyExchangedCounter", metrics_->aggregator->GetCounter("KeyManager", "KeyExchangedCounter").Get()));
-  result.insert(toPair("KeyExchangedOnStartCounter",
-                       metrics_->aggregator->GetCounter("KeyManager", "KeyExchangedOnStartCounter").Get()));
-  result.insert(toPair("publicKeyRotated", metrics_->aggregator->GetCounter("KeyManager", "publicKeyRotated").Get()));
+  result.insert(toPair("exchanged", exchanged()));
+  result.insert(toPair("sent_key_exchange_on_start", metrics_->sent_key_exchange_on_start_status.Get().Get()));
+  result.insert(toPair("sent_key_exchange", metrics_->sent_key_exchange_counter.Get().Get()));
+  result.insert(toPair("self_key_exchange", metrics_->self_key_exchange_counter.Get().Get()));
+  result.insert(toPair("public_key_exchange_for_peer", metrics_->public_key_exchange_for_peer_counter.Get().Get()));
+
   oss << concordUtils::kContainerToJson(result);
   return oss.str();
 }
