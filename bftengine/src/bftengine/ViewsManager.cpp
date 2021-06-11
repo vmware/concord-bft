@@ -50,6 +50,7 @@ ViewsManager::ViewsManager(const ReplicasInfo* const r)
 
   stat = Stat::IN_VIEW;
 
+  myCurrentView = 0;
   myLatestActiveView = 0;
   myLatestPendingView = 0;
   viewChangeMessages = new ViewChangeMsg*[N];
