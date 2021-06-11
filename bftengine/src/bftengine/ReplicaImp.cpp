@@ -843,11 +843,9 @@ void ReplicaImp::tryToAskForMissingInfo() {
   const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
 
   if (!recentViewChange) {
-    // const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
     minSeqNum = lastExecutedSeqNum + 1;
     maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
   } else {
-    // const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
     minSeqNum = lastStableSeqNum + 1;
     while (minSeqNum <= lastStableSeqNum + kWorkWindowSize) {
       SeqNumInfo &seqNumInfo = mainLog->get(minSeqNum);
@@ -3580,7 +3578,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       complainedReplicas(config),
       pm_{pm},
       sm_{sm ? sm : std::make_shared<concord::secretsmanager::SecretsManagerPlain>()},
-      metric_view_{metrics_.RegisterGauge("view", getCurrentView())},
+      metric_view_{metrics_.RegisterGauge("view", 0)},
       metric_last_stable_seq_num_{metrics_.RegisterGauge("lastStableSeqNum", lastStableSeqNum)},
       metric_last_executed_seq_num_{metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
       metric_last_agreed_view_{metrics_.RegisterGauge("lastAgreedView", lastAgreedView)},
@@ -3590,7 +3588,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_status_report_timer_{metrics_.RegisterGauge("statusReportTimer", 0)},
       metric_slow_path_timer_{metrics_.RegisterGauge("slowPathTimer", 0)},
       metric_info_request_timer_{metrics_.RegisterGauge("infoRequestTimer", 0)},
-      metric_current_primary_{metrics_.RegisterGauge("currentPrimary", getCurrentView() % config_.getnumReplicas())},
+      metric_current_primary_{metrics_.RegisterGauge("currentPrimary", 0)},
       metric_concurrency_level_{metrics_.RegisterGauge("concurrencyLevel", config_.getconcurrencyLevel())},
       metric_primary_last_used_seq_num_{metrics_.RegisterGauge("primaryLastUsedSeqNum", primaryLastUsedSeqNum)},
       metric_on_call_back_of_super_stable_cp_{metrics_.RegisterGauge("OnCallBackOfSuperStableCP", 0)},
