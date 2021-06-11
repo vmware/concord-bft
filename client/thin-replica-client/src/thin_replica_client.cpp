@@ -813,6 +813,8 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes, uint64_t block
   subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
 }
 
+void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {}
+
 // This is a placeholder implementation as the Unsubscribe gRPC call is not yet
 // implemented on the server side.
 //

@@ -257,6 +257,8 @@ struct ThinReplicaClientMetrics {
   std::chrono::milliseconds update_dur_ms{};
 };
 
+struct SubscribeRequest {};
+
 // Thin Replica Client implementation; used to subscribe to and stream updates
 // from thin replica servers. Note the ThinReplicaClient is intended to
 // error-handle Byzantine failures among the thin replica servers; a
@@ -438,6 +440,7 @@ class ThinReplicaClient final {
   // called, the queue will be cleared.
   void Subscribe(const std::string& key_prefix_bytes);
   void Subscribe(const std::string& key_prefix_bytes, uint64_t block_id);
+  void Subscribe(const SubscribeRequest&);
 
   // End any currently open subscription this ThinReplicaClient has; this will
   // stop any worker thread(s) this ThinReplicaClient has for maintaining this
