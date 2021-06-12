@@ -383,7 +383,7 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t require
 }
 
 PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
-  ConcordAssertGE(requiredRequestsNum, 0);
+  ConcordAssertGT(requiredRequestsNum, 0);
   // DD: To make sure that time service does not affect sending messages
   uint32_t timeServiceBatchSizeAdjustment = config_.timeServiceEnabled ? 1 : 0;
   if (requestsQueueOfPrimary.size() < requiredRequestsNum - timeServiceBatchSizeAdjustment) {
@@ -607,38 +607,6 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   }
 }
 
-void ReplicaImp::sendInternalNoopPrePrepareMsg(CommitPath firstPath) {
-  if (primaryLastUsedSeqNum + 1 > lastStableSeqNum + kWorkWindowSize) {
-    LOG_DEBUG(CNSUS,
-              "Will not send noop PrePrepare since next sequence number ["
-                  << primaryLastUsedSeqNum + 1 << "] exceeds window threshold [" << lastStableSeqNum + kWorkWindowSize
-                  << "]");
-    return;
-  }
-  PrePrepareMsg *pp = nullptr;
-  if (config_.timeServiceEnabled) {
-    auto timeServiceMsg = time_service_manager_->createClientRequestMsg();
-    pp = new PrePrepareMsg(config_.getreplicaId(),
-                           getCurrentView(),
-                           (primaryLastUsedSeqNum + 1),
-                           firstPath,
-                           sizeof(ClientRequestMsgHeader) + timeServiceMsg->size());
-    pp->addRequest(timeServiceMsg->body(), timeServiceMsg->size());
-  } else {
-    pp = new PrePrepareMsg(config_.getreplicaId(),
-                           getCurrentView(),
-                           (primaryLastUsedSeqNum + 1),
-                           firstPath,
-                           sizeof(ClientRequestMsgHeader));
-  }
-
-  ClientRequestMsg emptyClientRequest(config_.getreplicaId());
-  pp->addRequest(emptyClientRequest.body(), emptyClientRequest.size());
-  pp->finishAddingRequests();
-  static constexpr bool isInternalNoop = true;
-  startConsensusProcess(pp, isInternalNoop);
-}
-
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
   if (ControlStateManager::instance().getPruningProcessStatus()) return true;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -738,31 +706,9 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
-    // Check to see if this is a noop.
-    bool isNoop = false;
-    const auto numOfRequestsInNoop = config_.timeServiceEnabled ? 2 : 1;
-    if (msg->numberOfRequests() == numOfRequestsInNoop) {
-      auto it = RequestsIterator(msg);
-      for (auto i = 0; i < numOfRequestsInNoop - 1; ++i) {
-        it.gotoNext();
-      }
-      char *requestBody = nullptr;
-      it.getCurrent(requestBody);
-      isNoop = (reinterpret_cast<ClientRequestMsgHeader *>(requestBody)->requestLength == 0);
-    }
-
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
-      if (isNoop) {
-        LOG_INFO(CNSUS, "Internal NOOP PrePrepare received, commit path: " << CommitPathToStr(msg->firstPath()));
-      } else {
-        LOG_INFO(CNSUS,
-                 "Received PrePrepare message" << KVLOG(msg->numberOfRequests())
-                                               << " with the following correlation IDs ["
-                                               << msg->getBatchCorrelationIdAsString()
-                                               << "], commit path: " << CommitPathToStr(msg->firstPath()));
-      }
       msgAdded = true;
 
       // Start tracking all client requests with in this pp message
