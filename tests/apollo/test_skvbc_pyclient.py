@@ -178,12 +178,12 @@ class SkvbcPyclientTest(unittest.TestCase):
         kv_pair = [(key, value)]
         await client.write(protocol.write_req([], kv_pair, 0))
 
-        quorum = MofNQuorum.ByzantineSafeQuorum(
+        quorum = MofNQuorum.LinearizableQuorum(
             bft_network.config, bft_network.all_replicas())
         read_result = await client.read(protocol.read_req([key]), \
                                         m_of_n_quorum=quorum)
         value_read = (protocol.parse_reply(read_result))[key]
-        self.assertEqual(value, value_read, "Using an M of N Quorum of M==f+1, "
+        self.assertEqual(value, value_read, "Using an M of N Quorum of M==2f+c+1, "
                 "A BFT Client failed to read a key-value pair from a " \
                 "SimpleKVBC cluster matching the key-value pair it wrote " \
                 "immediately prior to the read.")
