@@ -94,6 +94,10 @@ add_test(NAME skvbc_chaotic_startup COMMAND sudo sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_chaotic_startup python3 -m unittest test_skvbc_chaotic_startup 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_test(NAME skvbc_publish_clients_keys COMMAND sudo sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_publish_clients_keys python3 -m unittest test_skvbc_publish_clients_keys 2>&1 > /dev/null"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_test(NAME skvbc_backup_restore COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_backup_restore python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

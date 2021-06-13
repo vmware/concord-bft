@@ -1,0 +1,12 @@
+
+Msg PublicKey 1 {
+    string key
+    uint8 format
+}
+
+Msg ClientsPublicKeys 2 {
+    map uint16 PublicKey ids_to_keys
+    # public keys implementation version:
+    # 1 = RSAVerifier
+    uint16 version
+}

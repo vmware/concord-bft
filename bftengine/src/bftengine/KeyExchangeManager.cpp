@@ -23,11 +23,17 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       clusterSize_{ReplicaConfig::instance().getnumReplicas()},
       publicKeys_{clusterSize_},
       private_keys_(id->secretsMgr),
+      clientsPublicKeys_(),
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
       timers_(*(id->timers)) {
   registerForNotification(id->ke);
   notifyRegistry();
+  if (!ReplicaConfig::instance().getkeyExchangeOnStart()) initial_exchange_ = true;
+  if (!ReplicaConfig::instance().get("concord.bft.keyExchage.clientKeysEnabled", true)) {
+    LOG_INFO(KEY_EX_LOG, "Publish client keys is disabled");
+    clientsPublicKeys_.published_ = true;
+  }
 }
 
 void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval) {
@@ -45,8 +51,7 @@ void KeyExchangeManager::initMetrics(std::shared_ptr<concordMetrics::Aggregator>
       });
 }
 
-std::string KeyExchangeManager::generateCid() {
-  std::string cid{"KEY-EXCHANGE-"};
+std::string KeyExchangeManager::generateCid(std::string cid) {
   auto now = getMonotonicTime().time_since_epoch();
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now);
   auto sn = now_ms.count();
@@ -76,6 +81,7 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
   }
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= clusterSize_))
     LOG_INFO(KEY_EX_LOG, "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << clusterSize_ << "]");
+  if (!initial_exchange_ && exchanged()) initial_exchange_ = true;
   return "ok";
 }
 
@@ -113,7 +119,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     return;
   }
   KeyExchangeMsg msg;
-  auto cid = generateCid();
+  auto cid = generateCid(kInitialKeyExchangeCid);
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
   private_keys_.key_data().generated.priv = prv;
   private_keys_.key_data().generated.pub = pub;
@@ -129,6 +135,37 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   auto strMsg = ss.str();
   client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), cid);
   metrics_->sent_key_exchange_counter.Get().Inc();
+}
+
+// sends the clients public keys via the internal client, if keys weren't published or outdated.
+void KeyExchangeManager::sendInitialClientsKeys(const std::string& keys) {
+  if (clientsPublicKeys_.published_) {
+    LOG_INFO(KEY_EX_LOG, "Clients public keys were already published");
+    return;
+  }
+  auto ret = std::async(std::launch::async, [this, keys]() {
+    while (!initial_exchange_) {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    auto cid = generateCid(kInitialClientsKeysCid);
+    LOG_INFO(KEY_EX_LOG, "Sends clients keys, cid: " << cid << " payload size " << keys.size());
+    client_->sendRequest(
+        bftEngine::CLIENTS_PUB_KEYS_FLAG | bftEngine::PUBLISH_ON_CHAIN_OBJECT_FLAG, keys.size(), keys.c_str(), cid);
+  });
+}
+
+void KeyExchangeManager::onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys) {
+  auto save = true;
+  if (bootstrap_keys) {
+    if (keys != *bootstrap_keys) {
+      LOG_FATAL(KEY_EX_LOG, "Initial Published Clients keys and replica client keys do not match");
+      ConcordAssertEQ(keys, *bootstrap_keys);
+    }
+    if (impl::KeyExchangeManager::instance().clientKeysPublished()) save = false;
+  }
+  if (save) {
+    impl::KeyExchangeManager::instance().saveClientsPublicKeys(keys);
+  }
 }
 
 void KeyExchangeManager::sendInitialKey() {
