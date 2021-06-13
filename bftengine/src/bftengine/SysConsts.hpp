@@ -63,7 +63,9 @@ static_assert(maxLegalConcurrentAgreementsByPrimary < MaxConcurrentFastPaths,
 // Batching
 ///////////////////////////////////////////////////////////////////////////////
 
-constexpr uint32_t maxNumOfRequestsInBatch = 1024;
+// The number of requests in the consensus batch is controlled by maxExternalMessageSize.
+// This parameter is required to limit a memory allocation for the bitmap.
+constexpr uint32_t maxNumOfRequestsInBatch = 4096;
 constexpr uint32_t maxPrimaryQueueSize = 1500;
 
 ///////////////////////////////////////////////////////////////////////////////
