@@ -141,6 +141,7 @@ class PreProcessor {
                                   ReqId reqSeqNum,
                                   uint32_t reqLength,
                                   char *reqBuf,
+                                  std::string signature,
                                   const concordUtils::SpanContext &span_context);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
   void handlePreProcessedReqByNonPrimary(uint16_t clientId,
