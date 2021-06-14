@@ -24,7 +24,7 @@ using namespace log4cplus;
 
 namespace logging {
 
-static const char* logPattern = "%X{rid}|%d{%m-%d-%Y %H:%M:%S.%q}|%-5p|%c|%X{cid}|%X{sn}|%X{thread}|%b:%L|%M|%m%n";
+static const char* logPattern = "%d{%Y-%m-%dT%H:%M:%S,%qZ}|%-5p|%X{rid}|%c|%X{thread}|%X{cid}|%X{sn}|%b:%L|%M|%m%n";
 
 void initLogger(const std::string& configFileName) {
   std::ifstream infile(configFileName);

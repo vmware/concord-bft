@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "bftengine/KeyExchangeManager.hpp"
+#include "SigManager.hpp"
 
 #include <ccron/cron_table_registry.hpp>
 #include "ccron_msgs.cmf.hpp"
@@ -29,13 +30,13 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
   for (auto& req : requests) {
     if (req.flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
-      LOG_DEBUG(GL, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
+      LOG_INFO(KEY_EX_LOG, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
       auto resp = impl::KeyExchangeManager::instance().onKeyExchange(ke, req.executionSequenceNum, req.cid);
       if (resp.size() <= req.maxReplySize) {
         std::copy(resp.begin(), resp.end(), req.outReply);
         req.outActualReplySize = resp.size();
       } else {
-        LOG_ERROR(GL, "KEY_EXCHANGE response is too large, response " << resp);
+        LOG_ERROR(KEY_EX_LOG, "KEY_EXCHANGE response is too large, response " << resp);
         req.outActualReplySize = 0;
       }
       req.outExecutionStatus = 0;
@@ -93,6 +94,25 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     if (req.flags & READ_ONLY_FLAG) {
       // Backward compatible with read only flag prior BC-5126
       req.flags = READ_ONLY_FLAG;
+    }
+    // Replicas can publish an object e.g public_keys, configuration file, etc
+    // this object pass consensus, and replicas can perform action against is as:
+    // - validated that is equal to the object that is stored in memory of the replica.
+    // - save it to reserved pages.
+    // - proxy it to the application command handler.
+    if (req.flags & bftEngine::MsgFlag::CLIENTS_PUB_KEYS_FLAG) {
+      std::string recieved_keys(req.request, req.requestSize);
+      std::optional<std::string> bootstrap_keys;
+      if (req.flags & bftEngine::MsgFlag::PUBLISH_ON_CHAIN_OBJECT_FLAG) {
+        LOG_INFO(KEY_EX_LOG, "Recieved initial publish clients keys request");
+        bootstrap_keys = impl::SigManager::instance()->getClientsPublicKeys();
+      } else {
+        LOG_INFO(KEY_EX_LOG, "Recieved publish clients keys request");
+      }
+      impl::KeyExchangeManager::instance().onPublishClientsKeys(recieved_keys, bootstrap_keys);
+      req.outExecutionStatus = 0;
+      req.outReply[0] = '1';
+      req.outActualReplySize = 1;
     }
   }
   if (userRequestsHandler_) return userRequestsHandler_->execute(requests, batchCid, parent_span);

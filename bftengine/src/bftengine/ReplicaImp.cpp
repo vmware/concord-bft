@@ -186,11 +186,15 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("cid", m->getCid());
   span.setTag("seq_num", reqSeqNum);
 
-  // If replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs
-  if (!KeyExchangeManager::instance().exchanged() && !(flags & KEY_EXCHANGE_FLAG)) {
-    LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
-    delete m;
-    return;
+  // Drop external msgs ff:
+  // -  replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs.
+  // -  the public keys of clients havn't been published yet.
+  if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().clientKeysPublished()) {
+    if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
+      LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
+      delete m;
+      return;
+    }
   }
 
   // check message validity
@@ -2680,6 +2684,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
 
   controller->onNewView(getCurrentView(), primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(getCurrentView());
+
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
 }
 
@@ -3831,7 +3836,10 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) KeyExchangeManager::instance().sendInitialKey();
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
+    KeyExchangeManager::instance().sendInitialKey();
+  }
+  KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
 void ReplicaImp::recoverRequests() {

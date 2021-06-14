@@ -96,7 +96,7 @@ struct TlsTcpConfig : PlainTcpConfig {
   std::string certificatesRootPath;
 
   // set specific suite or list of suites, as described in OpenSSL
-  // https://www.openssl.org/docs/man1.0.2/man1/ciphers.html
+  // https://www.openssl.org/docs/man1.1.1/man1/ciphers.html
   std::string cipherSuite;
 
   std::optional<concord::secretsmanager::SecretData> secretData;

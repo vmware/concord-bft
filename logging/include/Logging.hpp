@@ -65,11 +65,17 @@ class LoggerImpl {
     struct timeval cur_time;
     gettimeofday(&cur_time, NULL);
 
-    std::cout << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY) << "|"
-              << std::put_time(std::localtime(&cur_time.tv_sec), "%F %T.") << (int)cur_time.tv_usec / 1000 << "|"
-              << LoggerImpl::LEVELS_STRINGS[l].c_str() << "|" << name_ << "|"
-              << getThreadContext().getMDC().get(MDC_THREAD_KEY) << "|" << getThreadContext().getMDC().get(MDC_CID_KEY)
-              << "|" << getThreadContext().getMDC().get(MDC_SEQ_NUM_KEY) << "|" << func << "|";
+    // clang-format off
+    std::cout << std::put_time(std::localtime(&cur_time.tv_sec), "%FT%T.") << (int)cur_time.tv_usec / 1000
+       << "|" << LoggerImpl::LEVELS_STRINGS[l].c_str()
+       << "|" << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY)
+       << "|" << name_
+       << "|" << getThreadContext().getMDC().get(MDC_THREAD_KEY)
+       << "|" << getThreadContext().getMDC().get(MDC_CID_KEY)
+       << "|" << getThreadContext().getMDC().get(MDC_SEQ_NUM_KEY)
+       << "|" << func
+       << "|";
+    // clang-format on
     return std::cout;
   }
 

@@ -104,7 +104,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     async def test_key_exchange_command(self, bft_network):
         """
             No initial key rotation
-            Sends key exchange command to replica 0
+            Operator sends key exchange command to replica 0
             New keys for replica 0 should get effective at checkpoint 2, i.e. seqnum 300
         """
         bft_network.start_all_replicas()
@@ -122,7 +122,69 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         assert self_key_exchange_counter == 1
         public_key_exchange_for_peer_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
         assert public_key_exchange_for_peer_counter == 1
+
+    @unittest.skip("unstable test. Tracked in BC-9406")
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
+                      selected_configs=lambda n, f, c: n == 7,
+                      rotate_keys=True)
+    async def test_key_exchange_command_with_restart(self, bft_network):
+        """
+            - With initial key rotation (keys get effective at checkpoint 2)
+            - Reach checkpoint 2 since key cannot be generated twice within a 2 checkpoints window
+            - Operator sends key exchange command to replica 1 + validate execution
+              (New keys for replica 1 should get effective at checkpoint 4, i.e. seqnum 600)
+            - Reach checkpoint 4
+            - Stop replica 1
+            - Client sends 50 requests
+            - Start replica 1
+            - Reach checkpoint 6 and validate replica 1 is back on track
+        """
+
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False)
+        
+        await self.send_and_check_key_exchange(target_replica=1, bft_network=bft_network, client=client)
+        
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False)
+        
+        bft_network.stop_replica(1)
+        
+        for i in range(50):
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        await skvbc.assert_kv_write_executed(key, val)
+        
+        bft_network.start_replica(1)
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False)
+
+        
+        
+    async def send_and_check_key_exchange(self, target_replica, bft_network, client):
+        sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+        self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+        # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        await op.key_exchange([target_replica])
+        
+        await trio.sleep(seconds=5) # for status
+        sent_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+        assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
+        self_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+        assert self_key_exchange_counter == self_key_exchange_counter_before +1
+        # public_key_exchange_for_peer_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+        # assert public_key_exchange_for_peer_counter == 7
+     
+     
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):

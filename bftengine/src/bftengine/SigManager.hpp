@@ -19,6 +19,7 @@
 #include <map>
 #include <string>
 #include <memory>
+#include "keys_and_signatures.cmf.hpp"
 
 using concordMetrics::AtomicCounterHandle;
 
@@ -71,6 +72,13 @@ class SigManager {
   SigManager& operator=(const SigManager&) = delete;
   SigManager(SigManager&&) = delete;
   SigManager& operator=(SigManager&&) = delete;
+
+  concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
+  std::string getClientsPublicKeys() {
+    std::vector<uint8_t> output;
+    concord::messages::keys_and_signatures::serialize(output, clientsPublicKeys_);
+    return std::string(output.begin(), output.end());
+  }
 
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
