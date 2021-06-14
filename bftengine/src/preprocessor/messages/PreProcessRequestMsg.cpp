@@ -72,21 +72,27 @@ PreProcessRequestMsg::PreProcessRequestMsg(RequestType reqType,
 }
 
 void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  ConcordAssert(type() == MsgCode::PreProcessRequest);
-  ConcordAssert(senderId() != repInfo.myId());
+  if (size() < (sizeof(Header))) throw std::runtime_error(__PRETTY_FUNCTION__);
+
   auto* header = msgBody();
   auto* requestSignature = this->requestSignature();
   auto* sigManager = SigManager::instance();
   auto expectedMsgSize = (sizeof(Header) + header->spanContextSize + header->requestLength + header->cidLength +
                           header->reqSignatureLength);
+  if (size() != expectedMsgSize) throw std::runtime_error(__PRETTY_FUNCTION__);
 
-  if (size() < (sizeof(Header)) || size() != expectedMsgSize) {
+  if (type() != MsgCode::PreProcessRequest) {
+    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  if (senderId() == repInfo.myId()) {
+    LOG_ERROR(logger(), "Message sender is ivalid" << KVLOG(senderId(), repInfo.myId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (requestSignature) {
     ConcordAssert(sigManager->isClientTransactionSigningEnabled());
-    ConcordAssert(header->reqType == REQ_TYPE_PRE_PROCESS);
     if (!sigManager->verifySig(
             header->clientId, requestBuf(), header->requestLength, requestSignature, header->reqSignatureLength)) {
       std::stringstream msg;

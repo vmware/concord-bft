@@ -40,10 +40,18 @@ PreProcessBatchRequestMsg::PreProcessBatchRequestMsg(RequestType reqType,
 }
 
 void PreProcessBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  ConcordAssertEQ(type(), MsgCode::PreProcessBatchRequest);
-  ConcordAssertNE(senderId(), repInfo.myId());
   if (size() < sizeof(Header) || size() < (sizeof(Header) + msgBody()->requestsSize))
     throw std::runtime_error(__PRETTY_FUNCTION__);
+
+  if (type() != MsgCode::PreProcessBatchRequest) {
+    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  if (senderId() == repInfo.myId()) {
+    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
 }
 
 void PreProcessBatchRequestMsg::setParams(uint16_t clientId,
