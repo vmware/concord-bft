@@ -80,15 +80,16 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
     const char* requestSignaturePosition =
         (singleMsgHeader.reqSignatureLength > 0) ? (cidPosition + singleMsgHeader.cidLength) : nullptr;
     const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
+    const string cid(cidPosition, singleMsgHeader.cidLength);
     auto preProcessReqMsg = make_unique<preprocessor::PreProcessRequestMsg>(singleMsgHeader.reqType,
-                                                                            singleMsgHeader.senderId,
-                                                                            singleMsgHeader.clientId,
+                                                                            senderId(),
+                                                                            clientId(),
                                                                             singleMsgHeader.reqOffsetInBatch,
                                                                             singleMsgHeader.reqSeqNum,
                                                                             singleMsgHeader.reqRetryId,
                                                                             singleMsgHeader.requestLength,
                                                                             requestDataPosition,
-                                                                            cidPosition,
+                                                                            cid,
                                                                             requestSignaturePosition,
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             spanContext);
