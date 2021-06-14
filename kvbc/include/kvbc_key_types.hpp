@@ -21,5 +21,4 @@ static const char reconfiguration_install_key = 0x27;
 static const char reconfiguration_key_exchange = 0x28;
 static const char reconfiguration_add_remove = 0x29;
 
-static const char reconfiguration_epoch = 0x2f;
 }  // namespace concord::kvbc::keyTypes

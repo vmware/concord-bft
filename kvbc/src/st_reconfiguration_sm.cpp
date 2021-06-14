@@ -13,7 +13,6 @@
 #include "st_reconfiguraion_sm.hpp"
 #include "hex_tools.h"
 #include "endianness.hpp"
-#include "SysConsts.hpp"
 #include "ControlStateManager.hpp"
 
 namespace concord::kvbc {
@@ -48,6 +47,12 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                             current_cp_num);
   handlerStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
       std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1}, current_cp_num);
+  handlerStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
+                                                        current_cp_num);
+}
+
+void StReconfigurationHandler::onStartup(uint64_t current_cp_num) {
+  // Handle reconfiguration state on startup
   handlerStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
                                                         current_cp_num);
 }

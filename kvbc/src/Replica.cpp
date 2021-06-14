@@ -100,10 +100,6 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
-  // the stReconfigurationSM_ also serves as a recovering mechanism if the replica crashed before/after the
-  // reconfiguration request. So once we done initialize the replica, we try to execute its main handler
-  uint64_t lastCheckpointNum = lastExecutedSeqNum / checkpointWindowSize;
-  stReconfigurationSM_->stCallBack(lastCheckpointNum);
 }
 
 /**
@@ -286,12 +282,12 @@ Replica::Replica(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+  bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
-  bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
 }
 
 Replica::~Replica() {
