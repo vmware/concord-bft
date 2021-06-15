@@ -275,7 +275,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         )
         n = bft_network.config.n
         f = bft_network.config.f
-        crashed_replicas = bft_network.random_set_of_replicas(n-f)
+        primary_replica = await bft_network.get_current_primary()
+        crashed_replicas = bft_network.random_set_of_replicas(n-f, without={primary_replica})
         self.assertEqual(len(crashed_replicas), n-f,
                          "Make sure n-f comitters have stopped.")
  
