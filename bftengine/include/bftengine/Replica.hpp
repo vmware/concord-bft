@@ -25,6 +25,7 @@
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "PerformanceManager.hpp"
+#include "PersistentStorage.hpp"
 #include "IRequestHandler.hpp"
 
 namespace concord::cron {
@@ -120,6 +121,9 @@ class IReplica {
 
   // Returns the internal ticks generator or nullptr if not applicable.
   virtual std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const = 0;
+
+  // Returns the internal persistent storage object.
+  virtual std::shared_ptr<impl::PersistentStorage> persistentStorage() const = 0;
 };
 
 }  // namespace bftEngine

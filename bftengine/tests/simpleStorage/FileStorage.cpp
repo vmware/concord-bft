@@ -100,7 +100,7 @@ void FileStorage::read(void *dataPtr, size_t offset, size_t itemSize, size_t cou
 }
 
 void FileStorage::write(
-    void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg, bool toFlush) {
+    const void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg, bool toFlush) {
   if (fseek(dataStream_, offset, SEEK_SET) != 0) {
     throw runtime_error("FileStorage::write " + concordUtils::errnoString(errno));
   }
@@ -174,7 +174,7 @@ void FileStorage::verifyOperation(uint32_t objectId, uint32_t dataLen, const cha
   throw runtime_error(WRONG_PARAMETER);
 }
 
-void FileStorage::handleObjectWrite(uint32_t objectId, void *dataPtr, uint32_t objectSize, bool toFlush) {
+void FileStorage::handleObjectWrite(uint32_t objectId, const void *dataPtr, uint32_t objectSize, bool toFlush) {
   MetadataObjectInfo *objectInfo = objectsMetadata_->getObjectInfo(objectId);
   if (objectInfo) {
     write(dataPtr, objectInfo->offset, objectSize, 1, FAILED_TO_WRITE_OBJECT, toFlush);
@@ -206,7 +206,7 @@ void FileStorage::read(uint32_t objectId,
   handleObjectRead(objectId, outBufferForObject, outActualObjectSize);
 }
 
-void FileStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) {
+void FileStorage::atomicWrite(uint32_t objectId, const char *data, uint32_t dataLength) {
   LOG_DEBUG(logger_, "FileStorage::atomicWrite objectId=" << objectId << ", dataLength=" << dataLength);
   lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);
@@ -224,7 +224,7 @@ void FileStorage::beginAtomicWriteOnlyBatch() {
   transaction_ = new ObjectIdToRequestMap;
 }
 
-void FileStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
+void FileStorage::writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) {
   LOG_DEBUG(logger_, "FileStorage::writeInBatch objectId=" << objectId << ", dataLength=" << dataLength);
   lock_guard<mutex> lock(ioMutex_);
   verifyOperation(objectId, dataLength, data);

@@ -505,6 +505,10 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
+void PersistentStorageImp::setUserData(const void *data, std::size_t numberOfBytes) {
+  metadataStorage_->atomicWrite(USER_DATA, static_cast<const char *>(data), numberOfBytes);
+}
+
 /***** Getters *****/
 
 string PersistentStorageImp::getStoredVersion() {
@@ -810,6 +814,14 @@ CheckpointMsg *PersistentStorageImp::getAndAllocateCheckpointMsgInCheckWindow(Se
 bool PersistentStorageImp::getCompletedMarkInCheckWindow(SeqNum seqNum) {
   ConcordAssert(getIsAllowed());
   return readCompletedMarkFromDisk(seqNum);
+}
+
+std::vector<std::uint8_t> PersistentStorageImp::getUserData() const {
+  auto buf = std::vector<std::uint8_t>(2048);
+  auto actualSize = std::uint32_t{0};
+  metadataStorage_->read(USER_DATA, buf.size(), reinterpret_cast<char *>(buf.data()), actualSize);
+  buf.resize(actualSize);
+  return buf;
 }
 
 PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(SeqNum seqNum) {
