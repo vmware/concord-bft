@@ -47,7 +47,7 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
   handlerStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
                                                             current_cp_num);
   handlerStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
-      std::string{kvbc::keyTypes::reconfiguration_add_remove}, current_cp_num);
+      std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1}, current_cp_num);
 }
 template <typename T>
 bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint64_t current_cp_num) {
