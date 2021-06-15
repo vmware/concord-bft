@@ -218,7 +218,9 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
     SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
     LOG_DEBUG(GL, "begin...");
 
+#ifdef USE_OPENTRACING
     auto span = concordUtils::startChildSpanFromContext(span_context_, "bft_create_FullCommitProofMsg");
+#endif
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
     std::vector<char> bufferForSigComputations(bufferSize);
 

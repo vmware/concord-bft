@@ -900,8 +900,10 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, " ");
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_start_slow_commit_msg");
+#endif
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, currentPrimary(), msgSeqNum);
 
@@ -1065,8 +1067,10 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
             "Received PartialCommitProofMsg. " << KVLOG(msgSender, msgSeqNum, msg->size())
                                                << ", commit path: " << CommitPathToStr(msg->commitPath()));
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_partial_commit_proof_msg");
+#endif
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -1310,8 +1314,10 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
 
   bool msgAdded = false;
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_prepare_partial_msg");
+#endif
 
   if (relevantMsgForActiveView(msg)) {
     ConcordAssert(isCurrentPrimary());
@@ -1363,8 +1369,10 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
   bool msgAdded = false;
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_commit_partial_msg");
+#endif
   if (relevantMsgForActiveView(msg)) {
     ConcordAssert(isCurrentPrimary());
 
@@ -1405,8 +1413,10 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_preprare_full_msg");
+#endif
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -1448,8 +1458,10 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
   SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::SLOW));
   bool msgAdded = false;
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_commit_full_msg");
+#endif
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
@@ -1743,8 +1755,10 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
            "Received checkpoint message from node. "
                << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
   LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum));
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
+#endif
 
   if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize)) {
     ConcordAssert(mainLog->insideActiveWindow(msgSeqNum));
@@ -2027,8 +2041,10 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   // TODO(GG): for some communication modules/protocols, we can also utilize information about
   // connection/disconnection.
 
+#ifdef USE_OPENTRACING
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handling_status_report");
+#endif
   const ReplicaId msgSenderId = msg->senderId();
   const SeqNum msgLastStable = msg->getLastStableSeqNum();
   const ViewNum msgViewNum = msg->getViewNumber();
