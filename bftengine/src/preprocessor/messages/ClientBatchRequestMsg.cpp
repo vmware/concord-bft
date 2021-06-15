@@ -47,10 +47,19 @@ const string& ClientBatchRequestMsg::getCid() {
 }
 
 void ClientBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  ConcordAssert(senderId() != repInfo.myId());
   if (size() < sizeof(ClientBatchRequestMsgHeader) ||
       size() < (sizeof(ClientBatchRequestMsgHeader) + msgBody()->dataSize))
     throw std::runtime_error(__PRETTY_FUNCTION__);
+
+  if (type() != MsgCode::ClientBatchRequest) {
+    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  if (senderId() == repInfo.myId()) {
+    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
 }
 
 ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
