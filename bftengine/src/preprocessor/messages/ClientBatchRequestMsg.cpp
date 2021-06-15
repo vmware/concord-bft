@@ -66,6 +66,7 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
   if (!clientMsgsList_.empty()) return clientMsgsList_;
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
+  const string& batchCid = getCid();
   char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
   auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
@@ -89,12 +90,12 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
                                                                      spanContext,
                                                                      requestSignaturePosition,
                                                                      singleMsgHeader.reqSignatureLength);
-    LOG_DEBUG(logger(), KVLOG(msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
+    LOG_DEBUG(logger(), KVLOG(batchCid, msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
                     singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }
-  LOG_DEBUG(logger(), KVLOG(msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));
+  LOG_DEBUG(logger(), KVLOG(batchCid, msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));
   return clientMsgsList_;
 }
 
