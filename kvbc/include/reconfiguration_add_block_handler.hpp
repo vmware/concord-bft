@@ -83,7 +83,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     std::vector<uint8_t> serialized_command;
     concord::messages::serialize(serialized_command, command);
     auto blockId = persistReconfigurationBlock(
-        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_add_remove});
+        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
     LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
     return true;
   }
@@ -115,7 +115,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint64_t sequence_number,
               concord::messages::ReconfigurationResponse& response) override {
     auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
-                                     std::string{kvbc::keyTypes::reconfiguration_add_remove});
+                                     std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
     if (res.has_value()) {
       auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
       concord::messages::AddRemoveWithWedgeCommand cmd;
