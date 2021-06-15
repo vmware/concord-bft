@@ -29,20 +29,21 @@ class StReconfigurationHandler {
   StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
     st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); },
                                          bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
-    onStartup(ro_storage_.getLastBlockId() / checkpointWindowSize);
   }
 
   void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
     orig_reconf_handlers_.push_back(handler);
   }
-  void stCallBack(uint64_t);
+
+  void pruneOnStartup();
 
  private:
+  void stCallBack(uint64_t);
+
   template <typename T>
   void deserializeCmfMessage(T& msg, const std::string& strval);
   template <typename T>
   bool handlerStoredCommand(const std::string& key, uint64_t current_cp_num);
-  void onStartup(uint64_t current_cp_num);
   uint64_t getStoredBftSeqNum(BlockId bid);
   /*
    * For wedge, we need to do nothing. The wedge point is being cleared only on termination.

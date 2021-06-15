@@ -51,10 +51,9 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                         current_cp_num);
 }
 
-void StReconfigurationHandler::onStartup(uint64_t current_cp_num) {
-  // Handle reconfiguration state on startup
+void StReconfigurationHandler::pruneOnStartup() {
   handlerStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
-                                                        current_cp_num);
+                                                        0);
 }
 template <typename T>
 bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint64_t current_cp_num) {
@@ -89,9 +88,7 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
   return true;
 }
 
-bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command,
-                                      uint64_t bft_seq_num,
-                                      uint64_t current_cp_num) {
+bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command, uint64_t bft_seq_num, uint64_t) {
   // Actual pruning will be done from the lowest latestPruneableBlock returned by the replicas. It means, that even
   // on every state transfer there might be at most one relevant pruning command. Hence it is enough to take the latest
   // saved command and try to execute it
