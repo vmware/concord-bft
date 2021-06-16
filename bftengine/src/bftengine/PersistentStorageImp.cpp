@@ -99,6 +99,7 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
+  metadataObjectsArray.get()[USER_DATA].maxSize = kMaxUserDataSizeBytes;
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
     metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =

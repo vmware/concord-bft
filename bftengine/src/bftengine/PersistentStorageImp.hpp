@@ -101,7 +101,7 @@ typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
-  static constexpr auto kMaxUserDataSizeBytes = 4096;
+  static constexpr auto kMaxUserDataSizeBytes = 256;
 
  public:
   PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal);
