@@ -14,6 +14,7 @@
 #include "hex_tools.h"
 #include "endianness.hpp"
 #include "ControlStateManager.hpp"
+#include "bftengine/EpochsManager.hpp"
 
 namespace concord::kvbc {
 template <typename T>
@@ -31,6 +32,18 @@ uint64_t StReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
     sequenceNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
   }
   return sequenceNum;
+}
+
+uint64_t StReconfigurationHandler::getEpochNumber(BlockId bid) {
+  auto value =
+      ro_storage_.get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_prefix}, bid);
+  auto epochNum = uint64_t{0};
+  if (value) {
+    const auto &data = std::get<categorization::VersionedValue>(*value).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    epochNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+  return epochNum;
 }
 
 void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
@@ -64,19 +77,29 @@ bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;
     deserializeCmfMessage(cmd, strval);
-    return handle(cmd, seqNum, current_cp_num);
+    return handle(cmd, seqNum, current_cp_num, blockid);
   }
   return false;
 }
 
 bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand &command,
                                       uint64_t bft_seq_num,
-                                      uint64_t current_cp_num) {
+                                      uint64_t current_cp_num,
+                                      uint64_t bid) {
+  auto self_epoch_num = bftEngine::EpochManager::instance().getSelfEpoch();
+  auto command_epoch_num = getEpochNumber(bid);
   auto cp_sn = checkpointWindowSize * current_cp_num;
   auto wedge_point = (bft_seq_num + 2 * checkpointWindowSize);
   wedge_point = wedge_point - (wedge_point % checkpointWindowSize);
-  if (cp_sn == wedge_point) {  // We got to the wedge point, we now need to set a flag to remove the metadata and to
-                               // wait for restart
+
+  // We have already executed this command, no need to execute it again.
+  if (self_epoch_num > command_epoch_num) return true;
+
+  // We still need to do nothing, we are not on the wedge point.
+  if (self_epoch_num == command_epoch_num && cp_sn < wedge_point) return true;
+
+  // If we are on the same epoch and on the wedge point, act like a normal replica
+  if (self_epoch_num == command_epoch_num && cp_sn == wedge_point) {
     if (command.bft) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
@@ -85,10 +108,15 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
           [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
     }
   }
+
+  // Else, we are in a previous epoch, we need to resync ourselves immidietly.
+  bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+      [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+
   return true;
 }
 
-bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command, uint64_t bft_seq_num, uint64_t) {
+bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command, uint64_t bft_seq_num, uint64_t, uint64_t) {
   // Actual pruning will be done from the lowest latestPruneableBlock returned by the replicas. It means, that even
   // on every state transfer there might be at most one relevant pruning command. Hence it is enough to take the latest
   // saved command and try to execute it
