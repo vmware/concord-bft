@@ -12,14 +12,13 @@
 // file.
 
 #pragma once
-#include "IStateTransfer.hpp"
 #include "ReservedPagesClient.hpp"
 #include "Serializable.h"
 #include "unordered_map"
 
 namespace bftEngine::impl {
 class IInternalBFTClient;
-class ISigner;
+class RSASigner;
 }  // namespace bftEngine::impl
 
 namespace bftEngine {
@@ -27,8 +26,8 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
  public:
   struct InitData {
     std::shared_ptr<impl::IInternalBFTClient> cl;
-    std::shared_ptr<impl::ISigner> signer;
-    bool first_time;
+    std::shared_ptr<impl::RSASigner> signer;
+    uint32_t replica_id;
     uint32_t n;
     uint32_t f;
   };
@@ -36,7 +35,8 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   struct EpochsData : public concord::serialize::SerializableFactory<EpochsData> {
     std::unordered_map<uint32_t, uint64_t> epochs_;
     uint32_t n_;
-    EpochsData(uint32_t n) {
+    EpochsData() = default;
+    EpochsData(uint32_t n) : EpochsData() {
       static_assert(sizeof(EpochsData) < 4096, "The page exceeds the maximal size of reserved page");
       for (uint32_t i = 0; i < n; i++) {
         epochs_.emplace(i, 0);
@@ -55,28 +55,20 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
     static EpochManager instance_(id);
     return instance_;
   }
-  EpochManager(InitData* id) : bft_client_{id->cl}, signer_{id->signer}, epochs_data_{id->n} {
-    scratchPage_.resize(sizeOfReservedPage());
-    if (loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
-      std::istringstream inStream;
-      inStream.str(scratchPage_);
-      concord::serialize::Serializable::deserialize(inStream, epochs_data_);
-    }
-    if (id->first_time) {
-      // Send a message with the current replica epoch
-    }
-  }
+  EpochManager(InitData* id);
   ~EpochManager() = default;
   void updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id);
   uint64_t getEpochForReplica(uint32_t replica_id);
   const EpochsData& getEpochData();
+  void sendUpdateEpochMsg(uint64_t epoch);
 
  private:
   EpochManager& operator=(const EpochManager&) = delete;
   EpochManager(const EpochManager&) = delete;
 
   std::shared_ptr<impl::IInternalBFTClient> bft_client_;
-  std::shared_ptr<impl::ISigner> signer_;
+  std::shared_ptr<impl::RSASigner> signer_;
+  uint32_t replica_id_;
   EpochsData epochs_data_;
   std::string scratchPage_;
 };
