@@ -26,6 +26,16 @@ EpochManager::EpochManager(EpochManager::InitData* id)
     inStream.str(scratchPage_);
     concord::serialize::Serializable::deserialize(inStream, epochs_data_);
   }
+
+  id->state_transfer.addOnTransferringCompleteCallback(
+      [&](uint64_t) {
+        if (loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
+          std::istringstream inStream;
+          inStream.str(scratchPage_);
+          concord::serialize::Serializable::deserialize(inStream, epochs_data_);
+        }
+      },
+      IStateTransfer::HIGH);
 }
 
 void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id) {

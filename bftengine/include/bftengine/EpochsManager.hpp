@@ -15,6 +15,7 @@
 #include "ReservedPagesClient.hpp"
 #include "Serializable.h"
 #include "unordered_map"
+#include "IStateTransfer.hpp"
 
 namespace bftEngine::impl {
 class IInternalBFTClient;
@@ -27,6 +28,7 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   struct InitData {
     std::shared_ptr<impl::IInternalBFTClient> cl;
     std::shared_ptr<impl::RSASigner> signer;
+    IStateTransfer& state_transfer;
     uint32_t replica_id;
     uint32_t n;
     uint32_t f;
