@@ -30,6 +30,7 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
     uint32_t replica_id;
     uint32_t n;
     uint32_t f;
+    bool is_ro;
   };
 
   struct EpochsData : public concord::serialize::SerializableFactory<EpochsData> {
@@ -71,5 +72,6 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   uint32_t replica_id_;
   EpochsData epochs_data_;
   std::string scratchPage_;
+  bool is_ro_;
 };
 }  // namespace bftEngine
