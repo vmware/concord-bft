@@ -2441,7 +2441,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
       ConcordAssertGE(desc.lastBlock, prevLastBlockNum);
       prevLastBlockNum = desc.lastBlock;
 
-      if (desc.lastBlock > 0) {
+      if (desc.lastBlock != 0 && desc.lastBlock >= as_->getGenesisBlockNum()) {
         auto computedBlockDigest = getBlockAndComputeDigest(desc.lastBlock);
         // Extra debugging needed here for BC-2821
         if (computedBlockDigest != desc.digestOfLastBlock) {
