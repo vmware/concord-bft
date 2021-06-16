@@ -71,6 +71,7 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
   if (!preProcessReqMsgsList_.empty()) return preProcessReqMsgsList_;
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
+  const string& batchCid = getCid();
   char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(PreProcessRequestMsg::Header*)dataPosition;
@@ -94,12 +95,14 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             spanContext);
 
-    LOG_DEBUG(logger(), KVLOG(preProcessReqMsg->clientId(), preProcessReqMsg->getCid(), preProcessReqMsg->reqSeqNum()));
+    LOG_DEBUG(logger(),
+              "Single request info:" << KVLOG(
+                  batchCid, preProcessReqMsg->clientId(), preProcessReqMsg->getCid(), preProcessReqMsg->reqSeqNum()));
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
                     singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }
-  LOG_DEBUG(logger(), KVLOG(getCid(), msgBody()->clientId, preProcessReqMsgsList_.size(), numOfMessagesInBatch));
+  LOG_DEBUG(logger(), KVLOG(batchCid, msgBody()->clientId, preProcessReqMsgsList_.size(), numOfMessagesInBatch));
   return preProcessReqMsgsList_;
 }
 

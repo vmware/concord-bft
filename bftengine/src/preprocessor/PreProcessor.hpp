@@ -13,6 +13,7 @@
 
 #include "OpenTracing.hpp"
 #include "messages/ClientBatchRequestMsg.hpp"
+#include "messages/PreProcessBatchRequestMsg.hpp"
 #include "MsgsCommunicator.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "SimpleThreadPool.hpp"
@@ -53,6 +54,7 @@ typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
 typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
 
 using TimeRecorder = concord::diagnostics::TimeRecorder<true>;  // use atomic recorder
+
 //**************** Class PreProcessor ****************//
 
 // This class is responsible for the coordination of pre-execution activities on both - primary and non-primary
@@ -110,11 +112,17 @@ class PreProcessor {
   bool checkClientMsgCorrectness(
       uint64_t reqSeqNum, const std::string &cid, bool isReadOnly, uint16_t clientId, NodeIdType senderId) const;
   bool checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg);
-  void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg);
+  bool checkPreProcessReqPrerequisites(
+      SeqNum reqSeqNum, const std::string &cid, NodeIdType senderId, NodeIdType clientId, uint16_t reqOffsetInBatch);
+  bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq);
+  void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg, bool arrivedInBatch);
   void registerAndHandleClientPreProcessReqOnNonPrimary(ClientPreProcessReqMsgUniquePtr clientReqMsg,
                                                         bool arrivedInBatch,
                                                         uint16_t reqOffsetInBatch);
   void sendMsg(char *msg, NodeIdType dest, uint16_t msgType, MsgSize msgSize);
+  void sendPreProcessBatchReqToAllReplicas(ClientBatchRequestMsgUniquePtr clientBatchMsg,
+                                           const PreProcessReqMsgsList &preProcessReqMsgList,
+                                           uint32_t requestsSize);
   void sendPreProcessRequestToAllReplicas(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
   void resendPreProcessRequest(const RequestProcessingStateUniquePtr &reqStatePtr);
   void sendRejectPreProcessReplyMsg(NodeIdType clientId,
@@ -169,10 +177,13 @@ class PreProcessor {
   void addTimers();
   void cancelTimers();
   void onRequestsStatusCheckTimer();
-  void handleSingleClientRequestMessage(ClientPreProcessReqMsgUniquePtr clientMsg,
+  void handleSingleClientRequestMessage(const std::string &batchCid,
+                                        ClientPreProcessReqMsgUniquePtr clientMsg,
                                         NodeIdType senderId,
                                         bool arrivedInBatch,
-                                        uint16_t msgOffsetInBatch);
+                                        uint16_t msgOffsetInBatch,
+                                        PreProcessRequestMsgSharedPtr &preProcessRequestMsg);
+  void handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPtr preProcessReqMsg, const std::string &batchCid);
   bool isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,
                                       ReqId reqSeqNum,
                                       NodeIdType clientId,
@@ -247,6 +258,7 @@ class PreProcessor {
   std::shared_ptr<concord::diagnostics::Recorder> totalPreExecDurationRecorder_;
   std::shared_ptr<concord::diagnostics::Recorder> launchAsyncPreProcessJobRecorder_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
+  bool batchedPreProcessEnabled_;
 };
 
 //**************** Class AsyncPreProcessJob ****************//
