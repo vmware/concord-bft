@@ -22,6 +22,7 @@
 #include "PersistentStorage.hpp"
 #include "MsgsCommunicator.hpp"
 #include "SigManager.hpp"
+#include "EpochsManager.hpp"
 
 using concordUtil::Timers;
 
@@ -54,6 +55,8 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                      config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
                                      KeyFormat::PemFormat,
                                      *repsInfo));
+  EpochManager::InitData eid{nullptr, nullptr, config_.replicaId, config.numReplicas, config.fVal, true};
+  EpochManager::instance(&eid);
 }
 
 void ReadOnlyReplica::start() {

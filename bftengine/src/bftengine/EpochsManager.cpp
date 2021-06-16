@@ -19,6 +19,7 @@ namespace bftEngine {
 
 EpochManager::EpochManager(EpochManager::InitData* id)
     : bft_client_{id->cl}, signer_{id->signer}, replica_id_{id->replica_id}, epochs_data_{id->n} {
+  is_ro_ = id->is_ro;
   scratchPage_.resize(sizeOfReservedPage());
   if (loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
     std::istringstream inStream;
@@ -28,6 +29,7 @@ EpochManager::EpochManager(EpochManager::InitData* id)
 }
 
 void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id) {
+  if (is_ro_) return;
   epochs_data_.epochs_[replica_id] = epoch_id;
   // update the data and save it on the reserved pages
   std::ostringstream outStream;
@@ -38,6 +40,7 @@ void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id)
 uint64_t EpochManager::getEpochForReplica(uint32_t replica_id) { return epochs_data_.epochs_[replica_id]; }
 const EpochManager::EpochsData& EpochManager::getEpochData() { return epochs_data_; }
 void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
+  if (is_ro_) return;
   LOG_INFO(GL, "sending an update for the replica epoch number");
   concord::messages::ReconfigurationRequest req;
   req.command = concord::messages::EpochUpdateMsg{replica_id_, epoch};
