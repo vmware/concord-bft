@@ -130,3 +130,14 @@ target_include_directories(ReplicaAsksToLeaveViewMsg_test
 target_link_libraries(ReplicaAsksToLeaveViewMsg_test GTest::Main)
 target_link_libraries(ReplicaAsksToLeaveViewMsg_test corebft )
 target_compile_options(ReplicaAsksToLeaveViewMsg_test PUBLIC "-Wno-sign-compare")
+
+add_executable(ReplicaRestartReadyMsg_test ReplicaRestartReadyMsg_test.cpp helper.cpp)
+add_test(ReplicaRestartReadyMsg_test ReplicaRestartReadyMsg_test)
+find_package(GTest REQUIRED)
+find_package(cryptopp REQUIRED)
+target_include_directories(ReplicaRestartReadyMsg_test
+      PRIVATE
+      ${bftengine_SOURCE_DIR}/src/bftengine)
+target_link_libraries(ReplicaRestartReadyMsg_test GTest::Main)
+target_link_libraries(ReplicaRestartReadyMsg_test corebft )
+target_compile_options(ReplicaRestartReadyMsg_test PUBLIC "-Wno-sign-compare")

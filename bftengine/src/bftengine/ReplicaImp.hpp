@@ -60,6 +60,8 @@ class ReplicaStatusMsg;
 class ReplicaImp;
 struct LoadedReplicaData;
 class PersistentStorage;
+class ReplicaRestartReadyMsg;
+class ReplicasRestartReadyProofMsg;
 
 using bftEngine::ReplicaConfig;
 using std::shared_ptr;
@@ -177,6 +179,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
 
   std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
+
+  std::vector<std::unique_ptr<ReplicaRestartReadyMsg>> restart_ready_list_;
 
   //******** METRICS ************************************
   GaugeHandle metric_view_;
@@ -446,6 +450,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
   void onSuperStableCheckpointTimer(concordUtil::Timers::Handle);
+  void sendRepilcaRestartReady();
+  void sendReplicasRestartReadyProof();
 
   // handlers for internal messages
 

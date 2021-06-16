@@ -60,11 +60,15 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void clearCheckpointToStopAt();
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
+  bool getRestartBftFlag() const { return restart_bft_enabled_; }
+  void setRestartBftFlag(bool bft) { restart_bft_enabled_ = bft; }
 
   void disable() { enabled_ = false; }
   void enable() { enabled_ = true; }
 
   void setRemoveMetadataFunc(std::function<void()> fn) { remove_metadata_ = fn; }
+  void setRestartReadyFunc(std::function<void()> fn) { send_restart_ready_ = fn; }
+  void sendRestartReadyToAllReplica() { send_restart_ready_(); }
 
  private:
   ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
@@ -73,8 +77,10 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
 
   std::string scratchPage_;
   bool enabled_ = true;
+  std::atomic_bool restart_bft_enabled_ = false;
   ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
   std::function<void()> remove_metadata_;
+  std::function<void()> send_restart_ready_;
 };
 }  // namespace bftEngine
