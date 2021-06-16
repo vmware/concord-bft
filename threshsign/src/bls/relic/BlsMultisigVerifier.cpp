@@ -105,7 +105,6 @@ bool BlsMultisigVerifier::verify(const char *msg, int msgLen, const char *sigBuf
   return BlsThresholdVerifier::verify(h, sig, publicKey.y);
 }
 
-/************** Serialization **************/
 bool BlsMultisigVerifier::operator==(const BlsMultisigVerifier &other) const {
   bool result = BlsThresholdVerifier::compare(other);
   return result;

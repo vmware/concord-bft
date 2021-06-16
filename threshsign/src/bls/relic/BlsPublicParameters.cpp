@@ -62,20 +62,6 @@ int BlsPublicParameters::getSignatureSize() const { return Library::Get().getG1P
 
 const BNT &BlsPublicParameters::getGroupOrder() const { return BLS::Relic::Library::Get().getG2Order(); }
 
-/************** Serialization **************/
-void BlsPublicParameters::serializeDataMembers(ostream &outStream) const {
-  // generator1_ and generator2_ fields should not be serialized as they are
-  // generated on the fly.
-  IPublicParameters::serializeDataMembers(outStream);
-  // Serialize curveType_
-  serialize(outStream, curveType_);
-}
-
-void BlsPublicParameters::deserializeDataMembers(istream &inStream) {
-  IPublicParameters::deserializeDataMembers(inStream);
-  deserialize(inStream, curveType_);
-}
-
 bool BlsPublicParameters::operator==(const BlsPublicParameters &other) const {
   bool result = ((other.curveType_ == curveType_) && (other.generator1_ == generator1_) &&
                  (other.generator2_ == generator2_) && (IPublicParameters::compare(other)));

@@ -26,7 +26,7 @@ namespace Relic {
 /**
  * Threshold signature signer and multisignature signer class.
  */
-class BlsThresholdSigner : public IThresholdSigner, public concord::serialize::SerializableFactory<BlsThresholdSigner> {
+class BlsThresholdSigner : public IThresholdSigner {
  protected:
   BlsPublicParameters params_;
 
@@ -70,12 +70,6 @@ class BlsThresholdSigner : public IThresholdSigner, public concord::serialize::S
   const BlsPublicKey &getPublicKey() const { return publicKey_; }
 
   const IShareVerificationKey &getShareVerificationKey() const override { return publicKey_; }
-
-  // Serialization/deserialization
- protected:
-  virtual void serializeDataMembers(std::ostream &) const override;
-  virtual void deserializeDataMembers(std::istream &) override;
-  const std::string getVersion() const override { return "1"; };
 };
 
 } /* namespace Relic */
