@@ -190,6 +190,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               request.flags(),
                                                                               request.requestLength(),
                                                                               request.requestBuf(),
+                                                                              "",
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf()});
 

@@ -1,0 +1,24 @@
+
+Msg RequestInput 1 {
+    uint16 clientId
+    uint64 executionSequenceNum
+    string cid
+    uint64 flags
+    string request
+    string signature
+    uint64 requestSequenceNum
+}
+
+Msg TimeService 2 {
+    int64 time_since_epoch
+    # If the execution mode is not accumulated i.e. execution of a single request per execute, the command handler 
+    # needs to know the request_position of the request in the list.
+    uint64 request_position
+}
+
+Msg RequestsRecord 3 {
+    list RequestInput requests
+    optional TimeService timestamp
+    uint64 keys_version
+    bool keys_rotated_at_this_block 
+}

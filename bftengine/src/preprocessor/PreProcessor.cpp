@@ -1010,6 +1010,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
                                               ReqId reqSeqNum,
                                               uint32_t reqLength,
                                               char *reqBuf,
+                                              std::string signature,
                                               const concordUtils::SpanContext &span_context) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
@@ -1024,6 +1025,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
       PRE_PROCESS_FLAG,
       reqLength,
       reqBuf,
+      std::move(signature),
       maxPreExecResultSize_,
       (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch)});
   requestsHandler_.execute(accumulatedRequests, cid, span);
@@ -1109,13 +1111,15 @@ void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
   const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
-  uint32_t actualResultBufLen = launchReqPreProcessing(clientId,
-                                                       preProcessReqMsg->reqOffsetInBatch(),
-                                                       cid,
-                                                       reqSeqNum,
-                                                       preProcessReqMsg->requestLength(),
-                                                       preProcessReqMsg->requestBuf(),
-                                                       span_context);
+  uint32_t actualResultBufLen = launchReqPreProcessing(
+      clientId,
+      preProcessReqMsg->reqOffsetInBatch(),
+      cid,
+      reqSeqNum,
+      preProcessReqMsg->requestLength(),
+      preProcessReqMsg->requestBuf(),
+      std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
+      span_context);
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen);
     return;

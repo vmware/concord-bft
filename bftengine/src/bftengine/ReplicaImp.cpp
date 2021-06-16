@@ -3884,6 +3884,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               request->flags(),
                                                                               request->requestLength(),
                                                                               request->requestBuf(),
+                                                                              "",
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf()});
   {
@@ -4125,6 +4126,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         req.flags(),
         req.requestLength(),
         req.requestBuf(),
+        std::string(req.requestSignature(), req.requestSignatureLength()),
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum()});
