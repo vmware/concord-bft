@@ -70,6 +70,7 @@ set(corebft_source_files
     ../ccron/src/ticks_generator.cpp
     ../ccron/src/periodic_action.cpp
     ../ccron/src/cron_table.cpp
+    src/bftengine/EpochsManager.cpp
 )
 
 #

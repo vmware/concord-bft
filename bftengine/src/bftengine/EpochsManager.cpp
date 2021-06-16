@@ -10,8 +10,22 @@
 // file.
 
 #include "EpochsManager.hpp"
+#include "Crypto.hpp"
+#include "InternalBFTClient.hpp"
+#include "Replica.hpp"
+#include "concord.cmf.hpp"
 
 namespace bftEngine {
+
+EpochManager::EpochManager(EpochManager::InitData* id)
+    : bft_client_{id->cl}, signer_{id->signer}, replica_id_{id->replica_id}, epochs_data_{id->n} {
+  scratchPage_.resize(sizeOfReservedPage());
+  if (loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
+    std::istringstream inStream;
+    inStream.str(scratchPage_);
+    concord::serialize::Serializable::deserialize(inStream, epochs_data_);
+  }
+}
 
 void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id) {
   epochs_data_.epochs_[replica_id] = epoch_id;
@@ -23,6 +37,24 @@ void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id)
 }
 uint64_t EpochManager::getEpochForReplica(uint32_t replica_id) { return epochs_data_.epochs_[replica_id]; }
 const EpochManager::EpochsData& EpochManager::getEpochData() { return epochs_data_; }
+void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
+  LOG_INFO(GL, "sending an update for the replica epoch number");
+  concord::messages::ReconfigurationRequest req;
+  req.command = concord::messages::EpochUpdateMsg{replica_id_, epoch};
+  // Mark this request as an internal one
+  std::vector<uint8_t> data_vec;
+  concord::messages::serialize(data_vec, req);
+  std::string sig(signer_->signatureLength(), '\0');
+  std::size_t sig_length{0};
+  signer_->sign(
+      reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data(), signer_->signatureLength(), sig_length);
+  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  data_vec.clear();
+  concord::messages::serialize(data_vec, req);
+  std::string strMsg(data_vec.begin(), data_vec.end());
+  bft_client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "EpochUpdateMsg-" + std::to_string(epoch));
+}
+
 void EpochManager::EpochsData::serializeDataMembers(std::ostream& outStream) const {
   serialize(outStream, n_);
   for (uint32_t i = 0; i < n_; i++) {
