@@ -14,6 +14,7 @@
 #include "Logger.hpp"
 #include <list>
 #include <sstream>
+#include <stdexcept>
 
 using namespace std;
 using namespace concord::serialize;
@@ -506,6 +507,9 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
 }
 
 void PersistentStorageImp::setUserData(const void *data, std::size_t numberOfBytes) {
+  if (numberOfBytes > kMaxUserDataSizeBytes) {
+    throw std::invalid_argument{"Metadata user data is too big"};
+  }
   metadataStorage_->atomicWrite(USER_DATA, static_cast<const char *>(data), numberOfBytes);
 }
 
@@ -817,7 +821,7 @@ bool PersistentStorageImp::getCompletedMarkInCheckWindow(SeqNum seqNum) {
 }
 
 std::vector<std::uint8_t> PersistentStorageImp::getUserData() const {
-  auto buf = std::vector<std::uint8_t>(2048);
+  auto buf = std::vector<std::uint8_t>(kMaxUserDataSizeBytes);
   auto actualSize = std::uint32_t{0};
   metadataStorage_->read(USER_DATA, buf.size(), reinterpret_cast<char *>(buf.data()), actualSize);
   buf.resize(actualSize);

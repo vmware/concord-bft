@@ -110,6 +110,7 @@ class PersistentStorage {
   virtual void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) = 0;
   virtual void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) = 0;
 
+  // User data to be persisted, e.g. application-specific local data, scratchpad data, etc.
   virtual void setUserData(const void *data, std::size_t numberOfBytes) = 0;
 
   virtual void setEraseMetadataStorageFlag() = 0;
