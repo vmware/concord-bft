@@ -18,8 +18,7 @@
 namespace BLS {
 namespace Relic {
 
-class BlsPublicParameters : public IPublicParameters,
-                            public concord::serialize::SerializableFactory<BlsPublicParameters> {
+class BlsPublicParameters : public IPublicParameters {
  protected:
   G1T generator1_;
   G2T generator2_;
@@ -40,17 +39,10 @@ class BlsPublicParameters : public IPublicParameters,
   const G2T &getGenerator2() const { return generator2_; }
   const BNT &getGroupOrder() const;
 
-  // Serialization/deserialization
-  const std::string getVersion() const override { return "1" + IPublicParameters::getVersion(); }
-
   // To be used ONLY during deserialization. Could not become private/protected,
   // as there is a composition relationship between IPublicParameters and
   // signer/verifier classes.
   BlsPublicParameters() = default;  // To be used during deserialization.
-
- protected:
-  virtual void serializeDataMembers(std::ostream &outStream) const override;
-  virtual void deserializeDataMembers(std::istream &inStream) override;
 };
 
 }  // namespace Relic
