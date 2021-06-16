@@ -31,6 +31,7 @@
 #include "reconfiguration_add_block_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
+#include "bftengine/EpochsManager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -152,6 +153,22 @@ void Replica::createReplicaAndSyncState() {
                      maxNumOfBlocksToDelete));
     } catch (std::exception &e) {
       std::terminate();
+    }
+  }
+  // Update the epoch manager on startup
+  if (!m_stateTransfer->isCollectingState()) {
+    for (uint32_t i = 0; i < replicaConfig_.numReplicas; i++) {
+      auto val = getLatest(kConcordInternalCategoryId,
+                           std::string{kvbc::keyTypes::reconfiguration_epoch_prefix, static_cast<char>(i)});
+      uint64_t epoch = 0;
+      if (val.has_value()) {
+        auto strval = std::visit([](auto &&arg) { return arg.data; }, *val);
+        std::vector<uint8_t> data(strval.begin(), strval.end());
+        concord::messages::EpochUpdateMsg epoch_msg;
+        concord::messages::deserialize(data, epoch_msg);
+        epoch = epoch_msg.epoch_number;
+        bftEngine::EpochManager::instance().updateEpochForReplica(i, epoch);
+      }
     }
   }
 }
