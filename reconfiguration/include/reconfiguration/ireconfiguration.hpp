@@ -98,6 +98,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::EpochUpdateMsg&, uint64_t, concord::messages::ReconfigurationResponse&) {
     return true;
   }
+
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.
   virtual bool verifySignature(const std::string& data, const std::string& signature) const = 0;

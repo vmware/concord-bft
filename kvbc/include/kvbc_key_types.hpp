@@ -20,5 +20,5 @@ static const char reconfiguration_download_key = 0x26;
 static const char reconfiguration_install_key = 0x27;
 static const char reconfiguration_key_exchange = 0x28;
 static const char reconfiguration_add_remove = 0x29;
-
+static const char reconfiguration_epoch_prefix = 0x2f;
 }  // namespace concord::kvbc::keyTypes
