@@ -29,6 +29,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/update_cache.cpp
     src/sparse_merkle/walker.cpp
     src/kvbc_app_filter/kvbc_app_filter.cpp
+    src/reconfiguration_add_block_handler.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)
