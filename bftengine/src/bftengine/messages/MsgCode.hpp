@@ -46,6 +46,7 @@ class MsgCode {
     ClientPreProcessRequest = 500,
     PreProcessRequest,
     PreProcessReply,
+    PreProcessBatchRequest,
 
     ClientRequest = 700,
     ClientBatchRequest = 750,

@@ -60,6 +60,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.numBlocksToKeep_ = 10;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
+    replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
@@ -79,6 +80,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"s3-config-file", required_argument, 0, '3'},
                                           {"log-props-file", required_argument, 0, 'l'},
                                           {"key-exchange-on-start", required_argument, 0, 'e'},
+                                          {"publish-client-keys", required_argument, 0, 'w'},
                                           {"cert-root-path", required_argument, 0, 'c'},
                                           {"consensus-batching-policy", required_argument, 0, 'b'},
                                           {"consensus-batching-max-reqs-size", required_argument, 0, 'm'},
@@ -93,7 +95,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:r:", longOptions, &optionIndex)) != -1) {
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:r:w:", longOptions, &optionIndex)) !=
+           -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -123,6 +126,9 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         } break;
         case 'e': {
           replicaConfig.keyExchangeOnStart = true;
+        } break;
+        case 'w': {
+          replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", true);
         } break;
         case 'y': {
           const auto concurrencyLevel = concord::util::to<std::uint16_t>(std::string(optarg));

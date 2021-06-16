@@ -20,13 +20,13 @@ using grpc::ServerWriter;
 using vmware::concord::client::v1::StreamEventGroupsRequest;
 using vmware::concord::client::v1::EventGroup;
 
-namespace concord::client {
+namespace concord::client::clientservice {
 
 Status EventServiceImpl::StreamEventGroups(ServerContext* context,
                                            const StreamEventGroupsRequest* request,
                                            ServerWriter<EventGroup>* stream) {
-  std::cout << "EventServiceImpl::StreamEventGroups called" << std::endl;
+  LOG_INFO(logger_, "EventServiceImpl::StreamEventGroups called");
   return grpc::Status::OK;
 }
 
-}  // namespace concord::client
+}  // namespace concord::client::clientservice

@@ -18,7 +18,6 @@
 #include <string>
 #include <functional>
 #include <deque>
-
 #include "OpenTracing.hpp"
 
 namespace concord::reconfiguration {
@@ -40,6 +39,7 @@ class IRequestsHandler {
     uint64_t flags = 0;  // copy of ClientRequestMsg flags
     uint32_t requestSize = 0;
     const char *request;
+    std::string signature;
     uint32_t maxReplySize = 0;
     char *outReply;
     uint64_t requestSequenceNum = executionSequenceNum;

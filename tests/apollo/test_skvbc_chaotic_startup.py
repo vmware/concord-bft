@@ -192,7 +192,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                     await write_req()
                     await trio.sleep(seconds=3)
 
-    # @unittest.skip("Edge case scenario - not part of CI")
+    @unittest.skip("Edge case scenario - not part of CI until intermittent failures are analysed")
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

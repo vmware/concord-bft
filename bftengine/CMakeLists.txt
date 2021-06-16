@@ -1,6 +1,8 @@
 project (bftengine LANGUAGES CXX)
 
 add_subdirectory(src/preprocessor)
+find_package(CMFC REQUIRED)
+add_subdirectory("cmf")
 
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
@@ -111,7 +113,9 @@ target_link_libraries(corebft PUBLIC
   bftcommunication
   diagnostics
   concordbft_reconfiguration
-  secretsmanager)
+  secretsmanager
+  keys_and_signatures_cmf
+  )
 
 
 target_include_directories(bftclient PUBLIC include/bftengine)

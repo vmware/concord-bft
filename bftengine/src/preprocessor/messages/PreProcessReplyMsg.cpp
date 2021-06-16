@@ -36,13 +36,19 @@ PreProcessReplyMsg::PreProcessReplyMsg(preprocessor::PreProcessorRecorder* histo
 }
 
 void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
-  ConcordAssert(type() == MsgCode::PreProcessReply);
-
   const uint64_t headerSize = sizeof(Header);
   if (size() < headerSize || size() < headerSize + msgBody()->replyLength) throw runtime_error(__PRETTY_FUNCTION__);
 
+  if (type() != MsgCode::PreProcessReply) {
+    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
   auto& msgHeader = *msgBody();
-  ConcordAssert(msgHeader.senderId != repInfo.myId());
+  if (msgHeader.senderId == repInfo.myId()) {
+    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
 
   auto sigManager = SigManager::instance();
   uint16_t sigLen = sigManager->getSigLength(msgHeader.senderId);

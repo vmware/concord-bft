@@ -122,7 +122,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         assert self_key_exchange_counter == 1
         public_key_exchange_for_peer_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
         assert public_key_exchange_for_peer_counter == 1
-        
+
+    @unittest.skip("unstable test. Tracked in BC-9406")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       selected_configs=lambda n, f, c: n == 7,
