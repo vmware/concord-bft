@@ -17,6 +17,8 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include "messages/ReplicaStatusMsg.hpp"
+#include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "ViewChangeSafetyLogic.hpp"
 
 namespace bftEngine {
@@ -134,6 +136,16 @@ class ViewsManager {
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 
+  ReplicasAskedToLeaveViewInfo &getComplainedReplicas() { return complainedReplicas; }
+
+  void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
+
+  ViewChangeMsg *PrepareViewChangeMsg(ViewNum nextView,
+                                      const bool wasInPrevViewNumber,
+                                      SeqNum lastStableSeqNum = 0,
+                                      SeqNum lastExecutedSeqNum = 0,
+                                      const std::vector<PrevViewInfo> *const prevViewInfo = nullptr);
+
  protected:
   bool inView() const { return (stat == Stat::IN_VIEW); }
 
@@ -174,6 +186,8 @@ class ViewsManager {
   // myLatestPendingView always >=  myLatestActiveView
   ViewNum myLatestActiveView;
   ViewNum myLatestPendingView;
+
+  ReplicasAskedToLeaveViewInfo complainedReplicas;
 
   // for each replica it holds the latest ViewChangeMsg message
   ViewChangeMsg **viewChangeMessages;
