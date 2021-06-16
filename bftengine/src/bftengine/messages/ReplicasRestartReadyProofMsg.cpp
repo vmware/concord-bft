@@ -20,7 +20,6 @@ namespace impl {
 
 ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                                            SeqNum seqNum,
-                                                           uint16_t sigLen,
                                                            const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::ReplicasRestartReadyProof,
@@ -30,7 +29,6 @@ ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
   b()->seqNum = seqNum;
   b()->elementsCount = 0;
   b()->locationAfterLast = 0;
-  b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 const uint32_t ReplicasRestartReadyProofMsg::getBodySize() const {
@@ -42,9 +40,7 @@ const uint32_t ReplicasRestartReadyProofMsg::getBodySize() const {
 ReplicasRestartReadyProofMsg* ReplicasRestartReadyProofMsg::create(ReplicaId id,
                                                                    SeqNum s,
                                                                    const concordUtils::SpanContext& spanContext) {
-  auto sigManager = SigManager::instance();
-  const size_t sigLen = sigManager->getMySigLength();
-  ReplicasRestartReadyProofMsg* m = new ReplicasRestartReadyProofMsg(id, s, sigLen, spanContext);
+  ReplicasRestartReadyProofMsg* m = new ReplicasRestartReadyProofMsg(id, s, spanContext);
   return m;
 }
 
@@ -61,7 +57,7 @@ void ReplicasRestartReadyProofMsg::addElement(std::unique_ptr<ReplicaRestartRead
   b()->locationAfterLast = requiredSpace;
 }
 // +-----------------------------------------------------------------------+--------------+
-// | Msg header(genReplicaId, seqNum, eleCount, locationAfterLast, sigLen) | Span Context |
+// | Msg header(genReplicaId, seqNum, eleCount, locationAfterLast) | Span Context |
 // +-----------------------------------------------------------------------+--------------+
 // |  Element1(replicaId, seqNum, sigLen, sigBody)  |
 // +------------------------------------------------+
@@ -69,16 +65,11 @@ void ReplicasRestartReadyProofMsg::addElement(std::unique_ptr<ReplicaRestartRead
 // +------------------------------------------------+
 // |  Elementn(replicaId, seqNum, sigLen, sigBody)  |
 // +------------------------------------------------+
-// |  Signature of the previous fields              |
-// +------------------------------------------------+
 
 void ReplicasRestartReadyProofMsg::finalizeMessage() {
   auto bodySize = getBodySize();
-  auto sigManager = SigManager::instance();
-  auto sigSize = sigManager->getMySigLength();
-  setMsgSize(bodySize + sigSize);
+  setMsgSize(bodySize);
   shrinkToFit();
-  sigManager->sign(body(), bodySize, body() + bodySize, sigSize);
 }
 
 void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
@@ -90,9 +81,7 @@ void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
   auto dataLength = getBodySize();
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 
-  if (size() < (dataLength + sigLen)) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
-  if (!sigManager->verifySig(idOfGeneratedReplica(), body(), dataLength, body() + dataLength, sigLen))
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
+  if (size() < dataLength) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
   if (!checkElements(repInfo, sigLen))  // check elements in message
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": check elements in message"));
 }
@@ -100,7 +89,7 @@ void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
 bool ReplicasRestartReadyProofMsg::checkElements(const ReplicasInfo& repInfo, uint16_t sigSize) const {
   auto sigManager = SigManager::instance();
   uint16_t numOfActualElements = 0;
-  uint32_t remainingBytes = size() - sigSize - sizeof(Header) - spanContextSize();
+  uint32_t remainingBytes = size() - sizeof(Header) - spanContextSize();
   char* currLoc = body() + sizeof(Header) + spanContextSize();
   SeqNum seqNum = b()->seqNum;
   while ((remainingBytes >= (sizeof(ReplicaRestartReadyMsg::Header) + sigSize)) &&
@@ -124,7 +113,7 @@ bool ReplicasRestartReadyProofMsg::checkElements(const ReplicasInfo& repInfo, ui
   }
   if (numOfActualElements != elementsCount()) return false;
   if (numOfActualElements > 0) {
-    const uint32_t locationAfterLastElement = size() - sigSize - remainingBytes;
+    const uint32_t locationAfterLastElement = size() - remainingBytes;
     if (this->b()->locationAfterLast != locationAfterLastElement) return false;
   } else {
     if (this->b()->locationAfterLast != 0) return false;

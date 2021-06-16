@@ -177,7 +177,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
 
-  std::vector<std::unique_ptr<ReplicaRestartReadyMsg>> restart_ready_list_;
+  std::map<ReplicaId, std::unique_ptr<ReplicaRestartReadyMsg>> restart_ready_msgs_;
 
   //******** METRICS ************************************
   GaugeHandle metric_view_;

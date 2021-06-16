@@ -22,7 +22,6 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
  public:
   ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                SeqNum seqNum,
-                               uint16_t sigLen,
                                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicasRestartReadyProofMsg)
@@ -57,13 +56,13 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
     uint16_t genReplicaId;
     SeqNum seqNum;
     uint16_t elementsCount;
-    uint16_t sigLength;
     uint32_t locationAfterLast;  // if(elementsCount > 0) then it holds the location after last element
                                  // followed by the signature
+                                 // TODO(NK): add epoch when support is added
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 2 + 2 + 4), "Header is 24B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 2 + 4), "Header is 22B");
   Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl

@@ -2940,7 +2940,7 @@ void ReplicaImp::sendRepilcaRestartReady() {
     unique_ptr<ReplicaRestartReadyMsg> readytToRestartMsg(
         ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
     sendToAllOtherReplicas(readytToRestartMsg.get());
-    restart_ready_list_.push_back(std::move(readytToRestartMsg));  // add self message to the list
+    restart_ready_msgs_[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
   }
 }
 
@@ -3273,10 +3273,12 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
   LOG_INFO(GL,
            "Recieved  ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
                                                               << " with seq_num" << std::to_string(msg->seqNum()));
-  restart_ready_list_.emplace_back(std::make_unique<ReplicaRestartReadyMsg>(msg));
+  if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
+    restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
+  }
   bool bft = bftEngine::ControlStateManager::instance().getRestartBftFlag();
   uint32_t targetNumOfMsgs = (bft ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
-  if (restart_ready_list_.size() == targetNumOfMsgs) {
+  if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof();
   }
@@ -3295,8 +3297,8 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
         ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
-    for (auto &msg : restart_ready_list_) {
-      restartProofMsg->addElement(msg);
+    for (auto &[k, v] : restart_ready_msgs_) {
+      restartProofMsg->addElement(v);
     }
     restartProofMsg->finalizeMessage();
     sendToAllOtherReplicas(restartProofMsg.get());
