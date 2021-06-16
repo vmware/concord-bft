@@ -283,6 +283,7 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
 }
 
 void PruningHandler::pruneThroughLastAgreedBlockId() const {
+  if (!pruning_enabled_) return;
   const auto last_agreed = lastAgreedPrunableBlockId();
   if (last_agreed.has_value()) {
     pruneThroughBlockId(*last_agreed);
