@@ -13,19 +13,28 @@
 #include "reconfiguration_add_block_handler.hpp"
 #include "bftengine/ControlStateManager.hpp"
 #include "bftengine/EpochsManager.hpp"
-
+#include "endianness.hpp"
 namespace concord::kvbc::reconfiguration {
 kvbc::BlockId persistReconfigurationBlock(kvbc::IBlockAdder& blocks_adder,
                                           BlockMetadata& block_metadata,
                                           const std::vector<uint8_t>& data,
                                           const uint64_t bft_seq_num,
-                                          string key) {
+                                          string key,
+                                          bool include_epoch = false) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
 
   // All blocks are expected to have the BFT sequence number as a key.
   ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata.serialize(bft_seq_num));
 
+  if (include_epoch) {
+    // All replicas should have the very same epoch on the same sequence number execution, hence it is safe to write
+    // the self epoch number
+    auto curr_epoch = bftEngine::EpochManager::instance().getSelfEpoch();
+    LOG_INFO(GL, "writing new global epoch number " << KVLOG(bft_seq_num, curr_epoch));
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_prefix},
+                          concordUtils::toBigEndianStringBuffer(curr_epoch));
+  }
   concord::kvbc::categorization::Updates updates;
   updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
   try {
@@ -114,7 +123,8 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                              block_metadata_,
                                              serialized_command,
                                              sequence_number,
-                                             std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
+                                             std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1},
+                                             true);
   LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
 
   // From now on, we are going to start wedge process, at the end of this process we will conisdered
