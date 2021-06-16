@@ -234,8 +234,21 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::EpochUpda
                                   std::string{kvbc::keyTypes::reconfiguration_epoch_prefix, static_cast<char>(source)});
   LOG_INFO(getLogger(),
            "received new epoch message, a new block will be written" << KVLOG(source, bft_seq_num, blockId));
-  LOG_INFO(getLogger(), "updating epoch of replica " << source << " to " << command.epoch_number);
-  bftEngine::EpochManager::instance().updateEpochForReplica(source, command.epoch_number);
+  // update Epoch manager with the new state
+  for (uint32_t i = 0; i < num_replicas_; i++) {
+    auto val = ro_storage_.getLatest(kConcordInternalCategoryId,
+                                     std::string{kvbc::keyTypes::reconfiguration_epoch_prefix, static_cast<char>(i)});
+    uint64_t epoch = 0;
+    if (val.has_value()) {
+      auto strval = std::visit([](auto&& arg) { return arg.data; }, *val);
+      std::vector<uint8_t> data(strval.begin(), strval.end());
+      concord::messages::EpochUpdateMsg epoch_msg;
+      concord::messages::deserialize(data, epoch_msg);
+      epoch = epoch_msg.epoch_number;
+      bftEngine::EpochManager::instance().updateEpochForReplica(i, epoch);
+    }
+  }
+  bftEngine::EpochManager::instance().save();
   return true;
 }
 }  // namespace concord::kvbc::reconfiguration

@@ -61,7 +61,8 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   }
   EpochManager(InitData* id);
   ~EpochManager() = default;
-  void updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id);
+  void updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id, bool save = false);
+  void save();
   uint64_t getEpochForReplica(uint32_t replica_id);
   const EpochsData& getEpochData();
   void sendUpdateEpochMsg(uint64_t epoch);
