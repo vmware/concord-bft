@@ -16,6 +16,7 @@
 #include "Serializable.h"
 #include "unordered_map"
 #include "IStateTransfer.hpp"
+#include "Metrics.hpp"
 
 namespace bftEngine::impl {
 class IInternalBFTClient;
@@ -64,6 +65,11 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   uint64_t getEpochForReplica(uint32_t replica_id);
   const EpochsData& getEpochData();
   void sendUpdateEpochMsg(uint64_t epoch);
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    metrics_.SetAggregator(aggregator);
+    metrics_.UpdateAggregator();
+  }
 
  private:
   EpochManager& operator=(const EpochManager&) = delete;
@@ -75,5 +81,12 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   EpochsData epochs_data_;
   std::string scratchPage_;
   bool is_ro_;
+
+  // Metrics
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  // We are not expecting to have many epochs changes, thus we will update the aggregator on every change.
+  concordMetrics::Component metrics_;
+  concordMetrics::GaugeHandle epoch_number;
+  concordMetrics::CounterHandle num_of_sent_epoch_messages_;
 };
 }  // namespace bftEngine

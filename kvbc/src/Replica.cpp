@@ -62,6 +62,7 @@ Status Replica::start() {
   } else {
     createReplicaAndSyncState();
   }
+  bftEngine::EpochManager::instance().setAggregator(aggregator_);
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
