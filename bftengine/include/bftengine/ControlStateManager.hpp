@@ -65,6 +65,8 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void enable() { enabled_ = true; }
 
   void setRemoveMetadataFunc(std::function<void()> fn) { remove_metadata_ = fn; }
+  void startNewEpoch() { starting_new_epoch_ = true; }
+  bool isNewEpoch() { return starting_new_epoch_; }
 
  private:
   ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
@@ -76,5 +78,6 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
   std::function<void()> remove_metadata_;
+  bool starting_new_epoch_;
 };
 }  // namespace bftEngine

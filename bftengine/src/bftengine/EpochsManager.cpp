@@ -35,6 +35,7 @@ EpochManager::EpochManager(EpochManager::InitData* id)
     inStream.str(scratchPage_);
     concord::serialize::Serializable::deserialize(inStream, epochs_data_);
   }
+  epoch_number.Get().Set(epochs_data_.epochs_[replica_id_]);
 
   id->state_transfer.addOnTransferringCompleteCallback(
       [&](uint64_t) {
