@@ -44,6 +44,7 @@
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "secrets_manager_plain.h"
+#include "EpochsManager.hpp"
 
 #include <memory>
 #include <string>
@@ -3657,7 +3658,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       time_in_state_transfer_(histograms_.timeInStateTransfer),
       reqBatchingLogic_(*this, config_, metrics_, timers),
       replStatusHandlers_(*this),
-      rsaSigner_(std::make_unique<bftEngine::impl::RSASigner>(config.replicaPrivateKey.c_str())) {
+      rsaSigner_(std::make_shared<bftEngine::impl::RSASigner>(config.replicaPrivateKey.c_str())) {
   LOG_INFO(GL, "");
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
@@ -3740,8 +3741,12 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   KeyExchangeManager::InitData id{
       internalBFTClient_, &CryptoManager::instance(), &CryptoManager::instance(), sm_, &timers_};
-
   KeyExchangeManager::instance(&id);
+
+  std::unordered_map<uint32_t, uint64_t> epochs;
+
+  EpochManager::InitData eid{internalBFTClient_, rsaSigner_, config_.replicaId, config.numReplicas, config.fVal};
+  EpochManager::instance(&eid);
 
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
 }
