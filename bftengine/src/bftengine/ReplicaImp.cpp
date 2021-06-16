@@ -3753,7 +3753,13 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   std::unordered_map<uint32_t, uint64_t> epochs;
 
-  EpochManager::InitData eid{internalBFTClient_, rsaSigner_, config_.replicaId, config.numReplicas, config.fVal, false};
+  EpochManager::InitData eid{internalBFTClient_,
+                             rsaSigner_,
+                             *(this->stateTransfer),
+                             config_.replicaId,
+                             config.numReplicas,
+                             config.fVal,
+                             false};
   EpochManager::instance(&eid);
 
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
