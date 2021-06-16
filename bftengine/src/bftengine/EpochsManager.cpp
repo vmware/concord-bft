@@ -18,7 +18,16 @@
 namespace bftEngine {
 
 EpochManager::EpochManager(EpochManager::InitData* id)
-    : bft_client_{id->cl}, signer_{id->signer}, replica_id_{id->replica_id}, epochs_data_{id->n} {
+    : bft_client_{id->cl},
+      signer_{id->signer},
+      replica_id_{id->replica_id},
+      epochs_data_{id->n},
+      scratchPage_{std::string()},
+      is_ro_{id->is_ro},
+      aggregator_{std::make_shared<concordMetrics::Aggregator>()},
+      metrics_{concordMetrics::Component("epoch_manager", aggregator_)},
+      epoch_number{metrics_.RegisterGauge("epoch_number", 0)},
+      num_of_sent_epoch_messages_{metrics_.RegisterCounter("num_sent_epoch_messages")} {
   is_ro_ = id->is_ro;
   scratchPage_.resize(sizeOfReservedPage());
   if (loadReservedPage(0, sizeOfReservedPage(), scratchPage_.data())) {
@@ -34,6 +43,8 @@ EpochManager::EpochManager(EpochManager::InitData* id)
           inStream.str(scratchPage_);
           concord::serialize::Serializable::deserialize(inStream, epochs_data_);
         }
+        epoch_number.Get().Set(epochs_data_.epochs_[replica_id_]);
+        metrics_.UpdateAggregator();
       },
       IStateTransfer::HIGH);
 }
@@ -46,6 +57,8 @@ void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id)
   concord::serialize::Serializable::serialize(outStream, epochs_data_);
   auto data = outStream.str();
   saveReservedPage(0, data.size(), data.data());
+  epoch_number.Get().Set(epoch_id);
+  metrics_.UpdateAggregator();
 }
 uint64_t EpochManager::getEpochForReplica(uint32_t replica_id) { return epochs_data_.epochs_[replica_id]; }
 const EpochManager::EpochsData& EpochManager::getEpochData() { return epochs_data_; }
@@ -66,6 +79,8 @@ void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
   concord::messages::serialize(data_vec, req);
   std::string strMsg(data_vec.begin(), data_vec.end());
   bft_client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "EpochUpdateMsg-" + std::to_string(epoch));
+  num_of_sent_epoch_messages_.Get().Inc();
+  metrics_.UpdateAggregator();
 }
 
 void EpochManager::EpochsData::serializeDataMembers(std::ostream& outStream) const {
