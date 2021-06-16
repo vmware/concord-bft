@@ -170,6 +170,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
       auto secFile = ReplicaConfig::instance().getkeyViewFilePath() + std::string("/" + secFilePrefix + ".") +
                      std::to_string(ReplicaConfig::instance().getreplicaId());
       LOG_INFO(GL, "removing " << secFile << " if exist");
+      bftEngine::ControlStateManager::instance().startNewEpoch();
+      LOG_INFO(GL, "will try to start a new epoch (right after the KE phase)");
       try {
         std::remove(secFile.c_str());
       } catch (std::exception &e) {

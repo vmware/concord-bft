@@ -70,6 +70,7 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
     metrics_.SetAggregator(aggregator);
     metrics_.UpdateAggregator();
   }
+  uint64_t getSelfEpoch() { return epochs_data_.epochs_[replica_id_]; }
 
  private:
   EpochManager& operator=(const EpochManager&) = delete;

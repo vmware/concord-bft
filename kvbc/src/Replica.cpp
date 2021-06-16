@@ -64,6 +64,13 @@ Status Replica::start() {
   }
   bftEngine::EpochManager::instance().setAggregator(aggregator_);
   m_replicaPtr->SetAggregator(aggregator_);
+  if (bftEngine::ControlStateManager::instance().isNewEpoch()) {
+    auto prevEpoch = bftEngine::EpochManager::instance().getSelfEpoch();
+    LOG_INFO(logger,
+             "We need to switch epochs. Lets make sure that the first message on the queue is the new epoch message"
+                 << KVLOG(prevEpoch));
+    bftEngine::EpochManager::instance().sendUpdateEpochMsg(prevEpoch + 1);
+  }
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
 

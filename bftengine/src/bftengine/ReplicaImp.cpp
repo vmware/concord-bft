@@ -193,6 +193,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().clientKeysPublished()) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
+      if (flags & RECONFIG_FLAG) {
+        LOG_INFO(KEY_EX_LOG, "a reconfiguration message has been found, returning it to the queue");
+        msgsCommunicator_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(m));
+        return;
+      }
       delete m;
       return;
     }

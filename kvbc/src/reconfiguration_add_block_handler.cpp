@@ -12,6 +12,7 @@
 
 #include "reconfiguration_add_block_handler.hpp"
 #include "bftengine/ControlStateManager.hpp"
+#include "bftengine/EpochsManager.hpp"
 
 namespace concord::kvbc::reconfiguration {
 kvbc::BlockId persistReconfigurationBlock(kvbc::IBlockAdder& blocks_adder,
@@ -115,6 +116,8 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                              sequence_number,
                                              std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
   LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
+
+  // From now on, we are going to start wedge process, at the end of this process we will conisdered
   return true;
 }
 
@@ -221,7 +224,8 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::EpochUpda
                                   std::string{kvbc::keyTypes::reconfiguration_epoch_prefix, static_cast<char>(source)});
   LOG_INFO(getLogger(),
            "received new epoch message, a new block will be written" << KVLOG(source, bft_seq_num, blockId));
-  // We also need to update the reserved pages via epoch manager
+  LOG_INFO(getLogger(), "updating epoch of replica " << source << " to " << command.epoch_number);
+  bftEngine::EpochManager::instance().updateEpochForReplica(source, command.epoch_number);
   return true;
 }
 }  // namespace concord::kvbc::reconfiguration
