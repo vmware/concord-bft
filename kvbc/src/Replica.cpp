@@ -81,6 +81,7 @@ void Replica::createReplicaAndSyncState() {
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
   stReconfigurationSM_->registerHandler(pruning_handler);
+  stReconfigurationSM_->pruneOnStartup();
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
@@ -282,12 +283,12 @@ Replica::Replica(ICommunication *comm,
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
-  bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
+  bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
 }
 
 Replica::~Replica() {

@@ -513,7 +513,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
                 latest_pruneable_blocks += [lpab.response]
 
-            # Now, crash on of the non-primary replicas
+            # Now, crash one of the non-primary replicas
             crashed_replica = 3
             bft_network.stop_replica(crashed_replica)
             await op.prune(latest_pruneable_blocks)
