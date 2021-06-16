@@ -6,7 +6,6 @@ set(bls_test_sources
     TestRelic.cpp
     TestThresholdBls.cpp
     TestVectorOfShares.cpp
-    TestThresholdSerialization.cpp
 )
 
 foreach(appSrc ${bls_test_sources})
