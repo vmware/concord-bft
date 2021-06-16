@@ -3270,11 +3270,25 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
+    LOG_ERROR(GL,
+              "Recieved invalid ReplicaRestartReadyMsg from sender_id "
+                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+    delete msg;
+    return;  // this is to handle replay attack
+  }
   LOG_INFO(GL,
-           "Recieved  ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
-                                                              << " with seq_num" << std::to_string(msg->seqNum()));
+           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
+                                                             << " with seq_num" << std::to_string(msg->seqNum()));
   if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
     restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
+    metric_received_restart_ready_.Get().Inc();
+  } else {
+    LOG_ERROR(GL,
+              "Recieved multiple ReplicaRestartReadyMsg from sender_id "
+                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+    delete msg;
   }
   bool bft = bftEngine::ControlStateManager::instance().getRestartBftFlag();
   uint32_t targetNumOfMsgs = (bft ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
@@ -3286,10 +3300,20 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
 
 template <>
 void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyProofMsg *msg) {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
+    LOG_ERROR(GL,
+              "Recieved invalid ReplicasRestartReadyProofMsg from sender_id "
+                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+    delete msg;
+    return;  // this is to handle replay attack
+  }
   LOG_INFO(GL,
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
-  // TODO: add code call handler for restart
+  metric_received_restart_proof_.Get().Inc();
+  delete msg;
+  // TODO(NK): add code call handler for restart
 }
 
 void ReplicaImp::sendReplicasRestartReadyProof() {
@@ -3297,7 +3321,7 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
         ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
-    for (auto &[k, v] : restart_ready_msgs_) {
+    for (auto &[_, v] : restart_ready_msgs_) {
       restartProofMsg->addElement(v);
     }
     restartProofMsg->finalizeMessage();
@@ -3708,6 +3732,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
+      metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
+      metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),

@@ -674,6 +674,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await op.add_remove_with_wedge(test_config, bft=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network, bft=False)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -798,6 +799,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(expectedSeqNum, lastExecSn)
         await self.validate_stop_on_wedge_point(bft_network, skvbc)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -922,6 +924,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -962,6 +965,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
 
         conf = TestConfig(n=7,
@@ -1036,6 +1040,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               r,
                                                               stop_on_stable_seq_num=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -1076,6 +1081,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         conf = TestConfig(n=7,
                           f=2,
@@ -1203,6 +1209,18 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
             self.assertEqual(expectedSeqNum, lastExecSn)
+    
+    async def verify_restart_ready_proof_msg(self, bft_network, bft=True):
+        restartProofCount = 0
+        required = bft_network.config.n if bft is False else (bft_network.config.n - bft_network.config.f)
+        for r in bft_network.all_replicas():
+            restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
+            if(restartProofMsg > 0):
+                restartProofCount += 1
+            if(restartProofCount >= required):
+                break
+        self.assertEqual(required, restartProofCount)
+            
     
     async def verify_add_remove_status(self, bft_network, config_descriptor, quorum_all=True ):
         quorum = bft_client.MofNQuorum.All(bft_network.config, [r for r in range(bft_network.config.n)])
