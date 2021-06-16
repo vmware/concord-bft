@@ -50,16 +50,19 @@ EpochManager::EpochManager(EpochManager::InitData* id)
       IStateTransfer::HIGH);
 }
 
-void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id) {
+void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id, bool save) {
   if (is_ro_) return;
   epochs_data_.epochs_[replica_id] = epoch_id;
-  // update the data and save it on the reserved pages
-  std::ostringstream outStream;
-  concord::serialize::Serializable::serialize(outStream, epochs_data_);
-  auto data = outStream.str();
-  saveReservedPage(0, data.size(), data.data());
   epoch_number.Get().Set(epoch_id);
   metrics_.UpdateAggregator();
+  if (save) {
+    // update the data and save it on the reserved pages
+    std::ostringstream outStream;
+    concord::serialize::Serializable::serialize(outStream, epochs_data_);
+    auto data = outStream.str();
+    saveReservedPage(0, data.size(), data.data());
+    epoch_number.Get().Set(epoch_id);
+  }
 }
 uint64_t EpochManager::getEpochForReplica(uint32_t replica_id) { return epochs_data_.epochs_[replica_id]; }
 const EpochManager::EpochsData& EpochManager::getEpochData() { return epochs_data_; }
@@ -81,6 +84,13 @@ void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
   std::string strMsg(data_vec.begin(), data_vec.end());
   bft_client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "EpochUpdateMsg-" + std::to_string(epoch));
   num_of_sent_epoch_messages_.Get().Inc();
+  metrics_.UpdateAggregator();
+}
+void EpochManager::save() {
+  std::ostringstream outStream;
+  concord::serialize::Serializable::serialize(outStream, epochs_data_);
+  auto data = outStream.str();
+  saveReservedPage(0, data.size(), data.data());
   metrics_.UpdateAggregator();
 }
 

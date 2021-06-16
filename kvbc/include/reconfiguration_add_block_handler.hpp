@@ -64,8 +64,8 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
 };
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
  public:
-  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {
+  InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage, uint32_t num_replicas)
+      : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage}, num_replicas_(num_replicas) {
     (void)ro_storage_;
     for (const auto& [rep, pk] : bftEngine::ReplicaConfig::instance().publicKeysOfReplicas) {
       internal_verifiers_.emplace_back(std::make_unique<bftEngine::impl::RSAVerifier>(pk.c_str()));
@@ -92,5 +92,6 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;
+  uint32_t num_replicas_;
 };
 }  // namespace concord::kvbc::reconfiguration

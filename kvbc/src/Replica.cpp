@@ -128,9 +128,9 @@ void Replica::createReplicaAndSyncState() {
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
-  requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
-      concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
+      *this, *this, replicaConfig_.numReplicas),
+                                            concord::reconfiguration::ReconfigurationHandlerType::PRE);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
@@ -178,6 +178,7 @@ void Replica::createReplicaAndSyncState() {
         bftEngine::EpochManager::instance().updateEpochForReplica(i, epoch);
       }
     }
+    bftEngine::EpochManager::instance().save();
   }
 }
 
