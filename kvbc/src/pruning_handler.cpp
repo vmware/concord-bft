@@ -118,7 +118,6 @@ const RSAPruningVerifier::Replica& RSAPruningVerifier::getReplica(ReplicaVector:
 PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
                                kvbc::IBlockAdder& blocks_adder,
                                kvbc::IBlocksDeleter& blocks_deleter,
-                               bftEngine::IStateTransfer& state_transfer,
                                bool run_async)
     : logger_{logging::getLogger("concord.pruning")},
       signer_{bftEngine::ReplicaConfig::instance().replicaPrivateKey},
@@ -131,17 +130,6 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
-  // Make sure that blocks from old genesis through the last agreed block are
-  // pruned. That might be violated if there was a crash during pruning itself.
-  // Therefore, call it every time on startup to ensure no old blocks are
-  // present before we allow the system to proceed.
-  pruneThroughLastAgreedBlockId();
-
-  // If a replica has missed Prune commands for whatever reason, we still need
-  // to execute them. We do that by saving pruning data in the state and later
-  // using it to prune relevant blocks when we receive it from state transfer.
-  state_transfer.addOnTransferringCompleteCallback(
-      [this](uint64_t checkpoint_number) { pruneOnStateTransferCompletion(checkpoint_number); });
 }
 
 bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
@@ -192,9 +180,7 @@ bool PruningHandler::handle(const concord::messages::PruneRequest& request,
   }
 
   const auto latest_prunable_block_id = agreedPrunableBlockId(request);
-  // Make sure we have persisted the agreed prunable block ID before proceeding.
-  // Rationale is that we want to be able to pick up in case of a crash.
-  persistLastAgreedPrunableBlockId(latest_prunable_block_id, bftSeqNum);
+
   // Execute actual pruning.
   pruneThroughBlockId(latest_prunable_block_id);
   std::ostringstream oss;
@@ -218,34 +204,6 @@ kvbc::BlockId PruningHandler::agreedPrunableBlockId(const concord::messages::Pru
   const auto end = std::cend(latest_prunable_blocks);
   ConcordAssertNE(begin, end);
   return std::min_element(begin, end, [](const auto& a, const auto& b) { return (a.block_id < b.block_id); })->block_id;
-}
-
-std::optional<kvbc::BlockId> PruningHandler::lastAgreedPrunableBlockId() const {
-  auto opt_val = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
-                                       std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key});
-  // if it's not found return nullopt, if any other error occurs storage throws.
-  if (!opt_val) {
-    return std::nullopt;
-  }
-  auto val = std::get<kvbc::categorization::VersionedValue>(*opt_val);
-  return concordUtils::fromBigEndianBuffer<kvbc::BlockId>(val.data.data());
-}
-
-void PruningHandler::persistLastAgreedPrunableBlockId(kvbc::BlockId block_id, uint64_t bft_seq_num) const {
-  concord::kvbc::categorization::VersionedUpdates ver_updates;
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key},
-                        concordUtils::toBigEndianStringBuffer(block_id));
-
-  // All blocks are expected to have the BFT sequence number as a key.
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
-
-  concord::kvbc::categorization::Updates updates;
-  updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
-  try {
-    blocks_adder_.add(std::move(updates));
-  } catch (...) {
-    throw std::runtime_error{"PruningHandler failed to persist last agreed prunable block ID"};
-  }
 }
 
 void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
@@ -279,31 +237,6 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
       LOG_INFO(logger_, "running pruning in sync mode");
       prune(block_id + 1);
     }
-  }
-}
-
-void PruningHandler::pruneThroughLastAgreedBlockId() const {
-  if (!pruning_enabled_) return;
-  const auto last_agreed = lastAgreedPrunableBlockId();
-  if (last_agreed.has_value()) {
-    pruneThroughBlockId(*last_agreed);
-  }
-}
-
-void PruningHandler::pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept {
-  try {
-    pruneThroughLastAgreedBlockId();
-  } catch (const std::exception& e) {
-    LOG_FATAL(logger_,
-              "PruningHandler stopping replica due to failure to prune blocks on "
-              "state transfer completion, reason: "
-                  << e.what());
-    std::exit(-1);
-  } catch (...) {
-    LOG_FATAL(logger_,
-              "PruningHandler stopping replica due to failure to prune blocks on "
-              "state transfer completion");
-    std::exit(-1);
   }
 }
 

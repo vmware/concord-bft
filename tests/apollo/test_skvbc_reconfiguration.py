@@ -491,6 +491,66 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_pruning_command_with_failures(self, bft_network):
+        with log.start_action(action_type="test_pruning_command_with_faliures"):
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            client = bft_network.random_client()
+
+            # Create 100 blocks in total, including the genesis block we have 101 blocks
+            k, v = await skvbc.write_known_kv()
+            for i in range(99):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
+
+            # Get the minimal latest pruneable block among all replicas
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+            await op.latest_pruneable_block()
+
+            latest_pruneable_blocks = []
+            rsi_rep = client.get_rsi_replies()
+            for r in rsi_rep.values():
+                lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                latest_pruneable_blocks += [lpab.response]
+
+            # Now, crash one of the non-primary replicas
+            crashed_replica = 3
+            bft_network.stop_replica(crashed_replica)
+            await op.prune(latest_pruneable_blocks)
+            rsi_rep = client.get_rsi_replies()
+            # we expect to have at least 2f + 1 replies
+            for rep in rsi_rep:
+                r = rsi_rep[rep]
+                data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                pruned_block = int(data.additional_data.decode('utf-8'))
+                assert pruned_block <= 90
+
+            # creates 100 new blocks
+            for i in range(100):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
+
+            # now, return the crashed replica and wait for it to done with state transfer
+            bft_network.start_replica(crashed_replica)
+            await self._wait_for_st(bft_network, crashed_replica, 150)
+
+            # We expect the late replica to catch up with the state and to perform pruning
+            with trio.fail_after(seconds=30):
+                while True:
+                    num_replies = 0
+                    await op.prune_status()
+                    rsi_rep = client.get_rsi_replies()
+                    for r in rsi_rep.values():
+                        status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                        last_prune_blockid = status.response.last_pruned_block
+                        if status.response.in_progress is False and last_prune_blockid <= 90 and last_prune_blockid > 0:
+                            num_replies += 1
+                    if num_replies == bft_network.config.n:
+                        break
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_pruning_status_command(self, bft_network):
 
         bft_network.start_all_replicas()

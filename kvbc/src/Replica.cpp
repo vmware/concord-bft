@@ -113,14 +113,18 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain);
+  stReconfigurationSM_->registerHandler(requestHandler->getReconfigurationHandler());
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(std::shared_ptr<kvbc::pruning::PruningHandler>(
-      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
+  auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
+  requestHandler->setReconfigurationHandler(pruning_handler);
+  stReconfigurationSM_->registerHandler(pruning_handler);
+  stReconfigurationSM_->pruneOnStartup();
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());

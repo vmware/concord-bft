@@ -143,11 +143,7 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   // exception if there is an issue with the configuration (for example, if the
   // configuration enables pruning but does not provide a purning operator
   // public key).
-  PruningHandler(kvbc::IReader &,
-                 kvbc::IBlockAdder &,
-                 kvbc::IBlocksDeleter &,
-                 bftEngine::IStateTransfer &,
-                 bool run_async = false);
+  PruningHandler(kvbc::IReader &, kvbc::IBlockAdder &, kvbc::IBlocksDeleter &, bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               concord::messages::ReconfigurationResponse &) override;
@@ -155,21 +151,14 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
               concord::messages::ReconfigurationResponse &) override;
-  static std::string lastAgreedPrunableBlockIdKey() {
-    return std::string{kvbc::keyTypes::pruning_last_agreed_prunable_block_id_key};
-  }
 
  protected:
   kvbc::BlockId latestBasedOnNumBlocksConfig() const;
   kvbc::BlockId agreedPrunableBlockId(const concord::messages::PruneRequest &) const;
-  // Returns the last agreed prunable block ID from storage, if existing.
-  std::optional<kvbc::BlockId> lastAgreedPrunableBlockId() const;
-  void persistLastAgreedPrunableBlockId(kvbc::BlockId block_id, uint64_t bft_seq_num) const;
+
   // Prune blocks in the [genesis, block_id] range (both inclusive).
   // Throws on errors.
   void pruneThroughBlockId(kvbc::BlockId block_id) const;
-  void pruneThroughLastAgreedBlockId() const;
-  void pruneOnStateTransferCompletion(uint64_t checkpoint_number) const noexcept;
   uint64_t getBlockBftSequenceNumber(kvbc::BlockId) const;
   logging::Logger logger_;
   RSAPruningSigner signer_;
