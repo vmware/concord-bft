@@ -3322,6 +3322,7 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
     unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
         ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
     for (auto &[_, v] : restart_ready_msgs_) {
+      (void)_;  // unused variable hack
       restartProofMsg->addElement(v);
     }
     restartProofMsg->finalizeMessage();

@@ -56,9 +56,9 @@ void ReplicasRestartReadyProofMsg::addElement(std::unique_ptr<ReplicaRestartRead
   b()->elementsCount += 1;
   b()->locationAfterLast = requiredSpace;
 }
-// +-----------------------------------------------------------------------+--------------+
+// +---------------------------------------------------------------+--------------+
 // | Msg header(genReplicaId, seqNum, eleCount, locationAfterLast) | Span Context |
-// +-----------------------------------------------------------------------+--------------+
+// +---------------------------------------------------------------+--------------+
 // |  Element1(replicaId, seqNum, sigLen, sigBody)  |
 // +------------------------------------------------+
 // |     .................................          |
