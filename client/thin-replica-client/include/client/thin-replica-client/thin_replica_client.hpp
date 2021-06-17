@@ -277,7 +277,6 @@ class ThinReplicaClient final {
   std::unique_ptr<ThinReplicaClientConfig> config_;
   size_t data_conn_index_;
 
-  std::string key_prefix_;
   uint64_t latest_verified_block_id_;
 
   std::unique_ptr<std::thread> subscription_thread_;
@@ -361,7 +360,6 @@ class ThinReplicaClient final {
         logger_(log4cplus::Logger::getInstance("com.vmware.thin_replica_client")),
         config_(std::move(config)),
         data_conn_index_(0),
-        key_prefix_(),
         latest_verified_block_id_(0),
         subscription_thread_(),
         stop_subscription_thread_(false) {
@@ -402,12 +400,10 @@ class ThinReplicaClient final {
   ThinReplicaClient& operator=(const ThinReplicaClient& other) = delete;
   ThinReplicaClient& operator=(const ThinReplicaClient&& other) = delete;
 
-  // Subscribe to updates from the Thin Replica Servers. key_prefix_bytes should
-  // be a byte string to request the thin replica servers filter updates on
-  // before sending them. If a value for block_id is given, the
-  // ThinReplicaClient will begin the subscription at and including that Block
-  // ID, otherwise, subscription will begin by attempting to read all current
-  // state.
+  // Subscribe to updates from the Thin Replica Servers. If a value for block_id
+  // is given, the ThinReplicaClient will begin the subscription at and including
+  // that Block ID, otherwise, subscription will begin by attempting to read all
+  // current state.
   //
   // If no Block ID is given and the Thin Replica mechanism begins the
   // subscription procedure by fetching of initial state, the Subscribe call
