@@ -549,10 +549,26 @@ class SkvbcViewChangeTest(unittest.TestCase):
                     else:
                         break
 
-    async def _send_random_writes(self, tracker):
-        with trio.move_on_after(seconds=1):
-            async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
+    async def _send_random_writes(self, tracker, retry_for_seconds=5):
+        """
+        Try to send random writes for `retry_for_seconds` in total. Do that via
+        nested `move_on_after()` calls, because the BFT client that sends the tracked
+        ops will terminate the test if it times out. Therefore, make sure we never let
+        it timeout by calling it for 1 second at a time and assuming its timeout is more
+        than 1 second.
+
+        Above is useful, because if replicas haven't started yet and we give the BFT
+        client 1 second to send a request, some replicas might not even observe it and
+        never trigger view change. Doing that in a loop for `retry_for_seconds` makes
+        the race condition less likely.
+
+        TODO: We might want to rewrite the tests so that they are not dependent on timing.
+        """
+        with trio.move_on_after(retry_for_seconds):
+            while True:
+                with trio.move_on_after(seconds=1):
+                    async with trio.open_nursery() as nursery:
+                        nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary, except_replicas=None):
