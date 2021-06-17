@@ -123,7 +123,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         public_key_exchange_for_peer_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
         assert public_key_exchange_for_peer_counter == 1
 
-    @unittest.skip("unstable test. Tracked in BC-9406")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       selected_configs=lambda n, f, c: n == 7,
@@ -170,19 +169,33 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         
         
     async def send_and_check_key_exchange(self, target_replica, bft_network, client):
-        sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-        self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
-        # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
-        op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        await op.key_exchange([target_replica])
-        
-        await trio.sleep(seconds=5) # for status
-        sent_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-        assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
-        self_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "self_key_exchange"])
-        assert self_key_exchange_counter == self_key_exchange_counter_before +1
-        # public_key_exchange_for_peer_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
-        # assert public_key_exchange_for_peer_counter == 7
+        with log.start_action(action_type="send_and_check_key_exchange",
+                              target_replica=target_replica):
+            sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+            self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+            # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+            log.log_message(f"sending key exchange command to replica {target_replica}")
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            await op.key_exchange([target_replica])
+            
+            with trio.fail_after(seconds=15):
+                while True:
+                    with trio.move_on_after(seconds=2):
+                        try:
+                            sent_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+                            self_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                            #public_key_exchange_for_peer_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+                            if  sent_key_exchange_counter == sent_key_exchange_counter_before or \
+                                self_key_exchange_counter == self_key_exchange_counter_before:
+                                continue
+                        except (trio.TooSlowError, AssertionError) as e:
+                            log.log_message(message_type=f"{e}: Replica {target_replica} was unable to exchange keys")
+                            raise KeyExchangeError
+                        else:
+                            assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
+                            assert self_key_exchange_counter == self_key_exchange_counter_before + 1
+                            #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
+                            break
      
      
     @with_trio
