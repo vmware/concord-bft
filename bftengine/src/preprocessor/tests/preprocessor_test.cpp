@@ -351,8 +351,7 @@ void setUpCommunication() {
 PreProcessReplyMsgSharedPtr preProcessNonPrimary(NodeIdType replicaId, const bftEngine::impl::ReplicasInfo& repInfo) {
   SigManager::instance(sigManager[replicaId].get());
   auto preProcessReplyMsg =
-      make_shared<PreProcessReplyMsg>(&preProcessorRecorder, replicaId, clientId, 0, reqSeqNum, reqRetryId);
-  preProcessReplyMsg->setupMsgBody(buf, bufLen, "", STATUS_GOOD);
+      make_shared<PreProcessReplyMsg>(replicaId, clientId, 0, reqSeqNum, reqRetryId, buf, bufLen, "", STATUS_GOOD);
   SigManager::instance(sigManager[repInfo.myId()].get());
   preProcessReplyMsg->validate(repInfo);
   return preProcessReplyMsg;
@@ -688,6 +687,7 @@ int main(int argc, char** argv) {
   logging::initLogger("logging.properties");
   setUpConfiguration_4();
   RequestProcessingState::init(numOfRequiredReplies, &preProcessorRecorder);
+  PreProcessReplyMsg::setPreProcessorHistograms(&preProcessorRecorder);
   const chrono::milliseconds msgTimeOut(20000);
   msgsStorage = make_shared<IncomingMsgsStorageImp>(msgHandlersRegPtr, msgTimeOut, replicaConfig.replicaId);
   setUpCommunication();
