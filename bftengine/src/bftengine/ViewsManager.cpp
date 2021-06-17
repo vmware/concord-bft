@@ -48,7 +48,8 @@ ViewsManager::ViewsManager(const ReplicasInfo* const r)
       F(r->fVal()),
       C(r->cVal()),
       myId(r->myId()),
-      complainedReplicas(r->fVal()) {
+      complainedReplicas(r->fVal()),
+      complainedReplicasForHigherView(r->fVal()) {
   ConcordAssert(N == (3 * F + 2 * C + 1));
 
   viewChangeSafetyLogic = new ViewChangeSafetyLogic(N, F, C, PrePrepareMsg::digestOfNullPrePrepareMsg());
@@ -1046,6 +1047,14 @@ PrePrepareMsg* ViewsManager::getPrePrepare(SeqNum s) {
   }
 }
 
+void ViewsManager::storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& complaintMessage) {
+  complainedReplicas.store(std::move(complaintMessage));
+}
+
+void ViewsManager::storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& complaintMessage) {
+  complainedReplicasForHigherView.store(std::move(complaintMessage));
+}
+
 void ViewsManager::addComplaintsToStatusMessage(ReplicaStatusMsg& replicaStatusMessage) const {
   for (const auto& i : complainedReplicas.getAllMsgs()) {
     replicaStatusMessage.setComplaintFromReplica(i.first);
@@ -1089,5 +1098,17 @@ ViewChangeMsg* ViewsManager::PrepareViewChangeMsg(ViewNum nextView,
   return pVC;
 }
 
+bool ViewsManager::shouldJumpToHigherViewBasedOnQuorumOfComplaints(const ViewChangeMsg* const msg) {
+  if (complainedReplicasForHigherView.hasQuorumToLeaveView()) {
+    ConcordAssert(msg->newView() > getCurrentView() + 1);
+    complainedReplicas = std::move(complainedReplicasForHigherView);
+    LOG_INFO(
+        VC_LOG,
+        "Got quorum of Replicas complaining for a higher View in VCMsg: " << KVLOG(msg->newView(), getCurrentView()));
+    return true;
+  }
+
+  return false;
+}
 }  // namespace impl
 }  // namespace bftEngine

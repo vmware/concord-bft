@@ -295,7 +295,7 @@ void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg 
   if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
-    viewsManager->getComplainedReplicas().store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
+    viewsManager->storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
     tryToGotoNextView();
   } else {
     LOG_WARN(VC_LOG,
@@ -2315,9 +2315,8 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   ViewChangeMsg::ComplaintsIterator iter(msg);
   char *complaint = nullptr;
   MsgSize size = 0;
-  ReplicasAskedToLeaveViewInfo complainedReplicasForHigherView(config_.fVal);
 
-  while (msg->newView() > getCurrentView() && !complainedReplicasForHigherView.hasQuorumToLeaveView() &&
+  while (msg->newView() > getCurrentView() && !viewsManager->hasQuorumToJumpToHigherView() &&
          iter.getAndGoToNext(complaint, size)) {
     auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header *)complaint, size, true);
     auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
@@ -2330,8 +2329,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
                                                        complaintMsg->viewNumber(),
                                                        complaintMsg->idOfGeneratedReplica()));
     if (msg->newView() == getCurrentView() + 1) {
-      if (viewsManager->getComplainedReplicas().getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) !=
-          nullptr) {
+      if (viewsManager->getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) != nullptr) {
         LOG_INFO(VC_LOG,
                  "Already have a valid complaint from Replica " << complaintMsg->idOfGeneratedReplica() << " for View "
                                                                 << complaintMsg->viewNumber());
@@ -2342,20 +2340,19 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
       }
     } else {
       if (complaintMsg->viewNumber() + 1 == msg->newView() && validateMessage(complaintMsg.get())) {
-        complainedReplicasForHigherView.store(std::move(complaintMsg));
+        viewsManager->storeComplaintForHigherView(std::move(complaintMsg));
       } else {
         LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for a higher View.");
       }
     }
   }
-  if (complainedReplicasForHigherView.hasQuorumToLeaveView()) {
-    ConcordAssert(msg->newView() > getCurrentView() + 1);
-    viewsManager->getComplainedReplicas() = std::move(complainedReplicasForHigherView);
-    LOG_INFO(
-        VC_LOG,
-        "Got quorum of Replicas complaining for a higher View in VCMsg: " << KVLOG(msg->newView(), getCurrentView()));
+
+  if (viewsManager->shouldJumpToHigherViewBasedOnQuorumOfComplaints(msg)) {
     MoveToHigherView(msg->newView());
   }
+
+  // The container has to be empty for the next View change message.
+  viewsManager->clearComplaintsForHigherView();
 
   // if the current primary wants to leave view
   if (generatedReplicaId == currentPrimary() && msg->newView() > getCurrentView()) {
@@ -2432,11 +2429,8 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   ViewChangeMsg *pVC = nullptr;
 
   if (!wasInPrevViewNumber) {
-    pVC = viewsManager->getMyLatestViewChangeMsg();
-    ConcordAssertNE(pVC, nullptr);
-    pVC->setNewViewNumber(nextView);
     time_in_active_view_.end();
-    pVC->clearAllComplaints();
+    pVC = viewsManager->PrepareViewChangeMsg(nextView, wasInPrevViewNumber);
   } else {
     std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
@@ -2476,21 +2470,10 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       ps_->endWriteTran();
     }
 
-    pVC = viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevViewInfo);
-
+    pVC = viewsManager->PrepareViewChangeMsg(
+        nextView, wasInPrevViewNumber, lastStableSeqNum, lastExecutedSeqNum, &prevViewInfo);
     ConcordAssertNE(pVC, nullptr);
-    pVC->setNewViewNumber(nextView);
   }
-
-  for (const auto &i : viewsManager->getComplainedReplicas().getAllMsgs()) {
-    pVC->addComplaint(i.second.get());
-    const auto &complaint = i.second;
-    LOG_DEBUG(VC_LOG,
-              "Putting complaint in VC msg: " << KVLOG(
-                  getCurrentView(), nextView, complaint->idOfGeneratedReplica(), complaint->viewNumber()));
-  }
-  viewsManager->getComplainedReplicas().clear();
-  viewsManager->setHigherView(nextView);
 
   metric_view_.Get().Set(nextView);
   metric_current_primary_.Get().Set(getCurrentView() % config_.getnumReplicas());
@@ -2501,7 +2484,6 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
            "Sending view change message. "
                << KVLOG(newView, wasInPrevViewNumber, newPrimary, lastExecutedSeqNum, lastStableSeqNum));
 
-  pVC->finalizeMessage();
   sendToAllOtherReplicas(pVC);
 }
 
@@ -3113,7 +3095,7 @@ void ReplicaImp::askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave)
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(
       ReplicaAsksToLeaveViewMsg::create(config_.getreplicaId(), getCurrentView(), reasonToLeave));
   sendToAllOtherReplicas(askToLeaveView.get());
-  viewsManager->getComplainedReplicas().store(std::move(askToLeaveView));
+  viewsManager->storeComplaint(std::move(askToLeaveView));
   metric_sent_replica_asks_to_leave_view_msg_.Get().Inc();
 
   tryToGotoNextView();
@@ -3160,9 +3142,7 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
   }
 
   if (currentViewIsActive()) {
-    if (isCurrentPrimary() ||
-        viewsManager->getComplainedReplicas().getComplaintFromReplica(config_.replicaId) != nullptr)
-      return;
+    if (isCurrentPrimary() || viewsManager->getComplaintFromReplica(config_.replicaId) != nullptr) return;
 
     std::string cidOfEarliestPendingRequest = std::string();
     const Time timeOfEarliestPendingRequest = clientsManager->infoOfEarliestPendingRequest(cidOfEarliestPendingRequest);
@@ -4274,7 +4254,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
 }
 
 void ReplicaImp::tryToGotoNextView() {
-  if (viewsManager->getComplainedReplicas().hasQuorumToLeaveView()) {
+  if (viewsManager->hasQuorumToLeaveView()) {
     GotoNextView();
   } else {
     LOG_INFO(VC_LOG, "Insufficient quorum for moving to next view " << KVLOG(getCurrentView()));
