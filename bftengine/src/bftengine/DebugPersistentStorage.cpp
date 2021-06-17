@@ -264,6 +264,11 @@ void DebugPersistentStorage::setCheckpointMsgInCheckWindow(SeqNum s, CheckpointM
   checkData.setCheckpointMsg(msg->cloneObjAndMsg());
 }
 
+void DebugPersistentStorage::setUserData(const void *data, std::size_t numberOfBytes) {
+  const auto p = static_cast<const char *>(data);
+  userData_.assign(p, p + numberOfBytes);
+}
+
 void DebugPersistentStorage::setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) {
   ConcordAssert(mark == true);
   ConcordAssert(checkWindow.insideActiveWindow(seqNum));
@@ -467,6 +472,8 @@ bool DebugPersistentStorage::getCompletedMarkInCheckWindow(SeqNum seqNum) {
   bool b = checkWindow.get(seqNum).getCompletedMark();
   return b;
 }
+
+std::vector<std::uint8_t> DebugPersistentStorage::getUserData() const { return userData_; }
 
 bool DebugPersistentStorage::setIsAllowed() const { return isInWriteTran(); }
 
