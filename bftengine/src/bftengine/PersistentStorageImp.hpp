@@ -49,7 +49,7 @@ namespace impl {
 //    Parameters reserved for a future use
 
 // Make a reservation for future params
-const uint16_t reservedSimpleParamsNum = 500;
+const uint16_t reservedSimpleParamsNum = 499;
 const uint16_t reservedWindowParamsNum = 3000;
 
 const uint16_t MAX_METADATA_PARAMS_NUM = 10000;
@@ -64,6 +64,7 @@ enum ConstMetadataParameterIds : uint32_t {
   LAST_VIEW_TRANSFERRED_SEQ_NUM = 6,
   LAST_STABLE_SEQ_NUM = 7,
   ERASE_METADATA_ON_STARTUP = 9,
+  USER_DATA = 10,
   CONST_METADATA_PARAMETERS_NUM,
 };
 
@@ -100,6 +101,9 @@ typedef unique_ptr<MetadataStorage::ObjectDesc[]> ObjectDescUniquePtr;
 
 class PersistentStorageImp : public PersistentStorage {
  public:
+  static constexpr auto kMaxUserDataSizeBytes = 256;
+
+ public:
   PersistentStorageImp(uint16_t numReplicas, uint16_t fVal, uint16_t cVal);
   ~PersistentStorageImp() override = default;
 
@@ -130,6 +134,8 @@ class PersistentStorageImp : public PersistentStorage {
   void clearSeqNumWindow() override;
   ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
+  void setUserData(const void *data, std::size_t numberOfBytes) override;
+
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
@@ -156,6 +162,8 @@ class PersistentStorageImp : public PersistentStorage {
   CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) override;
   CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
+
+  std::vector<std::uint8_t> getUserData() const override;
 
   SharedPtrSeqNumWindow getSeqNumWindow();
   SharedPtrCheckWindow getCheckWindow();

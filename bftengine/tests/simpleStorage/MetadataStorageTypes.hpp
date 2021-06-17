@@ -43,7 +43,7 @@ struct MetadataObjectInfo {
 
 // Object data to be stored for every write operation in transaction.
 struct RequestInfo {
-  RequestInfo(char *buf, uint32_t len) {
+  RequestInfo(const char *buf, uint32_t len) {
     dataLen = len;
     data.reset(new char[dataLen]);
     std::memcpy(data.get(), buf, dataLen);

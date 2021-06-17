@@ -35,19 +35,20 @@ class FileStorage : public MetadataStorage {
 
   void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject, uint32_t &outActualObjectSize) override;
 
-  void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
+  void atomicWrite(uint32_t objectId, const char *data, uint32_t dataLength) override;
 
   void beginAtomicWriteOnlyBatch() override;
 
-  void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) override;
+  void writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) override;
 
   void commitAtomicWriteOnlyBatch() override;
   void eraseData() override;
 
  private:
   void read(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg);
-  void write(void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg, bool toFlush = true);
-  void handleObjectWrite(uint32_t objectId, void *dataPtr, uint32_t objectSize, bool toFlush = true);
+  void write(
+      const void *dataPtr, size_t offset, size_t itemSize, size_t count, const char *errorMsg, bool toFlush = true);
+  void handleObjectWrite(uint32_t objectId, const void *dataPtr, uint32_t objectSize, bool toFlush = true);
   void handleObjectRead(uint32_t objectId, char *outBufferForObject, uint32_t &outActualObjectSize);
   void loadFileMetadata();
   void writeFileMetadata();
