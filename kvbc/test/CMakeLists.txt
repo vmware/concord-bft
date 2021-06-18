@@ -244,4 +244,15 @@ if (BUILD_ROCKSDB_STORAGE)
             corebft
             kvbc
             stdc++fs)
+
+    add_executable(replica_state_sync_test replica_state_sync_test.cpp)
+    add_test(replica_state_sync_test replica_state_sync_test)
+    target_link_libraries(replica_state_sync_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+            stdc++fs
+    )
 endif (BUILD_ROCKSDB_STORAGE)
