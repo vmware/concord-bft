@@ -4072,9 +4072,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     CryptoManager::instance().onCheckpoint(checkpointNum);
   }
 
-  if (ps_) ps_->endWriteTran();
-
   if (numOfRequests > 0) bftRequestsHandler_->onFinishExecutingReadWriteRequests();
+
+  if (ps_) ps_->endWriteTran();
 
   sendCheckpointIfNeeded();
 
