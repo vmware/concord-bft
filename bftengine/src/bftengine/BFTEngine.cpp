@@ -44,7 +44,9 @@ class ReplicaInternal : public IReplica {
   friend class IReplica;
 
  public:
-  ReplicaInternal(const std::shared_ptr<concord::cron::TicksGenerator> &ticks_gen = nullptr) : ticks_gen_{ticks_gen} {}
+  ReplicaInternal(const std::shared_ptr<concord::cron::TicksGenerator> &ticks_gen = nullptr,
+                  const std::shared_ptr<PersistentStorage> &persistent_storage = nullptr)
+      : ticks_gen_{ticks_gen}, persistent_storage_{persistent_storage} {}
 
   bool isRunning() const override;
 
@@ -60,11 +62,14 @@ class ReplicaInternal : public IReplica {
 
   std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const override;
 
+  std::shared_ptr<PersistentStorage> persistentStorage() const override;
+
  private:
   std::unique_ptr<ReplicaBase> replica_;
   std::condition_variable debugWait_;
   std::mutex debugWaitLock_;
   std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
+  std::shared_ptr<PersistentStorage> persistent_storage_;
 };
 
 bool ReplicaInternal::isRunning() const { return replica_->isRunning(); }
@@ -121,6 +126,8 @@ void ReplicaInternal::restartForDebug(uint32_t delayMillis) {
 }
 
 std::shared_ptr<concord::cron::TicksGenerator> ReplicaInternal::ticksGenerator() const { return ticks_gen_; }
+
+std::shared_ptr<PersistentStorage> ReplicaInternal::persistentStorage() const { return persistent_storage_; }
 
 }  // namespace bftEngine::impl
 
@@ -190,7 +197,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    timers,
                                                    pm,
                                                    sm);
-    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator());
+    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator(), persistentStoragePtr);
     replicaInternal->replica_ = std::move(replicaImp);
   } else {
     ReplicaLoader::ErrorCode loadErrCode;
@@ -209,7 +216,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                    timers,
                                                    pm,
                                                    sm);
-    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator());
+    replicaInternal = std::make_unique<ReplicaInternal>(replicaImp->ticksGenerator(), persistentStoragePtr);
     replicaInternal->replica_ = std::move(replicaImp);
   }
   preprocessor::PreProcessor::addNewPreProcessor(msgsCommunicatorPtr,

@@ -123,7 +123,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         public_key_exchange_for_peer_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
         assert public_key_exchange_for_peer_counter == 1
 
-    @unittest.skip("unstable test. Tracked in BC-9406")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       selected_configs=lambda n, f, c: n == 7,
@@ -170,19 +169,33 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         
         
     async def send_and_check_key_exchange(self, target_replica, bft_network, client):
-        sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-        self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
-        # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
-        op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        await op.key_exchange([target_replica])
-        
-        await trio.sleep(seconds=5) # for status
-        sent_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-        assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
-        self_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "self_key_exchange"])
-        assert self_key_exchange_counter == self_key_exchange_counter_before +1
-        # public_key_exchange_for_peer_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
-        # assert public_key_exchange_for_peer_counter == 7
+        with log.start_action(action_type="send_and_check_key_exchange",
+                              target_replica=target_replica):
+            sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+            self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+            # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+            log.log_message(f"sending key exchange command to replica {target_replica}")
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            await op.key_exchange([target_replica])
+            
+            with trio.fail_after(seconds=15):
+                while True:
+                    with trio.move_on_after(seconds=2):
+                        try:
+                            sent_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+                            self_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                            #public_key_exchange_for_peer_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+                            if  sent_key_exchange_counter == sent_key_exchange_counter_before or \
+                                self_key_exchange_counter == self_key_exchange_counter_before:
+                                continue
+                        except (trio.TooSlowError, AssertionError) as e:
+                            log.log_message(message_type=f"{e}: Replica {target_replica} was unable to exchange keys")
+                            raise KeyExchangeError
+                        else:
+                            assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
+                            assert self_key_exchange_counter == self_key_exchange_counter_before + 1
+                            #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
+                            break
      
      
     @with_trio
@@ -488,6 +501,66 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
                 pruned_block = int(data.additional_data.decode('utf-8'))
                 assert pruned_block <= 90
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_pruning_command_with_failures(self, bft_network):
+        with log.start_action(action_type="test_pruning_command_with_faliures"):
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            client = bft_network.random_client()
+
+            # Create 100 blocks in total, including the genesis block we have 101 blocks
+            k, v = await skvbc.write_known_kv()
+            for i in range(99):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
+
+            # Get the minimal latest pruneable block among all replicas
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+            await op.latest_pruneable_block()
+
+            latest_pruneable_blocks = []
+            rsi_rep = client.get_rsi_replies()
+            for r in rsi_rep.values():
+                lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                latest_pruneable_blocks += [lpab.response]
+
+            # Now, crash one of the non-primary replicas
+            crashed_replica = 3
+            bft_network.stop_replica(crashed_replica)
+            await op.prune(latest_pruneable_blocks)
+            rsi_rep = client.get_rsi_replies()
+            # we expect to have at least 2f + 1 replies
+            for rep in rsi_rep:
+                r = rsi_rep[rep]
+                data = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                pruned_block = int(data.additional_data.decode('utf-8'))
+                assert pruned_block <= 90
+
+            # creates 100 new blocks
+            for i in range(100):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
+
+            # now, return the crashed replica and wait for it to done with state transfer
+            bft_network.start_replica(crashed_replica)
+            await self._wait_for_st(bft_network, crashed_replica, 150)
+
+            # We expect the late replica to catch up with the state and to perform pruning
+            with trio.fail_after(seconds=30):
+                while True:
+                    num_replies = 0
+                    await op.prune_status()
+                    rsi_rep = client.get_rsi_replies()
+                    for r in rsi_rep.values():
+                        status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                        last_prune_blockid = status.response.last_pruned_block
+                        if status.response.in_progress is False and last_prune_blockid <= 90 and last_prune_blockid > 0:
+                            num_replies += 1
+                    if num_replies == bft_network.config.n:
+                        break
+
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

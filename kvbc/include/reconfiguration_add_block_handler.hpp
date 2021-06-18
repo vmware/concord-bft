@@ -135,6 +135,17 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     return true;
   }
 
+  bool handle(const concord::messages::PruneRequest& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse&) override {
+    std::vector<uint8_t> serialized_command;
+    concord::messages::serialize(serialized_command, command);
+    auto blockId = persistReconfigurationBlock(
+        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1});
+    LOG_INFO(getLogger(), "PruneRequest configuration command block is " << blockId);
+    return true;
+  }
+
  protected:
   kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key) {
     concord::kvbc::categorization::VersionedUpdates ver_updates;
