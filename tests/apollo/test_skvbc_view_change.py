@@ -137,6 +137,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         n = bft_network.config.n
         f = bft_network.config.f
@@ -167,7 +168,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        await self._wait_for_read_your_writes_success(tracker)
+        await self._wait_for_read_your_writes_success(skvbc)
 
         await tracker.run_concurrent_ops(10)
 
@@ -318,6 +319,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         Combining A) and B) yields n-(c+1) >= 2f+2c+1, equivalent to c < f
         """
         bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         n = bft_network.config.n
         f = bft_network.config.f
@@ -354,14 +356,14 @@ class SkvbcViewChangeTest(unittest.TestCase):
             current_primary = view
             [bft_network.start_replica(i) for i in crashed_replicas]
 
-        await tracker.tracked_read_your_writes()
+        await skvbc.read_your_writes()
 
         await bft_network.wait_for_view(
             replica_id=current_primary,
             err_msg="Make sure all ongoing view changes have completed."
         )
 
-        await tracker.tracked_read_your_writes()
+        await skvbc.read_your_writes()
 
         #check after test is fixed
         await bft_network.assert_slow_path_prevalent()
@@ -507,6 +509,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             num_consecutive_failing_primaries):
 
         bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         initial_primary = await bft_network.get_current_primary()
         initial_view = await bft_network.get_current_view()
         replcas_to_stop = [ v for v in range(initial_primary,
@@ -534,16 +537,16 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure view change has been triggered."
         )
 
-        await self._wait_for_read_your_writes_success(tracker)
+        await self._wait_for_read_your_writes_success(skvbc)
 
         await tracker.run_concurrent_ops(10)
 
-    async def _wait_for_read_your_writes_success(self, tracker):
+    async def _wait_for_read_your_writes_success(self, skvbc):
         with trio.fail_after(seconds=60):
             while True:
                 with trio.move_on_after(seconds=5):
                     try:
-                        await tracker.tracked_read_your_writes()
+                        await skvbc.read_your_writes()
                     except Exception:
                         continue
                     else:
