@@ -134,7 +134,8 @@ class PersistentStorageImp : public PersistentStorage {
   void clearSeqNumWindow() override;
   ObjectDescUniquePtr getDefaultMetadataObjectDescriptors(uint16_t &numOfObjects) const;
 
-  void setUserData(const void *data, std::size_t numberOfBytes) override;
+  void setUserDataAtomically(const void *data, std::size_t numberOfBytes) override;
+  void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) override;
 
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;

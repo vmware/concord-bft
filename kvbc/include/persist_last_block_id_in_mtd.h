@@ -21,10 +21,15 @@
 namespace concord::kvbc {
 
 // Persist the last KVBC block ID in big-endian in metadata's user data field.
-inline void persistLastBlockIdInMetadata(const categorization::KeyValueBlockchain &blockchain,
-                                         const std::shared_ptr<bftEngine::impl::PersistentStorage> &metadata) {
-  const auto userData = concordUtils::toBigEndianArrayBuffer(blockchain.getLastReachableBlockId());
-  metadata->setUserData(userData.data(), userData.size());
+template <bool in_transaction>
+void persistLastBlockIdInMetadata(const categorization::KeyValueBlockchain &blockchain,
+                                  const std::shared_ptr<bftEngine::impl::PersistentStorage> &metadata) {
+  const auto user_data = concordUtils::toBigEndianArrayBuffer(blockchain.getLastReachableBlockId());
+  if constexpr (in_transaction) {
+    metadata->setUserDataInTransaction(user_data.data(), user_data.size());
+  } else {
+    metadata->setUserDataAtomically(user_data.data(), user_data.size());
+  }
 }
 
 }  // namespace concord::kvbc

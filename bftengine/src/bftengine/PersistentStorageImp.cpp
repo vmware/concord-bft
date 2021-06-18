@@ -507,7 +507,14 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
-void PersistentStorageImp::setUserData(const void *data, std::size_t numberOfBytes) {
+void PersistentStorageImp::setUserDataAtomically(const void *data, std::size_t numberOfBytes) {
+  if (numberOfBytes > kMaxUserDataSizeBytes) {
+    throw std::invalid_argument{"Metadata user data is too big"};
+  }
+  metadataStorage_->atomicWrite(USER_DATA, static_cast<const char *>(data), numberOfBytes);
+}
+
+void PersistentStorageImp::setUserDataInTransaction(const void *data, std::size_t numberOfBytes) {
   ConcordAssert(setIsAllowed());
   if (numberOfBytes > kMaxUserDataSizeBytes) {
     throw std::invalid_argument{"Metadata user data is too big"};

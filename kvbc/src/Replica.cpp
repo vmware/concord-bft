@@ -74,17 +74,19 @@ Status Replica::start() {
 class KvbcRequestHandler : public bftEngine::RequestHandler {
  public:
   static std::shared_ptr<KvbcRequestHandler> create(
-      const std::shared_ptr<IRequestsHandler> &userReqHandler,
-      const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry,
+      const std::shared_ptr<IRequestsHandler> &user_req_handler,
+      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
       categorization::KeyValueBlockchain &blockchain) {
-    return std::shared_ptr<KvbcRequestHandler>{new KvbcRequestHandler{userReqHandler, cronTableRegistry, blockchain}};
+    return std::shared_ptr<KvbcRequestHandler>{
+        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain}};
   }
 
  public:
   // Make sure we persist the last kvbc block ID in metadata after every execute() call.
   void onFinishExecutingReadWriteRequests() override {
     bftEngine::RequestHandler::onFinishExecutingReadWriteRequests();
-    persistLastBlockIdInMetadata(blockchain_, persistent_storage_);
+    constexpr auto in_transaction = true;
+    persistLastBlockIdInMetadata<in_transaction>(blockchain_, persistent_storage_);
   }
 
   void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {
@@ -92,12 +94,12 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   }
 
  private:
-  KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &userReqHandler,
-                     const std::shared_ptr<concord::cron::CronTableRegistry> &cronTableRegistry,
+  KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
+                     const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
                      categorization::KeyValueBlockchain &blockchain)
       : blockchain_{blockchain} {
-    setUserRequestHandler(userReqHandler);
-    setCronTableRegistry(cronTableRegistry);
+    setUserRequestHandler(user_req_handler);
+    setCronTableRegistry(cron_table_registry);
   }
 
   KvbcRequestHandler(const KvbcRequestHandler &) = delete;
@@ -130,8 +132,10 @@ void Replica::createReplicaAndSyncState() {
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
 
   // Make sure that when state transfer completes, we persist the last kvbc block ID in metadata.
-  m_stateTransfer->addOnTransferringCompleteCallback(
-      [this](std::uint64_t) { persistLastBlockIdInMetadata(*m_kvBlockchain, m_replicaPtr->persistentStorage()); });
+  m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
+    constexpr auto in_transaction = false;
+    persistLastBlockIdInMetadata<in_transaction>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
+  });
 
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
