@@ -107,6 +107,21 @@ Msg AddRemoveWithWedgeStatusResponse 31 {
     string config_descriptor
 }
 
+Msg UnwedgeStatusRequest 32{
+    uint64 sender
+}
+
+Msg UnwedgeStatusResponse 33{
+    uint64 replica_id
+    bool can_unwedge
+    bytes signature
+}
+
+Msg UnwedgeCommand 34{
+    uint64 sender
+    list kvpair uint64 bytes signatures
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -125,6 +140,8 @@ Msg ReconfigurationRequest 1 {
     AddRemoveStatus
     AddRemoveWithWedgeCommand
     AddRemoveWithWedgeStatus
+    UnwedgeStatusRequest
+    UnwedgeCommand
   } command
   bytes additional_data
 }
@@ -141,6 +158,7 @@ Msg ReconfigurationResponse 2 {
     ReconfigurationErrorMsg
     AddRemoveStatusResponse
     AddRemoveWithWedgeStatusResponse
+    UnwedgeStatusResponse
   } response
   bytes additional_data
 }

@@ -266,7 +266,47 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
-    
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_unwedge_command(self, bft_network):
+        """
+             Sends a wedge command and checks that the system stops processing new requests.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a wedge command
+             2. The client verifies that the system reached a super stable checkpoint.
+             3. The client tries to initiate a new write bft command and fails
+             4. The client sends an unwedge command
+             5. The client sends a write request and then reads the written value
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(
+            bft_network.config, client,  bft_network.builddir)
+        await op.wedge()
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, range(bft_network.config.n))
+        await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+        await op.unwedge()
+
+        protocol = kvbc.SimpleKVBCProtocol(bft_network)
+
+        key = protocol.random_key()
+        value = protocol.random_value()
+        kv_pair = [(key, value)]
+        await client.write(protocol.write_req([], kv_pair, 0))
+
+        read_result = await client.read(protocol.read_req([key]))
+        value_read = (protocol.parse_reply(read_result))[key]
+        self.assertEqual(value, value_read, "A BFT Client failed to read a key-value pair from a "
+                         "SimpleKVBC cluster matching the key-value pair it wrote "
+                         "immediately prior to the read.")
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command_with_state_transfer(self, bft_network):
