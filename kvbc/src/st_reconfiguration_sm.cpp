@@ -118,7 +118,7 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
   }
   // We just join the network, we know nothing about previous epochs. Then just anounce it and join
   if (!bftEngine::ControlStateManager::instance().isNewEpoch()) {
-    bftEngine::EpochManager::instance().markToSendEpochNumberAfterStateTransfer((uint64_t)maxEpochNumber);
+    bftEngine::EpochManager::instance().reserveEpochNumberForLaterUse((uint64_t)maxEpochNumber);
     return true;
   }
   // Else, we are in a previous epoch, we need to resync ourselves immidietly.
@@ -128,7 +128,10 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
   return true;
 }
 
-bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command, uint64_t bft_seq_num, uint64_t, uint64_t) {
+bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t,
+                                      uint64_t) {
   // Actual pruning will be done from the lowest latestPruneableBlock returned by the replicas. It means, that even
   // on every state transfer there might be at most one relevant pruning command. Hence it is enough to take the latest
   // saved command and try to execute it

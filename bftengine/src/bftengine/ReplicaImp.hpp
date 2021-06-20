@@ -156,6 +156,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle infoReqTimer_;
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
+  concordUtil::Timers::Handle updateEpochTimer_;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;

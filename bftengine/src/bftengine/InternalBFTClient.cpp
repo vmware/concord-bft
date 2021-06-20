@@ -32,3 +32,6 @@ uint64_t InternalBFTClient::sendRequest(uint64_t flags,
   LOG_DEBUG(GL, "Sent internal consensus: seq num [" << sn << "] client id [" << getClientId() << "]");
   return sn;
 }
+void InternalBFTClient::sendRequest(ClientRequestMsg* msg) {
+  msgComm_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
+}

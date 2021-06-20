@@ -17,6 +17,8 @@
 #include "unordered_map"
 #include "IStateTransfer.hpp"
 #include "Metrics.hpp"
+#include "messages/ClientRequestMsg.hpp"
+#include "TimeUtils.hpp"
 
 namespace bftEngine::impl {
 class IInternalBFTClient;
@@ -73,18 +75,13 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   int64_t getHighestQuorumedEpoch();
   uint64_t getSelfEpoch() { return epochs_data_.epochs_[replica_id_]; }
   ~EpochManager() = default;
-  void markToSendEpochNumberAfterStateTransfer(uint64_t epoch) { epoch_after_state_transfer_ = epoch; }
-  void sendEpochNumberAfterStateTransfer() {
-    if (epoch_after_state_transfer_ > 0) sendUpdateEpochMsg(epoch_after_state_transfer_);
-    epoch_after_state_transfer_ = 0;
-  }
+  void reserveEpochNumberForLaterUse(uint64_t epoch);
+  void sendReservedEpochNumber();
 
  private:
   EpochManager& operator=(const EpochManager&) = delete;
   EpochManager(const EpochManager&) = delete;
-
-  void waitForFullCommunication();
-
+  std::string createEpochUpdateMsg(uint64_t epoch);
   std::shared_ptr<impl::IInternalBFTClient> bft_client_;
   std::shared_ptr<impl::RSASigner> signer_;
   uint32_t replica_id_;
@@ -93,7 +90,8 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
   uint32_t n_;
   uint64_t f_;
   bool is_ro_;
-  uint64_t epoch_after_state_transfer_{0};
+  uint64_t reserved_epoch{0};
+  std::unique_ptr<ClientRequestMsg> pending_request_;
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

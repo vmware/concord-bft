@@ -32,6 +32,7 @@
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
 #include "bftengine/EpochsManager.hpp"
+#include "bftengine/KeyExchangeManager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -53,7 +54,6 @@ Status Replica::start() {
   }
 
   m_currentRepStatus = RepStatus::Starting;
-
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
@@ -66,38 +66,6 @@ Status Replica::start() {
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
-
-  if (!replicaConfig_.isReadOnly) {
-    // Update the epoch manager on startup
-    for (uint32_t i = 0; i < replicaConfig_.numReplicas; i++) {
-      auto val = getLatest(kConcordInternalCategoryId,
-                           std::string{kvbc::keyTypes::reconfiguration_epoch_prefix, static_cast<char>(i)});
-      uint64_t epoch = 0;
-      if (val.has_value()) {
-        auto strval = std::visit([](auto &&arg) { return arg.data; }, *val);
-        std::vector<uint8_t> data(strval.begin(), strval.end());
-        concord::messages::EpochUpdateMsg epoch_msg;
-        concord::messages::deserialize(data, epoch_msg);
-        epoch = epoch_msg.epoch_number;
-      }
-      bftEngine::EpochManager::instance().updateEpochForReplica(i, epoch);
-    }
-    bftEngine::EpochManager::instance().save();
-
-    if (bftEngine::ControlStateManager::instance().isNewEpoch()) {
-      // If we got updated by state transfer, then we want to jump to the highest epoch + 1 we got in state transfer
-      // If not, this is our latest epoch in any case
-      auto val = getLatest(kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_prefix});
-      ConcordAssert(val.has_value());
-      const auto &data = std::get<categorization::VersionedValue>(*val).data;
-      ConcordAssertEQ(data.size(), sizeof(uint64_t));
-      auto prevEpoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
-      LOG_INFO(logger,
-               "We need to switch epochs. Lets make sure that the first message on the queue is the new epoch message"
-                   << KVLOG(prevEpoch));
-      bftEngine::EpochManager::instance().sendUpdateEpochMsg(prevEpoch + 1);
-    }
-  }
 
   /// TODO(IG, GG)
   /// add return value to start/stop
@@ -153,7 +121,7 @@ void Replica::createReplicaAndSyncState() {
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(
-      *this, *this, replicaConfig_.numReplicas),
+                                                *this, *this, replicaConfig_.numReplicas),
                                             concord::reconfiguration::ReconfigurationHandlerType::PRE);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
@@ -186,6 +154,20 @@ void Replica::createReplicaAndSyncState() {
     } catch (std::exception &e) {
       std::terminate();
     }
+  }
+  uint64_t newEpoch = 0;
+  auto val = getLatest(kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_prefix});
+  if (val.has_value()) {
+    const auto &data = std::get<categorization::VersionedValue>(*val).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    newEpoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+  if (bftEngine::ControlStateManager::instance().isNewEpoch()) {
+    newEpoch += 1;
+    LOG_INFO(logger,
+             "We need to switch epochs. Lets make sure that the first message on the queue is the new epoch message"
+                 << KVLOG(newEpoch));
+    bftEngine::EpochManager::instance().reserveEpochNumberForLaterUse(newEpoch);
   }
 }
 

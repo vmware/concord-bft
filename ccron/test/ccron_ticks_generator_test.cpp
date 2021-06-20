@@ -64,11 +64,11 @@ struct InternalBFTClientMock : public IInternalBFTClient {
 
   bool isUdp() const override { return false; }
   bool isNodeConnected(uint32_t) override { return false; }
+  void sendRequest(ClientRequestMsg*) override {}
   struct Request {
     uint64_t flags{0};
     std::vector<uint8_t> contents;
     std::string cid;
-
     bool operator==(const Request& r) const { return (flags == r.flags && contents == r.contents && cid == r.cid); }
   };
 
