@@ -23,6 +23,8 @@ EpochManager::EpochManager(EpochManager::InitData* id)
       replica_id_{id->replica_id},
       epochs_data_{id->n},
       scratchPage_{std::string()},
+      n_{id->n},
+      f_{id->f},
       is_ro_{id->is_ro},
       aggregator_{std::make_shared<concordMetrics::Aggregator>()},
       metrics_{concordMetrics::Component("epoch_manager", aggregator_)},
@@ -43,25 +45,25 @@ EpochManager::EpochManager(EpochManager::InitData* id)
           std::istringstream inStream;
           inStream.str(scratchPage_);
           concord::serialize::Serializable::deserialize(inStream, epochs_data_);
+          if (n_ > epochs_data_.n_) {
+            for (auto i = epochs_data_.n_; i < n_; i++) {
+              epochs_data_.epochs_[i] = 0;
+            }
+            epochs_data_.n_ = n_;
+          }
         }
         epoch_number.Get().Set(epochs_data_.epochs_[replica_id_]);
         metrics_.UpdateAggregator();
       },
-      IStateTransfer::HIGH);
+      IStateTransfer::FIRST);
 }
 
-void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id, bool save) {
+void EpochManager::updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id) {
   if (is_ro_) return;
   epochs_data_.epochs_[replica_id] = epoch_id;
-  epoch_number.Get().Set(epoch_id);
-  metrics_.UpdateAggregator();
-  if (save) {
-    // update the data and save it on the reserved pages
-    std::ostringstream outStream;
-    concord::serialize::Serializable::serialize(outStream, epochs_data_);
-    auto data = outStream.str();
-    saveReservedPage(0, data.size(), data.data());
+  if (replica_id == replica_id_) {
     epoch_number.Get().Set(epoch_id);
+    metrics_.UpdateAggregator();
   }
 }
 uint64_t EpochManager::getEpochForReplica(uint32_t replica_id) { return epochs_data_.epochs_[replica_id]; }
@@ -71,7 +73,6 @@ void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
   LOG_INFO(GL, "sending an update for the replica epoch number");
   concord::messages::ReconfigurationRequest req;
   req.command = concord::messages::EpochUpdateMsg{replica_id_, epoch};
-  // Mark this request as an internal one
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);
   std::string sig(signer_->signatureLength(), '\0');
@@ -82,7 +83,11 @@ void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
   data_vec.clear();
   concord::messages::serialize(data_vec, req);
   std::string strMsg(data_vec.begin(), data_vec.end());
-  bft_client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "EpochUpdateMsg-" + std::to_string(epoch));
+  waitForFullCommunication();
+  bft_client_->sendRequest(RECONFIG_FLAG,
+                           strMsg.size(),
+                           strMsg.c_str(),
+                           "EpochUpdateMsg-" + std::to_string(epoch) + "-" + std::to_string(replica_id_));
   num_of_sent_epoch_messages_.Get().Inc();
   metrics_.UpdateAggregator();
 }
@@ -93,6 +98,35 @@ void EpochManager::save() {
   saveReservedPage(0, data.size(), data.data());
   metrics_.UpdateAggregator();
 }
+void EpochManager::waitForFullCommunication() {
+  auto reqSize_ = 2 * f_ + 1;
+  auto avlble = bft_client_->numOfConnectedReplicas(n_);
+  LOG_INFO(GL, "Consensus engine: " << avlble << " replicas are connected");
+  // Num of connections should be: (clusterSize - 1)
+  // We also assume that the current primary is 0 (reasonable if metadata removed)
+  while (avlble < reqSize_ - 1 || (replica_id_ != 0 && !bft_client_->isNodeConnected(0))) {
+    LOG_INFO(GL, "Consensus engine not available, " << avlble << " replicas are connected");
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    avlble = bft_client_->numOfConnectedReplicas(n_);
+  }
+  // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
+  if (bft_client_->isUdp()) {
+    LOG_INFO(GL, "UDP communication");
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+  }
+  LOG_INFO(GL, "Consensus engine available, " << avlble << " replicas are connected");
+}
+int64_t EpochManager::getHighestQuorumedEpoch() {
+  std::map<uint64_t, uint64_t> epochs;
+  for (uint32_t i = 0; i < n_; i++) {
+    auto currEpoch = getEpochForReplica(i);
+    epochs[currEpoch]++;
+  }
+  for (const auto& [epoch, size] : epochs) {
+    if (size >= 2 * f_ + 1) return epoch;
+  }
+  return -1;
+}
 
 void EpochManager::EpochsData::serializeDataMembers(std::ostream& outStream) const {
   serialize(outStream, n_);
@@ -101,13 +135,9 @@ void EpochManager::EpochsData::serializeDataMembers(std::ostream& outStream) con
   }
 }
 void EpochManager::EpochsData::deserializeDataMembers(std::istream& inStream) {
-  uint32_t n = n_;
-  deserialize(inStream, n);
+  deserialize(inStream, n_);
   for (uint32_t i = 0; i < n_; i++) {
     deserialize(inStream, epochs_[i]);
-  }
-  for (uint32_t i = n; i < n_; i++) {
-    epochs_.emplace(i, 0);
   }
 }
 }  // namespace bftEngine

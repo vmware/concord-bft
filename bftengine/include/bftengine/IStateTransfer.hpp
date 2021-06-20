@@ -23,7 +23,7 @@ class IReplicaForStateTransfer;  // forward definition
 
 class IStateTransfer : public IReservedPages {
  public:
-  enum StateTransferCallBacksPriorities { HIGH = 0, DEFAULT = 20, LOW = 40 };
+  enum StateTransferCallBacksPriorities { FIRST = 0, HIGH = 10, DEFAULT = 20, LOW = 40 };
   virtual ~IStateTransfer() {}
 
   // The methods of this interface will always be called by the same thread of

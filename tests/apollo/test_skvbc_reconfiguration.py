@@ -732,7 +732,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
              1. A client sends a remove command which will also wedge the system on next next checkpoint
              2. Validate that all replicas have stopped
              3. Load  a new configuration to the bft network
-             4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+             4. Validate all replicas are in the new epoch
+             5. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
          """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -760,7 +761,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                    num_ro_replicas=0)
         await bft_network.change_configuration(conf)
         await bft_network.check_initital_key_exchange(stop_replicas=False)
-
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -772,6 +773,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
 
+    @unittest.skip("incorrect test")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7)
@@ -816,6 +818,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await bft_network.change_configuration(conf)
         ro_replica_id = bft_network.config.n
         await bft_network.check_initital_key_exchange(stop_replicas=False)
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
         bft_network.start_replica(ro_replica_id)
 
         for r in bft_network.all_replicas():
@@ -884,7 +887,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 num_ro_replicas=0)
         await bft_network.change_configuration(conf)
         await bft_network.check_initital_key_exchange(stop_replicas=False)
-
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -953,7 +956,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await bft_network.change_configuration(conf)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         await bft_network.check_initital_key_exchange(stop_replicas=False)
-
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
         for r in bft_network.all_replicas():
             last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
             self.assertEqual(last_stable_checkpoint, 0)
@@ -1011,6 +1014,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         new_replicas = {4, 5}
         on_time_replicas = bft_network.all_replicas(without=new_replicas)
         bft_network.start_replicas(on_time_replicas)
+        await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=1)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(151):
             await skvbc.write_known_kv()
@@ -1022,12 +1026,15 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               stop_on_stable_seq_num=False)
         for i in range(200):
             await skvbc.write_known_kv()
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
+
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         test_config = 'new_configuration_n_7_f_2_c_0'
         await op.add_remove_with_wedge(test_config)
@@ -1061,6 +1068,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               stop_on_stable_seq_num=False)
         for i in range(300):
             await skvbc.write_known_kv()
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=2)
+
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1125,6 +1134,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         new_replicas = {4, 5}
         on_time_replicas = bft_network.all_replicas(without=new_replicas)
         bft_network.start_replicas(on_time_replicas)
+        await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=1)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(151):
             await skvbc.write_known_kv()
@@ -1136,6 +1146,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               stop_on_stable_seq_num=False)
         for i in range(200):
             await skvbc.write_known_kv()
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1165,6 +1176,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         late_replicas.add(new_replica)
         on_time_replicas = bft_network.all_replicas(without=late_replicas)
         bft_network.start_replicas(on_time_replicas)
+        await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=2)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(151):
             await skvbc.write_known_kv()
@@ -1176,6 +1188,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               stop_on_stable_seq_num=False)
         for i in range(300):
             await skvbc.write_known_kv()
+        await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=2)
+
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1231,6 +1245,26 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                     with self.assertRaises(trio.TooSlowError):
                         await skvbc.write_known_kv()
 
+    async def validate_epoch_number(self, bft_network, replicas, expected_epoch):
+        with log.start_action(action_type="validate_epoch_number") as action:
+            with trio.fail_after(seconds=60):
+                for replica_id in replicas:
+                    while True:
+                        with trio.move_on_after(seconds=1):
+                            try:
+                                key = ['epoch_manager', 'Gauges', 'epoch_number']
+                                value = await bft_network.metrics.get(replica_id, *key)
+                                if value != expected_epoch:
+                                    await trio.sleep(0.5)
+                                    continue
+                            except trio.TooSlowError:
+                                action.log(message_type=
+                                           f"Replica {replica_id} was not able to get to epoch {expected_epoch} within the timeout")
+                                raise
+                            else:
+                                self.assertEqual(value, expected_epoch)
+                                action.log(message_type=f"Replica {replica_id} has reached to epoch {expected_epoch}")
+                                break
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
           with log.start_action(action_type="validate_stop_on_super_stable_checkpoint") as action:

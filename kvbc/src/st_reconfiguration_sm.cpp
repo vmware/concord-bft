@@ -88,18 +88,25 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
                                       uint64_t bid) {
   auto self_epoch_num = bftEngine::EpochManager::instance().getSelfEpoch();
   auto command_epoch_num = getEpochNumber(bid);
+  auto maxEpochNumber = bftEngine::EpochManager::instance().getHighestQuorumedEpoch();
+  LOG_INFO(GL, KVLOG(self_epoch_num, command_epoch_num, maxEpochNumber));
+  if (maxEpochNumber == -1) {
+    LOG_ERROR(GL, "unable to get an agreed epoch number");
+    return false;
+  }
+
   auto cp_sn = checkpointWindowSize * current_cp_num;
   auto wedge_point = (bft_seq_num + 2 * checkpointWindowSize);
   wedge_point = wedge_point - (wedge_point % checkpointWindowSize);
-
+  LOG_INFO(GL, KVLOG(bft_seq_num, cp_sn, wedge_point));
   // We have already executed this command, no need to execute it again.
   if (self_epoch_num > command_epoch_num) return true;
-
+  // We will probably have more ST, no need to do anything until we done
+  if (maxEpochNumber > 0 && command_epoch_num < (uint64_t)maxEpochNumber - 1) return true;
   // We still need to do nothing, we are not on the wedge point.
-  if (self_epoch_num == command_epoch_num && cp_sn < wedge_point) return true;
-
+  if (self_epoch_num == (uint64_t)maxEpochNumber && cp_sn < wedge_point) return true;
   // If we are on the same epoch and on the wedge point, act like a normal replica
-  if (self_epoch_num == command_epoch_num && cp_sn == wedge_point) {
+  if (self_epoch_num == (uint64_t)maxEpochNumber && cp_sn == wedge_point) {
     if (command.bft) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
@@ -107,8 +114,13 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
     }
+    return true;
   }
-
+  // We just join the network, we know nothing about previous epochs. Then just anounce it and join
+  if (!bftEngine::ControlStateManager::instance().isNewEpoch()) {
+    bftEngine::EpochManager::instance().markToSendEpochNumberAfterStateTransfer((uint64_t)maxEpochNumber);
+    return true;
+  }
   // Else, we are in a previous epoch, we need to resync ourselves immidietly.
   bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
       [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });

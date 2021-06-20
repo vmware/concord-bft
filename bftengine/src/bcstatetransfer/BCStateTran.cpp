@@ -33,6 +33,7 @@
 #include "storage/db_interface.h"
 #include "storage/key_manipulator_interface.h"
 #include "memorydb/client.h"
+#include "EpochsManager.hpp"
 
 // TODO(GG): for debugging - remove
 // #define DEBUG_SEND_CHECKPOINTS_IN_REVERSE_ORDER (1)
@@ -2294,6 +2295,7 @@ void BCStateTran::processData() {
         kv.second.invokeAll(cp.checkpointNum);
       }
       g.txn()->setIsFetchingState(false);
+      bftEngine::EpochManager::instance().sendEpochNumberAfterStateTransfer();
       break;
     }
     //////////////////////////////////////////////////////////////////////////
