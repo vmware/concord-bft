@@ -60,8 +60,7 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
     return instance_;
   }
   EpochManager(InitData* id);
-  ~EpochManager() = default;
-  void updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id, bool save = false);
+  void updateEpochForReplica(uint32_t replica_id, uint64_t epoch_id);
   void save();
   uint64_t getEpochForReplica(uint32_t replica_id);
   const EpochsData& getEpochData();
@@ -71,18 +70,30 @@ class EpochManager : public ResPagesClient<EpochManager, 1> {
     metrics_.SetAggregator(aggregator);
     metrics_.UpdateAggregator();
   }
+  int64_t getHighestQuorumedEpoch();
   uint64_t getSelfEpoch() { return epochs_data_.epochs_[replica_id_]; }
+  ~EpochManager() = default;
+  void markToSendEpochNumberAfterStateTransfer(uint64_t epoch) { epoch_after_state_transfer_ = epoch; }
+  void sendEpochNumberAfterStateTransfer() {
+    if (epoch_after_state_transfer_ > 0) sendUpdateEpochMsg(epoch_after_state_transfer_);
+    epoch_after_state_transfer_ = 0;
+  }
 
  private:
   EpochManager& operator=(const EpochManager&) = delete;
   EpochManager(const EpochManager&) = delete;
+
+  void waitForFullCommunication();
 
   std::shared_ptr<impl::IInternalBFTClient> bft_client_;
   std::shared_ptr<impl::RSASigner> signer_;
   uint32_t replica_id_;
   EpochsData epochs_data_;
   std::string scratchPage_;
+  uint32_t n_;
+  uint64_t f_;
   bool is_ro_;
+  uint64_t epoch_after_state_transfer_{0};
 
   // Metrics
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;

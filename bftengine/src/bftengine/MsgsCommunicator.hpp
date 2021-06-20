@@ -37,6 +37,7 @@ class MsgsCommunicator {
   void send(std::set<bft::communication::NodeNum> dests, char* message, size_t messageLength);
 
   std::shared_ptr<IncomingMsgsStorage>& getIncomingMsgsStorage() { return incomingMsgsStorage_; }
+  bool isNodeConnected(uint32_t nodeId);
 
  private:
   uint16_t replicaId_ = 0;

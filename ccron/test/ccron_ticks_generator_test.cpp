@@ -63,7 +63,7 @@ struct InternalBFTClientMock : public IInternalBFTClient {
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) override { return clusterSize; }
 
   bool isUdp() const override { return false; }
-
+  bool isNodeConnected(uint32_t) override { return false; }
   struct Request {
     uint64_t flags{0};
     std::vector<uint8_t> contents;
