@@ -51,7 +51,8 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               concord::messages::ReconfigurationResponse& response) override;
 
   bool handle(const concord::messages::AddRemoveWithWedgeStatus& command,
-              uint64_t sequence_number, concord::messages::ReconfigurationResponse& response) override;
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse& response) override;
 
   bool handle(const concord::messages::PruneRequest& command,
               uint64_t sequence_number,

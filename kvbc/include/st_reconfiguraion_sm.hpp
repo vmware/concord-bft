@@ -55,8 +55,7 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
 
-  >>>>>>> Consider the epoch number on state transfer handler
-  kvbc::IReader& ro_storage_;
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
+  kvbc::IReader& ro_storage_;
 };
 }  // namespace concord::kvbc

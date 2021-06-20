@@ -178,17 +178,17 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
   return true;
 }
 bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& command,
-       uint64_t sequence_number,
-       concord::messages::ReconfigurationResponse&) {
-std::vector<uint8_t> serialized_command;
-concord::messages::serialize(serialized_command, command);
-auto blockId = persistReconfigurationBlock(blocks_adder_,
-                                           block_metadata_,
-                                           serialized_command,
-                                           sequence_number,
-                                           std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1});
-LOG_INFO(getLogger(), "PruneRequest configuration command block is " << blockId);
-return true;
+                                    uint64_t sequence_number,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(blocks_adder_,
+                                             block_metadata_,
+                                             serialized_command,
+                                             sequence_number,
+                                             std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1});
+  LOG_INFO(getLogger(), "PruneRequest configuration command block is " << blockId);
+  return true;
 }
 bool InternalKvReconfigurationHandler::verifySignature(const std::string& data, const std::string& signature) const {
   bool valid = false;
@@ -224,6 +224,7 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::EpochUpda
                                               uint64_t bft_seq_num,
                                               concord::messages::ReconfigurationResponse&) {
   auto source = command.replica_id;
+  if (bftEngine::EpochManager::instance().getEpochForReplica(source) >= command.epoch_number) return true;
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   auto blockId =

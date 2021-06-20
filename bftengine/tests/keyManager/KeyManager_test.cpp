@@ -327,6 +327,7 @@ struct DummyClient : public IInternalBFTClient {
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return clusterSize; }
   isNodeConnected(uint32_t nodeId) { return false; }
   bool isUdp() const { return false; }
+  virtual void sendRequest(ClientRequestMsg*){};
 };
 
 TEST(KeyExchangeManager, initialKeyExchange) {
