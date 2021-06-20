@@ -14,9 +14,24 @@
 #include "InternalBFTClient.hpp"
 #include "Replica.hpp"
 #include "concord.cmf.hpp"
+#include "messages/ClientRequestMsg.hpp"
 
 namespace bftEngine {
 
+std::string EpochManager::createEpochUpdateMsg(uint64_t epoch) {
+  concord::messages::ReconfigurationRequest req;
+  req.command = concord::messages::EpochUpdateMsg{replica_id_, epoch};
+  std::vector<uint8_t> data_vec;
+  concord::messages::serialize(data_vec, req);
+  std::string sig(signer_->signatureLength(), '\0');
+  std::size_t sig_length{0};
+  signer_->sign(
+      reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data(), signer_->signatureLength(), sig_length);
+  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  data_vec.clear();
+  concord::messages::serialize(data_vec, req);
+  return std::string(data_vec.begin(), data_vec.end());
+}
 EpochManager::EpochManager(EpochManager::InitData* id)
     : bft_client_{id->cl},
       signer_{id->signer},
@@ -71,19 +86,7 @@ const EpochManager::EpochsData& EpochManager::getEpochData() { return epochs_dat
 void EpochManager::sendUpdateEpochMsg(uint64_t epoch) {
   if (is_ro_) return;
   LOG_INFO(GL, "sending an update for the replica epoch number");
-  concord::messages::ReconfigurationRequest req;
-  req.command = concord::messages::EpochUpdateMsg{replica_id_, epoch};
-  std::vector<uint8_t> data_vec;
-  concord::messages::serialize(data_vec, req);
-  std::string sig(signer_->signatureLength(), '\0');
-  std::size_t sig_length{0};
-  signer_->sign(
-      reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data(), signer_->signatureLength(), sig_length);
-  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-  data_vec.clear();
-  concord::messages::serialize(data_vec, req);
-  std::string strMsg(data_vec.begin(), data_vec.end());
-  waitForFullCommunication();
+  auto strMsg = createEpochUpdateMsg(epoch);
   bft_client_->sendRequest(RECONFIG_FLAG,
                            strMsg.size(),
                            strMsg.c_str(),
@@ -98,24 +101,7 @@ void EpochManager::save() {
   saveReservedPage(0, data.size(), data.data());
   metrics_.UpdateAggregator();
 }
-void EpochManager::waitForFullCommunication() {
-  auto reqSize_ = 2 * f_ + 1;
-  auto avlble = bft_client_->numOfConnectedReplicas(n_);
-  LOG_INFO(GL, "Consensus engine: " << avlble << " replicas are connected");
-  // Num of connections should be: (clusterSize - 1)
-  // We also assume that the current primary is 0 (reasonable if metadata removed)
-  while (avlble < reqSize_ - 1 || (replica_id_ != 0 && !bft_client_->isNodeConnected(0))) {
-    LOG_INFO(GL, "Consensus engine not available, " << avlble << " replicas are connected");
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    avlble = bft_client_->numOfConnectedReplicas(n_);
-  }
-  // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
-  if (bft_client_->isUdp()) {
-    LOG_INFO(GL, "UDP communication");
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-  }
-  LOG_INFO(GL, "Consensus engine available, " << avlble << " replicas are connected");
-}
+
 int64_t EpochManager::getHighestQuorumedEpoch() {
   std::map<uint64_t, uint64_t> epochs;
   for (uint32_t i = 0; i < n_; i++) {
@@ -126,6 +112,29 @@ int64_t EpochManager::getHighestQuorumedEpoch() {
     if (size >= 2 * f_ + 1) return epoch;
   }
   return -1;
+}
+void EpochManager::reserveEpochNumberForLaterUse(uint64_t epoch) {
+  reserved_epoch = epoch;
+  auto now = getMonotonicTime().time_since_epoch();
+  auto now_ms = std::chrono::duration_cast<std::chrono::microseconds>(now);
+  auto sn = now_ms.count();
+  auto strMsg = createEpochUpdateMsg(epoch);
+  auto cid = "EpochUpdateMsg-" + std::to_string(epoch) + "-" + std::to_string(replica_id_);
+  pending_request_.reset(
+      new ClientRequestMsg(bft_client_->getClientId(), RECONFIG_FLAG, sn, strMsg.size(), strMsg.c_str(), 60000, cid));
+}
+void EpochManager::sendReservedEpochNumber() {
+  if (reserved_epoch <= getEpochForReplica(replica_id_)) return;
+  // We want to send exactly the same request (to avoid unnecessary view changes)
+  LOG_INFO(GL, "sending an update for the replica epoch number");
+  ClientRequestMsg* copy = new ClientRequestMsg(bft_client_->getClientId(),
+                                                pending_request_->flags(),
+                                                pending_request_->requestSeqNum(),
+                                                pending_request_->requestLength(),
+                                                pending_request_->requestBuf(),
+                                                6000,
+                                                pending_request_->getCid());
+  bft_client_->sendRequest(copy);
 }
 
 void EpochManager::EpochsData::serializeDataMembers(std::ostream& outStream) const {

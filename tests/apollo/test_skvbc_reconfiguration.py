@@ -1016,7 +1016,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=1)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(151):
+        for i in range(301):
             await skvbc.write_known_kv()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1058,7 +1058,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         on_time_replicas = bft_network.all_replicas(without=new_replicas)
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(151):
+        for i in range(301):
             await skvbc.write_known_kv()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1136,7 +1136,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=1)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(151):
+        for i in range(301):
             await skvbc.write_known_kv()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1178,7 +1178,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=2)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(151):
+        for i in range(301):
             await skvbc.write_known_kv()
         bft_network.start_replicas(late_replicas)
         await bft_network.wait_for_state_transfer_to_start()

@@ -2295,7 +2295,6 @@ void BCStateTran::processData() {
         kv.second.invokeAll(cp.checkpointNum);
       }
       g.txn()->setIsFetchingState(false);
-      bftEngine::EpochManager::instance().sendEpochNumberAfterStateTransfer();
       break;
     }
     //////////////////////////////////////////////////////////////////////////
