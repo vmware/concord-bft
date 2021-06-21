@@ -177,6 +177,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::seconds{1},
                "wake up the ticks generator every ticksGeneratorPollPeriod seconds and fire pending ticks");
 
+  CONFIG_PARAM(preExecutionResultAuthEnabled, bool, false, "if PreExecution result authentication is enabled");
+
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);
