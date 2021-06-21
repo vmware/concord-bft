@@ -140,8 +140,23 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
   return succ;
 }
 
-void RoStReconfigurationHandler::registerHandler(
-    std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
-  orig_reconf_handlers_.push_back(handler);
+void RoStReconfigurationHandler::stCallBack(uint64_t cp_number) {
+  static std::string epoch_key = "last-known-epoch";
+  // With read only replica, we only care if the epoch has changed, if it did, we need to invoke the relevant callbacks
+  auto highest_known_epoch = bftEngine::EpochManager::instance().getHighestQuorumedEpoch();
+  std::string epoch_str;
+  db_adapter_.GetMetadata(epoch_key, epoch_str);
+  if (epoch_str.empty()) {
+    LOG_DEBUG(GL, "unable to get the latest known epoch by the read only replica");
+    return;
+  }
+  auto self_epoch = concord::util::to<uint64_t>(epoch_str);
+  if (self_epoch < (uint64_t)highest_known_epoch) {
+    auto newEpoch = std::to_string(self_epoch);
+    db_adapter_.WriteMetadata(epoch_key, newEpoch);
+  }
+  // Note that read only replica saves only the last reachable abd last block in the metadata, hence we don't need to
+  // remove old metadata from the local storage
+  // bftEngine::ControlStateManager::some_method_for_restart
 }
 }  // namespace concord::kvbc

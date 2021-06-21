@@ -28,13 +28,6 @@ namespace concord::kvbc {
 class IStReconfigurationHandler {
  public:
   virtual void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) = 0;
-  virtual bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) = 0;
-  virtual bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) = 0;
-  virtual bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) = 0;
-  virtual bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) = 0;
-  virtual bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) = 0;
-  virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t) = 0;
-  virtual bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t) = 0;
   virtual ~IStReconfigurationHandler() = default;
 
  private:
@@ -61,13 +54,13 @@ class StReconfigurationHandler : public IStReconfigurationHandler {
   uint64_t getStoredBftSeqNum(BlockId bid);
   uint64_t getEpochNumber(uint64_t bid);
 
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
-  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
-  bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) override { return true; }
-  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
-  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
-  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t) override;
-  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t) override;
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
 
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
   kvbc::IReader& ro_storage_;
@@ -80,26 +73,10 @@ class RoStReconfigurationHandler : public IStReconfigurationHandler {
                                          bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
     (void)db_adapter_;
   }
-  virtual void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) override;
-  virtual bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
-  virtual bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
-  virtual bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) override {
-    return true;
-  }
-  virtual bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) override {
-    return true;
-  }
-  virtual bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) override {
-    return true;
-  }
-  virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t) override {
-    return true;
-  }
-  virtual bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t) override { return true; }
+  void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) override {}
 
  private:
-  void stCallBack(uint64_t) override {}
-  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
+  void stCallBack(uint64_t) override;
   kvbc::IDbAdapter& db_adapter_;
 };
 }  // namespace concord::kvbc

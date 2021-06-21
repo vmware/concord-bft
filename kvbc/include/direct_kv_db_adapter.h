@@ -165,11 +165,13 @@ class DBAdapter : public IDbAdapter {
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
   void WriteMetadata(const std::string &key, const std::string &val) override {
-    mdtPut(std::string(key), std::string(val));
+    auto key_ = keyGen_->mdtKey(std::string(key));
+    mdtPut(key_, std::string(val));
   }
   void GetMetadata(const std::string &key, std::string &val) override {
+    auto key_ = keyGen_->mdtKey(std::string(key));
     concordUtils::Sliver val_;
-    if (mdtGet(std::string(key), val_).isOK()) val = val_.toString();
+    if (mdtGet(key_, val_).isOK()) val = val_.toString();
   }
 
  protected:

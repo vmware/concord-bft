@@ -53,9 +53,6 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
 
-  void setEraseMetadataFlag(int64_t currentSeqNum);
-  std::optional<int64_t> getEraseMetadataFlag();
-
   void markRemoveMetadata() { remove_metadata_(); }
   void clearCheckpointToStopAt();
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
