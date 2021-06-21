@@ -11,7 +11,7 @@
 # file.
 import os.path
 import unittest
-
+from shutil import copy2
 import trio
 
 from util import skvbc as kvbc
@@ -101,7 +101,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_key_exchange_command(self, bft_network):
+    async def test_key_exchange(self, bft_network):
         """
             No initial key rotation
             Operator sends key exchange command to replica 0
@@ -127,7 +127,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
                       selected_configs=lambda n, f, c: n == 7,
                       rotate_keys=True)
-    async def test_key_exchange_command_with_restart(self, bft_network):
+    async def test_key_exchange_with_restart(self, bft_network):
         """
             - With initial key rotation (keys get effective at checkpoint 2)
             - Reach checkpoint 2 since key cannot be generated twice within a 2 checkpoints window
@@ -162,11 +162,57 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await skvbc.assert_kv_write_executed(key, val)
         
         bft_network.start_replica(1)
-        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(without={1}), 
                                                  num_of_checkpoints_to_add=2, 
                                                  verify_checkpoint_persistency=False)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
+                      bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}],
+                      rotate_keys=True)
+    async def test_key_exchange_with_file_backup(self, bft_network):
+        """
+            - With initial key rotation (keys get effective at checkpoint 2)
+            - Reach checkpoint 2 since key cannot be generated twice within a 2 checkpoints window
+            - Send key exchange command to replica 1 + validate execution
+              (New keys for replica 1 should get effective at checkpoint 4, i.e. seqnum 600)
+            - Backup the generated private key file at replica 1.
+            - Reach checkpoint 4
+            - Send key exchange command to replica 1 + validate execution again
+            - Stop replica 1
+            - Restore backed up file
+            - Start replica 1
+              (Replica's 1 published public key now doesn't match its private key. If there's no assertion, replica 1
+              will send invalid sugnatires and will be malicious)
+            - Reach checkpoint 6 and validate all replicas except replica 1 are back on track.
+        """
+
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False)
+        
+        await self.send_and_check_key_exchange(target_replica=1, bft_network=bft_network, client=client)
+        
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False)
+        
+        #backup gen-sec.1 file
+        copy2(bft_network.testdir + "/gen-sec.1" , bft_network.testdir + "/gen-sec.1.bak")
+        await self.send_and_check_key_exchange(target_replica=1, bft_network=bft_network, client=client)
+        bft_network.stop_replica(1)
+        # restore gen-sec.1 file
+        copy2(bft_network.testdir + "/gen-sec.1.bak" , bft_network.testdir + "/gen-sec.1")
+        bft_network.start_replica(1)
+        
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(without={1}), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False,
+                                                 assert_state_transfer_not_started=False)
         
     async def send_and_check_key_exchange(self, target_replica, bft_network, client):
         with log.start_action(action_type="send_and_check_key_exchange",

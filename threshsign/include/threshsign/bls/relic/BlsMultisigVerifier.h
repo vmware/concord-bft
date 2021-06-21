@@ -51,9 +51,6 @@ class BlsMultisigVerifier : public BlsThresholdVerifier {
   bool verify(const char *msg, int msgLen, const char *sig, int sigLen) const override;
 
   int requiredLengthForSignedData() const override;
-
- protected:
-  BlsMultisigVerifier() = default;
 };
 
 } /* namespace Relic */

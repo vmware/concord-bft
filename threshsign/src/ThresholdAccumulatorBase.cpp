@@ -24,7 +24,7 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::set
   assertNotNull(msg);
   assertStrictlyPositive(len);
 
-  if (hasExpectedDigest() == false) {
+  if (!hasExpectedDigest()) {
     expectedDigest.reset(new unsigned char[static_cast<size_t>(len)]);
     memcpy(reinterpret_cast<void*>(expectedDigest.get()),
            reinterpret_cast<const void*>(msg),
@@ -77,12 +77,12 @@ void ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::ver
     if (verifyShare(id, sigShare)) {
       validShares[idx] = sigShare;
       validSharesBits.add(id);  // If already added, not a problem.
-                                // LOG_TRACE(THRESHSIGN_LOG, "Moved validated share by signer " << id);
+      LOG_TRACE(THRESHSIGN_LOG, "Moved validated share by signer " << id);
     } else {
+      invalidShares.insert(id);
       LOG_WARN(THRESHSIGN_LOG, "Invalid share by signer " << id << " detected: " << sigShare);
     }
   }
-
   pendingShares.clear();
 
   // We should not have accumulated more shares than exactly what we need
@@ -95,19 +95,19 @@ int ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::addN
   assertInclusiveRange(1, signer, totalSigners);
   assertLessThanOrEqual(validSharesBits.count(), reqSigners);
 
-  bool shouldVerifyShares = hasShareVerificationEnabled();
   size_t idx = static_cast<size_t>(signer);
 
   // If not verifying shares or (verifying and no digest set yet), then mark the share as pending.
   //
   // NOTE: Here we accumulate shares from as many signers as we can, even more than reqSigners
   // because some of those shares might be invalid.
-  if (shouldVerifyShares && hasExpectedDigest() == false) {
-    if (pendingSharesBits.contains(signer) == false) {
+  if (hasShareVerificationEnabled() && !hasExpectedDigest()) {
+    if (!pendingSharesBits.contains(signer)) {
       pendingShares[idx] = sigShare;
       pendingSharesBits.add(signer);  // If already added, not a problem.
+      LOG_TRACE(THRESHSIGN_LOG, "added pending share for signer: " << signer);
     } else {
-      LOG_WARN(THRESHSIGN_LOG, "Did NOT add extra pending share for signer " << signer << " (NO digest set yet)");
+      LOG_WARN(THRESHSIGN_LOG, "Did NOT add extra pending share for signer: " << signer << " (NO digest set yet)");
     }
 
     return pendingSharesBits.count();
@@ -121,15 +121,16 @@ int ThresholdAccumulatorBase<VerificationKey, NumType, SigShareParserFunc>::addN
     }
 
     // ...and we can't have duplicate sig shares for the same signer
-    if (validSharesBits.contains(signer) == false) {
-      if (!shouldVerifyShares || verifyShare(signer, sigShare)) {
+    if (!validSharesBits.contains(signer)) {
+      if (!hasShareVerificationEnabled() || verifyShare(signer, sigShare)) {
         validShares[idx] = sigShare;
         validSharesBits.add(signer);  // If already added, not a problem.
-
-        LOG_TRACE(THRESHSIGN_LOG,
-                  "Added valid sigshare #" << idx << ": " << validShares[idx]
-                                           << " (share verification is off or digest is set)");
-
+        if (hasShareVerificationEnabled()) {
+          LOG_TRACE(THRESHSIGN_LOG, "Added valid sigshare #" << idx << ": " << validShares[idx] << " (digest is set)");
+        } else {
+          LOG_TRACE(THRESHSIGN_LOG,
+                    "Added sigshare #" << idx << ": " << validShares[idx] << " (share verification disabled)");
+        }
         onNewSigShareAdded(signer, sigShare);
       } else {
         LOG_WARN(THRESHSIGN_LOG,

@@ -22,18 +22,17 @@
 #include <vector>
 #include <memory>
 
-namespace BLS {
-namespace Relic {
+namespace BLS::Relic {
 
 class BlsThresholdVerifier : public IThresholdVerifier {
  protected:
   BlsPublicParameters params_;
-  // For multisig publicKey_ is used only for n-out-of-n case
-  // TODO [TK] mutable for deserialization - remove as we don't need to serialize the entire class
-  mutable BlsPublicKey publicKey_;
+  // For multisig publicKey_ is used ONLY for n-out-of-n case
+  BlsPublicKey publicKey_;
   std::vector<BlsPublicKey> publicKeysVector_;
   G2T generator2_;
-  NumSharesType reqSigners_ = 0, numSigners_ = 0;
+  NumSharesType reqSigners_;
+  const NumSharesType numSigners_;
 
  public:
   BlsThresholdVerifier(const BlsPublicParameters &params,
@@ -42,7 +41,7 @@ class BlsThresholdVerifier : public IThresholdVerifier {
                        NumSharesType numSigners,
                        const std::vector<BlsPublicKey> &verificationKeys);
 
-  ~BlsThresholdVerifier() override = default;
+  BlsThresholdVerifier() = delete;
 
   bool operator==(const BlsThresholdVerifier &other) const;
   bool compare(const BlsThresholdVerifier &other) const { return (*this == other); }
@@ -72,10 +71,6 @@ class BlsThresholdVerifier : public IThresholdVerifier {
   const IPublicKey &getPublicKey() const override { return publicKey_; }
 
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
-
- protected:
-  BlsThresholdVerifier() = default;
 };
 
-} /* namespace Relic */
-} /* namespace BLS */
+}  // namespace BLS::Relic

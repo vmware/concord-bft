@@ -21,6 +21,7 @@
 #include "Digest.hpp"
 #include "Crypto.hpp"
 #include "SimpleThreadPool.hpp"
+#include "InternalReplicaApi.hpp"
 #include "IncomingMsgsStorage.hpp"
 #include "assertUtils.hpp"
 #include "messages/SignedShareMsgs.hpp"
@@ -136,6 +137,7 @@ class CollectorOfThresholdSignatures {
     processingSignaturesInTheBackground = false;
 
     for (const ReplicaId repId : replicasWithBadSigs) {
+      LOG_TRACE(THRESHSIGN_LOG, "replica with bad signature: " << repId);
       RepInfo& repInfo = replicasInfo[repId];
       repInfo.state = SigState::Invalid;
       numberOfUnknownSignatures--;
@@ -297,9 +299,7 @@ class CollectorOfThresholdSignatures {
     }
   }
 
-  class SignaturesProcessingJob : public util::SimpleThreadPool::Job  // TODO(GG): include the replica Id (to identify
-                                                                      // replicas that send bad combined signatures)
-  {
+  class SignaturesProcessingJob : public util::SimpleThreadPool::Job {
    private:
     struct SigData {
       ReplicaId srcRepId;
@@ -360,7 +360,7 @@ class CollectorOfThresholdSignatures {
       LOG_TRACE(THRESHSIGN_LOG, KVLOG(srcRepId, numOfDataItems));
     }
 
-    virtual void release() override {
+    void release() override {
       for (uint16_t i = 0; i < numOfDataItems; i++) {
         SigData& d = sigDataItems[i];
         std::free(d.sigBody);
@@ -371,8 +371,9 @@ class CollectorOfThresholdSignatures {
       delete this;
     }
 
-    virtual void execute() override {
+    void execute() override {
       ConcordAssert(numOfDataItems == reqDataItems);
+      MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(((InternalReplicaApi*)this->context)->getReplicaConfig().replicaId));
       SCOPED_MDC_SEQ_NUM(std::to_string(expectedSeqNumber));
       MDC_PUT(MDC_THREAD_KEY, demangler::demangle<FULL>());
       // TODO(GG): can utilize several threads (discuss with Alin)
@@ -383,60 +384,36 @@ class CollectorOfThresholdSignatures {
       const auto& span_context_of_last_message =
           (reqDataItems - 1) ? sigDataItems[reqDataItems - 1].span_context : concordUtils::SpanContext{};
       {
-        auto acc = verifier->newAccumulator(false);
-
+        // optimistically, don't use share verification
+        std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(false)};
         for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
-
         acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-
         acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
-
-        delete acc;
       }
 
-      bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize);
-
-      if (!succ) {
-        std::set<ReplicaId> replicasWithBadSigs;
-
-        // TODO(GG): A clumsy way to do verification - find a better way ....
-
-        auto accWithVer = verifier->newAccumulator(true);
-        accWithVer->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-
-        uint16_t currNumOfValidShares = 0;
-        for (uint16_t i = 0; i < reqDataItems; i++) {
-          uint16_t prevNumOfValidShares = currNumOfValidShares;
-
-          currNumOfValidShares = (uint16_t)accWithVer->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
-
-          if (prevNumOfValidShares + 1 != currNumOfValidShares) replicasWithBadSigs.insert(sigDataItems[i].srcRepId);
+      if (!verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize)) {
+        // if verification failed, use accumulator with share verification enabled.
+        // this still can succeed if there're enough valid shares.
+        // at least replica with bad   signatures will be identified.
+        std::unique_ptr<IThresholdAccumulator> acc{verifier->newAccumulator(true)};
+        for (uint16_t i = 0; i < reqDataItems; i++) acc->add(sigDataItems[i].sigBody, sigDataItems[i].sigLength);
+        acc->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
+        acc->getFullSignedData(bufferForSigComputations.data(), bufferSize);
+        if (!verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), bufferSize)) {
+          // if verification failed again
+          // signer index starts with 1, therefore shareId-1
+          std::set<uint16_t> replicasWithBadSigs;
+          for (const auto& shareId : acc->getInvalidShareIds()) replicasWithBadSigs.insert((uint16_t)shareId - 1);
+          // send failed message
+          auto iMsg(ExternalFunc::createInterCombinedSigFailed(expectedSeqNumber, expectedView, replicasWithBadSigs));
+          repMsgsStorage->pushInternalMsg(std::move(iMsg));
+          return;
         }
-
-        if (replicasWithBadSigs.size() == 0) {
-          // TODO(GG): print warning / error ??
-          LOG_WARN(THRESHSIGN_LOG,
-                   demangler::demangle<PART>() << ": verification failed for sequence: " << expectedSeqNumber
-                                               << ": no replicas with bad signatures");
-        } else {
-          std::ostringstream oss;
-          std::copy(
-              replicasWithBadSigs.begin(), replicasWithBadSigs.end(), std::ostream_iterator<std::uint16_t>(oss, " "));
-          LOG_WARN(THRESHSIGN_LOG,
-                   demangler::demangle<PART>() << ": verification failed for sequence: " << expectedSeqNumber
-                                               << ": replicas with bad signatures: " << oss.str());
-        }
-
-        auto iMsg(ExternalFunc::createInterCombinedSigFailed(expectedSeqNumber, expectedView, replicasWithBadSigs));
-        repMsgsStorage->pushInternalMsg(std::move(iMsg));
-      } else {
-        auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(expectedSeqNumber,
-                                                                expectedView,
-                                                                bufferForSigComputations.data(),
-                                                                bufferSize,
-                                                                span_context_of_last_message));
-        repMsgsStorage->pushInternalMsg(std::move(iMsg));
       }
+      // send success message
+      auto iMsg(ExternalFunc::createInterCombinedSigSucceeded(
+          expectedSeqNumber, expectedView, bufferForSigComputations.data(), bufferSize, span_context_of_last_message));
+      repMsgsStorage->pushInternalMsg(std::move(iMsg));
     }
   };
 
@@ -474,13 +451,14 @@ class CollectorOfThresholdSignatures {
       LOG_TRACE(THRESHSIGN_LOG, KVLOG(expectedSeqNumber, expectedView, combinedSigLen));
     }
 
-    virtual void release() override {
+    void release() override {
       std::free(combinedSig);
 
       delete this;
     }
 
-    virtual void execute() override {
+    void execute() override {
+      MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(((InternalReplicaApi*)this->context)->getReplicaConfig().replicaId));
       SCOPED_MDC_SEQ_NUM(std::to_string(expectedSeqNumber));
       MDC_PUT(MDC_THREAD_KEY, demangler::demangle<FULL>());
       bool succ = verifier->verify((char*)&expectedDigest, sizeof(Digest), combinedSig, combinedSigLen);
