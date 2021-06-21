@@ -9,6 +9,8 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #include <chrono>
 #include <opentracing/span.h>
 #include <string>

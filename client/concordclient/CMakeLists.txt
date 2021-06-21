@@ -1,8 +1,6 @@
-file(GLOB CONCORDCLIENT_SRC "src/*.cpp")
-
-add_library(concordclient STATIC ${CONCORDCLIENT_SRC})
-target_include_directories(concordclient PUBLIC include)
-target_link_libraries(concordclient PRIVATE
+add_library(concordclient INTERFACE)
+target_include_directories(concordclient INTERFACE include)
+target_link_libraries(concordclient INTERFACE
   bftclient_new # temporary until client pool is available
-  thin_replica_client
+  thin_replica_client_lib
 )
