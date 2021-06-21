@@ -146,13 +146,15 @@ void RoStReconfigurationHandler::stCallBack(uint64_t cp_number) {
   auto highest_known_epoch = bftEngine::EpochManager::instance().getHighestQuorumedEpoch();
   std::string epoch_str;
   db_adapter_.GetMetadata(epoch_key, epoch_str);
-  if (epoch_str.empty()) {
+  uint64_t currentEpoch = 0;
+  if (!epoch_str.empty()) {
     LOG_DEBUG(GL, "unable to get the latest known epoch by the read only replica");
-    return;
+    currentEpoch = concord::util::to<uint64_t>(epoch_str);
   }
-  auto self_epoch = concord::util::to<uint64_t>(epoch_str);
-  if (self_epoch < (uint64_t)highest_known_epoch) {
-    auto newEpoch = std::to_string(self_epoch);
+  LOG_INFO(GL, "epochs " << KVLOG(currentEpoch, highest_known_epoch));
+  if (currentEpoch < (uint64_t)highest_known_epoch) {
+    auto newEpoch = std::to_string(highest_known_epoch);
+    LOG_INFO(GL, "new epoch is " << newEpoch);
     db_adapter_.WriteMetadata(epoch_key, newEpoch);
   }
   // Note that read only replica saves only the last reachable abd last block in the metadata, hence we don't need to

@@ -64,7 +64,31 @@ def start_replica_cmd_prefix(builddir, replica_id, config):
 
     return ret
 
+def start_replica_cmd_with_existing_bucket_prefix(builddir, replica_id, config):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
 
+    The replica is started with a short view change timeout.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    path_to_s3_config = os.path.join(builddir, "test_s3_config_prefix.txt")
+    ro_params = [ "--s3-config-file",
+                  path_to_s3_config
+                  ]
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    ret = [path,
+           "-k", KEY_FILE_PREFIX,
+           "-i", str(replica_id),
+           "-s", statusTimerMilli,
+           "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties")
+           ]
+    if replica_id >= config.n and replica_id < config.n + config.num_ro_replicas and os.environ.get("CONCORD_BFT_MINIO_BINARY_PATH"):
+        ret.extend(ro_params)
+
+    return ret
 class ObjectStore:
 
     def __init__(self):

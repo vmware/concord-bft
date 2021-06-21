@@ -17,7 +17,7 @@ import trio
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 from util import operator
-from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store
+from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object_store, start_replica_cmd_with_existing_bucket_prefix
 import sys
 from util import eliot_logging as log
 import concord_msgs as cmf_msgs
@@ -48,6 +48,10 @@ def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
     ret.extend(["-b", "2", "-q", "1", "-e", str(True), "-o", builddir + "/operator_pub.pem"])
     return ret
 
+def start_replica_cmd_with_object_store_existing_bucket_and_ke(builddir, replica_id, config):
+    ret = start_replica_cmd_with_existing_bucket_prefix(builddir, replica_id, config)
+    ret.extend(["-b", "2", "-q", "1", "-e", str(True), "-o", builddir + "/operator_pub.pem"])
+    return ret
 def start_replica_cmd(builddir, replica_id):
     """
     Return a command that starts an skvbc replica when passed to
@@ -773,7 +777,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
 
-    @unittest.skip("incorrect test")
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7)
@@ -812,7 +815,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                           c=0,
                           num_clients=10,
                           key_file_prefix=KEY_FILE_PREFIX,
-                          start_replica_cmd=start_replica_cmd_with_object_store_and_ke,
+                          start_replica_cmd=start_replica_cmd_with_object_store_existing_bucket_and_ke,
                           stop_replica_cmd=None,
                           num_ro_replicas=1)
         await bft_network.change_configuration(conf)

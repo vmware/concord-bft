@@ -67,6 +67,7 @@ EpochManager::EpochManager(EpochManager::InitData* id)
             epochs_data_.n_ = n_;
           }
         }
+        if (is_ro_) return;
         epoch_number.Get().Set(epochs_data_.epochs_[replica_id_]);
         metrics_.UpdateAggregator();
       },
