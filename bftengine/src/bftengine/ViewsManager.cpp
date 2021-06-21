@@ -1098,7 +1098,7 @@ ViewChangeMsg* ViewsManager::PrepareViewChangeMsg(ViewNum nextView,
   return pVC;
 }
 
-bool ViewsManager::shouldJumpToHigherViewBasedOnQuorumOfComplaints(const ViewChangeMsg* const msg) {
+bool ViewsManager::tryToJumpToHigherViewAndMoveComplaintsOnQuorum(const ViewChangeMsg* const msg) {
   if (complainedReplicasForHigherView.hasQuorumToLeaveView()) {
     ConcordAssert(msg->newView() > getCurrentView() + 1);
     complainedReplicas = std::move(complainedReplicasForHigherView);

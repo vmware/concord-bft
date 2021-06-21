@@ -2225,7 +2225,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
   /////////////////////////////////////////////////////////////////////////
 
   if (msg->getViewNumber() == getCurrentView()) {
-    for (const auto &i : viewsManager->getComplainedReplicas().getAllMsgs()) {
+    for (const auto &i : viewsManager->getAllMsgsFromComplainedReplicas()) {
       if (!msg->hasComplaintFromReplica(i.first)) {
         sendAndIncrementMetric(i.second.get(), msgSenderId, metric_sent_replica_asks_to_leave_view_msg_due_to_status_);
       }
@@ -2355,7 +2355,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     }
   }
 
-  if (viewsManager->shouldJumpToHigherViewBasedOnQuorumOfComplaints(msg)) {
+  if (viewsManager->tryToJumpToHigherViewAndMoveComplaintsOnQuorum(msg)) {
     MoveToHigherView(msg->newView());
   }
 
