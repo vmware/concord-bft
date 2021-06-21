@@ -266,7 +266,7 @@ void DebugPersistentStorage::setCheckpointMsgInCheckWindow(SeqNum s, CheckpointM
 
 void DebugPersistentStorage::setUserDataAtomically(const void *data, std::size_t numberOfBytes) {
   const auto p = static_cast<const char *>(data);
-  userData_.assign(p, p + numberOfBytes);
+  userData_.emplace(p, p + numberOfBytes);
 }
 
 void DebugPersistentStorage::setUserDataInTransaction(const void *data, std::size_t numberOfBytes) {
@@ -477,7 +477,7 @@ bool DebugPersistentStorage::getCompletedMarkInCheckWindow(SeqNum seqNum) {
   return b;
 }
 
-std::vector<std::uint8_t> DebugPersistentStorage::getUserData() const { return userData_; }
+std::optional<std::vector<std::uint8_t>> DebugPersistentStorage::getUserData() const { return userData_; }
 
 bool DebugPersistentStorage::setIsAllowed() const { return isInWriteTran(); }
 
