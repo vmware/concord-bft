@@ -13,6 +13,7 @@
 
 #include "MessageBase.hpp"
 #include "Digest.hpp"
+#include <memory>
 
 class IThresholdSigner;
 

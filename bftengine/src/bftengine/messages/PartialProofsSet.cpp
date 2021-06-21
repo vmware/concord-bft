@@ -219,6 +219,7 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
     LOG_DEBUG(GL, "begin...");
 
     auto span = concordUtils::startChildSpanFromContext(span_context_, "bft_create_FullCommitProofMsg");
+    (void)span;
     const uint16_t bufferSize = (uint16_t)verifier->requiredLengthForSignedData();
     std::vector<char> bufferForSigComputations(bufferSize);
 

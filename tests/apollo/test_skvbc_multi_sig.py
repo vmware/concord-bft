@@ -124,7 +124,7 @@ class SkvbcMultiSig(unittest.TestCase):
         bft_network.start_replica(3)
         await bft_network.wait_for_state_transfer_to_start()
         await bft_network.wait_for_state_transfer_to_stop(0, 3)
-        await skvbc.assert_successful_put_get(self)
+        await skvbc.assert_successful_put_get()
 
         lastExecutedValST = await bft_network.metrics.get(3, *lastExecutedKey)
 

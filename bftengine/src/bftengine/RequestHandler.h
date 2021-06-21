@@ -22,14 +22,16 @@ namespace bftEngine {
 
 class RequestHandler : public IRequestsHandler {
  public:
-  RequestHandler() : reconfig_dispatcher_{std::make_shared<concord::reconfiguration::ReconfigurationHandler>()} {}
+  RequestHandler() {
+    reconfig_handler_ = std::make_shared<concord::reconfiguration::ReconfigurationHandler>();
+    reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
+  }
 
   void execute(ExecutionRequestsQueue &requests, const std::string &batchCid, concordUtils::SpanWrapper &) override;
 
   void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;
-      reconfig_handler_ = userHdlr->getReconfigurationHandler();
       reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
     }
   }
