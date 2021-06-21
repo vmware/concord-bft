@@ -173,6 +173,9 @@ class DBAdapter : public IDbAdapter {
   std::pair<sparse_merkle::UpdateBatch, sparse_merkle::detail::UpdateCache> updateTree(
       const SetOfKeyValuePairs &updates, const OrderedKeysSet &deletes);
 
+  void WriteMetadata(const std::string &key, const std::string &val) override {}
+  void GetMetadata(const std::string &key, std::string &val) override {}
+
  private:
   concordUtils::Sliver createBlockNode(const SetOfKeyValuePairs &updates,
                                        const OrderedKeysSet &deletes,

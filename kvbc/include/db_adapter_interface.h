@@ -74,6 +74,8 @@ class IDbAdapter {
   // TODO [TK] not sure it's needed for long term
   virtual std::shared_ptr<storage::IDBClient> getDb() const = 0;
 
+  virtual void WriteMetadata(const std::string& key, const std::string& val) = 0;
+  virtual void GetMetadata(const std::string& key, std::string& val) = 0;
   virtual ~IDbAdapter() = default;
 };
 

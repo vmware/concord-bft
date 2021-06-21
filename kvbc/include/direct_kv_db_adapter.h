@@ -164,6 +164,14 @@ class DBAdapter : public IDbAdapter {
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
 
+  void WriteMetadata(const std::string &key, const std::string &val) override {
+    mdtPut(std::string(key), std::string(val));
+  }
+  void GetMetadata(const std::string &key, std::string &val) override {
+    concordUtils::Sliver val_;
+    if (mdtGet(std::string(key), val_).isOK()) val = val_.toString();
+  }
+
  protected:
   void setLastReachableBlockNum(const BlockId &blockId);
   void setLatestBlock(const BlockId &blockId);
