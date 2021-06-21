@@ -82,7 +82,7 @@ void DBMetadataStorage::read(uint32_t objectId,
   }
 }
 
-void DBMetadataStorage::atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) {
+void DBMetadataStorage::atomicWrite(uint32_t objectId, const char *data, uint32_t dataLength) {
   verifyOperation(objectId, dataLength, data, true);
   Sliver copy = Sliver::copy(data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
@@ -102,7 +102,7 @@ void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
   batch_ = new SetOfKeyValuePairs;
 }
 
-void DBMetadataStorage::writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) {
+void DBMetadataStorage::writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) {
   LOG_TRACE(logger_, "writeInBatch: objectId=" << objectId << ", dataLength=" << dataLength);
   verifyOperation(objectId, dataLength, data, true);
   Sliver copy = Sliver::copy(data, dataLength);

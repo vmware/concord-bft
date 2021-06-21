@@ -84,6 +84,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         with net.PrimaryIsolatingAdversary(bft_network) as adversary:
             initial_primary = 0
             await bft_network.wait_for_view(
@@ -104,7 +105,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
                 err_msg="Make sure view change has been triggered."
             )
 
-            await self._wait_for_read_your_writes_success(tracker)
+            await self._wait_for_read_your_writes_success(skvbc)
 
             await tracker.run_concurrent_ops(100)
 
@@ -285,20 +286,19 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         await bft_network.wait_for_state_transfer_to_start()
         await bft_network.wait_for_state_transfer_to_stop(current_primary, isolated_node)
 
-        await skvbc.assert_successful_put_get(self)
+        await skvbc.assert_successful_put_get()
         await bft_network.force_quorum_including_replica(isolated_node)
         # After stopping f other replicas we execute another request and if the isolated_node
         # fails to process it for any reason we won't have consensus. Thus we'll know it's
         # recovered correctly.
-        await skvbc.assert_successful_put_get(self)
+        await skvbc.assert_successful_put_get()
 
-    @staticmethod
-    async def _wait_for_read_your_writes_success(tracker):
+    async def _wait_for_read_your_writes_success(self, skvbc):
         with trio.fail_after(seconds=60):
             while True:
                 with trio.move_on_after(seconds=5):
                     try:
-                        await tracker.tracked_read_your_writes()
+                        await skvbc.read_your_writes()
                     except Exception:
                         continue
                     else:

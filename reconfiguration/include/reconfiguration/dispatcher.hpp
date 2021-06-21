@@ -23,7 +23,7 @@ namespace concord::reconfiguration {
 class Dispatcher {
  public:
   Dispatcher(std::shared_ptr<IReconfigurationHandler> rh) { addReconfigurationHandler(rh); }
-
+  Dispatcher() = default;
   // This method is the gate for all reconfiguration actions. It works as
   // follows:
   // 1. Validate the request against the reconfiguration system operator (RSO)

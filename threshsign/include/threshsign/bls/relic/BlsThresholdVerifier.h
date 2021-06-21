@@ -25,8 +25,7 @@
 namespace BLS {
 namespace Relic {
 
-class BlsThresholdVerifier : public IThresholdVerifier,
-                             public concord::serialize::SerializableFactory<BlsThresholdVerifier> {
+class BlsThresholdVerifier : public IThresholdVerifier {
  protected:
   BlsPublicParameters params_;
   // For multisig publicKey_ is used only for n-out-of-n case
@@ -74,17 +73,8 @@ class BlsThresholdVerifier : public IThresholdVerifier,
 
   const IShareVerificationKey &getShareVerificationKey(ShareID signer) const override;
 
-  // Serialization/deserialization
  protected:
-  friend class concord::serialize::SerializableFactory<BlsThresholdVerifier>;
   BlsThresholdVerifier() = default;
-  virtual void serializeDataMembers(std::ostream &) const override;
-  virtual void deserializeDataMembers(std::istream &) override;
-  const std::string getVersion() const override { return "1"; };
-
- private:
-  void serializePublicKey(const BlsPublicKey &, std::ostream &) const;
-  static G2T deserializePublicKey(std::istream &inStream);
 };
 
 } /* namespace Relic */

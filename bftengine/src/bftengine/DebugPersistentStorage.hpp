@@ -46,6 +46,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg* msg) override;
   void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg* msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
+  void setUserDataAtomically(const void* data, std::size_t numberOfBytes) override;
+  void setUserDataInTransaction(const void* data, std::size_t numberOfBytes) override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;
@@ -66,6 +68,7 @@ class DebugPersistentStorage : public PersistentStorage {
   CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) override;
   CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
+  std::vector<std::uint8_t> getUserData() const override;
   void setEraseMetadataStorageFlag() override {}
   bool getEraseMetadataStorageFlag() override { return false; };
   void eraseMetadata() override{};
@@ -103,6 +106,8 @@ class DebugPersistentStorage : public PersistentStorage {
 
   // range: TODO(GG): !!!!!!!
   CheckWindow checkWindow;
+
+  std::vector<std::uint8_t> userData_;
 };
 
 }  // namespace impl

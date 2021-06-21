@@ -47,18 +47,6 @@ void BlsThresholdSigner::signData(const char *hash, int hashLen, char *outSig, i
   LOG_TRACE(BLS_LOG, "id: " << id_);
 }
 
-/************** Serialization **************/
-
-void BlsThresholdSigner::serializeDataMembers(ostream &outStream) const {
-  params_.serialize(outStream);
-  int32_t secretKeySize = secretKey_.x.getByteCount();
-  UniquePtrToUChar secretKeyBuf(new unsigned char[static_cast<size_t>(secretKeySize)]);
-  secretKey_.x.toBytes(secretKeyBuf.get(), secretKeySize);
-  serialize(outStream, secretKeySize);
-  outStream.write((char *)secretKeyBuf.get(), secretKeySize);
-  serialize(outStream, id_);
-}
-
 bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
   bool result = ((other.id_ == id_) && (other.params_ == params_) && (other.sigSize_ == sigSize_) &&
                  !memcmp(other.serializedId_, serializedId_, sizeof(ShareID)) && (other.hTmp_ == hTmp_) &&
@@ -82,25 +70,6 @@ bool BlsThresholdSigner::operator==(const BlsThresholdSigner &other) const {
   else
     cout << "publicKeys are not the same" << endl;
   return result;
-}
-
-/************** Deserialization **************/
-void BlsThresholdSigner::deserializeDataMembers(istream &inStream) {
-  BlsPublicParameters *params = nullptr;
-  deserialize(inStream, params);
-  params_ = BlsPublicParameters(*params);
-  sigSize_ = params_.getSignatureSize();
-  std::int32_t sizeOfSecretKey = 0;
-  deserialize(inStream, sizeOfSecretKey);
-  UniquePtrToUChar secretKey(new unsigned char[static_cast<size_t>(sizeOfSecretKey)]);
-  inStream.read((char *)secretKey.get(), sizeOfSecretKey);
-  BNT key(secretKey.get(), sizeOfSecretKey);
-  secretKey_ = BlsSecretKey(BNT(secretKey.get(), sizeOfSecretKey));
-  publicKey_ = BlsPublicKey(BNT(secretKey.get(), sizeOfSecretKey));
-  deserialize(inStream, id_);
-  BNT idNum(id_);
-  idNum.toBytes(serializedId_, sizeof(id_));
-  delete params;
 }
 
 } /* namespace Relic */

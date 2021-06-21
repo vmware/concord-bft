@@ -9,22 +9,31 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <grpcpp/grpcpp.h>
-#include <concord_client.grpc.pb.h>
+#include <memory>
+#include <string>
 
+#include "event_service.hpp"
+#include "request_service.hpp"
 #include "Logger.hpp"
 
 namespace concord::client::clientservice {
 
-class RequestServiceImpl final : public vmware::concord::client::v1::RequestService::Service {
+class ClientService {
  public:
-  RequestServiceImpl() : logger_(logging::getLogger("concord.client.clientservice.request")){};
-  grpc::Status Send(grpc::ServerContext* context,
-                    const vmware::concord::client::v1::Request* request,
-                    vmware::concord::client::v1::Response* response) override;
+  ClientService()
+      : logger_(logging::getLogger("concord.client.clientservice")),
+        event_service_(std::make_unique<EventServiceImpl>()),
+        request_service_(std::make_unique<RequestServiceImpl>()){};
+
+  void start(const std::string& addr);
+
+  const std::string kRequestService{"vmware.concord.client.v1.RequestService"};
+  const std::string kEventService{"vmware.concord.client.v1.EventService"};
 
  private:
   logging::Logger logger_;
+  std::unique_ptr<EventServiceImpl> event_service_;
+  std::unique_ptr<RequestServiceImpl> request_service_;
 };
 
 }  // namespace concord::client::clientservice

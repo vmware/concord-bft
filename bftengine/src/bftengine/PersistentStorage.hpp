@@ -19,6 +19,7 @@
 #include "ReplicaConfig.hpp"
 #include "PersistentStorageDescriptors.hpp"
 
+#include <cstdint>
 #include <vector>
 
 namespace bftEngine {
@@ -109,6 +110,12 @@ class PersistentStorage {
   virtual void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg *msg) = 0;
   virtual void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) = 0;
 
+  // User data to be persisted, e.g. application-specific replica-local data, scratchpad data, etc.
+  // Provide two methods - one that does it atomically and one that does it in an already created transaction.
+  // setUserDataInTransaction() has a precondition that a transaction has already been created.
+  virtual void setUserDataAtomically(const void *data, std::size_t numberOfBytes) = 0;
+  virtual void setUserDataInTransaction(const void *data, std::size_t numberOfBytes) = 0;
+
   virtual void setEraseMetadataStorageFlag() = 0;
   virtual bool getEraseMetadataStorageFlag() = 0;
   virtual void eraseMetadata() = 0;
@@ -143,6 +150,8 @@ class PersistentStorage {
   virtual CommitFullMsg *getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) = 0;
   virtual CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) = 0;
   virtual bool getCompletedMarkInCheckWindow(SeqNum seqNum) = 0;
+
+  virtual std::vector<std::uint8_t> getUserData() const = 0;
 };
 
 }  // namespace impl

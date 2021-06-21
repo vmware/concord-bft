@@ -47,16 +47,26 @@ const string& ClientBatchRequestMsg::getCid() {
 }
 
 void ClientBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
-  ConcordAssert(senderId() != repInfo.myId());
   if (size() < sizeof(ClientBatchRequestMsgHeader) ||
       size() < (sizeof(ClientBatchRequestMsgHeader) + msgBody()->dataSize))
     throw std::runtime_error(__PRETTY_FUNCTION__);
+
+  if (type() != MsgCode::ClientBatchRequest) {
+    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+
+  if (senderId() == repInfo.myId()) {
+    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
 }
 
 ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
   if (!clientMsgsList_.empty()) return clientMsgsList_;
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
+  const string& batchCid = getCid();
   char* dataPosition = body() + sizeof(ClientBatchRequestMsgHeader) + msgBody()->cidSize;
   auto sigManager = SigManager::instance();
   bool isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
@@ -80,12 +90,12 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
                                                                      spanContext,
                                                                      requestSignaturePosition,
                                                                      singleMsgHeader.reqSignatureLength);
-    LOG_DEBUG(logger(), KVLOG(msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
+    LOG_DEBUG(logger(), KVLOG(batchCid, msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
                     singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }
-  LOG_DEBUG(logger(), KVLOG(msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));
+  LOG_DEBUG(logger(), KVLOG(batchCid, msgBody()->clientId, clientMsgsList_.size(), numOfMessagesInBatch));
   return clientMsgsList_;
 }
 

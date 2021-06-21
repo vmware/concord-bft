@@ -71,6 +71,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(autoPrimaryRotationEnabled, bool, false, "if automatic primary rotation is enabled");
   CONFIG_PARAM(autoPrimaryRotationTimerMillisec, uint16_t, 0, "timeout for automatic primary rotation");
   CONFIG_PARAM(preExecutionFeatureEnabled, bool, false, "enables the pre-execution feature");
+  CONFIG_PARAM(batchedPreProcessEnabled,
+               bool,
+               false,
+               "enables send/receive of batched PreProcess request/reply messages");
   CONFIG_PARAM(clientBatchingEnabled, bool, false, "enables the concord-client-batch feature");
   CONFIG_PARAM(clientBatchingMaxMsgsNbr, uint16_t, 10, "Maximum messages number in one client batch");
   CONFIG_PARAM(clientTransactionSigningEnabled,
@@ -207,6 +211,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, autoPrimaryRotationTimerMillisec);
 
     serialize(outStream, preExecutionFeatureEnabled);
+    serialize(outStream, batchedPreProcessEnabled);
     serialize(outStream, clientBatchingEnabled);
     serialize(outStream, clientBatchingMaxMsgsNbr);
     serialize(outStream, clientTransactionSigningEnabled);
@@ -273,6 +278,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, autoPrimaryRotationTimerMillisec);
 
     deserialize(inStream, preExecutionFeatureEnabled);
+    deserialize(inStream, batchedPreProcessEnabled);
     deserialize(inStream, clientBatchingEnabled);
     deserialize(inStream, clientBatchingMaxMsgsNbr);
     deserialize(inStream, clientTransactionSigningEnabled);
@@ -354,7 +360,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.autoPrimaryRotationTimerMillisec,
               rc.preExecutionFeatureEnabled,
               rc.preExecReqStatusCheckTimerMillisec);
-  os << ", ";
+  os << ",";
   os << KVLOG(rc.preExecConcurrencyLevel,
               rc.batchingPolicy,
               rc.batchFlushPeriod,
@@ -371,7 +377,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.metricsDumpIntervalSeconds,
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
-  os << ", ";
+  os << ",";
   os << KVLOG(rc.clientBatchingEnabled,
               rc.clientBatchingMaxMsgsNbr,
               rc.keyViewFilePath,
@@ -385,10 +391,10 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.timeServiceEnabled,
               rc.timeServiceSoftLimitMillis.count(),
               rc.timeServiceHardLimitMillis.count(),
-              rc.timeServiceEpsilonMillis.count());
+              rc.timeServiceEpsilonMillis.count(),
+              rc.batchedPreProcessEnabled);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
-
   return os;
 }
 
