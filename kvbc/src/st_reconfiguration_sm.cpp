@@ -64,10 +64,6 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                         current_cp_num);
 }
 
-void StReconfigurationHandler::pruneOnStartup() {
-  handlerStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
-                                                        0);
-}
 template <typename T>
 bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint64_t current_cp_num) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);

@@ -24,21 +24,34 @@ namespace concord::kvbc {
  * The state transfer reconfiguration handler is meant to handler reconfiguration state changes by a replica that was
  * not responsive during the actual reconfiguration action.
  */
-class StReconfigurationHandler {
+class IStReconfigurationHandler {
+ public:
+  virtual void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) = 0;
+  virtual bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) = 0;
+  virtual bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) = 0;
+  virtual bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) = 0;
+  virtual bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) = 0;
+  virtual bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) = 0;
+  virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t) = 0;
+  virtual bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t) = 0;
+  virtual ~IStReconfigurationHandler() = default;
+
+ private:
+  virtual void stCallBack(uint64_t) = 0;
+};
+class StReconfigurationHandler : public IStReconfigurationHandler {
  public:
   StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
     st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); },
                                          bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
   }
 
-  void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
+  void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) override {
     orig_reconf_handlers_.push_back(handler);
   }
 
-  void pruneOnStartup();
-
  private:
-  void stCallBack(uint64_t);
+  void stCallBack(uint64_t) override;
 
   template <typename T>
   void deserializeCmfMessage(T& msg, const std::string& strval);
@@ -47,13 +60,13 @@ class StReconfigurationHandler {
   uint64_t getStoredBftSeqNum(BlockId bid);
   uint64_t getEpochNumber(uint64_t bid);
 
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t);
-  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
+  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
+  bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) override { return true; }
+  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
+  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t) override;
+  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t) override;
 
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
   kvbc::IReader& ro_storage_;

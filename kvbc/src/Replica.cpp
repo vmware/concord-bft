@@ -127,7 +127,7 @@ void Replica::createReplicaAndSyncState() {
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
   stReconfigurationSM_->registerHandler(pruning_handler);
-  stReconfigurationSM_->pruneOnStartup();
+  pruneOnStartUp(*pruning_handler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
@@ -170,7 +170,18 @@ void Replica::createReplicaAndSyncState() {
     bftEngine::EpochManager::instance().reserveEpochNumberForLaterUse(newEpoch);
   }
 }
-
+bool Replica::pruneOnStartUp(concord::reconfiguration::IReconfigurationHandler &pruningHandler) {
+  auto res = getLatest(kvbc::kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_pruning_key, 0x1});
+  if (res.has_value()) {
+    auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
+    concord::messages::PruneRequest cmd;
+    std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+    concord::messages::deserialize(bytesval, cmd);
+    concord::messages::ReconfigurationResponse rres;
+    return pruningHandler.handle(cmd, 0, rres);
+  }
+  return true;
+}
 /**
  * Closes the database. Call `wait()` after this to wait for thread to stop.
  */

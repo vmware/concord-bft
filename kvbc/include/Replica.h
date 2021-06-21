@@ -132,7 +132,7 @@ class Replica : public IReplica,
 
  private:
   friend class StorageWrapperForIdleMode;
-
+  bool pruneOnStartUp(concord::reconfiguration::IReconfigurationHandler &pruningHandler);
   void createReplicaAndSyncState();
 
   // INTERNAL TYPES
@@ -184,7 +184,7 @@ class Replica : public IReplica,
   // secretsManager_ can be nullptr. This means that encrypted configuration is not enabled
   // and there is no instance of SecretsManagerEnc available
   const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsManager_;
-  std::unique_ptr<concord::kvbc::StReconfigurationHandler> stReconfigurationSM_;
+  std::unique_ptr<concord::kvbc::IStReconfigurationHandler> stReconfigurationSM_;
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry_{std::make_shared<cron::CronTableRegistry>()};
 };  // namespace concord::kvbc
 
