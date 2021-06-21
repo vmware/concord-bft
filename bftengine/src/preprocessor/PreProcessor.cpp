@@ -288,7 +288,8 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                  clientMaxBatchSize_,
                  maxPreExecResultSize_,
                  preExecReqStatusCheckPeriodMilli_,
-                 numOfThreads));
+                 numOfThreads,
+                 ReplicaConfig::instance().preExecutionResultAuthEnabled));
   RequestProcessingState::init(numOfRequiredReplies(), &histograms_);
   PreProcessReplyMsg::setPreProcessorHistograms(&histograms_);
   addTimers();
@@ -1032,7 +1033,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetIn
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const string &batchCid) {
-  std::unique_ptr<ClientRequestMsg> clientRequestMsg;
+  std::unique_ptr<impl::MessageBase> clientRequestMsg;
   const auto &batchEntry = ongoingReqBatches_[clientId];
   const auto &reqEntry = batchEntry->getRequestState(reqOffsetInBatch);
   {
@@ -1046,16 +1047,21 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
-      clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
-                                                       HAS_PRE_PROCESSED_FLAG,
-                                                       reqSeqNum,
-                                                       reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
-                                                       reqProcessingStatePtr->getPrimaryPreProcessedResult(),
-                                                       reqProcessingStatePtr->getReqTimeoutMilli(),
-                                                       cid,
-                                                       span_context,
-                                                       reqProcessingStatePtr->getReqSignature(),
-                                                       reqProcessingStatePtr->getReqSignatureLength());
+      if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
+          // send PreProcessedResultMsg
+      } else {
+        clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
+                                                         HAS_PRE_PROCESSED_FLAG,
+                                                         reqSeqNum,
+                                                         reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
+                                                         reqProcessingStatePtr->getPrimaryPreProcessedResult(),
+                                                         reqProcessingStatePtr->getReqTimeoutMilli(),
+                                                         cid,
+                                                         span_context,
+                                                         reqProcessingStatePtr->getReqSignature(),
+                                                         reqProcessingStatePtr->getReqSignatureLength());
+      }
+
       LOG_DEBUG(logger(),
                 "Pass pre-processed request to ReplicaImp for consensus"
                     << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
