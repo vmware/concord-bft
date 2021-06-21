@@ -30,6 +30,8 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 
 from bft_client import MofNQuorum
 from util import skvbc
+from util import eliot_logging as log
+
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 def start_replica_cmd(builddir, replica_id):
@@ -114,6 +116,7 @@ class SkvbcPyclientTest(unittest.TestCase):
                 "having made any retries even after attempting a write to a " \
                 "non-running cluster.")
 
+    @unittest.skip("Skip due to instability. Tracked in BC-9404")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_primary_write(self, bft_network):
@@ -135,6 +138,7 @@ class SkvbcPyclientTest(unittest.TestCase):
                 "knowing the current primary after making a write request.")
         
         read_result = await client.read(protocol.read_req([key]))
+        expected_messages_sent = client.msgs_sent
         self.assertIsNotNone(client.primary, "A BFT Client reported not " \
                 "knowing the current primary after making a read request.")
         value_read = (protocol.parse_reply(read_result))[key]
@@ -144,10 +148,14 @@ class SkvbcPyclientTest(unittest.TestCase):
 
         value = protocol.random_value()
         await client.write(protocol.write_req([], [(key, value)], 1))
-
+        expected_messages_sent += 1 # We expect this request will only be sent
+                                    # to the primary.
         self.assertIsNotNone(client.primary, "A BFT Client reported not " \
                 "knowing the current primary after making a write request.")
-
+        self.assertEqual(expected_messages_sent, client.msgs_sent, "A BFT " \
+                "Client reported having sent an unexpected number of " \
+                "messages after a read request.")
+        
         read_result = await client.read(protocol.read_req([key]))
         self.assertIsNotNone(client.primary, "A BFT Client reported not " \
                 "knowing the current primary after making a read request.")
