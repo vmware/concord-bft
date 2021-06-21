@@ -20,7 +20,7 @@
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
 
-namespace client::concordclient {
+namespace concord::client::concordclient {
 
 struct SendError {
   std::string msg;
@@ -140,4 +140,4 @@ class ConcordClient {
   ConcordClientConfig config_;
 };
 
-}  // namespace client::concordclient
+}  // namespace concord::client::concordclient
