@@ -363,7 +363,9 @@ Replica::Replica(ICommunication *comm,
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
   m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   if (!replicaConfig.isReadOnly) {
-    stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
+    stReconfigurationSM_.reset(new concord::kvbc::StReconfigurationHandler(*m_stateTransfer, *this));
+  } else {
+    stReconfigurationSM_.reset(new concord::kvbc::RoStReconfigurationHandler(*m_stateTransfer, *m_bcDbAdapter));
   }
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.

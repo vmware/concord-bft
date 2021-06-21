@@ -140,4 +140,8 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
   return succ;
 }
 
+void RoStReconfigurationHandler::registerHandler(
+    std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
+  orig_reconf_handlers_.push_back(handler);
+}
 }  // namespace concord::kvbc

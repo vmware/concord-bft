@@ -18,6 +18,7 @@
 #include "concord.cmf.hpp"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "SysConsts.hpp"
+#include "db_adapter_interface.h"
 
 namespace concord::kvbc {
 /*
@@ -70,5 +71,35 @@ class StReconfigurationHandler : public IStReconfigurationHandler {
 
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
   kvbc::IReader& ro_storage_;
+};
+
+class RoStReconfigurationHandler : public IStReconfigurationHandler {
+ public:
+  RoStReconfigurationHandler(bftEngine::IStateTransfer& st, IDbAdapter& db_adapter) : db_adapter_{db_adapter} {
+    st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); },
+                                         bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
+    (void)db_adapter_;
+  }
+  virtual void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) override;
+  virtual bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
+  virtual bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) override { return true; }
+  virtual bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t, uint64_t) override {
+    return true;
+  }
+  virtual bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) override {
+    return true;
+  }
+  virtual bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) override {
+    return true;
+  }
+  virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t) override {
+    return true;
+  }
+  virtual bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t) override { return true; }
+
+ private:
+  void stCallBack(uint64_t) override {}
+  std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
+  kvbc::IDbAdapter& db_adapter_;
 };
 }  // namespace concord::kvbc
