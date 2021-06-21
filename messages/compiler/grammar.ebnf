@@ -5,7 +5,7 @@ start = {toplevel}+ $ ;
 
 toplevel = msgs:{msg}+ | enums:{enum_def}+ ;
 
-msg = 'Msg' name:msgname id:msgid '{' fields:{field}+ '}' ;
+msg = 'Msg' name:msgname id:msgid '{' fields:{field}* '}' ;
 enum_def = 'Enum' name:enumname '{' tags:','.{name}+ '}' ;
 
 msgname = name:name;

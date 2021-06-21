@@ -1,3 +1,4 @@
+add_subdirectory(cmf)
 add_subdirectory(TesterClient)
 add_subdirectory(TesterReplica)
 add_custom_target(copy_blockchain_scripts2 ALL COMMENT "Copying scripts abcd")
