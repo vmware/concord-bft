@@ -30,8 +30,6 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 
 from bft_client import MofNQuorum
 from util import skvbc
-from util import eliot_logging as log
-
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 
 def start_replica_cmd(builddir, replica_id):
