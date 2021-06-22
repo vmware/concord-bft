@@ -46,7 +46,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setCommitFullMsgInSeqNumWindow(SeqNum seqNum, CommitFullMsg* msg) override;
   void setCheckpointMsgInCheckWindow(SeqNum seqNum, CheckpointMsg* msg) override;
   void setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) override;
-  void setUserData(const void* data, std::size_t numberOfBytes) override;
+  void setUserDataAtomically(const void* data, std::size_t numberOfBytes) override;
+  void setUserDataInTransaction(const void* data, std::size_t numberOfBytes) override;
   SeqNum getLastExecutedSeqNum() override;
   SeqNum getPrimaryLastUsedSeqNum() override;
   SeqNum getStrictLowerBoundOfSeqNums() override;

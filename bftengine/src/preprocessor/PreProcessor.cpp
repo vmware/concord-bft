@@ -144,6 +144,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
                  preExecReqStatusCheckPeriodMilli_,
                  numOfThreads));
   RequestProcessingState::init(numOfRequiredReplies(), &histograms_);
+  PreProcessReplyMsg::setPreProcessorHistograms(&histograms_);
   addTimers();
 }
 
@@ -312,9 +313,15 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
                                                 uint64_t reqRetryId,
                                                 const string &cid,
                                                 const string &ongoingCid) {
-  auto replyMsg =
-      make_shared<PreProcessReplyMsg>(&histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
-  replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch), 0, cid, STATUS_REJECT);
+  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
+                                                  clientId,
+                                                  reqOffsetInBatch,
+                                                  reqSeqNum,
+                                                  reqRetryId,
+                                                  getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
+                                                  0,
+                                                  cid,
+                                                  STATUS_REJECT);
   LOG_DEBUG(
       logger(),
       KVLOG(reqSeqNum, senderId, clientId, reqOffsetInBatch, ongoingReqSeqNum, ongoingCid)
@@ -679,20 +686,6 @@ void PreProcessor::messageHandler(MessageBase *msg) {
     return;
   }
   T *trueTypeObj = new T(msg);
-  delete msg;
-  msgs_.push(trueTypeObj);
-  msgLoopSignal_.notify_one();
-}
-
-template <>
-void PreProcessor::messageHandler<PreProcessReplyMsg>(MessageBase *msg) {
-  if (!msgs_.write_available()) {
-    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
-    incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
-    return;
-  }
-  PreProcessReplyMsg *trueTypeObj = new PreProcessReplyMsg(msg);
-  trueTypeObj->setPreProcessorHistograms(&histograms_);
   delete msg;
   msgs_.push(trueTypeObj);
   msgLoopSignal_.notify_one();
@@ -1182,9 +1175,15 @@ void PreProcessor::handlePreProcessedReqByNonPrimary(uint16_t clientId,
                                                      const std::string &cid) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.handlePreProcessedReqByNonPrimary);
   setPreprocessingRightNow(clientId, reqOffsetInBatch, false);
-  auto replyMsg =
-      make_shared<PreProcessReplyMsg>(&histograms_, myReplicaId_, clientId, reqOffsetInBatch, reqSeqNum, reqRetryId);
-  replyMsg->setupMsgBody(getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch), resBufLen, cid, STATUS_GOOD);
+  auto replyMsg = make_shared<PreProcessReplyMsg>(myReplicaId_,
+                                                  clientId,
+                                                  reqOffsetInBatch,
+                                                  reqSeqNum,
+                                                  reqRetryId,
+                                                  getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch),
+                                                  resBufLen,
+                                                  cid,
+                                                  STATUS_GOOD);
   // Release the request before sending a reply to the primary to be able accepting new messages
   releaseClientPreProcessRequestSafe(clientId, reqOffsetInBatch, COMPLETE);
   sendMsg(replyMsg->body(), myReplica_.currentPrimary(), replyMsg->type(), replyMsg->size());

@@ -68,9 +68,9 @@ class SkvbcTest(unittest.TestCase):
         bft_network.start_replica(stale_node)
         await bft_network.wait_for_state_transfer_to_start()
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
-        await skvbc.assert_successful_put_get(self)
+        await skvbc.assert_successful_put_get()
         await bft_network.force_quorum_including_replica(stale_node)
-        await skvbc.assert_successful_put_get(self)
+        await skvbc.assert_successful_put_get()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -120,7 +120,7 @@ class SkvbcTest(unittest.TestCase):
                         all_in_checkpoint = False
                         break
 
-        await skvbc.assert_successful_put_get(self)
+        await skvbc.assert_successful_put_get()
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
@@ -141,7 +141,7 @@ class SkvbcTest(unittest.TestCase):
             for _ in range(300):
                 # Perform an unconditional KV put.
                 # Ensure keys aren't identical
-                await skvbc.read_your_writes(self)
+                await skvbc.read_your_writes()
 
 
     @with_trio

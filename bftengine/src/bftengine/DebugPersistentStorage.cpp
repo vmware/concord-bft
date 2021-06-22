@@ -264,9 +264,13 @@ void DebugPersistentStorage::setCheckpointMsgInCheckWindow(SeqNum s, CheckpointM
   checkData.setCheckpointMsg(msg->cloneObjAndMsg());
 }
 
-void DebugPersistentStorage::setUserData(const void *data, std::size_t numberOfBytes) {
+void DebugPersistentStorage::setUserDataAtomically(const void *data, std::size_t numberOfBytes) {
   const auto p = static_cast<const char *>(data);
   userData_.assign(p, p + numberOfBytes);
+}
+
+void DebugPersistentStorage::setUserDataInTransaction(const void *data, std::size_t numberOfBytes) {
+  setUserDataAtomically(data, numberOfBytes);
 }
 
 void DebugPersistentStorage::setCompletedMarkInCheckWindow(SeqNum seqNum, bool mark) {

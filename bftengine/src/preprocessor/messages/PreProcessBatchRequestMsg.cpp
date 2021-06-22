@@ -72,6 +72,8 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
 
   const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
   const string& batchCid = getCid();
+  const auto& clientId = msgBody()->clientId;
+  const auto& senderId = msgBody()->senderId;
   char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
   for (uint32_t i = 0; i < numOfMessagesInBatch; i++) {
     const auto& singleMsgHeader = *(PreProcessRequestMsg::Header*)dataPosition;
@@ -83,8 +85,8 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
     const concordUtils::SpanContext spanContext(string(spanDataPosition, singleMsgHeader.spanContextSize));
     const string cid(cidPosition, singleMsgHeader.cidLength);
     auto preProcessReqMsg = make_unique<preprocessor::PreProcessRequestMsg>(singleMsgHeader.reqType,
-                                                                            senderId(),
-                                                                            clientId(),
+                                                                            senderId,
+                                                                            clientId,
                                                                             singleMsgHeader.reqOffsetInBatch,
                                                                             singleMsgHeader.reqSeqNum,
                                                                             singleMsgHeader.reqRetryId,
@@ -94,15 +96,13 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             requestSignaturePosition,
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             spanContext);
-
     LOG_DEBUG(logger(),
-              "Single request info:" << KVLOG(
-                  batchCid, preProcessReqMsg->clientId(), preProcessReqMsg->getCid(), preProcessReqMsg->reqSeqNum()));
+              "Single request info:" << KVLOG(batchCid, clientId, senderId, cid, preProcessReqMsg->reqSeqNum()));
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
                     singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
   }
-  LOG_DEBUG(logger(), KVLOG(batchCid, msgBody()->clientId, preProcessReqMsgsList_.size(), numOfMessagesInBatch));
+  LOG_DEBUG(logger(), KVLOG(batchCid, clientId, senderId, preProcessReqMsgsList_.size(), numOfMessagesInBatch));
   return preProcessReqMsgsList_;
 }
 
