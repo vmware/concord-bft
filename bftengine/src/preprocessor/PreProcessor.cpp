@@ -119,7 +119,7 @@ PreProcessor::PreProcessor(shared_ptr<MsgsCommunicator> &msgsCommunicator,
   for (uint16_t i = 0; i < numOfReqEntries; i++) {
     // Placeholders for all clients including batches
     ongoingRequests_[firstClientRequestId + i] = make_shared<RequestState>();
-    preProcessResultBuffers_[i] = std::make_pair(false, Sliver());
+    preProcessResultBuffers_.emplace_back(std::make_pair(false, Sliver()));
   }
   RequestState::reqProcessingHistoryHeight *= clientMaxBatchSize_;
   uint64_t numOfThreads = myReplica.getReplicaConfig().preExecConcurrencyLevel;

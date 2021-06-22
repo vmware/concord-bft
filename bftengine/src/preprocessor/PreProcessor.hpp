@@ -48,7 +48,7 @@ struct RequestState {
 };
 
 // Pre-allocated (clientId * dataSize) buffers
-typedef std::vector<std::pair<std::atomic_bool, concordUtils::Sliver>> PreProcessResultBuffers;
+typedef std::deque<std::pair<std::atomic_bool, concordUtils::Sliver>> PreProcessResultBuffers;
 typedef std::shared_ptr<RequestState> RequestStateSharedPtr;
 // (clientId * dataSize + reqOffsetInBatch) -> RequestStateSharedPtr
 typedef std::unordered_map<uint16_t, RequestStateSharedPtr> OngoingReqMap;
