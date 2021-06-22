@@ -84,6 +84,7 @@ Our code style has the following exceptions that differ from the google C++ styl
 
  * We use `camelCase` function and method names, rather than `PascalCase`.
  * We allow, and encourage the use of exceptions.
+ * We allow and prefer `#pragma once` over include guards
 
 ## Reporting Bugs and Creating Issues
 
