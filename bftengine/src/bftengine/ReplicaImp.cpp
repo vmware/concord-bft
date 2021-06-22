@@ -3303,7 +3303,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
   if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof();
-    bftEngine::IControlHandler::instance()->onRestartProof();
+    ControlStateManager::instance().onRestartProof();
   }
 }
 
@@ -3321,7 +3321,7 @@ void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyPro
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
   metric_received_restart_proof_.Get().Inc();
-  bftEngine::IControlHandler::instance()->onRestartProof();
+  ControlStateManager::instance().onRestartProof();
   delete msg;
 }
 

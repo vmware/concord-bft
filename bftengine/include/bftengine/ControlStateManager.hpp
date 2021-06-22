@@ -17,6 +17,7 @@
 #include "ReservedPagesClient.hpp"
 #include "Serializable.h"
 #include "SysConsts.hpp"
+#include "callback_registry.hpp"
 
 namespace bftEngine {
 
@@ -45,6 +46,7 @@ static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
 
 class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHandlerStateManagerNumOfReservedPages> {
  public:
+  enum RestartProofHandlerPriorities { HIGH = 0, DEFAULT = 20, LOW = 40 };
   static ControlStateManager& instance() {
     static ControlStateManager instance_;
     return instance_;
@@ -69,6 +71,9 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void setRemoveMetadataFunc(std::function<void()> fn) { remove_metadata_ = fn; }
   void setRestartReadyFunc(std::function<void()> fn) { send_restart_ready_ = fn; }
   void sendRestartReadyToAllReplica() { send_restart_ready_(); }
+  void addOnRestartProofCallBack(std::function<void()> cb,
+                                 RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
+  void onRestartProof();
 
  private:
   ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
@@ -82,5 +87,6 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   std::atomic_bool onPruningProcess_ = false;
   std::function<void()> remove_metadata_;
   std::function<void()> send_restart_ready_;
+  std::map<uint32_t, concord::util::CallbackRegistry<>> on_restart_proof_cb_registery_;
 };
 }  // namespace bftEngine

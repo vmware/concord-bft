@@ -29,9 +29,6 @@ class ControlHandler : public IControlHandler {
     onNMinusFOutOfNCheckpoint_ = true;
     for (auto& cb : onStableCheckpointCallBack) cb();
   }
-  void onRestartProof() override {
-    if (onRestartProofCallBack) onRestartProofCallBack();
-  }
   bool onPruningProcess() override { return onPruningProcess_; }
   bool isOnNOutOfNCheckpoint() const override { return onNoutOfNCheckpoint_; }
   bool isOnStableCheckpoint() const override { return onNMinusFOutOfNCheckpoint_; }
@@ -42,8 +39,6 @@ class ControlHandler : public IControlHandler {
   void addOnStableCheckpointCallBack(const std::function<void()>& cb) override {
     onStableCheckpointCallBack.emplace_back(cb);
   }
-  // this callback is registered by higher level application to restart the replica
-  void setOnRestartProofCallBack(const std::function<void()>& cb) override { onRestartProofCallBack = cb; }
 
  private:
   bool onNoutOfNCheckpoint_ = false;
@@ -51,7 +46,6 @@ class ControlHandler : public IControlHandler {
   bool onPruningProcess_ = false;
   std::vector<std::function<void()>> onSuperStableCheckpointCallBack;
   std::vector<std::function<void()>> onStableCheckpointCallBack;
-  std::function<void()> onRestartProofCallBack;
 };
 
 }  // namespace bftEngine
