@@ -10,22 +10,51 @@
 // file.
 
 #include <iostream>
+#include <google/protobuf/util/time_util.h>
+#include <opentracing/tracer.h>
 
 #include "event_service.hpp"
+#include "client/concordclient/concord_client.hpp"
 
 using grpc::Status;
 using grpc::ServerContext;
 using grpc::ServerWriter;
 
+using google::protobuf::util::TimeUtil;
+
 using vmware::concord::client::v1::StreamEventGroupsRequest;
 using vmware::concord::client::v1::EventGroup;
+
+namespace cc = concord::client::concordclient;
 
 namespace concord::client::clientservice {
 
 Status EventServiceImpl::StreamEventGroups(ServerContext* context,
-                                           const StreamEventGroupsRequest* request,
+                                           const StreamEventGroupsRequest* proto_request,
                                            ServerWriter<EventGroup>* stream) {
   LOG_INFO(logger_, "EventServiceImpl::StreamEventGroups called");
+
+  cc::SubscribeRequest request;
+  request.event_group_id = proto_request->event_group_id();
+
+  auto callback = [stream](cc::EventGroup eg) {
+    EventGroup event_group;
+    event_group.set_id(eg.id);
+    for (cc::Event e : eg.events) {
+      *event_group.add_events() = std::string(e.begin(), e.end());
+    }
+    *event_group.mutable_record_time() = TimeUtil::MicrosecondsToTimestamp(eg.record_time.count());
+    *event_group.mutable_trace_context() = {eg.trace_context.begin(), eg.trace_context.end()};
+
+    stream->Write(event_group);
+  };
+
+  auto span = opentracing::Tracer::Global()->StartSpan("stream_event_groups", {});
+  client_->subscribe(request, span, callback);
+
+  while (!context->IsCancelled()) {
+  }
+
   return grpc::Status::OK;
 }
 
