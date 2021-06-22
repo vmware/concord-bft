@@ -44,31 +44,10 @@ static logging::Logger logger = logging::getLogger("concord.diagnostics");
 // Returns a successfully read line as a string.
 // Throws a std::runtime_error on error.
 inline std::string readline(int sock) {
-  std::array<char, MAX_INPUT_SIZE> buf;
+  static thread_local std::array<char, MAX_INPUT_SIZE> buf;
   buf.fill(0);
   size_t count = 0;
-  auto start = std::chrono::steady_clock::now();
-  auto timeout = std::chrono::microseconds(999999);
-  auto remaining = timeout;
   while (true) {
-    fd_set read_fds;
-    FD_ZERO(&read_fds);
-    FD_SET(sock, &read_fds);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = remaining.count();
-    auto rv = select(sock + 1, &read_fds, NULL, NULL, &tv);
-    if (rv == 0) {
-      throw std::runtime_error("timeout");
-    }
-    if (rv < 0 && errno == EINTR) {
-      LOG_DEBUG(logger, "EINTR");
-      continue;
-    }
-    if (rv < 0) {
-      throw std::runtime_error("diagnostics server readline select failed: " + errnoString(errno));
-    }
-
     if (count == MAX_INPUT_SIZE) {
       throw std::runtime_error("Request exceeded max size: " + std::to_string(MAX_INPUT_SIZE));
     }
@@ -86,14 +65,6 @@ inline std::string readline(int sock) {
       return std::string(buf.begin(), it);
     }
     LOG_DEBUG(logger, "More data to read. Got: " << std::string(buf.begin(), buf.begin() + count));
-
-    // We may not have received all the data yet. Update the timeout.
-    auto end = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    remaining = timeout - duration;
-    if (remaining.count() <= 0) {
-      throw std::runtime_error("timeout");
-    }
   }
 }
 
@@ -133,6 +104,22 @@ inline void handleRequest(Registrar& registrar, int sock) {
 // async connections via boost ASIO if necessary, although this seems extremely heavy handed for the
 // use case.
 class Server {
+  bool setTimeOut(int fd, time_t seconds = 1) {
+    struct timeval timeout;
+    timeout.tv_sec = seconds;
+    timeout.tv_usec = 0;
+    if (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+      LOG_ERROR(logger, "Diagnostics Server failed to set read timeout\n");
+      return false;
+    }
+
+    if (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0) {
+      LOG_ERROR(logger, "Diagnostics Server failed to set write timeout\n");
+      return false;
+    }
+    return true;
+  }
+
  public:
   ~Server() {
     LOG_INFO(logger, "Diagnostics Server being destroyed.");
@@ -148,30 +135,25 @@ class Server {
         return;
       }
 
+      if (!setTimeOut(listen_sock_)) {
+        LOG_ERROR(logger, "Diagnostics Server will not start.");
+        return;
+      }
+
       while (!shutdown_.load()) {
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(listen_sock_, &read_fds);
-        timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-        auto rv = select(listen_sock_ + 1, &read_fds, NULL, NULL, &tv);
-        if (rv == 0) continue;  // timeout
-        if (rv < 0 && errno == EINTR) {
-          LOG_WARN(logger, "While waiting for a client requests, an interruption has occurred.");
-          continue;
-        }
-        if (rv < 0) {
-          LOG_ERROR(logger,
-                    "Error while waiting for new client request, shutting down the server: " << errnoString(errno));
-          return;
-        }
         int sock = accept(listen_sock_, NULL, NULL);
         if (sock < 0) {
-          LOG_WARN(logger, "Failed to accept connection: " << errnoString(errno));
-          continue;
+          if (errno == EAGAIN || errno == EINTR) {
+            LOG_WARN(logger, "DEBUG: TIMEOUT: " << errnoString(errno));
+            continue;
+          } else {
+            LOG_WARN(logger, "Failed to accept connection: " << errnoString(errno));
+            continue;
+          }
         }
-        handleRequest(registrar, sock);
+        if (setTimeOut(sock)) {
+          handleRequest(registrar, sock);
+        }
       }
     });
   }
