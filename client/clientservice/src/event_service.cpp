@@ -37,7 +37,12 @@ Status EventServiceImpl::StreamEventGroups(ServerContext* context,
   cc::SubscribeRequest request;
   request.event_group_id = proto_request->event_group_id();
 
-  auto callback = [stream](cc::EventGroup eg) {
+  auto callback = [this, stream](cc::SubscribeResult event) {
+    if (not std::holds_alternative<cc::EventGroup>(event)) {
+      LOG_INFO(logger_, "Subscribe returned error");
+      return;
+    }
+    auto eg = std::get<cc::EventGroup>(event);
     EventGroup event_group;
     event_group.set_id(eg.id);
     for (cc::Event e : eg.events) {

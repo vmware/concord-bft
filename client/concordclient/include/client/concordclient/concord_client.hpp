@@ -109,6 +109,10 @@ struct EventGroup {
   std::map<std::string, std::string> trace_context;
 };
 
+// TODO
+struct SubscribeError {};
+typedef std::variant<SubscribeError, EventGroup> SubscribeResult;
+
 // ConcordClient combines two different client functionalities into one interface.
 // On one side, the bft client to send/recieve request/response and on the other, the subscription API to
 // observe events.
@@ -131,7 +135,7 @@ class ConcordClient {
             CallbackT callback);
 
   // Register a callback that gets invoked for every validated event received.
-  // void callback(EventGroup);
+  // void callback(SubscribeResult);
   // Return subscriber ID used to unsubscribe.
   template <class CallbackT>
   void subscribe(const SubscribeRequest& request,
@@ -158,6 +162,7 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
                               CallbackT callback) {
   if (not stop_subscriber_) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
+    callback(SubscribeResult{SubscribeError{}});
     return;
   }
 
@@ -176,7 +181,7 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
       eg.record_time = std::chrono::duration_cast<std::chrono::microseconds>(time_now);
       eg.trace_context = {};
 
-      callback(eg);
+      callback(SubscribeResult{eg});
     }
   });
 }
