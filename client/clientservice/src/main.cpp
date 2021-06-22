@@ -15,8 +15,11 @@
 
 #include "Logger.hpp"
 #include "client_service.hpp"
+#include "client/concordclient/concord_client.hpp"
 
 using concord::client::clientservice::ClientService;
+using concord::client::concordclient::ConcordClient;
+using concord::client::concordclient::ConcordClientConfig;
 
 int main(int argc, char** argv) {
   // TODO: Use config file and watch thread
@@ -25,8 +28,10 @@ int main(int argc, char** argv) {
   std::string addr = "localhost:1337";
   LOG_INFO(logger, "Starting clientservice at " << addr);
 
-  // TODO: Create ConcordClient
-  ClientService service;
+  // TODO: Setup ConcordClientConfig and read from config file
+  ConcordClientConfig config{};
+  auto concord_client = std::make_unique<ConcordClient>(config);
+  ClientService service(std::move(concord_client));
   service.start(addr);
 
   return 0;
