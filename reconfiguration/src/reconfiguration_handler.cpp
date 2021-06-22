@@ -66,13 +66,17 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   if (command.bft) {
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
         [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
-    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
   } else {
     bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
         [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
-    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
   }
   return true;
 }  // namespace concord::reconfiguration

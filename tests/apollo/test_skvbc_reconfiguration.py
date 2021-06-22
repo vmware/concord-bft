@@ -1236,6 +1236,36 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
                     with self.assertRaises(trio.TooSlowError):
                         await skvbc.write_known_kv()
+    
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    async def test_remove_nodes_wo_restart(self, bft_network):
+        """
+             Sends a addRemove command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a remove command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Validate that replicas don't get restart ready or restart proof messages
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100):
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_n_4_f_1_c_0'
+        await op.add_remove_with_wedge(test_config, bft=False, restart=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        for r in bft_network.all_replicas():
+            restartReadyMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartReadyMsg")
+            restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
+            self.assertEqual(restartReadyMsg, 0)
+            self.assertEqual(restartProofMsg, 0)
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
