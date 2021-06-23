@@ -836,6 +836,68 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self._wait_for_st(bft_network, ro_replica_id, 150)
 
     @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_epoch_scenarios(self, bft_network):
+        """
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        for i in range(100):
+            await skvbc.write_known_kv()
+        # choose two replicas to crash and crash them
+        crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
+        bft_network.stop_replicas(crashed_replicas)
+        # All next request should be go through the slow path
+        for i in range(100):
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        live_replicas = bft_network.all_replicas(without=crashed_replicas)
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_dummy'
+        await op.add_remove_with_wedge(test_config)
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, live_replicas)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc)
+        await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        bft_network.stop_replicas(live_replicas)
+        bft_network.start_replicas(live_replicas)
+        await self.validate_epoch_number(bft_network=bft_network, replicas=live_replicas, expected_epoch=1)
+        for i in range(100):
+            await skvbc.write_known_kv()
+        test_config = 'new_configuration_dummy_2'
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        await op.add_remove_with_wedge(test_config)
+        await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, live_replicas)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc)
+        await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        bft_network.stop_replicas(live_replicas)
+        bft_network.start_replicas(live_replicas)
+        await self.validate_epoch_number(bft_network=bft_network, replicas=live_replicas, expected_epoch=2)
+        # Because the late replicas has already 100 sequence numbers in the storage (from before) we need to create a
+        # distance of at least 300 sequence numbers between them and the new state
+        for i in range(600):
+            await skvbc.write_known_kv()
+        initial_prim = 0
+        await bft_network.wait_for_last_stable_seq_num(initial_prim, 600)
+        bft_network.start_replicas(crashed_replicas)
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in crashed_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+        # Now, we want to restart the new replica (as it just finished the state transfer of the previous epoch)
+        bft_network.stop_replicas(crashed_replicas)
+        bft_network.start_replicas(crashed_replicas)
+        for i in range(300):
+            await skvbc.write_known_kv()
+        await self.validate_epoch_number(bft_network=bft_network, replicas=crashed_replicas, expected_epoch=2)
+
+
+
+    @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_remove_nodes_with_f_failures(self, bft_network):
         """
