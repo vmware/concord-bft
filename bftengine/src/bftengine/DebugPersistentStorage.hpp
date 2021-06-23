@@ -68,7 +68,7 @@ class DebugPersistentStorage : public PersistentStorage {
   CommitFullMsg* getAndAllocateCommitFullMsgInSeqNumWindow(SeqNum seqNum) override;
   CheckpointMsg* getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
-  std::vector<std::uint8_t> getUserData() const override;
+  std::optional<std::vector<std::uint8_t>> getUserData() const override;
   void setEraseMetadataStorageFlag() override {}
   bool getEraseMetadataStorageFlag() override { return false; };
   void eraseMetadata() override{};
@@ -107,7 +107,7 @@ class DebugPersistentStorage : public PersistentStorage {
   // range: TODO(GG): !!!!!!!
   CheckWindow checkWindow;
 
-  std::vector<std::uint8_t> userData_;
+  std::optional<std::vector<std::uint8_t>> userData_;
 };
 
 }  // namespace impl

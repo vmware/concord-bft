@@ -829,10 +829,13 @@ bool PersistentStorageImp::getCompletedMarkInCheckWindow(SeqNum seqNum) {
   return readCompletedMarkFromDisk(seqNum);
 }
 
-std::vector<std::uint8_t> PersistentStorageImp::getUserData() const {
+std::optional<std::vector<std::uint8_t>> PersistentStorageImp::getUserData() const {
   auto buf = std::vector<std::uint8_t>(kMaxUserDataSizeBytes);
   auto actualSize = std::uint32_t{0};
   metadataStorage_->read(USER_DATA, buf.size(), reinterpret_cast<char *>(buf.data()), actualSize);
+  if (0 == actualSize) {
+    return std::nullopt;
+  }
   buf.resize(actualSize);
   return buf;
 }
