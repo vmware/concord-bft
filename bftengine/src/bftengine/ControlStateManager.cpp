@@ -24,12 +24,13 @@ namespace bftEngine {
  * The next possible checkpoint to stop at is 450 (rather than 300). Thus, we calculate the next next checkpoint w.r.t
  * given sequence number and mark it as a checkpoint to stop at in the reserved pages.
  */
-void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
+void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum, bool saveToReservedPages) {
   if (!enabled_) return;
   uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
   seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
-  std::ostringstream outStream;
   page_.seq_num_to_stop_at_ = seq_num_to_stop_at;
+  if (!saveToReservedPages) return;
+  std::ostringstream outStream;
   concord::serialize::Serializable::serialize(outStream, page_);
   auto data = outStream.str();
   saveReservedPage(0, data.size(), data.data());

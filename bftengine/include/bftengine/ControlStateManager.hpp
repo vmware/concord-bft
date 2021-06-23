@@ -50,7 +50,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
     return instance_;
   }
   ~ControlStateManager() = default;
-  void setStopAtNextCheckpoint(int64_t currentSeqNum);
+  void setStopAtNextCheckpoint(int64_t currentSeqNum, bool saveToReservedPages = true);
   std::optional<int64_t> getCheckpointToStopAt();
 
   void setEraseMetadataFlag(int64_t currentSeqNum);
@@ -67,6 +67,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void setRemoveMetadataFunc(std::function<void()> fn) { remove_metadata_ = fn; }
   void startNewEpoch() { starting_new_epoch_ = true; }
   bool isNewEpoch() { return starting_new_epoch_; }
+  void clearNewEpoch() { starting_new_epoch_ = false; }
 
  private:
   ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }

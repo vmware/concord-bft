@@ -86,27 +86,49 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
                                       uint64_t bid) {
+  if (bftEngine::ControlStateManager::instance().isNewEpoch()) {
+    LOG_INFO(GL, "need to start a new epoch, lets start it first");
+    return false;
+  }
   auto self_epoch_num = bftEngine::EpochManager::instance().getSelfEpoch();
   auto command_epoch_num = getEpochNumber(bid);
   auto maxEpochNumber = bftEngine::EpochManager::instance().getHighestQuorumedEpoch();
-  LOG_INFO(GL, KVLOG(self_epoch_num, command_epoch_num, maxEpochNumber));
   if (maxEpochNumber == -1) {
-    LOG_ERROR(GL, "unable to get an agreed epoch number");
+    LOG_ERROR(GL, "unable to get the highest epoch number in the system");
     return false;
   }
-
+  LOG_INFO(GL, KVLOG(self_epoch_num, command_epoch_num, maxEpochNumber));
   auto cp_sn = checkpointWindowSize * current_cp_num;
   auto wedge_point = (bft_seq_num + 2 * checkpointWindowSize);
   wedge_point = wedge_point - (wedge_point % checkpointWindowSize);
   LOG_INFO(GL, KVLOG(bft_seq_num, cp_sn, wedge_point));
-  // We have already executed this command, no need to execute it again.
+
+  /*
+   * (1) if we already in an advanced epoch, we need to do noting
+   */
   if (self_epoch_num > command_epoch_num) return true;
-  // We will probably have more ST, no need to do anything until we done
-  if (maxEpochNumber > 0 && command_epoch_num < (uint64_t)maxEpochNumber - 1) return true;
-  // We still need to do nothing, we are not on the wedge point.
-  if (self_epoch_num == (uint64_t)maxEpochNumber && cp_sn < wedge_point) return true;
-  // If we are on the same epoch and on the wedge point, act like a normal replica
-  if (self_epoch_num == (uint64_t)maxEpochNumber && cp_sn == wedge_point) {
+
+  /*
+   * (2) if we are in the same epoch, but not in the wedge point yet, then lets wait for another state transfer
+   * (this can be happen if we started state transfer for the last checkpoint before the wedge point
+   */
+  if (self_epoch_num == command_epoch_num && cp_sn < wedge_point) return true;
+
+  /*
+   * If (1) and (2) did not hit, it means that we need to run the original reconfiguration handlers.
+   * Notice, that we shouldn't run concord-bft's handler (and it is not registered) as it writes to the reserved pages
+   * and we are in the middle of state transfer.
+   */
+  concord::messages::ReconfigurationResponse response;
+  for (auto &h : orig_reconf_handlers_) {
+    h->handle(command, bft_seq_num, response);
+  }
+
+  /*
+   * (3) Now, if we are in the same epoch and in the wedge point and as the other replicas,
+   * handle it as the original concord-bft's handler
+   */
+  if (self_epoch_num == command_epoch_num && self_epoch_num == (uint64_t)maxEpochNumber && cp_sn == wedge_point) {
     if (command.bft) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
@@ -116,15 +138,21 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
     }
     return true;
   }
-  // We just join the network, we know nothing about previous epochs. Then just anounce it and join
-  if (!bftEngine::ControlStateManager::instance().isNewEpoch()) {
-    bftEngine::EpochManager::instance().reserveEpochNumberForLaterUse((uint64_t)maxEpochNumber);
-    return true;
-  }
-  // Else, we are in a previous epoch, we need to resync ourselves immidietly.
-  bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-      [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
 
+  /*
+   * (4) The only other possibility is that we are in a previous epoch, in this case, we want to wedge (without writing
+   * anything to the reserved pages) and immediately remove the metadata and restart. There is no reason to wait here
+   * for the restart algorithm as it will never happen (the other replicas are already in an advanced epoch)
+   */
+  if (self_epoch_num < command_epoch_num || self_epoch_num < (uint64_t)maxEpochNumber) {
+    // now, we cannot rely on the received sequence number, we simply want to stop immediately
+    auto fake_seq_num = cp_sn - 2 * checkpointWindowSize;
+    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(fake_seq_num, false);
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().markRemoveMetadata();
+      // TODO(YB): Call here to the restart callback
+    });
+  }
   return true;
 }
 

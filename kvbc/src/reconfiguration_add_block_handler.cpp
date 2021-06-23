@@ -248,6 +248,9 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::EpochUpda
       epoch = epoch_msg.epoch_number;
       bftEngine::EpochManager::instance().updateEpochForReplica(i, epoch);
     }
+    if (source == bftEngine::ReplicaConfig::instance().replicaId) {
+      bftEngine::ControlStateManager::instance().clearNewEpoch();
+    }
   }
   bftEngine::EpochManager::instance().save();
   return true;

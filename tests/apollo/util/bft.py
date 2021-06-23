@@ -1134,6 +1134,17 @@ class BftTestNetwork:
             
             return await self.wait_for(expected_seq_num_to_be_reached, 30, .5)
 
+    async def wait_for_last_stable_seq_num(self, replica_id=0, expected=0):
+        with log.start_action(action_type="wait_for_last_executed_seq_num"):
+            async def expected_stable_seq_num_to_be_reached():
+                key = ['replica', 'Gauges', 'lastStableSeqNum']
+                last_stable_seq_num = await self.retrieve_metric(replica_id, *key)
+
+                if last_stable_seq_num is not None and last_stable_seq_num >= expected:
+                    return last_stable_seq_num
+
+            return await self.wait_for(expected_stable_seq_num_to_be_reached, 30, .5)
+
     async def assert_state_transfer_not_started_all_up_nodes(self, up_replica_ids):
         with log.start_action(action_type="assert_state_transfer_not_started_all_up_nodes"):
             with trio.fail_after(METRICS_TIMEOUT_SEC):

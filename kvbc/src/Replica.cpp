@@ -116,7 +116,6 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
   auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain);
-  stReconfigurationSM_->registerHandler(requestHandler->getReconfigurationHandler());
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));

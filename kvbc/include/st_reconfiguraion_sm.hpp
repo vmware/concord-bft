@@ -32,6 +32,7 @@ class StReconfigurationHandler {
   }
 
   void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
+    if (handler == nullptr) return;
     orig_reconf_handlers_.push_back(handler);
   }
 

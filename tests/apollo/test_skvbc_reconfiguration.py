@@ -1018,12 +1018,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(301):
             await skvbc.write_known_kv()
+        await bft_network.wait_for_last_stable_seq_num(initial_prim, 300)
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=False)
+                                                              stop_on_stable_seq_num=True)
+        # We now restart the new replicas in order to let them starting the new epoch
+        bft_network.stop_replicas(new_replicas)
+        bft_network.start_replicas(new_replicas)
         for i in range(200):
             await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
@@ -1060,12 +1064,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(301):
             await skvbc.write_known_kv()
+        await bft_network.wait_for_last_stable_seq_num(initial_prim, 300)
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=False)
+                                                              stop_on_stable_seq_num=True)
+
+        # We now restart the new replicas in order to let them starting the new epoch
+        bft_network.stop_replicas(new_replicas)
+        bft_network.start_replicas(new_replicas)
         for i in range(300):
             await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=2)
@@ -1136,14 +1145,18 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         await self.validate_epoch_number(bft_network=bft_network, replicas=on_time_replicas, expected_epoch=1)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(301):
+        for i in range(300):
             await skvbc.write_known_kv()
+        await bft_network.wait_for_last_stable_seq_num(initial_prim, 300)
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=False)
+                                                              stop_on_stable_seq_num=True)
+        # Now, we want to restart the state transffered replicas (as they just finished the state transfer of the previous epoch)
+        bft_network.stop_replicas(new_replicas)
+        bft_network.start_replicas(new_replicas)
         for i in range(200):
             await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
@@ -1180,12 +1193,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(301):
             await skvbc.write_known_kv()
+        await bft_network.wait_for_last_stable_seq_num(initial_prim, 300)
         bft_network.start_replicas(late_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in late_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
-                                                              stop_on_stable_seq_num=False)
+                                                              stop_on_stable_seq_num=True)
+        # Now, we want to restart the new replica (as it just finished the state transfer of the previous epoch)
+        bft_network.stop_replicas({6})
+        bft_network.start_replicas({6})
         for i in range(300):
             await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=2)
