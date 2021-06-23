@@ -148,6 +148,7 @@ add_subdirectory(reconfiguration)
 add_subdirectory(client)
 add_subdirectory(thin-replica-server)
 add_subdirectory(ccron)
+add_subdirectory(cre)
 
 #
 # Setup testing
