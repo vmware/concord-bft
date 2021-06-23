@@ -20,9 +20,9 @@
 namespace bftEngine::impl {
 class ReplicasAskedToLeaveViewInfo {
  public:
-  ReplicasAskedToLeaveViewInfo(const ReplicaConfig& config) : config_(config) {}
+  ReplicasAskedToLeaveViewInfo(const int16_t fVal) : f_val(fVal) {}
 
-  ReplicasAskedToLeaveViewInfo(ReplicasAskedToLeaveViewInfo&& rhs) : config_(rhs.config_), msgs(std::move(rhs.msgs)) {}
+  ReplicasAskedToLeaveViewInfo(ReplicasAskedToLeaveViewInfo&& rhs) : f_val(rhs.f_val), msgs(std::move(rhs.msgs)) {}
 
   ReplicasAskedToLeaveViewInfo& operator=(ReplicasAskedToLeaveViewInfo&& rhs) {
     msgs.clear();
@@ -30,7 +30,7 @@ class ReplicasAskedToLeaveViewInfo {
     return *this;
   }
 
-  bool hasQuorumToLeaveView() const { return msgs.size() >= config_.fVal + 1U; }
+  bool hasQuorumToLeaveView() const { return msgs.size() >= f_val + 1U; }
 
   void store(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& msg) {
     msgs.emplace(msg->idOfGeneratedReplica(), std::move(msg));
@@ -51,7 +51,7 @@ class ReplicasAskedToLeaveViewInfo {
   const auto& getAllMsgs() const { return msgs; }
 
  private:
-  const ReplicaConfig& config_;
+  const int16_t f_val;
   std::unordered_map<NodeIdType, std::shared_ptr<ReplicaAsksToLeaveViewMsg>> msgs;
 };
 
