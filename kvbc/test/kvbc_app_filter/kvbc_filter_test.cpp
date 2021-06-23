@@ -184,7 +184,6 @@ inline std::string prefixImmutableKey(const std::string &key, uint64_t immutable
 TEST(kvbc_filter_test, kvbfilter_update_success) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "Ke";
   const auto block_id = BlockId{1};
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
 
@@ -213,40 +212,9 @@ TEST(kvbc_filter_test, kvbfilter_update_success) {
   }
 }
 
-TEST(kvbc_filter_test, kvbfilter_update_message_prefix_only_one_matched) {
+TEST(kvbc_filter_test, kvbfilter_update_message_empty_prefix) {
   FakeStorage storage;
   int client_id = 0;
-  std::string key_prefix = "Ke";
-  const auto block_id = BlockId{1};
-  auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
-
-  auto val_trid1 = CreateTridKvbValue("TridVal", {"0"});
-
-  std::string key1{"Rey"};
-  std::string key2{"Key"};
-  concord::kvbc::categorization::ImmutableInput immutable{};
-  concord::kvbc::categorization::ImmutableValueUpdate value1;
-  value1.data = val_trid1;
-  value1.tags = {"0"};
-  concord::kvbc::categorization::ImmutableValueUpdate value2 = value1;
-  immutable.kv.insert({prefixImmutableKey(key1, block_id), value1});
-  immutable.kv.insert({prefixImmutableKey(key2, block_id), value2});
-
-  const auto &filtered = kvb_filter.filterUpdate({block_id, "cid", immutable});
-
-  EXPECT_EQ(filtered.block_id, block_id);
-  const auto &filtered_map = filtered.kv_pairs;
-  EXPECT_EQ(filtered_map.size(), 1);
-  for (auto &[k, v] : filtered_map) {
-    EXPECT_EQ(k, "Key");
-    EXPECT_EQ(v, "TridVal");
-  }
-}
-
-TEST(kvbc_filter_testsr, kvbfilter_update_message_empty_prefix) {
-  FakeStorage storage;
-  int client_id = 0;
-  std::string key_prefix = "";
   const BlockId block_id = BlockId{1};
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
 
@@ -276,7 +244,6 @@ TEST(kvbc_filter_testsr, kvbfilter_update_message_empty_prefix) {
 TEST(kvbc_filter_test, kvbfilter_update_client_has_no_trids) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   const auto block_id = BlockId{1};
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
 
@@ -299,7 +266,6 @@ TEST(kvbc_filter_test, kvbfilter_update_client_has_no_trids) {
 TEST(kvbc_filter_test, kvbfilter_hash_update_success) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
 
   std::string key{"Restringy"};
@@ -332,7 +298,6 @@ TEST(kvbc_filter_test, kvbfilter_hash_update_success) {
 TEST(kvbc_filter_test, kvbfilter_success_get_blocks_in_range) {
   FakeStorage storage;
   size_t client_id = 123;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   storage.fillWithData(kLastBlockId);
 
@@ -361,7 +326,6 @@ TEST(kvbc_filter_test, kvbfilter_success_get_blocks_in_range) {
 TEST(kvbc_filter_test, kvbfilter_stop_exec_in_the_middle) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   storage.fillWithData(1000);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now() + std::chrono::seconds(30);
@@ -392,7 +356,6 @@ TEST(kvbc_filter_test, kvbfilter_stop_exec_in_the_middle) {
 TEST(kvbc_filter_test, kvbfilter_block_out_of_range) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   BlockId block_id = kLastBlockId + 5;
   KvbFilteredUpdate temporary;
@@ -404,7 +367,6 @@ TEST(kvbc_filter_test, kvbfilter_block_out_of_range) {
 TEST(kvbc_filter_test, kvbfilter_end_block_greater_then_start_block) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   storage.fillWithData(kLastBlockId);
   BlockId block_id_end = 0;
@@ -418,7 +380,6 @@ TEST(kvbc_filter_test, kvbfilter_end_block_greater_then_start_block) {
 TEST(kvbc_filter_test, kvbfilter_success_hash_of_blocks_in_range) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   storage.fillWithData(kLastBlockId);
 
@@ -455,7 +416,6 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_blocks_in_range) {
 TEST(kvbc_filter_test, kvbfilter_success_hash_of_block) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   storage.fillWithData(kLastBlockId);
   BlockId block_id_start = 1;
@@ -480,7 +440,6 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_block) {
 TEST(kvbc_filter_test, kvbfilter_hash_filter_block_out_of_range) {
   FakeStorage storage;
   int client_id = 1;
-  std::string key_prefix = "";
   auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
   storage.fillWithData(kLastBlockId);
   BlockId block_id_start = 1;
