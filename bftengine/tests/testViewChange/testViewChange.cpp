@@ -60,15 +60,6 @@ class DummyShareVerificationKey : public IShareVerificationKey {
   virtual std::string toString() const override { return std::string("123"); }
 };
 
-class DummyThresholdAccumulator : public IThresholdAccumulator {
- public:
-  virtual int add(const char* sigShareWithId, int len) override { return 0; }
-  virtual void setExpectedDigest(const unsigned char* msg, int len) override {}
-  virtual bool hasShareVerificationEnabled() const override { return true; }
-  virtual int getNumValidShares() const override { return 0; }
-  virtual void getFullSignedData(char* outThreshSig, int threshSigLen) override {}
-};
-
 class DummySigner : public IThresholdSigner {
   DummyShareSecretKey dummyShareSecretKey_;
   DummyShareVerificationKey dummyShareVerificationKey_;

@@ -84,7 +84,7 @@ class ThresholdViabilityTest {
     testAssertNotNull(verifier());
 
     LOG_INFO(THRESHSIGN_LOG,
-             "Testing " << typeid(params).name() << " on " << reqSigners << " out of " << numSigners << " signers");
+             "Testing " << reqSigners << " out of " << numSigners << " signers. Verify shares: " << verifiesShares);
     GroupType h = hashMessage(msg, msgSize);
 
     VectorOfShares signers;
