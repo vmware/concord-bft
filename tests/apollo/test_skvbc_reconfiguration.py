@@ -891,8 +891,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # Now, we want to restart the new replica (as it just finished the state transfer of the previous epoch)
         bft_network.stop_replicas(crashed_replicas)
         bft_network.start_replicas(crashed_replicas)
-        for i in range(300):
-            await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=crashed_replicas, expected_epoch=2)
 
 
@@ -1090,10 +1088,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # We now restart the new replicas in order to let them starting the new epoch
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
-        for i in range(200):
-            await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
-
+        # Make sure that we are able to execute requests in fast path
+        for i in range(100):
+            await skvbc.write_known_kv()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1137,10 +1135,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # We now restart the new replicas in order to let them starting the new epoch
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
-        for i in range(300):
-            await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=2)
-
+        # Make sure that we are able to execute requests in fast path
+        for i in range(100):
+            await skvbc.write_known_kv()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1219,9 +1217,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # Now, we want to restart the state transffered replicas (as they just finished the state transfer of the previous epoch)
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
-        for i in range(200):
-            await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=1)
+        # Make sure that we are able to execute requests in fast path
+        for i in range(100):
+            await skvbc.write_known_kv()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1265,10 +1264,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # Now, we want to restart the new replica (as it just finished the state transfer of the previous epoch)
         bft_network.stop_replicas({6})
         bft_network.start_replicas({6})
-        for i in range(300):
-            await skvbc.write_known_kv()
         await self.validate_epoch_number(bft_network=bft_network, replicas=bft_network.all_replicas(), expected_epoch=2)
-
+        # Make sure that we are able to execute requests in fast path
+        for i in range(100):
+            await skvbc.write_known_kv()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1326,7 +1325,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     async def validate_epoch_number(self, bft_network, replicas, expected_epoch):
         with log.start_action(action_type="validate_epoch_number") as action:
-            with trio.fail_after(seconds=60):
+            with trio.fail_after(seconds=90):
                 for replica_id in replicas:
                     while True:
                         with trio.move_on_after(seconds=1):
