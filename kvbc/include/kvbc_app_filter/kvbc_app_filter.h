@@ -65,11 +65,8 @@ class InvalidBlockRange : public std::exception {
 
 class KvbAppFilter {
  public:
-  KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id, const std::string &key_prefix)
-      : logger_(logging::getLogger("concord.storage.KvbFilter")),
-        rostorage_(rostorage),
-        client_id_(client_id),
-        key_prefix_(key_prefix) {}
+  KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id)
+      : logger_(logging::getLogger("concord.storage.KvbFilter")), rostorage_(rostorage), client_id_(client_id) {}
 
   // Filter the given update
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
@@ -80,7 +77,6 @@ class KvbAppFilter {
   // Return all key-value pairs from the KVB in the block range [earliest block
   // available, given block_id] with the following conditions:
   //   * The key-value pair is part of a block
-  //   * The key starts with the given key_prefix
   // The result is pushed to the given queue. Thereby, the caller is responsible
   // for consuming the elements from the queue. The function will block if the
   // queue is full and therefore, it cannot push a new key-value pair.
@@ -107,7 +103,6 @@ class KvbAppFilter {
   logging::Logger logger_;
   const concord::kvbc::IReader *rostorage_;
   const std::string client_id_;
-  const std::string key_prefix_;
 };
 
 }  // namespace kvbc
