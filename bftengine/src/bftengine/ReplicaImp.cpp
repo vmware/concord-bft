@@ -383,7 +383,10 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t require
 }
 
 PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
-  if (requestsQueueOfPrimary.size() < requiredRequestsNum) {
+  ConcordAssertGE(requiredRequestsNum, 0);
+  // DD: To make sure that time service does not affect sending messages
+  uint32_t timeServiceBatchSizeAdjustment = config_.timeServiceEnabled ? 1 : 0;
+  if (requestsQueueOfPrimary.size() < requiredRequestsNum - timeServiceBatchSizeAdjustment) {
     LOG_DEBUG(GL,
               "Not enough messages in the primary replica queue to fill a batch"
                   << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
@@ -737,8 +740,12 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
 
     // Check to see if this is a noop.
     bool isNoop = false;
-    if (msg->numberOfRequests() == 1) {
+    const auto numOfRequestsInNoop = config_.timeServiceEnabled ? 2 : 1;
+    if (msg->numberOfRequests() == numOfRequestsInNoop) {
       auto it = RequestsIterator(msg);
+      for (auto i = 0; i < numOfRequestsInNoop - 1; ++i) {
+        it.gotoNext();
+      }
       char *requestBody = nullptr;
       it.getCurrent(requestBody);
       isNoop = (reinterpret_cast<ClientRequestMsgHeader *>(requestBody)->requestLength == 0);
