@@ -595,7 +595,7 @@ ThinReplicaClient::~ThinReplicaClient() {
   }
 }
 
-void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
+void ThinReplicaClient::Subscribe() {
   ConcordAssert(config_->trs_conns.size() > 0);
   // XXX: The following implementation does not achieve Subscribe's specified
   //      interface and behavior (see the comments with Subscribe's declaration
@@ -789,7 +789,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
   subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
 }
 
-void ThinReplicaClient::Subscribe(const string& key_prefix_bytes, uint64_t block_id) {
+void ThinReplicaClient::Subscribe(uint64_t block_id) {
   // Stop any existing subscription before trying to start a new one.
   stop_subscription_thread_ = true;
   if (subscription_thread_) {

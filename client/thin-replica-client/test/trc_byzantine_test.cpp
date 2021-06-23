@@ -177,7 +177,7 @@ TEST(trc_byzantine_test, test_read_state_empty_state) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(update_data, 0)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(
       test_state.update_queue_, update_data, num_initial_updates, "a faulty server providing empty initial state");
 }
@@ -191,7 +191,7 @@ TEST(trc_byzantine_test, test_read_state_suffix_missing) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data, num_initial_updates_in_incomplete_state)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -209,7 +209,7 @@ TEST(trc_byzantine_test, test_read_state_infix_missing) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data_missing_state_infix, num_initial_updates_in_incomplete_state)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -236,7 +236,7 @@ TEST(trc_byzantine_test, test_read_state_fabricated_state) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data_with_fabrication, num_initial_updates + 1)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -254,7 +254,7 @@ TEST(trc_byzantine_test, test_read_state_erased_block_id) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -277,7 +277,7 @@ TEST(trc_byzantine_test, test_read_state_wrong_block_id) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -300,7 +300,7 @@ TEST(trc_byzantine_test, test_read_state_decreasing_block_id) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -320,7 +320,7 @@ TEST(trc_byzantine_test, test_read_state_updates_incorrectly_ordered) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         incorrectly_ordered_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -338,7 +338,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_erased) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -360,7 +360,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_subset_erased) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -381,7 +381,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_added) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data_with_fabrication, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -400,7 +400,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_key_erased) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -419,7 +419,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_erased) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -438,7 +438,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_incorrect_key) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -457,7 +457,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_incorrect_value) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -480,7 +480,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_swap) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -508,7 +508,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_kvp_moved) {
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -532,7 +532,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_swapped_between_updat
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -562,7 +562,7 @@ TEST(trc_byzantine_test, test_read_state_hash_block_id_erased) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashBlockIdOmitter>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -591,7 +591,7 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_erased) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashHashOmitter>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -619,7 +619,7 @@ TEST(trc_byzantine_test, test_read_state_hash_wrong_block_id) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashBlockIdCorrupter>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -651,7 +651,7 @@ TEST(trc_byzantine_test, test_read_state_hash_wrong_hash) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashHashCorrupter>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -684,7 +684,7 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_too_short) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashHashTruncater>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -718,7 +718,7 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_too_long) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashHashExtender>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -746,7 +746,7 @@ TEST(trc_byzantine_test, test_read_state_times_out) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateDelayer>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -761,7 +761,7 @@ TEST(trc_byzantine_test, test_first_state_stream_read_times_out) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<StateStreamDelayer>(0));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -776,7 +776,7 @@ TEST(trc_byzantine_test, test_in_progress_state_stream_read_times_out) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<StateStreamDelayer>(2));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -806,7 +806,7 @@ TEST(trc_byzantine_test, test_read_state_hash_times_out) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<ReadStateHashDelayer>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -834,7 +834,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_times_out) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<SubscribeToUpdatesDelayer>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that responds to SubscribeToUpdates more "
@@ -850,7 +850,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_stream_ends_immediately) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(missing_update_data, 0)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to "
@@ -865,7 +865,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_stream_immediately_unresponsi
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<DataStreamDelayer>(0));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to SubscribeToUpdate "
@@ -879,7 +879,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_stream_becomes_unresponsive) 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<DataStreamDelayer>(2));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to SubscribeToUpdate "
@@ -898,7 +898,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_stream_ends_unexpectedly) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         truncated_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to "
@@ -920,7 +920,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_prefix_of_updates_omitted) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         incomplete_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits a prefix of the relevant updates "
@@ -942,7 +942,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_infix_of_updates_omitted) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         incomplete_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits an infix of the relevant updates "
@@ -963,7 +963,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_updates_reordered) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         reordered_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that reorders some of the relevant updates "
@@ -987,7 +987,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_fabricated_update) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data_with_fabrication, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that includes a fabricated update when it "
@@ -1006,7 +1006,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_omitted) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits the Block ID from an update while "
@@ -1025,7 +1025,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_incorrect) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect Block ID for an update while "
@@ -1044,7 +1044,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_decreasing) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives a decreasing Block ID for an update while "
@@ -1064,7 +1064,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_kvps_omitted) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits all key value pairs for an update "
@@ -1086,7 +1086,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_kvps_partially_omitted
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits a subset of the key value pairs for an "
@@ -1107,7 +1107,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_includes_fabricated_kv
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data_with_fabrication, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that includes a fabricated key-value pair in an update "
@@ -1127,7 +1127,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_key_omitted) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits the key for one of the key value pairs for "
@@ -1147,7 +1147,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_value_omitted) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits the value for one of the key value pairs for "
@@ -1167,7 +1167,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_incorrect_key) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect key for one of the "
@@ -1188,7 +1188,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_incorrect_value) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect value for one of the "
@@ -1212,7 +1212,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_keys_swapped_within_updat) {
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         corrupted_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that swaps the keys between two key-value pairs within "
@@ -1239,7 +1239,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_times_out) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<SubscribeToUpdateHashesDelayer>());
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that responds to SubscribeToUpdateHashes more "
@@ -1261,7 +1261,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_stream_ends_immediately
                                     make_shared<UpdateHashFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         incomplete_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to "
@@ -1276,7 +1276,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_stream_immediately_unre
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<HashStreamDelayer>(0));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to "
@@ -1291,7 +1291,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_stream_becomes_unrespon
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<HashStreamDelayer>(2));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to "
@@ -1311,7 +1311,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_stream_ends_unexpectedl
                                     make_shared<UpdateHashFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         truncated_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that opens streams in response to "
@@ -1333,7 +1333,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_prefix_of_hashes_omitte
                                     make_shared<UpdateHashFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         incomplete_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits a prefix of the relevant update hashes when "
@@ -1355,7 +1355,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_infix_of_hashes_omitted
                                     make_shared<UpdateHashFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         incomplete_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits an infix of the relevant update hashes when "
@@ -1376,7 +1376,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hashes_reordered) {
                                     make_shared<UpdateHashFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         reordered_update_data, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that reorders some of the relevant update hashes when "
@@ -1400,7 +1400,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_fabricated_hash) {
                                     make_shared<UpdateHashFabricator>(make_shared<VectorMockDataStreamPreparer>(
                                         update_data_with_fabrication, num_initial_updates)));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that includes a fabricated hash when it "
@@ -1421,7 +1421,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_omitted) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<UpdateHashCorrupter>(make_shared<OmitBlockId>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits the Block ID from an update hash while "
@@ -1442,7 +1442,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_incorrect) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<UpdateHashCorrupter>(make_shared<CorruptBlockId>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect Block ID for an update hash "
@@ -1464,7 +1464,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_decreasing) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<UpdateHashCorrupter>(make_shared<MakeBlockIdDecreasing>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect and decreasing Block "
@@ -1485,7 +1485,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_omitted) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateHashCorrupter>(make_shared<OmitHash>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that omits the hash from an update hash while streaming "
@@ -1511,7 +1511,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_incorrect) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<UpdateHashCorrupter>(make_shared<MakeHashIncorrect>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect hash for an update hash while "
@@ -1539,7 +1539,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_too_short) {
       make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
       make_shared<UpdateHashCorrupter>(make_shared<TruncateHash>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect hash that is too "
@@ -1567,7 +1567,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_too_long) {
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateHashCorrupter>(make_shared<ExtendHash>(), corrupted_hash_offset));
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a faulty server that gives an incorrect hash that is too long "
@@ -1598,7 +1598,7 @@ TEST(trc_byzantine_test, test_multiple_servers_timeout) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 to_string(max_faulty) + " faulty servers in a " + to_string(num_servers) +
@@ -1637,7 +1637,7 @@ TEST(trc_byzantine_test, test_multiple_servers_begin_timing_out) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 to_string(max_faulty) + " faulty servers in a " + to_string(num_servers) +
@@ -1670,7 +1670,7 @@ TEST(trc_byzantine_test, test_minimal_subset_of_servers_responsive) {
                                     max_faulty,
                                     num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "all but " + to_string(max_faulty + 1) + " servers in a " + to_string(num_servers) +
@@ -1713,7 +1713,7 @@ TEST(trc_byzantine_test, test_minimal_subset_of_servers_left_responsive_after_ot
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "all but " + to_string(max_faulty + 1) + " servers in a " + to_string(num_servers) +
@@ -1765,7 +1765,7 @@ TEST(trc_byzantine_test, test_cluster_temporarily_becomes_unresponsive) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "all servers in a " + to_string(num_servers) +
@@ -1805,7 +1805,7 @@ TEST(trc_byzantine_test, test_cluster_reponsiveness_unstable) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 "a cluster of " + to_string(num_servers) +
@@ -1837,7 +1837,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_state) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -1878,7 +1878,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_state_hashes) {
                                     max_faulty,
                                     num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -1910,7 +1910,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_updates) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 to_string(max_faulty) + " servers in a " + to_string(num_servers) +
@@ -1941,7 +1941,7 @@ TEST(trc_byzantine_test, test_f_servers_give_false_update_hashes) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 to_string(max_faulty) + " servers in a " + to_string(num_servers) +
@@ -1971,7 +1971,7 @@ TEST(trc_byzantine_test, test_f_servers_collude_on_false_initial_state) {
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyInitialState(test_state.update_queue_,
                      update_data,
                      num_initial_updates,
@@ -2004,7 +2004,7 @@ TEST(trc_byzantine_test, test_f_servers_collude_on_streaming_fabricated_update) 
       max_faulty,
       num_servers);
 
-  test_state.trc_->Subscribe("");
+  test_state.trc_->Subscribe();
   VerifyUpdates(test_state.update_queue_,
                 update_data,
                 to_string(max_faulty) + " servers in a " + to_string(num_servers) +

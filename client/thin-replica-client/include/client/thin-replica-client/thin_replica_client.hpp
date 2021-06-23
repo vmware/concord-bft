@@ -434,8 +434,8 @@ class ThinReplicaClient final {
   // called, and will always be ended before Subscribe returns if no error
   // occurs. If there are any updates leftover in update_queue when Subscribe is
   // called, the queue will be cleared.
-  void Subscribe(const std::string& key_prefix_bytes);
-  void Subscribe(const std::string& key_prefix_bytes, uint64_t block_id);
+  void Subscribe();
+  void Subscribe(uint64_t block_id);
   void Subscribe(const SubscribeRequest&);
 
   // End any currently open subscription this ThinReplicaClient has; this will
