@@ -75,13 +75,15 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
   config.viewChangeTimerMillisec = 12;
   config.autoPrimaryRotationEnabled = false;
   config.autoPrimaryRotationTimerMillisec = 42;
-  config.maxExternalMessageSize = 1024 * 4;
+  config.maxExternalMessageSize = 500000;
   config.maxNumOfReservedPages = 256;
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;
   config.debugStatisticsEnabled = true;
 
   loadPrivateAndPublicKeys(config.replicaPrivateKey, config.publicKeysOfReplicas, config.replicaId, config.numReplicas);
+
+  config.set("concord.bft.message.preprepareDigestCalculationConcurrency", 8);
 
   bftEngine::CryptoManager::instance(new TestCryptoSystem);
 

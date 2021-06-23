@@ -55,25 +55,45 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
   }
 
-  // digest
-  Digest d;
-  const char* requestBuffer = (char*)&(b()->numberOfRequests);
-  const uint32_t requestSize = (b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
+  std::vector<std::string> sodofrequests(b()->numberOfRequests);
+  bool clientTransactionSigningEnabled = SigManager::instance()->isClientTransactionSigningEnabled();
+  auto it = RequestsIterator(this);
+  char* requestBody = nullptr;
 
-  DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
-
-  if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
-
-  if (SigManager::instance()->isClientTransactionSigningEnabled()) {
-    auto it = RequestsIterator(this);
-    char* requestBody = nullptr;
-    // Here we validate each of the client requests arriving encapsulated inside the pre-prepare message
-    // This might also include validating the request's client signature
-    while (it.getAndGoToNext(requestBody)) {
-      ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+  size_t local_id = 0;
+  while (it.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    if (clientTransactionSigningEnabled) {
+      // Here we validate each of the client requests arriving encapsulated inside the pre-prepare message
+      // This might also include validating the request's client signature
       req.validate(repInfo);
     }
+    char* sig = req.requestSignature();
+    if (sig != nullptr) {
+      (sodofrequests[local_id]).append(sig, req.requestSignatureLength());
+    } else {
+      RequestThreadPool::getThreadPool().async(
+          [&sodofrequests, local_id](auto* in, auto il) {
+            Digest d;
+            DigestUtil::compute(in, il, (char*)&d, sizeof(Digest));
+            (sodofrequests[local_id]).append(d.content(), sizeof(Digest));
+          },
+          req.body(),
+          req.size());
+    }
+    local_id++;
   }
+  RequestThreadPool::getThreadPool().finalWaitForAll();
+
+  std::string sig_or_dig;
+  for (auto sod : sodofrequests) {
+    sig_or_dig.append(sod);
+  }
+  // digest
+  Digest d;
+  DigestUtil::compute(sig_or_dig.c_str(), sig_or_dig.size(), (char*)&d, sizeof(Digest));
+
+  if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
@@ -157,11 +177,39 @@ void PrePrepareMsg::finishAddingRequests() {
   b()->flags |= 0x2;
   ConcordAssert(isReady());
 
+  std::vector<std::string> sodofrequests(b()->numberOfRequests);
+  auto it = RequestsIterator(this);
+  char* requestBody = nullptr;
+  size_t local_id = 0;
+
+  while (it.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    char* sig = req.requestSignature();
+    if (sig != nullptr) {
+      (sodofrequests[local_id]).append(sig, req.requestSignatureLength());
+    } else {
+      RequestThreadPool::getThreadPool().async(
+          [&sodofrequests, local_id](auto* in, auto il) {
+            Digest d;
+            DigestUtil::compute(in, il, (char*)&d, sizeof(Digest));
+            (sodofrequests[local_id]).append(d.content(), sizeof(Digest));
+          },
+          req.body(),
+          req.size());
+    }
+    local_id++;
+  }
+
+  RequestThreadPool::getThreadPool().finalWaitForAll();
+
+  std::string sig_or_dig;
+  for (auto sod : sodofrequests) {
+    sig_or_dig.append(sod);
+  }
+
   // compute and set digest
   Digest d;
-  const char* requestBuffer = (char*)&(b()->numberOfRequests);
-  const uint32_t requestSize = (b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
-  DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
+  DigestUtil::compute(sig_or_dig.c_str(), sig_or_dig.size(), (char*)&d, sizeof(Digest));
   b()->digestOfRequests = d;
 
   // size
