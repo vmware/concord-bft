@@ -75,7 +75,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
   void onRestartProof();
 
-  std::optional<std::string> canUnwedge();
+  std::pair<bool, std::string> canUnwedge();
   bool verifyUnwedgeSignatures(std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures);
 
  private:

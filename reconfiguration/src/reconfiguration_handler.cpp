@@ -127,14 +127,15 @@ bool ReconfigurationHandler::handle(const UnwedgeStatusRequest& req,
                                     uint64_t,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
-  auto status = bftEngine::ControlStateManager::instance().canUnwedge();
+  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge();
   response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
-  if (!status.has_value()) {
+  if (!can_unwedge.first) {
     response.can_unwedge = false;
+    response.reason = can_unwedge.second;
     LOG_INFO(getLogger(), "Replica is not ready to unwedge");
   } else {
     response.can_unwedge = true;
-    response.signature = std::vector<uint8_t>(status.value().begin(), status.value().end());
+    response.signature = std::vector<uint8_t>(can_unwedge.second.begin(), can_unwedge.second.end());
     LOG_INFO(getLogger(), "Replica is ready to unwedge");
   }
   rres.response = response;

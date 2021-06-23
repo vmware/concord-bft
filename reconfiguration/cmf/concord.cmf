@@ -115,6 +115,7 @@ Msg UnwedgeStatusResponse 33{
     uint64 replica_id
     bool can_unwedge
     bytes signature
+    string reason
 }
 
 Msg UnwedgeCommand 34{
