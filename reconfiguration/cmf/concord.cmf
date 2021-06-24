@@ -103,6 +103,7 @@ Msg AddRemoveWithWedgeCommand 29 {
 Msg AddRemoveWithWedgeStatus 30 {
     uint64 sender_id
 }
+
 Msg AddRemoveWithWedgeStatusResponse 31 {
     string config_descriptor
 }
@@ -129,6 +130,25 @@ Msg ClientKeyExchangeCommand 35 {
 Msg ClientKeyExchangeCommandResponse 36 {
     uint64 block_id
 }
+
+Msg ClientReconfigurationStateRequest 37 {
+    uint64 sender_id
+    uint64 last_known_block
+}
+
+Msg ClientReconfigurationStateReply 38 {
+    uint64 block_id
+    oneof {
+        WedgeCommand
+      } response
+}
+
+Msg ClientReconfigurationStateUpdate 39 {
+    uint64 sender_id
+    uint64 update_version
+    string data
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -150,6 +170,8 @@ Msg ReconfigurationRequest 1 {
     UnwedgeStatusRequest
     UnwedgeCommand
     ClientKeyExchangeCommand
+    ClientReconfigurationStateRequest
+    ClientReconfigurationStateUpdate
   } command
   bytes additional_data
 }

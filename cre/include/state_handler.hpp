@@ -10,11 +10,38 @@
 #pragma once
 
 #include "state_client.hpp"
+#include "Logger.hpp"
 namespace cre::state {
-class state_handler {
+class IStateHandler {
  public:
   virtual bool validate(const State&) = 0;
   virtual bool execute(const State&) = 0;
-  virtual ~state_handler() = default;
+  virtual ~IStateHandler() = default;
+};
+
+class WedgeStateHandler : public IStateHandler {
+ public:
+  bool validate(const State&) override;
+  bool execute(const State&) override;
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("cre.stateHandler.WedgeStateHandler"));
+    return logger_;
+  }
+};
+
+class WedgeUpdateChainHandler : public IStateHandler {
+ public:
+  WedgeUpdateChainHandler(std::shared_ptr<bft::client::Client> bftclient, uint16_t id)
+      : bftclient_{bftclient}, id_{id} {}
+  bool validate(const State&) override;
+  bool execute(const State&) override;
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("cre.stateHandler.WedgeStateHandler"));
+    return logger_;
+  }
+
+ private:
+  std::shared_ptr<bft::client::Client> bftclient_;
+  uint16_t id_;
 };
 }  // namespace cre::state

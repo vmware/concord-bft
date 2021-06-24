@@ -35,7 +35,8 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
                                config_.retry_timeout_config.max_increasing_factor,
                                config_.retry_timeout_config.max_decreasing_factor),
       metrics_(config.id),
-      histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))) {
+      histograms_(std::unique_ptr<Recorders>(new Recorders(config.id))),
+      seq_number_generator_(config.id) {
   // secrets_manager_config can be set only if transaction_signing_private_key_file_path is set
   if (config.secrets_manager_config) ConcordAssert(config.transaction_signing_private_key_file_path != std::nullopt);
   if (config.transaction_signing_private_key_file_path) {
@@ -85,7 +86,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
   header->spanContextSize = config.span_context.size();
   header->idOfClientProxy = client_id;
   header->flags = flags;
-  header->reqSeqNum = config.sequence_number;
+  header->reqSeqNum = config.sequence_number == 0 ? seq_number_generator_.unique() : config.sequence_number;
   header->requestLength = request.size();
   header->timeoutMilli = config.timeout.count();
   header->cidLength = config.correlation_id.size();

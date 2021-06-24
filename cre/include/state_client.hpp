@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <vector>
 #include "bftclient/bft_client.h"
-
+#include "bftclient/seq_num_generator.h"
 namespace cre::state {
 struct State {
   uint64_t block;
@@ -29,13 +29,12 @@ class IStateClient {
 
 class PullBasedStateClient : public IStateClient {
  public:
-  PullBasedStateClient(std::shared_ptr<bft::client::Client> client, uint32_t id_);
+  PullBasedStateClient(std::shared_ptr<bft::client::Client> client, const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) override;
 
  private:
   std::shared_ptr<bft::client::Client> bftclient_;
-  uint64_t lastKnownBlock_;
-  uint32_t id_;
+  uint16_t id_;
 };
 
 }  // namespace cre::state
