@@ -17,7 +17,10 @@ bool sendUpdate(
   concord::messages::ClientReconfigurationStateUpdate creq{id, version, data};
   rreq.command = creq;
   // (For now) we rely on the TLS keys to validate the client requests in concord-bft's reconfiguration handlers.
-  rreq.signature = {};
+  std::vector<uint8_t> creq_vec;
+  concord::messages::deserialize(creq_vec, creq);
+  auto sig = bftclient.signMessage(creq_vec);
+  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   bft::client::RequestConfig request_config;
   request_config.reconfiguration = true;
   request_config.correlation_id = cid;

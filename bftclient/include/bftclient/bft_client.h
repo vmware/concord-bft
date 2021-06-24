@@ -55,6 +55,7 @@ class Client {
 
   // Useful for testing. Shouldn't be relied on in production.
   std::optional<ReplicaId> primary() { return primary_; }
+  std::string signMessage(std::vector<uint8_t>&);
 
  private:
   // Generic function for sending a read or write message.
