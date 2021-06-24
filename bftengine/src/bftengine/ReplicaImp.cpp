@@ -3278,8 +3278,9 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
                   << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
     delete msg;
   }
-  bool bft = bftEngine::ControlStateManager::instance().getRestartBftFlag();
-  uint32_t targetNumOfMsgs = (bft ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
+  bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
+  uint32_t targetNumOfMsgs =
+      (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
   if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof();

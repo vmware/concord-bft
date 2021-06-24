@@ -58,19 +58,19 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void setEraseMetadataFlag(int64_t currentSeqNum);
   std::optional<int64_t> getEraseMetadataFlag();
 
-  void markRemoveMetadata() { remove_metadata_(); }
+  void markRemoveMetadata() { removeMetadata_(); }
   void clearCheckpointToStopAt();
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
-  bool getRestartBftFlag() const { return restart_bft_enabled_; }
-  void setRestartBftFlag(bool bft) { restart_bft_enabled_ = bft; }
+  bool getRestartBftFlag() const { return restartBftEnabled_; }
+  void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
 
   void disable() { enabled_ = false; }
   void enable() { enabled_ = true; }
 
-  void setRemoveMetadataFunc(std::function<void()> fn) { remove_metadata_ = fn; }
-  void setRestartReadyFunc(std::function<void()> fn) { send_restart_ready_ = fn; }
-  void sendRestartReadyToAllReplica() { send_restart_ready_(); }
+  void setRemoveMetadataFunc(std::function<void()> fn) { removeMetadata_ = fn; }
+  void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
+  void sendRestartReadyToAllReplica() { sendRestartReady_(); }
   void addOnRestartProofCallBack(std::function<void()> cb,
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
   void onRestartProof();
@@ -82,11 +82,11 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
 
   std::string scratchPage_;
   bool enabled_ = true;
-  std::atomic_bool restart_bft_enabled_ = false;
+  std::atomic_bool restartBftEnabled_ = false;
   ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
-  std::function<void()> remove_metadata_;
-  std::function<void()> send_restart_ready_;
-  std::map<uint32_t, concord::util::CallbackRegistry<>> on_restart_proof_cb_registery_;
+  std::function<void()> removeMetadata_;
+  std::function<void()> sendRestartReady_;
+  std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistery_;
 };
 }  // namespace bftEngine

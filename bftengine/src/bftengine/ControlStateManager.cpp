@@ -87,13 +87,13 @@ void ControlStateManager::clearCheckpointToStopAt() {
   saveReservedPage(0, data.size(), data.data());
 }
 void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, RestartProofHandlerPriorities priority) {
-  if (on_restart_proof_cb_registery_.find(priority) == on_restart_proof_cb_registery_.end()) {
-    on_restart_proof_cb_registery_[(uint32_t)priority];
+  if (onRestartProofCbRegistery_.find(priority) == onRestartProofCbRegistery_.end()) {
+    onRestartProofCbRegistery_[static_cast<uint32_t>(priority)];
   }
-  on_restart_proof_cb_registery_.at((uint32_t)priority).add(std::move(cb));
+  onRestartProofCbRegistery_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
 }
 void ControlStateManager::onRestartProof() {
-  for (const auto& kv : on_restart_proof_cb_registery_) {
+  for (const auto& kv : onRestartProofCbRegistery_) {
     kv.second.invokeAll();
   }
 }

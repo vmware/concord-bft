@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").  You may not use this product except in
 // compliance with the Apache 2.0 License.
@@ -48,15 +48,16 @@ ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
 }
 
 void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
+  auto idOfSenderReplica = idOfGeneratedReplica();
   auto sigManager = SigManager::instance();
-  auto totalSize = sizeof(Header) + spanContextSize();
-  if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
+  auto dataSize = sizeof(Header) + spanContextSize();
+  if (size() < dataSize || !repInfo.isIdOfReplica(idOfSenderReplica))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
-  uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
-  if (size() < totalSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
+  uint16_t sigLen = sigManager->getSigLength(idOfSenderReplica);
+  if (size() < dataSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
-  if (!sigManager->verifySig(idOfGeneratedReplica(), body(), sizeof(Header), body() + totalSize, sigLen))
+  if (!sigManager->verifySig(idOfSenderReplica, body(), sizeof(Header), body() + dataSize, sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 
