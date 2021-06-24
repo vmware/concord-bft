@@ -99,12 +99,12 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   bool doSigVerify = false;
   bool emptyReq = (header->requestLength == 0);
 
-  if (!repInfo.isValidParticipantId(clientId)) {
+  if (!repInfo.isValidPrincipalId(clientId)) {
     msg << "Invalid clientId " << clientId;
     LOG_ERROR(GL, msg.str());
     throw std::runtime_error(msg.str());
   }
-  if (!repInfo.isValidParticipantId(this->senderId())) {
+  if (!repInfo.isValidPrincipalId(this->senderId())) {
     msg << "Invalid senderId " << this->senderId();
     LOG_ERROR(GL, msg.str());
     throw std::runtime_error(msg.str());
