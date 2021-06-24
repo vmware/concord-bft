@@ -9,5 +9,9 @@ target_include_directories(cre PUBLIC include)
 
 target_link_libraries(cre PUBLIC
         bftclient_new
-        cmf_messages)
+        cmf_messages
+        util)
 
+if (BUILD_TESTING)
+    add_subdirectory(test)
+endif()

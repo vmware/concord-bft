@@ -15,7 +15,6 @@
 namespace cre::config {
 class Config {
  public:
-  bft::client::ClientConfig client_config_;
   uint16_t id_;
   uint64_t interval_timeout_ms_{1000};
 };

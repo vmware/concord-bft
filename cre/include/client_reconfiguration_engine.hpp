@@ -15,17 +15,28 @@
 #include "state_handler.hpp"
 #include "config.hpp"
 #include "Logger.hpp"
+#include "Metrics.hpp"
+
 #include <vector>
 #include <thread>
 namespace cre {
 class ClientReconfigurationEngine {
  public:
-  ClientReconfigurationEngine(const config::Config& config,
-                              std::shared_ptr<bft::client::Client> bftclient,
-                              uint16_t id);
+  ClientReconfigurationEngine(const config::Config& config, state::IStateClient* stateClient);
   void registerHandler(std::shared_ptr<state::IStateHandler> handler);
   void registerUpdateStateHandler(std::shared_ptr<state::IStateHandler> handler);
-  ~ClientReconfigurationEngine();
+  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+    aggregator_ = aggregator;
+    metrics_.SetAggregator(aggregator_);
+  }
+  ~ClientReconfigurationEngine() {
+    try {
+      stop();
+    } catch (...) {
+    }
+  }
+  void start();
+  void stop();
 
  private:
   void main();
@@ -33,13 +44,16 @@ class ClientReconfigurationEngine {
     static logging::Logger logger_(logging::getLogger("cre.ClientReconfigurationEngine"));
     return logger_;
   }
-  std::shared_ptr<bft::client::Client> bftclient_;
   std::vector<std::shared_ptr<state::IStateHandler>> handlers_;
   std::vector<std::shared_ptr<state::IStateHandler>> updateStateHandlers_;
   std::unique_ptr<state::IStateClient> stateClient_;
-  const config::Config& config_;
+  config::Config config_;
   std::atomic_bool stopped_{true};
   uint64_t lastKnownBlock_{0};
   std::thread mainThread_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
+  concordMetrics::Component metrics_;
+  concordMetrics::CounterHandle invalid_handlers_;
+  concordMetrics::CounterHandle errored_handlers_;
 };
 }  // namespace cre
