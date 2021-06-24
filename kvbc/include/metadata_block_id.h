@@ -12,11 +12,14 @@
 
 #pragma once
 
+#include "assertUtils.hpp"
 #include "categorization/kv_blockchain.h"
 #include "endianness.hpp"
+#include "kv_types.hpp"
 #include "PersistentStorage.hpp"
 
 #include <memory>
+#include <optional>
 
 namespace concord::kvbc {
 
@@ -30,6 +33,16 @@ void persistLastBlockIdInMetadata(const categorization::KeyValueBlockchain &bloc
   } else {
     metadata->setUserDataAtomically(user_data.data(), user_data.size());
   }
+}
+
+inline std::optional<BlockId> getLastBlockIdFromMetadata(
+    const std::shared_ptr<bftEngine::impl::PersistentStorage> &metadata) {
+  const auto ud = metadata->getUserData();
+  if (!ud) {
+    return std::nullopt;
+  }
+  ConcordAssertEQ(sizeof(BlockId), ud->size());
+  return concordUtils::fromBigEndianBuffer<BlockId>(ud->data());
 }
 
 }  // namespace concord::kvbc

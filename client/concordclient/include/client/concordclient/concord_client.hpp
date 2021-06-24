@@ -9,6 +9,8 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #include <chrono>
 #include <opentracing/span.h>
 #include <string>
@@ -18,7 +20,7 @@
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
 
-namespace client::concordclient {
+namespace concord::client::concordclient {
 
 struct SendError {
   std::string msg;
@@ -138,4 +140,4 @@ class ConcordClient {
   ConcordClientConfig config_;
 };
 
-}  // namespace client::concordclient
+}  // namespace concord::client::concordclient

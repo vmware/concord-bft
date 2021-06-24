@@ -20,6 +20,7 @@
 #include "PersistentStorageDescriptors.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace bftEngine {
@@ -151,7 +152,7 @@ class PersistentStorage {
   virtual CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) = 0;
   virtual bool getCompletedMarkInCheckWindow(SeqNum seqNum) = 0;
 
-  virtual std::vector<std::uint8_t> getUserData() const = 0;
+  virtual std::optional<std::vector<std::uint8_t>> getUserData() const = 0;
 };
 
 }  // namespace impl

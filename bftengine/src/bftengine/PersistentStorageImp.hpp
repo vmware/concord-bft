@@ -164,7 +164,7 @@ class PersistentStorageImp : public PersistentStorage {
   CheckpointMsg *getAndAllocateCheckpointMsgInCheckWindow(SeqNum seqNum) override;
   bool getCompletedMarkInCheckWindow(SeqNum seqNum) override;
 
-  std::vector<std::uint8_t> getUserData() const override;
+  std::optional<std::vector<std::uint8_t>> getUserData() const override;
 
   SharedPtrSeqNumWindow getSeqNumWindow();
   SharedPtrCheckWindow getCheckWindow();

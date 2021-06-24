@@ -35,7 +35,6 @@
 #include "performance_handler.h"
 #include "RequestsBatchingLogic.hpp"
 #include "ReplicaStatusHandlers.hpp"
-#include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "PerformanceManager.hpp"
 #include "secrets_manager_impl.h"
 #include "SigManager.hpp"
@@ -166,8 +165,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
-
-  ReplicasAskedToLeaveViewInfo complainedReplicas;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
 
@@ -443,6 +440,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   virtual const ReplicasInfo& getReplicasInfo() const override { return (*repsInfo); }
 
+  void askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave);
   void onViewsChangeTimer(concordUtil::Timers::Handle);
   void onRetransmissionsTimer(concordUtil::Timers::Handle);
   void onStatusReportTimer(concordUtil::Timers::Handle);

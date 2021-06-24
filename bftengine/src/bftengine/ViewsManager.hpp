@@ -17,6 +17,8 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include "messages/ReplicaStatusMsg.hpp"
+#include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "ViewChangeSafetyLogic.hpp"
 
 namespace bftEngine {
@@ -134,6 +136,27 @@ class ViewsManager {
 
   bool hasViewChangeMessageForFutureView(uint16_t repId);
 
+  const auto &getAllMsgsFromComplainedReplicas() const { return complainedReplicas.getAllMsgs(); }
+  void storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  bool hasQuorumToLeaveView() const { return complainedReplicas.hasQuorumToLeaveView(); }
+  std::shared_ptr<ReplicaAsksToLeaveViewMsg> getComplaintFromReplica(ReplicaId replicaId) {
+    return complainedReplicas.getComplaintFromReplica(replicaId);
+  }
+
+  void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
+  void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(); }
+
+  void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
+
+  ViewChangeMsg *PrepareViewChangeMsg(ViewNum nextView,
+                                      const bool wasInPrevViewNumber,
+                                      SeqNum lastStableSeqNum = 0,
+                                      SeqNum lastExecutedSeqNum = 0,
+                                      const std::vector<PrevViewInfo> *const prevViewInfo = nullptr);
+
+  bool tryToJumpToHigherViewAndMoveComplaintsOnQuorum(const ViewChangeMsg *const msg);
+
  protected:
   bool inView() const { return (stat == Stat::IN_VIEW); }
 
@@ -174,6 +197,9 @@ class ViewsManager {
   // myLatestPendingView always >=  myLatestActiveView
   ViewNum myLatestActiveView;
   ViewNum myLatestPendingView;
+
+  ReplicasAskedToLeaveViewInfo complainedReplicas;
+  ReplicasAskedToLeaveViewInfo complainedReplicasForHigherView;
 
   // for each replica it holds the latest ViewChangeMsg message
   ViewChangeMsg **viewChangeMessages;

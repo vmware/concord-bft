@@ -1290,7 +1290,7 @@ class BftTestNetwork:
         try:
             pre_proc_req = 0
             total_pre_exec_requests_executed = 0
-            with trio.fail_after(5):
+            with trio.fail_after(10):
                 while pre_proc_req < num_requests or \
                         total_pre_exec_requests_executed < num_requests:
                     key1 = ["preProcessor", "Counters", "preProcReqCompleted"]

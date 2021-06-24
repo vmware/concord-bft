@@ -22,7 +22,7 @@
 #include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
-#include "persist_last_block_id_in_mtd.h"
+#include "metadata_block_id.h"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "rocksdb/native_client.h"
 #include "pruning_handler.hpp"
@@ -142,8 +142,8 @@ void Replica::createReplicaAndSyncState() {
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
     try {
       const auto maxNumOfBlocksToDelete = replicaConfig_.maxNumOfRequestsInBatch;
-      const auto removedBlocksNum =
-          replicaStateSync_->execute(logger, *m_kvBlockchain, lastExecutedSeqNum, maxNumOfBlocksToDelete);
+      const auto removedBlocksNum = replicaStateSync_->execute(
+          logger, *m_kvBlockchain, m_replicaPtr->persistentStorage(), lastExecutedSeqNum, maxNumOfBlocksToDelete);
       LOG_INFO(logger,
                KVLOG(lastExecutedSeqNum,
                      removedBlocksNum,
