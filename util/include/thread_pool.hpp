@@ -26,7 +26,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <chrono>
 
 namespace concord::util {
 
@@ -74,22 +73,9 @@ class ThreadPool {
     {
       auto lock = std::lock_guard{task_queue_.mutex};
       task_queue_.tasks.push(std::move(task));
-      auto done_lock = std::lock_guard{task_queue_.done_check_mutex};
-      task_queue_.tcount++;
     }
     task_queue_.cv.notify_one();
     return future;
-  }
-
-  // Call this only after putting all jobs or tasks
-  // This is a special function, which wait till all the
-  // tasks are done
-  void finalWaitForAll() {
-    auto lock = std::unique_lock{task_queue_.done_check_mutex};
-    while (task_queue_.tcount > 0u) {
-      task_queue_.alldone.wait_for(
-          lock, std::chrono::duration<int, std::micro>{2000}, [this]() { return task_queue_.tcount == 0u; });
-    }
   }
 
  private:
@@ -107,11 +93,6 @@ class ThreadPool {
       task_queue_.tasks.pop();
       lock.unlock();
       task();
-      {
-        auto done_lock = std::lock_guard{task_queue_.done_check_mutex};
-        if (task_queue_.tcount > 0) task_queue_.tcount--;
-        task_queue_.alldone.notify_one();
-      }
     }
   }
 
@@ -128,16 +109,6 @@ class ThreadPool {
 
     // A task queue stop flag.
     bool stop{false};
-
-    // Task count
-    unsigned int tcount{0u};
-
-    // A mutex for the queue.
-    std::mutex done_check_mutex;
-
-    // A condition variable to signal completeness of all
-    // tasks in hand
-    std::condition_variable alldone;
   };
 
   // A task queue that is shared between pool threads.

@@ -9,6 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <utility>
 #include <bftengine/ClientMsgs.hpp>
 #include "OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
@@ -16,6 +17,7 @@
 #include "Crypto.hpp"
 #include "ClientRequestMsg.hpp"
 #include "SigManager.hpp"
+#include "RequestThreadPool.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -29,6 +31,46 @@ static Digest nullDigest(0x18);
 ///////////////////////////////////////////////////////////////////////////////
 
 const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
+
+void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
+  std::vector<std::pair<char*, size_t>> sigOrDigestOfRequest(b()->numberOfRequests, std::make_pair(nullptr, 0));
+  auto digestBuffer = std::make_unique<char[]>(b()->numberOfRequests * sizeof(Digest));
+
+  std::vector<std::future<void>> tasks;
+  auto it = RequestsIterator(this);
+  char* requestBody = nullptr;
+  size_t local_id = 0;
+
+  while (it.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    char* sig = req.requestSignature();
+    if (sig != nullptr) {
+      sigOrDigestOfRequest[local_id].first = sig;
+      sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
+    } else {
+      tasks.push_back(RequestThreadPool::getThreadPool().async(
+          [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
+            DigestUtil::compute(request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
+            sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
+            sigOrDigestOfRequest[local_id].second = sizeof(Digest);
+          },
+          req.body(),
+          req.size()));
+    }
+    local_id++;
+  }
+  for (const auto& t : tasks) {
+    t.wait();
+  }
+
+  std::string sigOrDig;
+  for (const auto& sod : sigOrDigestOfRequest) {
+    sigOrDig.append(sod.first, sod.second);
+  }
+
+  // compute and set digest
+  DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+}
 
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
@@ -55,45 +97,20 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
   }
 
-  std::vector<std::string> sodofrequests(b()->numberOfRequests);
-  bool clientTransactionSigningEnabled = SigManager::instance()->isClientTransactionSigningEnabled();
-  auto it = RequestsIterator(this);
-  char* requestBody = nullptr;
+  Digest d;
+  calculateDigestOfRequests(d);
+  if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 
-  size_t local_id = 0;
-  while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-    if (clientTransactionSigningEnabled) {
-      // Here we validate each of the client requests arriving encapsulated inside the pre-prepare message
-      // This might also include validating the request's client signature
+  if (SigManager::instance()->isClientTransactionSigningEnabled()) {
+    auto it = RequestsIterator(this);
+    char* requestBody = nullptr;
+    // Here we validate each of the client requests arriving encapsulated inside the pre-prepare message
+    // This might also include validating the request's client signature
+    while (it.getAndGoToNext(requestBody)) {
+      ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
       req.validate(repInfo);
     }
-    char* sig = req.requestSignature();
-    if (sig != nullptr) {
-      (sodofrequests[local_id]).append(sig, req.requestSignatureLength());
-    } else {
-      RequestThreadPool::getThreadPool().async(
-          [&sodofrequests, local_id](auto* in, auto il) {
-            Digest d;
-            DigestUtil::compute(in, il, (char*)&d, sizeof(Digest));
-            (sodofrequests[local_id]).append(d.content(), sizeof(Digest));
-          },
-          req.body(),
-          req.size());
-    }
-    local_id++;
   }
-  RequestThreadPool::getThreadPool().finalWaitForAll();
-
-  std::string sig_or_dig;
-  for (const auto& sod : sodofrequests) {
-    sig_or_dig.append(sod);
-  }
-  // digest
-  Digest d;
-  DigestUtil::compute(sig_or_dig.c_str(), sig_or_dig.size(), (char*)&d, sizeof(Digest));
-
-  if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 }
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
@@ -177,40 +194,7 @@ void PrePrepareMsg::finishAddingRequests() {
   b()->flags |= 0x2;
   ConcordAssert(isReady());
 
-  std::vector<std::string> sodofrequests(b()->numberOfRequests);
-  auto it = RequestsIterator(this);
-  char* requestBody = nullptr;
-  size_t local_id = 0;
-
-  while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
-    char* sig = req.requestSignature();
-    if (sig != nullptr) {
-      (sodofrequests[local_id]).append(sig, req.requestSignatureLength());
-    } else {
-      RequestThreadPool::getThreadPool().async(
-          [&sodofrequests, local_id](auto* in, auto il) {
-            Digest d;
-            DigestUtil::compute(in, il, (char*)&d, sizeof(Digest));
-            (sodofrequests[local_id]).append(d.content(), sizeof(Digest));
-          },
-          req.body(),
-          req.size());
-    }
-    local_id++;
-  }
-
-  RequestThreadPool::getThreadPool().finalWaitForAll();
-
-  std::string sig_or_dig;
-  for (const auto& sod : sodofrequests) {
-    sig_or_dig.append(sod);
-  }
-
-  // compute and set digest
-  Digest d;
-  DigestUtil::compute(sig_or_dig.c_str(), sig_or_dig.size(), (char*)&d, sizeof(Digest));
-  b()->digestOfRequests = d;
+  calculateDigestOfRequests(b()->digestOfRequests);
 
   // size
   setMsgSize(b()->endLocationOfLastRequest);

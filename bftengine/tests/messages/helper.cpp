@@ -75,7 +75,7 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
   config.viewChangeTimerMillisec = 12;
   config.autoPrimaryRotationEnabled = false;
   config.autoPrimaryRotationTimerMillisec = 42;
-  config.maxExternalMessageSize = 500000;
+  config.maxExternalMessageSize = 2000000;
   config.maxNumOfReservedPages = 256;
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;

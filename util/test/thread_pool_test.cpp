@@ -22,9 +22,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <chrono>
-#include <random>
-#include <sstream>
 
 namespace {
 
@@ -209,33 +206,6 @@ TEST(thread_pool, add_tasks_from_different_threads) {
   auto async_future = std::async(std::launch::async, [&pool]() { pool.async(func); });
   auto pool_future = pool.async(func);
   ASSERT_EQ(answer, pool_future.get());
-}
-
-// Checking for completion of whole task
-TEST(thread_pool, check_for_completion_of_all_tasks_in_pool) {
-  auto pool = ThreadPool{4};
-  std::vector<std::string> check(100);
-  std::string s("Test_");
-  for (size_t i = 0; i < check.size(); ++i) {
-    pool.async(
-        [&check, i](auto* s, size_t k) {
-          std::mt19937_64 eng{std::random_device{}()};
-          std::uniform_int_distribution<> dist{10, 100};
-          std::this_thread::sleep_for(std::chrono::milliseconds{dist(eng)});
-          std::ostringstream ostr;
-          ostr << i;
-          (check[i]).append(s, k);
-          (check[i]).append(ostr.str());
-        },
-        s.c_str(),
-        s.size());
-  }
-  pool.finalWaitForAll();
-  for (size_t i = 0; i < check.size(); ++i) {
-    std::ostringstream ostr_chk;
-    ostr_chk << i;
-    ASSERT_EQ(check[i], std::string("Test_") + ostr_chk.str());
-  }
 }
 
 }  // namespace

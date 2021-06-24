@@ -113,13 +113,11 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   std::vector<std::shared_ptr<ClientRequestMsg>> crmv;
-  create_random_client_requests(crmv, 50u);
+  create_random_client_requests(crmv, 200u);
   size_t req_size = 0;
   for (const auto& crm : crmv) {
     req_size += crm->size();
   }
-
-  std::cout << "Total size : " << req_size << std::endl;
 
   PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, req_size);
 
@@ -131,14 +129,13 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
 
   std::vector<std::string> dv;
   for (const auto& crm : crmv) {
-    std::cout << "message size : " << crm->size() << std::endl;
     msg.addRequest(crm->body(), crm->size());
     Digest d;
     DigestUtil::compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
     dv.push_back({d.content(), sizeof(Digest)});
   }
   EXPECT_NO_THROW(msg.finishAddingRequests());  // create the digest
-  EXPECT_EQ(msg.numberOfRequests(), 50u);
+  EXPECT_EQ(msg.numberOfRequests(), 200u);
 
   std::string dod;
   for (const auto& s : dv) {
@@ -146,7 +143,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   }
   Digest d;
   DigestUtil::compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
-  EXPECT_EQ(d == msg.digestOfRequests(), true);
+  EXPECT_EQ(d, msg.digestOfRequests());
   EXPECT_NO_THROW(msg.validate(replicaInfo));  // validate the same digest
 }
 

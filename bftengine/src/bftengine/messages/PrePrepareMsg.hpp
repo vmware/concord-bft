@@ -12,9 +12,6 @@
 #pragma once
 
 #include <cstdint>
-#include <atomic>
-
-#include "thread_pool.hpp"
 
 #include "PrimitiveTypes.hpp"
 #include "assertUtils.hpp"
@@ -115,6 +112,8 @@ class PrePrepareMsg : public MessageBase {
  protected:
   static int16_t computeFlagsForPrePrepareMsg(bool isNull, bool isReady, CommitPath firstPath);
 
+  void calculateDigestOfRequests(Digest& d) const;
+
   bool isReady() const { return (((b()->flags >> 1) & 0x1) == 1); }
 
   bool checkRequests() const;
@@ -142,24 +141,6 @@ class RequestsIterator {
  protected:
   const PrePrepareMsg* const msg;
   uint32_t currLoc;
-};
-
-class RequestThreadPool final {
- public:
-  static auto& getThreadPool() {
-    static concord::util::ThreadPool threadBag{
-        ReplicaConfig::instance().get("concord.bft.message.preprepareDigestCalculationConcurrency", 16u)};
-    return threadBag;
-  }
-
- private:
-  RequestThreadPool() = default;
-  ~RequestThreadPool() = default;
-
-  RequestThreadPool(const RequestThreadPool&) = delete;
-  RequestThreadPool& operator=(const RequestThreadPool&) = delete;
-  RequestThreadPool(RequestThreadPool&&) = delete;
-  RequestThreadPool& operator=(RequestThreadPool&&) = delete;
 };
 
 template <>
