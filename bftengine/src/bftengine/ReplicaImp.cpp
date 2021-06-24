@@ -40,6 +40,8 @@
 #include "messages/ReplicaStatusMsg.hpp"
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
+#include "messages/ReplicaRestartReadyMsg.hpp"
+#include "messages/ReplicasRestartReadyProofMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
@@ -105,6 +107,12 @@ void ReplicaImp::registerMsgHandlers() {
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaAsksToLeaveView,
                                    bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::ReplicaRestartReady,
+                                   bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::ReplicasRestartReadyProof,
+                                   bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -2916,6 +2924,15 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     IControlHandler::instance()->onStableCheckpoint();
   }
 }
+void ReplicaImp::sendRepilcaRestartReady() {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value()) {
+    unique_ptr<ReplicaRestartReadyMsg> readytToRestartMsg(
+        ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
+    sendToAllOtherReplicas(readytToRestartMsg.get());
+    restart_ready_msgs_[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
+  }
+}
 
 void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly, uint16_t destReplicaId) {
   if ((!currentViewIsActive()) || (seqNumber <= strictLowerBoundOfSeqNums) ||
@@ -3239,6 +3256,70 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
   delete msg;
 }
 
+template <>
+void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
+    LOG_ERROR(GL,
+              "Recieved invalid ReplicaRestartReadyMsg from sender_id "
+                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+    delete msg;
+    return;  // this is to handle replay attack
+  }
+  LOG_INFO(GL,
+           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
+                                                             << " with seq_num" << std::to_string(msg->seqNum()));
+  if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
+    restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
+    metric_received_restart_ready_.Get().Inc();
+  } else {
+    LOG_ERROR(GL,
+              "Recieved multiple ReplicaRestartReadyMsg from sender_id "
+                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+    delete msg;
+  }
+  bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
+  uint32_t targetNumOfMsgs =
+      (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
+  if (restart_ready_msgs_.size() == targetNumOfMsgs) {
+    LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
+    sendReplicasRestartReadyProof();
+    ControlStateManager::instance().onRestartProof();
+  }
+}
+
+template <>
+void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyProofMsg *msg) {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
+    LOG_ERROR(GL,
+              "Recieved invalid ReplicasRestartReadyProofMsg from sender_id "
+                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+    delete msg;
+    return;  // this is to handle replay attack
+  }
+  LOG_INFO(GL,
+           "Recieved  ReplicasRestartReadyProofMsg from sender_id "
+               << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
+  metric_received_restart_proof_.Get().Inc();
+  ControlStateManager::instance().onRestartProof();
+  delete msg;
+}
+
+void ReplicaImp::sendReplicasRestartReadyProof() {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value()) {
+    unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
+        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
+    for (auto &[_, v] : restart_ready_msgs_) {
+      (void)_;  // unused variable hack
+      restartProofMsg->addElement(v);
+    }
+    restartProofMsg->finalizeMessage();
+    sendToAllOtherReplicas(restartProofMsg.get());
+  }
+}
+
 void ReplicaImp::onReportAboutAdvancedReplica(ReplicaId reportedReplica, SeqNum seqNum, ViewNum viewNum) {
   // TODO(GG): simple implementation - should be improved
   tryToSendStatusReport();
@@ -3288,6 +3369,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
     ps_->setEraseMetadataStorageFlag();
     stateTransfer->setEraseMetadataFlag();
   });
+
+  bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
 
   lastAgreedView = ld.viewsManager->latestActiveView();
 
@@ -3536,6 +3619,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
       ps_->setEraseMetadataStorageFlag();
       stateTransfer->setEraseMetadataFlag();
     });
+    bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
   }
 
   auto numThreads = 8;
@@ -3639,6 +3723,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_slowPath_requests_{metrics_.RegisterCounter("totalSlowPathRequests")},
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
+      metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
+      metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),
       time_in_active_view_(histograms_.timeInActiveView),

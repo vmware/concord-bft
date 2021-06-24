@@ -62,12 +62,21 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
   if (command.bft) {
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
         [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
   } else {
     bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
         [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
   }
   return true;
 }  // namespace concord::reconfiguration

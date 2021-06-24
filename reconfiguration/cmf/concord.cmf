@@ -97,6 +97,7 @@ Msg AddRemoveStatusResponse 28 {
 Msg AddRemoveWithWedgeCommand 29 {
     string config_descriptor
     bool bft
+    bool restart
 }
 
 Msg AddRemoveWithWedgeStatus 30 {

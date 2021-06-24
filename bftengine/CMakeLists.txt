@@ -60,6 +60,8 @@ set(corebft_source_files
     src/bftengine/messages/ViewChangeMsg.cpp
     src/bftengine/messages/ReplicaStatusMsg.cpp
     src/bftengine/messages/StateTransferMsg.cpp
+    src/bftengine/messages/ReplicaRestartReadyMsg.cpp
+    src/bftengine/messages/ReplicasRestartReadyProofMsg.cpp
     src/bftengine/messages/ReplicaAsksToLeaveViewMsg.cpp
     src/bftengine/KeyExchangeManager.cpp
     src/bftengine/RequestHandler.cpp

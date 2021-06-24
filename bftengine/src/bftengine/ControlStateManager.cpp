@@ -86,5 +86,16 @@ void ControlStateManager::clearCheckpointToStopAt() {
   auto data = outStream.str();
   saveReservedPage(0, data.size(), data.data());
 }
+void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, RestartProofHandlerPriorities priority) {
+  if (onRestartProofCbRegistery_.find(priority) == onRestartProofCbRegistery_.end()) {
+    onRestartProofCbRegistery_[static_cast<uint32_t>(priority)];
+  }
+  onRestartProofCbRegistery_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
+}
+void ControlStateManager::onRestartProof() {
+  for (const auto& kv : onRestartProofCbRegistery_) {
+    kv.second.invokeAll();
+  }
+}
 
 }  // namespace bftEngine

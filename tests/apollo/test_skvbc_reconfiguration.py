@@ -794,6 +794,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await op.add_remove_with_wedge(test_config, bft=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network, bft=False)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -918,6 +919,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(expectedSeqNum, lastExecSn)
         await self.validate_stop_on_wedge_point(bft_network, skvbc)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -1042,6 +1044,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -1082,6 +1085,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
 
         conf = TestConfig(n=7,
@@ -1156,6 +1160,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               r,
                                                               stop_on_stable_seq_num=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
         # Metadata is erased on replicas startup
@@ -1196,6 +1201,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await self.verify_last_executed_seq_num(bft_network, checkpoint_before)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
         await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        await self.verify_restart_ready_proof_msg(bft_network)
         bft_network.stop_all_replicas()
         conf = TestConfig(n=7,
                           f=2,
@@ -1277,6 +1283,36 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
                     with self.assertRaises(trio.TooSlowError):
                         await skvbc.write_known_kv()
+    
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    async def test_remove_nodes_wo_restart(self, bft_network):
+        """
+             Sends a addRemove command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a remove command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Validate that replicas don't get restart ready or restart proof messages
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100):
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_n_4_f_1_c_0'
+        await op.add_remove_with_wedge(test_config, bft=False, restart=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        await self.verify_add_remove_status(bft_network, test_config, quorum_all=False)
+        for r in bft_network.all_replicas():
+            restartReadyMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartReadyMsg")
+            restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
+            self.assertEqual(restartReadyMsg, 0)
+            self.assertEqual(restartProofMsg, 0)
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
@@ -1323,6 +1359,18 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             lastExecSn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
             self.assertEqual(expectedSeqNum, lastExecSn)
+    
+    async def verify_restart_ready_proof_msg(self, bft_network, bft=True):
+        restartProofCount = 0
+        required = bft_network.config.n if bft is False else (bft_network.config.n - bft_network.config.f)
+        for r in bft_network.all_replicas():
+            restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
+            if(restartProofMsg > 0):
+                restartProofCount += 1
+            if(restartProofCount >= required):
+                break
+        self.assertEqual(required, restartProofCount)
+            
     
     async def verify_add_remove_status(self, bft_network, config_descriptor, quorum_all=True ):
         quorum = bft_client.MofNQuorum.All(bft_network.config, [r for r in range(bft_network.config.n)])

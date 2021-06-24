@@ -17,6 +17,7 @@
 #include "ReservedPagesClient.hpp"
 #include "Serializable.h"
 #include "SysConsts.hpp"
+#include "callback_registry.hpp"
 
 namespace bftEngine {
 
@@ -45,6 +46,7 @@ static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
 
 class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHandlerStateManagerNumOfReservedPages> {
  public:
+  enum RestartProofHandlerPriorities { HIGH = 0, DEFAULT = 20, LOW = 40 };
   static ControlStateManager& instance() {
     static ControlStateManager instance_;
     return instance_;
@@ -56,15 +58,22 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void setEraseMetadataFlag(int64_t currentSeqNum);
   std::optional<int64_t> getEraseMetadataFlag();
 
-  void markRemoveMetadata() { remove_metadata_(); }
+  void markRemoveMetadata() { removeMetadata_(); }
   void clearCheckpointToStopAt();
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
+  bool getRestartBftFlag() const { return restartBftEnabled_; }
+  void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
 
   void disable() { enabled_ = false; }
   void enable() { enabled_ = true; }
 
-  void setRemoveMetadataFunc(std::function<void()> fn) { remove_metadata_ = fn; }
+  void setRemoveMetadataFunc(std::function<void()> fn) { removeMetadata_ = fn; }
+  void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
+  void sendRestartReadyToAllReplica() { sendRestartReady_(); }
+  void addOnRestartProofCallBack(std::function<void()> cb,
+                                 RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
+  void onRestartProof();
 
  private:
   ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
@@ -73,8 +82,11 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
 
   std::string scratchPage_;
   bool enabled_ = true;
+  std::atomic_bool restartBftEnabled_ = false;
   ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
-  std::function<void()> remove_metadata_;
+  std::function<void()> removeMetadata_;
+  std::function<void()> sendRestartReady_;
+  std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistery_;
 };
 }  // namespace bftEngine
