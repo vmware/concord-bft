@@ -99,7 +99,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     def tearDownClass(cls):
         pass
 
-    @unittest.skip("Temporarily disabling this test due to BC-9406")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_key_exchange(self, bft_network):
