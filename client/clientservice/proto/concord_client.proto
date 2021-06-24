@@ -77,6 +77,8 @@ message Response {
 // https://github.com/grpc/grpc/blob/master/doc/health-checking.md
 service EventService {
   // Subscribe to a continuous stream of EventGroups from the blockchain.
+  // Note: Only one stream can be active at a time (will change in the future).
+  // The active stream has to be cancelled fist before a new stream can be established.
   // Errors:
   // OUT_OF_RANGE: if the requested starting EventGroup is not available yet.
   // NOT_FOUND: if the requested starting EventGroup was pruned.
