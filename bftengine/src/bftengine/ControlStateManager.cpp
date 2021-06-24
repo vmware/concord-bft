@@ -102,22 +102,27 @@ void ControlStateManager::onRestartProof() {
 }
 
 std::pair<bool, std::string> ControlStateManager::canUnwedge() {
+  if (!enabled_) return {false, "ControlStateManager is disabled"};
   std::optional<std::string> result;
   if (!bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
     return {false, "Replica has not reached the wedge point yet"};
   }
+  auto last_checkpoint = getCheckpointToStopAt();
+  ConcordAssert(last_checkpoint.has_value());
 
-  std::string replica_id = std::to_string(ReplicaConfig::instance().getreplicaId());
-  auto sigManager = impl::SigManager::instance();
-  std::string sig(sigManager->getMySigLength(), '\0');
-  sigManager->sign(replica_id.c_str(), replica_id.size(), sig.data(), sig.size());
+  std::string sig_data =
+      std::to_string(ReplicaConfig::instance().getreplicaId()) + std::to_string(last_checkpoint.value());
+
+  auto sig_manager = impl::SigManager::instance();
+  std::string sig(sig_manager->getMySigLength(), '\0');
+  sig_manager->sign(sig_data.c_str(), sig_data.size(), sig.data(), sig.size());
 
   return {true, sig};
 }
 
 bool ControlStateManager::verifyUnwedgeSignatures(
     std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures) {
-  auto sigManager = impl::SigManager::instance();
+  auto sig_manager = impl::SigManager::instance();
 
   size_t quorum = ReplicaConfig::instance().numReplicas;
   if (signatures.size() < quorum) {
@@ -125,23 +130,24 @@ bool ControlStateManager::verifyUnwedgeSignatures(
     return false;
   }
   size_t verified_sigs = 0;
+  auto last_checkpoint = getCheckpointToStopAt();
+  if (!last_checkpoint.has_value()) return false;
   for (auto const& sig : signatures) {
-    // SigManager cannot verify signature coming from same replica
-    // Generate the signature again and compare them.
-    std::string data = std::to_string(sig.first);
+    std::string sig_data = std::to_string(sig.first) + std::to_string(last_checkpoint.value());
     std::string signature(sig.second.begin(), sig.second.end());
     bool valid = false;
     if (sig.first == ReplicaConfig::instance().replicaId) {
+      // SigManager cannot verify signature coming from same replica
+      // Generate the signature again and compare them.
       verified_sigs++;
-      std::string sign(sigManager->getMySigLength(), '\0');
-      std::string replica_id = std::to_string(ReplicaConfig::instance().getreplicaId());
-      sigManager->sign(replica_id.c_str(), replica_id.size(), sign.data(), sign.size());
+      std::string sign(sig_manager->getMySigLength(), '\0');
+      sig_manager->sign(sig_data.c_str(), sig_data.size(), sign.data(), sign.size());
       if (sign == std::string(sig.second.begin(), sig.second.end())) {
         valid = true;
         verified_sigs++;
       }
     } else {
-      valid = sigManager->verifySig(sig.first, data.c_str(), data.size(), signature.data(), signature.size());
+      valid = sig_manager->verifySig(sig.first, sig_data.c_str(), sig_data.size(), signature.data(), signature.size());
     }
     if (!valid) {
       LOG_INFO(GL, "Invalid signature for principal id " << sig.first);

@@ -132,7 +132,7 @@ bool ReconfigurationHandler::handle(const UnwedgeStatusRequest& req,
   if (!can_unwedge.first) {
     response.can_unwedge = false;
     response.reason = can_unwedge.second;
-    LOG_INFO(getLogger(), "Replica is not ready to unwedge");
+    LOG_INFO(getLogger(), "Replica is not ready to unwedge. Reason: " << can_unwedge.second);
   } else {
     response.can_unwedge = true;
     response.signature = std::vector<uint8_t>(can_unwedge.second.begin(), can_unwedge.second.end());
