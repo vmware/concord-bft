@@ -16,11 +16,9 @@ State state::PullBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
   rreq.command = creq;
-  // (For now) we rely on the TLS keys to validate the client requests in concord-bft's reconfiguration handlers.
-  std::vector<uint8_t> creq_vec;
-  concord::messages::deserialize(creq_vec, creq);
-  auto sig = bftclient_->signMessage(creq_vec);
-  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  std::vector<uint8_t> data_vec;
+  concord::messages::deserialize(data_vec, rreq);
+  auto sig = bftclient_->signMessage(data_vec);
   bft::client::RequestConfig request_config;
   request_config.reconfiguration = true;
   request_config.correlation_id = "ClientReconfigurationStateRequest-" + std::to_string(lastKnownBlockId);
