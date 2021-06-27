@@ -9,6 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <utility>
 #include <bftengine/ClientMsgs.hpp>
 #include "OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
@@ -16,6 +17,7 @@
 #include "Crypto.hpp"
 #include "ClientRequestMsg.hpp"
 #include "SigManager.hpp"
+#include "RequestThreadPool.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -29,6 +31,46 @@ static Digest nullDigest(0x18);
 ///////////////////////////////////////////////////////////////////////////////
 
 const Digest& PrePrepareMsg::digestOfNullPrePrepareMsg() { return nullDigest; }
+
+void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
+  std::vector<std::pair<char*, size_t>> sigOrDigestOfRequest(b()->numberOfRequests, std::make_pair(nullptr, 0));
+  auto digestBuffer = std::make_unique<char[]>(b()->numberOfRequests * sizeof(Digest));
+
+  std::vector<std::future<void>> tasks;
+  auto it = RequestsIterator(this);
+  char* requestBody = nullptr;
+  size_t local_id = 0;
+
+  while (it.getAndGoToNext(requestBody)) {
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    char* sig = req.requestSignature();
+    if (sig != nullptr) {
+      sigOrDigestOfRequest[local_id].first = sig;
+      sigOrDigestOfRequest[local_id].second = req.requestSignatureLength();
+    } else {
+      tasks.push_back(RequestThreadPool::getThreadPool().async(
+          [&sigOrDigestOfRequest, &digestBuffer, local_id](auto* request, auto requestLength) {
+            DigestUtil::compute(request, requestLength, digestBuffer.get() + local_id * sizeof(Digest), sizeof(Digest));
+            sigOrDigestOfRequest[local_id].first = digestBuffer.get() + local_id * sizeof(Digest);
+            sigOrDigestOfRequest[local_id].second = sizeof(Digest);
+          },
+          req.body(),
+          req.size()));
+    }
+    local_id++;
+  }
+  for (const auto& t : tasks) {
+    t.wait();
+  }
+
+  std::string sigOrDig;
+  for (const auto& sod : sigOrDigestOfRequest) {
+    sigOrDig.append(sod.first, sod.second);
+  }
+
+  // compute and set digest
+  DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), (char*)&digest, sizeof(Digest));
+}
 
 void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
@@ -55,13 +97,8 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": advanced"));
   }
 
-  // digest
   Digest d;
-  const char* requestBuffer = (char*)&(b()->numberOfRequests);
-  const uint32_t requestSize = (b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
-
-  DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
-
+  calculateDigestOfRequests(d);
   if (d != b()->digestOfRequests) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": digest"));
 
   if (SigManager::instance()->isClientTransactionSigningEnabled()) {
@@ -157,12 +194,7 @@ void PrePrepareMsg::finishAddingRequests() {
   b()->flags |= 0x2;
   ConcordAssert(isReady());
 
-  // compute and set digest
-  Digest d;
-  const char* requestBuffer = (char*)&(b()->numberOfRequests);
-  const uint32_t requestSize = (b()->endLocationOfLastRequest - prePrepareHeaderPrefix);
-  DigestUtil::compute(requestBuffer, requestSize, (char*)&d, sizeof(Digest));
-  b()->digestOfRequests = d;
+  calculateDigestOfRequests(b()->digestOfRequests);
 
   // size
   setMsgSize(b()->endLocationOfLastRequest);
