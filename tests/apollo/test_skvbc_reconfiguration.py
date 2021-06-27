@@ -111,17 +111,11 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
          
-        op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        await op.key_exchange([0])
-        for i in range(450):
-            await skvbc.write_known_kv()
+        await self.send_and_check_key_exchange(target_replica=0, bft_network=bft_network, client=client)
 
-        sent_key_exchange_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-        assert sent_key_exchange_counter == 1
-        self_key_exchange_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "self_key_exchange"])
-        assert self_key_exchange_counter == 1
-        public_key_exchange_for_peer_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
-        assert public_key_exchange_for_peer_counter == 1
+        await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=3, 
+                                                 verify_checkpoint_persistency=False)
 
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_key_exchange, 
@@ -217,9 +211,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     async def send_and_check_key_exchange(self, target_replica, bft_network, client):
         with log.start_action(action_type="send_and_check_key_exchange",
                               target_replica=target_replica):
-            sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-            self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
-            # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+            sent_key_exchange_counter_before = 0
+            self_key_exchange_counter_before = 0
+            with trio.fail_after(seconds=15):
+                try:
+                    sent_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+                    self_key_exchange_counter_before = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                    # public_key_exchange_for_peer_counter_before = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
+                except:
+                    log.log_message(message_type=f"Replica {target_replica} was unable to query KeyExchangeMetrics, assuming zero")
+                    
             log.log_message(f"sending key exchange command to replica {target_replica}")
             op = operator.Operator(bft_network.config, client, bft_network.builddir)
             await op.key_exchange([target_replica])
@@ -228,14 +229,14 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 while True:
                     with trio.move_on_after(seconds=2):
                         try:
-                            sent_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
-                            self_key_exchange_counter = await bft_network.metrics.get(1, *["KeyExchangeManager", "Counters", "self_key_exchange"])
+                            sent_key_exchange_counter = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "sent_key_exchange"])
+                            self_key_exchange_counter = await bft_network.metrics.get(target_replica, *["KeyExchangeManager", "Counters", "self_key_exchange"])
                             #public_key_exchange_for_peer_counter = await bft_network.metrics.get(0, *["KeyExchangeManager", "Counters", "public_key_exchange_for_peer"])
                             if  sent_key_exchange_counter == sent_key_exchange_counter_before or \
                                 self_key_exchange_counter == self_key_exchange_counter_before:
                                 continue
                         except (trio.TooSlowError, AssertionError) as e:
-                            log.log_message(message_type=f"{e}: Replica {target_replica} was unable to exchange keys")
+                            log.log_message(message_type=f"{e}: Replica {target_replica} was unable to query KeyExchangeMetrics")
                             raise KeyExchangeError
                         else:
                             assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
@@ -243,6 +244,25 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
                             break
      
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_client_key_exchange_command(self, bft_network):
+        """
+            Operator sends client key exchange command for all the clients
+        """
+        with log.start_action(action_type="test_client_key_exchange_command"):
+            bft_network.start_all_replicas()
+            client = bft_network.random_client()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            all_client_ids=bft_network.all_client_ids()
+            log.log_message(message_type=f"sending client key exchange command for clients {all_client_ids}")
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            rep = await op.client_key_exchange(all_client_ids)
+            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+            assert rep.success is True        
+            log.log_message(message_type=f"block_id {rep.response.block_id}")
+            assert rep.response.block_id == 1
+    
      
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

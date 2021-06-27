@@ -44,25 +44,43 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
       ReconfigurationResponse rsi_res = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum);
-      // Serialize response
-      ReconfigurationResponse res;
-      res.success = rsi_res.success;
-      std::vector<uint8_t> serialized_response;
-      concord::messages::serialize(serialized_response, res);
+      // in case of read request return only a success part of and replica specific info in the response
+      // and the rest as additional data, since it may differ between replicas
+      if (req.flags & MsgFlag::READ_ONLY_FLAG) {
+        // Serialize response
+        ReconfigurationResponse res;
+        res.success = rsi_res.success;
+        std::vector<uint8_t> serialized_response;
+        concord::messages::serialize(serialized_response, res);
 
-      std::vector<uint8_t> serialized_rsi_response;
-      concord::messages::serialize(serialized_rsi_response, rsi_res);
-      if (serialized_rsi_response.size() + serialized_response.size() <= req.maxReplySize) {
-        std::copy(serialized_response.begin(), serialized_response.end(), req.outReply);
-        std::copy(
-            serialized_rsi_response.begin(), serialized_rsi_response.end(), req.outReply + serialized_response.size());
-        req.outActualReplySize = serialized_response.size() + serialized_rsi_response.size();
-        req.outReplicaSpecificInfoSize = serialized_rsi_response.size();
-      } else {
-        std::string error("Reconfiguration response is too large");
-        LOG_ERROR(GL, error);
-        std::copy(error.cbegin(), error.cend(), std::back_inserter(rsi_res.additional_data));
-        req.outActualReplySize = 0;
+        std::vector<uint8_t> serialized_rsi_response;
+        concord::messages::serialize(serialized_rsi_response, rsi_res);
+        if (serialized_rsi_response.size() + serialized_response.size() <= req.maxReplySize) {
+          std::copy(serialized_response.begin(), serialized_response.end(), req.outReply);
+          std::copy(
+              serialized_rsi_response.begin(), serialized_rsi_response.end(), req.outReply + serialized_response.size());
+          req.outActualReplySize = serialized_response.size() + serialized_rsi_response.size();
+          req.outReplicaSpecificInfoSize = serialized_rsi_response.size();
+        } else {
+          std::string error("Reconfiguration ro response is too large");
+          LOG_ERROR(GL, error);
+          std::copy(error.cbegin(), error.cend(), std::back_inserter(rsi_res.additional_data));
+          req.outActualReplySize = 0;
+        }
+      }
+      else { // in case of write request return the whole response
+        std::vector<uint8_t> serialized_rsi_response;
+        concord::messages::serialize(serialized_rsi_response, rsi_res);
+        if (serialized_rsi_response.size() <= req.maxReplySize) {
+          std::copy(serialized_rsi_response.begin(), serialized_rsi_response.end(), req.outReply);
+          req.outActualReplySize = serialized_rsi_response.size();
+        } else {
+          std::string error("Reconfiguration response is too large");
+          LOG_ERROR(GL, error);
+          std::copy(error.cbegin(), error.cend(), std::back_inserter(rsi_res.additional_data));
+          req.outActualReplySize = 0;
+        }
+
       }
       req.outExecutionStatus = 0;  // stop further processing of this request
     } else if (req.flags & TICK_FLAG) {
