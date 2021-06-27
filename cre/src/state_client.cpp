@@ -13,6 +13,34 @@
 
 namespace cre::state {
 State state::PullBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
+  std::unique_lock<std::mutex> lk(lock_);
+  while (updates_.find(lastKnownBlockId) == updates_.end()) {
+    new_updates_.wait(lk);
+  }
+  return updates_.at(lastKnownBlockId);
+}
+
+PullBasedStateClient::PullBasedStateClient(std::shared_ptr<bft::client::Client> client,
+                                           uint64_t interval_timeout_ms,
+                                           uint64_t last_known_block,
+                                           const uint16_t id)
+    : bftclient_{client}, id_{id}, interval_timeout_ms_{interval_timeout_ms}, last_known_block_{last_known_block} {
+  stopped = false;
+  consumer_ = std::thread([&]() {
+    while (!stopped) {
+      std::this_thread::sleep_for(std::chrono::microseconds(interval_timeout_ms_));
+      std::lock_guard<std::mutex> lk(lock_);
+      auto new_state = getNewStateImpl(last_known_block_);
+      if (new_state.block > last_known_block_) {
+        updates_.emplace(new_state.block, new_state);
+        last_known_block_ = new_state.block;
+        new_updates_.notify_all();
+      }
+    }
+  });
+}
+
+State PullBasedStateClient::getNewStateImpl(uint64_t lastKnownBlockId) {
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
   rreq.command = creq;
@@ -37,6 +65,13 @@ State state::PullBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
 }
-PullBasedStateClient::PullBasedStateClient(std::shared_ptr<bft::client::Client> client, const uint16_t id)
-    : bftclient_{client}, id_{id} {}
+
+PullBasedStateClient::~PullBasedStateClient() {
+  if (stopped) return;
+  stopped = true;
+  try {
+    consumer_.join();
+  } catch (...) {
+  }
+}
 }  // namespace cre::state

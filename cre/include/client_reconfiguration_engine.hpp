@@ -22,21 +22,16 @@
 namespace cre {
 class ClientReconfigurationEngine {
  public:
-  ClientReconfigurationEngine(const config::Config& config, state::IStateClient* stateClient);
+  ClientReconfigurationEngine(const config::Config& config,
+                              state::IStateClient* stateClient,
+                              std::shared_ptr<concordMetrics::Aggregator> aggregator);
   void registerHandler(std::shared_ptr<state::IStateHandler> handler);
   void registerUpdateStateHandler(std::shared_ptr<state::IStateHandler> handler);
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     metrics_.SetAggregator(aggregator_);
   }
-  ~ClientReconfigurationEngine() {
-    try {
-      stop();
-    } catch (...) {
-    }
-  }
-  void start();
-  void stop();
+  ~ClientReconfigurationEngine();
 
  private:
   void main();

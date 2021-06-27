@@ -12,22 +12,16 @@
 
 namespace cre {
 
-ClientReconfigurationEngine::ClientReconfigurationEngine(const config::Config& config, state::IStateClient* stateClient)
+ClientReconfigurationEngine::ClientReconfigurationEngine(const config::Config& config,
+                                                         state::IStateClient* stateClient,
+                                                         std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : stateClient_{stateClient},
       config_{config},
-      aggregator_{std::make_shared<concordMetrics::Aggregator>()},
+      aggregator_{aggregator},
       metrics_{concordMetrics::Component("client_reconfiguration_engine", aggregator_)},
       invalid_handlers_{metrics_.RegisterCounter("invalid_handlers")},
       errored_handlers_{metrics_.RegisterCounter("errored_handlers")} {
   metrics_.Register();
-}
-
-void ClientReconfigurationEngine::stop() {
-  stopped_ = true;
-  mainThread_.join();
-}
-
-void ClientReconfigurationEngine::start() {
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
 }
@@ -35,10 +29,6 @@ void ClientReconfigurationEngine::start() {
 void ClientReconfigurationEngine::main() {
   while (!stopped_) {
     try {
-      if (config_.interval_timeout_ms_ > 0) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(config_.interval_timeout_ms_));
-        metrics_.UpdateAggregator();
-      }
       auto update = stateClient_->getNextState(lastKnownBlock_);
       if (update.block == lastKnownBlock_) continue;
 
@@ -72,6 +62,7 @@ void ClientReconfigurationEngine::main() {
       LOG_ERROR(getLogger(), "error while executing the handlers " << e.what());
       errored_handlers_.Get().Inc();
     }
+    metrics_.UpdateAggregator();
   }
 }
 void ClientReconfigurationEngine::registerHandler(std::shared_ptr<state::IStateHandler> handler) {
@@ -80,5 +71,12 @@ void ClientReconfigurationEngine::registerHandler(std::shared_ptr<state::IStateH
 
 void ClientReconfigurationEngine::registerUpdateStateHandler(std::shared_ptr<state::IStateHandler> handler) {
   if (handler != nullptr) updateStateHandlers_.push_back(handler);
+}
+ClientReconfigurationEngine::~ClientReconfigurationEngine() {
+  try {
+    stopped_ = true;
+    mainThread_.join();
+  } catch (...) {
+  }
 }
 }  // namespace cre

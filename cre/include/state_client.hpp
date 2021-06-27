@@ -13,8 +13,11 @@
 
 #include <cstdint>
 #include <vector>
+#include <map>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
 #include "bftclient/bft_client.h"
-#include "bftclient/seq_num_generator.h"
 namespace cre::state {
 struct State {
   uint64_t block;
@@ -29,12 +32,24 @@ class IStateClient {
 
 class PullBasedStateClient : public IStateClient {
  public:
-  PullBasedStateClient(std::shared_ptr<bft::client::Client> client, const uint16_t id_);
+  PullBasedStateClient(std::shared_ptr<bft::client::Client> client,
+                       uint64_t interval_timeout_ms,
+                       uint64_t last_known_block,
+                       const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) override;
+  ~PullBasedStateClient();
 
  private:
+  State getNewStateImpl(uint64_t lastKnownBlockId);
   std::shared_ptr<bft::client::Client> bftclient_;
   uint16_t id_;
+  uint64_t interval_timeout_ms_;
+  uint64_t last_known_block_;
+  std::map<uint64_t, State> updates_;
+  std::mutex lock_;
+  std::condition_variable new_updates_;
+  std::atomic_bool stopped{true};
+  std::thread consumer_;
 };
 
 }  // namespace cre::state
