@@ -122,7 +122,13 @@ Msg UnwedgeCommand 34{
     uint64 sender
     list kvpair uint64 bytes signatures
 }
+Msg ClientKeyExchangeCommand 35 {
+    list uint64 target_clients
+}
 
+Msg ClientKeyExchangeCommandResponse 36 {
+    uint64 block_id
+}
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -143,6 +149,7 @@ Msg ReconfigurationRequest 1 {
     AddRemoveWithWedgeStatus
     UnwedgeStatusRequest
     UnwedgeCommand
+    ClientKeyExchangeCommand
   } command
   bytes additional_data
 }
@@ -160,6 +167,7 @@ Msg ReconfigurationResponse 2 {
     AddRemoveStatusResponse
     AddRemoveWithWedgeStatusResponse
     UnwedgeStatusResponse
+    ClientKeyExchangeCommandResponse
   } response
   bytes additional_data
 }
