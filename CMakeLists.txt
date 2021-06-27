@@ -28,7 +28,7 @@ endif()
 option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs " TRUE)
 
 # Default TXN_SIGNING_ENABLED to FALSE
-option(TXN_SIGNING_ENABLED "External concord client sign tansactionsand replicas verify signature" FALSE)
+option(TXN_SIGNING_ENABLED "External concord client sign tansactionsand replicas verify signature" TRUE)
 
 # Default BUILD_COMM_TCP_PLAIN to FALSE
 option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
