@@ -144,7 +144,6 @@ class Client {
   static constexpr uint32_t count_between_snapshots = 200;
   uint32_t snapshot_index_ = 0;
   std::unique_ptr<Recorders> histograms_;
-  SeqNumberGenerator seq_number_generator_;
 };
 
 }  // namespace bft::client

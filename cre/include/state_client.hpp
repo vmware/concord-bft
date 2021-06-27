@@ -18,6 +18,7 @@
 #include <condition_variable>
 #include <thread>
 #include "bftclient/bft_client.h"
+#include "bftclient/seq_num_generator.h"
 namespace cre::state {
 struct State {
   uint64_t block;
@@ -27,17 +28,21 @@ struct State {
 class IStateClient {
  public:
   virtual State getNextState(uint64_t lastKnownBlockId) = 0;
+  virtual void start() = 0;
+  virtual void stop() = 0;
   virtual ~IStateClient() = default;
 };
 
-class PullBasedStateClient : public IStateClient {
+class PollBasedStateClient : public IStateClient {
  public:
-  PullBasedStateClient(std::shared_ptr<bft::client::Client> client,
+  PollBasedStateClient(std::shared_ptr<bft::client::Client> client,
                        uint64_t interval_timeout_ms,
                        uint64_t last_known_block,
                        const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) override;
-  ~PullBasedStateClient();
+  ~PollBasedStateClient();
+  void start() override;
+  void stop() override;
 
  private:
   State getNewStateImpl(uint64_t lastKnownBlockId);
@@ -45,7 +50,8 @@ class PullBasedStateClient : public IStateClient {
   uint16_t id_;
   uint64_t interval_timeout_ms_;
   uint64_t last_known_block_;
-  std::map<uint64_t, State> updates_;
+  std::queue<State> updates_;
+  bft::client::SeqNumberGenerator sn_gen_;
   std::mutex lock_;
   std::condition_variable new_updates_;
   std::atomic_bool stopped{true};

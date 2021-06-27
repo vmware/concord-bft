@@ -20,16 +20,16 @@ ClientReconfigurationEngine::ClientReconfigurationEngine(const config::Config& c
       aggregator_{aggregator},
       metrics_{concordMetrics::Component("client_reconfiguration_engine", aggregator_)},
       invalid_handlers_{metrics_.RegisterCounter("invalid_handlers")},
-      errored_handlers_{metrics_.RegisterCounter("errored_handlers")} {
+      errored_handlers_{metrics_.RegisterCounter("errored_handlers")},
+      last_known_block_(metrics_.RegisterGauge("last_known_block", lastKnownBlock_)) {
   metrics_.Register();
-  stopped_ = false;
-  mainThread_ = std::thread([&] { main(); });
 }
 
 void ClientReconfigurationEngine::main() {
   while (!stopped_) {
     try {
       auto update = stateClient_->getNextState(lastKnownBlock_);
+      if (stopped_) return;
       if (update.block == lastKnownBlock_) continue;
 
       // Execute the reconfiguration command
@@ -58,6 +58,7 @@ void ClientReconfigurationEngine::main() {
         }
       }
       lastKnownBlock_ = update.block;
+      last_known_block_.Get().Set(lastKnownBlock_);
     } catch (const std::exception& e) {
       LOG_ERROR(getLogger(), "error while executing the handlers " << e.what());
       errored_handlers_.Get().Inc();
@@ -74,7 +75,22 @@ void ClientReconfigurationEngine::registerUpdateStateHandler(std::shared_ptr<sta
 }
 ClientReconfigurationEngine::~ClientReconfigurationEngine() {
   try {
+    stateClient_->stop();
     stopped_ = true;
+    mainThread_.join();
+  } catch (...) {
+  }
+}
+void ClientReconfigurationEngine::start() {
+  stateClient_->start();
+  stopped_ = false;
+  mainThread_ = std::thread([&] { main(); });
+}
+void ClientReconfigurationEngine::stop() {
+  if (stopped_) return;
+  stateClient_->stop();
+  stopped_ = true;
+  try {
     mainThread_.join();
   } catch (...) {
   }

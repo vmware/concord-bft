@@ -32,6 +32,8 @@ class ClientReconfigurationEngine {
     metrics_.SetAggregator(aggregator_);
   }
   ~ClientReconfigurationEngine();
+  void start();
+  void stop();
 
  private:
   void main();
@@ -50,5 +52,6 @@ class ClientReconfigurationEngine {
   concordMetrics::Component metrics_;
   concordMetrics::CounterHandle invalid_handlers_;
   concordMetrics::CounterHandle errored_handlers_;
+  concordMetrics::GaugeHandle last_known_block_;
 };
 }  // namespace cre

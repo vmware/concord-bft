@@ -27,6 +27,8 @@ class TestStateClient : public IStateClient {
     std::string lastKnownBid = std::to_string(lastKnownBlockId + 1);
     return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
+  void start() override {}
+  void stop() override {}
 };
 
 class TestExecuteHandler : public IStateHandler {
@@ -67,23 +69,29 @@ TEST(test_client_reconfiguration_engine, test_normal_start_and_shutdown) {
   ASSERT_NO_THROW(
       ClientReconfigurationEngine(c, new TestStateClient(), std::make_shared<concordMetrics::Aggregator>()));
   ClientReconfigurationEngine cre(c, new TestStateClient(), std::make_shared<concordMetrics::Aggregator>());
+  cre.start();
   std::this_thread::sleep_for(1s);
+  cre.stop();
 }
 
 TEST(test_client_reconfiguration_engine, test_invalid_handler) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   ClientReconfigurationEngine cre(c, new TestStateClient(), aggregator);
   cre.registerHandler(std::make_shared<TestInvalidHandler>());
+  cre.start();
   std::this_thread::sleep_for(1s);
   ASSERT_GT(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 1);
+  cre.stop();
 }
 
 TEST(test_client_reconfiguration_engine, test_errored_handler) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   ClientReconfigurationEngine cre(c, new TestStateClient(), aggregator);
   cre.registerHandler(std::make_shared<TestErroredHandler>());
+  cre.start();
   std::this_thread::sleep_for(1s);
   ASSERT_GT(aggregator->GetCounter(metrics_component, errors_counter).Get(), 1);
+  cre.stop();
 }
 
 TEST(test_client_reconfiguration_engine, test_cre) {
@@ -94,11 +102,13 @@ TEST(test_client_reconfiguration_engine, test_cre) {
   std::shared_ptr<TestPersistOnChainHandler> chainHandler = std::make_shared<TestPersistOnChainHandler>();
   cre->registerHandler(handler);
   cre->registerUpdateStateHandler(chainHandler);
+  cre->start();
   std::this_thread::sleep_for(1s);
   ASSERT_EQ(aggregator->GetCounter(metrics_component, errors_counter).Get(), 0);
   ASSERT_EQ(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 0);
   ASSERT_GT(handler->lastKnownState, 0);
   ASSERT_GT(chainHandler->blocks.size(), 0);
+  cre->stop();
 }
 }  // namespace
 
