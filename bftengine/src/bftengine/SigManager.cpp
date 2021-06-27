@@ -120,8 +120,7 @@ SigManager::SigManager(PrincipalId myId,
           metrics_component_.RegisterAtomicCounter("external_client_request_signatures_verified"),
           metrics_component_.RegisterAtomicCounter("peer_replicas_signature_verification_failed"),
           metrics_component_.RegisterAtomicCounter("peer_replicas_signatures_verified"),
-          metrics_component_.RegisterAtomicCounter("signature_verification_failed_on_unrecognized_participant_id")},
-      updateAggregatorCounter(0) {
+          metrics_component_.RegisterAtomicCounter("signature_verification_failed_on_unrecognized_participant_id")} {
   map<KeyIndex, RSAVerifier*> publicKeyIndexToVerifier;
   size_t numPublickeys = publickeys.size();
 
@@ -207,7 +206,6 @@ bool SigManager::verifySig(
     LOG_ERROR(GL, "Unrecognized pid " << pid);
     metrics_.sigVerificationFailedOnUnrecognizedParticipantId_.Get().Inc();
     metrics_component_.UpdateAggregator();
-    updateAggregatorCounter = 0;
     return false;
   }
 
@@ -219,19 +217,20 @@ bool SigManager::verifySig(
   }
   ConcordAssert(idOfPeerReplica || idOfExternalClient);
   if (!result) {  // failure
-    updateAggregatorCounter = 0;
     if (idOfExternalClient)
       metrics_.externalClientReqSigVerificationFailed_.Get().Inc();
     else
       metrics_.replicaSigVerificationFailed_.Get().Inc();
     metrics_component_.UpdateAggregator();
   } else {  // success
-    if (idOfExternalClient)
+    if (idOfExternalClient) {
       metrics_.externalClientReqSigVerified_.Get().Inc();
-    else
+      if ((metrics_.externalClientReqSigVerified_.Get().Get() % updateMetricsAggregatorThresh) == 0)
+        metrics_component_.UpdateAggregator();
+    } else {
       metrics_.replicaSigVerified_.Get().Inc();
-    if ((++updateAggregatorCounter % updateMetricsAggregatorThresh) == 0) {
-      metrics_component_.UpdateAggregator();
+      if ((metrics_.replicaSigVerified_.Get().Get() % updateMetricsAggregatorThresh) == 0)
+        metrics_component_.UpdateAggregator();
     }
   }
   return result;
