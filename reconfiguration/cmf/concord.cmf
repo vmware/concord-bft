@@ -149,6 +149,10 @@ Msg ClientReconfigurationStateUpdate 39 {
     string data
 }
 
+Msg ClientReconfigurationLastUpdate 35 {
+    uint64 sender_id
+}
+
 Msg ReconfigurationRequest 1 {
   bytes signature
   oneof {
@@ -172,6 +176,7 @@ Msg ReconfigurationRequest 1 {
     ClientKeyExchangeCommand
     ClientReconfigurationStateRequest
     ClientReconfigurationStateUpdate
+    ClientReconfigurationLastUpdate
   } command
   bytes additional_data
 }

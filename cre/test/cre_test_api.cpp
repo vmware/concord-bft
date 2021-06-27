@@ -27,6 +27,7 @@ class TestStateClient : public IStateClient {
     std::string lastKnownBid = std::to_string(lastKnownBlockId + 1);
     return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
+  State getLatestClientUpdate(uint16_t clientId) override { return {0, {}}; }
   void start() override {}
   void stop() override {}
 };

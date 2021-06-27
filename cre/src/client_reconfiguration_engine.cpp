@@ -83,6 +83,10 @@ ClientReconfigurationEngine::~ClientReconfigurationEngine() {
 }
 void ClientReconfigurationEngine::start() {
   stateClient_->start();
+  auto initial_state = stateClient_->getLatestClientUpdate(config_.id_);
+  lastKnownBlock_ = initial_state.block;
+  last_known_block_.Get().Set(lastKnownBlock_);
+  metrics_.UpdateAggregator();
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
 }

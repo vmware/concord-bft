@@ -28,6 +28,7 @@ struct State {
 class IStateClient {
  public:
   virtual State getNextState(uint64_t lastKnownBlockId) = 0;
+  virtual State getLatestClientUpdate(uint16_t clientId) = 0;
   virtual void start() = 0;
   virtual void stop() = 0;
   virtual ~IStateClient() = default;
@@ -40,6 +41,7 @@ class PollBasedStateClient : public IStateClient {
                        uint64_t last_known_block,
                        const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) override;
+  State getLatestClientUpdate(uint16_t clientId) override;
   ~PollBasedStateClient();
   void start() override;
   void stop() override;

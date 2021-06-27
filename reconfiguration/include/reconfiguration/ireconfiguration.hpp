@@ -111,7 +111,11 @@ class IReconfigurationHandler {
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
-  virtual bool handle(const concord::messages::ClientKeyExchangeCommand&,
+  virtual bool handle(const concord::messages::ClientKeyExchangeCommand&,uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
                       uint64_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;

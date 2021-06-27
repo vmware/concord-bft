@@ -93,4 +93,31 @@ void PollBasedStateClient::stop() {
   } catch (...) {
   }
 }
+State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) {
+  concord::messages::ReconfigurationRequest rreq;
+  concord::messages::ClientReconfigurationLastUpdate creq{id_};
+  rreq.command = creq;
+  std::vector<uint8_t> data_vec;
+  concord::messages::serialize(data_vec, rreq);
+  auto sig = bftclient_->signMessage(data_vec);
+  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  bft::client::RequestConfig request_config;
+  request_config.reconfiguration = true;
+  request_config.correlation_id = "ClientReconfigurationLastUpdate-" + std::to_string(id_);
+  request_config.sequence_number = sn_gen_.unique();
+  bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
+  bft::client::Msg msg;
+  concord::messages::serialize(msg, rreq);
+  auto rep = bftclient_->send(read_config, std::move(msg));
+
+  // To have a valid quorum, we expect to have the reply in the additional_data of te reply.
+  concord::messages::ReconfigurationResponse rres;
+  concord::messages::deserialize(rep.matched_data, rres);
+  if (!rres.success) {
+    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
+  }
+  concord::messages::ClientReconfigurationStateReply crep;
+  concord::messages::deserialize(rres.additional_data, crep);
+  return {crep.block_id, rres.additional_data};
+}
 }  // namespace cre::state
