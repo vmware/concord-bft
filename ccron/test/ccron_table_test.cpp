@@ -19,8 +19,8 @@
 #include "ccron/cron_table.hpp"
 #include "ccron/periodic_action.hpp"
 
-#include "IReservedPages.hpp"
 #include "ReservedPagesClient.hpp"
+#include "ReservedPagesMock.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -34,46 +34,6 @@ namespace {
 using namespace concord::cron;
 using namespace std::chrono_literals;
 
-struct ReservedPagesMock : public bftEngine::IReservedPages {
-  uint32_t numberOfReservedPages() const override { return 1; }
-
-  uint32_t sizeOfReservedPage() const override { return 4096; }
-
-  bool loadReservedPage(uint32_t page_id, uint32_t size, char* data) const override {
-    auto it = pages_.find(page_id);
-    if (it != pages_.cend()) {
-      std::memcpy(data, it->second.data(), std::min<std::size_t>(size, it->second.size()));
-      return true;
-    }
-    return false;
-  }
-
-  void saveReservedPage(uint32_t page_id, uint32_t size, const char* data) override {
-    pages_[page_id].assign(data, std::min<std::size_t>(size, sizeOfReservedPage()));
-  }
-
-  void zeroReservedPage(uint32_t page_id) override {
-    auto it = pages_.find(page_id);
-    if (it != pages_.cend()) {
-      for (auto i = 0ul; i < it->second.size(); ++i) {
-        it->second[i] = '\0';
-      }
-    }
-  }
-
-  bool isReservedPageZeroed(uint32_t page_id) const {
-    auto it = pages_.find(cron_res_pages_client_.my_offset() + page_id);
-    if (it == pages_.cend()) {
-      return false;
-    }
-    return (it->second.find_first_not_of('\0') == std::string::npos);
-  }
-
-  // reserved page ID -> contents
-  std::map<uint32_t, std::string> pages_;
-  CronResPagesClient cron_res_pages_client_;
-};
-
 class ccron_table_test : public ::testing::Test {
  protected:
   const std::uint32_t kComponentId = 99;
@@ -85,7 +45,7 @@ class ccron_table_test : public ::testing::Test {
   std::vector<std::uint32_t> schedule_next_called_;
   std::vector<std::uint32_t> on_remove_called_;
 
-  ReservedPagesMock res_pages_mock_;
+  bftEngine::test::ReservedPagesMock<CronResPagesClient> res_pages_mock_;
 
   void SetUp() override { bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_); }
 
@@ -133,8 +93,8 @@ class ccron_table_test : public ::testing::Test {
 
   PeriodicActionSchedule getScheduleFromResPage() const {
     auto schedule = PeriodicActionSchedule{};
-    EXPECT_EQ(1, res_pages_mock_.pages_.size());
-    const auto& page = res_pages_mock_.pages_.begin()->second;
+    EXPECT_EQ(1, res_pages_mock_.pages().size());
+    const auto& page = res_pages_mock_.pages().begin()->second;
     auto page_ptr = reinterpret_cast<const uint8_t*>(page.data());
     deserialize(page_ptr, page_ptr + page.size(), schedule);
     EXPECT_EQ(1, schedule.components.size());

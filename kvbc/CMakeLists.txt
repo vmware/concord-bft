@@ -21,6 +21,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/direct_kv_storage_factory.cpp
     src/merkle_tree_storage_factory.cpp
     src/pruning_handler.cpp
+    src/pruning_reserved_pages_client.cpp
     src/st_reconfiguration_sm.cpp
     src/sparse_merkle/base_types.cpp
     src/sparse_merkle/keys.cpp
@@ -41,7 +42,7 @@ if (BUILD_ROCKSDB_STORAGE)
 
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
-target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs)
+target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs pruning_msgs)
 target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
 target_include_directories(kvbc PUBLIC include util)

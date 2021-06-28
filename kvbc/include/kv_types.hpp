@@ -35,6 +35,8 @@ typedef std::set<Key> OrderedKeysSet;
 typedef KeysVector ValuesVector;
 typedef std::uint64_t BlockId;
 
+inline constexpr auto INITIAL_GENESIS_BLOCK_ID = BlockId{1};
+
 template <typename ContainerIn>
 OrderedSetOfKeyValuePairs order(const ContainerIn& unordered) {
   OrderedSetOfKeyValuePairs out;
