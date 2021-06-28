@@ -30,7 +30,7 @@ void ClientReconfigurationEngine::main() {
     try {
       auto update = stateClient_->getNextState(lastKnownBlock_);
       if (stopped_) return;
-      if (update.block == lastKnownBlock_) continue;
+      if (update.block <= lastKnownBlock_) continue;
 
       // Execute the reconfiguration command
       for (auto& h : handlers_) {
@@ -76,7 +76,7 @@ void ClientReconfigurationEngine::start() {
   lastKnownBlock_ = initial_state.block;
   last_known_block_.Get().Set(lastKnownBlock_);
   metrics_.UpdateAggregator();
-  stateClient_->start();
+  stateClient_->start(lastKnownBlock_);
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
 }

@@ -12,6 +12,36 @@
 #include "bftclient/quorums.h"
 
 namespace cre::state {
+concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::client::Client& client,
+                                                                      concord::messages::ReconfigurationRequest rreq,
+                                                                      const std::string& cid,
+                                                                      uint64_t sn,
+                                                                      bool read_request) {
+  std::vector<uint8_t> data_vec;
+  concord::messages::serialize(data_vec, rreq);
+  auto sig = client.signMessage(data_vec);
+  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  bft::client::RequestConfig request_config;
+  request_config.reconfiguration = true;
+  request_config.correlation_id = cid;
+  request_config.sequence_number = sn;
+  bft::client::Msg msg;
+  concord::messages::serialize(msg, rreq);
+  bft::client::Reply rep;
+  if (read_request) {
+    bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
+    rep = client.send(read_config, std::move(msg));
+  } else {
+    bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
+    rep = client.send(write_config, std::move(msg));
+  }
+  concord::messages::ReconfigurationResponse rres;
+  concord::messages::deserialize(rep.matched_data, rres);
+  if (!rres.success) {
+    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
+  }
+  return rres;
+}
 State state::PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped && updates_.empty()) {
@@ -35,28 +65,11 @@ PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
 
 State PollBasedStateClient::getNewStateImpl(uint64_t lastKnownBlockId) {
   std::lock_guard<std::mutex> lock(bftclient_lock_);
-  concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
+  concord::messages::ReconfigurationRequest rreq;
   rreq.command = creq;
-  std::vector<uint8_t> data_vec;
-  concord::messages::serialize(data_vec, rreq);
-  auto sig = bftclient_->signMessage(data_vec);
-  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-  bft::client::RequestConfig request_config;
-  request_config.reconfiguration = true;
-  request_config.correlation_id = "ClientReconfigurationStateRequest-" + std::to_string(lastKnownBlockId);
-  request_config.sequence_number = sn_gen_.unique();
-  bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
-  bft::client::Msg msg;
-  concord::messages::serialize(msg, rreq);
-  auto rep = bftclient_->send(read_config, std::move(msg));
-
-  // To have a valid quorum, we expect to have the reply in the additional_data of te reply.
-  concord::messages::ReconfigurationResponse rres;
-  concord::messages::deserialize(rep.matched_data, rres);
-  if (!rres.success) {
-    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
-  }
+  auto sn = sn_gen_.unique();
+  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "getNewStateImpl-" + std::to_string(sn), sn, true);
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
@@ -73,7 +86,8 @@ PollBasedStateClient::~PollBasedStateClient() {
     }
   }
 }
-void PollBasedStateClient::start() {
+void PollBasedStateClient::start(uint64_t lastKnownBlock) {
+  last_known_block_ = lastKnownBlock;
   stopped = false;
   consumer_ = std::thread([&]() {
     while (!stopped) {
@@ -99,59 +113,21 @@ void PollBasedStateClient::stop() {
 }
 State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) {
   std::lock_guard<std::mutex> lock(bftclient_lock_);
-  concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientReconfigurationLastUpdate creq{id_};
+  concord::messages::ReconfigurationRequest rreq;
   rreq.command = creq;
-  std::vector<uint8_t> data_vec;
-  concord::messages::serialize(data_vec, rreq);
-  auto sig = bftclient_->signMessage(data_vec);
-  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-  bft::client::RequestConfig request_config;
-  request_config.reconfiguration = true;
-  request_config.correlation_id = "ClientReconfigurationLastUpdate-" + std::to_string(id_);
-  request_config.sequence_number = sn_gen_.unique();
-  bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
-  bft::client::Msg msg;
-  concord::messages::serialize(msg, rreq);
-  auto rep = bftclient_->send(read_config, std::move(msg));
-
-  // To have a valid quorum, we expect to have the reply in the additional_data of te reply.
-  concord::messages::ReconfigurationResponse rres;
-  concord::messages::deserialize(rep.matched_data, rres);
-  if (!rres.success) {
-    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
-  }
+  auto sn = sn_gen_.unique();
+  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "getLatestClientUpdate-" + std::to_string(sn), sn, true);
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
 }
 bool PollBasedStateClient::updateStateOnChain(const State& state) {
+  std::lock_guard<std::mutex> lock(bftclient_lock_);
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::deserialize(state.data, rreq);
-  auto data_vec = state.data;
-  std::string sig;
-  {
-    std::lock_guard<std::mutex> lock(bftclient_lock_);
-    sig = bftclient_->signMessage(data_vec);
-  }
-  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-  bft::client::RequestConfig request_config;
-  request_config.reconfiguration = true;
-  request_config.correlation_id = "updateStateOnChain-" + std::to_string(state.block);
-  bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
-  bft::client::Msg msg;
-  concord::messages::serialize(msg, rreq);
-  bft::client::Reply rep;
-  {
-    std::lock_guard<std::mutex> lock(bftclient_lock_);
-    rep = bftclient_->send(write_config, std::move(msg));
-  }
-  // To have a valid quorum, we expect to have the reply in the additional_data of te reply.
-  concord::messages::ReconfigurationResponse rres;
-  concord::messages::deserialize(rep.matched_data, rres);
-  if (!rres.success) {
-    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
-  }
-  return true;
+  auto sn = sn_gen_.unique();
+  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "updateStateOnChain-" + std::to_string(sn), sn, false);
+  return rres.success;
 }
 }  // namespace cre::state

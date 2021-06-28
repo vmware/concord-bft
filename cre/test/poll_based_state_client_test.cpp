@@ -137,7 +137,8 @@ class ClientApiTestFixture : public ::testing::Test {
     } else if (std::holds_alternative<concord::messages::ClientExchangePublicKey>(rreq.command)) {
       auto update = std::get<concord::messages::ClientExchangePublicKey>(rreq.command);
       if (number_of_updates_ % 4 == 0) {
-        blockchain_.push_back({blockchain_.size(), update});
+        concord::messages::ClientReconfigurationStateReply element{blockchain_.size() + 1, update};
+        blockchain_.push_back(element);
       }
       number_of_updates_++;
       concord::messages::ReconfigurationResponse rres;
@@ -147,32 +148,23 @@ class ClientApiTestFixture : public ::testing::Test {
       auto rep = createReply(msg, msg_buf);
       client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(rep.data()), rep.size());
     } else if (std::holds_alternative<concord::messages::ClientReconfigurationLastUpdate>(rreq.command)) {
-      if (!blockchain_.empty()) {
-        concord::messages::ClientReconfigurationStateReply crep = blockchain_[0];
-        crep.block_id = 0;
-        concord::messages::ReconfigurationResponse rres;
-        concord::messages::serialize(rres.additional_data, crep);
-        rres.success = true;
-        std::vector<uint8_t> msg_buf;
-        concord::messages::serialize(msg_buf, rres);
-        auto rep = createReply(msg, msg_buf);
-        client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(rep.data()), rep.size());
-      } else {
-        concord::messages::ClientReconfigurationStateReply crep = {0, {}};
-        concord::messages::ReconfigurationResponse rres;
-        concord::messages::serialize(rres.additional_data, crep);
-        rres.success = true;
-        std::vector<uint8_t> msg_buf;
-        concord::messages::serialize(msg_buf, rres);
-        auto reply = createReply(msg, msg_buf);
-        client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(reply.data()), reply.size());
-        return;
+      concord::messages::ClientReconfigurationStateReply crep = {0, {}};
+      if (updated_state && !blockchain_.empty()) {
+        crep = blockchain_.back();
       }
+      concord::messages::ReconfigurationResponse rres;
+      concord::messages::serialize(rres.additional_data, crep);
+      rres.success = true;
+      std::vector<uint8_t> msg_buf;
+      concord::messages::serialize(msg_buf, rres);
+      auto rep = createReply(msg, msg_buf);
+      client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(rep.data()), rep.size());
     }
   }
   std::vector<concord::messages::ClientReconfigurationStateReply> blockchain_;
   uint32_t number_of_messages_{0};
   uint32_t number_of_updates_{0};
+  bool updated_state = false;
 };
 
 /*
@@ -206,8 +198,8 @@ TEST_F(ClientApiTestFixture, single_key_exchange_command) {
   cre.registerHandler(keyExchangeHandler);
   cre.start();
   std::this_thread::sleep_for(1s);
-  ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
-  ASSERT_EQ(keyExchangeHandler->exchanges_, 1);
+  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
+  ASSERT_GE(keyExchangeHandler->exchanges_, 1);
   cre.stop();
 }
 
@@ -228,9 +220,56 @@ TEST_F(ClientApiTestFixture, single_key_two_phases_exchange_command) {
   cre.registerHandler(clientPubKeyExchangeHandler);
   cre.start();
   std::this_thread::sleep_for(1s);
-  ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
-  ASSERT_EQ(keyExchangeHandler->exchanges_, 1);
-  ASSERT_EQ(clientPubKeyExchangeHandler->exchanges_, 1);
+  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
+  ASSERT_GE(keyExchangeHandler->exchanges_, 1);
+  ASSERT_GE(clientPubKeyExchangeHandler->exchanges_, 1);
+  cre.stop();
+}
+
+/*
+ * Test a multiple 2-phases key exchange command.
+ */
+TEST_F(ClientApiTestFixture, multiple_key_two_phases_exchange_command) {
+  init(10);
+  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
+      [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
+  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+      new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
+  std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
+  cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
+  auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
+  auto clientPubKeyExchangeHandler = std::make_shared<PublicKeyExchangeHandler>();
+  cre.registerHandler(keyExchangeHandler);
+  cre.registerHandler(clientPubKeyExchangeHandler);
+  cre.start();
+  std::this_thread::sleep_for(3s);
+  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 21);
+  ASSERT_GE(keyExchangeHandler->exchanges_, 10);
+  ASSERT_GE(clientPubKeyExchangeHandler->exchanges_, 10);
+  cre.stop();
+}
+
+/*
+ * Test starting with an update
+ */
+TEST_F(ClientApiTestFixture, start_witn_an_update_exchange_command) {
+  init(10);
+  updated_state = true;
+  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
+      [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
+  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+      new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
+  std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
+  cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
+  auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
+  auto clientPubKeyExchangeHandler = std::make_shared<PublicKeyExchangeHandler>();
+  cre.registerHandler(keyExchangeHandler);
+  cre.registerHandler(clientPubKeyExchangeHandler);
+  cre.start();
+  std::this_thread::sleep_for(1s);
+  ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 10);
+  ASSERT_EQ(keyExchangeHandler->exchanges_, 0);
+  ASSERT_EQ(clientPubKeyExchangeHandler->exchanges_, 0);
   cre.stop();
 }
 

@@ -31,7 +31,7 @@ class IStateClient {
   virtual State getNextState(uint64_t lastKnownBlockId) = 0;
   virtual State getLatestClientUpdate(uint16_t clientId) = 0;
   virtual bool updateStateOnChain(const State& state) = 0;
-  virtual void start() = 0;
+  virtual void start(uint64_t lastKnownBlock) = 0;
   virtual void stop() = 0;
   virtual ~IStateClient() = default;
 };
@@ -46,7 +46,7 @@ class PollBasedStateClient : public IStateClient {
   State getLatestClientUpdate(uint16_t clientId) override;
   bool updateStateOnChain(const State& state) override;
   ~PollBasedStateClient();
-  void start() override;
+  void start(uint64_t lastKnownBlock) override;
   void stop() override;
 
  private:

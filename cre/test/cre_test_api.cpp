@@ -32,7 +32,7 @@ class TestStateClient : public IStateClient {
     blocks_.push_back(state.block);
     return true;
   }
-  void start() override {}
+  void start(uint64_t lastKnownBlock) override {}
   void stop() override {}
   std::vector<uint64_t> blocks_;
 };
