@@ -144,7 +144,6 @@ class Server {
         int sock = accept(listen_sock_, NULL, NULL);
         if (sock < 0) {
           if (errno == EAGAIN || errno == EINTR) {
-            LOG_WARN(logger, "DEBUG: TIMEOUT: " << errnoString(errno));
             continue;
           } else {
             LOG_WARN(logger, "Failed to accept connection: " << errnoString(errno));
