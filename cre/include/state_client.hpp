@@ -19,6 +19,7 @@
 #include <thread>
 #include "bftclient/bft_client.h"
 #include "bftclient/seq_num_generator.h"
+
 namespace cre::state {
 struct State {
   uint64_t block;
@@ -29,6 +30,7 @@ class IStateClient {
  public:
   virtual State getNextState(uint64_t lastKnownBlockId) = 0;
   virtual State getLatestClientUpdate(uint16_t clientId) = 0;
+  virtual bool updateStateOnChain(const State& state) = 0;
   virtual void start() = 0;
   virtual void stop() = 0;
   virtual ~IStateClient() = default;
@@ -36,25 +38,27 @@ class IStateClient {
 
 class PollBasedStateClient : public IStateClient {
  public:
-  PollBasedStateClient(std::shared_ptr<bft::client::Client> client,
+  PollBasedStateClient(bft::client::Client* client,
                        uint64_t interval_timeout_ms,
                        uint64_t last_known_block,
                        const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) override;
   State getLatestClientUpdate(uint16_t clientId) override;
+  bool updateStateOnChain(const State& state) override;
   ~PollBasedStateClient();
   void start() override;
   void stop() override;
 
  private:
   State getNewStateImpl(uint64_t lastKnownBlockId);
-  std::shared_ptr<bft::client::Client> bftclient_;
+  std::unique_ptr<bft::client::Client> bftclient_;
   uint16_t id_;
   uint64_t interval_timeout_ms_;
   uint64_t last_known_block_;
   std::queue<State> updates_;
   bft::client::SeqNumberGenerator sn_gen_;
   std::mutex lock_;
+  std::mutex bftclient_lock_;
   std::condition_variable new_updates_;
   std::atomic_bool stopped{true};
   std::thread consumer_;

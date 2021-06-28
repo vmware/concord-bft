@@ -28,14 +28,19 @@ class TestStateClient : public IStateClient {
     return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
   State getLatestClientUpdate(uint16_t clientId) override { return {0, {}}; }
+  bool updateStateOnChain(const State& state) override {
+    blocks_.push_back(state.block);
+    return true;
+  }
   void start() override {}
   void stop() override {}
+  std::vector<uint64_t> blocks_;
 };
 
 class TestExecuteHandler : public IStateHandler {
  public:
   bool validate(const State&) override { return true; }
-  bool execute(const State& state) override {
+  bool execute(const State& state, State&) override {
     std::string newBid(state.data.begin(), state.data.end());
     lastKnownState = state.block;
     return true;
@@ -46,23 +51,22 @@ class TestExecuteHandler : public IStateHandler {
 class TestPersistOnChainHandler : public IStateHandler {
  public:
   bool validate(const State&) override { return true; }
-  bool execute(const State& state) override {
-    blocks.push_back(state.block);
+  bool execute(const State& state, State& out) override {
+    out = {state.block, {}};
     return true;
   }
-  std::vector<uint64_t> blocks;
 };
 
 class TestInvalidHandler : public IStateHandler {
  public:
   bool validate(const State&) override { return false; }
-  bool execute(const State& state) override { return true; }
+  bool execute(const State& state, State&) override { return true; }
 };
 
 class TestErroredHandler : public IStateHandler {
  public:
   bool validate(const State&) override { return true; }
-  bool execute(const State& state) override { return false; }
+  bool execute(const State& state, State&) override { return false; }
 };
 Config c{0, 10};
 
@@ -97,18 +101,19 @@ TEST(test_client_reconfiguration_engine, test_errored_handler) {
 
 TEST(test_client_reconfiguration_engine, test_cre) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
-  std::shared_ptr<ClientReconfigurationEngine> cre =
-      std::make_shared<ClientReconfigurationEngine>(c, new TestStateClient(), aggregator);
+  TestStateClient* sc = new TestStateClient();
+  TestStateClient& rsc = *sc;
+  std::shared_ptr<ClientReconfigurationEngine> cre = std::make_shared<ClientReconfigurationEngine>(c, sc, aggregator);
   std::shared_ptr<TestExecuteHandler> handler = std::make_shared<TestExecuteHandler>();
   std::shared_ptr<TestPersistOnChainHandler> chainHandler = std::make_shared<TestPersistOnChainHandler>();
   cre->registerHandler(handler);
-  cre->registerUpdateStateHandler(chainHandler);
+  cre->registerHandler(chainHandler);
   cre->start();
   std::this_thread::sleep_for(1s);
   ASSERT_EQ(aggregator->GetCounter(metrics_component, errors_counter).Get(), 0);
   ASSERT_EQ(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 0);
   ASSERT_GT(handler->lastKnownState, 0);
-  ASSERT_GT(chainHandler->blocks.size(), 0);
+  ASSERT_GT(rsc.blocks_.size(), 0);
   cre->stop();
 }
 }  // namespace

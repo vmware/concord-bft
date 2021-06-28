@@ -26,7 +26,6 @@ class ClientReconfigurationEngine {
                               state::IStateClient* stateClient,
                               std::shared_ptr<concordMetrics::Aggregator> aggregator);
   void registerHandler(std::shared_ptr<state::IStateHandler> handler);
-  void registerUpdateStateHandler(std::shared_ptr<state::IStateHandler> handler);
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     metrics_.SetAggregator(aggregator_);
@@ -42,7 +41,6 @@ class ClientReconfigurationEngine {
     return logger_;
   }
   std::vector<std::shared_ptr<state::IStateHandler>> handlers_;
-  std::vector<std::shared_ptr<state::IStateHandler>> updateStateHandlers_;
   std::unique_ptr<state::IStateClient> stateClient_;
   config::Config config_;
   std::atomic_bool stopped_{true};

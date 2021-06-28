@@ -21,7 +21,7 @@ ClientReconfigurationEngine::ClientReconfigurationEngine(const config::Config& c
       metrics_{concordMetrics::Component("client_reconfiguration_engine", aggregator_)},
       invalid_handlers_{metrics_.RegisterCounter("invalid_handlers")},
       errored_handlers_{metrics_.RegisterCounter("errored_handlers")},
-      last_known_block_(metrics_.RegisterGauge("last_known_block", lastKnownBlock_)) {
+      last_known_block_(metrics_.RegisterGauge("last_known_block", 0)) {
   metrics_.Register();
 }
 
@@ -38,23 +38,14 @@ void ClientReconfigurationEngine::main() {
           invalid_handlers_.Get().Inc();
           continue;
         }
-        if (!h->execute(update)) {
+        state::State out_state;
+        if (!h->execute(update, out_state)) {
           LOG_ERROR(getLogger(), "error while executing the handlers");
           errored_handlers_.Get().Inc();
           continue;
         }
-      }
-
-      // Update the client state on the chain
-      for (auto& h : updateStateHandlers_) {
-        if (!h->validate(update)) {
-          invalid_handlers_.Get().Inc();
-          continue;
-        }
-        if (!h->execute(update)) {
-          LOG_ERROR(getLogger(), "error while executing updating the state on the chain");
-          errored_handlers_.Get().Inc();
-          continue;
+        if (out_state.block == update.block) {
+          stateClient_->updateStateOnChain(out_state);
         }
       }
       lastKnownBlock_ = update.block;
@@ -70,23 +61,22 @@ void ClientReconfigurationEngine::registerHandler(std::shared_ptr<state::IStateH
   if (handler != nullptr) handlers_.push_back(handler);
 }
 
-void ClientReconfigurationEngine::registerUpdateStateHandler(std::shared_ptr<state::IStateHandler> handler) {
-  if (handler != nullptr) updateStateHandlers_.push_back(handler);
-}
 ClientReconfigurationEngine::~ClientReconfigurationEngine() {
-  try {
-    stateClient_->stop();
-    stopped_ = true;
-    mainThread_.join();
-  } catch (...) {
+  if (!stopped_) {
+    try {
+      stateClient_->stop();
+      stopped_ = true;
+      mainThread_.join();
+    } catch (...) {
+    }
   }
 }
 void ClientReconfigurationEngine::start() {
-  stateClient_->start();
   auto initial_state = stateClient_->getLatestClientUpdate(config_.id_);
   lastKnownBlock_ = initial_state.block;
   last_known_block_.Get().Set(lastKnownBlock_);
   metrics_.UpdateAggregator();
+  stateClient_->start();
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
 }

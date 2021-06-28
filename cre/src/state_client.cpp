@@ -23,7 +23,7 @@ State state::PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
   return ret;
 }
 
-PollBasedStateClient::PollBasedStateClient(std::shared_ptr<bft::client::Client> client,
+PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
                                            uint64_t interval_timeout_ms,
                                            uint64_t last_known_block,
                                            const uint16_t id)
@@ -34,6 +34,7 @@ PollBasedStateClient::PollBasedStateClient(std::shared_ptr<bft::client::Client> 
       sn_gen_(bft::client::ClientId{id}) {}
 
 State PollBasedStateClient::getNewStateImpl(uint64_t lastKnownBlockId) {
+  std::lock_guard<std::mutex> lock(bftclient_lock_);
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
   rreq.command = creq;
@@ -62,11 +63,14 @@ State PollBasedStateClient::getNewStateImpl(uint64_t lastKnownBlockId) {
 }
 
 PollBasedStateClient::~PollBasedStateClient() {
-  if (stopped) return;
-  stopped = true;
-  try {
-    consumer_.join();
-  } catch (...) {
+  std::lock_guard<std::mutex> lock(lock_);
+  bftclient_->stop();
+  if (!stopped) {
+    stopped = true;
+    try {
+      consumer_.join();
+    } catch (...) {
+    }
   }
 }
 void PollBasedStateClient::start() {
@@ -75,8 +79,8 @@ void PollBasedStateClient::start() {
     while (!stopped) {
       std::this_thread::sleep_for(std::chrono::microseconds(interval_timeout_ms_));
       if (stopped) return;
-      std::lock_guard<std::mutex> lk(lock_);
       auto new_state = getNewStateImpl(last_known_block_);
+      std::lock_guard<std::mutex> lk(lock_);
       if (new_state.block > last_known_block_) {
         updates_.push(new_state);
         last_known_block_ = new_state.block;
@@ -94,6 +98,7 @@ void PollBasedStateClient::stop() {
   }
 }
 State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) {
+  std::lock_guard<std::mutex> lock(bftclient_lock_);
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::ClientReconfigurationLastUpdate creq{id_};
   rreq.command = creq;
@@ -119,5 +124,34 @@ State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) {
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
+}
+bool PollBasedStateClient::updateStateOnChain(const State& state) {
+  concord::messages::ReconfigurationRequest rreq;
+  concord::messages::deserialize(state.data, rreq);
+  auto data_vec = state.data;
+  std::string sig;
+  {
+    std::lock_guard<std::mutex> lock(bftclient_lock_);
+    sig = bftclient_->signMessage(data_vec);
+  }
+  rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  bft::client::RequestConfig request_config;
+  request_config.reconfiguration = true;
+  request_config.correlation_id = "updateStateOnChain-" + std::to_string(state.block);
+  bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
+  bft::client::Msg msg;
+  concord::messages::serialize(msg, rreq);
+  bft::client::Reply rep;
+  {
+    std::lock_guard<std::mutex> lock(bftclient_lock_);
+    rep = bftclient_->send(write_config, std::move(msg));
+  }
+  // To have a valid quorum, we expect to have the reply in the additional_data of te reply.
+  concord::messages::ReconfigurationResponse rres;
+  concord::messages::deserialize(rep.matched_data, rres);
+  if (!rres.success) {
+    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
+  }
+  return true;
 }
 }  // namespace cre::state

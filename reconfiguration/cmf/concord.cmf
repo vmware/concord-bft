@@ -136,22 +136,29 @@ Msg ClientReconfigurationStateRequest 37 {
     uint64 last_known_block
 }
 
-Msg ClientReconfigurationStateReply 38 {
+Msg ClientExchangePublicKey 38 {
+    uint64 sender_id
+    string pub_key
+}
+
+Msg ClientReconfigurationStateReply 39 {
     uint64 block_id
     oneof {
-        WedgeCommand
+        ClientExchangePublicKey
+        ClientKeyExchangeCommand
       } response
 }
 
-Msg ClientReconfigurationStateUpdate 39 {
+Msg ClientReconfigurationStateUpdate 40 {
     uint64 sender_id
     uint64 update_version
     string data
 }
 
-Msg ClientReconfigurationLastUpdate 35 {
+Msg ClientReconfigurationLastUpdate 41 {
     uint64 sender_id
 }
+
 
 Msg ReconfigurationRequest 1 {
   bytes signature
@@ -175,8 +182,9 @@ Msg ReconfigurationRequest 1 {
     UnwedgeCommand
     ClientKeyExchangeCommand
     ClientReconfigurationStateRequest
-    ClientReconfigurationStateUpdate
+    ClientExchangePublicKey
     ClientReconfigurationLastUpdate
+    ClientKeyExchange
   } command
   bytes additional_data
 }
