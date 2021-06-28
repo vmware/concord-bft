@@ -12,7 +12,10 @@
 // file.
 
 #include "ControlStateManager.hpp"
+#include "SigManager.hpp"
 #include "Logger.hpp"
+#include "ReplicaConfig.hpp"
+#include "Replica.hpp"
 namespace bftEngine {
 
 /*
@@ -96,6 +99,76 @@ void ControlStateManager::onRestartProof() {
   for (const auto& kv : onRestartProofCbRegistery_) {
     kv.second.invokeAll();
   }
+}
+
+std::pair<bool, std::string> ControlStateManager::canUnwedge() {
+  if (!enabled_) {
+    return {false, "ControlStateManager is disabled"};
+  }
+
+  if (!bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
+    return {false, "Replica has not reached the wedge point yet"};
+  }
+
+  auto last_checkpoint = getCheckpointToStopAt();
+  ConcordAssert(last_checkpoint.has_value());
+
+  std::string sig_data =
+      std::to_string(ReplicaConfig::instance().getreplicaId()) + std::to_string(last_checkpoint.value());
+  auto sig_manager = impl::SigManager::instance();
+  std::string sig(sig_manager->getMySigLength(), '\0');
+  sig_manager->sign(sig_data.c_str(), sig_data.size(), sig.data(), sig.size());
+
+  return {true, sig};
+}
+
+bool ControlStateManager::verifyUnwedgeSignatures(
+    std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures) {
+  size_t quorum = ReplicaConfig::instance().numReplicas;
+  if (signatures.size() < quorum) {
+    LOG_INFO(GL, "Not enough signatures for verification");
+    return false;
+  }
+
+  auto last_checkpoint = getCheckpointToStopAt();
+  if (!last_checkpoint.has_value()) {
+    return false;
+  }
+
+  auto sig_manager = impl::SigManager::instance();
+  size_t verified_sigs = 0;
+
+  for (auto const& sig : signatures) {
+    std::string sig_data = std::to_string(sig.first) + std::to_string(last_checkpoint.value());
+    std::string signature(sig.second.begin(), sig.second.end());
+    bool valid = false;
+    if (sig.first == ReplicaConfig::instance().replicaId) {
+      // SigManager cannot verify signature coming from same replica
+      // Generate the signature again and compare them.
+      verified_sigs++;
+      std::string sign(sig_manager->getMySigLength(), '\0');
+      sig_manager->sign(sig_data.c_str(), sig_data.size(), sign.data(), sign.size());
+      if (sign == std::string(sig.second.begin(), sig.second.end())) {
+        valid = true;
+        verified_sigs++;
+      }
+    } else {
+      valid = sig_manager->verifySig(sig.first, sig_data.c_str(), sig_data.size(), signature.data(), signature.size());
+    }
+
+    if (!valid) {
+      LOG_INFO(GL, "Invalid signature for principal id " << sig.first);
+    } else {
+      verified_sigs++;
+    }
+  }
+
+  if (verified_sigs < quorum) {
+    LOG_INFO(GL, "Not enough valid signatures for unwedge");
+    return false;
+  }
+  LOG_INFO(GL, "Successfully validated unwedge signatures");
+  return true;
 }
 
 }  // namespace bftEngine

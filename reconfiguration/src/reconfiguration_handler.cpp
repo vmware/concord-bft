@@ -109,4 +109,36 @@ bool BftReconfigurationHandler::verifySignature(const std::string& data, const s
   if (pub_key_ == nullptr && verifier_ == nullptr) return false;
   return pub_key_->verify(data, signature) || verifier_->verify(data, signature);
 }
+
+bool ReconfigurationHandler::handle(const UnwedgeCommand& cmd,
+                                    uint64_t bft_seq_num,
+                                    concord::messages::ReconfigurationResponse&) {
+  LOG_INFO(getLogger(), "Unwedge command started");
+  auto& controlStateManager = bftEngine::ControlStateManager::instance();
+  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures);
+  if (valid) {
+    controlStateManager.clearCheckpointToStopAt();
+    LOG_INFO(getLogger(), "Unwedge command completed sucessfully");
+  }
+  return valid;
+}
+
+bool ReconfigurationHandler::handle(const UnwedgeStatusRequest& req,
+                                    uint64_t,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::UnwedgeStatusResponse response;
+  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge();
+  response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
+  if (!can_unwedge.first) {
+    response.can_unwedge = false;
+    response.reason = can_unwedge.second;
+    LOG_INFO(getLogger(), "Replica is not ready to unwedge. Reason: " << can_unwedge.second);
+  } else {
+    response.can_unwedge = true;
+    response.signature = std::vector<uint8_t>(can_unwedge.second.begin(), can_unwedge.second.end());
+    LOG_INFO(getLogger(), "Replica is ready to unwedge");
+  }
+  rres.response = response;
+  return true;
+}
 }  // namespace concord::reconfiguration
