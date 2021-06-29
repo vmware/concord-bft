@@ -152,6 +152,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
           calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, true)},
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
+      cycleCounter_(0),
       randomGen_{randomDevice_()},
       sourceSelector_{
           allOtherReplicas(), config_.fetchRetransmissionTimeoutMs, config_.sourceReplicaReplacementTimeoutMs},
@@ -650,8 +651,7 @@ void BCStateTran::startCollectingStats() {
 }
 
 void BCStateTran::startCollectingState() {
-  LOG_INFO(getLogger(), "");
-
+  LOG_INFO(getLogger(), "State Transfer cycle started (#" << ++cycleCounter_ << ")");
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
   auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -2253,7 +2253,7 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
       "collectRange", std::to_string(firstRequiredBlock) + ", " + std::to_string(firstCollectedBlockId_.value())));
   nested_data.insert(toPair("lastCollectedBlock", nextRequiredBlock_));
   nested_data.insert(toPair("blocksLeft", (nextRequiredBlock_ - firstRequiredBlock)));
-  nested_data.insert(toPair("elapsedTime", std::to_string(blocks_overall_r.elapsed_time_ms_) + " ms"));
+  nested_data.insert(toPair("cycle", cycleCounter_));
   nested_data.insert(toPair("elapsedTime", std::to_string(blocks_overall_r.elapsedTimeMillisec_) + " ms"));
   nested_data.insert(toPair("collected",
                             std::to_string(blocks_overall_r.numProcessedItems_) + " blk & " +
@@ -2463,6 +2463,19 @@ void BCStateTran::processData() {
 
         ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingResPages);
 
+        // Log histograms for destination when GettingMissingBlocks is done
+        // Do it for a cycle that lasted more than 10 seconds
+        auto duration = cycleDT_.pause();
+        if (duration > 10000) {
+          auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+          registrar.perf.snapshot("state_transfer");
+          registrar.perf.snapshot("state_transfer_dest");
+          LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer")));
+          LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer_dest")));
+        } else
+          LOG_INFO(getLogger(),
+                   "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
+        cycleDT_.start();
         LOG_DEBUG(getLogger(), "Moved to GettingMissingResPages");
         sendFetchResPagesMsg(0);
         break;
@@ -2527,6 +2540,7 @@ void BCStateTran::processData() {
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
 
+      cycleEndSummary();
       lastFetchingState_ = FetchingState::NotFetching;
       break;
     }
@@ -2547,6 +2561,48 @@ void BCStateTran::processData() {
       break;
     }
   }
+}
+
+void BCStateTran::cycleEndSummary() {
+  Throughput::Results blocksCollectedResults;
+  Throughput::Results bytesCollectedResults;
+  std::ostringstream oss;
+
+  if (gettingMissingBlocksDT_.totalDuration() != 0) {
+    blocksCollectedResults = blocks_collected_.getOverallResults();
+    bytesCollectedResults = bytes_collected_.getOverallResults();
+    blocks_collected_.end();
+    bytes_collected_.end();
+  }
+
+  std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(oss, ","));
+  oss << sources_.back();
+  auto cycleDuration = cycleDT_.totalDuration(true);
+  auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
+  auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
+  auto commitToChainDuration = commitToChainDT_.totalDuration(true);
+  auto gettingMissingResPagesDuration = gettingMissingResPagesDT_.totalDuration(true);
+  auto betweenPutBlocksStDuration = betweenPutBlocksStTempDT_.totalDuration(true);
+  auto putBlocksStTempDuration = putBlocksStTempDT_.totalDuration(true);
+  LOG_INFO(getLogger(),
+           "State Transfer cycle ended (#"
+               << cycleCounter_ << ") , Total Duration: " << cycleDuration << "ms, "
+               << "Time to get checkpoint summaries: " << gettingCheckpointSummariesDuration << "ms, "
+               << "Time to fetch missing blocks: " << gettingMissingBlocksDuration << "ms, "
+               << "Time to commit to chain: " << commitToChainDuration << "ms, "
+               << "Time to get reserved pages (vblock): " << gettingMissingResPagesDuration << "ms, "
+               << "Total time between putblock (GettingMissingBlocks) " << betweenPutBlocksStDuration << "ms, "
+               << "Total time for putblock (GettingMissingBlocks) " << putBlocksStTempDuration << "ms, "
+               << "Collected blocks range [" << std::to_string(lastCollectedBlockId_.value()) << ", "
+               << std::to_string(firstCollectedBlockId_.value()) << "], Collected "
+               << std::to_string(blocksCollectedResults.numProcessedItems_) + " blocks and " +
+                      std::to_string(bytesCollectedResults.numProcessedItems_) + " bytes,"
+               << " Throughput {GettingMissingBlocks}: " << blocksCollectedResults.throughput_ << " blocks/sec and "
+               << bytesCollectedResults.throughput_ << " bytes/sec, Throughput {cycle}: "
+               << static_cast<uint64_t>((1000 * blocksCollectedResults.numProcessedItems_) / cycleDuration)
+               << " blocks/sec and "
+               << static_cast<uint64_t>((1000 * bytesCollectedResults.numProcessedItems_) / cycleDuration)
+               << " bytes/sec, #" << sources_.size() << " sources (first to last): [" << oss.str() << "]");
 }
 
 //////////////////////////////////////////////////////////////////////////////
