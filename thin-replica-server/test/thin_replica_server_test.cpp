@@ -298,7 +298,6 @@ TEST(thin_replica_server_test, SubscribeToUpdatesAlreadySynced) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   SubscriptionRequest request;
-  request.set_key_prefix("");
   request.set_block_id(1u);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
@@ -322,7 +321,6 @@ TEST(thin_replica_server_test, SubscribeToUpdatesWithGap) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   SubscriptionRequest request;
-  request.set_key_prefix("");
   request.set_block_id(1u);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
@@ -346,7 +344,6 @@ TEST(thin_replica_server_test, SubscribeToUpdatesWithGapFromTheMiddleBlock) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   SubscriptionRequest request;
-  request.set_key_prefix("");
   request.set_block_id(3u);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
@@ -370,7 +367,6 @@ TEST(thin_replica_server_test, SubscribeToUpdateHashesAlreadySynced) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   SubscriptionRequest request;
-  request.set_key_prefix("");
   request.set_block_id(1u);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
@@ -394,7 +390,6 @@ TEST(thin_replica_server_test, SubscribeToUpdateHashesWithGap) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   SubscriptionRequest request;
-  request.set_key_prefix("");
   request.set_block_id(1u);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
@@ -420,7 +415,6 @@ TEST(thin_replica_server_test, ReadState) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   ReadStateRequest request;
-  request.set_key_prefix("");
   auto status = replica.ReadState(&context, &request, &stream);
   EXPECT_EQ(status.error_code(), grpc::StatusCode::OK);
 }
@@ -443,7 +437,6 @@ TEST(thin_replica_server_test, ReadStateHash) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   ReadStateHashRequest request;
-  request.set_key_prefix("");
   request.set_block_id(kLastBlockId);
   Hash hash;
   auto status = replica.ReadStateHash(&context, &request, &hash);
@@ -468,7 +461,6 @@ TEST(thin_replica_server_test, AckUpdate) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   ReadStateHashRequest request;
-  request.set_key_prefix("");
   request.set_block_id(kLastBlockId);
 
   com::vmware::concord::thin_replica::BlockId block_id;
@@ -494,7 +486,6 @@ TEST(thin_replica_server_test, Unsubscribe) {
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   TestServerContext context;
   ReadStateHashRequest request;
-  request.set_key_prefix("");
   request.set_block_id(kLastBlockId);
 
   com::vmware::concord::thin_replica::BlockId block_id;
@@ -553,7 +544,6 @@ TEST(thin_replica_server_test, SubscribeWithWrongBlockId) {
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
   concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
   SubscriptionRequest request;
-  request.set_key_prefix("");
   request.set_block_id(kLastBlockId + 100);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);

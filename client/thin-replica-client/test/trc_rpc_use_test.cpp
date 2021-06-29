@@ -93,16 +93,12 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
 
-  trc->Subscribe("k");
+  trc->Subscribe();
   vector<bool> servers_used(num_replicas, false);
   ASSERT_EQ(record->GetReadStateCalls().size(), 1)
       << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "
          "unexpected number of ReadState calls.";
   servers_used[record->GetReadStateCalls().front().first] = true;
-  EXPECT_EQ(record->GetReadStateCalls().front().second.key_prefix(), "k")
-      << "ThinReplicaClient::Subscribe's 1-parameter overload made a ReadState "
-         "call with a prefix not matching the prefix given as a parameter to "
-         "Subscribe.";
   EXPECT_EQ(record->GetReadStateHashCalls().size(), max_faulty)
       << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "
          "unexpected number of ReadStateHash calls.";
@@ -110,9 +106,6 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
     EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 1-parameter overload re-used a "
                                               "server when looking for state consensus.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.key_prefix(), "k") << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
-                                                "ReadStateHash call with a prefix not matching the prefix given as "
-                                                "a parameter to Subscribe.";
     EXPECT_EQ(call.second.block_id(), 0) << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
                                             "ReadStateHash call with a Block ID inconsistent with the state the "
                                             "mock servers have been configured to return for ReadState.";
@@ -128,10 +121,6 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
       << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "
          "unexpected number of Subscribe calls.";
   servers_used[record->GetSubscribeToUpdatesCalls().front().first] = true;
-  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.key_prefix(), "k")
-      << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
-         "SubscribeToUpdates call with a prefix not matching the prefix given "
-         "as a parameter to Subscribe.";
   EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.block_id(), 1)
       << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
          "SubscribeToUpdates call with a Block ID inconsistent with the "
@@ -143,9 +132,6 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
     EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 1-parameter overload re-used a "
                                               "server when opening subscription streams.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.key_prefix(), "k") << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
-                                                "SubscribeToUpdateHashes call with a key prefix not matching the "
-                                                "prefix given as a parameter to Subscribe.";
     EXPECT_EQ(call.second.block_id(), 1) << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
                                             "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
                                             "initial state it was provided.";
@@ -168,7 +154,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config));
   update_queue->Clear();
-  trc->Subscribe("key", 1);
+  trc->Subscribe(1);
 
   // Block until an update is received through the subscription stream.
   update_queue->Pop();
@@ -177,10 +163,6 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
       << "ThinReplicaClient::Subscribe's 2-parameter overload generated an "
          "unexpected number of Subscribe calls.";
   servers_used[record->GetSubscribeToUpdatesCalls().front().first] = true;
-  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.key_prefix(), "key")
-      << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
-         "SubscribeToUpdates call with a key prefix not matching the prefix "
-         "given as a parameter to Subscribe.";
   EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.block_id(), 2)
       << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
          "SubscribeToUpdates call with a Block ID inconsistent with the one "
@@ -192,9 +174,6 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
     EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 2-parameter overload re-used a "
                                               "server when opening subscription streams.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.key_prefix(), "key") << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
-                                                  "SubscribeToUpdateHashes call with a key prefix not matching the "
-                                                  "prefix given as a parameter to Subscribe.";
     EXPECT_EQ(call.second.block_id(), 2) << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
                                             "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
                                             "one given as a parameter to Subscribe.";

@@ -60,13 +60,13 @@ MockTrsConnection::MockTrsConnection() : TrsConnection("mock_address", "mock_cli
 MockThinReplicaStub* MockTrsConnection::GetStub() { return dynamic_cast<MockThinReplicaStub*>(this->stub_.get()); }
 bool MockTrsConnection::isConnected() { return true; }
 
-Data FilterUpdate(const Data& raw_update, const string& filter) {
+Data FilterUpdate(const Data& raw_update) {
   Data filtered_update;
   filtered_update.set_block_id(raw_update.block_id());
   filtered_update.set_correlation_id(raw_update.correlation_id());
   for (const KVPair& raw_kvp : raw_update.data()) {
     const string& key = raw_kvp.key();
-    if ((key.length() >= filter.length()) && (key.compare(0, filter.size(), filter) == 0)) {
+    if ((key.length() >= 0)) {
       KVPair* filtered_kvp = filtered_update.add_data();
       *filtered_kvp = raw_kvp;
     }
@@ -107,12 +107,12 @@ bool VectorMockDataStreamPreparer::DataQueue::Read(Data* msg) {
   }
 }
 
-ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareInitialStateDataStream(const string& filter) const {
+ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareInitialStateDataStream() const {
   auto data_stream = new MockThinReplicaStream<Data>();
   list<Data> data_queue;
   ConcordAssert(num_updates_in_initial_state_ <= data_.size());
   for (size_t i = 0; i < num_updates_in_initial_state_; ++i) {
-    data_queue.push_back(FilterUpdate(data_[i], filter));
+    data_queue.push_back(FilterUpdate(data_[i]));
   }
   auto data_stream_state = new DataQueue(data_queue);
   data_stream->state.reset(data_stream_state);
@@ -122,8 +122,7 @@ ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareInitialStateDa
   return data_stream;
 }
 
-ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareSubscriptionDataStream(uint64_t block_id,
-                                                                                         const string& filter) const {
+ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareSubscriptionDataStream(uint64_t block_id) const {
   auto data_stream = new MockThinReplicaStream<Data>();
   list<Data> data_queue;
   size_t subscription_start = 0;
@@ -131,7 +130,7 @@ ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareSubscriptionDa
     ++subscription_start;
   }
   for (size_t i = subscription_start; i < data_.size(); ++i) {
-    data_queue.push_back(FilterUpdate(data_[i], filter));
+    data_queue.push_back(FilterUpdate(data_[i]));
   }
   auto data_stream_state = new DataQueue(data_queue);
   data_stream->state.reset(data_stream_state);
@@ -153,12 +152,12 @@ VectorMockDataStreamPreparer::VectorMockDataStreamPreparer(const vector<Data>& d
 VectorMockDataStreamPreparer::~VectorMockDataStreamPreparer() {}
 ClientReaderInterface<Data>* VectorMockDataStreamPreparer::ReadStateRaw(ClientContext* context,
                                                                         const ReadStateRequest& request) const {
-  return PrepareInitialStateDataStream(request.key_prefix());
+  return PrepareInitialStateDataStream();
 }
 
 ClientReaderInterface<Data>* VectorMockDataStreamPreparer::SubscribeToUpdatesRaw(
     ClientContext* context, const SubscriptionRequest& request) const {
-  return PrepareSubscriptionDataStream(request.block_id(), request.key_prefix());
+  return PrepareSubscriptionDataStream(request.block_id());
 }
 
 RepeatedMockDataStreamPreparer::DataRepeater::DataRepeater(const Data& data, uint64_t starting_block_id)
@@ -200,10 +199,9 @@ bool RepeatedMockDataStreamPreparer::DataRepeater::Read(Data* msg) {
   }
 }
 
-ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::PrepareInitialStateDataStream(const string& filter) const {
+ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::PrepareInitialStateDataStream() const {
   auto data_stream = new MockThinReplicaStream<Data>();
-  auto data_stream_state =
-      new DataRepeater(FilterUpdate(data_, filter), data_.block_id(), num_updates_in_initial_state_);
+  auto data_stream_state = new DataRepeater(FilterUpdate(data_), data_.block_id(), num_updates_in_initial_state_);
   data_stream->state.reset(data_stream_state);
 
   ON_CALL(*data_stream, Finish).WillByDefault(Invoke(data_stream_state, &DataRepeater::Finish));
@@ -211,10 +209,9 @@ ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::PrepareInitialState
   return data_stream;
 }
 
-ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::PrepareSubscriptionDataStream(uint64_t block_id,
-                                                                                           const string& filter) const {
+ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::PrepareSubscriptionDataStream(uint64_t block_id) const {
   auto data_stream = new MockThinReplicaStream<Data>();
-  auto data_stream_state = new DataRepeater(FilterUpdate(data_, filter), block_id);
+  auto data_stream_state = new DataRepeater(FilterUpdate(data_), block_id);
   data_stream->state.reset(data_stream_state);
 
   ON_CALL(*data_stream, Finish).WillByDefault(Invoke(data_stream_state, &DataRepeater::Finish));
@@ -228,12 +225,12 @@ RepeatedMockDataStreamPreparer::RepeatedMockDataStreamPreparer(const Data& data,
 RepeatedMockDataStreamPreparer::~RepeatedMockDataStreamPreparer() {}
 ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::ReadStateRaw(ClientContext* context,
                                                                           const ReadStateRequest& request) const {
-  return PrepareInitialStateDataStream(request.key_prefix());
+  return PrepareInitialStateDataStream();
 }
 
 ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::SubscribeToUpdatesRaw(
     ClientContext* context, const SubscriptionRequest& request) const {
-  return PrepareSubscriptionDataStream(request.block_id(), request.key_prefix());
+  return PrepareSubscriptionDataStream(request.block_id());
 }
 
 DelayedMockDataStreamPreparer::DataDelayer::DataDelayer(ClientReaderInterface<Data>* data,
@@ -320,7 +317,6 @@ MockOrderedDataStreamHasher::MockOrderedDataStreamHasher(shared_ptr<MockDataStre
   // stream prepared for ReadState by the MockDataStreamPreparer.
   auto context = make_unique<ClientContext>();
   ReadStateRequest request;
-  request.set_key_prefix("");
   unique_ptr<ClientReaderInterface<Data>> data_stream(data->ReadStateRaw(context.get(), request));
   Data base_block;
   if (!data_stream->Read(&base_block)) {
@@ -340,7 +336,6 @@ Status MockOrderedDataStreamHasher::ReadStateHash(ClientContext* context,
   list<string> update_hashes;
   auto data_context = make_unique<ClientContext>();
   SubscriptionRequest data_request;
-  data_request.set_key_prefix(request.key_prefix());
   data_request.set_block_id(base_block_id_);
   unique_ptr<ClientReaderInterface<Data>> data_stream(
       data_preparer_->SubscribeToUpdatesRaw(data_context.get(), data_request));

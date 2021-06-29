@@ -574,8 +574,7 @@ class ThinReplicaImpl {
   std::tuple<grpc::Status, KvbAppFilterPtr> createKvbFilter(ServerContextT* context, const RequestT* request) {
     KvbAppFilterPtr kvb_filter;
     try {
-      kvb_filter =
-          std::make_shared<kvbc::KvbAppFilter>(config_->rostorage, getClientId(context), request->key_prefix());
+      kvb_filter = std::make_shared<kvbc::KvbAppFilter>(config_->rostorage, getClientId(context));
     } catch (std::exception& error) {
       std::stringstream msg;
       msg << "Failed to set up filter: " << error.what();
