@@ -156,6 +156,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       randomGen_{randomDevice_()},
       sourceSelector_{
           allOtherReplicas(), config_.fetchRetransmissionTimeoutMs, config_.sourceReplicaReplacementTimeoutMs},
+      workersPool_((config_.numberOfWorkerThreads > 0) ? config_.numberOfWorkerThreads
+                                                       : std::thread::hardware_concurrency()),
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
@@ -237,6 +239,12 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   // Register metrics component with the default aggregator.
   metrics_component_.Register();
 
+  srcWorkersContext_.resize(config_.maxNumberOfChunksInBatch);
+  for (uint16_t i{0}; i < config_.maxNumberOfChunksInBatch; ++i) {
+    // for (auto &context : srcWorkersContext_) {
+    srcWorkersContext_[i].buffer = new char[config_.maxBlockSize];
+    srcWorkersContext_[i].index = i;
+  }
   buffer_ = new char[maxItemSize_]{};
   LOG_INFO(getLogger(), "Creating BCStateTran object: " << config_);
 
@@ -259,6 +267,9 @@ BCStateTran::~BCStateTran() {
   ConcordAssert(pendingItemDataMsgs.empty());
 
   delete[] buffer_;
+  for (auto &context : srcWorkersContext_) {
+    delete[] context.buffer;
+  }
 }
 
 // Load metrics that are saved on persistent storage
@@ -1228,9 +1239,52 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   return true;
 }
 
+void BCStateTran::workerGetBlock(GetBlockWorkerContext *ctx) {
+  bool tmp;
+  ctx->size = 0;
+
+  DurationTracker<std::chrono::microseconds> dt;
+  dt.start();
+  tmp = as_->getBlock(ctx->blockId, ctx->buffer, &ctx->size);
+  ctx->jobDurationMicrosec = dt.totalDuration(true);
+  LOG_DEBUG(getLogger(), "Job done for " << KVLOG(ctx->blockId, ctx->index));
+  ConcordAssert(tmp);
+  ConcordAssertGT(ctx->size, 0);
+}
+
+uint16_t BCStateTran::asyncGetBlocksConcurrent(uint64_t nextBlockId,
+                                               uint64_t firstRequiredBlock,
+                                               uint16_t numBlocks,
+                                               size_t startContextIndex) {
+  auto numBlocksToFetch{std::min(config_.maxNumberOfChunksInBatch, numBlocks)};
+  auto j{startContextIndex};
+
+  std::set<size_t> indexesToWaitfor;
+
+  for (uint64_t i{nextBlockId}; (i >= firstRequiredBlock) && (j < startContextIndex + numBlocksToFetch); --i, ++j) {
+    auto &ctx = srcWorkersContext_[j];
+    // start the job ASAP, return result to on-stack future
+    ctx.blockId = i;
+    auto future = workersPool_.async(std::bind(&BCStateTran::workerGetBlock, this, _1), &ctx);
+    // TODO(GL)- get() can be optimize by waiting 0 time and continue calling next jobs which might have finished. 1st
+    // research if wait time > 0.
+    if (ctx.future.valid()) {
+      // wait for previous thread to - we must call it explicitly here, can't relay on dtor
+      LOG_DEBUG(getLogger(), "Waiting for previous thread to finish job on context " << KVLOG(ctx.blockId, ctx.index));
+      ctx.future.get();
+    }
+    ctx.future = std::move(future);
+  }
+
+  return j;
+}
+
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
-  LOG_DEBUG(getLogger(), "");
+  LOG_DEBUG(
+      getLogger(),
+      KVLOG(
+          replicaId, m->msgSeqNum, m->firstRequiredBlock, m->lastRequiredBlock, m->lastKnownChunkInLastRequiredBlock));
   metrics_.received_fetch_blocks_msg_.Get().Inc();
 
   // if msg is invalid
@@ -1268,41 +1322,70 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   }
 
   // compute information about next block and chunk
-  uint64_t nextBlock = m->lastRequiredBlock;
-  uint32_t sizeOfNextBlock = 0;
-  bool tmp = as_->getBlock(nextBlock, buffer_, &sizeOfNextBlock);
-  ConcordAssert(tmp);
-  ConcordAssertGT(sizeOfNextBlock, 0);
-
-  uint32_t sizeOfLastChunk = config_.maxChunkSize;
-  uint32_t numOfChunksInNextBlock = sizeOfNextBlock / config_.maxChunkSize;
-  if (sizeOfNextBlock % config_.maxChunkSize != 0) {
-    sizeOfLastChunk = sizeOfNextBlock % config_.maxChunkSize;
-    numOfChunksInNextBlock++;
-  }
-
+  uint32_t sizeOfLastChunk, numOfChunksInNextBlock, sizeOfNextBlock;
+  uint64_t nextBlockId = m->lastRequiredBlock;
   uint16_t nextChunk = m->lastKnownChunkInLastRequiredBlock + 1;
+  uint16_t numOfSentChunks = 0;
 
-  // if msg is invalid (lastKnownChunkInLastRequiredBlock+1 does not exist)
-  if (nextChunk > numOfChunksInNextBlock) {
-    LOG_WARN(getLogger(),
-             "Msg is invalid: illegal chunk number: " << KVLOG(replicaId, nextChunk, numOfChunksInNextBlock));
-    return false;
+  auto isFetchersContextValid = srcWorkersContext_[0].future.valid();
+  if (!isFetchersContextValid || srcWorkersContext_[0].blockId != nextBlockId) {
+    LOG_INFO(getLogger(),
+             "Source blocks prefetch disabled: first batch or retransmission: " << KVLOG(srcWorkersContext_[0].blockId,
+                                                                                         nextBlockId));
+    asyncGetBlocksConcurrent(nextBlockId, m->firstRequiredBlock, config_.maxNumberOfChunksInBatch);
   }
 
-  // send chunks
-  uint16_t numOfSentChunks = 0;
-  while (true) {
-    SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum, nextChunk, nextBlock));
+  // fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
+  uint64_t preFetchBlockId =
+      (nextBlockId > config_.maxNumberOfChunksInBatch) ? (nextBlockId - config_.maxNumberOfChunksInBatch) : 0;
+  LOG_DEBUG(getLogger(),
+            "Start sending batch: " << KVLOG(m->msgSeqNum,
+                                             m->firstRequiredBlock,
+                                             m->lastRequiredBlock,
+                                             m->lastKnownChunkInLastRequiredBlock,
+                                             preFetchBlockId));
+  size_t ctx_index = 0;
+  char *buffer;
+  DurationTracker<std::chrono::microseconds> waitFutureDuration; // TOFO(GG) - remove when unneeded
+  do {
+    // wait for worker to finish getting next block
+    auto &ctx = srcWorkersContext_[ctx_index];
+    ConcordAssert(ctx.future.valid());
+    waitFutureDuration.start();
+    ctx.future.get();
+    ConcordAssertEQ(ctx.blockId, nextBlockId);
+    sizeOfNextBlock = ctx.size;
+    buffer = ctx.buffer;
+    LOG_DEBUG(
+        getLogger(),
+        "Start sending next block: " << KVLOG(nextBlockId, sizeOfNextBlock, waitFutureDuration.totalDuration(true)));
+    waitFutureDuration.reset();
+
+
+    sizeOfLastChunk = config_.maxChunkSize;
+    numOfChunksInNextBlock = sizeOfNextBlock / config_.maxChunkSize;
+    if ((sizeOfNextBlock % config_.maxChunkSize) != 0) {
+      sizeOfLastChunk = sizeOfNextBlock % config_.maxChunkSize;
+      numOfChunksInNextBlock++;
+    }
+
+    // if msg is invalid (lastKnownChunkInLastRequiredBlock+1 does not exist)
+    if ((numOfSentChunks == 0) && (nextChunk > numOfChunksInNextBlock)) {
+      LOG_WARN(getLogger(),
+               "Msg is invalid: illegal chunk number: " << KVLOG(replicaId, nextChunk, numOfChunksInNextBlock));
+      return false;
+    }
+
+    SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum, nextChunk, nextBlockId));
     uint32_t chunkSize = (nextChunk < numOfChunksInNextBlock) ? config_.maxChunkSize : sizeOfLastChunk;
 
     ConcordAssertGT(chunkSize, 0);
 
-    char *pRawChunk = buffer_ + (nextChunk - 1) * config_.maxChunkSize;
+    char *pRawChunk = buffer + (nextChunk - 1) * config_.maxChunkSize;
     ItemDataMsg *outMsg = ItemDataMsg::alloc(chunkSize);  // TODO(GG): improve
 
     outMsg->requestMsgSeqNum = m->msgSeqNum;
-    outMsg->blockNumber = nextBlock;
+    outMsg->blockNumber = nextBlockId;
     outMsg->totalNumberOfChunksInBlock = numOfChunksInNextBlock;
     outMsg->chunkNumber = nextChunk;
     outMsg->dataSize = chunkSize;
@@ -1310,13 +1393,14 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     memcpy(outMsg->data, pRawChunk, chunkSize);
 
     LOG_DEBUG(getLogger(),
-              "Sending ItemDataMsg: " << KVLOG(replicaId,
+              "Sending ItemDataMsg: " << std::boolalpha
+                                      << KVLOG(replicaId,
                                                outMsg->requestMsgSeqNum,
                                                outMsg->blockNumber,
                                                outMsg->totalNumberOfChunksInBlock,
                                                outMsg->chunkNumber,
                                                outMsg->dataSize,
-                                               outMsg->lastInBatch));
+                                               (bool)outMsg->lastInBatch));
 
     metrics_.sent_item_data_msg_.Get().Inc();
     replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
@@ -1326,33 +1410,33 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
     // if we've already sent enough chunks
     if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_DEBUG(getLogger(), "Sent enough chunks: " << KVLOG(numOfSentChunks));
+      LOG_DEBUG(getLogger(), "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
       break;
-    }
-    // if we still have chunks in block
-    else if (static_cast<uint16_t>(nextChunk + 1) <= numOfChunksInNextBlock) {
+    } else if (static_cast<uint16_t>(nextChunk + 1) <= numOfChunksInNextBlock) {
+      // we still have chunks in block
       nextChunk++;
-    }
-    // we sent all relevant blocks
-    else if (nextBlock - 1 < m->firstRequiredBlock) {
-      LOG_DEBUG(getLogger(), "Sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
+    } else if ((nextBlockId - 1) < m->firstRequiredBlock) {
+      LOG_DEBUG(getLogger(), "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
       break;
     } else {
-      nextBlock--;
-      LOG_DEBUG(getLogger(), "Start sending next block: " << KVLOG(nextBlock));
-      sizeOfNextBlock = 0;
-      bool tmp2 = as_->getBlock(nextBlock, buffer_, &sizeOfNextBlock);
-      ConcordAssert(tmp2);
-      ConcordAssertGT(sizeOfNextBlock, 0);
-
-      sizeOfLastChunk = config_.maxChunkSize;
-      numOfChunksInNextBlock = sizeOfNextBlock / config_.maxChunkSize;
-      if (sizeOfNextBlock % config_.maxChunkSize != 0) {
-        sizeOfLastChunk = sizeOfNextBlock % config_.maxChunkSize;
-        numOfChunksInNextBlock++;
-      }
+      // no more chunks in the block
+      --nextBlockId;
       nextChunk = 1;
+      // this context is usage us done. We can now use it to prefetch future batch block
+      if (preFetchBlockId > 0) {
+        LOG_DEBUG(getLogger(),
+                  "asyncGetBlocksConcurrent: " << KVLOG(preFetchBlockId, m->firstRequiredBlock, 1, ctx_index));
+        asyncGetBlocksConcurrent(preFetchBlockId, m->firstRequiredBlock, 1, ctx_index);
+        --preFetchBlockId;
+      }
+      ++ctx_index;
     }
+  } while (true);
+
+
+  if (preFetchBlockId > 0) {
+    LOG_DEBUG(getLogger(), "asyncGetBlocksConcurrent: " << KVLOG(preFetchBlockId, m->firstRequiredBlock, 1, ctx_index));
+    asyncGetBlocksConcurrent(preFetchBlockId, m->firstRequiredBlock, 1, ctx_index);
   }
   return false;
 }

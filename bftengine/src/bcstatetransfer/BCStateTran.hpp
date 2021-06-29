@@ -39,6 +39,7 @@
 #include "throughput.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "thread_pool.hpp"
 
 using std::set;
 using std::map;
@@ -348,6 +349,32 @@ class BCStateTran : public IStateTransfer {
   // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
   STDigest getBlockAndComputeDigest(uint64_t currBlock);
 
+ protected:
+  ///////////////////////////////////////////////////////////////////////////
+  // worker threads
+  ///////////////////////////////////////////////////////////////////////////
+
+  struct GetBlockWorkerContext {
+    // input
+    uint16_t index;
+    uint64_t blockId;
+
+    // output
+    uint64_t jobDurationMicrosec;
+    char* buffer;
+    uint32_t size;
+    std::future<void> future;
+  };
+
+  concord::util::ThreadPool workersPool_;
+  std::vector<GetBlockWorkerContext> srcWorkersContext_;
+
+  void workerGetBlock(GetBlockWorkerContext* ctx);
+  // returns number of jobs pushed to queue
+  uint16_t asyncGetBlocksConcurrent(uint64_t nextBlockId,
+                                    uint64_t firstRequiredBlock,
+                                    uint16_t numBlocks,
+                                    size_t startContextIndex = 0);
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////

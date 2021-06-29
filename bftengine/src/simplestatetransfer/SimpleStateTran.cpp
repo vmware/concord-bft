@@ -287,6 +287,7 @@ SimpleStateTran::SimpleStateTran(
       256 * 1024 * 1024,                    // maxPendingDataFromSourceReplica
       2048,                                 // maxNumOfReservedPages
       4096,                                 // sizeOfReservedPage
+      24,                                   // numberOfWorkerThreads
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs

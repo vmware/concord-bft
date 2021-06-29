@@ -118,6 +118,7 @@ struct Config {
   uint32_t maxPendingDataFromSourceReplica = 0;  // Maximal internal buffer size for all ST data, bytes
   uint32_t maxNumOfReservedPages = 0;
   uint32_t sizeOfReservedPage = 0;  // bytes
+  uint16_t numberOfWorkerThreads = 0;
 
   // timeouts
   uint32_t refreshTimerMs = 0;
@@ -146,11 +147,12 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.maxPendingDataFromSourceReplica,
               c.maxNumOfReservedPages,
               c.sizeOfReservedPage,
+              c.numberOfWorkerThreads,
               c.refreshTimerMs,
-              c.checkpointSummariesRetransmissionTimeoutMs,
-              c.maxAcceptableMsgDelayMs);
+              c.checkpointSummariesRetransmissionTimeoutMs);
   os << ",";
-  os << KVLOG(c.sourceReplicaReplacementTimeoutMs,
+  os << KVLOG(c.maxAcceptableMsgDelayMs,
+              c.sourceReplicaReplacementTimeoutMs,
               c.fetchRetransmissionTimeoutMs,
               c.metricsDumpIntervalSec,
               c.runInSeparateThread,
