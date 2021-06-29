@@ -2,7 +2,7 @@ project (cre LANGUAGES CXX)
 
 add_library(cre STATIC
         src/client_reconfiguration_engine.cpp
-        src/state_client.cpp
+        src/poll_based_state_client.cpp
         )
 
 target_include_directories(cre PUBLIC include)

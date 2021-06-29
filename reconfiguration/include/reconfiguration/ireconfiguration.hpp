@@ -97,7 +97,8 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
     return true;
   }
-  virtual bool handle(const concord::messages::UnwedgeStatusRequest&, uint64_t,
+  virtual bool handle(const concord::messages::UnwedgeStatusRequest&,
+                      uint64_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }

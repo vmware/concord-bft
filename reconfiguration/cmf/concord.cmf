@@ -184,7 +184,6 @@ Msg ReconfigurationRequest 1 {
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
     ClientReconfigurationLastUpdate
-    ClientKeyExchange
   } command
   bytes additional_data
 }

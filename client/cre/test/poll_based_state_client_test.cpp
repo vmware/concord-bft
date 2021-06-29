@@ -16,7 +16,7 @@
 #include "concord.cmf.hpp"
 #include "config.hpp"
 #include "client_reconfiguration_engine.hpp"
-#include "state_client.hpp"
+#include "poll_based_state_client.hpp"
 #include <unordered_map>
 #include <optional>
 #include <stdio.h>

@@ -9,7 +9,7 @@
 
 #include "concord.cmf.hpp"
 #include "bftclient/quorums.h"
-#include "state_client.hpp"
+#include "poll_based_state_client.hpp"
 namespace cre {
 concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::client::Client& client,
                                                                       concord::messages::ReconfigurationRequest rreq,
