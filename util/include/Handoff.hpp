@@ -60,9 +60,12 @@ class Handoff {
     {
       guard g(queue_lock_);
       task_queue_.push(std::move(f));
+      task_queue_size_ = task_queue_.size();
     }
     queue_cond_.notify_one();
   }
+
+  size_t size() { return task_queue_size_; }
 
  protected:
   class ThreadCanceledException : public std::runtime_error {
@@ -74,14 +77,19 @@ class Handoff {
   func_type pop() {
     while (true) {
       std::unique_lock<std::mutex> ul(queue_lock_);
-      queue_cond_.wait(ul, [this] { return !(task_queue_.empty() && !stopped_); });
-      LOG_TRACE(getLogger(), "notified stopped_: " << stopped_ << " queue size: " << task_queue_.size());
+      auto pred = [this] { return !task_queue_.empty() || stopped_; };
+
+      if (!pred()) {
+        queue_cond_.wait(ul, pred);
+      }
+      task_queue_size_ = task_queue_.size();
 
       if (!stopped_ || (stopped_ && !task_queue_.empty())) {
         func_type f = task_queue_.front();
         task_queue_.pop();
         return f;
       }
+      LOG_INFO(getLogger(), "Handoff thread stopped!");
       throw ThreadCanceledException();
     }
   }
@@ -97,6 +105,7 @@ class Handoff {
   std::condition_variable queue_cond_;
   std::atomic_bool stopped_{false};
   std::thread thread_;
-};
+  std::atomic_size_t task_queue_size_;
+};  // class Handoff
 
 }  // namespace concord::util
