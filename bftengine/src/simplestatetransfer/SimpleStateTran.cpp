@@ -282,7 +282,7 @@ SimpleStateTran::SimpleStateTran(
       pedanticChecks,                       // pedanticChecks
       false,                                // isReadOnly
       128,                                  // maxChunkSize
-      128,                                  // maxNumberOfChunksInBatch
+      256,                                  // maxNumberOfChunksInBatch
       1024,                                 // maxBlockSize
       256 * 1024 * 1024,                    // maxPendingDataFromSourceReplica
       2048,                                 // maxNumOfReservedPages
@@ -291,8 +291,8 @@ SimpleStateTran::SimpleStateTran(
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
-      15000,                                // sourceReplicaReplacementTimeoutMs
-      250,                                  // fetchRetransmissionTimeoutMs
+      0,                                    // sourceReplicaReplacementTimeoutMs
+      1000,                                 // fetchRetransmissionTimeoutMs
       5,                                    // metricsDumpIntervalSec
       true,                                 // runInSeparateThread
       true                                  // enableReservedPages

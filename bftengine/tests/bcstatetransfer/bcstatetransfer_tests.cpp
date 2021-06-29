@@ -51,11 +51,12 @@ Config TestConfig() {
       256 * 1024 * 1024,  // maxPendingDataFromSourceReplica
       2048,               // maxNumOfReservedPages
       4096,               // sizeOfReservedPage
+      24,                 // numberOfWorkerThreads
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
-      15000,              // sourceReplicaReplacementTimeoutMs
-      250,                // fetchRetransmissionTimeoutMs
+      0,                  // sourceReplicaReplacementTimeoutMs
+      1000,               // fetchRetransmissionTimeoutMs
       5,                  // metricsDumpIntervalSec
       false,              // runInSeparateThread
       true                // enableReservedPages
