@@ -26,7 +26,7 @@ static uint16_t getSender(const ClientRequestMsgHeader* r) { return r->idOfClien
 
 static int32_t compRequestMsgSize(const ClientRequestMsgHeader* r) {
   return (sizeof(ClientRequestMsgHeader) + r->spanContextSize + r->requestLength + r->cidLength +
-          r->reqSignatureLength);
+          r->reqSignatureLength + r->extraDataLength);
 }
 
 uint32_t getRequestSizeTemp(const char* request)  // TODO(GG): change - TBD
@@ -45,15 +45,16 @@ ClientRequestMsg::ClientRequestMsg(NodeIdType sender,
                                    const std::string& cid,
                                    const concordUtils::SpanContext& spanContext,
                                    const char* requestSignature,
-                                   uint32_t requestSignatureLen)
+                                   uint32_t requestSignatureLen,
+                                   const uint32_t extraBufSize)
     : MessageBase(sender,
                   MsgCode::ClientRequest,
                   spanContext.data().size(),
-                  sizeof(ClientRequestMsgHeader) + requestLength + cid.size() + requestSignatureLen) {
+                  sizeof(ClientRequestMsgHeader) + requestLength + cid.size() + requestSignatureLen + extraBufSize) {
   // logical XOR - if requestSignatureLen is zero requestSignature must be null and vise versa
   ConcordAssert((requestSignature == nullptr) == (requestSignatureLen == 0));
   // set header
-  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, requestSignatureLen);
+  setParams(sender, reqSeqNum, requestLength, flags, reqTimeoutMilli, cid, requestSignatureLen, extraBufSize);
 
   // set span context
   char* position = body() + sizeof(ClientRequestMsgHeader);
@@ -145,8 +146,8 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
     LOG_ERROR(GL, msg.str());
     throw std::runtime_error(msg.str());
   }
-  auto expectedMsgSize =
-      sizeof(ClientRequestMsgHeader) + header->requestLength + header->cidLength + spanContextSize() + expectedSigLen;
+  auto expectedMsgSize = sizeof(ClientRequestMsgHeader) + header->requestLength + header->cidLength +
+                         spanContextSize() + expectedSigLen + header->extraDataLength;
 
   if ((msgSize < minMsgSize) || (msgSize != expectedMsgSize)) {
     msg << "Invalid msgSize: " << KVLOG(msgSize, minMsgSize, expectedMsgSize);
@@ -178,7 +179,8 @@ void ClientRequestMsg::setParams(NodeIdType sender,
                                  uint64_t flags,
                                  uint64_t reqTimeoutMilli,
                                  const std::string& cid,
-                                 uint32_t requestSignatureLen) {
+                                 uint32_t requestSignatureLen,
+                                 uint32_t extraBufSize) {
   auto* header = msgBody();
   header->idOfClientProxy = sender;
   header->timeoutMilli = reqTimeoutMilli;
@@ -187,6 +189,7 @@ void ClientRequestMsg::setParams(NodeIdType sender,
   header->flags = flags;
   header->cidLength = cid.size();
   header->reqSignatureLength = requestSignatureLen;
+  header->extraDataLength = extraBufSize;
 }
 
 std::string ClientRequestMsg::getCid() const {
