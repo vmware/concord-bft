@@ -17,24 +17,11 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include "cre_interfaces.hpp"
 #include "bftclient/bft_client.h"
 #include "bftclient/seq_num_generator.h"
 
-namespace cre::state {
-struct State {
-  uint64_t block;
-  std::vector<uint8_t> data;
-};
-
-class IStateClient {
- public:
-  virtual State getNextState(uint64_t lastKnownBlockId) = 0;
-  virtual State getLatestClientUpdate(uint16_t clientId) = 0;
-  virtual bool updateStateOnChain(const State& state) = 0;
-  virtual void start(uint64_t lastKnownBlock) = 0;
-  virtual void stop() = 0;
-  virtual ~IStateClient() = default;
-};
+namespace cre {
 
 class PollBasedStateClient : public IStateClient {
  public:
@@ -51,6 +38,11 @@ class PollBasedStateClient : public IStateClient {
 
  private:
   State getNewStateImpl(uint64_t lastKnownBlockId);
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("cre.bft.PollBasedStateClient"));
+    return logger_;
+  }
+
   std::unique_ptr<bft::client::Client> bftclient_;
   uint16_t id_;
   uint64_t interval_timeout_ms_;
@@ -64,4 +56,4 @@ class PollBasedStateClient : public IStateClient {
   std::thread consumer_;
 };
 
-}  // namespace cre::state
+}  // namespace cre

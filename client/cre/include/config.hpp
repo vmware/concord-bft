@@ -11,11 +11,10 @@
 
 #pragma once
 
-#include "bftclient/config.h"
-namespace cre::config {
+namespace cre {
 class Config {
  public:
   uint16_t id_;
   uint64_t interval_timeout_ms_{1000};
 };
-}  // namespace cre::config
+}  // namespace cre

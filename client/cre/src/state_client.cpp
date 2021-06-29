@@ -7,11 +7,10 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "state_client.hpp"
 #include "concord.cmf.hpp"
 #include "bftclient/quorums.h"
-
-namespace cre::state {
+#include "state_client.hpp"
+namespace cre {
 concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::client::Client& client,
                                                                       concord::messages::ReconfigurationRequest rreq,
                                                                       const std::string& cid,
@@ -42,7 +41,7 @@ concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::clien
   }
   return rres;
 }
-State state::PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
+State PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped && updates_.empty()) {
     new_updates_.wait_for(lk, 1s);
@@ -82,7 +81,8 @@ PollBasedStateClient::~PollBasedStateClient() {
     stopped = true;
     try {
       consumer_.join();
-    } catch (...) {
+    } catch (std::exception& e) {
+      LOG_ERROR(getLogger(), e.what());
     }
   }
 }
@@ -91,14 +91,14 @@ void PollBasedStateClient::start(uint64_t lastKnownBlock) {
   stopped = false;
   consumer_ = std::thread([&]() {
     while (!stopped) {
-      std::this_thread::sleep_for(std::chrono::microseconds(interval_timeout_ms_));
+      std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) return;
       auto new_state = getNewStateImpl(last_known_block_);
       std::lock_guard<std::mutex> lk(lock_);
-      if (new_state.block > last_known_block_) {
+      if (new_state.blockid > last_known_block_) {
         updates_.push(new_state);
-        last_known_block_ = new_state.block;
-        new_updates_.notify_all();
+        last_known_block_ = new_state.blockid;
+        new_updates_.notify_one();
       }
     }
   });
@@ -108,7 +108,8 @@ void PollBasedStateClient::stop() {
   stopped = true;
   try {
     consumer_.join();
-  } catch (...) {
+  } catch (std::exception& e) {
+    LOG_ERROR(getLogger(), e.what());
   }
 }
 State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) {
@@ -130,4 +131,4 @@ bool PollBasedStateClient::updateStateOnChain(const State& state) {
   auto rres = sendReconfigurationRequest(*bftclient_, rreq, "updateStateOnChain-" + std::to_string(sn), sn, false);
   return rres.success;
 }
-}  // namespace cre::state
+}  // namespace cre

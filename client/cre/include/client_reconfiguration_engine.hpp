@@ -11,8 +11,7 @@
 
 #pragma once
 
-#include "state_client.hpp"
-#include "state_handler.hpp"
+#include "cre_interfaces.hpp"
 #include "config.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
@@ -22,10 +21,10 @@
 namespace cre {
 class ClientReconfigurationEngine {
  public:
-  ClientReconfigurationEngine(const config::Config& config,
-                              state::IStateClient* stateClient,
+  ClientReconfigurationEngine(const Config& config,
+                              IStateClient* stateClient,
                               std::shared_ptr<concordMetrics::Aggregator> aggregator);
-  void registerHandler(std::shared_ptr<state::IStateHandler> handler);
+  void registerHandler(std::shared_ptr<IStateHandler> handler);
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     metrics_.SetAggregator(aggregator_);
@@ -37,12 +36,12 @@ class ClientReconfigurationEngine {
  private:
   void main();
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("cre.ClientReconfigurationEngine"));
+    static logging::Logger logger_(logging::getLogger("cre.bft.ClientReconfigurationEngine"));
     return logger_;
   }
-  std::vector<std::shared_ptr<state::IStateHandler>> handlers_;
-  std::unique_ptr<state::IStateClient> stateClient_;
-  config::Config config_;
+  std::vector<std::shared_ptr<IStateHandler>> handlers_;
+  std::unique_ptr<IStateClient> stateClient_;
+  Config config_;
   std::atomic_bool stopped_{true};
   uint64_t lastKnownBlock_{0};
   std::thread mainThread_;

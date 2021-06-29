@@ -12,19 +12,18 @@
 
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
-#include "state_client.hpp"
 #include "bftclient/fake_comm.h"
-#include "state_client.hpp"
 #include "concord.cmf.hpp"
 #include "config.hpp"
 #include "client_reconfiguration_engine.hpp"
+#include "state_client.hpp"
 #include <unordered_map>
 #include <optional>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-using namespace cre::state;
+using namespace cre;
 using ReplicaId_t = bft::client::ReplicaId;
 
 namespace {
@@ -63,7 +62,7 @@ class KeyExchangeHandler : public IStateHandler {
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {state.block, req_buf};
+    out = {state.blockid, req_buf};
     exchanges_++;
     return true;
   }
@@ -106,7 +105,7 @@ class ClientApiTestFixture : public ::testing::Test {
                                RetryTimeoutConfig{},
                                std::nullopt};
 
-  cre::config::Config cre_config{5, 10};
+  cre::Config cre_config{5, 10};
 
   void HandleClientStateRequests(const MsgFromClient& msg, IReceiver* client_receiver) {
     auto* orig_msg = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(msg.data.data());
@@ -174,7 +173,7 @@ class ClientApiTestFixture : public ::testing::Test {
 TEST_F(ClientApiTestFixture, basic_test) {
   std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
       [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
-  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+  cre::IStateClient* state_client = new cre::PollBasedStateClient(
       new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
@@ -190,7 +189,7 @@ TEST_F(ClientApiTestFixture, single_key_exchange_command) {
   init(1);
   std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
       [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
-  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+  cre::IStateClient* state_client = new cre::PollBasedStateClient(
       new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
@@ -210,7 +209,7 @@ TEST_F(ClientApiTestFixture, single_key_two_phases_exchange_command) {
   init(1);
   std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
       [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
-  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+  cre::IStateClient* state_client = new cre::PollBasedStateClient(
       new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
@@ -233,7 +232,7 @@ TEST_F(ClientApiTestFixture, multiple_key_two_phases_exchange_command) {
   init(10);
   std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
       [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
-  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+  cre::IStateClient* state_client = new cre::PollBasedStateClient(
       new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
@@ -257,7 +256,7 @@ TEST_F(ClientApiTestFixture, start_witn_an_update_exchange_command) {
   updated_state = true;
   std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
       [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
-  cre::state::IStateClient* state_client = new cre::state::PollBasedStateClient(
+  cre::IStateClient* state_client = new cre::PollBasedStateClient(
       new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   cre::ClientReconfigurationEngine cre(cre_config, state_client, aggregator);

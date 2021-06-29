@@ -13,9 +13,9 @@
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
 #include "client_reconfiguration_engine.hpp"
+#include "cre_interfaces.hpp"
+#include <chrono>
 
-using namespace cre::state;
-using namespace cre::config;
 using namespace cre;
 namespace {
 std::string metrics_component = "client_reconfiguration_engine";
@@ -29,7 +29,7 @@ class TestStateClient : public IStateClient {
   }
   State getLatestClientUpdate(uint16_t clientId) override { return {0, {}}; }
   bool updateStateOnChain(const State& state) override {
-    blocks_.push_back(state.block);
+    blocks_.push_back(state.blockid);
     return true;
   }
   void start(uint64_t lastKnownBlock) override {}
@@ -42,7 +42,7 @@ class TestExecuteHandler : public IStateHandler {
   bool validate(const State&) override { return true; }
   bool execute(const State& state, State&) override {
     std::string newBid(state.data.begin(), state.data.end());
-    lastKnownState = state.block;
+    lastKnownState = state.blockid;
     return true;
   }
   uint64_t lastKnownState{0};
@@ -52,7 +52,7 @@ class TestPersistOnChainHandler : public IStateHandler {
  public:
   bool validate(const State&) override { return true; }
   bool execute(const State& state, State& out) override {
-    out = {state.block, {}};
+    out = {state.blockid, {}};
     return true;
   }
 };
@@ -75,7 +75,7 @@ TEST(test_client_reconfiguration_engine, test_normal_start_and_shutdown) {
       ClientReconfigurationEngine(c, new TestStateClient(), std::make_shared<concordMetrics::Aggregator>()));
   ClientReconfigurationEngine cre(c, new TestStateClient(), std::make_shared<concordMetrics::Aggregator>());
   cre.start();
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   cre.stop();
 }
 
@@ -84,7 +84,7 @@ TEST(test_client_reconfiguration_engine, test_invalid_handler) {
   ClientReconfigurationEngine cre(c, new TestStateClient(), aggregator);
   cre.registerHandler(std::make_shared<TestInvalidHandler>());
   cre.start();
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   ASSERT_GT(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 1);
   cre.stop();
 }
@@ -94,7 +94,7 @@ TEST(test_client_reconfiguration_engine, test_errored_handler) {
   ClientReconfigurationEngine cre(c, new TestStateClient(), aggregator);
   cre.registerHandler(std::make_shared<TestErroredHandler>());
   cre.start();
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   ASSERT_GT(aggregator->GetCounter(metrics_component, errors_counter).Get(), 1);
   cre.stop();
 }
@@ -109,7 +109,7 @@ TEST(test_client_reconfiguration_engine, test_cre) {
   cre->registerHandler(handler);
   cre->registerHandler(chainHandler);
   cre->start();
-  std::this_thread::sleep_for(1s);
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   ASSERT_EQ(aggregator->GetCounter(metrics_component, errors_counter).Get(), 0);
   ASSERT_EQ(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 0);
   ASSERT_GT(handler->lastKnownState, 0);

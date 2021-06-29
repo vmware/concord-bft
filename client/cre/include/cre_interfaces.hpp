@@ -1,3 +1,5 @@
+// Concord
+//
 // Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License"). You may not use this product except in
@@ -9,9 +11,25 @@
 
 #pragma once
 
-#include "state_client.hpp"
-#include "Logger.hpp"
-namespace cre::state {
+#include <cstdint>
+#include <vector>
+
+namespace cre {
+struct State {
+  uint64_t blockid;
+  std::vector<uint8_t> data;
+};
+
+class IStateClient {
+ public:
+  virtual State getNextState(uint64_t lastKnownBlockId) = 0;
+  virtual State getLatestClientUpdate(uint16_t clientId) = 0;
+  virtual bool updateStateOnChain(const State& state) = 0;
+  virtual void start(uint64_t lastKnownBlock) = 0;
+  virtual void stop() = 0;
+  virtual ~IStateClient() = default;
+};
+
 class IStateHandler {
  public:
   virtual bool validate(const State&) = 0;
@@ -19,4 +37,4 @@ class IStateHandler {
   virtual ~IStateHandler() = default;
 };
 
-}  // namespace cre::state
+}  // namespace cre

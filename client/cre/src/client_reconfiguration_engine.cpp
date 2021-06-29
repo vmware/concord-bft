@@ -8,12 +8,12 @@
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-#include <client_reconfiguration_engine.hpp>
+#include "client_reconfiguration_engine.hpp"
 
 namespace cre {
 
-ClientReconfigurationEngine::ClientReconfigurationEngine(const config::Config& config,
-                                                         state::IStateClient* stateClient,
+ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
+                                                         IStateClient* stateClient,
                                                          std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : stateClient_{stateClient},
       config_{config},
@@ -30,7 +30,7 @@ void ClientReconfigurationEngine::main() {
     try {
       auto update = stateClient_->getNextState(lastKnownBlock_);
       if (stopped_) return;
-      if (update.block <= lastKnownBlock_) continue;
+      if (update.blockid <= lastKnownBlock_) continue;
 
       // Execute the reconfiguration command
       for (auto& h : handlers_) {
@@ -38,17 +38,17 @@ void ClientReconfigurationEngine::main() {
           invalid_handlers_.Get().Inc();
           continue;
         }
-        state::State out_state;
+        State out_state;
         if (!h->execute(update, out_state)) {
           LOG_ERROR(getLogger(), "error while executing the handlers");
           errored_handlers_.Get().Inc();
           continue;
         }
-        if (out_state.block == update.block) {
+        if (out_state.blockid == update.blockid) {
           stateClient_->updateStateOnChain(out_state);
         }
       }
-      lastKnownBlock_ = update.block;
+      lastKnownBlock_ = update.blockid;
       last_known_block_.Get().Set(lastKnownBlock_);
     } catch (const std::exception& e) {
       LOG_ERROR(getLogger(), "error while executing the handlers " << e.what());
@@ -57,7 +57,7 @@ void ClientReconfigurationEngine::main() {
     metrics_.UpdateAggregator();
   }
 }
-void ClientReconfigurationEngine::registerHandler(std::shared_ptr<state::IStateHandler> handler) {
+void ClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler> handler) {
   if (handler != nullptr) handlers_.push_back(handler);
 }
 
@@ -67,13 +67,14 @@ ClientReconfigurationEngine::~ClientReconfigurationEngine() {
       stateClient_->stop();
       stopped_ = true;
       mainThread_.join();
-    } catch (...) {
+    } catch (std::exception& e) {
+      LOG_ERROR(getLogger(), e.what());
     }
   }
 }
 void ClientReconfigurationEngine::start() {
   auto initial_state = stateClient_->getLatestClientUpdate(config_.id_);
-  lastKnownBlock_ = initial_state.block;
+  lastKnownBlock_ = initial_state.blockid;
   last_known_block_.Get().Set(lastKnownBlock_);
   metrics_.UpdateAggregator();
   stateClient_->start(lastKnownBlock_);
@@ -86,7 +87,8 @@ void ClientReconfigurationEngine::stop() {
   stopped_ = true;
   try {
     mainThread_.join();
-  } catch (...) {
+  } catch (std::exception& e) {
+    LOG_ERROR(getLogger(), e.what());
   }
 }
 }  // namespace cre
