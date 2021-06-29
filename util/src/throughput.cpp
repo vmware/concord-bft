@@ -19,28 +19,34 @@ namespace concord::util {
 //////////////////////////////////////////////////////////////////////////////
 void Throughput::start() {
   started_ = true;
-  overall_stats_.reset();
-  if (num_reports_per_window_ > 0ul) {
-    current_window_stats_.reset();
+  overallStats_.restart();
+  if (numReportsPerWindow_ > 0ul) {
+    currentWindowStats_.restart();
   }
 }
 
-bool Throughput::report(uint64_t items_processed) {
+void Throughput::end() {
+  ConcordAssert(started_);
+  started_ = false;
+  overallStats_.reset();
+  if (numReportsPerWindow_ > 0ul) currentWindowStats_.reset();
+}
+
+bool Throughput::report(uint64_t itemsProcessed, bool triggerCalcThroughput) {
   ConcordAssert(started_);
 
-  ++reports_counter_;
-  overall_stats_.results_.num_processed_items_ += items_processed;
-
-  if (num_reports_per_window_ > 0ul) {
-    current_window_stats_.results_.num_processed_items_ += items_processed;
-    if ((reports_counter_ % num_reports_per_window_) == 0ul) {
-      // Calculate throughput every num_reports_per_window_ reports
-      previous_window_stats_ = current_window_stats_;
-      previous_window_index_ = (reports_counter_ - 1) / num_reports_per_window_;
-      current_window_stats_.reset();
-      previous_window_stats_.calcThroughput();
-      overall_stats_.calcThroughput();
-      prev_win_calculated_ = true;
+  ++reportsCounter_;
+  overallStats_.results_.numProcessedItems_ += itemsProcessed;
+  if (numReportsPerWindow_ > 0ul) {
+    currentWindowStats_.results_.numProcessedItems_ += itemsProcessed;
+    if (triggerCalcThroughput || ((reportsCounter_ % numReportsPerWindow_) == 0ul)) {
+      // Calculate throughput every  numReportsPerWindow_ reports
+      previousWindowStats_ = currentWindowStats_;
+      previousWindowIndex_ = (reportsCounter_ - 1) / numReportsPerWindow_;
+      currentWindowStats_.restart();
+      previousWindowStats_.calcThroughput();
+      overallStats_.calcThroughput();
+      prevWinCalculated_ = true;
       return true;
     }
   }
@@ -48,25 +54,34 @@ bool Throughput::report(uint64_t items_processed) {
   return false;
 }
 
-const Throughput::Results& Throughput::getOverallResults() {
-  if (!prev_win_calculated_) {
-    ConcordAssert(started_);
-    overall_stats_.calcThroughput();
-  }
+void Throughput::pause() {
+  ConcordAssert(started_);
+  overallStats_.durationDT_.pause();
+  currentWindowStats_.durationDT_.pause();
+}
 
-  return overall_stats_.results_;
+void Throughput::resume() {
+  ConcordAssert(started_);
+  overallStats_.durationDT_.start();
+  currentWindowStats_.durationDT_.start();
+}
+
+const Throughput::Results& Throughput::getOverallResults() {
+  if (!prevWinCalculated_) {
+    ConcordAssert(started_);
+    overallStats_.calcThroughput();
+  }
+  return overallStats_.results_;
 }
 
 const Throughput::Results& Throughput::getPrevWinResults() const {
-  ConcordAssert(prev_win_calculated_);
-
-  return previous_window_stats_.results_;
+  ConcordAssert(prevWinCalculated_);
+  return previousWindowStats_.results_;
 }
 
 uint64_t Throughput::getPrevWinIndex() const {
-  ConcordAssert(prev_win_calculated_);
-
-  return previous_window_index_;
+  ConcordAssert(prevWinCalculated_);
+  return previousWindowIndex_;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -74,15 +89,19 @@ uint64_t Throughput::getPrevWinIndex() const {
 //////////////////////////////////////////////////////////////////////////////
 
 void Throughput::Stats::reset() {
-  results_.num_processed_items_ = 0ull;
+  results_.numProcessedItems_ = 0ull;
   results_.throughput_ = 0ull;
-  start_time_ = std::chrono::steady_clock::now();
+  durationDT_.reset();
+}
+
+void Throughput::Stats::restart() {
+  reset();
+  durationDT_.start();
 }
 
 void Throughput::Stats::calcThroughput() {
-  auto duration = std::chrono::steady_clock::now() - start_time_;
-  results_.elapsed_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-  results_.throughput_ = static_cast<uint64_t>((1000 * results_.num_processed_items_) / results_.elapsed_time_ms_);
+  results_.elapsedTimeMillisec_ = durationDT_.totalDuration();
+  results_.throughput_ = static_cast<uint64_t>((1000 * results_.numProcessedItems_) / results_.elapsedTimeMillisec_);
 }
 
 }  // namespace concord::util
