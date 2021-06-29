@@ -108,11 +108,13 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
   }
 }
 
-TEST_F(ViewsManagerTest, move_to_higher_view_on_view_change_message_with_enough_complaints_for_it) {
+TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_enough_complaints) {
   bftEngine::impl::ReplicaId sourceReplicaId = (rc.replicaId + 1) % rc.numReplicas;
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
+  constexpr int nextView = initialView + 1;
+  constexpr int viewToComplainAbout = initialView;
 
-  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, initialView + 1, lastStableSeqNum);
+  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, nextView, lastStableSeqNum);
 
   for (int i = 0; i < rc.numReplicas; ++i) {
     if (i == rc.replicaId || i == sourceReplicaId) continue;
@@ -124,7 +126,53 @@ TEST_F(ViewsManagerTest, move_to_higher_view_on_view_change_message_with_enough_
   for (int complaintNumber = 0; complaintNumber <= rc.fVal; ++complaintNumber) {
     viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
         *std::next(otherReplicas.begin(), complaintNumber),  // Add F + 1 Different complaints
-        initialView,
+        viewToComplainAbout,
+        ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
+  }
+
+  ViewChangeMsg::ComplaintsIterator iter(&viewChangeMsg);
+  char* complaint = nullptr;
+  MsgSize size = 0;
+
+  while (!viewsManager->hasQuorumToLeaveView() && iter.getAndGoToNext(complaint, size)) {
+    auto baseMsg = MessageBase(viewChangeMsg.senderId(), (MessageBase::Header*)complaint, size, true);
+    auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
+    LOG_INFO(GL,
+             "\n\nGot complaint in ViewChangeMsg" << KVLOG(viewsManager->getCurrentView(),
+                                                           viewChangeMsg.senderId(),
+                                                           viewChangeMsg.newView(),
+                                                           viewChangeMsg.idOfGeneratedReplica(),
+                                                           complaintMsg->senderId(),
+                                                           complaintMsg->viewNumber(),
+                                                           complaintMsg->idOfGeneratedReplica()));
+
+    if (complaintMsg->viewNumber() == viewsManager->getCurrentView()) {
+      viewsManager->storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(complaintMsg.release()));
+    }
+  }
+
+  ASSERT_EQ(viewsManager->hasQuorumToLeaveView(), true);
+}
+
+TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_enough_complaints) {
+  bftEngine::impl::ReplicaId sourceReplicaId = (rc.replicaId + 1) % rc.numReplicas;
+  std::set<bftEngine::impl::ReplicaId> otherReplicas;
+  constexpr int higherView = initialView + 2;
+  constexpr int viewToComplainAbout = higherView - 1;
+
+  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, higherView, lastStableSeqNum);
+
+  for (int i = 0; i < rc.numReplicas; ++i) {
+    if (i == rc.replicaId || i == sourceReplicaId) continue;
+    otherReplicas.insert(i);
+  }
+
+  ASSERT_LT(rc.fVal, otherReplicas.size());
+
+  for (int complaintNumber = 0; complaintNumber <= rc.fVal; ++complaintNumber) {
+    viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
+        *std::next(otherReplicas.begin(), complaintNumber),  // Add F + 1 Different complaints
+        viewToComplainAbout,
         ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
   }
 
