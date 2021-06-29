@@ -14,9 +14,11 @@
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/PreProcessRequestMsg.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
+#include "messages/PreProcessResultMsg.hpp"
 #include "PreProcessorRecorder.hpp"
 #include <vector>
 #include <map>
+#include <list>
 
 namespace preprocessor {
 
@@ -38,6 +40,7 @@ class RequestProcessingState {
                          const uint32_t signatureLen = 0);
   ~RequestProcessingState() = default;
 
+  // None of RequestProcessingState functions is thread-safe. They are guarded by RequestState::mutex from PreProcessor.
   void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
   void handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr& preProcessReplyMsg);
   std::unique_ptr<MessageBase> buildClientRequestMsg(bool emptyReq = false);
@@ -69,6 +72,7 @@ class RequestProcessingState {
   ReplicaIdsList getRejectedReplicasList() { return rejectedReplicaIds_; }
   void resetRejectedReplicasList() { rejectedReplicaIds_.clear(); }
   void setPreprocessingRightNow(bool set) { preprocessingRightNow_ = set; }
+  const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
 
@@ -105,8 +109,9 @@ class RequestProcessingState {
   const char* primaryPreProcessResult_ = nullptr;  // This memory is statically pre-allocated per client in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
   concord::util::SHA3_256::Digest primaryPreProcessResultHash_;
-  // Maps result hash to the number of equal hashes
-  std::map<concord::util::SHA3_256::Digest, int> preProcessingResultHashes_;
+  // Maps result hash to a list of replica signatures sent for this hash. Implcitly this also gives the number of
+  // replicas returning a specific hash.
+  std::map<concord::util::SHA3_256::Digest, std::list<PreProcessResultSignature>> preProcessingResultHashes_;
   bool retrying_ = false;
   bool preprocessingRightNow_ = false;
   uint64_t reqRetryId_ = 0;

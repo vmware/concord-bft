@@ -16,6 +16,7 @@
 #include "MsgHandlersRegistrator.hpp"
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
+#include "messages/PreProcessResultMsg.hpp"
 
 namespace preprocessor {
 
@@ -1033,7 +1034,7 @@ void PreProcessor::cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetIn
 }
 
 void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const string &batchCid) {
-  std::unique_ptr<impl::MessageBase> clientRequestMsg;
+  std::unique_ptr<impl::MessageBase> preProcessMsg;
   const auto &batchEntry = ongoingReqBatches_[clientId];
   const auto &reqEntry = batchEntry->getRequestState(reqOffsetInBatch);
   {
@@ -1048,10 +1049,9 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
-          // send PreProcessedResultMsg
-      } else {
-        clientRequestMsg = make_unique<ClientRequestMsg>(clientId,
-                                                         HAS_PRE_PROCESSED_FLAG,
+        auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
+        auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
+        preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
                                                          reqSeqNum,
                                                          reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
                                                          reqProcessingStatePtr->getPrimaryPreProcessedResult(),
@@ -1059,14 +1059,30 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                                                          cid,
                                                          span_context,
                                                          reqProcessingStatePtr->getReqSignature(),
-                                                         reqProcessingStatePtr->getReqSignatureLength());
+                                                         reqProcessingStatePtr->getReqSignatureLength(),
+                                                         sigsBuf);
+        LOG_DEBUG(logger(),
+                  "Pass PreProcessResultMsg to ReplicaImp for consensus"
+                      << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
+      } else {
+        preProcessMsg = make_unique<ClientRequestMsg>(clientId,
+                                                      HAS_PRE_PROCESSED_FLAG,
+                                                      reqSeqNum,
+                                                      reqProcessingStatePtr->getPrimaryPreProcessedResultLen(),
+                                                      reqProcessingStatePtr->getPrimaryPreProcessedResult(),
+                                                      reqProcessingStatePtr->getReqTimeoutMilli(),
+                                                      cid,
+                                                      span_context,
+                                                      reqProcessingStatePtr->getReqSignature(),
+                                                      reqProcessingStatePtr->getReqSignatureLength());
+
+        LOG_DEBUG(logger(),
+                  "Pass pre-processed ClientRequestMsg to ReplicaImp for consensus"
+                      << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
       }
 
-      LOG_DEBUG(logger(),
-                "Pass pre-processed request to ReplicaImp for consensus"
-                    << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
       preProcessorMetrics_.preProcReqCompleted.Get().Inc();
-      incomingMsgsStorage_->pushExternalMsg(move(clientRequestMsg));
+      incomingMsgsStorage_->pushExternalMsg(move(preProcessMsg));
       releaseClientPreProcessRequest(reqEntry, COMPLETE);
       if (batchedPreProcessEnabled_) batchEntry->increaseNumOfCompletedReqs();
       LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(batchCid, cid, reqSeqNum, clientId, reqOffsetInBatch));
