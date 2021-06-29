@@ -26,7 +26,7 @@ class ClientRequestMsg : public MessageBase {
   static_assert(sizeof(ClientRequestMsgHeader::msgType) == sizeof(MessageBase::Header::msgType), "");
   static_assert(sizeof(ClientRequestMsgHeader::idOfClientProxy) == sizeof(NodeIdType), "");
   static_assert(sizeof(ClientRequestMsgHeader::reqSeqNum) == sizeof(ReqId), "");
-  static_assert(sizeof(ClientRequestMsgHeader) == 42, "ClientRequestMsgHeader size is 42B");
+  static_assert(sizeof(ClientRequestMsgHeader) == 46, "ClientRequestMsgHeader size is 46B");
   static concord::diagnostics::Recorder sigNatureVerificationRecorder;
   // TODO(GG): more asserts
 
@@ -40,7 +40,8 @@ class ClientRequestMsg : public MessageBase {
                    const std::string& cid = "",
                    const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{},
                    const char* requestSignature = nullptr,
-                   uint32_t requestSignatureLen = 0);
+                   uint32_t requestSignatureLen = 0,
+                   const uint32_t extraBufSize = 0);
 
   ClientRequestMsg(NodeIdType sender);
 
@@ -75,6 +76,11 @@ class ClientRequestMsg : public MessageBase {
 
   void validateImp(const ReplicasInfo& repInfo) const;
 
+  // Returns a pair of pointer and size to the extra buffer which was allocated during initialisation
+  std::pair<char*, uint32_t> getExtraBufPtr() {
+    return std::make_pair(body() + internalStorageSize() - msgBody()->extraDataLength, msgBody()->extraDataLength);
+  }
+
  private:
   void setParams(NodeIdType sender,
                  ReqId reqSeqNum,
@@ -82,7 +88,8 @@ class ClientRequestMsg : public MessageBase {
                  uint64_t flags,
                  uint64_t reqTimeoutMilli,
                  const std::string& cid,
-                 uint32_t requestSignatureLen);
+                 uint32_t requestSignatureLen,
+                 uint32_t extraBufSize);
 };
 
 template <>

@@ -40,6 +40,7 @@ struct ClientRequestMsgHeader {
   uint64_t timeoutMilli;
   uint32_t cidLength = 0;
   uint16_t reqSignatureLength = 0;
+  uint32_t extraDataLength = 0;
 
   // followed by the request (security information, such as signatures, should be part of the request)
 
