@@ -49,10 +49,12 @@ T getData(const State& state) {
 class KeyExchangeHandler : public IStateHandler {
  public:
   KeyExchangeHandler(uint16_t id) : clientId_{id} {}
-  bool validate(const State& state) override { return hasValue<concord::messages::ClientKeyExchange>(state); }
+  bool validate(const State& state) override { return hasValue<concord::messages::ClientKeyExchangeCommand>(state); }
   bool execute(const State& state, State& out) override {
-    concord::messages::ClientKeyExchange command = getData<concord::messages::ClientKeyExchange>(state);
-    if (std::find(command.clients.begin(), command.clients.end(), clientId_) == command.clients.end()) return false;
+    concord::messages::ClientKeyExchangeCommand command = getData<concord::messages::ClientKeyExchangeCommand>(state);
+    if (std::find(command.target_clients.begin(), command.target_clients.end(), clientId_) ==
+        command.target_clients.end())
+      return false;
     LOG_INFO(getLogger(), "generating new key paris for client");
     // generate new key paris here
     concord::messages::ReconfigurationRequest rreq;
@@ -94,7 +96,7 @@ class ClientApiTestFixture : public ::testing::Test {
   void init(uint32_t number_of_ops) {
     for (uint32_t i = 0; i < number_of_ops; i++) {
       blockchain_.emplace_back(
-          concord::messages::ClientReconfigurationStateReply{i + 1, concord::messages::ClientKeyExchange{{5}}});
+          concord::messages::ClientReconfigurationStateReply{i + 1, concord::messages::ClientKeyExchangeCommand{{5}}});
     }
   }
   ClientConfig test_config_ = {ClientId{5},
