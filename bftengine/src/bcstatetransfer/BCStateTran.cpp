@@ -235,6 +235,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       blocks_collected_(getMissingBlocksSummaryWindowSize),
       bytes_collected_(getMissingBlocksSummaryWindowSize),
       lastFetchingState_(FetchingState::NotFetching),
+      sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
       dst_time_between_sendFetchBlocksMsg_rec_(histograms_.dst_time_between_sendFetchBlocksMsg),
       time_in_handoff_queue_rec_(histograms_.time_in_handoff_queue) {
@@ -653,6 +654,9 @@ void BCStateTran::startCollectingState() {
 
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
+  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  registrar.perf.snapshot("state_transfer");
+  registrar.perf.snapshot("state_transfer_dest");
   metrics_.start_collecting_state_.Get().Inc();
   startCollectingStats();
 
@@ -685,7 +689,17 @@ void BCStateTran::onTimerImp() {
   }
   auto currTime = getMonotonicTimeMilli();
 
-  FetchingState fs = getFetchingState();
+  // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
+  if (sourceFlag_ &&
+      (((++sourceSnapshotCounter_) * config_.refreshTimerMs) >= (2 * config_.fetchRetransmissionTimeoutMs))) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("state_transfer");
+    registrar.perf.snapshot("state_transfer_src");
+    LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer")));
+    LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer_src")));
+    sourceFlag_ = false;
+    sourceSnapshotCounter_ = 0;
+  }
   if (fs == FetchingState::GettingCheckpointSummaries) {
     if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMs) {
       if (++retransmissionNumberOfAskForCheckpointSummariesMsg > kResetCount_AskForCheckpointSummaries)

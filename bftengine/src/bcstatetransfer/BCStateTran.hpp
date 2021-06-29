@@ -494,6 +494,10 @@ class BCStateTran : public IStateTransfer {
   void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize, bool toLog = false);
   void startCollectingStats();
 
+  // These 2 variables are used to snapshot source historgrams for GettingMissingBlocks state
+  bool sourceFlag_;
+  uint8_t sourceSnapshotCounter_;
+
  private:
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams
