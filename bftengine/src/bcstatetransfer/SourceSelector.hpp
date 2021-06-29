@@ -74,7 +74,6 @@ class SourceSelector {
 
  private:
   uint64_t timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const;
-  uint64_t timeSinceSendMilli(uint64_t currTimeMilli) const;
   void selectSource(uint64_t currTimeMilli);
 
   std::set<uint16_t> preferredReplicas_;
