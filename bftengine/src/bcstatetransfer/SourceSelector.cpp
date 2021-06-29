@@ -23,7 +23,7 @@ void SourceSelector::setSourceSelectionTime(uint64_t currTimeMilli) { sourceSele
 
 void SourceSelector::setFetchingTimeStamp(logging::Logger &logger, uint64_t currTimeMilli) {
   fetchingTimeStamp_ = currTimeMilli;
-  LOG_DEBUG(logger, KVLOG(fetchingTimeStamp_));
+  LOG_TRACE(logger, KVLOG(fetchingTimeStamp_));
 }
 
 void SourceSelector::removeCurrentReplica() {
@@ -86,8 +86,9 @@ std::string SourceSelector::preferredReplicasToString() const {
 }
 
 bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli, bool badDataFromCurrentSource) const {
-  return currentReplica_ == NO_REPLICA || badDataFromCurrentSource ||
-         timeSinceSourceSelectedMilli(currTimeMilli) > sourceReplacementTimeoutMilli_;
+  return (currentReplica_ == NO_REPLICA) || badDataFromCurrentSource ||
+         ((sourceReplacementTimeoutMilli_ > 0) &&
+          (timeSinceSourceSelectedMilli(currTimeMilli) > sourceReplacementTimeoutMilli_));
 }
 
 void SourceSelector::selectSource(uint64_t currTimeMilli) {
