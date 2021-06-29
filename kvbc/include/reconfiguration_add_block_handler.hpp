@@ -19,6 +19,9 @@
 #include "kvbc_key_types.hpp"
 
 namespace concord::kvbc::reconfiguration {
+/**
+ * TODO [YB] - add description
+ */
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler {
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
@@ -146,6 +149,22 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     return true;
   }
 
+  bool handle(const concord::messages::ClientKeyExchangeCommand& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse& response) override {
+    std::ostringstream oss;
+    std::copy(
+        command.target_clients.begin(), command.target_clients.end(), std::ostream_iterator<std::uint64_t>(oss, " "));
+    std::vector<uint8_t> serialized_command;
+    concord::messages::serialize(serialized_command, command);
+    concord::messages::ClientKeyExchangeCommandResponse ckecr;
+    ckecr.block_id = persistReconfigurationBlock(
+        serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_client_key_exchange});
+    LOG_INFO(getLogger(), "target clients: [" << oss.str() << "] block: " << ckecr.block_id);
+    response.response = ckecr;
+    return true;
+  }
+
  protected:
   kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key) {
     concord::kvbc::categorization::VersionedUpdates ver_updates;
@@ -158,8 +177,8 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
     updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
     try {
       return blocks_adder_.add(std::move(updates));
-    } catch (...) {
-      LOG_ERROR(getLogger(), "Reconfiguration Handler failed to persist the reconfiguration block");
+    } catch (const std::exception& e) {
+      LOG_ERROR(getLogger(), "failed to persist the reconfiguration block: " << e.what());
       throw;
     }
   }
@@ -169,6 +188,9 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;
 };
+/**
+ * TODO [YB] - add description
+ */
 class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::ReconfigurationHandler {
  public:
   InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)

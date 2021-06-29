@@ -94,11 +94,15 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::PruneRequest&, uint64_t, concord::messages::ReconfigurationResponse&) {
     return true;
   }
-
   virtual bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::UnwedgeStatusRequest&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientKeyExchangeCommand&,
                       uint64_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
