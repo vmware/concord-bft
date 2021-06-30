@@ -39,15 +39,13 @@ Agreement createAgreement(const std::chrono::seconds& tick_period,
 }
 
 ReservedPagesClient::ReservedPagesClient() {
-  // Note: Since we don't override any virtual methods from the base class, we can call them in the constructor. If that
-  // changes in the future, we would need to introduce an init() method that does the current constructor's work.
-  auto in = std::vector<std::uint8_t>(sizeOfReservedPage());
-  if (loadReservedPage(kLatestAgreementPageId, in.size(), data(in))) {
+  auto in = std::vector<std::uint8_t>(client_.sizeOfReservedPage());
+  if (client_.loadReservedPage(kLatestAgreementPageId, in.size(), data(in))) {
     latest_agreement_.emplace();
     deserialize(in, *latest_agreement_);
   }
 
-  if (loadReservedPage(kLatestBatchBlockIdToPageId, in.size(), data(in))) {
+  if (client_.loadReservedPage(kLatestBatchBlockIdToPageId, in.size(), data(in))) {
     auto batch = Batch{};
     deserialize(in, batch);
     latest_batch_block_id_to_ = batch.latest_batch_block_id_to;
@@ -57,7 +55,7 @@ ReservedPagesClient::ReservedPagesClient() {
 void ReservedPagesClient::saveAgreement(const Agreement& agreement) {
   auto out = std::vector<std::uint8_t>{};
   serialize(out, agreement);
-  saveReservedPage(kLatestAgreementPageId, out.size(), cdata(out));
+  client_.saveReservedPage(kLatestAgreementPageId, out.size(), cdata(out));
   // Currently, the assignment operator cannot throw as it is an std::optional data structure with integer types only.
   // Change behaviour here if assignment can throw, because if it does, data would be persisted to reserved pages, while
   // data in memory would remain intact or in an undefined state.
@@ -86,7 +84,7 @@ void ReservedPagesClient::updateExistingAgreement(std::uint64_t batch_blocks_num
 void ReservedPagesClient::saveLatestBatch(BlockId to) {
   auto out = std::vector<std::uint8_t>{};
   serialize(out, Batch{to});
-  saveReservedPage(kLatestBatchBlockIdToPageId, out.size(), cdata(out));
+  client_.saveReservedPage(kLatestBatchBlockIdToPageId, out.size(), cdata(out));
   latest_batch_block_id_to_ = to;
 }
 

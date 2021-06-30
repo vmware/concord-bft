@@ -22,8 +22,6 @@
 
 namespace concord::kvbc::pruning {
 
-static constexpr auto kPruningResPageCount = 2;
-
 // Creates a pruning agreement.
 // `tick_period` must be at least 1 second.
 // `batch_blocks_num` must be non-zero.
@@ -57,9 +55,14 @@ Agreement createAgreement(const std::chrono::seconds& tick_period,
 //   if (to && *to + 1 > genesis) blockchain.deleteUntil(*to + 1);
 //   if (genesis < agreement->last_agreed_prunable_block_id) ticks_gen.start();
 //   else ticks_gen.stop();
-class ReservedPagesClient : private bftEngine::ResPagesClient<ReservedPagesClient, kPruningResPageCount> {
+class ReservedPagesClient {
+ private:
+  static constexpr auto kPruningResPageCount = 2;
+  using ClientType = bftEngine::ResPagesClient<ReservedPagesClient, kPruningResPageCount>;
+
  public:
-  using bftEngine::ResPagesClient<ReservedPagesClient, kPruningResPageCount>::getNumResPages;
+  // Returns the number of reserved pages for this client.
+  static std::uint32_t numberOfReservedPagesForClient() { return ClientType::numberOfReservedPagesForClient(); }
 
  public:
   // Loads data from reserved pages on construction.
@@ -98,6 +101,7 @@ class ReservedPagesClient : private bftEngine::ResPagesClient<ReservedPagesClien
  private:
   std::optional<Agreement> latest_agreement_;
   std::optional<BlockId> latest_batch_block_id_to_;
+  ClientType client_;
 };
 
 }  // namespace concord::kvbc::pruning

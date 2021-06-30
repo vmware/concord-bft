@@ -25,7 +25,7 @@ namespace bftEngine::test {
 template <typename ReservedPagesClient, uint32_t kSizeOfReservedPage = 4096>
 class ReservedPagesMock : public bftEngine::IReservedPages {
  public:
-  uint32_t numberOfReservedPages() const override { return ReservedPagesClient::getNumResPages(); }
+  uint32_t numberOfReservedPages() const override { return ReservedPagesClient::numberOfReservedPagesForClient(); }
 
   uint32_t sizeOfReservedPage() const override { return kSizeOfReservedPage; }
 

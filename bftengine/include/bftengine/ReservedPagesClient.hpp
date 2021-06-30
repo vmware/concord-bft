@@ -86,7 +86,7 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     }
   }
 
-  static uint32_t getNumResPages() {
+  static uint32_t numberOfReservedPagesForClient() {
     auto& reg = registry();
     if (auto it = reg.find(std::type_index(typeid(T))); it != reg.end()) {
       return it->second;
