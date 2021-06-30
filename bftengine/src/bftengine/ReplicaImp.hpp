@@ -38,6 +38,7 @@
 #include "PerformanceManager.hpp"
 #include "secrets_manager_impl.h"
 #include "SigManager.hpp"
+#include "TimeServiceManager.hpp"
 
 #include <ccron/ticks_generator.hpp>
 
@@ -476,7 +477,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isInternalNoop);
   void startConsensusProcess(PrePrepareMsg* pp);
-  void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::OPTIMISTIC_FAST);
   bool isSeqNumToStopAt(SeqNum seq_num);
 
   // 5 years
@@ -564,6 +564,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReplicaStatusHandlers replStatusHandlers_;
 
   std::unique_ptr<bftEngine::impl::RSASigner> rsaSigner_;
+  std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
 };  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl

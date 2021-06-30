@@ -28,14 +28,16 @@ void TimeServiceResPageClient::setLastTimestamp(ConsensusTime timestamp) {
   auto raw_value = timestamp.count();
   saveReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw_value));
   last_timestamp_ = timestamp;
+  LOG_DEBUG(TS_MNGR, "Saved ts: " << last_timestamp_.count());
 }
 
 void TimeServiceResPageClient::load() {
   auto raw_value = ConsensusTime::rep{0};
-  if (loadReservedPage(RESERVED_PAGE_ID, sizeOfReservedPage(), reinterpret_cast<char*>(&raw_value))) {
+  if (loadReservedPage(RESERVED_PAGE_ID, sizeof(ConsensusTime::rep), reinterpret_cast<char*>(&raw_value))) {
     last_timestamp_ = ConsensusTime{raw_value};
+    LOG_DEBUG(TS_MNGR, "Loaded ts: " << last_timestamp_.count());
   } else {
-    setLastTimestamp(last_timestamp_);
+    LOG_DEBUG(TS_MNGR, "Failed to load, maybe first time or ST");
   }
 }
 }  // namespace bftEngine

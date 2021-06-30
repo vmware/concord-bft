@@ -34,7 +34,8 @@ def start_replica_cmd_with_object_store(builddir, replica_id, config):
     Note each arguments is an element in a list.
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
-    ret.extend(["-b", "2", "-q", "1", "-o", builddir + "/operator_pub.pem"])
+    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
+    ret.extend(["-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
@@ -45,7 +46,8 @@ def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
     Note each arguments is an element in a list.
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
-    ret.extend(["-b", "2", "-q", "1", "-e", str(True), "-o", builddir + "/operator_pub.pem"])
+    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
+    ret.extend(["-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd(builddir, replica_id):
@@ -58,6 +60,7 @@ def start_replica_cmd(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -65,7 +68,7 @@ def start_replica_cmd(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
             "-b", "2",
-            "-q", "1",
+            "-q", batch_size,
             "-o", builddir + "/operator_pub.pem"]
 
 
@@ -79,6 +82,7 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -86,7 +90,7 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
             "-v", viewChangeTimeoutMilli,
             "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
             "-b", "2",
-            "-q", "1",
+            "-q", batch_size,
             "-e", str(True),
             "-o", builddir + "/operator_pub.pem"]
 
