@@ -18,8 +18,7 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
                               std::function<void(SubscribeResult&&)> callback) {
   if (not stop_subscriber_) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
-    callback(SubscribeResult{SubscribeError{}});
-    return;
+    throw SubscriptionExists();
   }
 
   stop_subscriber_ = false;

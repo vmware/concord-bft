@@ -121,6 +121,7 @@ class ConcordClient {
  public:
   ConcordClient(const ConcordClientConfig& config)
       : logger_(logging::getLogger("concord.client.concordclient")), config_(config) {}
+  ~ConcordClient() { unsubscribe(); }
 
   // Register a callback that gets invoked once the handling BFT client returns.
   void send(const bft::client::WriteConfig& config,
@@ -142,6 +143,13 @@ class ConcordClient {
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
   void unsubscribe();
+
+  // At the moment, we only allow one subscriber at a time. This exception is thrown if the caller subscribes while an
+  // active subscription is in progress already.
+  class SubscriptionExists : public std::runtime_error {
+   public:
+    SubscriptionExists() : std::runtime_error("subscription exists already"){};
+  };
 
  private:
   logging::Logger logger_;
