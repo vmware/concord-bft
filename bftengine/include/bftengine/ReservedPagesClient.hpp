@@ -23,6 +23,11 @@
 
 namespace bftEngine {
 
+namespace test {
+template <typename, uint32_t>
+class ReservedPagesMock;
+}
+
 class ReservedPagesClientBase {
  public:
   static uint32_t totalNumberOfPages() {
@@ -103,13 +108,16 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     res_pages_->zeroReservedPage(my_offset() + reservedPageId);
   }
 
+ private:
+  template <typename, uint32_t>
+  friend class bftEngine::test::ReservedPagesMock;
+
   /** is called when calculating absolute pageId */
   static uint32_t my_offset() {
     static uint32_t offset_ = calc_my_offset();
     return offset_;
   }
 
- private:
   // is done once per client
   static uint32_t calc_my_offset() {
     uint32_t offset = 0;

@@ -39,6 +39,8 @@ Agreement createAgreement(const std::chrono::seconds& tick_period,
 }
 
 ReservedPagesClient::ReservedPagesClient() {
+  // Note: Since we don't override any virtual methods from the base class, we can call them in the constructor. If that
+  // changes in the future, we would need to introduce an init() method that does the current constructor's work.
   auto in = std::vector<std::uint8_t>(sizeOfReservedPage());
   if (loadReservedPage(kLatestAgreementPageId, in.size(), data(in))) {
     latest_agreement_.emplace();
