@@ -17,7 +17,7 @@
 
 namespace preprocessor {
 
-typedef std::list<preprocessor::PreProcessReplyMsgSharedPtr> PreProcessReplyMsgsList;
+using PreProcessReplyMsgsList = std::list<PreProcessReplyMsgSharedPtr>;
 
 class PreProcessBatchReplyMsg : public MessageBase {
  public:
@@ -25,7 +25,7 @@ class PreProcessBatchReplyMsg : public MessageBase {
                           NodeIdType senderId,
                           const PreProcessReplyMsgsList& batch,
                           const std::string& cid,
-                          uint32_t replyMsgsSize);
+                          uint32_t repliesSize);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessBatchReplyMsg)
 
@@ -55,7 +55,7 @@ class PreProcessBatchReplyMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch);
+  void setParams(NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch, uint32_t repliesSize);
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
@@ -63,6 +63,6 @@ class PreProcessBatchReplyMsg : public MessageBase {
   PreProcessReplyMsgsList preProcessReplyMsgsList_;
 };
 
-typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;
+using PreProcessBatchReplyMsgSharedPtr = std::shared_ptr<PreProcessBatchReplyMsg>;
 
 }  // namespace preprocessor

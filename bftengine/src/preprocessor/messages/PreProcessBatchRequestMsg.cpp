@@ -24,7 +24,7 @@ PreProcessBatchRequestMsg::PreProcessBatchRequestMsg(RequestType reqType,
                                                      uint32_t requestsSize)
     : MessageBase(senderId, MsgCode::PreProcessBatchRequest, 0, sizeof(Header) + requestsSize + cid.size()) {
   const uint32_t numOfMessagesInBatch = batch.size();
-  setParams(clientId, senderId, reqType, numOfMessagesInBatch);
+  setParams(clientId, senderId, reqType, numOfMessagesInBatch, requestsSize);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   if (cid.size()) {
@@ -54,15 +54,14 @@ void PreProcessBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }
 
-void PreProcessBatchRequestMsg::setParams(uint16_t clientId,
-                                          NodeIdType senderId,
-                                          RequestType reqType,
-                                          uint32_t numOfMessagesInBatch) {
+void PreProcessBatchRequestMsg::setParams(
+    uint16_t clientId, NodeIdType senderId, RequestType reqType, uint32_t numOfMessagesInBatch, uint32_t requestsSize) {
   auto* header = msgBody();
   header->reqType = reqType;
   header->clientId = clientId;
   header->senderId = senderId;
   header->numOfMessagesInBatch = numOfMessagesInBatch;
+  header->requestsSize = requestsSize;
 }
 
 string PreProcessBatchRequestMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }

@@ -24,6 +24,7 @@ class PreProcessorRecorder {
                                       onPreProcessRequestMsg,
                                       onPreProcessBatchRequestMsg,
                                       onPreProcessReplyMsg,
+                                      onPreProcessBatchReplyMsg,
                                       launchReqPreProcessing,
                                       handlePreProcessedReqByNonPrimary,
                                       handlePreProcessedReqPrimaryRetry,
@@ -48,6 +49,7 @@ class PreProcessorRecorder {
   DEFINE_SHARED_RECORDER(onClientBatchPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onPreProcessBatchRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onPreProcessBatchReplyMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onPreProcessReplyMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(launchReqPreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByNonPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);

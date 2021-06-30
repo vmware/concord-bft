@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "PrimitiveTypes.hpp"
 #include "messages/ClientPreProcessRequestMsg.hpp"
 #include "messages/PreProcessRequestMsg.hpp"
 #include "messages/PreProcessReplyMsg.hpp"
@@ -24,7 +23,7 @@ namespace preprocessor {
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
 typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, CANCELLED_BY_PRIMARY, RETRY_PRIMARY } PreProcessingResult;
-typedef std::vector<ReplicaId> ReplicaIdsList;
+using ReplicaIdsList = std::vector<ReplicaId>;
 
 class RequestProcessingState {
  public:
@@ -113,6 +112,6 @@ class RequestProcessingState {
   uint64_t reqRetryId_ = 0;
 };
 
-typedef std::unique_ptr<RequestProcessingState> RequestProcessingStateUniquePtr;
+using RequestProcessingStateUniquePtr = std::unique_ptr<RequestProcessingState>;
 
 }  // namespace preprocessor
