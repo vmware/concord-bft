@@ -245,6 +245,16 @@ if (BUILD_ROCKSDB_STORAGE)
             kvbc
             stdc++fs)
 
+    add_executable(pruning_reserved_pages_client_test pruning_reserved_pages_client_test.cpp)
+    add_test(pruning_reserved_pages_client_test pruning_reserved_pages_client_test)
+    target_link_libraries(pruning_reserved_pages_client_test PUBLIC
+            GTest::Main
+            GTest::GTest
+            util
+            corebft
+            kvbc
+    )
+
     add_executable(replica_state_sync_test replica_state_sync_test.cpp)
     add_test(replica_state_sync_test replica_state_sync_test)
     target_link_libraries(replica_state_sync_test PUBLIC

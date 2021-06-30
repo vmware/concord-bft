@@ -1,0 +1,17 @@
+# Represents a pruning agreement, i.e. when processing a PruneRequest.
+Msg Agreement 1 {
+  # TicksGenerator period in seconds.
+  uint32 tick_period_seconds
+
+  # The number of blocks in a pruning batch.
+  uint64 batch_blocks_num
+
+  # The last agreed prunable block ID for all replicas.
+  uint64 last_agreed_prunable_block_id
+}
+
+# Represents a pruning batch.
+Msg Batch 2 {
+  # The latest block ID to prune in the batch.
+  uint64 latest_batch_block_id_to
+}

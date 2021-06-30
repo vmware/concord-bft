@@ -23,6 +23,11 @@
 
 namespace bftEngine {
 
+namespace test {
+template <typename, uint32_t>
+class ReservedPagesMock;
+}
+
 class ReservedPagesClientBase {
  public:
   static uint32_t totalNumberOfPages() {
@@ -81,6 +86,16 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     }
   }
 
+  static uint32_t numberOfReservedPagesForClient() {
+    auto& reg = registry();
+    if (auto it = reg.find(std::type_index(typeid(T))); it != reg.end()) {
+      return it->second;
+    } else {
+      std::cerr << __PRETTY_FUNCTION__ << " BUG: not registered" << std::endl;
+      std::terminate();
+    }
+  }
+
   uint32_t numberOfReservedPages() const override { return res_pages_->numberOfReservedPages(); }
   uint32_t sizeOfReservedPage() const override { return res_pages_->sizeOfReservedPage(); }
   bool loadReservedPage(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const override {
@@ -93,15 +108,18 @@ class ResPagesClient : public ReservedPagesClientBase, public IReservedPages {
     res_pages_->zeroReservedPage(my_offset() + reservedPageId);
   }
 
+ private:
+  template <typename, uint32_t>
+  friend class bftEngine::test::ReservedPagesMock;
+
   /** is called when calculating absolute pageId */
-  uint32_t my_offset() const {
+  static uint32_t my_offset() {
     static uint32_t offset_ = calc_my_offset();
     return offset_;
   }
 
- private:
   // is done once per client
-  uint32_t calc_my_offset() const {
+  static uint32_t calc_my_offset() {
     uint32_t offset = 0;
     for (auto& it : registry()) {
       if (it.first == std::type_index(typeid(T))) {

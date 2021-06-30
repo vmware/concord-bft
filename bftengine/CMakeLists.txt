@@ -104,6 +104,7 @@ target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(corebft PUBLIC ${perf_include}/performance/include)
+target_include_directories(corebft PUBLIC tests/mocks)
 target_link_libraries(corebft PUBLIC
   threshsign
   Threads::Threads
