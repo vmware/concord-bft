@@ -12,6 +12,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <opentracing/span.h>
 #include <string>
 #include <thread>
@@ -122,25 +123,21 @@ class ConcordClient {
       : logger_(logging::getLogger("concord.client.concordclient")), config_(config) {}
 
   // Register a callback that gets invoked once the handling BFT client returns.
-  // void callback(SendResult result);
-  template <class CallbackT>
   void send(const bft::client::WriteConfig& config,
             bft::client::Msg&& msg,
             const std::unique_ptr<opentracing::Span>& parent_span,
-            CallbackT callback);
-  template <class CallbackT>
+            std::function<void(SendResult&&)> callback);
   void send(const bft::client::ReadConfig& config,
             bft::client::Msg&& msg,
             const std::unique_ptr<opentracing::Span>& parent_span,
-            CallbackT callback);
+            std::function<void(SendResult&&)> callback);
 
   // Register a callback that gets invoked for every validated event received.
   // void callback(SubscribeResult);
   // Return subscriber ID used to unsubscribe.
-  template <class CallbackT>
   void subscribe(const SubscribeRequest& request,
                  const std::unique_ptr<opentracing::Span>& parent_span,
-                 CallbackT callback);
+                 std::function<void(SubscribeResult&&)> callback);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
@@ -154,40 +151,5 @@ class ConcordClient {
   std::atomic_bool stop_subscriber_{true};
   std::thread subscriber_;
 };
-
-template <class CallbackT>
-void ConcordClient::subscribe(const SubscribeRequest& request,
-                              const std::unique_ptr<opentracing::Span>& parent_span,
-                              CallbackT callback) {
-  if (not stop_subscriber_) {
-    LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
-    callback(SubscribeResult{SubscribeError{}});
-    return;
-  }
-
-  stop_subscriber_ = false;
-  subscriber_ = std::thread([&] {
-    while (not stop_subscriber_) {
-      // Note: The following returns an artificial event group.
-      // This will be replaced with the actual thin replica client integration.
-      // The thread is in place to simulate the asynchronous subscription.
-      EventGroup eg;
-      eg.id = request.event_group_id;
-      std::string event = std::to_string(request.event_group_id);
-      eg.events.push_back({event.begin(), event.end()});
-      std::chrono::duration time_now = std::chrono::system_clock::now().time_since_epoch();
-      eg.record_time = std::chrono::duration_cast<std::chrono::microseconds>(time_now);
-      eg.trace_context = {};
-
-      callback(std::move(SubscribeResult{eg}));
-    }
-  });
-}
-
-inline void ConcordClient::unsubscribe() {
-  LOG_INFO(logger_, "Closing subscription");
-  stop_subscriber_ = true;
-  subscriber_.join();
-}
 
 }  // namespace concord::client::concordclient
