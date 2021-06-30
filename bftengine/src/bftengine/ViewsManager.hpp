@@ -149,12 +149,13 @@ class ViewsManager {
 
   void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
 
-  ViewChangeMsg *PrepareViewChangeMsgAndSetHigherView(ViewNum nextView,
+  ViewChangeMsg *prepareViewChangeMsgAndSetHigherView(ViewNum nextView,
                                                       const bool wasInPrevViewNumber,
                                                       SeqNum lastStableSeqNum = 0,
                                                       SeqNum lastExecutedSeqNum = 0,
                                                       const std::vector<PrevViewInfo> *const prevViewInfo = nullptr);
 
+  void processComplaintsFromViewChangeMessage(ViewChangeMsg *msg, std::function<bool(MessageBase *)> msgValidator);
   bool tryToJumpToHigherViewAndMoveComplaintsOnQuorum(const ViewChangeMsg *const msg);
 
  protected:

@@ -286,6 +286,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void recoverRequests();
 
   bool validateMessage(MessageBase* msg);
+  std::function<bool(MessageBase*)> getMessageValidator();
 
   // InternalReplicaApi
   bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
