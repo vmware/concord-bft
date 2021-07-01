@@ -22,6 +22,8 @@
 #include "ViewChangeSafetyLogic.hpp"
 
 namespace bftEngine {
+template <typename>
+class TimeServiceManager;
 namespace impl {
 
 class PrePrepareMsg;
@@ -73,6 +75,9 @@ class ViewsManager {
                                                                           // in viewChangeMsgs
                                         std::vector<ViewChangeMsg *> viewChangeMsgs);
 
+  void setTimeManager(const TimeServiceManager<std::chrono::system_clock> *timeServiceManager) {
+    timeServiceManager_ = timeServiceManager;
+  }
   ViewNum getCurrentView() const { return myCurrentView; }
   void setHigherView(ViewNum higherViewNum);
   void setViewFromRecovery(ViewNum explicitViewNum) { myCurrentView = explicitViewNum; }
@@ -233,6 +238,9 @@ class ViewsManager {
   ///////////////////////////////////////////////////////////////////////////
   SeqNum debugHighestKnownStable;
   ViewNum debugHighestViewNumberPassedByClient;
+
+  // NOTE(DD): ViewsManager does not own time manager
+  const TimeServiceManager<std::chrono::system_clock> *timeServiceManager_ = nullptr;
 };
 
 }  // namespace impl

@@ -24,6 +24,7 @@
 #include "messages/NewViewMsg.hpp"
 #include "messages/SignedShareMsgs.hpp"
 #include "CryptoManager.hpp"
+#include "TimeServiceManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -725,7 +726,16 @@ bool ViewsManager::tryToEnterView(ViewNum v,
         ConcordAssert(prePrepareMsgsOfRestrictions[idx] == nullptr);
         nbNoopPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
-        PrePrepareMsg* pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
+        PrePrepareMsg* pp = nullptr;
+        if (timeServiceManager_) {
+          auto msg = timeServiceManager_->createClientRequestMsg();
+          pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, msg->size());
+          pp->addRequest(msg->body(), msg->size());
+          pp->finishAddingRequests();
+        } else {
+          pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
+        }
+
         outPrePrepareMsgsOfView->push_back(pp);
       } else {
         PrePrepareMsg* pp = prePrepareMsgsOfRestrictions[idx];
