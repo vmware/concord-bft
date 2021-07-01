@@ -13,6 +13,25 @@
 
 namespace concord::client::concordclient {
 
+void ConcordClient::send(const bft::client::ReadConfig& config,
+                         bft::client::Msg&& msg,
+                         const std::unique_ptr<opentracing::Span>& parent_span,
+                         std::function<void(SendResult&&)> callback) {
+  LOG_INFO(logger_, "Log message until config is used f=" << config_.topology.f_val);
+  bft::client::Reply reply;
+  reply.matched_data = std::move(msg);
+  callback(SendResult{reply});
+}
+
+void ConcordClient::send(const bft::client::WriteConfig& config,
+                         bft::client::Msg&& msg,
+                         const std::unique_ptr<opentracing::Span>& parent_span,
+                         std::function<void(SendResult&&)> callback) {
+  bft::client::Reply reply;
+  reply.matched_data = std::move(msg);
+  callback(SendResult{reply});
+}
+
 void ConcordClient::subscribe(const SubscribeRequest& request,
                               const std::unique_ptr<opentracing::Span>& parent_span,
                               std::function<void(SubscribeResult&&)> callback) {
