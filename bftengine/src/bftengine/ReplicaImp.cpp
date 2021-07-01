@@ -706,6 +706,17 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
+    bool time_is_ok = true;
+    if (config_.timeServiceEnabled && msg->numberOfRequests() > 0) {
+      if (!time_service_manager_->hasTimeRequest(*msg)) {
+        LOG_ERROR(GL, "PrePrepare will be ignored");
+        delete msg;
+        return;
+      }
+      if (msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
+        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(*msg);
+      }
+    }
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
@@ -727,19 +738,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         ps_->setPrePrepareMsgInSeqNumWindow(msgSeqNum, msg);
         if (slowStarted) ps_->setSlowStartedInSeqNumWindow(msgSeqNum, true);
         ps_->endWriteTran();
-      }
-
-      bool time_is_ok = true;
-      if (config_.timeServiceEnabled &&
-          msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
-        ConcordAssertGE(msg->numberOfRequests(), 1);
-
-        auto it = RequestsIterator(msg);
-        char *requestBody = nullptr;
-        ConcordAssertEQ(it.getCurrent(requestBody), true);
-
-        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(req);
       }
       if (time_is_ok) {
         if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
@@ -4006,19 +4004,23 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   ConcordAssertNE(ppMsg, nullptr);
   ConcordAssertEQ(ppMsg->viewNumber(), getCurrentView());
   ConcordAssertEQ(ppMsg->seqNumber(), lastExecutedSeqNum + 1);
-
   const uint16_t numOfRequests = ppMsg->numberOfRequests();
 
   // recoverFromErrorInRequestsExecution ==> (numOfRequests > 0)
   ConcordAssertOR(!recoverFromErrorInRequestsExecution, (numOfRequests > 0));
 
   if (numOfRequests > 0) {
+    if (config_.timeServiceEnabled) {
+      ConcordAssert(time_service_manager_->hasTimeRequest(*ppMsg));
+    }
+
     histograms_.numRequestsInPrePrepareMsg->record(numOfRequests);
     Bitmap requestSet(numOfRequests);
     size_t reqIdx = 0;
     RequestsIterator reqIter(ppMsg);
     char *requestBody = nullptr;
 
+    bool seenTimeService = false;
     //////////////////////////////////////////////////////////////////////
     // Phase 1:
     // a. Find the requests that should be executed
@@ -4031,6 +4033,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         NodeIdType clientId = req.clientProxyId();
 
         if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
+          ConcordAssert(!seenTimeService && "Multiple Time Service messages in PrePrepare");
+          seenTimeService = true;
           reqIdx++;
           continue;
         }
