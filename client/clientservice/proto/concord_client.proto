@@ -85,6 +85,7 @@ service EventService {
   // RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
   // UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
   // INTERNAL: if Concord Client cannot progress independent of the request.
+  // ALREADY_EXISTS: if Concord Client serves an active stream already. See note above.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
 }
 
