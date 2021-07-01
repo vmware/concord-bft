@@ -127,7 +127,9 @@ def equalop_str_declaration(msg_name):
 
 def equalop_str(msg_name, fields):
     """ Create an 'operator==' function for the current message struct """
-    comparison = " && ".join([f"l.{f} == r.{f}" for f in fields])
+    comparison = "true"
+    if fields:
+        comparison = " && ".join([f"l.{f} == r.{f}" for f in fields])
     return equalop_str_fn.format(msg_name=msg_name) + f""" {{
   return {comparison};
 }}"""
