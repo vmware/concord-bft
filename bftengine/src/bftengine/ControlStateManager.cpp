@@ -96,8 +96,16 @@ void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, Re
   onRestartProofCbRegistery_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
 }
 void ControlStateManager::onRestartProof() {
-  for (const auto& kv : onRestartProofCbRegistery_) {
-    kv.second.invokeAll();
+  // If operator sends add-remove request with bft option then
+  // It can happen that some replicas receives a restart proof and yet to reach
+  // stable checkpoint. We should not rstart replica in that case since
+  // configuration update happens on stable checkpoint.
+  // TODO(NK): check if we should restart after stable checkpoint is reachedbld
+  if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
+      IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
+    for (const auto& kv : onRestartProofCbRegistery_) {
+      kv.second.invokeAll();
+    }
   }
 }
 
