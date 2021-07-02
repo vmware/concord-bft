@@ -18,7 +18,7 @@
 #include "IPendingRequest.hpp"
 #include <map>
 #include <set>
-#include <vector>
+#include <deque>
 #include <memory>
 
 namespace bftEngine {
@@ -71,8 +71,6 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   Time infoOfEarliestPendingRequest(std::string& cid) const;
 
-  void deleteOldestReply(NodeIdType clientId);
-
   // Internal Clients
   void initInternalClientInfo(const int& numReplicas);
   inline bool isInternal(NodeIdType clientId) const { return clientId > highestIdOfNonInternalClient_; };
@@ -85,6 +83,8 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   int getIndexOfClient(const NodeIdType& id) const;
 
  protected:
+  void deleteOldestReply(NodeIdType clientId);
+
   const ReplicaId myId_;
   const uint32_t sizeOfReservedPage_;
 
@@ -108,11 +108,13 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   };
 
   struct ClientInfo {
+    std::mutex requestsInfoGuard;
+    std::mutex repliesInfoGuard;
     std::map<ReqId, RequestInfo> requestsInfo;
     std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
   };
 
-  std::vector<ClientInfo> indexToClientInfo_;
+  mutable std::deque<ClientInfo> indexToClientInfo_;
   const uint32_t maxReplySize_;
   const uint16_t maxNumOfReqsPerClient_;
   concordMetrics::Component& metrics_;
