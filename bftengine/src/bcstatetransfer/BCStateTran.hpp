@@ -142,6 +142,7 @@ class BCStateTran : public IStateTransfer {
 
   uint64_t maxNumOfStoredCheckpoints_;
   uint64_t numberOfReservedPages_;
+  uint32_t cycleCounter_;
 
   std::atomic<bool> running_ = false;
   std::unique_ptr<concord::util::Handoff> handoff_;
@@ -300,6 +301,7 @@ class BCStateTran : public IStateTransfer {
                                    uint32_t vblockSize) const;
 
   void processData();
+  void cycleEndSummary();
 
   void EnterGettingCheckpointSummariesState();
   set<uint16_t> allOtherReplicas();

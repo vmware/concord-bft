@@ -20,6 +20,7 @@
 #include <sstream>
 #include <functional>
 #include <utility>
+#include <iterator>
 
 #include "assertUtils.hpp"
 #include "hex_tools.h"
@@ -151,6 +152,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
           calcMaxNumOfChunksInBlock(maxItemSize_, config_.maxBlockSize, config_.maxChunkSize, true)},
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
+      cycleCounter_(0),
       randomGen_{randomDevice_()},
       sourceSelector_{
           allOtherReplicas(), config_.fetchRetransmissionTimeoutMs, config_.sourceReplicaReplacementTimeoutMs},
@@ -2440,6 +2442,8 @@ void BCStateTran::processData() {
         kv.second.invokeAll(cp.checkpointNum);
       }
       g.txn()->setIsFetchingState(false);
+      ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+      cycleEndSummary();
       break;
     }
     //////////////////////////////////////////////////////////////////////////
@@ -2464,17 +2468,19 @@ void BCStateTran::processData() {
 void BCStateTran::cycleEndSummary() {
   Throughput::Results blocksCollectedResults;
   Throughput::Results bytesCollectedResults;
-  std::ostringstream oss;
+  std::ostringstream sources_str;
+  std::string firstCollectedBlockIdstr;
 
-  if (gettingMissingBlocksDT_.totalDuration() != 0) {
-    blocksCollectedResults = blocks_collected_.getOverallResults();
-    bytesCollectedResults = bytes_collected_.getOverallResults();
-    blocks_collected_.end();
-    bytes_collected_.end();
-  }
+  if (gettingMissingBlocksDT_.totalDuration() == 0)
+    // we print summary only if we were collecting blocks
+    return;
 
-  std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(oss, ","));
-  oss << sources_.back();
+  blocksCollectedResults = blocks_collected_.getOverallResults();
+  bytesCollectedResults = bytes_collected_.getOverallResults();
+  blocks_collected_.end();
+  bytes_collected_.end();
+  std::copy(sources_.begin(), sources_.end() - 1, std::ostream_iterator<uint16_t>(sources_str, ","));
+  sources_str << sources_.back();
   auto cycleDuration = cycleDT_.totalDuration(true);
   auto gettingCheckpointSummariesDuration = gettingCheckpointSummariesDT_.totalDuration(true);
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
@@ -2484,7 +2490,7 @@ void BCStateTran::cycleEndSummary() {
   auto putBlocksStTempDuration = putBlocksStTempDT_.totalDuration(true);
   LOG_INFO(getLogger(),
            "State Transfer cycle ended (#"
-               << cycleCounter_ << ") , Total Duration: " << cycleDuration << "ms, "
+               << cycleCounter_ << "), Total Duration: " << cycleDuration << "ms, "
                << "Time to get checkpoint summaries: " << gettingCheckpointSummariesDuration << "ms, "
                << "Time to fetch missing blocks: " << gettingMissingBlocksDuration << "ms, "
                << "Time to commit to chain: " << commitToChainDuration << "ms, "
@@ -2500,7 +2506,7 @@ void BCStateTran::cycleEndSummary() {
                << static_cast<uint64_t>((1000 * blocksCollectedResults.num_processed_items_) / cycleDuration)
                << " blocks/sec and "
                << static_cast<uint64_t>((1000 * bytesCollectedResults.num_processed_items_) / cycleDuration)
-               << " bytes/sec, #" << sources_.size() << " sources (first to last): [" << oss.str() << "]");
+               << " bytes/sec, #" << sources_.size() << " sources (first to last): [" << sources_str.str() << "]");
 }
 
 //////////////////////////////////////////////////////////////////////////////
