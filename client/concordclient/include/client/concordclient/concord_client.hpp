@@ -21,6 +21,7 @@
 
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
+#include "Metrics.hpp"
 
 namespace concord::client::concordclient {
 
@@ -123,6 +124,8 @@ class ConcordClient {
       : logger_(logging::getLogger("concord.client.concordclient")), config_(config) {}
   ~ConcordClient() { unsubscribe(); }
 
+  void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> m) { metrics_ = m; }
+
   // Register a callback that gets invoked once the handling BFT client returns.
   void send(const bft::client::WriteConfig& config,
             bft::client::Msg&& msg,
@@ -154,6 +157,7 @@ class ConcordClient {
  private:
   logging::Logger logger_;
   const ConcordClientConfig& config_;
+  std::shared_ptr<concordMetrics::Aggregator> metrics_;
 
   // TODO: Allow multiple subscriptions
   std::atomic_bool stop_subscriber_{true};

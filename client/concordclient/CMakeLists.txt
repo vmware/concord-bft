@@ -4,4 +4,5 @@ target_include_directories(concordclient PUBLIC include)
 target_link_libraries(concordclient PUBLIC
   bftclient_new # temporary until client pool is available
   thin_replica_client_lib
+  util
 )
