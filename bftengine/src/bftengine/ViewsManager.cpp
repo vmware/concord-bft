@@ -1105,8 +1105,8 @@ void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
   MsgSize size = 0;
   int numberOfProcessedComplaints = 0;
 
-  while (!(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) && iter.getAndGoToNext(complaint, size) &&
-         numberOfProcessedComplaints <= F + 1) {
+  while (msg->newView() > getCurrentView() && !(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) &&
+         iter.getAndGoToNext(complaint, size) && numberOfProcessedComplaints <= F + 1) {
     numberOfProcessedComplaints++;
 
     auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header*)complaint, size, true);
