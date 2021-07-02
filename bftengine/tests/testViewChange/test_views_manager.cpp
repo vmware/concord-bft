@@ -51,7 +51,7 @@ TEST_F(ViewsManagerTest, moving_to_higher_view) {
   LOG_INFO(GL, KVLOG(currentView));
   viewsManager->setHigherView(currentView + 1);
   LOG_INFO(GL, KVLOG(viewsManager->getCurrentView()));
-  ASSERT_LT(currentView, viewsManager->getCurrentView());
+  ASSERT_EQ(viewsManager->getCurrentView(), currentView + 1);
 }
 
 TEST_F(ViewsManagerTest, store_complaint) {
@@ -78,9 +78,9 @@ TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
 
 TEST_F(ViewsManagerTest, status_message_with_complaints) {
   bftEngine::impl::SeqNum lastExecutedSeqNum = 200;
-  constexpr bool viewIsActive = true;
-  constexpr bool hasNewChangeMsg = true;
-  constexpr bool listOfPPInActiveWindow = false, listOfMissingVCMsg = false, listOfMissingPPMsg = false;
+  const bool viewIsActive = true;
+  const bool hasNewChangeMsg = true;
+  const bool listOfPPInActiveWindow = false, listOfMissingVCMsg = false, listOfMissingPPMsg = false;
 
   for (int replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
     if (replicaId == rc.replicaId) continue;
@@ -111,8 +111,8 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
 TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_enough_complaints) {
   bftEngine::impl::ReplicaId sourceReplicaId = (rc.replicaId + 1) % rc.numReplicas;
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
-  constexpr int nextView = initialView + 1;
-  constexpr int viewToComplainAbout = initialView;
+  const int nextView = initialView + 1;
+  const int viewToComplainAbout = initialView;
 
   ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, nextView, lastStableSeqNum);
 
@@ -121,7 +121,7 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
     otherReplicas.insert(i);
   }
 
-  ASSERT_LT(rc.fVal, otherReplicas.size());
+  ASSERT_LE(rc.fVal + 1, otherReplicas.size());
 
   for (int complaintNumber = 0; complaintNumber <= rc.fVal; ++complaintNumber) {
     viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
@@ -157,8 +157,8 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
 TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_enough_complaints) {
   bftEngine::impl::ReplicaId sourceReplicaId = (rc.replicaId + 1) % rc.numReplicas;
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
-  constexpr int higherView = initialView + 2;
-  constexpr int viewToComplainAbout = higherView - 1;
+  const int higherView = initialView + 2;
+  const int viewToComplainAbout = higherView - 1;
 
   ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, higherView, lastStableSeqNum);
 
@@ -167,7 +167,7 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
     otherReplicas.insert(i);
   }
 
-  ASSERT_LT(rc.fVal, otherReplicas.size());
+  ASSERT_LE(rc.fVal + 1, otherReplicas.size());
 
   for (int complaintNumber = 0; complaintNumber <= rc.fVal; ++complaintNumber) {
     viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
