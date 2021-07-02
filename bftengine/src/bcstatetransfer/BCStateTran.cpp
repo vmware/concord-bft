@@ -232,11 +232,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       blocks_collected_(getMissingBlocksSummaryWindowSize),
       bytes_collected_(getMissingBlocksSummaryWindowSize),
       lastFetchingState_(FetchingState::NotFetching),
-               metrics_component_.RegisterGauge("prev_win_bytes_throughtput", 0)},
-      blocks_collected_(get_missing_blocks_summary_window_size),
-      bytes_collected_(get_missing_blocks_summary_window_size),
-      first_collected_block_num_({}),
-      fetch_block_msg_latency_rec_(histograms_.fetch_blocks_msg_latency) {
+      sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
       dst_time_between_sendFetchBlocksMsg_rec_(histograms_.dst_time_between_sendFetchBlocksMsg),
       time_in_handoff_queue_rec_(histograms_.time_in_handoff_queue) {
@@ -645,6 +641,9 @@ void BCStateTran::startCollectingState() {
   LOG_INFO(getLogger(), "State Transfer cycle started (#" << ++cycleCounter_ << ")");
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
+  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  registrar.perf.snapshot("state_transfer");
+  registrar.perf.snapshot("state_transfer_dest");
   metrics_.start_collecting_state_.Get().Inc();
   startCollectingStats();
 
@@ -676,7 +675,18 @@ void BCStateTran::onTimerImp() {
     LOG_INFO(getLogger(), "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
   }
   auto currTime = getMonotonicTimeMilli();
-  FetchingState fs = getFetchingState();
+
+  // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
+  if (sourceFlag_ &&
+      (((++sourceSnapshotCounter_) * config_.refreshTimerMs) >= (2 * config_.fetchRetransmissionTimeoutMs))) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("state_transfer");
+    registrar.perf.snapshot("state_transfer_src");
+    LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer")));
+    LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer_src")));
+    sourceFlag_ = false;
+    sourceSnapshotCounter_ = 0;
+  }
   if (fs == FetchingState::GettingCheckpointSummaries) {
     if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMs) {
       if (++retransmissionNumberOfAskForCheckpointSummariesMsg > kResetCount_AskForCheckpointSummaries)
@@ -1363,6 +1373,14 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     return false;
   }
 
+  if (!sourceFlag_) {
+    // a new source - reset histograms and snapshot counter
+    sourceFlag_ = true;
+    sourceSnapshotCounter_ = 0;
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("state_transfer");
+    registrar.perf.snapshot("state_transfer_src");
+  }
   // compute information about next block and chunk
   uint64_t nextBlock = m->lastRequiredBlock;
   uint32_t sizeOfNextBlock = 0;
@@ -2347,6 +2365,19 @@ void BCStateTran::processData() {
 
         ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingResPages);
 
+        // Log histograms for destination when GettingMissingBlocks is done
+        // Do it for a cycle that lasted more than 10 seconds
+        auto duration = cycleDT_.pause();
+        if (duration > 10000) {
+          auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+          registrar.perf.snapshot("state_transfer");
+          registrar.perf.snapshot("state_transfer_dest");
+          LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer")));
+          LOG_INFO(getLogger(), registrar.perf.toString(registrar.perf.get("state_transfer_dest")));
+        } else
+          LOG_INFO(getLogger(),
+                   "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
+        cycleDT_.start();
         LOG_DEBUG(getLogger(), "Moved to GettingMissingResPages");
         sendFetchResPagesMsg(0);
         break;
