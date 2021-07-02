@@ -1,0 +1,120 @@
+# This is a hypothetical Msg setup
+Enum ComponentId {
+    broadcast,
+    replica,
+    state_transfer,
+    crypto,
+    network,
+    execution_engine
+}
+
+# Inform the replica that state transfer has completed
+Msg StateTransferCompletedMsg 1 {
+    bool complete # always true
+}
+
+# The top-level message notifying the replica thread of important events
+Msg ReplicaNotificationsMsg 2 {
+    oneof {
+        StateTransferCompletedMsg
+    } msg
+}
+
+Msg ConsensusMsg 1000 {
+    string todo
+}
+
+Msg StartCollectingStateMsg 2000 {
+    bool start # always true
+}
+
+Msg CreateCheckpointMsg 2001 {
+    uint64 checkpoint_id
+}
+
+Msg MarkCheckpointStableMsg 2002 {
+    uint64 checkpoint_id
+}
+
+Msg StateTransferConfigMsg 2003 {
+    uint32 timer_period
+}
+
+# Used by the replica component to interact with the state transfer component
+Msg StateTransferApiMsg 2500 {
+   oneof {
+       StartCollectingStateMsg
+       CreateCheckpointMsg
+       MarkCheckpointStableMsg
+       StateTransferConfigMsg
+    } msg
+}
+
+Msg FetchBlockMsg 2501 {
+    uint64 block_id
+}
+
+Msg BlockMsg 2502 {
+    uint64 block_id
+    fixedlist uint8 32 hash
+    bytes data
+}
+
+# Used during transfer
+Msg StateTransferMsg 3000 {
+    oneof {
+        FetchBlockMsg
+        BlockMsg
+    } msg
+}
+
+Msg NetworkMsg 3500 {
+    uint64 destination_replica
+    oneof {
+        StateTransferMsg
+        ConsensusMsg
+    } msg
+}
+
+Msg CryptoMsg 4500 {
+    string todo
+}
+
+Msg ExecutionEngineMsg 5500 {
+    string todo
+}
+
+Enum ControlCmd {
+    shutdown,
+    get_status
+}
+
+# System control message
+Msg ControlMsg 6000 {
+    ControlCmd cmd
+}
+
+Msg StatusMsg 7000 {
+    string status
+}
+
+Msg AllMsgs 99999 {
+    oneof {
+        ControlMsg
+        StatusMsg
+        ConsensusMsg
+        ReplicaNotificationsMsg
+        StateTransferMsg
+        StateTransferApiMsg
+        NetworkMsg
+        CryptoMsg
+        ExecutionEngineMsg
+    } msg
+}
+
+# Main wrapper Msg
+Msg Envelope 100000 {
+    ComponentId to
+    ComponentId from
+    AllMsgs all_msgs
+}
