@@ -2440,7 +2440,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   if (!wasInPrevViewNumber) {
     time_in_active_view_.end();
-    pVC = viewsManager->PrepareViewChangeMsg(nextView, wasInPrevViewNumber);
+    pVC = viewsManager->PrepareViewChangeMsgAndSetHigherView(nextView, wasInPrevViewNumber);
   } else {
     std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
@@ -2480,7 +2480,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       ps_->endWriteTran();
     }
 
-    pVC = viewsManager->PrepareViewChangeMsg(
+    pVC = viewsManager->PrepareViewChangeMsgAndSetHigherView(
         nextView, wasInPrevViewNumber, lastStableSeqNum, lastExecutedSeqNum, &prevViewInfo);
     ConcordAssertNE(pVC, nullptr);
   }

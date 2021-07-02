@@ -1061,11 +1061,11 @@ void ViewsManager::addComplaintsToStatusMessage(ReplicaStatusMsg& replicaStatusM
   }
 }
 
-ViewChangeMsg* ViewsManager::PrepareViewChangeMsg(ViewNum nextView,
-                                                  const bool wasInPrevViewNumber,
-                                                  SeqNum lastStableSeqNum,
-                                                  SeqNum lastExecutedSeqNum,
-                                                  const std::vector<PrevViewInfo>* const prevViewInfo) {
+ViewChangeMsg* ViewsManager::PrepareViewChangeMsgAndSetHigherView(ViewNum nextView,
+                                                                  const bool wasInPrevViewNumber,
+                                                                  SeqNum lastStableSeqNum,
+                                                                  SeqNum lastExecutedSeqNum,
+                                                                  const std::vector<PrevViewInfo>* const prevViewInfo) {
   ConcordAssertLT(myCurrentView, nextView);
 
   ViewChangeMsg* pVC = nullptr;
