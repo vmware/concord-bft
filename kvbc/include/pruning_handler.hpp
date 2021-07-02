@@ -134,6 +134,7 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   //  PruneRequest is equal to the number of replicas in the system
   //  - verifying the signatures of individual LatestPrunableBlock messages in the
   //  PruneRequest.
+  //  - verifying other parameters in PruneRequest
   // If all above conditions are met, the state machine will prune blocks from the
   // genesis block up to the the minimum of all the block IDs in
   // LatestPrunableBlock messages in the PruneRequest message.
