@@ -727,15 +727,15 @@ bool ViewsManager::tryToEnterView(ViewNum v,
         nbNoopPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
         PrePrepareMsg* pp = nullptr;
-        if (timeServiceManager_) {
-          auto msg = timeServiceManager_->createClientRequestMsg();
-          pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, msg->size());
-          pp->addRequest(msg->body(), msg->size());
-          pp->finishAddingRequests();
-          LOG_INFO(VC_LOG, "DIMA: Added PP in VC");
-        } else {
-          pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
-        }
+        // if (timeServiceManager_) {
+        //  auto msg = timeServiceManager_->createClientRequestMsg();
+        //  pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, msg->size());
+        //  pp->addRequest(msg->body(), msg->size());
+        //  pp->finishAddingRequests();
+        //  LOG_INFO(VC_LOG, "DIMA: Added PP in VC");
+        //} else {
+        pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
+        //}
 
         outPrePrepareMsgsOfView->push_back(pp);
       } else {

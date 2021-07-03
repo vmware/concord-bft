@@ -709,6 +709,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     bool time_is_ok = true;
     if (config_.timeServiceEnabled) {
       if (!time_service_manager_->hasTimeRequest(*msg)) {
+        LOG_INFO(GL, "DIMA: NO TS ON MESSAGE");
         delete msg;
         return;
       }
@@ -4005,7 +4006,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   ConcordAssertEQ(ppMsg->viewNumber(), getCurrentView());
   ConcordAssertEQ(ppMsg->seqNumber(), lastExecutedSeqNum + 1);
   if (config_.timeServiceEnabled) {
-    ConcordAssert(time_service_manager_->hasTimeRequest(*ppMsg));
+    LOG_INFO(GL, "DIMA: NO TS");
+    // ConcordAssert(time_service_manager_->hasTimeRequest(*ppMsg));
   }
 
   const uint16_t numOfRequests = ppMsg->numberOfRequests();
