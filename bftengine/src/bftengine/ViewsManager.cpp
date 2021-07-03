@@ -732,6 +732,7 @@ bool ViewsManager::tryToEnterView(ViewNum v,
           pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, msg->size());
           pp->addRequest(msg->body(), msg->size());
           pp->finishAddingRequests();
+          LOG_INFO(VC_LOG, "DIMA: Added PP in VC");
         } else {
           pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
         }
