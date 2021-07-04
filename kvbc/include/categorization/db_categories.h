@@ -18,6 +18,7 @@ namespace concord::kvbc::categorization {
 inline const auto kExecutionProvableCategory = "execution_provable";
 inline const auto kExecutionPrivateCategory = "execution_private";
 inline const auto kExecutionEventsCategory = "execution_events";
+inline const auto kRequestsRecord = "requests_record";
 
 // Concord and Concord-BFT internal category that is used for various kinds of metadata.
 // The type of the internal category is VersionedKeyValueCategory.
