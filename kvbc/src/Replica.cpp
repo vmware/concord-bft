@@ -28,7 +28,7 @@
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
 #include "RequestHandler.h"
-#include "reconfiguration_add_block_handler.hpp"
+#include "reconfiguration_kvbc_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
 

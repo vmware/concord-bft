@@ -19,6 +19,7 @@
 #include "OpenTracing.hpp"
 #include "Crypto.hpp"
 #include "openssl_crypto.hpp"
+#include "SigManager.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
@@ -53,4 +54,12 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
 };
+
+class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+    return bftEngine::impl::SigManager::instance()->verifySig(
+        sender_id, data.data(), data.size(), signature.data(), signature.size());
+  }
+};
+
 }  // namespace concord::reconfiguration
