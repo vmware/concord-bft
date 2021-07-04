@@ -44,6 +44,13 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
   bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::ClientReconfigurationStateRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+
+ private:
+  concord::messages::ClientReconfigurationStateReply buildClientStateReply(
+      kvbc::BlockId, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid);
 };
 /**
  * TODO [YB] - add description

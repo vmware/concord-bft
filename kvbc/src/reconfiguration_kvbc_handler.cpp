@@ -49,6 +49,68 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
   }
 }
 
+concord::messages::ClientReconfigurationStateReply KvbcClientReconfigurationHandler::buildClientStateReply(
+    kvbc::BlockId blockid, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid) {
+  concord::messages::ClientReconfigurationStateReply creply;
+  creply.block_id = 0;
+  if (blockid > 0) {
+    creply.block_id = blockid;
+    auto res = ro_storage_.get(
+        kvbc::kConcordInternalCategoryId,
+        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
+            std::to_string(clientid),
+        blockid);
+    std::visit(
+        [&](auto&& arg) {
+          auto strval = arg.data;
+          std::vector<uint8_t> data_buf(strval.begin(), strval.end());
+          switch (command_type) {
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE: {
+              concord::messages::ClientExchangePublicKey cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
+            }
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_KEY_EXCHANGE_COMMAND: {
+              concord::messages::ClientKeyExchangeCommand cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+            }
+            default:
+              break;
+          }
+        },
+        *res);
+  }
+  return creply;
+}
+bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationStateRequest& command,
+                                              uint64_t bft_seq_num,
+                                              concord::messages::ReconfigurationResponse& rres) {
+  // We want to rotate over the latest updates of this client and find the earliest one which is higher than the client
+  // last known block
+  kvbc::BlockId minKnownUpdate{0};
+  uint8_t command_type = 0;
+  for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
+       i++) {
+    auto key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(i)} +
+               std::to_string(command.sender_id);
+    auto res = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key);
+    if (res.has_value()) {
+      auto blockid = res.value().version;
+      if (blockid > command.last_known_block && minKnownUpdate > blockid) {
+        minKnownUpdate = blockid;
+        command_type = i;
+      }
+      LOG_INFO(getLogger(), "found a client update on chain " << KVLOG(command.sender_id, i, blockid));
+    }
+  }
+  auto creply = buildClientStateReply(
+      minKnownUpdate, static_cast<keyTypes::CLIENT_COMMAND_TYPES>(command_type), command.sender_id);
+  concord::messages::serialize(rres.additional_data, creply);
+  return true;
+}
+
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                               uint64_t bft_seq_num,
                                               concord::messages::ReconfigurationResponse&) {
@@ -61,7 +123,6 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExc
                   static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE)} +
           std::to_string(command.sender_id));
   LOG_INFO(getLogger(), "ClientExchangePublicKey block is " << blockId);
-  return true;
   return true;
 }
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationLastUpdate& command,
@@ -84,34 +145,10 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       LOG_INFO(getLogger(), "found a client update on chain " << KVLOG(command.sender_id, i, blockid));
     }
   }
-  concord::messages::ClientReconfigurationStateReply creply;
-  creply.block_id = 0;
-  if (maxKnownUpdate > 0) {
-    creply.block_id = maxKnownUpdate;
-    auto res = ro_storage_.get(
-        kvbc::kConcordInternalCategoryId,
-        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
-            std::to_string(command.sender_id),
-        maxKnownUpdate);
-    std::visit(
-        [&](auto&& arg) {
-          auto strval = arg.data;
-          std::vector<uint8_t> data_buf(strval.begin(), strval.end());
-          switch (command_type) {
-            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE: {
-              concord::messages::ClientExchangePublicKey cmd;
-              concord::messages::deserialize(data_buf, cmd);
-              creply.response = cmd;
-              break;
-            }
-            default:
-              break;
-          }
-        },
-        *res);
-  }
+  auto creply = buildClientStateReply(
+      maxKnownUpdate, static_cast<keyTypes::CLIENT_COMMAND_TYPES>(command_type), command.sender_id);
   concord::messages::serialize(rres.additional_data, creply);
-  return false;
+  return true;
 }
 
 bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
