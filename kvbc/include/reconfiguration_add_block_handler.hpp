@@ -20,6 +20,12 @@
 #include "SigManager.hpp"
 
 namespace concord::kvbc::reconfiguration {
+class clientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+    return bftEngine::impl::SigManager::instance()->verifySig(
+        sender_id, data.data(), data.size(), signature.data(), signature.size());
+  }
+};
 /**
  * TODO [YB] - add description
  */
@@ -195,12 +201,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
 class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::ReconfigurationHandler {
  public:
   InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : concord::kvbc::reconfiguration::ReconfigurationHandler{block_adder, ro_storage} {
-    for (const auto& [rep, pk] : bftEngine::ReplicaConfig::instance().publicKeysOfReplicas) {
-      internal_verifiers_.emplace_back(std::make_unique<bftEngine::impl::RSAVerifier>(pk.c_str()));
-      (void)rep;
-    }
-  }
+      : concord::kvbc::reconfiguration::ReconfigurationHandler{block_adder, ro_storage} {}
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
     return bftEngine::impl::SigManager::instance()->verifySig(
         sender_id, data.data(), data.size(), signature.data(), signature.size());
@@ -224,8 +225,5 @@ class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::
     }
     return false;
   }
-
- private:
-  std::vector<std::unique_ptr<bftEngine::impl::RSAVerifier>> internal_verifiers_;
 };
 }  // namespace concord::kvbc::reconfiguration

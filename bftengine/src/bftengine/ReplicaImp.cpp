@@ -3725,8 +3725,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       time_in_active_view_(histograms_.timeInActiveView),
       time_in_state_transfer_(histograms_.timeInStateTransfer),
       reqBatchingLogic_(*this, config_, metrics_, timers),
-      replStatusHandlers_(*this),
-      rsaSigner_(std::make_unique<bftEngine::impl::RSASigner>(config.replicaPrivateKey.c_str())) {
+      replStatusHandlers_(*this) {
   LOG_INFO(GL, "");
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
