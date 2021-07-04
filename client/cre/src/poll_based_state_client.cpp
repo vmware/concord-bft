@@ -12,9 +12,10 @@
 #include "poll_based_state_client.hpp"
 namespace cre {
 concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigurationRequest(
-    concord::messages::ReconfigurationRequest rreq, const string& cid, uint64_t sn, bool read_request) const {
+    concord::messages::ReconfigurationRequest& rreq, const string& cid, uint64_t sn, bool read_request) const {
   std::lock_guard<std::mutex> lock(bftclient_lock_);
   std::vector<uint8_t> data_vec;
+  rreq.sender = id_;
   concord::messages::serialize(data_vec, rreq);
   auto sig = bftclient_->signMessage(data_vec);
   rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());

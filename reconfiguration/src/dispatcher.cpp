@@ -39,7 +39,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     // Run pre-reconfiguration handlers
     for (auto& handler : pre_reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(ser_data, ser_sig)) {
+      if (!handler->verifySignature(0, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
         continue;
       }
@@ -52,7 +52,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     // Run regular reconfiguration handlers
     for (auto& handler : reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(ser_data, ser_sig)) {
+      if (!handler->verifySignature(0, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
         continue;
       }
@@ -65,7 +65,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     // Run post-reconfiguration handlers
     for (auto& handler : post_reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(ser_data, ser_sig)) {
+      if (!handler->verifySignature(0, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
         continue;
       }

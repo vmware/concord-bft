@@ -105,7 +105,9 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
     verifier_ = nullptr;
   }
 }
-bool BftReconfigurationHandler::verifySignature(const std::string& data, const std::string& signature) const {
+bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,
+                                                const std::string& data,
+                                                const std::string& signature) const {
   if (pub_key_ == nullptr && verifier_ == nullptr) return false;
   return pub_key_->verify(data, signature) || verifier_->verify(data, signature);
 }

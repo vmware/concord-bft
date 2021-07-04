@@ -17,6 +17,7 @@
 #include "hex_tools.h"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
+#include "SigManager.hpp"
 
 namespace concord::kvbc::reconfiguration {
 /**
@@ -200,13 +201,9 @@ class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::
       (void)rep;
     }
   }
-  bool verifySignature(const std::string& data, const std::string& signature) const override {
-    bool valid = false;
-    for (auto& verifier : internal_verifiers_) {
-      valid |= verifier->verify(data.c_str(), data.size(), signature.c_str(), signature.size());
-      if (valid) break;
-    }
-    return valid;
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+    return bftEngine::impl::SigManager::instance()->verifySig(
+        sender_id, data.data(), data.size(), signature.data(), signature.size());
   }
 
   bool handle(const concord::messages::WedgeCommand& command,

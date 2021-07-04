@@ -162,6 +162,7 @@ Msg ClientReconfigurationLastUpdate 41 {
 
 
 Msg ReconfigurationRequest 1 {
+  uint64 sender
   bytes signature
   oneof {
     WedgeCommand

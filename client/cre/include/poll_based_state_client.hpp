@@ -38,7 +38,7 @@ class PollBasedStateClient : public IStateClient {
 
  private:
   State getStateUpdate(uint64_t lastKnownBlockId) const;
-  concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest rreq,
+  concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest& rreq,
                                                                         const std::string& cid,
                                                                         uint64_t sn,
                                                                         bool read_request) const;

@@ -41,6 +41,7 @@ class Operator:
             reconf_msg = cmf_msgs.ReconfigurationRequest()
             reconf_msg.command = wedge_cmd
             reconf_msg.additional_data = bytes(0)
+            reconf_msg.sender = 1000
             reconf_msg.signature = bytes(0)
             reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
             return reconf_msg
@@ -51,6 +52,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = lpab_cmd
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -62,6 +64,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = wedge_status_cmd
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -72,6 +75,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = unwedge_status_cmd
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -84,6 +88,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = unwedge_cmd
         reconf_msg.additional_data = bytes(0)
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -95,6 +100,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = prune_cmd
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -105,6 +111,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = prune_status_cmd
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -116,6 +123,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = ke_command
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -126,6 +134,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemove_command
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -139,6 +148,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemove_command
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -149,6 +159,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemoveStatus_command
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -159,6 +170,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = addRemoveStatus_command
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg
@@ -169,6 +181,7 @@ class Operator:
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.command = cke_command
         reconf_msg.additional_data = bytes()
+        reconf_msg.sender = 1000
         reconf_msg.signature = bytes(0)
         reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
         return reconf_msg

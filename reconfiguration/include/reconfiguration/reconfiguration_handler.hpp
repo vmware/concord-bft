@@ -24,7 +24,7 @@ namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
   BftReconfigurationHandler();
-  bool verifySignature(const std::string& data, const std::string& signature) const override;
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
  protected:
   logging::Logger getLogger() const {
