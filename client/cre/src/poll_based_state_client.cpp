@@ -62,13 +62,13 @@ PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
       last_known_block_{last_known_block},
       sn_gen_(bft::client::ClientId{id}) {}
 
-State PollBasedStateClient::getNewStateImpl(uint64_t lastKnownBlockId) {
+State PollBasedStateClient::getStateUpdate(uint64_t lastKnownBlockId) {
   std::lock_guard<std::mutex> lock(bftclient_lock_);
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
   concord::messages::ReconfigurationRequest rreq;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
-  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "getNewStateImpl-" + std::to_string(sn), sn, true);
+  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
@@ -93,7 +93,7 @@ void PollBasedStateClient::start(uint64_t lastKnownBlock) {
     while (!stopped) {
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) return;
-      auto new_state = getNewStateImpl(last_known_block_);
+      auto new_state = getStateUpdate(last_known_block_);
       std::lock_guard<std::mutex> lk(lock_);
       if (new_state.blockid > last_known_block_) {
         updates_.push(new_state);

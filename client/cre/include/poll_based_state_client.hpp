@@ -37,7 +37,7 @@ class PollBasedStateClient : public IStateClient {
   void stop() override;
 
  private:
-  State getNewStateImpl(uint64_t lastKnownBlockId);
+  State getStateUpdate(uint64_t lastKnownBlockId);
   logging::Logger getLogger() {
     static logging::Logger logger_(logging::getLogger("cre.bft.PollBasedStateClient"));
     return logger_;
