@@ -11,14 +11,12 @@
 #include "bftclient/quorums.h"
 #include "poll_based_state_client.hpp"
 namespace cre {
-concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::client::Client& client,
-                                                                      concord::messages::ReconfigurationRequest rreq,
-                                                                      const std::string& cid,
-                                                                      uint64_t sn,
-                                                                      bool read_request) {
+concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigurationRequest(
+    concord::messages::ReconfigurationRequest rreq, const string& cid, uint64_t sn, bool read_request) const {
+  std::lock_guard<std::mutex> lock(bftclient_lock_);
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, rreq);
-  auto sig = client.signMessage(data_vec);
+  auto sig = bftclient_->signMessage(data_vec);
   rreq.signature = std::vector<uint8_t>(sig.begin(), sig.end());
   bft::client::RequestConfig request_config;
   request_config.reconfiguration = true;
@@ -29,10 +27,10 @@ concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::clien
   bft::client::Reply rep;
   if (read_request) {
     bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
-    rep = client.send(read_config, std::move(msg));
+    rep = bftclient_->send(read_config, std::move(msg));
   } else {
     bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
-    rep = client.send(write_config, std::move(msg));
+    rep = bftclient_->send(write_config, std::move(msg));
   }
   concord::messages::ReconfigurationResponse rres;
   concord::messages::deserialize(rep.matched_data, rres);
@@ -41,7 +39,7 @@ concord::messages::ReconfigurationResponse sendReconfigurationRequest(bft::clien
   }
   return rres;
 }
-State PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) {
+State PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) const {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped && updates_.empty()) {
     new_updates_.wait_for(lk, 1s);
@@ -62,23 +60,24 @@ PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
       last_known_block_{last_known_block},
       sn_gen_(bft::client::ClientId{id}) {}
 
-State PollBasedStateClient::getStateUpdate(uint64_t lastKnownBlockId) {
-  std::lock_guard<std::mutex> lock(bftclient_lock_);
+State PollBasedStateClient::getStateUpdate(uint64_t lastKnownBlockId) const {
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
   concord::messages::ReconfigurationRequest rreq;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
-  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
+  auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
 }
 
 PollBasedStateClient::~PollBasedStateClient() {
-  std::lock_guard<std::mutex> lock(lock_);
-  bftclient_->stop();
   if (!stopped) {
     stopped = true;
+    {
+      std::lock_guard<std::mutex> lock(bftclient_lock_);
+      bftclient_->stop();
+    }
     try {
       consumer_.join();
     } catch (std::exception& e) {
@@ -106,29 +105,31 @@ void PollBasedStateClient::start(uint64_t lastKnownBlock) {
 void PollBasedStateClient::stop() {
   if (stopped) return;
   stopped = true;
+  {
+    std::lock_guard<std::mutex> lock(bftclient_lock_);
+    bftclient_->stop();
+  }
   try {
     consumer_.join();
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), e.what());
   }
 }
-State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) {
-  std::lock_guard<std::mutex> lock(bftclient_lock_);
+State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) const {
   concord::messages::ClientReconfigurationLastUpdate creq{id_};
   concord::messages::ReconfigurationRequest rreq;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
-  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "getLatestClientUpdate-" + std::to_string(sn), sn, true);
+  auto rres = sendReconfigurationRequest(rreq, "getLatestClientUpdate-" + std::to_string(sn), sn, true);
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
 }
 bool PollBasedStateClient::updateStateOnChain(const State& state) {
-  std::lock_guard<std::mutex> lock(bftclient_lock_);
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::deserialize(state.data, rreq);
   auto sn = sn_gen_.unique();
-  auto rres = sendReconfigurationRequest(*bftclient_, rreq, "updateStateOnChain-" + std::to_string(sn), sn, false);
+  auto rres = sendReconfigurationRequest(rreq, "updateStateOnChain-" + std::to_string(sn), sn, false);
   return rres.success;
 }
 }  // namespace cre

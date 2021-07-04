@@ -29,15 +29,19 @@ class PollBasedStateClient : public IStateClient {
                        uint64_t interval_timeout_ms,
                        uint64_t last_known_block,
                        const uint16_t id_);
-  State getNextState(uint64_t lastKnownBlockId) override;
-  State getLatestClientUpdate(uint16_t clientId) override;
+  State getNextState(uint64_t lastKnownBlockId) const override;
+  State getLatestClientUpdate(uint16_t clientId) const override;
   bool updateStateOnChain(const State& state) override;
   ~PollBasedStateClient();
   void start(uint64_t lastKnownBlock) override;
   void stop() override;
 
  private:
-  State getStateUpdate(uint64_t lastKnownBlockId);
+  State getStateUpdate(uint64_t lastKnownBlockId) const;
+  concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest rreq,
+                                                                        const std::string& cid,
+                                                                        uint64_t sn,
+                                                                        bool read_request) const;
   logging::Logger getLogger() {
     static logging::Logger logger_(logging::getLogger("cre.bft.PollBasedStateClient"));
     return logger_;
@@ -47,11 +51,11 @@ class PollBasedStateClient : public IStateClient {
   uint16_t id_;
   uint64_t interval_timeout_ms_;
   uint64_t last_known_block_;
-  std::queue<State> updates_;
-  bft::client::SeqNumberGenerator sn_gen_;
-  std::mutex lock_;
-  std::mutex bftclient_lock_;
-  std::condition_variable new_updates_;
+  mutable std::queue<State> updates_;
+  mutable bft::client::SeqNumberGenerator sn_gen_;
+  mutable std::mutex lock_;
+  mutable std::mutex bftclient_lock_;
+  mutable std::condition_variable new_updates_;
   std::atomic_bool stopped{true};
   std::thread consumer_;
 };

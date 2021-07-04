@@ -23,11 +23,11 @@ std::string invalids_counter = "invalid_handlers";
 std::string errors_counter = "errored_handlers";
 class TestStateClient : public IStateClient {
  public:
-  State getNextState(uint64_t lastKnownBlockId) override {
+  State getNextState(uint64_t lastKnownBlockId) const override {
     std::string lastKnownBid = std::to_string(lastKnownBlockId + 1);
     return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
-  State getLatestClientUpdate(uint16_t clientId) override { return {0, {}}; }
+  State getLatestClientUpdate(uint16_t clientId) const override { return {0, {}}; }
   bool updateStateOnChain(const State& state) override {
     blocks_.push_back(state.blockid);
     return true;
@@ -39,7 +39,7 @@ class TestStateClient : public IStateClient {
 
 class TestExecuteHandler : public IStateHandler {
  public:
-  bool validate(const State&) override { return true; }
+  bool validate(const State&) const override { return true; }
   bool execute(const State& state, State&) override {
     std::string newBid(state.data.begin(), state.data.end());
     lastKnownState = state.blockid;
@@ -50,7 +50,7 @@ class TestExecuteHandler : public IStateHandler {
 
 class TestPersistOnChainHandler : public IStateHandler {
  public:
-  bool validate(const State&) override { return true; }
+  bool validate(const State&) const override { return true; }
   bool execute(const State& state, State& out) override {
     out = {state.blockid, {}};
     return true;
@@ -59,13 +59,13 @@ class TestPersistOnChainHandler : public IStateHandler {
 
 class TestInvalidHandler : public IStateHandler {
  public:
-  bool validate(const State&) override { return false; }
+  bool validate(const State&) const override { return false; }
   bool execute(const State& state, State&) override { return true; }
 };
 
 class TestErroredHandler : public IStateHandler {
  public:
-  bool validate(const State&) override { return true; }
+  bool validate(const State&) const override { return true; }
   bool execute(const State& state, State&) override { return false; }
 };
 Config c{0, 10};

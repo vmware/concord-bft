@@ -49,7 +49,9 @@ T getData(const State& state) {
 class KeyExchangeHandler : public IStateHandler {
  public:
   KeyExchangeHandler(uint16_t id) : clientId_{id} {}
-  bool validate(const State& state) override { return hasValue<concord::messages::ClientKeyExchangeCommand>(state); }
+  bool validate(const State& state) const override {
+    return hasValue<concord::messages::ClientKeyExchangeCommand>(state);
+  }
   bool execute(const State& state, State& out) override {
     concord::messages::ClientKeyExchangeCommand command = getData<concord::messages::ClientKeyExchangeCommand>(state);
     if (std::find(command.target_clients.begin(), command.target_clients.end(), clientId_) ==
@@ -78,7 +80,9 @@ class KeyExchangeHandler : public IStateHandler {
 
 class PublicKeyExchangeHandler : public IStateHandler {
  public:
-  bool validate(const State& state) override { return hasValue<concord::messages::ClientExchangePublicKey>(state); }
+  bool validate(const State& state) const override {
+    return hasValue<concord::messages::ClientExchangePublicKey>(state);
+  }
   bool execute(const State&, State&) override {
     LOG_INFO(getLogger(), "restart client components");
     exchanges_++;

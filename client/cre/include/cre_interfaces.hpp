@@ -22,8 +22,8 @@ struct State {
 
 class IStateClient {
  public:
-  virtual State getNextState(uint64_t lastKnownBlockId) = 0;
-  virtual State getLatestClientUpdate(uint16_t clientId) = 0;
+  virtual State getNextState(uint64_t lastKnownBlockId) const = 0;
+  virtual State getLatestClientUpdate(uint16_t clientId) const = 0;
   virtual bool updateStateOnChain(const State& state) = 0;
   virtual void start(uint64_t lastKnownBlock) = 0;
   virtual void stop() = 0;
@@ -32,7 +32,7 @@ class IStateClient {
 
 class IStateHandler {
  public:
-  virtual bool validate(const State&) = 0;
+  virtual bool validate(const State&) const = 0;
   virtual bool execute(const State&, State&) = 0;
   virtual ~IStateHandler() = default;
 };
