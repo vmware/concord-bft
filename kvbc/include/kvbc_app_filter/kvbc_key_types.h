@@ -34,6 +34,7 @@ const char kKvbKeySummarizedTime = 0x22;
 const char kKvbKeyCorrelationId = 0x23;
 const char kKvbKeyLastAgreedPrunableBlockId = 0x24;
 const char kIndexKey = 0x25;
+const char kClientsPublicKeys = 0x2b;
 
 // DAML 0x30 - 0x3f
 // const char kKvbKeyDaml = 0x30;
