@@ -21,8 +21,21 @@
 #include "../../reconfiguration/include/reconfiguration/reconfiguration_handler.hpp"
 
 namespace concord::kvbc::reconfiguration {
-class KvbcClientReconfigurationHandler : public concord::reconfiguration::ClientReconfigurationHandler {
+class ReconfigurationBlockTools {
+ protected:
+  ReconfigurationBlockTools(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {}
+  kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key);
+
+  kvbc::IBlockAdder& blocks_adder_;
+  BlockMetadata block_metadata_;
+  kvbc::IReader& ro_storage_;
+};
+class KvbcClientReconfigurationHandler : public concord::reconfiguration::ClientReconfigurationHandler,
+                                         public ReconfigurationBlockTools {
  public:
+  KvbcClientReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::ClientExchangePublicKey&,
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
@@ -34,10 +47,11 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
 /**
  * TODO [YB] - add description
  */
-class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler {
+class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
+                               public ReconfigurationBlockTools {
  public:
   ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {}
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
               concord::messages::ReconfigurationResponse&) override;
@@ -77,22 +91,15 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
   bool handle(const concord::messages::ClientKeyExchangeCommand& command,
               uint64_t sequence_number,
               concord::messages::ReconfigurationResponse& response) override;
-
- protected:
-  kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key);
-
- private:
-  kvbc::IBlockAdder& blocks_adder_;
-  BlockMetadata block_metadata_;
-  kvbc::IReader& ro_storage_;
 };
 /**
  * TODO [YB] - add description
  */
-class InternalKvReconfigurationHandler : public concord::kvbc::reconfiguration::ReconfigurationHandler {
+class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
+                                         public ReconfigurationBlockTools {
  public:
   InternalKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : concord::kvbc::reconfiguration::ReconfigurationHandler{block_adder, ro_storage} {}
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
   bool handle(const concord::messages::WedgeCommand& command,

@@ -14,6 +14,26 @@
 #include "ControlStateManager.hpp"
 
 namespace concord::kvbc::reconfiguration {
+
+kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::vector<uint8_t>& data,
+                                                                     const uint64_t bft_seq_num,
+                                                                     string key) {
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
+
+  // All blocks are expected to have the BFT sequence number as a key.
+  ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
+
+  concord::kvbc::categorization::Updates updates;
+  updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+  try {
+    return blocks_adder_.add(std::move(updates));
+  } catch (const std::exception& e) {
+    LOG_ERROR(GL, "failed to persist the reconfiguration block: " << e.what());
+    throw;
+  }
+}
+
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey&,
                                               uint64_t,
                                               concord::messages::ReconfigurationResponse&) {
@@ -164,25 +184,6 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
   LOG_INFO(getLogger(), "target clients: [" << oss.str() << "] block: " << ckecr.block_id);
   response.response = ckecr;
   return true;
-}
-
-kvbc::BlockId ReconfigurationHandler::persistReconfigurationBlock(const std::vector<uint8_t>& data,
-                                                                  const uint64_t bft_seq_num,
-                                                                  string key) {
-  concord::kvbc::categorization::VersionedUpdates ver_updates;
-  ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
-
-  // All blocks are expected to have the BFT sequence number as a key.
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
-
-  concord::kvbc::categorization::Updates updates;
-  updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
-  try {
-    return blocks_adder_.add(std::move(updates));
-  } catch (const std::exception& e) {
-    LOG_ERROR(getLogger(), "failed to persist the reconfiguration block: " << e.what());
-    throw;
-  }
 }
 
 bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
