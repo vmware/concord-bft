@@ -95,7 +95,7 @@ void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, Re
   }
   onRestartProofCbRegistery_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
 }
-void ControlStateManager::onRestartProof() {
+void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
   // If operator sends add-remove request with bft option then
   // It can happen that some replicas receives a restart proof and yet to reach
   // stable checkpoint. We should not rstart replica in that case since
@@ -106,11 +106,13 @@ void ControlStateManager::onRestartProof() {
       kv.second.invokeAll();
     }
   }
-  hasRestartProof_ = true;
+  hasRestartProofAtSeqNum_.emplace(seq_num);
 }
 void ControlStateManager::checkForReplicaReconfigurationAction() {
   // restart replica is there is proof
-  if (hasRestartProof_) {
+  auto seq_num_to_stop_at = getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value() && hasRestartProofAtSeqNum_.has_value() &&
+      (seq_num_to_stop_at.value() == hasRestartProofAtSeqNum_.value())) {
     for (const auto& kv : onRestartProofCbRegistery_) {
       kv.second.invokeAll();
     }
