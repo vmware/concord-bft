@@ -37,7 +37,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
       : m_storage(storage), m_blockAdder(blocksAdder), m_blockMetadata(blockMetadata), m_logger(logger) {}
 
   virtual void execute(ExecutionRequestsQueue &requests,
-                       std::optional<Timestamp> timestamp,
+                       std::optional<bftEngine::Timestamp> timestamp,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) override;
 

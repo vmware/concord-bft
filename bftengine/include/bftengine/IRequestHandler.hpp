@@ -21,6 +21,7 @@
 #include <functional>
 #include <deque>
 #include "OpenTracing.hpp"
+#include "TimeService.hpp"
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
@@ -48,11 +49,6 @@ class IRequestsHandler {
     uint32_t outActualReplySize = 0;
     uint32_t outReplicaSpecificInfoSize = 0;
     int outExecutionStatus = 1;
-  };
-
-  struct Timestamp {
-    std::chrono::milliseconds time_since_epoch = std::chrono::milliseconds::min();
-    size_t request_position = 0;
   };
 
   static std::shared_ptr<IRequestsHandler> createRequestsHandler(

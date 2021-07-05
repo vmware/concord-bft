@@ -119,7 +119,7 @@ class IReplica {
 class ICommandsHandler : public bftEngine::IRequestsHandler {
  public:
   void execute(ExecutionRequestsQueue& requestList,
-               std::optional<Timestamp> timestamp,
+               std::optional<bftEngine::Timestamp> timestamp,
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override = 0;
   virtual void setPerformanceManager(std::shared_ptr<concord::performance::PerformanceManager> perfManager) = 0;

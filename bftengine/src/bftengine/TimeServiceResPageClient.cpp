@@ -16,7 +16,7 @@ namespace {
 constexpr auto RESERVED_PAGE_ID = uint32_t{0};
 }
 
-namespace bftEngine {
+namespace bftEngine::impl {
 
 TimeServiceResPageClient::TimeServiceResPageClient() {
   ConcordAssert(res_pages_ != nullptr &&
@@ -40,4 +40,4 @@ void TimeServiceResPageClient::load() {
     LOG_DEBUG(TS_MNGR, "Failed to load, maybe first time or ST");
   }
 }
-}  // namespace bftEngine
+}  // namespace bftEngine::impl
