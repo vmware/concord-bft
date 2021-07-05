@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -19,9 +19,11 @@
 
 namespace bft::communication {
 
-std::map<uint16_t, std::shared_ptr<IByzantineStrategy>> WrapCommunication::changeStrategy;
-
+using bftEngine::impl::MessageBase;
+using concord::kvbc::strategy::IByzantineStrategy;
 using bftEngine::ReplicaConfig;
+
+std::map<uint16_t, std::shared_ptr<IByzantineStrategy>> WrapCommunication::changeStrategy;
 
 void WrapCommunication::addStrategy(uint16_t msgCode, std::shared_ptr<IByzantineStrategy> byzantineStrategy) {
   WrapCommunication::changeStrategy.insert(std::make_pair(msgCode, byzantineStrategy));
@@ -33,7 +35,6 @@ bool WrapCommunication::changeMesssage(std::vector<uint8_t> const& msg, std::sha
       msg.size() >= sizeof(MessageBase::Header)) {
     auto* msgBody = (MessageBase::Header*)std::malloc(msg.size());
     memcpy(msgBody, msg.data(), msg.size());
-
     auto node = ReplicaConfig::instance().getreplicaId();
     newMsg = std::make_shared<MessageBase>(node, msgBody, msg.size(), true);
     if (newMsg) {

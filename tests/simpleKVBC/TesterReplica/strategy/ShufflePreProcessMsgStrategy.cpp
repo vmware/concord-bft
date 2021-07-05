@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -27,7 +27,7 @@ namespace concord::kvbc::strategy {
 
 using bftEngine::ClientRequestMsgHeader;
 
-bool ShufflePreProcessMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& msg) {
+bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& msg) {
   PrePrepareMsg& nmsg = static_cast<PrePrepareMsg&>(*(msg.get()));
   std::mt19937_64 eng{std::random_device{}()};
   std::uniform_int_distribution<> coin{0, 1};
@@ -96,7 +96,7 @@ bool ShufflePreProcessMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
   }
   return false;
 }
-std::string ShufflePreProcessMsgStrategy::getStrategyName() { return CLASSNAME(ShufflePreProcessMsgStrategy); }
-uint16_t ShufflePreProcessMsgStrategy::getMessageCode() { return static_cast<uint16_t>(MsgCode::PrePrepare); }
+std::string ShufflePrePrepareMsgStrategy::getStrategyName() { return CLASSNAME(ShufflePrePrepareMsgStrategy); }
+uint16_t ShufflePrePrepareMsgStrategy::getMessageCode() { return static_cast<uint16_t>(MsgCode::PrePrepare); }
 
 }  // end of namespace concord::kvbc::strategy

@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -22,9 +22,6 @@
 
 namespace bft::communication {
 
-using concord::kvbc::strategy::IByzantineStrategy;
-using bftEngine::impl::MessageBase;
-
 class WrapCommunication : public ICommunication {
  public:
   explicit WrapCommunication(std::unique_ptr<bft::communication::ICommunication> comm)
@@ -39,7 +36,7 @@ class WrapCommunication : public ICommunication {
   }
 
   int send(NodeNum destNode, std::vector<uint8_t> &&msg) override {
-    std::shared_ptr<MessageBase> newMsg;
+    std::shared_ptr<bftEngine::impl::MessageBase> newMsg;
     if (changeMesssage(msg, newMsg) && newMsg) {
       std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
       return communication_->send(destNode, std::move(chgMsg));
@@ -61,19 +58,21 @@ class WrapCommunication : public ICommunication {
     communication_->setReceiver(receiverNum, receiver);
   }
 
-  static void addStrategies(std::string const &strategies,
-                            char delim,
-                            std::vector<std::shared_ptr<IByzantineStrategy>> const &allStrategies);
+  static void addStrategies(
+      std::string const &strategies,
+      char delim,
+      std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> const &allStrategies);
 
   virtual ~WrapCommunication() override {}
 
  private:
-  bool changeMesssage(std::vector<uint8_t> const &msg, std::shared_ptr<MessageBase> &newMsg);
-  static void addStrategy(uint16_t msgCode, std::shared_ptr<IByzantineStrategy> byzantineStrategy);
+  bool changeMesssage(std::vector<uint8_t> const &msg, std::shared_ptr<bftEngine::impl::MessageBase> &newMsg);
+  static void addStrategy(uint16_t msgCode,
+                          std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy> byzantineStrategy);
 
  private:
   std::unique_ptr<bft::communication::ICommunication> communication_;
-  static std::map<uint16_t, std::shared_ptr<IByzantineStrategy>> changeStrategy;
+  static std::map<uint16_t, std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> changeStrategy;
 };
 
 }  // namespace bft::communication

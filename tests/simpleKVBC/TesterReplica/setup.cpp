@@ -38,19 +38,13 @@
 
 #include "WrapCommunication.hpp"
 
-#include "strategy/ShufflePreProcessMsgStrategy.hpp"
-
 namespace fs = std::experimental::filesystem;
 
 namespace concord::kvbc {
 
-std::vector<std::shared_ptr<IByzantineStrategy>> TestSetup::allStrategies_;
-
 using bft::communication::WrapCommunication;
-using concord::kvbc::strategy::ShufflePreProcessMsgStrategy;
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
-  setupStrategies();
   std::stringstream args;
   for (int i{1}; i < argc; ++i) {
     args << argv[i] << " ";
@@ -110,7 +104,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:u:p:t:o:r:g:", longOptions, &optionIndex)) !=
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:up:t:o:r:g:", longOptions, &optionIndex)) !=
            -1) {
       switch (o) {
         case 'i': {
@@ -245,7 +239,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
 
     if (!byzantineStrategies.empty()) {
-      WrapCommunication::addStrategies(byzantineStrategies, ',', TestSetup::allStrategies_);
+      // Initialise all the strategies here at once.
+      const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
+          std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>()};
+      WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
 
       std::unique_ptr<bft::communication::ICommunication> wrappedComm =
           std::make_unique<WrapCommunication>(std::move(comm));
@@ -383,7 +380,5 @@ void TestSetup::setPublicKeysOfClients(
     }
   }
 }
-
-void TestSetup::setupStrategies() { allStrategies_.push_back(std::make_shared<ShufflePreProcessMsgStrategy>()); }
 
 }  // namespace concord::kvbc
