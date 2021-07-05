@@ -133,6 +133,7 @@ class Operator:
     def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
         addRemove_command.config_descriptor = new_config
+        addRemove_command.token = "dummy"
         addRemove_command.bft = bft
         addRemove_command.restart = restart
         reconf_msg = cmf_msgs.ReconfigurationRequest()
