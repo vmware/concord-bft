@@ -25,14 +25,13 @@
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
 #include "strategy/ByzantineStrategy.hpp"
+#include "strategy/ShufflePreProcessMsgStrategy.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"
 #endif
 
 namespace concord::kvbc {
-
-using concord::kvbc::strategy::IByzantineStrategy;
 
 class TestSetup {
  public:
@@ -51,9 +50,6 @@ class TestSetup {
 
   static inline constexpr auto kCronTableComponentId = 42;
   static inline constexpr auto kTickGeneratorPeriod = std::chrono::seconds{1};
-
- private:
-  static void setupStrategies();
 
  private:
   TestSetup(const bftEngine::ReplicaConfig& config,
@@ -94,7 +90,6 @@ class TestSetup {
   std::string logPropsFile_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
   std::optional<std::uint32_t> cronEntryNumberOfExecutes_;
-  static std::vector<std::shared_ptr<IByzantineStrategy>> allStrategies_;
 };
 
 }  // namespace concord::kvbc

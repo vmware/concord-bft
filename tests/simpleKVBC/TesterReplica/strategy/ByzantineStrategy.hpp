@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0 License.
@@ -16,8 +16,7 @@
 
 #include "messages/MessageBase.hpp"
 
-namespace concord::kvbc {
-namespace strategy {
+namespace concord::kvbc::strategy {
 
 class IByzantineStrategy {
  public:
@@ -27,5 +26,4 @@ class IByzantineStrategy {
   virtual ~IByzantineStrategy() {}
 };
 
-}  // end of namespace strategy
-}  // end of namespace concord::kvbc
+}  // namespace concord::kvbc::strategy
