@@ -20,6 +20,7 @@
 #include "cre_interfaces.hpp"
 #include "bftclient/bft_client.h"
 #include "bftclient/seq_num_generator.h"
+#include "concord.cmf.hpp"
 
 namespace cre {
 

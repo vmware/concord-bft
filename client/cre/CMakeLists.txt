@@ -1,6 +1,6 @@
 project (cre LANGUAGES CXX)
 
-add_library(cre STATIC
+add_library(cre
         src/client_reconfiguration_engine.cpp
         src/poll_based_state_client.cpp
         )
