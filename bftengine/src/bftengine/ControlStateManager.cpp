@@ -100,9 +100,17 @@ void ControlStateManager::onRestartProof() {
   // It can happen that some replicas receives a restart proof and yet to reach
   // stable checkpoint. We should not rstart replica in that case since
   // configuration update happens on stable checkpoint.
-  // TODO(NK): check if we should restart after stable checkpoint is reached
   if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
       IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
+    for (const auto& kv : onRestartProofCbRegistery_) {
+      kv.second.invokeAll();
+    }
+  }
+  hasRestartProof_ = true;
+}
+void ControlStateManager::checkForReplicaReconfigurationAction() {
+  // restart replica is there is proof
+  if (hasRestartProof_) {
     for (const auto& kv : onRestartProofCbRegistery_) {
       kv.second.invokeAll();
     }
