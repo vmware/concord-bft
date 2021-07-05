@@ -12,9 +12,11 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <functional>
 #include <deque>
@@ -48,11 +50,17 @@ class IRequestsHandler {
     int outExecutionStatus = 1;
   };
 
+  struct Timestamp {
+    std::chrono::milliseconds time_since_epoch = std::chrono::milliseconds::min();
+    size_t request_position = 0;
+  };
+
   static std::shared_ptr<IRequestsHandler> createRequestsHandler(
       std::shared_ptr<IRequestsHandler> userReqHandler, const std::shared_ptr<concord::cron::CronTableRegistry> &);
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,
+                       std::optional<Timestamp> timestamp,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) = 0;
 

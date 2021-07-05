@@ -66,6 +66,7 @@ static void add(std::string &&key,
 }
 
 void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequestsQueue &requests,
+                                      std::optional<Timestamp> timestamp,
                                       const std::string &batchCid,
                                       concordUtils::SpanWrapper &parent_span) {
   if (requests.empty()) return;

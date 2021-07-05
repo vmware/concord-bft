@@ -10,6 +10,7 @@
 // file.
 
 #include <bftengine/Replica.hpp>
+#include <optional>
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
@@ -194,7 +195,8 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf()});
 
-  bftRequestsHandler_->execute(accumulatedRequests, request.getCid(), span);
+  // DD: Do we need to take care of Time Service here?
+  bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request.getCid(), span);
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;

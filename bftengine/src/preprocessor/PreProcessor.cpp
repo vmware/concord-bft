@@ -10,6 +10,7 @@
 // file.
 
 #include "PreProcessor.hpp"
+#include <optional>
 #include "InternalReplicaApi.hpp"
 #include "Logger.hpp"
 #include "MsgHandlersRegistrator.hpp"
@@ -1120,7 +1121,7 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
       std::move(signature),
       maxPreExecResultSize_,
       (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch)});
-  requestsHandler_.execute(accumulatedRequests, cid, span);
+  requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
   const auto resultLen = request.outActualReplySize;
