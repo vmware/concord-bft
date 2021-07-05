@@ -19,25 +19,31 @@ namespace concord::util {
 //////////////////////////////////////////////////////////////////////////////
 void Throughput::start() {
   started_ = true;
-  overall_stats_.reset();
+  overall_stats_.restart();
   if (num_reports_per_window_ > 0ul) {
-    current_window_stats_.reset();
+    current_window_stats_.restart();
   }
 }
 
-bool Throughput::report(uint64_t items_processed) {
+void Throughput::end() {
+  ConcordAssert(started_);
+  started_ = false;
+  overall_stats_.reset();
+  if (num_reports_per_window_ > 0ul) current_window_stats_.reset();
+}
+
+bool Throughput::report(uint64_t items_processed, bool trigger_calc_throughput) {
   ConcordAssert(started_);
 
   ++reports_counter_;
   overall_stats_.results_.num_processed_items_ += items_processed;
-
   if (num_reports_per_window_ > 0ul) {
     current_window_stats_.results_.num_processed_items_ += items_processed;
-    if ((reports_counter_ % num_reports_per_window_) == 0ul) {
-      // Calculate throughput every num_reports_per_window_ reports
+    if (trigger_calc_throughput || ((reports_counter_ % num_reports_per_window_) == 0ul)) {
+      // Calculate throughput every  num_reports_per_window_ reports
       previous_window_stats_ = current_window_stats_;
       previous_window_index_ = (reports_counter_ - 1) / num_reports_per_window_;
-      current_window_stats_.reset();
+      current_window_stats_.restart();
       previous_window_stats_.calcThroughput();
       overall_stats_.calcThroughput();
       prev_win_calculated_ = true;
@@ -48,24 +54,33 @@ bool Throughput::report(uint64_t items_processed) {
   return false;
 }
 
+void Throughput::pause() {
+  ConcordAssert(started_);
+  overall_stats_.total_duration_.pause();
+  current_window_stats_.total_duration_.pause();
+}
+
+void Throughput::resume() {
+  ConcordAssert(started_);
+  overall_stats_.total_duration_.start();
+  current_window_stats_.total_duration_.start();
+}
+
 const Throughput::Results& Throughput::getOverallResults() {
   if (!prev_win_calculated_) {
     ConcordAssert(started_);
     overall_stats_.calcThroughput();
   }
-
   return overall_stats_.results_;
 }
 
 const Throughput::Results& Throughput::getPrevWinResults() const {
   ConcordAssert(prev_win_calculated_);
-
   return previous_window_stats_.results_;
 }
 
 uint64_t Throughput::getPrevWinIndex() const {
   ConcordAssert(prev_win_calculated_);
-
   return previous_window_index_;
 }
 
@@ -76,12 +91,17 @@ uint64_t Throughput::getPrevWinIndex() const {
 void Throughput::Stats::reset() {
   results_.num_processed_items_ = 0ull;
   results_.throughput_ = 0ull;
-  start_time_ = std::chrono::steady_clock::now();
+  total_duration_.reset();
+}
+
+void Throughput::Stats::restart() {
+  reset();
+  total_duration_.start();
 }
 
 void Throughput::Stats::calcThroughput() {
-  auto duration = std::chrono::steady_clock::now() - start_time_;
-  results_.elapsed_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+  results_.elapsed_time_ms_ = total_duration_.totalDuration();
+  if (results_.elapsed_time_ms_ == 0) results_.elapsed_time_ms_ = 1;
   results_.throughput_ = static_cast<uint64_t>((1000 * results_.num_processed_items_) / results_.elapsed_time_ms_);
 }
 

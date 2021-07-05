@@ -134,9 +134,12 @@ class FakeCommunication : public bft::communication::ICommunication {
   std::thread fakeCommThread_;
 };
 
-inline std::vector<uint8_t> createReply(const MsgFromClient& msg) {
+inline std::vector<uint8_t> createReply(const MsgFromClient& msg, std::vector<uint8_t> rep_data = {}) {
   const auto* req_header = reinterpret_cast<const bftEngine::ClientRequestMsgHeader*>(msg.data.data());
   std::string reply_data = "reply";
+  if (!rep_data.empty()) {
+    reply_data = std::string(rep_data.begin(), rep_data.end());
+  }
   auto reply_header_size = sizeof(bftEngine::ClientReplyMsgHeader);
   std::vector<uint8_t> reply(reply_header_size + reply_data.size());
   auto* reply_header = reinterpret_cast<bftEngine::ClientReplyMsgHeader*>(reply.data());

@@ -49,6 +49,9 @@ using concordMetrics::CounterHandle;
 using concordMetrics::AtomicGaugeHandle;
 using concordMetrics::AtomicCounterHandle;
 using concord::util::Throughput;
+using concord::diagnostics::Recorder;
+using concord::diagnostics::AsyncTimeRecorder;
+using concord::util::DurationTracker;
 
 namespace bftEngine::bcst::impl {
 
@@ -139,6 +142,7 @@ class BCStateTran : public IStateTransfer {
 
   uint64_t maxNumOfStoredCheckpoints_;
   uint64_t numberOfReservedPages_;
+  uint32_t cycleCounter_;
 
   std::atomic<bool> running_ = false;
   std::unique_ptr<concord::util::Handoff> handoff_;
@@ -181,7 +185,7 @@ class BCStateTran : public IStateTransfer {
 
   static string stateName(FetchingState fs);
 
-  FetchingState getFetchingState() const;
+  FetchingState getFetchingState();
   bool isFetching() const;
 
   inline std::string getSequenceNumber(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
@@ -297,6 +301,7 @@ class BCStateTran : public IStateTransfer {
                                    uint32_t vblockSize) const;
 
   void processData();
+  void cycleEndSummary();
 
   void EnterGettingCheckpointSummariesState();
   set<uint16_t> allOtherReplicas();
@@ -416,14 +421,21 @@ class BCStateTran : public IStateTransfer {
 
     CounterHandle on_transferring_complete_;
 
+    CounterHandle handle_AskForCheckpointSummaries_msg_;
+    CounterHandle handle_CheckpointsSummary_msg_;
+    CounterHandle handle_FetchBlocks_msg_;
+    CounterHandle handle_FetchResPages_msg_;
+    CounterHandle handle_RejectFetching_msg_;
+    CounterHandle handle_ItemData_msg_;
+
     GaugeHandle overall_blocks_collected_;
-    GaugeHandle overall_blocks_throughtput_;
+    GaugeHandle overall_blocks_throughput_;
     GaugeHandle overall_bytes_collected_;
-    GaugeHandle overall_bytes_throughtput_;
+    GaugeHandle overall_bytes_throughput_;
     GaugeHandle prev_win_blocks_collected_;
-    GaugeHandle prev_win_blocks_throughtput_;
+    GaugeHandle prev_win_blocks_throughput_;
     GaugeHandle prev_win_bytes_collected_;
-    GaugeHandle prev_win_bytes_throughtput_;
+    GaugeHandle prev_win_bytes_throughput_;
   };
 
   mutable Metrics metrics_;
@@ -431,41 +443,104 @@ class BCStateTran : public IStateTransfer {
   std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
 
   ///////////////////////////////////////////////////////////////////////////
-  // Internal Statistics
+  // Internal Statistics (debuging, logging)
   ///////////////////////////////////////////////////////////////////////////
  protected:
-  static constexpr uint32_t get_missing_blocks_summary_window_size = checkpointWindowSize;
+  static constexpr uint32_t getMissingBlocksSummaryWindowSize = (4 * checkpointWindowSize);
   Throughput blocks_collected_;
   Throughput bytes_collected_;
-  std::optional<uint64_t> first_collected_block_num_;
+  std::optional<uint64_t> firstCollectedBlockId_;
+  std::optional<uint64_t> lastCollectedBlockId_;
+  std::vector<uint16_t> sources_;
+
+  // Duration Trackers
+  DurationTracker<std::chrono::milliseconds> cycleDT_;
+  DurationTracker<std::chrono::milliseconds> commitToChainDT_;
+  DurationTracker<std::chrono::milliseconds> gettingCheckpointSummariesDT_;
+  DurationTracker<std::chrono::milliseconds> gettingMissingBlocksDT_;
+  DurationTracker<std::chrono::milliseconds> gettingMissingResPagesDT_;
+  DurationTracker<std::chrono::milliseconds> betweenPutBlocksStTempDT_;  // TODO(GL) - remove later when unneeded
+  DurationTracker<std::chrono::milliseconds> putBlocksStTempDT_;         // TODO(GL) - remove later when unneeded
+  FetchingState lastFetchingState_;
+
+  void onFetchingStateChange(FetchingState newFetchingState);
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
   std::string logsForCollectingStatus(const uint64_t firstRequiredBlock);
-  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize);
+  void reportCollectingStatus(const uint64_t firstRequiredBlock, const uint32_t actualBlockSize, bool toLog = false);
   void startCollectingStats();
 
+  // These 2 variables are used to snapshot source historgrams for GettingMissingBlocks state
+  bool sourceFlag_;
+  uint8_t sourceSnapshotCounter_;
+
+ private:
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams
   ///////////////////////////////////////////////////////////////////////////
  private:
-  static constexpr int64_t MAX_VALUE_MILLISECONDS = 1000 * 60;  // 60 Seconds
-  static constexpr int64_t MAX_VALUE_MICROSECONDS = 1000 * 1000 * 60;
-  using Recorder = concord::diagnostics::Recorder;
+  static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;          // 60 seconds
+  static constexpr uint64_t MAX_BLOCK_SIZE = 100ULL * 1024ULL * 1024ULL;                 // 100MB
+  static constexpr uint64_t MAX_BATCH_SIZE_BYTES = 10ULL * 1024ULL * 1024ULL * 1024ULL;  // 10GB
+  static constexpr uint64_t MAX_BATCH_SIZE_BLOCKS = 1000ULL;
+  static constexpr uint64_t MAX_HANDOFF_QUEUE_SIZE = 10000ULL;
 
   struct Recorders {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("state_transfer", {fetch_blocks_msg_latency, on_timer});
+      // common component
+      registrar.perf.registerComponent("state_transfer", {on_timer, time_in_handoff_queue, handoff_queue_size});
+      // destination component
+      registrar.perf.registerComponent("state_transfer_dest",
+                                       {
+                                           dst_handle_ItemData_msg,
+                                           dst_time_between_sendFetchBlocksMsg,
+                                           dst_put_block_duration,
+                                           dst_digest_calc_duration,
+                                       });
+      // source component
+      registrar.perf.registerComponent("state_transfer_src",
+                                       {src_handle_FetchBlocks_msg,
+                                        src_get_block_duration,
+                                        src_get_block_size_bytes,
+                                        src_send_batch_duration,
+                                        src_send_batch_size_bytes,
+                                        src_send_batch_size_blocks});
     }
-    DEFINE_SHARED_RECORDER(
-        fetch_blocks_msg_latency, 1, MAX_VALUE_MILLISECONDS, 3, concord::diagnostics::Unit::MILLISECONDS);
+    //////////////////////////////////////////////////////////
+    // Shared Recorders - match the above registered recorders
+    //////////////////////////////////////////////////////////
+    // common
     DEFINE_SHARED_RECORDER(on_timer, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        time_in_handoff_queue, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(handoff_queue_size, 1, MAX_HANDOFF_QUEUE_SIZE, 3, concord::diagnostics::Unit::COUNT);
+    // destination
+    DEFINE_SHARED_RECORDER(
+        dst_handle_ItemData_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        dst_time_between_sendFetchBlocksMsg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        dst_put_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        dst_digest_calc_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    // source
+    DEFINE_SHARED_RECORDER(
+        src_handle_FetchBlocks_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        src_get_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_get_block_size_bytes, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(
+        src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
+    DEFINE_SHARED_RECORDER(src_send_batch_size_blocks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
   };
   Recorders histograms_;
 
-  // Record latency for FetchBlockMsg <-> ItemDataMsg. These messages are sent multiple times between dest and src
-  concord::diagnostics::AsyncTimeRecorderMap<SeqNum, true> fetch_block_msg_latency_rec_;
-
-};  // namespace bftEngine::bcst::impl
+  // Async time recorders - wrap the above shared recorders with the same name and prefix _rec_
+  AsyncTimeRecorder<false> src_send_batch_duration_rec_;
+  AsyncTimeRecorder<false> dst_time_between_sendFetchBlocksMsg_rec_;
+  AsyncTimeRecorder<false> time_in_handoff_queue_rec_;
+};  // class BCStateTran
 
 }  // namespace bftEngine::bcst::impl

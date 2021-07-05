@@ -355,5 +355,16 @@ bool Client::isServing(int num_replicas, int num_replicas_required) const {
   }
   return false;
 }
+std::string Client::signMessage(std::vector<uint8_t>& data) {
+  std::string signature = std::string();
+  if (transaction_signer_) {
+    auto expected_sig_len = transaction_signer_->signatureLength();
+    signature.resize(expected_sig_len);
+    size_t actualSigSize = 0;
+    transaction_signer_->sign(
+        reinterpret_cast<char*>(data.data()), data.size(), signature.data(), expected_sig_len, actualSigSize);
+  }
+  return signature;
+}
 
 }  // namespace bft::client
