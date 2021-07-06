@@ -58,7 +58,8 @@ Config TestConfig() {
       250,                // fetchRetransmissionTimeoutMs
       5,                  // metricsDumpIntervalSec
       false,              // runInSeparateThread
-      true                // enableReservedPages
+      true,               // enableReservedPages
+      true                // enableSourceBlocksPreFetch
   };
 }
 

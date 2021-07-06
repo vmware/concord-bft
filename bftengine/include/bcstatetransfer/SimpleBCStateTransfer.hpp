@@ -139,6 +139,7 @@ struct Config {
   // misc
   bool runInSeparateThread = false;
   bool enableReservedPages = true;
+  bool enableSourceBlocksPreFetch = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {
@@ -163,7 +164,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.fetchRetransmissionTimeoutMs,
               c.metricsDumpIntervalSec,
               c.runInSeparateThread,
-              c.enableReservedPages);
+              c.enableReservedPages,
+              c.enableSourceBlocksPreFetch);
   return os;
 }
 // creates an instance of the state transfer module.
