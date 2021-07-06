@@ -112,12 +112,12 @@ ICommunication* createCommunication(const ClientConfig& cc,
   uint16_t numOfReplicas = cc.all_replicas.size();
   uint16_t clients = cc.id.val;
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
+  PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
 #elif USE_COMM_TLS_TCP
   TlsTcpConfig conf =
       testCommConfig.GetTlsTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
 #else
-  PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
+  PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
 #endif
 
   return CommFactory::create(conf);
