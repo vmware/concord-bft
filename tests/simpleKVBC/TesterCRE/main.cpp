@@ -184,6 +184,7 @@ int main(int argc, char** argv) {
   cre::ClientReconfigurationEngine cre(
       creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(creParams.CreConfig.id_));
+  cre.registerHandler(std::make_shared<PublicKeyExchangeHandler>());
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }

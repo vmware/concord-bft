@@ -43,7 +43,7 @@ class PollBasedStateClient : public IStateClient {
                                                                         const std::string& cid,
                                                                         uint64_t sn,
                                                                         bool read_request) const;
-  logging::Logger getLogger() {
+  logging::Logger getLogger() const {
     static logging::Logger logger_(logging::getLogger("cre.bft.PollBasedStateClient"));
     return logger_;
   }

@@ -36,19 +36,16 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   auto ser_sig = std::string(request.signature.begin(), request.signature.end());
   rresp.success = true;
   auto sender_id = request.sender;
-  LOG_INFO(GL, "bug(1)");
   try {
     // Run pre-reconfiguration handlers
     for (auto& handler : pre_reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
       if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
-        LOG_INFO(GL, "bug(2)");
         error_msg.error_msg = "Invalid signature";
         continue;
       }
       error_msg.error_msg.clear();
       valid = true;
-      LOG_INFO(GL, "bug(3)");
       rresp.success &=
           std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
     }

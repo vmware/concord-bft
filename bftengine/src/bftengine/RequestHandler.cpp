@@ -50,6 +50,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         // Serialize response
         ReconfigurationResponse res;
         res.success = rsi_res.success;
+        res.additional_data = rsi_res.additional_data;
         std::vector<uint8_t> serialized_response;
         concord::messages::serialize(serialized_response, res);
 

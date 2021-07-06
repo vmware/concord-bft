@@ -98,7 +98,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
     auto res = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key);
     if (res.has_value()) {
       auto blockid = res.value().version;
-      if (blockid > command.last_known_block && minKnownUpdate > blockid) {
+      if (blockid > command.last_known_block && (minKnownUpdate == 0 || minKnownUpdate > blockid)) {
         minKnownUpdate = blockid;
         command_type = i;
       }
@@ -279,7 +279,6 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& comma
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     concord::messages::ReconfigurationResponse& response) {
-  LOG_INFO(GL, "$$$$$$$$$$$$ b1");
   if (command.target_clients.empty()) {
     return true;
   }

@@ -366,7 +366,7 @@ class BftTestNetwork:
                            "-c", str(self.config.c),
                            "-r", str(self.config.n),
                            "-k", self.certdir,
-                           "-o", "1"]
+                           "-o", "1000"]
                 self.cre_pid = subprocess.Popen(
                     cre_cmd,
                     stdout=stdout_file,
