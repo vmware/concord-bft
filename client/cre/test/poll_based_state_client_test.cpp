@@ -52,7 +52,7 @@ class KeyExchangeHandler : public IStateHandler {
   bool validate(const State& state) const override {
     return hasValue<concord::messages::ClientKeyExchangeCommand>(state);
   }
-  bool execute(const State& state, State& out) override {
+  bool execute(const State& state, WriteState& out) override {
     concord::messages::ClientKeyExchangeCommand command = getData<concord::messages::ClientKeyExchangeCommand>(state);
     if (std::find(command.target_clients.begin(), command.target_clients.end(), clientId_) ==
         command.target_clients.end())
@@ -66,7 +66,7 @@ class KeyExchangeHandler : public IStateHandler {
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {state.blockid, req_buf};
+    out = {req_buf, [&]() { LOG_INFO(getLogger(), "successful write!"); }};
     exchanges_++;
     return true;
   }
@@ -83,7 +83,7 @@ class PublicKeyExchangeHandler : public IStateHandler {
   bool validate(const State& state) const override {
     return hasValue<concord::messages::ClientExchangePublicKey>(state);
   }
-  bool execute(const State&, State&) override {
+  bool execute(const State&, WriteState&) override {
     LOG_INFO(getLogger(), "restart client components");
     exchanges_++;
     return true;

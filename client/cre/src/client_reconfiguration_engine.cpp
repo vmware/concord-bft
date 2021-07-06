@@ -38,13 +38,13 @@ void ClientReconfigurationEngine::main() {
           invalid_handlers_.Get().Inc();
           continue;
         }
-        State out_state;
+        WriteState out_state;
         if (!h->execute(update, out_state)) {
           LOG_ERROR(getLogger(), "error while executing the handlers");
           errored_handlers_.Get().Inc();
           continue;
         }
-        if (out_state.blockid == update.blockid) {
+        if (!out_state.data.empty()) {
           stateClient_->updateStateOnChain(out_state);
         }
       }

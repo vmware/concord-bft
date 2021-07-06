@@ -131,7 +131,7 @@ class KeyExchangeCommandHandler : public cre::IStateHandler {
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientKeyExchangeCommand>(crep.response);
   };
-  bool execute(const cre::State& state, cre::State& out) {
+  bool execute(const cre::State& state, cre::WriteState& out) {
     LOG_INFO(getLogger(), "execute key exchange request");
     concord::messages::ClientReconfigurationStateReply crep;
     concord::messages::deserialize(state.data, crep);
@@ -140,12 +140,15 @@ class KeyExchangeCommandHandler : public cre::IStateHandler {
 
     concord::messages::ReconfigurationRequest rreq;
     concord::messages::ClientExchangePublicKey creq;
+    std::string new_pub_key = "test_pub_key";
     creq.sender_id = clientId_;
-    creq.pub_key = "test_pub_key";
+    creq.pub_key = new_pub_key;
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {state.blockid, req_buf};
+    out = {req_buf, [this, new_pub_key]() {
+             LOG_INFO(this->getLogger(), "writing new public key success, public key is: " << new_pub_key);
+           }};
     return true;
   }
 
@@ -164,7 +167,7 @@ class PublicKeyExchangeHandler : public cre::IStateHandler {
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientExchangePublicKey>(crep.response);
   }
-  bool execute(const cre::State&, cre::State&) override {
+  bool execute(const cre::State&, cre::WriteState&) override {
     LOG_INFO(getLogger(), "restart client components");
     return true;
   }

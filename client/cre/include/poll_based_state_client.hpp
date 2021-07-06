@@ -32,7 +32,7 @@ class PollBasedStateClient : public IStateClient {
                        const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) const override;
   State getLatestClientUpdate(uint16_t clientId) const override;
-  bool updateStateOnChain(const State& state) override;
+  bool updateStateOnChain(const WriteState& state) override;
   ~PollBasedStateClient();
   void start(uint64_t lastKnownBlock) override;
   void stop() override;

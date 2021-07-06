@@ -132,12 +132,13 @@ State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) const {
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
 }
-bool PollBasedStateClient::updateStateOnChain(const State& state) {
+bool PollBasedStateClient::updateStateOnChain(const WriteState& state) {
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::deserialize(state.data, rreq);
   rreq.sender = id_;
   auto sn = sn_gen_.unique();
   auto rres = sendReconfigurationRequest(rreq, "updateStateOnChain-" + std::to_string(sn), sn, false);
+  if (rres.success && state.callBack != nullptr) state.callBack();
   return rres.success;
 }
 }  // namespace cre

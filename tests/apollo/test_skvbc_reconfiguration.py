@@ -121,7 +121,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is True
         log.log_message(message_type=f"block_id {rep.response.block_id}")
-        await trio.sleep(10)
+        await trio.sleep(20)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
