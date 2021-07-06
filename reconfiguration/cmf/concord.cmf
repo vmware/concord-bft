@@ -96,6 +96,7 @@ Msg AddRemoveStatusResponse 28 {
 
 Msg AddRemoveWithWedgeCommand 29 {
     string config_descriptor
+    string token
     bool bft
     bool restart
 }

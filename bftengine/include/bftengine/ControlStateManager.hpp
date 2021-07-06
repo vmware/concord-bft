@@ -73,7 +73,8 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   void sendRestartReadyToAllReplica() { sendRestartReady_(); }
   void addOnRestartProofCallBack(std::function<void()> cb,
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
-  void onRestartProof();
+  void onRestartProof(const SeqNum&);
+  void checkForReplicaReconfigurationAction();
 
   std::pair<bool, std::string> canUnwedge();
   bool verifyUnwedgeSignatures(std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures);
@@ -86,6 +87,7 @@ class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHa
   std::string scratchPage_;
   bool enabled_ = true;
   std::atomic_bool restartBftEnabled_ = false;
+  std::optional<SeqNum> hasRestartProofAtSeqNum_ = std::nullopt;
   ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
   std::function<void()> removeMetadata_;
