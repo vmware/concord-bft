@@ -46,7 +46,7 @@ Config TestConfig() {
       false,              // pedanticChecks
       false,              // isReadOnly
       128,                // maxChunkSize
-      128,                // maxNumberOfChunksInBatch
+      256,                // maxNumberOfChunksInBatch
       kMaxBlockSize,      // maxBlockSize
       256 * 1024 * 1024,  // maxPendingDataFromSourceReplica
       2048,               // maxNumOfReservedPages
