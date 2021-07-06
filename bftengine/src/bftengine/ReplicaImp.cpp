@@ -48,6 +48,7 @@
 #include "secrets_manager_plain.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <bitset>
@@ -3935,7 +3936,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               reply.replyBuf()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
-    bftRequestsHandler_->execute(accumulatedRequests, request->getCid(), span);
+    bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request->getCid(), span);
   }
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
@@ -4163,15 +4164,17 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
+  auto timestamp = config_.timeServiceEnabled ? std::optional<Timestamp>{} : std::nullopt;
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
     if (config_.timeServiceEnabled) {
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-        auto time = concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
-        time = time_service_manager_->compareAndSwap(time);
-        LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << time.count() << "ms");
+        timestamp->time_since_epoch =
+            concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
+        timestamp->time_since_epoch = time_service_manager_->compareAndSwap(timestamp->time_since_epoch);
+        LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << timestamp->time_since_epoch.count() << "ms");
         continue;
       }
     }
@@ -4200,7 +4203,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
       TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-      bftRequestsHandler_->execute(accumulatedRequests, ppMsg->getCid(), span);
+      bftRequestsHandler_->execute(accumulatedRequests, timestamp, ppMsg->getCid(), span);
     }
   } else {
     LOG_DEBUG(
@@ -4211,7 +4214,10 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       singleRequest.push_back(req);
       {
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-        bftRequestsHandler_->execute(singleRequest, ppMsg->getCid(), span);
+        bftRequestsHandler_->execute(singleRequest, timestamp, ppMsg->getCid(), span);
+        if (config_.timeServiceEnabled) {
+          timestamp->request_position++;
+        }
       }
       req = singleRequest.at(0);
       singleRequest.clear();

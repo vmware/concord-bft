@@ -66,6 +66,7 @@ std::unique_ptr<ReplicasInfo> replicasInfo[numOfReplicas_4];
 
 class DummyRequestsHandler : public IRequestsHandler {
   void execute(ExecutionRequestsQueue& requests,
+               std::optional<Timestamp> timestamp,
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override {
     for (auto& req : requests) {

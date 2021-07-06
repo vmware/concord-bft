@@ -18,12 +18,11 @@
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "serialize.hpp"
-#include <chrono>
 #include <cstdlib>
 #include <limits>
 #include <memory>
 
-namespace bftEngine {
+namespace bftEngine::impl {
 
 template <typename ClockT = std::chrono::system_clock>
 class TimeServiceManager {
@@ -135,4 +134,4 @@ class TimeServiceManager {
  private:
   TimeServiceResPageClient client_;
 };
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

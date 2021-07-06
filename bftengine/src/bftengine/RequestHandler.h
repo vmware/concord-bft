@@ -17,6 +17,7 @@
 #include "IRequestHandler.hpp"
 
 #include <ccron/cron_table_registry.hpp>
+#include <optional>
 
 namespace bftEngine {
 
@@ -27,7 +28,10 @@ class RequestHandler : public IRequestsHandler {
     reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
   }
 
-  void execute(ExecutionRequestsQueue &requests, const std::string &batchCid, concordUtils::SpanWrapper &) override;
+  void execute(ExecutionRequestsQueue &requests,
+               std::optional<Timestamp> timestamp,
+               const std::string &batchCid,
+               concordUtils::SpanWrapper &) override;
 
   void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
