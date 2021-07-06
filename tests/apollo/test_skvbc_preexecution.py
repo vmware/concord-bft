@@ -11,6 +11,7 @@
 # file.
 
 import os.path
+import os
 import unittest
 import trio
 import random
@@ -41,12 +42,16 @@ def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
 
     status_timer_milli = "500"
 
+    # Decide from the environment if PreExecution result authentication feature should be enabled or not
+    pre_exec_result_auth_enabled = os.environ.get("PRE_EXEC_RESULT_AUTH_ENABLED", default="False").lower() == "true"
+
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", status_timer_milli,
-            "-v", view_change_timeout_milli
+            "-v", view_change_timeout_milli,
+            "-x" if pre_exec_result_auth_enabled else ""
             ]
 
 def start_replica_cmd_with_vc_timeout(vc_timeout):
