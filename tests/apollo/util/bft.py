@@ -38,7 +38,7 @@ from enum import Enum
 from util import bft_metrics, eliot_logging as log
 from util.eliot_logging import log_call
 from util import skvbc as kvbc
-from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError, KeyExchangeError
+from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError, KeyExchangeError, CreError
 
 
 TestConfig = namedtuple('TestConfig', [
@@ -132,7 +132,7 @@ def with_constant_load(async_fn):
                 nursery.cancel_scope.cancel()
     return wrapper
 
-def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, rotate_keys=False, bft_configs=None):
+def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None, num_ro_replicas=0, rotate_keys=False, bft_configs=None, with_cre=False):
     """
     Runs the decorated async function for all selected BFT configs
     start_replica_cmd is a callback which is used to start a replica. It should have the following
@@ -167,7 +167,7 @@ def with_bft_network(start_replica_cmd, selected_configs=None, num_clients=None,
                                         stop_replica_cmd=None,
                                         num_ro_replicas=num_ro_replicas)
                     async with trio.open_nursery() as background_nursery:
-                        with BftTestNetwork.new(config, background_nursery) as bft_network:
+                        with BftTestNetwork.new(config, background_nursery, with_cre=with_cre) as bft_network:
                             bft_network.current_test = async_fn.__name__ + "_n=" + str(bft_config['n']) \
                                                                          + "_f=" + str(bft_config['f']) \
                                                                          + "_c=" + str(bft_config['c'])
@@ -205,6 +205,14 @@ class BftTestNetwork:
                 client.__exit__()
             for client in self.reserved_clients.values():
                 client.__exit__()
+            if self.with_cre and self.cre_pid is not None:
+                if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                    self.cre_pid.terminate()
+                else:
+                    self.cre_pid.kill()
+                for fd in self.cre_fds:
+                    fd.close()
+                self.cre_pid.wait()
             self.metrics.__exit__()
             self.stop_all_replicas()
             os.chdir(self.origdir)
@@ -244,12 +252,15 @@ class BftTestNetwork:
         self.perf_proc = None
         self.ro_replicas = ro_replicas
         self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() == "true")
+        self.with_cre = False
+        self.cre_pid = None
+        self.cre_fds = None
         # Setup transaction signing parameters
         self.setup_txn_signing()
         self._generate_operator_keys()
 
     @classmethod
-    def new(cls, config, background_nursery, client_factory=None):
+    def new(cls, config, background_nursery, client_factory=None, with_cre=False):
         builddir = os.path.abspath("../../build")
         toolsdir = os.path.join(builddir, "tools")
         testdir = tempfile.mkdtemp()
@@ -274,7 +285,7 @@ class BftTestNetwork:
                                             bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
                          for i in range(config.n, config.n + config.num_ro_replicas)]
         )
-
+        bft_network.with_cre = with_cre
         # Copy logging.properties file
         shutil.copy(os.path.abspath("../simpleKVBC/scripts/logging.properties"), testdir)
 
@@ -284,7 +295,7 @@ class BftTestNetwork:
         bft_network._generate_crypto_keys()
         if bft_network.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
             # Generate certificates for all replicas, clients, and reserved clients
-            bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA)
+            bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + 1)
 
         bft_network._init_metrics()
         bft_network._create_clients()
@@ -317,6 +328,50 @@ class BftTestNetwork:
         bft_network._init_metrics()
         bft_network._create_reserved_clients()
         return bft_network
+
+    def start_cre(self):
+        """
+        Start the cre if it isn't already started.
+        Otherwise raise an AlreadyStoppedError.
+        """
+        with log.start_action(action_type="start_cre"):
+            stdout_file = None
+            stderr_file = None
+
+            if os.environ.get('KEEP_APOLLO_LOGS', "").lower() in ["true", "on"]:
+                test_name = os.environ.get('TEST_NAME')
+
+                if not test_name:
+                    now = datetime.now().strftime("%y-%m-%d_%H:%M:%S")
+                    test_name = f"{now}_{self.current_test}"
+
+                self.test_dir = f"{self.builddir}/tests/apollo/logs/{test_name}/{self.current_test}/"
+                test_log = f"{self.test_dir}stdout_cre.log"
+
+                os.makedirs(self.test_dir, exist_ok=True)
+
+                stdout_file = open(test_log, 'w+')
+                stderr_file = open(test_log, 'w+')
+
+                stdout_file.write("############################################\n")
+                stdout_file.flush()
+                stderr_file.write("############################################\n")
+                stderr_file.flush()
+
+                self.cre_fds = (stdout_file, stderr_file)
+                cre_exe = os.path.join(self.builddir, "tests", "simpleKVBC", "TesterCRE", "skvbc_cre")
+                cre_cmd = [cre_exe,
+                           "-i", str(BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA + 1),
+                           "-f", str(self.config.f),
+                           "-c", str(self.config.c),
+                           "-r", str(self.config.n),
+                           "-k", self.certdir,
+                           "-o", "1"]
+                self.cre_pid = subprocess.Popen(
+                    cre_cmd,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    close_fds=True)
 
     async def change_configuration(self, config):
         """

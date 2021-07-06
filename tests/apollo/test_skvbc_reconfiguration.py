@@ -104,6 +104,28 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         pass
 
     @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_cre(self, bft_network):
+        """
+            No initial key rotation
+            Operator sends key exchange command to replica 0
+            New keys for replica 0 should get effective at checkpoint 2, i.e. seqnum 300
+        """
+        bft_network.start_all_replicas()
+        # bft_network.start_cre()
+
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        all_client_ids=bft_network.all_client_ids()
+        log.log_message(message_type=f"sending client key exchange command for clients {all_client_ids}")
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.client_key_exchange(all_client_ids)
+        rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        assert rep.success is True
+        log.log_message(message_type=f"block_id {rep.response.block_id}")
+        await trio.sleep(5)
+
+    @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_key_exchange(self, bft_network):
         """

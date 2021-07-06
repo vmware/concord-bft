@@ -34,6 +34,7 @@ using bft::client::ClientId;
 using bft::client::Client;
 struct creParams {
   string commConfigFile;
+  string certFolder;
   ClientConfig bftConfig;
   cre::Config CreConfig;
 };
@@ -43,7 +44,8 @@ creParams setupCreParams(int argc, char** argv) {
                                         {"fval", required_argument, 0, 'f'},
                                         {"cval", required_argument, 0, 'c'},
                                         {"replicas", required_argument, 0, 'r'},
-                                        {"network-configuration-file", required_argument, 0, 'n'},
+                                        {"network-configuration-file", optional_argument, 0, 'n'},
+                                        {"cert-folder", optional_argument, 0, 'k'},
                                         {"txn-signing-key-path", optional_argument, 0, 't'},
                                         {"interval-timeout", optional_argument, 0, 'o'},
                                         {0, 0, 0, 0}};
@@ -52,7 +54,7 @@ creParams setupCreParams(int argc, char** argv) {
   int o = 0;
   int optionIndex = 0;
   LOG_INFO(GL, "Command line options:");
-  while ((o = getopt_long(argc, argv, "i:f:c:n:t:", longOptions, &optionIndex)) != -1) {
+  while ((o = getopt_long(argc, argv, "i:f:c:r:n:k:t:o:", longOptions, &optionIndex)) != -1) {
     switch (o) {
       case 'i': {
         client_config.id = ClientId{concord::util::to<uint16_t>(optarg)};
@@ -85,6 +87,15 @@ creParams setupCreParams(int argc, char** argv) {
       case 'o': {
         cre_param.CreConfig.interval_timeout_ms_ = concord::util::to<uint64_t>(optarg);
       } break;
+
+      case 'k': {
+        cre_param.certFolder = optarg;
+      } break;
+
+      case '?': {
+        throw std::runtime_error("invalid arguments");
+      } break;
+
       default:
         break;
     }
@@ -94,16 +105,19 @@ creParams setupCreParams(int argc, char** argv) {
 
 auto logger = logging::getLogger("skvbtest.cre");
 
-ICommunication* createCommunication(const ClientConfig& cc, const std::string& commFileName) {
+ICommunication* createCommunication(const ClientConfig& cc,
+                                    const std::string& commFileName,
+                                    const std::string& certFolder) {
   TestCommConfig testCommConfig(logger);
   uint16_t numOfReplicas = cc.all_replicas.size();
   uint16_t clients = cc.id.val;
 #ifdef USE_COMM_PLAIN_TCP
-  PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
+  PlainTcpConfig conf = testCommConfig.GetTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
 #elif USE_COMM_TLS_TCP
-  TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
+  TlsTcpConfig conf =
+      testCommConfig.GetTlsTCPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
 #else
-  PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, cc.id.val, clients, numOfReplicas, commFileName);
+  PlainUdpConfig conf = testCommConfig.GetUDPConfig(false, cc.id.val, clients, numOfReplicas, commFileName, certFolder);
 #endif
 
   return CommFactory::create(conf);
@@ -162,7 +176,8 @@ class PublicKeyExchangeHandler : public cre::IStateHandler {
 
 int main(int argc, char** argv) {
   auto creParams = setupCreParams(argc, argv);
-  std::unique_ptr<ICommunication> comm_ptr(createCommunication(creParams.bftConfig, creParams.commConfigFile));
+  std::unique_ptr<ICommunication> comm_ptr(
+      createCommunication(creParams.bftConfig, creParams.commConfigFile, creParams.certFolder));
   Client* bft_client = new Client(std::move(comm_ptr), creParams.bftConfig);
   cre::IStateClient* pollBasedClient =
       new cre::PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);

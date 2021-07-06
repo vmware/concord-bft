@@ -279,6 +279,7 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& comma
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     concord::messages::ReconfigurationResponse& response) {
+  LOG_INFO(GL, "$$$$$$$$$$$$ b1");
   if (command.target_clients.empty()) {
     return true;
   }
@@ -304,6 +305,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
 bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                        const std::string& data,
                                                        const std::string& signature) const {
+  if (sender_id >= bftEngine::ReplicaConfig::instance().numReplicas) return false;
   return bftEngine::impl::SigManager::instance()->verifySig(
       sender_id, data.data(), data.size(), signature.data(), signature.size());
 }
