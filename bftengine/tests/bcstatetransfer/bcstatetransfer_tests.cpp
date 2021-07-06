@@ -54,7 +54,7 @@ Config TestConfig() {
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
-      15000,              // sourceReplicaReplacementTimeoutMs
+      0,                  // sourceReplicaReplacementTimeoutMs
       250,                // fetchRetransmissionTimeoutMs
       5,                  // metricsDumpIntervalSec
       false,              // runInSeparateThread
