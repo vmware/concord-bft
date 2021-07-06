@@ -28,6 +28,10 @@ constexpr bool dynamicCollectorForPartialProofs = true, dynamicCollectorForExecu
 constexpr int initialView = 0;
 constexpr bftEngine::impl::SeqNum lastStableSeqNum = 150;
 
+std::function<bool(MessageBase*)> mockedMessageValidator() {
+  return [](MessageBase* message) { return true; };
+}
+
 class ViewsManagerTest : public ::testing::Test {
  protected:
   ReplicaConfig& rc;
@@ -58,7 +62,9 @@ TEST_F(ViewsManagerTest, store_complaint) {
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
       rc.replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
-  viewsManager->storeComplaint(std::move(complaint));
+  if (complaint->viewNumber() == viewsManager->getCurrentView()) {
+    viewsManager->storeComplaint(std::move(complaint));
+  }
 
   ASSERT_EQ(viewsManager->getAllMsgsFromComplainedReplicas().size(), 1);
 }
@@ -70,7 +76,9 @@ TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
     std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
         replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
-    viewsManager->storeComplaint(std::move(complaint));
+    if (complaint->viewNumber() == viewsManager->getCurrentView()) {
+      viewsManager->storeComplaint(std::move(complaint));
+    }
   }
 
   ASSERT_EQ(viewsManager->hasQuorumToLeaveView(), true);
@@ -88,7 +96,9 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
     std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
         replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
-    viewsManager->storeComplaint(std::move(complaint));
+    if (complaint->viewNumber() == viewsManager->getCurrentView()) {
+      viewsManager->storeComplaint(std::move(complaint));
+    }
   }
 
   bftEngine::impl::ReplicaStatusMsg replicaStatusMessage(rc.getreplicaId(),
@@ -130,26 +140,7 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
         ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
   }
 
-  ViewChangeMsg::ComplaintsIterator iter(&viewChangeMsg);
-  char* complaint = nullptr;
-  MsgSize size = 0;
-
-  while (!viewsManager->hasQuorumToLeaveView() && iter.getAndGoToNext(complaint, size)) {
-    auto baseMsg = MessageBase(viewChangeMsg.senderId(), (MessageBase::Header*)complaint, size, true);
-    auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
-    LOG_INFO(GL,
-             "\n\nGot complaint in ViewChangeMsg" << KVLOG(viewsManager->getCurrentView(),
-                                                           viewChangeMsg.senderId(),
-                                                           viewChangeMsg.newView(),
-                                                           viewChangeMsg.idOfGeneratedReplica(),
-                                                           complaintMsg->senderId(),
-                                                           complaintMsg->viewNumber(),
-                                                           complaintMsg->idOfGeneratedReplica()));
-
-    if (complaintMsg->viewNumber() == viewsManager->getCurrentView()) {
-      viewsManager->storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(complaintMsg.release()));
-    }
-  }
+  viewsManager->processComplaintsFromViewChangeMessage(&viewChangeMsg, mockedMessageValidator());
 
   ASSERT_EQ(viewsManager->hasQuorumToLeaveView(), true);
 }
@@ -176,26 +167,7 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
         ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
   }
 
-  ViewChangeMsg::ComplaintsIterator iter(&viewChangeMsg);
-  char* complaint = nullptr;
-  MsgSize size = 0;
-
-  while (!viewsManager->hasQuorumToJumpToHigherView() && iter.getAndGoToNext(complaint, size)) {
-    auto baseMsg = MessageBase(viewChangeMsg.senderId(), (MessageBase::Header*)complaint, size, true);
-    auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
-    LOG_INFO(GL,
-             "\n\nGot complaint in ViewChangeMsg" << KVLOG(viewsManager->getCurrentView(),
-                                                           viewChangeMsg.senderId(),
-                                                           viewChangeMsg.newView(),
-                                                           viewChangeMsg.idOfGeneratedReplica(),
-                                                           complaintMsg->senderId(),
-                                                           complaintMsg->viewNumber(),
-                                                           complaintMsg->idOfGeneratedReplica()));
-
-    if (complaintMsg->viewNumber() + 1 == viewChangeMsg.newView()) {
-      viewsManager->storeComplaintForHigherView(std::move(complaintMsg));
-    }
-  }
+  viewsManager->processComplaintsFromViewChangeMessage(&viewChangeMsg, mockedMessageValidator());
 
   ASSERT_EQ(viewsManager->tryToJumpToHigherViewAndMoveComplaintsOnQuorum(&viewChangeMsg), true);
 }
