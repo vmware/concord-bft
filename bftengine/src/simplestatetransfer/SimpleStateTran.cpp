@@ -12,11 +12,12 @@
 // file.
 
 #include <string.h>
-#include "assertUtils.hpp"
 #include <map>
 #include <set>
 #include <utility>
+#include <future>
 
+#include "assertUtils.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "memorydb/client.h"
@@ -101,6 +102,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     bool hasBlock(uint64_t blockId) const override;
 
     bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
+
+    std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
 
     bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
 
@@ -590,6 +593,13 @@ bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return fa
 bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) {
   ConcordAssert(false);
   return false;
+}
+
+std::future<bool> SimpleStateTran::DummyBDState::getBlockAsync(uint64_t blockId,
+                                                               char* outBlock,
+                                                               uint32_t* outBlockSize) {
+  ConcordAssert(false);
+  return std::async([]() { return false; });
 }
 
 bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(uint64_t blockId,

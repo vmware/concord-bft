@@ -31,6 +31,7 @@
 #include "reconfiguration_add_block_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
+#include "throughput.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -272,7 +273,9 @@ Replica::Replica(ICommunication *comm,
       replicaConfig_(replicaConfig),
       aggregator_(aggregator),
       pm_{pm},
-      secretsManager_{secretsManager} {
+      secretsManager_{secretsManager},
+      blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
+                                                                          : std::thread::hardware_concurrency()) {
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
@@ -446,6 +449,42 @@ bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize)
   LOG_DEBUG(logger, KVLOG(blockId, *outBlockSize));
   std::memcpy(outBlock, ser.data(), *outBlockSize);
   return true;
+}
+
+std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+  static uint64_t callCounter = 0;
+  static constexpr size_t snapshotThresh = 1000;
+
+  auto future = blocksIOWorkersPool_.async(
+      [this](uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+        auto start = std::chrono::steady_clock::now();
+        *outBlockSize = 0;
+
+        // getBlock will throw exception if block doesn't exist
+        try {
+          getBlock(blockId, outBlock, outBlockSize);
+        } catch (NotFoundException &ex) {
+          *outBlockSize = 0;
+          LOG_ERROR(logger, "Block not found:" << KVLOG(blockId));
+          return false;
+        }
+        ConcordAssertGT(*outBlockSize, 0);
+        auto jobDuration =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        LOG_DEBUG(logger, "Job done: " << KVLOG(blockId, *outBlockSize, jobDuration));
+        histograms_.get_block_duration->record(jobDuration);
+        return true;
+      },
+      std::forward<decltype(blockId)>(blockId),
+      std::forward<decltype(outBlock)>(outBlock),
+      std::forward<decltype(outBlockSize)>(outBlockSize));
+
+  if ((++callCounter % snapshotThresh) == 0) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("iappstate");
+    LOG_INFO(logger, registrar.perf.toString(registrar.perf.get("iappstate")));
+  }
+  return future;
 }
 
 bool Replica::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {

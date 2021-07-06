@@ -46,6 +46,10 @@ class TestAppState : public IAppState {
     return true;
   };
 
+  std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override {
+    ConcordAssert(false);
+  }
+
   bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) override {
     ConcordAssert(blockId > 0);
     auto it = blocks_.find(blockId - 1);

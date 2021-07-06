@@ -501,7 +501,6 @@ class BCStateTran : public IStateTransfer {
       // source component
       registrar.perf.registerComponent("state_transfer_src",
                                        {src_handle_FetchBlocks_msg,
-                                        src_get_block_duration,
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
@@ -527,8 +526,6 @@ class BCStateTran : public IStateTransfer {
     // source
     DEFINE_SHARED_RECORDER(
         src_handle_FetchBlocks_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        src_get_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_get_block_size_bytes, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
