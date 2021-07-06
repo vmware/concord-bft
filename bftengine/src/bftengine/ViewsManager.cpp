@@ -1099,7 +1099,7 @@ ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextVi
 }
 
 void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
-                                                          std::function<bool(MessageBase*)> msgValidator) {
+                                                          const std::function<bool(MessageBase*)>& msgValidator) {
   ViewChangeMsg::ComplaintsIterator iter(msg);
   char* complaint = nullptr;
   MsgSize size = 0;
