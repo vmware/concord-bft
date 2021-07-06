@@ -353,6 +353,25 @@ class BCStateTran : public IStateTransfer {
   // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
   STDigest getBlockAndComputeDigest(uint64_t currBlock);
 
+ protected:
+  ///////////////////////////////////////////////////////////////////////////
+  // Asynchronous Operations - Blocks IO
+  ///////////////////////////////////////////////////////////////////////////
+  struct GetBlockContext {
+    uint16_t index;
+    uint64_t blockId;
+    uint32_t blockSize;
+    std::unique_ptr<char[]> block;
+    std::future<bool> future;
+  };
+
+  std::vector<GetBlockContext> srcGetBlockContextes_;
+
+  // returns number of jobs pushed to queue
+  uint16_t asyncGetBlocksConcurrent(uint64_t nextBlockId,
+                                    uint64_t firstRequiredBlock,
+                                    uint16_t numBlocks,
+                                    size_t startContextIndex = 0);
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
