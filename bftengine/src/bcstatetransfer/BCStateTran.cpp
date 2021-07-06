@@ -154,8 +154,10 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       numberOfReservedPages_{0},
       cycleCounter_(0),
       randomGen_{randomDevice_()},
-      sourceSelector_{
-          allOtherReplicas(), config_.fetchRetransmissionTimeoutMs, config_.sourceReplicaReplacementTimeoutMs},
+      sourceSelector_{allOtherReplicas(),
+                      config_.fetchRetransmissionTimeoutMs,
+                      config_.sourceReplicaReplacementTimeoutMs,
+                      ST_SRC_LOG},
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_{std::chrono::seconds(config_.metricsDumpIntervalSec)},
       metrics_component_{
@@ -1095,7 +1097,7 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                   msg.lastRequiredBlock,
                   msg.lastKnownChunkInLastRequiredBlock));
 
-  sourceSelector_.setFetchingTimeStamp(getLogger(), getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
   dst_time_between_sendFetchBlocksMsg_rec_.clear();
   dst_time_between_sendFetchBlocksMsg_rec_.start();
   replicaForStateTransfer_->sendStateTransferMessage(
@@ -1127,7 +1129,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
                   msg.requiredCheckpointNum,
                   msg.lastKnownChunk));
 
-  sourceSelector_.setFetchingTimeStamp(getLogger(), getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchResPagesMsg), sourceSelector_.currentReplica());
 }
@@ -1747,7 +1749,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
   // set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  sourceSelector_.setFetchingTimeStamp(getLogger(), getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
 
   if (added) {
     LOG_DEBUG(getLogger(),
