@@ -63,11 +63,12 @@ class SkvbcPersistenceTest(unittest.TestCase):
         This is a regression test for
         https://github.com/vmware/concord-bft/issues/194.
         """
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         [bft_network.start_replica(i) for i in range(1, bft_network.config.n - 1)]
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(
-                    tracker.send_indefinite_tracked_ops)
+                    skvbc.send_indefinite_tracked_ops)
                 # See if replica 1 has become the new primary
                 await bft_network.wait_for_view(
                     replica_id=1,
