@@ -288,7 +288,7 @@ Replica::Replica(ICommunication *comm,
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
     replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 30 * 1024 * 1024),
-    replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 64),
+    replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 256),
 #else
     replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 2048),
     replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 32),

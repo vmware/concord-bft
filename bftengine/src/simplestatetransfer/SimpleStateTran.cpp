@@ -285,7 +285,7 @@ SimpleStateTran::SimpleStateTran(
       pedanticChecks,                       // pedanticChecks
       false,                                // isReadOnly
       128,                                  // maxChunkSize
-      128,                                  // maxNumberOfChunksInBatch
+      256,                                  // maxNumberOfChunksInBatch
       1024,                                 // maxBlockSize
       256 * 1024 * 1024,                    // maxPendingDataFromSourceReplica
       2048,                                 // maxNumOfReservedPages
