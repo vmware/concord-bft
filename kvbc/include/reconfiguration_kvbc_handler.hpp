@@ -18,7 +18,7 @@
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include "SigManager.hpp"
-#include "../../reconfiguration/include/reconfiguration/reconfiguration_handler.hpp"
+#include "reconfiguration/reconfiguration_handler.hpp"
 
 namespace concord::kvbc::reconfiguration {
 class ReconfigurationBlockTools {
@@ -32,6 +32,10 @@ class ReconfigurationBlockTools {
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;
 };
+
+/*
+ * This component is responsible for logging a reconfiguration requests (issued by a specific bft CRE) to the blockchain
+ */
 class KvbcClientReconfigurationHandler : public concord::reconfiguration::ClientReconfigurationHandler,
                                          public ReconfigurationBlockTools {
  public:
@@ -53,7 +57,8 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
       kvbc::BlockId, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid);
 };
 /**
- * TODO [YB] - add description
+ * This component is reposnsible for logging reconfiguraiton request (issued by an autherated operator) in the
+ * blockchian.
  */
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
                                public ReconfigurationBlockTools {
@@ -101,7 +106,7 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               concord::messages::ReconfigurationResponse& response) override;
 };
 /**
- * TODO [YB] - add description
+ * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop commands)
  */
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
                                          public ReconfigurationBlockTools {

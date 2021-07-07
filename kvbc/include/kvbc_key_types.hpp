@@ -20,13 +20,13 @@ static const char reconfiguration_download_key = 0x26;
 static const char reconfiguration_install_key = 0x27;
 static const char reconfiguration_key_exchange = 0x28;
 static const char reconfiguration_add_remove = 0x29;
-// 0x2a is reserved
+static const char reconfiguration_reserved = 0x2a;  // TODO [YB] check
 static const char reconfiguration_client_data_prefix = 0x2c;
 
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,
-  PUBLIC_KEY_EXCHANGE = 0x1,
-  CLIENT_KEY_EXCHANGE_COMMAND = 0x2,
+  PUBLIC_KEY_EXCHANGE = 0x1,          // identifier of public key exchage request by client
+  CLIENT_KEY_EXCHANGE_COMMAND = 0x2,  // idenfier of client key exchange request by operator
   end_
 };
 }  // namespace concord::kvbc::keyTypes

@@ -34,110 +34,66 @@ class Operator:
     def _sign_reconf_msg(self, msg):
         return self.private_key.sign_deterministic(msg.serialize())
 
+
+    def _construct_basic_reconfiguration_request(self, command):
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.additional_data = bytes(0)
+        reconf_msg.sender = 1000
+        reconf_msg.signature = bytes(0)
+        reconf_msg.command = command
+        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        return reconf_msg
+
     def _construct_reconfiguration_wedge_command(self):
             wedge_cmd = cmf_msgs.WedgeCommand()
             wedge_cmd.sender = 1000
             wedge_cmd.noop = False
-            reconf_msg = cmf_msgs.ReconfigurationRequest()
-            reconf_msg.command = wedge_cmd
-            reconf_msg.additional_data = bytes(0)
-            reconf_msg.sender = 1000
-            reconf_msg.signature = bytes(0)
-            reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-            return reconf_msg
+            return self._construct_basic_reconfiguration_request(wedge_cmd)
 
     def _construct_reconfiguration_latest_prunebale_block_command(self):
         lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
         lpab_cmd.sender = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = lpab_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(lpab_cmd)
 
     def _construct_reconfiguration_wedge_status(self, fullWedge=True):
         wedge_status_cmd = cmf_msgs.WedgeStatusRequest()
         wedge_status_cmd.sender = 1000
         wedge_status_cmd.fullWedge = fullWedge
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = wedge_status_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(wedge_status_cmd)
 
     def _construct_reconfiguration_unwedge_status(self):
         unwedge_status_cmd = cmf_msgs.UnwedgeStatusRequest()
         unwedge_status_cmd.sender = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = unwedge_status_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(unwedge_status_cmd)
 
     def _construct_reconfiguration_unwedge_command(self, signatures):
         unwedge_cmd = cmf_msgs.UnwedgeCommand()
         unwedge_cmd.sender = 1000
         unwedge_cmd.noop = False
         unwedge_cmd.signatures = signatures
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = unwedge_cmd
-        reconf_msg.additional_data = bytes(0)
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(unwedge_cmd)
 
     def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks):
         prune_cmd = cmf_msgs.PruneRequest()
         prune_cmd.sender = 1000
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = prune_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(prune_cmd)
 
     def _construct_reconfiguration_prune_status_request(self):
         prune_status_cmd = cmf_msgs.PruneStatusRequest()
         prune_status_cmd.sender = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = prune_status_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(prune_status_cmd)
 
     def _construct_reconfiguration_keMsg_command(self, target_replicas = []):
         ke_command = cmf_msgs.KeyExchangeCommand()
         ke_command.sender_id = 1000
         ke_command.target_replicas = target_replicas
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = ke_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(ke_command)
 
     def _construct_reconfiguration_addRemove_command(self, new_config):
         addRemove_command = cmf_msgs.AddRemoveCommand()
         addRemove_command.reconfiguration = new_config
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemove_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemove_command)
     
     def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
@@ -145,46 +101,22 @@ class Operator:
         addRemove_command.token = "dummy"
         addRemove_command.bft = bft
         addRemove_command.restart = restart
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemove_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemove_command)
 
     def _construct_reconfiguration_addRemoveStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveStatus()
         addRemoveStatus_command.sender_id = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemoveStatus_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
     def _construct_reconfiguration_addRemoveWithWedgeStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveWithWedgeStatus()
         addRemoveStatus_command.sender_id = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemoveStatus_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
     def _construct_reconfiguration_clientKe_command(self, target_clients = []):
         cke_command = cmf_msgs.ClientKeyExchangeCommand()
         cke_command.target_clients = target_clients
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = cke_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.sender = 1000
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(cke_command)
     
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
