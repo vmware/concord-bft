@@ -491,7 +491,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
 
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
