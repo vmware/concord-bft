@@ -353,6 +353,25 @@ class BCStateTran : public IStateTransfer {
   // SIDE EFFECT: This function mutates buffer_ and resets it to 0 after the fact.
   STDigest getBlockAndComputeDigest(uint64_t currBlock);
 
+ protected:
+  ///////////////////////////////////////////////////////////////////////////
+  // Asynchronous Operations - Blocks IO
+  ///////////////////////////////////////////////////////////////////////////
+  struct GetBlockContext {
+    uint16_t index;
+    uint64_t blockId;
+    uint32_t blockSize;
+    std::unique_ptr<char[]> block;
+    std::future<bool> future;
+  };
+
+  std::vector<GetBlockContext> srcGetBlockContextes_;
+
+  // returns number of jobs pushed to queue
+  uint16_t asyncGetBlocksConcurrent(uint64_t nextBlockId,
+                                    uint64_t firstRequiredBlock,
+                                    uint16_t numBlocks,
+                                    size_t startContextIndex = 0);
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
@@ -501,7 +520,6 @@ class BCStateTran : public IStateTransfer {
       // source component
       registrar.perf.registerComponent("state_transfer_src",
                                        {src_handle_FetchBlocks_msg,
-                                        src_get_block_duration,
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
@@ -527,8 +545,6 @@ class BCStateTran : public IStateTransfer {
     // source
     DEFINE_SHARED_RECORDER(
         src_handle_FetchBlocks_msg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
-    DEFINE_SHARED_RECORDER(
-        src_get_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_get_block_size_bytes, 1, MAX_BLOCK_SIZE, 3, concord::diagnostics::Unit::BYTES);
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);

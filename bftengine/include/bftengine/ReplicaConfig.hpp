@@ -65,6 +65,11 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                0,
                "number of consensus operations that can be executed in parallel "
                "1 <= concurrencyLevel <= 30");
+  CONFIG_PARAM(numWorkerThreadsForBlockIO,
+               uint16_t,
+               0,
+               "Number of workers threads to be used for blocks IO"
+               "operations. When set to 0, std::thread::hardware_concurrency() is set by default");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
   CONFIG_PARAM(blockAccumulation, bool, false, "whether the block accumulation enabled");
   CONFIG_PARAM(viewChangeTimerMillisec, uint16_t, 0, "timeout used by the  view change protocol ");
@@ -258,6 +263,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
     serialize(outStream, timeServiceEpsilonMillis);
+    serialize(outStream, numWorkerThreadsForBlockIO);
 
     serialize(outStream, config_params_);
   }
@@ -325,6 +331,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);
     deserialize(inStream, timeServiceEpsilonMillis);
+    deserialize(inStream, numWorkerThreadsForBlockIO);
 
     deserialize(inStream, config_params_);
   }
@@ -392,6 +399,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.timeServiceSoftLimitMillis.count(),
               rc.timeServiceHardLimitMillis.count(),
               rc.timeServiceEpsilonMillis.count(),
+              rc.numWorkerThreadsForBlockIO,
               rc.batchedPreProcessEnabled);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
