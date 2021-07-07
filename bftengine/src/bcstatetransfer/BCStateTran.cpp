@@ -116,16 +116,16 @@ static uint32_t calcMaxItemSize(uint32_t maxBlockSize, uint32_t maxNumberOfPages
   return retVal;
 }
 
-static uint16_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
+static uint32_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
                                           uint32_t maxBlockSize,
                                           uint32_t maxChunkSize,
                                           bool isVBlock) {
   if (!isVBlock) {
-    uint16_t retVal =
+    uint32_t retVal =
         (maxBlockSize % maxChunkSize == 0) ? (maxBlockSize / maxChunkSize) : (maxBlockSize / maxChunkSize + 1);
     return retVal;
   } else {
-    uint16_t retVal =
+    uint32_t retVal =
         (maxItemSize % maxChunkSize == 0) ? (maxItemSize / maxChunkSize) : (maxItemSize / maxChunkSize + 1);
     return retVal;
   }
@@ -1667,7 +1667,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     ConcordAssert(false);
   }
 
-  const uint16_t MaxNumOfChunksInBlock =
+  const auto MaxNumOfChunksInBlock =
       (fs == FetchingState::GettingMissingBlocks) ? maxNumOfChunksInAppBlock_ : maxNumOfChunksInVBlock_;
 
   LOG_DEBUG(getLogger(),
