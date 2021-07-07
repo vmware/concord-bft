@@ -363,7 +363,8 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
 
   struct ClientsReqCmparator {
     bool operator()(const ClientRequestMsg *const lhs, const ClientRequestMsg *const rhs) {
-      return (lhs->clientProxyId() < rhs->clientProxyId() || lhs->requestSeqNum() < rhs->requestSeqNum());
+      return (lhs->clientProxyId() < rhs->clientProxyId() ||
+              (lhs->clientProxyId() == rhs->clientProxyId() && lhs->requestSeqNum() < rhs->requestSeqNum()));
     }
   };
 
