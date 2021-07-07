@@ -42,6 +42,14 @@ class ControlHandler : public IControlHandler {
     onStableCheckpointCallBack.emplace_back(cb);
   }
 
+  void resetState() override {
+    onNoutOfNCheckpoint_ = false;
+    onNMinusFOutOfNCheckpoint_ = false;
+    onPruningProcess_ = false;
+    onSuperStableCheckpointCallBack.clear();
+    onStableCheckpointCallBack.clear();
+  }
+
  private:
   bool onNoutOfNCheckpoint_ = false;
   bool onNMinusFOutOfNCheckpoint_ = false;

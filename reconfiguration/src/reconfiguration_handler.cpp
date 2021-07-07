@@ -118,6 +118,7 @@ bool ReconfigurationHandler::handle(const UnwedgeCommand& cmd,
   bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures);
   if (valid) {
     controlStateManager.clearCheckpointToStopAt();
+    bftEngine::IControlHandler::instance()->resetState();
     LOG_INFO(getLogger(), "Unwedge command completed sucessfully");
   }
   return valid;
