@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <tuple>
 #include <chrono>
+#include <memory>
 
 #include "Logger.hpp"
 #include "setup.hpp"
@@ -35,9 +36,13 @@
 #include <boost/algorithm/string.hpp>
 #include <experimental/filesystem>
 
+#include "WrapCommunication.hpp"
+
 namespace fs = std::experimental::filesystem;
 
 namespace concord::kvbc {
+
+using bft::communication::WrapCommunication;
 
 std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
   std::stringstream args;
@@ -71,6 +76,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string principalsMapping;
     std::string txnSigningKeysPath;
     std::optional<std::uint32_t> cronEntryNumberOfExecutes;
+    std::string byzantineStrategies;
 
     static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
                                           {"key-file-prefix", required_argument, 0, 'k'},
@@ -88,15 +94,17 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"consensus-batching-max-req-num", required_argument, 0, 'q'},
                                           {"consensus-batching-flush-period", required_argument, 0, 'z'},
                                           {"consensus-concurrency-level", required_argument, 0, 'y'},
+                                          {"replica-block-accumulation", no_argument, 0, 'u'},
                                           {"principals-mapping", optional_argument, 0, 'p'},
                                           {"txn-signing-key-path", optional_argument, 0, 't'},
                                           {"operator-public-key-path", optional_argument, 0, 'o'},
                                           {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
+                                          {"replica-byzantine-strategies", optional_argument, 0, 'g'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:r:w:", longOptions, &optionIndex)) !=
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:up:t:o:r:g:", longOptions, &optionIndex)) !=
            -1) {
       switch (o) {
         case 'i': {
@@ -137,6 +145,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
             throw std::runtime_error{"invalid argument for --consensus-concurrency-level"};
           replicaConfig.concurrencyLevel = concurrencyLevel;
         } break;
+        case 'u': {
+          replicaConfig.blockAccumulation = true;
+          break;
+        }
         case 'l': {
           logPropsFile = optarg;
           break;
@@ -166,10 +178,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
           replicaConfig.batchFlushPeriod = batchFlushPeriod;
           break;
         }
-        case 'u': {
-          replicaConfig.blockAccumulation = true;
-          break;
-        }
         case 'p': {
           principalsMapping = optarg;
           break;
@@ -184,6 +192,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'r': {
           cronEntryNumberOfExecutes = concord::util::to<std::uint32_t>(optarg);
+          break;
+        }
+        case 'g': {
+          byzantineStrategies = optarg;
           break;
         }
         case '?': {
@@ -225,6 +237,17 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
 #endif
 
     std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
+
+    if (!byzantineStrategies.empty()) {
+      // Initialise all the strategies here at once.
+      const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
+          std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>()};
+      WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
+
+      std::unique_ptr<bft::communication::ICommunication> wrappedComm =
+          std::make_unique<WrapCommunication>(std::move(comm));
+      comm.swap(wrappedComm);
+    }
 
     uint16_t metricsPort = conf.listenPort + 1000;
 

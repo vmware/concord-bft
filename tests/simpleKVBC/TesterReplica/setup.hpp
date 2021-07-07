@@ -24,6 +24,8 @@
 #include "config/test_parameters.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
+#include "strategy/ByzantineStrategy.hpp"
+#include "strategy/ShufflePreProcessMsgStrategy.hpp"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"
