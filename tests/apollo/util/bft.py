@@ -1084,7 +1084,7 @@ class BftTestNetwork:
     async def _wait_for_consensus_path_to_be_prevalent(self, fast, run_ops, threshold, replica_id=0, timeout=90):
         """
         Waits until at least threshold operations are being executed in the selected path.
-          run_ops: lambda that executes tracker.run_concurrent_ops or creates requests in some other way
+          run_ops: lambda that executes skvbc.run_concurrent_ops or creates requests in some other way
           threshold: minimum number of requests that have to be executed in the correct path
         run_ops should produce at least threshold executions
         """

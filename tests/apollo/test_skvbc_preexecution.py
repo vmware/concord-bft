@@ -105,8 +105,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
-            await tracker.send_tracked_write(client, 2)
-
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
+            await skvbc.send_tracked_write(client, 2)
         await bft_network.assert_successful_pre_executions_count(0, NUM_OF_SEQ_WRITES)
 
     @with_trio
@@ -122,7 +122,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
-        rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=0.9)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        rw = await skvbc.run_concurrent_ops(num_of_requests, write_weight=0.9)
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
         await bft_network.assert_successful_pre_executions_count(0, rw[1])
@@ -144,8 +145,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             req_timeout_milli=LONG_REQ_TIMEOUT_MILLI,
             retry_timeout_milli=1000
         )
-
-        await tracker.send_tracked_write(client, 2, long_exec=True)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
+        await skvbc.send_tracked_write(client, 2, long_exec=True)
 
         last_block = await tracker.get_last_block_id(client)
         self.assertEqual(last_block, 1)
@@ -153,7 +154,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         await bft_network.assert_successful_pre_executions_count(0, 1)
 
         with trio.move_on_after(seconds=1):
-            await tracker.send_indefinite_tracked_ops(write_weight=1)
+            await skvbc.send_indefinite_tracked_ops(write_weight=1)
 
         initial_primary = 0
         with trio.move_on_after(seconds=15):
@@ -289,8 +290,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         clients = bft_network.clients.values()
         client = random.choice(list(clients))
-
-        await tracker.send_tracked_write(client, 2)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
+        await skvbc.send_tracked_write(client, 2)
 
         await bft_network.assert_successful_pre_executions_count(0, 1)
 
@@ -304,8 +305,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=1):
-                await tracker.send_indefinite_tracked_ops(write_weight=1)
-
+                await skvbc.send_indefinite_tracked_ops(write_weight=1)
         except trio.TooSlowError:
             pass
         finally:
@@ -313,7 +313,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
-            await tracker.send_tracked_write(client, 2)
+            #skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
+            await skvbc.send_tracked_write(client, 2)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -334,8 +335,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         nonprimaries = bft_network.all_replicas(without={0}) # primary index is 0
         crash_targets = random.sample(nonprimaries, bft_network.config.f) # pick random f to crash
         bft_network.stop_replicas(crash_targets) # crash chosen nonprimary replicas
-
-        rw = await tracker.run_concurrent_ops(num_of_requests, write_weight=1)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        rw = await skvbc.run_concurrent_ops(num_of_requests, write_weight=1)
         final_block_count = await tracker.get_last_block_id(read_client)
 
         log.log_message(message_type=f"Randomly picked replica indexes {crash_targets} (nonprimary) to be stopped.")
@@ -395,14 +396,14 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
             await adversary.interfere()
 
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             expected_next_primary = 1
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
                                         expected=lambda v: v == expected_next_primary,
                                         err_msg="Make sure view change has been triggered.")
 
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
@@ -452,7 +453,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             start_block = await tracker.get_last_block_id(read_client)
 
             adversary.interfere()
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
@@ -484,13 +485,13 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             start_block = await tracker.get_last_block_id(read_client)
 
             adversary.interfere()
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             await bft_network.wait_for_view(replica_id=expected_next_primary,
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
 
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
@@ -521,7 +522,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             start_block = await tracker.get_last_block_id(read_client)
 
             adversary.interfere()
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
@@ -534,7 +535,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             start_block = await tracker.get_last_block_id(read_client)
 
             adversary.interfere()
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network,tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
@@ -557,7 +558,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=30):
-                await tracker.run_concurrent_conflict_ops(ops, write_weight=1)
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+                await skvbc.run_concurrent_conflict_ops(ops, write_weight=1)
         except trio.TooSlowError:
             pass
 
@@ -592,7 +594,8 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=30):
-                await tracker.run_concurrent_conflict_ops(ops, write_weight=1)
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+                await skvbc.run_concurrent_conflict_ops(ops, write_weight=1)
         except trio.TooSlowError:
             pass
 
@@ -601,9 +604,10 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         # We produced at least one conflict.
         assert last_block < start_block + ops
 
-    async def issue_tracked_ops_to_the_system(self, tracker):
+    async def issue_tracked_ops_to_the_system(self, bft_network, tracker):
         try:
             with trio.move_on_after(seconds=30):
-                await tracker.run_concurrent_ops(50, write_weight=.70)
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+                await skvbc.run_concurrent_ops(50, write_weight=.70)
         except trio.TooSlowError:
             pass
