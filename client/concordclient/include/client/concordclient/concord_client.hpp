@@ -127,18 +127,18 @@ class ConcordClient {
   void send(const bft::client::WriteConfig& config,
             bft::client::Msg&& msg,
             const std::unique_ptr<opentracing::Span>& parent_span,
-            std::function<void(SendResult&&)> callback);
+            const std::function<void(SendResult&&)>& callback);
   void send(const bft::client::ReadConfig& config,
             bft::client::Msg&& msg,
             const std::unique_ptr<opentracing::Span>& parent_span,
-            std::function<void(SendResult&&)> callback);
+            const std::function<void(SendResult&&)>& callback);
 
   // Register a callback that gets invoked for every validated event received.
   // void callback(SubscribeResult);
   // Return subscriber ID used to unsubscribe.
   void subscribe(const SubscribeRequest& request,
                  const std::unique_ptr<opentracing::Span>& parent_span,
-                 std::function<void(SubscribeResult&&)> callback);
+                 const std::function<void(SubscribeResult&&)>& callback);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
