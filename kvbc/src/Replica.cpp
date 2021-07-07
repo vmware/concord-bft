@@ -307,7 +307,8 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 1000),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
-    replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly)
+    replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly),
+    replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
   };
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP

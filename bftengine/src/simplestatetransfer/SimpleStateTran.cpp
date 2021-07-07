@@ -297,7 +297,8 @@ SimpleStateTran::SimpleStateTran(
       250,                                  // fetchRetransmissionTimeoutMs
       5,                                    // metricsDumpIntervalSec
       true,                                 // runInSeparateThread
-      true                                  // enableReservedPages
+      true,                                 // enableReservedPages
+      true,                                 // enableSourceBlocksPreFetch
   };
 
   auto comparator = concord::storage::memorydb::KeyComparator();

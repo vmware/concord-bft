@@ -1430,16 +1430,20 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   uint16_t nextChunk = m->lastKnownChunkInLastRequiredBlock + 1;
   uint16_t numOfSentChunks = 0;
 
-  if (!srcGetBlockContextes_[0].future.valid() || srcGetBlockContextes_[0].blockId != nextBlockId) {
+  if (!config_.enableSourceBlocksPreFetch || !srcGetBlockContextes_[0].future.valid() ||
+      (srcGetBlockContextes_[0].blockId != nextBlockId)) {
     LOG_INFO(getLogger(),
              "Call asyncGetBlocksConcurrent: source blocks prefetch disabled (first batch or retransmission): "
                  << KVLOG(srcGetBlockContextes_[0].blockId, nextBlockId));
     asyncGetBlocksConcurrent(nextBlockId, m->firstRequiredBlock, config_.maxNumberOfChunksInBatch);
   }
 
-  // fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
-  uint64_t preFetchBlockId =
-      (nextBlockId > config_.maxNumberOfChunksInBatch) ? (nextBlockId - config_.maxNumberOfChunksInBatch) : 0;
+  // Fetch blocks and send all chunks for the batch. Also, while looping start to pre-fetch next batch
+  // We pre-fetch only if feature enabled, and we are not in the last batch
+  // Setting preFetchBlockId to 0 disable pre-fetching on all later code.
+  uint64_t preFetchBlockId = 0;
+  if (config_.enableSourceBlocksPreFetch && (nextBlockId > config_.maxNumberOfChunksInBatch))
+    preFetchBlockId = nextBlockId - config_.maxNumberOfChunksInBatch;
   LOG_DEBUG(getLogger(),
             "Start sending batch: " << KVLOG(m->msgSeqNum,
                                              m->firstRequiredBlock,
