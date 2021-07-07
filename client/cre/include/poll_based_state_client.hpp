@@ -20,6 +20,7 @@
 #include "cre_interfaces.hpp"
 #include "bftclient/bft_client.h"
 #include "bftclient/seq_num_generator.h"
+#include "concord.cmf.hpp"
 
 namespace cre {
 
@@ -31,18 +32,18 @@ class PollBasedStateClient : public IStateClient {
                        const uint16_t id_);
   State getNextState(uint64_t lastKnownBlockId) const override;
   State getLatestClientUpdate(uint16_t clientId) const override;
-  bool updateStateOnChain(const State& state) override;
+  bool updateStateOnChain(const WriteState& state) override;
   ~PollBasedStateClient();
   void start(uint64_t lastKnownBlock) override;
   void stop() override;
 
  private:
   State getStateUpdate(uint64_t lastKnownBlockId) const;
-  concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest rreq,
+  concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest& rreq,
                                                                         const std::string& cid,
                                                                         uint64_t sn,
                                                                         bool read_request) const;
-  logging::Logger getLogger() {
+  logging::Logger getLogger() const {
     static logging::Logger logger_(logging::getLogger("cre.bft.PollBasedStateClient"));
     return logger_;
   }

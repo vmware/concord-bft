@@ -28,8 +28,8 @@ class TestStateClient : public IStateClient {
     return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
   State getLatestClientUpdate(uint16_t clientId) const override { return {0, {}}; }
-  bool updateStateOnChain(const State& state) override {
-    blocks_.push_back(state.blockid);
+  bool updateStateOnChain(const WriteState& state) override {
+    blocks_.push_back(blocks_.size() + 1);
     return true;
   }
   void start(uint64_t lastKnownBlock) override {}
@@ -40,7 +40,7 @@ class TestStateClient : public IStateClient {
 class TestExecuteHandler : public IStateHandler {
  public:
   bool validate(const State&) const override { return true; }
-  bool execute(const State& state, State&) override {
+  bool execute(const State& state, WriteState&) override {
     std::string newBid(state.data.begin(), state.data.end());
     lastKnownState = state.blockid;
     return true;
@@ -51,8 +51,8 @@ class TestExecuteHandler : public IStateHandler {
 class TestPersistOnChainHandler : public IStateHandler {
  public:
   bool validate(const State&) const override { return true; }
-  bool execute(const State& state, State& out) override {
-    out = {state.blockid, {}};
+  bool execute(const State& state, WriteState& out) override {
+    out = {state.data, nullptr};
     return true;
   }
 };
@@ -60,13 +60,13 @@ class TestPersistOnChainHandler : public IStateHandler {
 class TestInvalidHandler : public IStateHandler {
  public:
   bool validate(const State&) const override { return false; }
-  bool execute(const State& state, State&) override { return true; }
+  bool execute(const State& state, WriteState&) override { return true; }
 };
 
 class TestErroredHandler : public IStateHandler {
  public:
   bool validate(const State&) const override { return true; }
-  bool execute(const State& state, State&) override { return false; }
+  bool execute(const State& state, WriteState&) override { return false; }
 };
 Config c{0, 10};
 

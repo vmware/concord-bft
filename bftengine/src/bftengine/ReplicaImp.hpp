@@ -564,7 +564,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
 
-  std::unique_ptr<bftEngine::impl::RSASigner> rsaSigner_;
   std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
 };  // namespace bftEngine::impl
 

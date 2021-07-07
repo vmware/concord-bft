@@ -28,7 +28,7 @@
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
 #include "RequestHandler.h"
-#include "reconfiguration_add_block_handler.hpp"
+#include "reconfiguration_kvbc_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
 #include "throughput.hpp"
@@ -122,6 +122,9 @@ void Replica::createReplicaAndSyncState() {
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));

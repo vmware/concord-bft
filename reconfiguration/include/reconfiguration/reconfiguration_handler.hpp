@@ -19,18 +19,14 @@
 #include "OpenTracing.hpp"
 #include "Crypto.hpp"
 #include "openssl_crypto.hpp"
+#include "SigManager.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
   BftReconfigurationHandler();
-  bool verifySignature(const std::string& data, const std::string& signature) const override;
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
- protected:
-  logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
-    return logger_;
-  }
   std::unique_ptr<concord::util::openssl_utils::AsymmetricPublicKey> pub_key_ = nullptr;
   std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
 };
@@ -53,4 +49,11 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
 };
+
+class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+    return true;
+  }
+};
+
 }  // namespace concord::reconfiguration

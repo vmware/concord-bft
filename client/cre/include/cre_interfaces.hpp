@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <functional>
 
 namespace cre {
 struct State {
@@ -20,11 +21,16 @@ struct State {
   std::vector<uint8_t> data;
 };
 
+struct WriteState {
+  std::vector<uint8_t> data;
+  std::function<void()> callBack = nullptr;
+};
+
 class IStateClient {
  public:
   virtual State getNextState(uint64_t lastKnownBlockId) const = 0;
   virtual State getLatestClientUpdate(uint16_t clientId) const = 0;
-  virtual bool updateStateOnChain(const State& state) = 0;
+  virtual bool updateStateOnChain(const WriteState& state) = 0;
   virtual void start(uint64_t lastKnownBlock) = 0;
   virtual void stop() = 0;
   virtual ~IStateClient() = default;
@@ -33,7 +39,7 @@ class IStateClient {
 class IStateHandler {
  public:
   virtual bool validate(const State&) const = 0;
-  virtual bool execute(const State&, State&) = 0;
+  virtual bool execute(const State&, WriteState&) = 0;
   virtual ~IStateHandler() = default;
 };
 

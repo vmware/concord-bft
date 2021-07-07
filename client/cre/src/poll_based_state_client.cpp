@@ -12,7 +12,7 @@
 #include "poll_based_state_client.hpp"
 namespace cre {
 concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigurationRequest(
-    concord::messages::ReconfigurationRequest rreq, const string& cid, uint64_t sn, bool read_request) const {
+    concord::messages::ReconfigurationRequest& rreq, const string& cid, uint64_t sn, bool read_request) const {
   std::lock_guard<std::mutex> lock(bftclient_lock_);
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, rreq);
@@ -34,9 +34,6 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
   }
   concord::messages::ReconfigurationResponse rres;
   concord::messages::deserialize(rep.matched_data, rres);
-  if (!rres.success) {
-    throw std::runtime_error{"unable to have a quorum, please check the replicas liveness"};
-  }
   return rres;
 }
 State PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) const {
@@ -63,9 +60,14 @@ PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
 State PollBasedStateClient::getStateUpdate(uint64_t lastKnownBlockId) const {
   concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
   concord::messages::ReconfigurationRequest rreq;
+  rreq.sender = id_;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
   auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
+  if (!rres.success) {
+    LOG_WARN(getLogger(), "invalid response from replicas " << KVLOG(lastKnownBlockId));
+    return {0, {}};
+  }
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
@@ -118,18 +120,25 @@ void PollBasedStateClient::stop() {
 State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) const {
   concord::messages::ClientReconfigurationLastUpdate creq{id_};
   concord::messages::ReconfigurationRequest rreq;
+  rreq.sender = id_;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
   auto rres = sendReconfigurationRequest(rreq, "getLatestClientUpdate-" + std::to_string(sn), sn, true);
+  if (!rres.success) {
+    LOG_WARN(getLogger(), "invalid response from replicas " << KVLOG(clientId));
+    return {0, {}};
+  }
   concord::messages::ClientReconfigurationStateReply crep;
   concord::messages::deserialize(rres.additional_data, crep);
   return {crep.block_id, rres.additional_data};
 }
-bool PollBasedStateClient::updateStateOnChain(const State& state) {
+bool PollBasedStateClient::updateStateOnChain(const WriteState& state) {
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::deserialize(state.data, rreq);
+  rreq.sender = id_;
   auto sn = sn_gen_.unique();
   auto rres = sendReconfigurationRequest(rreq, "updateStateOnChain-" + std::to_string(sn), sn, false);
+  if (rres.success && state.callBack != nullptr) state.callBack();
   return rres.success;
 }
 }  // namespace cre
