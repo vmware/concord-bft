@@ -49,6 +49,7 @@
 #include <string>
 #include <type_traits>
 #include <bitset>
+#include <set>
 
 #define getName(var) #var
 
@@ -235,18 +236,21 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       histograms_.requestsQueueOfPrimarySize->record(requestsQueueOfPrimary.size());
       // TODO(GG): use config/parameter
       if (requestsQueueOfPrimary.size() >= maxPrimaryQueueSize) {
-        LOG_WARN(GL,
-                 "ClientRequestMsg dropped. Primary request queue is full. "
-                     << KVLOG(clientId, reqSeqNum, requestsQueueOfPrimary.size()));
-        delete m;
-        return;
+        removeDuplicatedRequestsFromRequestsQueue();
+        if (requestsQueueOfPrimary.size() >= maxPrimaryQueueSize) {
+          LOG_WARN(GL,
+                   "ClientRequestMsg dropped. Primary request queue is full. "
+                       << KVLOG(clientId, reqSeqNum, requestsQueueOfPrimary.size()));
+          delete m;
+          return;
+        }
       }
       if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
         LOG_DEBUG(CNSUS,
                   "Pushing to primary queue, request [" << reqSeqNum << "], client [" << clientId
                                                         << "], senderId=" << senderId);
         if (time_to_collect_batch_ == MinTime) time_to_collect_batch_ = getMonotonicTime();
-        requestsQueueOfPrimary.push(m);
+        requestsQueueOfPrimary.push_back(m);
         primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         primaryCombinedReqSize += m->size();
         tryToSendPrePrepareMsg(true);
@@ -351,9 +355,30 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   while (first != nullptr && !clientsManager->canBecomePending(first->clientProxyId(), first->requestSeqNum())) {
     primaryCombinedReqSize -= first->size();
     delete first;
-    requestsQueueOfPrimary.pop();
+    requestsQueueOfPrimary.pop_front();
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
+
+  LOG_INFO(GL, "" << KVLOG(requestsQueueOfPrimary.size()));
+
+  struct ClientsReqCmparator {
+    bool operator()(const ClientRequestMsg *const lhs, const ClientRequestMsg *const rhs) {
+      return (lhs->clientProxyId() < rhs->clientProxyId() || lhs->requestSeqNum() < rhs->requestSeqNum());
+    }
+  };
+
+  std::set<ClientRequestMsg *, ClientsReqCmparator> uniqueReqs;
+  for (ClientRequestMsg *c : requestsQueueOfPrimary) {
+    auto res = uniqueReqs.insert(c);
+    if (res.second == false) {
+      delete c;
+    }
+  }
+
+  requestsQueueOfPrimary.assign(uniqueReqs.begin(), uniqueReqs.end());
+
+  LOG_INFO(GL, "" << KVLOG(requestsQueueOfPrimary.size()));
+
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 }
 
@@ -443,7 +468,7 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
                   prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
   delete nextRequest;
-  requestsQueueOfPrimary.pop();
+  requestsQueueOfPrimary.pop_front();
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
   return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 }
@@ -2641,7 +2666,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   while (!requestsQueueOfPrimary.empty()) {
     auto msg = requestsQueueOfPrimary.front();
     primaryCombinedReqSize -= msg->size();
-    requestsQueueOfPrimary.pop();
+    requestsQueueOfPrimary.pop_front();
     delete msg;
   }
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());

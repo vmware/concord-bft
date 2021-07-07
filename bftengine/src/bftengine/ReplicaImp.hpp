@@ -104,8 +104,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SeqNum maxSeqNumTransferredFromPrevViews = 0;
 
   // requests queue (used by the primary)
-  std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
-  size_t primaryCombinedReqSize = 0;                     // only used by the primary
+  std::list<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
+  size_t primaryCombinedReqSize = 0;                    // only used by the primary
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
