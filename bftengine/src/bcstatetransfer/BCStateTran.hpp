@@ -493,18 +493,17 @@ class BCStateTran : public IStateTransfer {
   bool sourceFlag_;
   uint8_t sourceSnapshotCounter_;
 
- private:
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams
   ///////////////////////////////////////////////////////////////////////////
  private:
-  static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;          // 60 seconds
-  static constexpr uint64_t MAX_BLOCK_SIZE = 100ULL * 1024ULL * 1024ULL;                 // 100MB
-  static constexpr uint64_t MAX_BATCH_SIZE_BYTES = 10ULL * 1024ULL * 1024ULL * 1024ULL;  // 10GB
-  static constexpr uint64_t MAX_BATCH_SIZE_BLOCKS = 1000ULL;
-  static constexpr uint64_t MAX_HANDOFF_QUEUE_SIZE = 10000ULL;
-
   struct Recorders {
+    static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;          // 60 seconds
+    static constexpr uint64_t MAX_BLOCK_SIZE = 100ULL * 1024ULL * 1024ULL;                 // 100MB
+    static constexpr uint64_t MAX_BATCH_SIZE_BYTES = 10ULL * 1024ULL * 1024ULL * 1024ULL;  // 10GB
+    static constexpr uint64_t MAX_BATCH_SIZE_BLOCKS = 1000ULL;
+    static constexpr uint64_t MAX_HANDOFF_QUEUE_SIZE = 10000ULL;
+
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       // common component
