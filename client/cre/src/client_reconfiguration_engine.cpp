@@ -35,13 +35,13 @@ void ClientReconfigurationEngine::main() {
       // Execute the reconfiguration command
       for (auto& h : handlers_) {
         if (!h->validate(update)) {
-          invalid_handlers_.Get().Inc();
+          invalid_handlers_++;
           continue;
         }
         WriteState out_state;
         if (!h->execute(update, out_state)) {
           LOG_ERROR(getLogger(), "error while executing the handlers");
-          errored_handlers_.Get().Inc();
+          errored_handlers_++;
           continue;
         }
         if (!out_state.data.empty()) {
@@ -52,7 +52,7 @@ void ClientReconfigurationEngine::main() {
       last_known_block_.Get().Set(lastKnownBlock_);
     } catch (const std::exception& e) {
       LOG_ERROR(getLogger(), "error while executing the handlers " << e.what());
-      errored_handlers_.Get().Inc();
+      errored_handlers_++;
     }
     metrics_.UpdateAggregator();
   }

@@ -34,7 +34,8 @@ TEST(MetricsTest, UseValues) {
   ASSERT_EQ(5, h_gauge.Get().Get());
   h_status.Get().Set("backup");
   ASSERT_EQ("backup", h_status.Get().Get());
-  ASSERT_EQ(1, h_counter.Get().Inc());
+  ASSERT_EQ(0, h_counter++.Get());
+  ASSERT_EQ(1, h_counter.Get().Get());
 }
 
 TEST(MetricsTest, Aggregator) {
@@ -55,7 +56,7 @@ TEST(MetricsTest, Aggregator) {
 
   h_gauge.Get().Set(5);
   h_status.Get().Set("backup");
-  h_counter.Get().Inc();
+  h_counter++;
   // We haven't updated the aggregator yet, so it still has the old values
   ASSERT_EQ(3, aggregator->GetGauge(c.Name(), "connected_peers").Get());
   ASSERT_EQ("primary", aggregator->GetStatus(c.Name(), "state").Get());
