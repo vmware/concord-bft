@@ -361,14 +361,14 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
 
   LOG_INFO(GL, "" << KVLOG(requestsQueueOfPrimary.size()));
 
-  struct ClientsReqCmparator {
+  struct ClientsReqComparator {
     bool operator()(const ClientRequestMsg *const lhs, const ClientRequestMsg *const rhs) {
       return (lhs->clientProxyId() < rhs->clientProxyId() ||
               (lhs->clientProxyId() == rhs->clientProxyId() && lhs->requestSeqNum() < rhs->requestSeqNum()));
     }
   };
 
-  std::set<ClientRequestMsg *, ClientsReqCmparator> uniqueReqs;
+  std::set<ClientRequestMsg *, ClientsReqComparator> uniqueReqs;
   for (ClientRequestMsg *c : requestsQueueOfPrimary) {
     auto res = uniqueReqs.insert(c);
     if (res.second == false) {
