@@ -146,3 +146,7 @@ add_test(NAME skvbc_pyclient_tests COMMAND sh -c
 add_test(NAME skvbc_cron COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_cron python3 -m unittest test_skvbc_cron ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_test(NAME skvbc_byzantine_primary_preexecution_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_byzantine_primary_preexecution_tests python3 -m unittest test_skvbc_byzantine_primary_preexecution ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

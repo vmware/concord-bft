@@ -20,11 +20,14 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
+
 #include "Digest.hpp"
 #include "Crypto.hpp"
 
 namespace concord::kvbc::strategy {
 
+using bftEngine::impl::MessageBase;
+using bftEngine::impl::PrePrepareMsg;
 using bftEngine::ClientRequestMsgHeader;
 
 bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& msg) {
@@ -92,6 +95,11 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
     Digest d;
     DigestUtil::compute(sigOrDig.c_str(), sigOrDig.size(), reinterpret_cast<char*>(&d), sizeof(Digest));
     nmsg.digestOfRequests() = d;
+    LOG_INFO(logger_,
+             "Finally the PrePrepare Message with correlation id : "
+                 << nmsg.getCid() << " of seq num : " << nmsg.seqNumber() << " and number of requests : "
+                 << nmsg.numberOfRequests() << " in the view : " << nmsg.viewNumber() << " is changed.");
+
     return true;
   }
   return false;

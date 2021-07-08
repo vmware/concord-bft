@@ -11,20 +11,20 @@
 // LICENSE file.
 
 #pragma once
+
 #include "Logger.hpp"
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
 
 namespace concord::kvbc::strategy {
-class ShufflePrePrepareMsgStrategy : public IByzantineStrategy {
+class MangledPreProcessResultMsgStrategy : public IByzantineStrategy {
  public:
   std::string getStrategyName() override;
   uint16_t getMessageCode() override;
-  bool changeMessage(std::shared_ptr<bftEngine::impl::MessageBase> &msg) override;
-  explicit ShufflePrePrepareMsgStrategy(logging::Logger &logger) : logger_(logger) {}
-  virtual ~ShufflePrePrepareMsgStrategy() = default;
+  bool changeMessage(std::shared_ptr<bftEngine::impl::MessageBase>& msg) override;
+  explicit MangledPreProcessResultMsgStrategy(logging::Logger& logger) : logger_(logger) {}
+  virtual ~MangledPreProcessResultMsgStrategy() override {}
 
  private:
   logging::Logger logger_;
 };
-
-}  // end of namespace concord::kvbc::strategy
+}  // namespace concord::kvbc::strategy

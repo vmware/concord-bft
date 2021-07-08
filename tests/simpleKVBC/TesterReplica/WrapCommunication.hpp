@@ -15,7 +15,7 @@
 #include "communication/ICommunication.hpp"
 #include "communication/CommDefs.hpp"
 #include "communication/CommFactory.hpp"
-
+#include "Logger.hpp"
 #include "messages/MessageBase.hpp"
 
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
@@ -24,8 +24,10 @@ namespace bft::communication {
 
 class WrapCommunication : public ICommunication {
  public:
-  explicit WrapCommunication(std::unique_ptr<bft::communication::ICommunication> comm)
-      : communication_(std::move(comm)) {}
+  explicit WrapCommunication(std::unique_ptr<bft::communication::ICommunication> comm,
+                             bool separate_communication,
+                             logging::Logger logger)
+      : communication_(std::move(comm)), separate_communication_(separate_communication), logger_(logger) {}
 
   int getMaxMessageSize() override { return communication_->getMaxMessageSize(); }
   int Start() override { return communication_->Start(); }
@@ -35,24 +37,8 @@ class WrapCommunication : public ICommunication {
     return communication_->getCurrentConnectionStatus(node);
   }
 
-  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override {
-    std::shared_ptr<bftEngine::impl::MessageBase> newMsg;
-    if (changeMesssage(msg, newMsg) && newMsg) {
-      std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
-      return communication_->send(destNode, std::move(chgMsg));
-    }
-    return communication_->send(destNode, std::move(msg));
-  }
-  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override {
-    std::set<NodeNum> failedNodes;
-    for (auto dst : dests) {
-      std::vector<uint8_t> nMsg(msg);
-      if (send(dst, std::move(nMsg)) != 0) {
-        failedNodes.insert(dst);
-      }
-    }
-    return failedNodes;
-  }
+  int send(NodeNum destNode, std::vector<uint8_t> &&msg) override;
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t> &&msg) override;
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override {
     communication_->setReceiver(receiverNum, receiver);
@@ -72,7 +58,9 @@ class WrapCommunication : public ICommunication {
 
  private:
   std::unique_ptr<bft::communication::ICommunication> communication_;
+  bool separate_communication_;
   static std::map<uint16_t, std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> changeStrategy;
+  logging::Logger logger_;
 };
 
 }  // namespace bft::communication
