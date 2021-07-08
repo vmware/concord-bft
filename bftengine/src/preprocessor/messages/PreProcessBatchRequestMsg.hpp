@@ -16,7 +16,7 @@
 
 namespace preprocessor {
 
-typedef std::list<preprocessor::PreProcessRequestMsgSharedPtr> PreProcessReqMsgsList;
+using PreProcessReqMsgsList = std::list<preprocessor::PreProcessRequestMsgSharedPtr>;
 
 class PreProcessBatchRequestMsg : public MessageBase {
  public:
@@ -57,7 +57,11 @@ class PreProcessBatchRequestMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(uint16_t clientId, NodeIdType senderId, RequestType reqType, uint32_t numOfMessagesInBatch);
+  void setParams(uint16_t clientId,
+                 NodeIdType senderId,
+                 RequestType reqType,
+                 uint32_t numOfMessagesInBatch,
+                 uint32_t requestsSize);
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
@@ -65,6 +69,6 @@ class PreProcessBatchRequestMsg : public MessageBase {
   PreProcessReqMsgsList preProcessReqMsgsList_;
 };
 
-typedef std::shared_ptr<PreProcessBatchRequestMsg> PreProcessBatchReqMsgSharedPtr;
+using PreProcessBatchReqMsgSharedPtr = std::shared_ptr<PreProcessBatchRequestMsg>;
 
 }  // namespace preprocessor
