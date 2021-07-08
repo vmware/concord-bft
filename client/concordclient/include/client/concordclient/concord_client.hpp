@@ -66,18 +66,18 @@ struct TransportConfig {
 
 struct SubscribeServer {
   // If set to false then the fields below won't be evaluated
-  const bool use_tls;
+  bool use_tls;
   // Buffer with the server's PEM encoded certififactes
-  const std::string pem_certs;
+  std::string pem_certs;
 };
 
 struct SubscribeConfig {
   // Subscription ID
-  const std::string id;
+  std::string id;
   // Buffer with the client's PEM encoded certififacte chain
-  const std::string pem_cert_chain;
+  std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
-  const std::string pem_private_key;
+  std::string pem_private_key;
   // List of SubscribeServer endpoints
   std::vector<SubscribeServer> servers;
 };
