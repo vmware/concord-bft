@@ -191,9 +191,9 @@ class Replica : public IReplica,
   concord::util::ThreadPool blocksIOWorkersPool_;
 
  private:
-  static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;  // 60 seconds
-
   struct Recorders {
+    static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;  // 60 seconds
+
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       registrar.perf.registerComponent("iappstate", {get_block_duration});
