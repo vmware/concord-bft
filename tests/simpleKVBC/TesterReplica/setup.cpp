@@ -67,6 +67,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
     replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
+    replicaConfig.preExecutionResultAuthEnabled = false;
     const auto persistMode = PersistencyMode::RocksDB;
     std::string keysFilePrefix;
     std::string commConfigFile;
@@ -100,11 +101,12 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"operator-public-key-path", optional_argument, 0, 'o'},
                                           {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
                                           {"replica-byzantine-strategies", optional_argument, 0, 'g'},
+                                          {"pre-exec-result-auth", no_argument, 0, 'x'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:up:t:o:r:g:", longOptions, &optionIndex)) !=
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:up:t:o:r:g:x", longOptions, &optionIndex)) !=
            -1) {
       switch (o) {
         case 'i': {
@@ -196,6 +198,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'g': {
           byzantineStrategies = optarg;
+          break;
+        }
+        case 'x': {
+          replicaConfig.preExecutionResultAuthEnabled = true;
           break;
         }
         case '?': {

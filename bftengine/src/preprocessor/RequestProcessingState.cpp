@@ -103,7 +103,10 @@ void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSh
   if (preProcessReplyMsg->status() == STATUS_GOOD) {
     numOfReceivedReplies_++;
     const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
-    preProcessingResultHashes_[newHashArray]++;  // Count equal hashes
+    // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
+    // is sending correct preexecution result to the rest of the replicas.
+    preProcessingResultHashes_[newHashArray].emplace_back(preProcessReplyMsg->getResultHashSignature(),
+                                                          preProcessReplyMsg->senderId());
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
     SCOPED_MDC_CID(cid_);
@@ -122,8 +125,8 @@ auto RequestProcessingState::calculateMaxNbrOfEqualHashes(uint16_t &maxNumOfEqua
   auto itOfChosenHash = preProcessingResultHashes_.begin();
   // Calculate a maximum number of the same hashes received from non-primary replicas
   for (auto it = preProcessingResultHashes_.begin(); it != preProcessingResultHashes_.end(); it++) {
-    if (it->second > maxNumOfEqualHashes) {
-      maxNumOfEqualHashes = it->second;
+    if (it->second.size() > maxNumOfEqualHashes) {
+      maxNumOfEqualHashes = it->second.size();
       itOfChosenHash = it;
     }
   }
@@ -197,6 +200,12 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
 
 unique_ptr<MessageBase> RequestProcessingState::buildClientRequestMsg(bool emptyReq) {
   return clientPreProcessReqMsg_->convertToClientRequestMsg(emptyReq);
+}
+
+const std::list<PreProcessResultSignature> &RequestProcessingState::getPreProcessResultSignatures() {
+  const auto &r = preProcessingResultHashes_.find(primaryPreProcessResultHash_);
+  ConcordAssert(r != preProcessingResultHashes_.end());
+  return r->second;
 }
 
 }  // namespace preprocessor

@@ -219,6 +219,62 @@ TEST_F(ClientRequestMsgTestFixture, base_methods) {
   testMessageBaseMethods(msg, MsgCode::ClientRequest, senderId, spanContext);
 }
 
+TEST_F(ClientRequestMsgTestFixture, extra_buffer) {
+  // Inherit from ClientRequestMsg so that some protected methods can be exposed for the test
+  struct TestClientRequestMsg : ClientRequestMsg {
+    TestClientRequestMsg(NodeIdType sender,
+                         uint64_t flags,
+                         uint64_t reqSeqNum,
+                         uint32_t requestLength,
+                         const char* request,
+                         uint64_t reqTimeoutMilli,
+                         const std::string& cid,
+                         const concordUtils::SpanContext& spanContext,
+                         const char* requestSignature,
+                         uint32_t requestSignatureLen,
+                         const uint32_t extraBufSize)
+        : ClientRequestMsg(sender,
+                           flags,
+                           reqSeqNum,
+                           requestLength,
+                           request,
+                           reqTimeoutMilli,
+                           cid,
+                           spanContext,
+                           requestSignature,
+                           requestSignatureLen,
+                           extraBufSize) {}
+
+    std::pair<char*, uint32_t> getExtraBufPtr() { return ClientRequestMsg::getExtraBufPtr(); }
+  };
+
+  NodeIdType senderId = 1u;
+  uint64_t flags = 'F';
+  uint64_t reqSeqNum = 100u;
+  const char request[] = {"request body"};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  const size_t extraBufSize = 1024;
+  TestClientRequestMsg msg(senderId,
+                           flags,
+                           reqSeqNum,
+                           sizeof(request),
+                           request,
+                           requestTimeoutMilli,
+                           correlationId,
+                           concordUtils::SpanContext{spanContext},
+                           nullptr,
+                           0,
+                           extraBufSize);
+  EXPECT_NO_THROW(msg.validate(replicaInfo));
+  testMessageBaseMethods<ClientRequestMsg>(msg, MsgCode::ClientRequest, senderId, spanContext);
+
+  size_t mainMsgSize = sizeof(ClientRequestMsgHeader) + sizeof(request) + correlationId.size() + spanContext.size();
+  ASSERT_EQ(msg.size(), mainMsgSize + extraBufSize);
+  ASSERT_EQ(msg.getExtraBufPtr().first, msg.body() + mainMsgSize);
+}
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
