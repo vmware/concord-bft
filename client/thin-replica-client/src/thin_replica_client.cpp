@@ -516,13 +516,13 @@ void ThinReplicaClient::receiveUpdates() {
     }
     TraceContexts::InjectSpan(span, *update);
 
-    if (metrics_.read_timeouts_per_update > 0 || metrics_.read_failures_per_update > 0 ||
-        metrics_.read_ignored_per_update > 0) {
+    if (metrics_.read_timeouts_per_update.Get().Get() > 0 || metrics_.read_failures_per_update.Get().Get() > 0 ||
+        metrics_.read_ignored_per_update.Get().Get() > 0) {
       LOG4CPLUS_WARN(logger_,
-                     metrics_.read_timeouts_per_update << " timeouts, " << metrics_.read_failures_per_update
-                                                       << " failures, and " << metrics_.read_ignored_per_update
-                                                       << " ignored while retrieving block id "
-                                                       << update_in.block_id());
+                     metrics_.read_timeouts_per_update.Get().Get()
+                         << " timeouts, " << metrics_.read_failures_per_update.Get().Get() << " failures, and "
+                         << metrics_.read_ignored_per_update.Get().Get() << " ignored while retrieving block id "
+                         << update_in.block_id());
     }
 
     latest_verified_block_id_ = update_in.block_id();
@@ -551,7 +551,7 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<Update> update,
                                                 const std::chrono::steady_clock::time_point& start,
                                                 const uint64_t& latest_verified_block_id) {
   // update current queue size metric before pushing to the update_queue
-  metrics_.current_queue_size = config_->update_queue->Size();
+  metrics_.current_queue_size.Get().Set(config_->update_queue->Size());
 
   // push update to the update queue for consumption by the application using
   // TRC
@@ -559,32 +559,20 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<Update> update,
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-  metrics_.update_dur_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  metrics_.update_dur_ms.Get().Set((uint64_t)(duration.count()));
 
-  metrics_.last_verified_block_id = latest_verified_block_id;
+  metrics_.last_verified_block_id.Get().Set(latest_verified_block_id);
 
-  // Update external metrics before resetting the metrics
-  if (onSetMetricsCallbackFunc) {
-    onSetMetricsCallbackFunc(metrics_);
-  } else {
-    LOG4CPLUS_WARN(logger_,
-                   "onSetMetricsCallbackFunc is empty. It must point to a valid "
-                   "function "
-                   "to expose and update TRC metrics to the user of TRC library.");
-  }
   // Reset read timeout, failure and ignored metrics before the next update
   resetMetricsBeforeNextUpdate();
 }
 
-void ThinReplicaClient::setMetricsCallback(
-    const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics) {
-  onSetMetricsCallbackFunc = exposeAndSetMetrics;
-}
-
 void ThinReplicaClient::resetMetricsBeforeNextUpdate() {
-  metrics_.read_timeouts_per_update = 0;
-  metrics_.read_failures_per_update = 0;
-  metrics_.read_ignored_per_update = 0;
+  metrics_.updateAggregator();
+  metrics_.read_timeouts_per_update.Get().Set(0);
+  metrics_.read_failures_per_update.Get().Set(0);
+  metrics_.read_ignored_per_update.Get().Set(0);
 }
 
 ThinReplicaClient::~ThinReplicaClient() {
