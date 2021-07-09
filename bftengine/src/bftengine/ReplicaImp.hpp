@@ -39,6 +39,7 @@
 #include "secrets_manager_impl.h"
 #include "SigManager.hpp"
 #include "TimeServiceManager.hpp"
+#include "FakeClock.hpp"
 
 #include <ccron/ticks_generator.hpp>
 
@@ -564,7 +565,12 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   ReplicaStatusHandlers replStatusHandlers_;
 
   std::unique_ptr<bftEngine::impl::RSASigner> rsaSigner_;
+
+#ifdef USE_FAKE_CLOCK_IN_TIME_SERVICE
+  std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
+#else
   std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
+#endif
 };  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl

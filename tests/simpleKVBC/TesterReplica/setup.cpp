@@ -96,7 +96,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:r:w:", longOptions, &optionIndex)) !=
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:c:b:m:q:z:y:u:p:t:o:r:w:f:", longOptions, &optionIndex)) !=
            -1) {
       switch (o) {
         case 'i': {
@@ -184,6 +184,11 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'r': {
           cronEntryNumberOfExecutes = concord::util::to<std::uint32_t>(optarg);
+          break;
+        }
+        case 'f': {
+          bool time_service_option = concord::util::to<bool>(std::string(optarg));
+          replicaConfig.timeServiceEnabled = time_service_option;
           break;
         }
         case '?': {

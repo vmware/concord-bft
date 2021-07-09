@@ -39,6 +39,7 @@ endif()
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TXN_SIGNING_ENABLED=${TXN_SIGNING_ENABLED}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TIME_SERVICE_ENABLED=TRUE")
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} USE_FAKE_CLOCK_IN_TIME_SERVICE=${USE_FAKE_CLOCK_IN_TIME_SERVICE}")
 
 if (OMIT_TEST_OUTPUT)
     set(TEST_OUTPUT "2>&1 > /dev/null")
@@ -142,3 +143,9 @@ add_test(NAME skvbc_pyclient_tests COMMAND sh -c
 add_test(NAME skvbc_cron COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_cron python3 -m unittest test_skvbc_cron ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+if (USE_FAKE_CLOCK_IN_TIME_SERVICE)        
+  add_test(NAME skvbc_time_service COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_time_service python3 -m unittest test_skvbc_time_service ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
