@@ -28,16 +28,18 @@ template <class T>
 class BasicGauge;
 template <class T>
 class BasicCounter;
+template <class T>
+class BasicStatus;
 
 using Gauge = BasicGauge<uint64_t>;
 using Counter = BasicCounter<uint64_t>;
 using AtomicGauge = BasicGauge<std::atomic_uint64_t>;
 using AtomicCounter = BasicCounter<std::atomic_uint64_t>;
+using Status = BasicStatus<std::string>;
 
 // Forward declarations since Aggregator requires these types.
 class Component;
 class Values;
-class Status;
 typedef struct metric_ Metric;
 
 // An aggregator maintains metrics for multiple components. Components
@@ -76,16 +78,19 @@ class Aggregator {
 template <class T>
 class BasicGauge {
  public:
+  typedef T type;
   explicit BasicGauge(const uint64_t val) : val_(val) {}
   BasicGauge(const BasicGauge& gauge) { val_ = (unsigned long)gauge.val_; }
   BasicGauge& operator=(const BasicGauge& gauge) {
     val_ = (unsigned long)gauge.val_;
     return *this;
   }
-  void Inc() { ++val_; }
-  void Dec() { --val_; }
+  // postfix
+  BasicGauge operator++(int) { return BasicGauge(val_++); }
+  // postfix
+  BasicGauge operator--(int) { return BasicGauge(val_--); }
   void Set(const uint64_t val) { val_ = val; }
-  uint64_t Get() { return val_; }
+  T& Get() { return val_; }
 
  private:
   T val_;
@@ -94,17 +99,21 @@ class BasicGauge {
 template <class T>
 class BasicCounter {
  public:
+  typedef T type;
   explicit BasicCounter(const uint64_t val) : val_(val) {}
   BasicCounter(const BasicCounter& counter) { val_ = (uint64_t)counter.val_; }
   BasicCounter& operator=(const BasicCounter& counter) {
     val_ = (uint64_t)counter.val_;
     return *this;
   }
-  uint64_t Inc(uint64_t val = 1) {
-    val_ += val;
-    return val_;
+  // postfix
+  BasicCounter operator++(int) { return BasicCounter(val_++); }
+  BasicCounter& operator+=(const T& rhs) {
+    val_ += rhs;
+    return *this;
   }
-  uint64_t Get() { return val_; }
+
+  T& Get() { return val_; }
 
  private:
   T val_;
@@ -113,15 +122,17 @@ class BasicCounter {
 // Status is a text based representation of a value. It's used for things that
 // don't have strictly numeric representations, like the current state of the
 // BFT or the last message received.
-class Status {
+template <class T>
+class BasicStatus {
  public:
-  explicit Status(const std::string& val) : val_(val) {}
+  typedef T type;
+  explicit BasicStatus(const T& val) : val_(val) {}
 
-  void Set(const std::string& val) { val_ = val; }
-  std::string Get() { return val_; }
+  void Set(const T& val) { val_ = val; }
+  T& Get() { return val_; }
 
  private:
-  std::string val_;
+  T val_;
 };
 
 // A generic struct that may represent a counter or a gauge
@@ -180,6 +191,14 @@ class Component {
    public:
     Handle(std::vector<T>& values, size_t index) : values_(values), index_(index) {}
     T& Get() { return values_[index_]; }
+    // postfix
+    T operator++(int) { return Get()++; }
+    // postfix
+    T operator--(int) { return Get()--; }
+    T& operator+=(const typename T::type& rhs) {
+      Get() += rhs;
+      return Get();
+    }
 
    private:
     std::vector<T>& values_;

@@ -119,7 +119,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
       histograms_->transaction_size->record(request.size());
     }
 
-    metrics_.transactionSigning.Get().Inc();
+    metrics_.transactionSigning++;
     if ((metrics_.transactionSigning.Get().Get() % count_between_snapshots) == 0) {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       auto& name = histograms_->getComponenetName();
@@ -227,7 +227,7 @@ Reply Client::send(const MatchConfig& match_config,
       reply_certificates_.clear();
       return reply.value();
     }
-    metrics_.retransmissions.Get().Inc();
+    metrics_.retransmissions++;
   }
 
   expected_commit_time_ms_.add(request_config.timeout.count());
@@ -255,7 +255,7 @@ SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, con
     }
 
     wait(replies);
-    metrics_.retransmissions.Get().Inc();
+    metrics_.retransmissions++;
   }
   reply_certificates_.clear();
   if (replies.size() == pending_requests_.size()) {
@@ -278,7 +278,7 @@ std::optional<Reply> Client::wait() {
     auto req = reply_certificates_.begin();
     if (req->second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
       req->second.clearReplies();
-      metrics_.repliesCleared.Get().Inc();
+      metrics_.repliesCleared++;
     }
     primary_ = std::nullopt;
     return std::nullopt;

@@ -79,13 +79,13 @@ void ReadOnlyReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReadOnlyReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
-  ro_metrics_.received_invalid_msg_.Get().Inc();
+  ro_metrics_.received_invalid_msg_++;
   LOG_WARN(GL,
            "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
                    << " type=" << msg->type() << " reason: " << reason);
 }
 void ReadOnlyReplica::sendAskForCheckpointMsg() {
-  ro_metrics_.sent_ask_for_checkpoint_msg_.Get().Inc();
+  ro_metrics_.sent_ask_for_checkpoint_msg_++;
   LOG_INFO(GL, "sending AskForCheckpointMsg");
   auto msg = std::make_unique<AskForCheckpointMsg>(config_.replicaId);
   for (auto id : repsInfo->idsOfPeerReplicas()) send(msg.get(), id);
@@ -97,7 +97,7 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     delete msg;
     return;
   }
-  ro_metrics_.received_checkpoint_msg_.Get().Inc();
+  ro_metrics_.received_checkpoint_msg_++;
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();

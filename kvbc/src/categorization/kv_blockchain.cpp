@@ -538,7 +538,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             storage::rocksdb::NativeWriteBatch& batch) {
   auto num_of_deletes = std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
                             .deleteGenesisBlock(block_id, updates_info, batch);
-  immutable_num_of_deleted_keys_.Get().Inc(num_of_deletes);
+  immutable_num_of_deleted_keys_ += num_of_deletes;
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
@@ -547,7 +547,7 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             storage::rocksdb::NativeWriteBatch& batch) {
   auto num_of_deletes = std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
                             .deleteGenesisBlock(block_id, updates_info, batch);
-  versioned_num_of_deletes_keys_.Get().Inc(num_of_deletes);
+  versioned_num_of_deletes_keys_ += num_of_deletes;
 }
 
 void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
@@ -556,14 +556,14 @@ void KeyValueBlockchain::deleteGenesisBlock(BlockId block_id,
                                             storage::rocksdb::NativeWriteBatch& batch) {
   auto num_of_deletes = std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
                             .deleteGenesisBlock(block_id, updates_info, batch);
-  merkle_num_of_deleted_keys_.Get().Inc(num_of_deletes);
+  merkle_num_of_deleted_keys_ += num_of_deletes;
 }
 
 void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const ImmutableOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  immutable_num_of_deleted_keys_.Get().Inc(updates_info.tagged_keys.size());
+  immutable_num_of_deleted_keys_ += updates_info.tagged_keys.size();
   std::get<detail::ImmutableKeyValueCategory>(getCategoryRef(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
@@ -572,7 +572,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const VersionedOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  versioned_num_of_deletes_keys_.Get().Inc(updates_info.keys.size());
+  versioned_num_of_deletes_keys_ += updates_info.keys.size();
   std::get<detail::VersionedKeyValueCategory>(getCategoryRef(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
@@ -581,7 +581,7 @@ void KeyValueBlockchain::deleteLastReachableBlock(BlockId block_id,
                                                   const std::string& category_id,
                                                   const BlockMerkleOutput& updates_info,
                                                   storage::rocksdb::NativeWriteBatch& batch) {
-  merkle_num_of_deleted_keys_.Get().Inc(updates_info.keys.size());
+  merkle_num_of_deleted_keys_ += updates_info.keys.size();
   std::get<detail::BlockMerkleCategory>(getCategoryRef(category_id))
       .deleteLastReachableBlock(block_id, updates_info, batch);
 }
@@ -632,7 +632,7 @@ BlockMerkleOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
     throw std::runtime_error{"Category does not exist = " + category_id};
   }
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the BlockMerkleCategory");
-  merkle_num_of_keys_.Get().Inc(updates.kv.size());
+  merkle_num_of_keys_ += updates.kv.size();
   return std::get<detail::BlockMerkleCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }
 
@@ -644,7 +644,7 @@ VersionedOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   if (itr == categories_.end()) {
     throw std::runtime_error{"Category does not exist = " + category_id};
   }
-  versioned_num_of_keys_.Get().Inc(updates.kv.size());
+  versioned_num_of_keys_ += updates.kv.size();
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the VersionedKeyValueCategory");
   return std::get<detail::VersionedKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }
@@ -657,7 +657,7 @@ ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
   if (itr == categories_.end()) {
     throw std::runtime_error{"Category does not exist = " + category_id};
   }
-  immutable_num_of_keys_.Get().Inc(updates.kv.size());
+  immutable_num_of_keys_ += updates.kv.size();
   LOG_DEBUG(CAT_BLOCK_LOG, "Adding updates of block [" << block_id << "] to the ImmutableKeyValueCategory");
   return std::get<detail::ImmutableKeyValueCategory>(itr->second).add(block_id, std::move(updates), write_batch);
 }

@@ -343,8 +343,8 @@ void PreProcessor::resendPreProcessRequest(const RequestProcessingStateUniquePtr
 void PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry) {
   const auto &reqStatePtr = reqStateEntry->reqProcessingStatePtr;
   if (reqStatePtr->isReqTimedOut()) {
-    preProcessorMetrics_.preProcessRequestTimedOut.Get().Inc();
-    preProcessorMetrics_.preProcPossiblePrimaryFaultDetected.Get().Inc();
+    preProcessorMetrics_.preProcessRequestTimedOut++;
+    preProcessorMetrics_.preProcPossiblePrimaryFaultDetected++;
     // The request could expire do to failed primary replica, let ReplicaImp address that
     const auto &reqSeqNum = reqStatePtr->getReqSeqNum();
     const auto &clientId = reqStatePtr->getClientId();
@@ -396,7 +396,7 @@ bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUni
     LOG_ERROR(logger(),
               "Batching functionality is disabled => reject message"
                   << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
-    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    preProcessorMetrics_.preProcReqIgnored++;
     return false;
   }
   const auto &clientRequestMsgs = clientBatchReqMsg->getClientPreProcessRequestMsgs();
@@ -404,10 +404,10 @@ bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUni
   for (const auto &msg : clientRequestMsgs) {
     if (!checkClientMsgCorrectness(
             msg->requestSeqNum(), msg->getCid(), false, msg->clientProxyId(), clientBatchReqMsg->senderId())) {
-      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+      preProcessorMetrics_.preProcReqIgnored++;
       valid = false;
     } else if (!validateMessage(msg.get())) {
-      preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+      preProcessorMetrics_.preProcReqInvalid++;
       valid = false;
     }
   }
@@ -447,7 +447,7 @@ void PreProcessor::cancelPreProcessingOnNonPrimary(const ClientPreProcessReqMsgU
   LOG_DEBUG(logger(),
             "Sending PreProcessRequestMsg with REQ_TYPE_CANCEL" << KVLOG(clientId, batchCid, reqSeqNum, destId));
   sendMsg(preProcessReqMsg->body(), destId, preProcessReqMsg->type(), preProcessReqMsg->size());
-  preProcessorMetrics_.preProcReqRejected.Get().Inc();
+  preProcessorMetrics_.preProcReqRejected++;
 }
 
 void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
@@ -478,7 +478,7 @@ void PreProcessor::sendRejectPreProcessReplyMsg(NodeIdType clientId,
 template <>
 void PreProcessor::onMessage<ClientPreProcessRequestMsg>(ClientPreProcessRequestMsg *msg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientPreProcessRequestMsg);
-  preProcessorMetrics_.preProcReqReceived.Get().Inc();
+  preProcessorMetrics_.preProcReqReceived++;
   ClientPreProcessReqMsgUniquePtr clientMsg(msg);
   const string &cid = clientMsg->getCid();
   const NodeIdType &senderId = clientMsg->senderId();
@@ -503,7 +503,7 @@ bool PreProcessor::isRequestPreProcessingRightNow(const RequestStateSharedPtr &r
     LOG_DEBUG(logger(),
               KVLOG(reqSeqNum, clientId, senderId)
                   << " is ignored:" << KVLOG(ongoingReqSeqNum, ongoingCid) << " is in progress");
-    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    preProcessorMetrics_.preProcReqIgnored++;
     return true;
   }
   return false;
@@ -518,7 +518,7 @@ bool PreProcessor::isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
     LOG_DEBUG(logger(),
               "The specified request is in consensus or being post-executed right now - ignore"
                   << KVLOG(cid, reqSeqNum, senderId, clientId));
-    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    preProcessorMetrics_.preProcReqIgnored++;
     return true;
   }
   return false;
@@ -536,7 +536,7 @@ bool PreProcessor::isRequestPreProcessedBefore(const RequestStateSharedPtr &reqE
         LOG_DEBUG(logger(),
                   "The request gets ignored as the newer request from this client has already been pre-processed"
                       << KVLOG(cid, reqSeqNum, clientId, oldReqState->getReqCid(), oldReqState->getReqSeqNum()));
-        preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+        preProcessorMetrics_.preProcReqIgnored++;
         return true;
       }
     }
@@ -598,7 +598,8 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   LOG_DEBUG(logger(),
             "ClientPreProcessRequestMsg" << KVLOG(batchCid, reqSeqNum, clientId, senderId)
                                          << " is ignored because request is old/duplicated");
-  preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+
+  preProcessorMetrics_.preProcReqIgnored++;
   return false;
 }
 
@@ -636,7 +637,7 @@ bool PreProcessor::isBatchAlreadyRegistered(const string &batchCid,
 
 template <>
 void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) {
-  preProcessorMetrics_.preProcBatchReqReceived.Get().Inc();
+  preProcessorMetrics_.preProcBatchReqReceived++;
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.onClientBatchPreProcessRequestMsg);
   ClientBatchRequestMsgUniquePtr clientBatchMsg(msg);
   const auto clientId = clientBatchMsg->clientId();
@@ -645,7 +646,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   const auto batchSize = clientBatchMsg->numOfMessagesInBatch();
   LOG_DEBUG(logger(), "Received ClientBatchPreProcessRequestMsg" << KVLOG(batchCid, senderId, clientId, batchSize));
   if (!checkClientBatchMsgCorrectness(clientBatchMsg)) {
-    preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+    preProcessorMetrics_.preProcReqIgnored++;
     return;
   }
   ClientMsgsList &clientMsgs = clientBatchMsg->getClientPreProcessRequestMsgs();
@@ -666,7 +667,7 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
     LOG_DEBUG(logger(),
               "Start handling single message from the batch:" << KVLOG(
                   batchCid, senderId, clientId, requestSeqNum, cid, requestTimeoutMilli));
-    preProcessorMetrics_.preProcReqReceived.Get().Inc();
+    preProcessorMetrics_.preProcReqReceived++;
     // senderId should be taken from ClientBatchRequestMsg as it does not get re-set in batched client messages
     PreProcessRequestMsgSharedPtr preProcessRequestMsg;
     const bool msgPassedChecks = handleSingleClientRequestMessage(
@@ -726,10 +727,10 @@ bool PreProcessor::checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchRe
   for (const auto &msg : preProcessRequestMsgs) {
     if (!checkPreProcessReqPrerequisites(
             msg->reqSeqNum(), msg->getCid(), batchReq->senderId(), msg->clientId(), msg->reqOffsetInBatch())) {
-      preProcessorMetrics_.preProcReqIgnored.Get().Inc();
+      preProcessorMetrics_.preProcReqIgnored++;
       valid = false;
     } else if (!validateMessage(msg.get())) {
-      preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+      preProcessorMetrics_.preProcReqInvalid++;
       valid = false;
     }
   }
@@ -803,7 +804,7 @@ void PreProcessor::handleSinglePreProcessRequestMsg(PreProcessRequestMsgSharedPt
         registerRequest(batchCid, batchSize, ClientPreProcessReqMsgUniquePtr(), preProcessReqMsg, reqOffsetInBatch);
   }
   if (registerSucceeded) {
-    preProcessorMetrics_.preProcInFlyRequestsNum.Get().Inc();  // Increase the metric on non-primary replica
+    preProcessorMetrics_.preProcInFlyRequestsNum++;  // Increase the metric on non-primary replica
     auto totalPreExecDurationRecorder = TimeRecorder(*totalPreExecDurationRecorder_.get());
     // Pre-process the request, calculate a hash of the result and send a reply message back
     launchAsyncReqPreProcessingJob(preProcessReqMsg, false, false, std::move(totalPreExecDurationRecorder));
@@ -956,7 +957,7 @@ void PreProcessor::msgProcessingLoop() {
             LOG_ERROR(logger(), "Unknown message" << KVLOG(msg->type()));
         }
       } else {
-        preProcessorMetrics_.preProcReqInvalid.Get().Inc();
+        preProcessorMetrics_.preProcReqInvalid++;
         delete msg;
       }
     }
@@ -1016,7 +1017,7 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
 }
 
 void PreProcessor::cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch) {
-  preProcessorMetrics_.preProcConsensusNotReached.Get().Inc();
+  preProcessorMetrics_.preProcConsensusNotReached++;
   SeqNum reqSeqNum = 0;
   const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
   {
@@ -1048,6 +1049,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
       // Copy of the message body is unavoidable here, as we need to create a new message type which lifetime is
       // controlled by the replica while all PreProcessReply messages get released here.
+
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
         auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
         auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
@@ -1081,8 +1083,9 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
                       << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
       }
 
-      preProcessorMetrics_.preProcReqCompleted.Get().Inc();
+      preProcessorMetrics_.preProcReqCompleted++;
       incomingMsgsStorage_->pushExternalMsg(move(preProcessMsg));
+
       releaseClientPreProcessRequest(reqEntry, COMPLETE);
       if (batchedPreProcessEnabled_) batchEntry->increaseNumOfCompletedReqs();
       LOG_INFO(logger(), "Pre-processing completed for" << KVLOG(batchCid, cid, reqSeqNum, clientId, reqOffsetInBatch));
@@ -1200,7 +1203,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
                       << KVLOG(reqSeqNum, clientId, reqOffsetInBatch));
       givenReq.reset();
     }
-    preProcessorMetrics_.preProcInFlyRequestsNum.Get().Dec();
+    preProcessorMetrics_.preProcInFlyRequestsNum--;
   }
 }
 
@@ -1221,7 +1224,7 @@ void PreProcessor::countRetriedRequests(const ClientPreProcessReqMsgUniquePtr &c
                                                             clientReqMsg->requestSeqNum(),
                                                             clientReqMsg->clientProxyId(),
                                                             clientReqMsg->senderId()));
-    preProcessorMetrics_.preProcReqRetried.Get().Inc();
+    preProcessorMetrics_.preProcReqRetried++;
   }
 }
 

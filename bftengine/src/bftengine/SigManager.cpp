@@ -201,7 +201,7 @@ bool SigManager::verifySig(
 
   if (pos == verifiers_.end()) {
     LOG_ERROR(GL, "Unrecognized pid " << pid);
-    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_.Get().Inc();
+    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
     metrics_component_.UpdateAggregator();
     updateAggregatorCounter = 0;
     return false;
@@ -217,15 +217,15 @@ bool SigManager::verifySig(
   if (!result) {  // failure
     updateAggregatorCounter = 0;
     if (idOfExternalClient)
-      metrics_.externalClientReqSigVerificationFailed_.Get().Inc();
+      metrics_.externalClientReqSigVerificationFailed_++;
     else
-      metrics_.replicaSigVerificationFailed_.Get().Inc();
+      metrics_.replicaSigVerificationFailed_++;
     metrics_component_.UpdateAggregator();
   } else {  // success
     if (idOfExternalClient)
-      metrics_.externalClientReqSigVerified_.Get().Inc();
+      metrics_.externalClientReqSigVerified_++;
     else
-      metrics_.replicaSigVerified_.Get().Inc();
+      metrics_.replicaSigVerified_++;
     if ((++updateAggregatorCounter % updateMetricsAggregatorThresh) == 0) {
       metrics_component_.UpdateAggregator();
     }
