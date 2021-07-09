@@ -85,6 +85,13 @@ Msg ComposedOneof 18 {
     list oneof {Transaction NewViewElement} x
 }
 
+# Note empty messages are supported. An example of a use for an empty message
+# would be a request that has no parameters that vary between requests, such as
+# a request for the latest entire block committed to a blockchain, or a request
+# for the health status of a particular service.
+Msg EmptyRequest 19 {
+}
+
 ######
 # Uncomment each message to induce various parse errors
 ######

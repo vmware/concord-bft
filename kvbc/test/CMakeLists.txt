@@ -148,6 +148,7 @@ target_link_libraries(sparse_merkle_db_editor_test PUBLIC
 add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
 add_test(kv_blockchain_db_editor_test kv_blockchain_db_editor_test)
 
+target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/)
 target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     GTest::Main
     GTest::GTest
@@ -155,6 +156,7 @@ target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     util
     kvbc
     stdc++fs
+    execution_data_cmf
 )
 endif(BUILD_ROCKSDB_STORAGE)
 

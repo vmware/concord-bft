@@ -184,7 +184,7 @@ void SimpleClientImp::onMessageFromReplica(MessageBase* msg) {
 }
 
 void SimpleClientImp::onRetransmission(bool isBatch, const std::string& cid) {
-  client_metrics_.retransmissions.Get().Inc();
+  client_metrics_.retransmissions++;
   sendPendingRequest(isBatch, cid);
 }
 

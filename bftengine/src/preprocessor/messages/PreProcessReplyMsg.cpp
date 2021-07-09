@@ -87,6 +87,15 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }  // namespace preprocessor
 
+std::vector<char> PreProcessReplyMsg::getResultHashSignature() const {
+  const uint64_t headerSize = sizeof(Header);
+  const auto& msgHeader = *msgBody();
+  auto sigManager = SigManager::instance();
+  uint16_t sigLen = sigManager->getSigLength(msgHeader.senderId);
+
+  return std::vector<char>((char*)msgBody() + headerSize, (char*)msgBody() + headerSize + sigLen);
+}
+
 void PreProcessReplyMsg::setParams(NodeIdType senderId,
                                    uint16_t clientId,
                                    uint16_t reqOffsetInBatch,

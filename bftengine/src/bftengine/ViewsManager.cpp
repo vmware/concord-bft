@@ -1061,11 +1061,11 @@ void ViewsManager::addComplaintsToStatusMessage(ReplicaStatusMsg& replicaStatusM
   }
 }
 
-ViewChangeMsg* ViewsManager::PrepareViewChangeMsg(ViewNum nextView,
-                                                  const bool wasInPrevViewNumber,
-                                                  SeqNum lastStableSeqNum,
-                                                  SeqNum lastExecutedSeqNum,
-                                                  const std::vector<PrevViewInfo>* const prevViewInfo) {
+ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextView,
+                                                                  const bool wasInPrevViewNumber,
+                                                                  SeqNum lastStableSeqNum,
+                                                                  SeqNum lastExecutedSeqNum,
+                                                                  const std::vector<PrevViewInfo>* const prevViewInfo) {
   ConcordAssertLT(myCurrentView, nextView);
 
   ViewChangeMsg* pVC = nullptr;
@@ -1096,6 +1096,47 @@ ViewChangeMsg* ViewsManager::PrepareViewChangeMsg(ViewNum nextView,
   pVC->finalizeMessage();
 
   return pVC;
+}
+
+void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
+                                                          const std::function<bool(MessageBase*)>& msgValidator) {
+  ViewChangeMsg::ComplaintsIterator iter(msg);
+  char* complaint = nullptr;
+  MsgSize size = 0;
+  int numberOfProcessedComplaints = 0;
+
+  while (msg->newView() > getCurrentView() && !(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) &&
+         iter.getAndGoToNext(complaint, size) && numberOfProcessedComplaints <= F + 1) {
+    numberOfProcessedComplaints++;
+
+    auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header*)complaint, size, true);
+    auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
+    LOG_INFO(VC_LOG,
+             "Got complaint in ViewChangeMsg" << KVLOG(getCurrentView(),
+                                                       msg->senderId(),
+                                                       msg->newView(),
+                                                       msg->idOfGeneratedReplica(),
+                                                       complaintMsg->senderId(),
+                                                       complaintMsg->viewNumber(),
+                                                       complaintMsg->idOfGeneratedReplica()));
+    if (msg->newView() == getCurrentView() + 1) {
+      if (getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) != nullptr) {
+        LOG_INFO(VC_LOG,
+                 "Already have a valid complaint from Replica " << complaintMsg->idOfGeneratedReplica() << " for View "
+                                                                << complaintMsg->viewNumber());
+      } else if (complaintMsg->viewNumber() == getCurrentView() && msgValidator(complaintMsg.get())) {
+        storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(complaintMsg.release()));
+      } else {
+        LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for current View.");
+      }
+    } else {
+      if (complaintMsg->viewNumber() + 1 == msg->newView() && msgValidator(complaintMsg.get())) {
+        storeComplaintForHigherView(std::move(complaintMsg));
+      } else {
+        LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for a higher View.");
+      }
+    }
+  }
 }
 
 bool ViewsManager::tryToJumpToHigherViewAndMoveComplaintsOnQuorum(const ViewChangeMsg* const msg) {

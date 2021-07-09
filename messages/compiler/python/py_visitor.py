@@ -76,6 +76,9 @@ class PyVisitor(Visitor):
         # The current field name being processed
         self.field_name = ''
 
+        # Whether the current message has any fields
+        self.has_any_fields = False
+
         # Messages are represented as Classes in python
         self.msg_class = ''
 
@@ -115,6 +118,8 @@ class PyVisitor(Visitor):
         self.eq = eq_start()
 
     def msg_end(self):
+        if (not self.has_any_fields):
+            self.msg_class += '         pass\n'
         self.serialize += '        return serializer.buf'
         self.deserialize += '        return obj, deserializer.pos\n'
         self.eq += '        return True\n'
@@ -127,6 +132,7 @@ class PyVisitor(Visitor):
 
     def field_start(self, name, type):
         self.field_name = name
+        self.has_any_fields = True
         self.msg_class += f'         self.{name} = None\n'
 
     def field_end(self):

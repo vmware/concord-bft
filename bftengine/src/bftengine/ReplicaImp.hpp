@@ -43,6 +43,9 @@
 
 #include <ccron/ticks_generator.hpp>
 
+namespace preprocessor {
+class PreProcessResultMsg;
+}
 namespace bftEngine::impl {
 
 class ClientRequestMsg;
@@ -287,6 +290,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void recoverRequests();
 
   bool validateMessage(MessageBase* msg);
+  std::function<bool(MessageBase*)> getMessageValidator();
 
   // InternalReplicaApi
   bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
@@ -479,6 +483,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void startConsensusProcess(PrePrepareMsg* pp, bool isInternalNoop);
   void startConsensusProcess(PrePrepareMsg* pp);
   bool isSeqNumToStopAt(SeqNum seq_num);
+
+  bool validatePreProcessedResults(const PrePrepareMsg* msg, const bftEngine::impl::ReplicasInfo& replicasInfo);
+  bool validatePreProcessResultSignatures(preprocessor::PreProcessResultMsg& msg);
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;

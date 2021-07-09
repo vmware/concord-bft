@@ -18,7 +18,8 @@ set(preprocessor_source_files
     messages/PreProcessRequestMsg.cpp
     messages/PreProcessBatchRequestMsg.cpp
     messages/PreProcessReplyMsg.cpp
-    messages/PreProcessBatchReplyMsg.cpp)
+    messages/PreProcessBatchReplyMsg.cpp
+    messages/PreProcessResultMsg.cpp)
 
 add_library(preprocessor STATIC ${preprocessor_source_files})
 

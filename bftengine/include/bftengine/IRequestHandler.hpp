@@ -12,13 +12,16 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <functional>
 #include <deque>
 #include "OpenTracing.hpp"
+#include "TimeService.hpp"
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
@@ -53,6 +56,7 @@ class IRequestsHandler {
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,
+                       std::optional<Timestamp> timestamp,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) = 0;
 

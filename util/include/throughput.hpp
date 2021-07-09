@@ -19,10 +19,59 @@
 #include "assertUtils.hpp"
 
 namespace concord::util {
+
+/** A Duration Tracker allows to track the sum of multiple none-continues time intervals (durations).
+ * This is done by calling start() / pause() multiple times.
+ * If the last call to the tracker is start(): call totalDuration() to get the sum of intervals, including current
+ * still running interval.
+ * If the last call to a tracker is pause(): you may get the sum of intervals from pause() returned
+ * value or call totalDuration() explicitly.
+ * To reset (re-use) the tracker, call reset() and then start().
+ */
+template <typename T>
+class DurationTracker {
+ public:
+  void start() {
+    ConcordAssert(!running_);
+    start_time_ = std::chrono::steady_clock::now();
+    running_ = true;
+  }
+  uint64_t pause() {
+    if (running_)
+      total_duration_ += std::chrono::duration_cast<T>(std::chrono::steady_clock::now() - start_time_).count();
+    running_ = false;
+    return total_duration_;
+  }
+  void reset() {
+    total_duration_ = 0;
+    running_ = false;
+  }
+  uint64_t totalDuration(bool doReset = false) {
+    if (running_) {
+      total_duration_ = pause();
+      if (doReset)
+        reset();
+      else
+        start();
+    }
+    return total_duration_;
+  };
+
+ private:
+  uint64_t total_duration_ = 0;
+  std::chrono::time_point<std::chrono::steady_clock> start_time_;
+  bool running_ = false;
+};  // class DurationTracker
+
 /**
  * A Throughput object is used to calculate the number of items processed in a time unit.
- * After construction, it must be started by calling start(). In order to get meaningful statistics, user should
- * report periodically to the object on the processing progress by calling report().
+ * After construction, it must be started by calling start().
+ * It can be paused by calling pause() and resumed by calling resume(). While paused, reports cannot be made.
+ * To continue call resume().
+ * To end the current measurements, call end().After ending, pause and resume are not allowed, only start() can be
+ * called to re-use the object.
+ * In order to get meaningful statistics, user should report periodically to the object on the processing
+ * progress by calling report().
  *
  * If the user supplies a window_size > 0:
  * 1) User may call all member functions prefixed with getPrevWin*.
@@ -43,13 +92,24 @@ class Throughput {
 
   // Reset all statistics and record starting time
   void start();
+  bool isStarted() { return started_; }
+
+  // Reset all statistics, and set started_ to false. Call a again start() to re-use object
+  void end();
+
+  // pause timer. reporting is not allowed.
+  void pause();
+
+  // continue timer after pause was called()
+  void resume();
 
   // Report amount of items processed since last report.
   // If window_size > 0: returns true if reached the end of a summary window, and started a new window
-  bool report(uint64_t items_processed = 1);
+  // trigger_calc_throughput is true: manually trigger end of window
+  bool report(uint64_t items_processed = 1, bool trigger_calc_throughput = false);
 
   struct Results {
-    uint64_t elapsed_time_ms_;
+    uint64_t elapsed_time_ms_ = 0ull;
     uint64_t throughput_ = 0ull;  // items per sec
     uint64_t num_processed_items_ = 0ull;
   };
@@ -64,14 +124,13 @@ class Throughput {
   uint64_t getPrevWinIndex() const;
 
  protected:
-  class Stats {
-    std::chrono::time_point<std::chrono::steady_clock> start_time_;
-
-   public:
+  struct Stats {
+    DurationTracker<std::chrono::milliseconds> total_duration_;
     Results results_;
 
+    void restart();
     void reset();
-    void calcThroughput();
+    void calcThroughput();  // in Items/sec
   };
 
   const uint32_t num_reports_per_window_;

@@ -25,7 +25,7 @@ namespace impl {
 
 class ReplicaAsksToLeaveViewMsg : public MessageBase {
  public:
-  enum class Reason : uint8_t { ClientRequestTimeout, NewPrimaryGetInChargeTimeout };
+  enum class Reason : uint8_t { ClientRequestTimeout, NewPrimaryGetInChargeTimeout, PrimarySentBadPreProcessResult };
 
   ReplicaAsksToLeaveViewMsg(ReplicaId srcReplicaId,
                             ViewNum v,

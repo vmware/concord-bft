@@ -66,6 +66,7 @@ std::unique_ptr<ReplicasInfo> replicasInfo[numOfReplicas_4];
 
 class DummyRequestsHandler : public IRequestsHandler {
   void execute(ExecutionRequestsQueue& requests,
+               std::optional<Timestamp> timestamp,
                const std::string& batchCid,
                concordUtils::SpanWrapper& parent_span) override {
     for (auto& req : requests) {
@@ -463,31 +464,71 @@ TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWh
   ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
 }
 
-TEST(requestPreprocessingState_test, validatePreProcessBatchMsg) {
+TEST(requestPreprocessingState_test, validatePreProcessBatchRequestMsg) {
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, false, false);
 
-  list<PreProcessRequestMsgSharedPtr> batch;
+  PreProcessReqMsgsList batch;
   uint overallReqSize = 0;
   const auto numOfMsgs = 3;
+  const auto senderId = 2;
   for (uint i = 0; i < numOfMsgs; i++) {
     auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(
-        REQ_TYPE_PRE_PROCESS, 1, clientId, i, reqSeqNum + i, i, bufLen, buf, cid + to_string(i + 1), nullptr, 0);
+        REQ_TYPE_PRE_PROCESS, senderId, clientId, i, reqSeqNum + i, i, bufLen, buf, cid + to_string(i + 1), nullptr, 0);
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
   auto preProcessBatchReqMsg =
-      make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_PRE_PROCESS, clientId, 1, batch, cid, overallReqSize);
+      make_shared<PreProcessBatchRequestMsg>(REQ_TYPE_PRE_PROCESS, clientId, senderId, batch, cid, overallReqSize);
   preProcessBatchReqMsg->validate(repInfo);
   const auto msgs = preProcessBatchReqMsg->getPreProcessRequestMsgs();
+  ConcordAssertEQ(preProcessBatchReqMsg->clientId(), clientId);
+  ConcordAssertEQ(preProcessBatchReqMsg->senderId(), senderId);
   ConcordAssertEQ(preProcessBatchReqMsg->getCid(), cid);
   ConcordAssertEQ(msgs.size(), numOfMsgs);
   uint i = 0;
   for (const auto& msg : msgs) {
     msg->validate(repInfo);
-    ConcordAssertEQ(msg->reqOffsetInBatch(), i);
+    ConcordAssertEQ(msg->clientId(), clientId);
+    ConcordAssertEQ(msg->senderId(), senderId);
     ConcordAssertEQ(msg->reqSeqNum(), (int64_t)reqSeqNum + i);
+    ConcordAssertEQ(msg->reqOffsetInBatch(), i);
     ConcordAssertEQ(msg->getCid(), cid + to_string(i + 1));
     ConcordAssertEQ(msg->requestLength(), bufLen);
+    i++;
+  }
+}
+
+TEST(requestPreprocessingState_test, validatePreProcessBatchReplyMsg) {
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, false, false);
+
+  PreProcessReplyMsgsList batch;
+  uint overallRepliesSize = 0;
+  const auto numOfMsgs = 3;
+  const auto senderId = 2;
+  SigManager::instance(sigManager[senderId].get());
+  for (uint i = 0; i < numOfMsgs; i++) {
+    auto preProcessReplyMsg = make_shared<PreProcessReplyMsg>(
+        senderId, clientId, i, reqSeqNum + i, i, buf, bufLen, cid + to_string(i + 1), STATUS_GOOD);
+    batch.push_back(preProcessReplyMsg);
+    overallRepliesSize += preProcessReplyMsg->size();
+  }
+  auto preProcessBatchReplyMsg =
+      make_shared<PreProcessBatchReplyMsg>(clientId, senderId, batch, cid, overallRepliesSize);
+  preProcessBatchReplyMsg->validate(repInfo);
+  const auto msgs = preProcessBatchReplyMsg->getPreProcessReplyMsgs();
+  ConcordAssertEQ(preProcessBatchReplyMsg->clientId(), clientId);
+  ConcordAssertEQ(preProcessBatchReplyMsg->senderId(), senderId);
+  ConcordAssertEQ(preProcessBatchReplyMsg->getCid(), cid);
+  ConcordAssertEQ(msgs.size(), numOfMsgs);
+  uint i = 0;
+  SigManager::instance(sigManager[repInfo.myId()].get());
+  for (const auto& msg : msgs) {
+    msg->validate(repInfo);
+    ConcordAssertEQ(msg->clientId(), clientId);
+    ConcordAssertEQ(msg->senderId(), senderId);
+    ConcordAssertEQ(msg->reqSeqNum(), (int64_t)reqSeqNum + i);
+    ConcordAssertEQ(msg->reqOffsetInBatch(), i);
+    ConcordAssertEQ(msg->getCid(), cid + to_string(i + 1));
     i++;
   }
 }
@@ -660,9 +701,9 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
   concordUtil::Timers timers;
   PreProcessor preProcessor(msgsCommunicator, msgsStorage, msgHandlersRegPtr, requestsHandler, replica, timers, sdm);
 
-  list<PreProcessRequestMsgSharedPtr> batch;
+  PreProcessReqMsgsList batch;
   uint overallReqSize = 0;
-  const auto numOfMsgs = 3;
+  const auto numOfMsgs = 4;
   for (uint i = 0; i < numOfMsgs; i++) {
     auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(
         REQ_TYPE_PRE_PROCESS, 1, clientId, i, i + 5, i, bufLen, buf, to_string(i + 1), nullptr, 0);
@@ -677,6 +718,7 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 0);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 0);
+  ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 3), 0);
   clearDiagnosticsHandlers();
 }
 

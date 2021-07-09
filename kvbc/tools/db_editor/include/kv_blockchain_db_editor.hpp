@@ -15,6 +15,12 @@
 
 #include "db_editor_common.hpp"
 #include "categorization/kv_blockchain.h"
+#include "execution_data.cmf.hpp"
+#include "keys_and_signatures.cmf.hpp"
+#include "db_interfaces.h"
+#include "Crypto.hpp"
+#include "kvbc_key_types.h"
+#include "categorization/db_categories.h"
 
 namespace concord::kvbc::tools::db_editor {
 
@@ -198,6 +204,119 @@ struct GetBlockInfo {
     out << "  \"keyValueTotalCount\": \"" << std::to_string(keyValueTotalCount) << "\"" << std::endl;
     out << "}" << std::endl;
 
+    return out.str();
+  }
+};
+
+struct GetBlockRequests {
+  const bool read_only = true;
+  std::string description() const {
+    return "getBlockRequests BLOCK-ID\n"
+           "  Returns the requests that were executed as part of the block.";
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    if (args.values.empty()) {
+      throw std::invalid_argument{"Missing BLOCK-ID argument"};
+    }
+    auto blockId = toBlockId(args.values.front());
+    auto key = concordUtils::toBigEndianStringBuffer(blockId);
+    auto opt_val = adapter.get(concord::kvbc::categorization::kRequestsRecord, key, blockId);
+    if (!opt_val) {
+      std::stringstream out;
+      out << "block [" << blockId << "] does not contain external client requests\n";
+      return out.str();
+    }
+    auto imm_val = std::get<concord::kvbc::categorization::ImmutableValue>(*opt_val);
+    concord::messages::execution_data::RequestsRecord record;
+    std::vector<uint8_t> v{imm_val.data.begin(), imm_val.data.end()};
+    concord::messages::execution_data::deserialize(v, record);
+    std::stringstream out;
+    out << "block [" << blockId << "] contains [" << record.requests.size() << "] requests\n";
+    out << "Corrsponding client keys are published at block [" << record.keys_version << "]\n";
+    out << "{\n";
+    out << "\"requests\": [\n";
+    for (const auto &req : record.requests) {
+      out << "\t{\n";
+      out << "\t\t\"client_id\": " << req.clientId << ",\n";
+      out << "\t\t\"cid\": \"" << req.cid << "\",\n";
+      out << "\t\t\"sequence_number\": " << req.executionSequenceNum << ",\n";
+      out << "\t\t\"request_digest\": \"" << std::hash<std::string>{}(req.request) << "\",\n";
+      out << "\t\t\"signature_digest\": \"" << std::hash<std::string>{}(req.signature) << "\",\n";
+      out << "\t},\n";
+    }
+    out << "]\n}\n";
+    return out.str();
+  }
+};
+
+struct VerifyBlockRequests {
+  const bool read_only = true;
+  std::string description() const {
+    return "verifyBlockRequests BLOCK-ID\n"
+           "  verifies the requests that were executed as part of the block.";
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    if (args.values.empty()) {
+      throw std::invalid_argument{"Missing BLOCK-ID argument"};
+    }
+    auto blockId = toBlockId(args.values.front());
+    auto key = concordUtils::toBigEndianStringBuffer(blockId);
+    auto opt_val = adapter.get(concord::kvbc::categorization::kRequestsRecord, key, blockId);
+    if (!opt_val) {
+      std::stringstream out;
+      out << "block [" << blockId << "] does not contain external client requests\n";
+      return out.str();
+    }
+    auto imm_val = std::get<concord::kvbc::categorization::ImmutableValue>(*opt_val);
+    concord::messages::execution_data::RequestsRecord record;
+    std::vector<uint8_t> v{imm_val.data.begin(), imm_val.data.end()};
+    concord::messages::execution_data::deserialize(v, record);
+
+    auto opt_keys_val = adapter.get(concord::kvbc::kConcordInternalCategoryId,
+                                    std::string(1, concord::kvbc::kClientsPublicKeys),
+                                    record.keys_version);
+    if (!opt_keys_val) {
+      std::stringstream out;
+      out << "No keys were found at block " << record.keys_version;
+      throw std::invalid_argument{out.str()};
+    }
+
+    auto keys_val = std::get<kvbc::categorization::VersionedValue>(*opt_keys_val);
+    auto keys = keys_val.data;
+
+    concord::messages::keys_and_signatures::ClientsPublicKeys client_keys;
+    std::vector<uint8_t> v_keys{keys.begin(), keys.end()};
+    concord::messages::keys_and_signatures::deserialize(v_keys, client_keys);
+
+    std::stringstream out;
+    out << "block [" << blockId << "] contains [" << record.requests.size() << "] requests\n";
+    out << "Corrsponding client keys are published at block [" << record.keys_version << "]\n";
+    out << "{\n";
+    out << "\"requests\": [\n";
+    for (const auto &req : record.requests) {
+      out << "\t{\n";
+      out << "\t\t\"client_id\": " << req.clientId << ",\n";
+      out << "\t\t\"cid\": \"" << req.cid << "\",\n";
+      out << "\t\t\"request_digest\": \"" << std::hash<std::string>{}(req.request) << "\",\n";
+      out << "\t\t\"signature_digest\": \"" << std::hash<std::string>{}(req.signature) << "\",\n";
+      out << "\t\t\"key_digest\": \"" << std::hash<std::string>{}(client_keys.ids_to_keys[req.clientId].key) << "\",\n";
+      auto verifier = std::make_unique<bftEngine::impl::RSAVerifier>(
+          client_keys.ids_to_keys[req.clientId].key.c_str(),
+          (bftEngine::impl::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
+      auto result =
+          verifier->verify(req.request.c_str(), req.request.size(), req.signature.c_str(), req.signature.size());
+      if (result) {
+        out << "\t\t\"verification_result\": \""
+            << "ok\",\n";
+      } else {
+        out << "\t\t\"verification_result\": \""
+            << "fail\",\n";
+      }
+      out << "\t},\n";
+    }
+    out << "]\n}\n";
     return out.str();
   }
 };
@@ -598,7 +717,10 @@ using Command = std::variant<GetGenesisBlockID,
                              GetStaleKeysSummary,
                              GetValue,
                              CompareTo,
-                             RemoveMetadata>;
+                             RemoveMetadata,
+                             GetBlockRequests,
+                             VerifyBlockRequests>;
+
 inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getGenesisBlockID", GetGenesisBlockID{}),
     std::make_pair("getLastReachableBlockID", GetLastReachableBlockID{}),
@@ -615,6 +737,8 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
+    std::make_pair("getBlockRequests", GetBlockRequests{}),
+    std::make_pair("verifyBlockRequests", VerifyBlockRequests{}),
 };
 
 inline std::string usage() {

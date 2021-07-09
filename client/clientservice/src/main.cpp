@@ -16,6 +16,7 @@
 #include "Logger.hpp"
 #include "client_service.hpp"
 #include "client/concordclient/concord_client.hpp"
+#include "Metrics.hpp"
 
 using concord::client::clientservice::ClientService;
 using concord::client::concordclient::ConcordClient;
@@ -31,6 +32,8 @@ int main(int argc, char** argv) {
   // TODO: Setup ConcordClientConfig and read from config file
   ConcordClientConfig config{};
   auto concord_client = std::make_unique<ConcordClient>(config);
+  auto metrics = std::make_shared<concordMetrics::Aggregator>();
+  concord_client->setMetricsAggregator(metrics);
   ClientService service(std::move(concord_client));
   service.start(addr);
 

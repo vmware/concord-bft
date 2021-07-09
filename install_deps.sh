@@ -24,6 +24,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     gdbserver \
     git \
     iptables \
+    less \
     llvm \
     lzip \
     net-tools \

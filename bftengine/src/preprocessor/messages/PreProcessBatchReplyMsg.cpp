@@ -23,10 +23,10 @@ PreProcessBatchReplyMsg::PreProcessBatchReplyMsg(uint16_t clientId,
                                                  NodeIdType senderId,
                                                  const PreProcessReplyMsgsList& batch,
                                                  const std::string& cid,
-                                                 uint32_t replyMsgsSize)
-    : MessageBase(senderId, MsgCode::PreProcessBatchReply, 0, sizeof(Header) + replyMsgsSize + cid.size()) {
+                                                 uint32_t repliesSize)
+    : MessageBase(senderId, MsgCode::PreProcessBatchReply, 0, sizeof(Header) + repliesSize + cid.size()) {
   const uint32_t numOfMessagesInBatch = batch.size();
-  setParams(senderId, clientId, numOfMessagesInBatch);
+  setParams(senderId, clientId, numOfMessagesInBatch, repliesSize);
   msgBody()->cidLength = cid.size();
   auto position = body() + sizeof(Header);
   if (cid.size()) {
@@ -37,8 +37,8 @@ PreProcessBatchReplyMsg::PreProcessBatchReplyMsg(uint16_t clientId,
     memcpy(position, reply->body(), reply->size());
     position += reply->size();
   }
-  const uint64_t msgLength = sizeof(Header) + cid.size() + replyMsgsSize;
-  LOG_DEBUG(logger(), KVLOG(cid, clientId, senderId, numOfMessagesInBatch, replyMsgsSize, msgLength));
+  const uint64_t msgLength = sizeof(Header) + cid.size() + repliesSize;
+  LOG_DEBUG(logger(), KVLOG(cid, clientId, senderId, numOfMessagesInBatch, repliesSize, msgLength));
 }
 
 void PreProcessBatchReplyMsg::validate(const ReplicasInfo& repInfo) const {
@@ -56,11 +56,17 @@ void PreProcessBatchReplyMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }
 
-void PreProcessBatchReplyMsg::setParams(NodeIdType senderId, uint16_t clientId, uint32_t numOfMessagesInBatch) {
+void PreProcessBatchReplyMsg::setParams(NodeIdType senderId,
+                                        uint16_t clientId,
+                                        uint32_t numOfMessagesInBatch,
+                                        uint32_t repliesSize) {
   msgBody()->senderId = senderId;
   msgBody()->clientId = clientId;
   msgBody()->numOfMessagesInBatch = numOfMessagesInBatch;
+  msgBody()->repliesSize = repliesSize;
 }
+
+std::string PreProcessBatchReplyMsg::getCid() const { return string(body() + sizeof(Header), msgBody()->cidLength); }
 
 PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
   if (!preProcessReplyMsgsList_.empty()) return preProcessReplyMsgsList_;
@@ -87,16 +93,12 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       sigPosition,
                                                       cid,
                                                       (ReplyStatus)singleMsgHeader.status);
-    LOG_DEBUG(logger(), "Single reply info:" << KVLOG(batchCid, clientId, senderId, cid, reqSeqNum));
+    LOG_DEBUG(logger(), "Single reply info:" << KVLOG(batchCid, cid, reqSeqNum, clientId, senderId));
     preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
     dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
   }
-  LOG_DEBUG(logger(), KVLOG(batchCid, clientId, senderId, preProcessReplyMsgsList_.size(), numOfMessagesInBatch));
+  LOG_DEBUG(logger(), KVLOG(batchCid, clientId, senderId, numOfMessagesInBatch, preProcessReplyMsgsList_.size()));
   return preProcessReplyMsgsList_;
-}
-
-std::string PreProcessBatchReplyMsg::getCid() const {
-  return std::string(body() + msgSize_ - msgBody()->cidLength, msgBody()->cidLength);
 }
 
 }  // namespace preprocessor

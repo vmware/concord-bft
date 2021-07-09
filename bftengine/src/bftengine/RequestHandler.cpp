@@ -11,6 +11,7 @@
 // file.
 
 #include "RequestHandler.h"
+#include <optional>
 #include <sstream>
 
 #include "bftengine/KeyExchangeManager.hpp"
@@ -25,6 +26,7 @@ using concord::messages::ReconfigurationResponse;
 namespace bftEngine {
 
 void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
+                             std::optional<Timestamp> timestamp,
                              const std::string& batchCid,
                              concordUtils::SpanWrapper& parent_span) {
   for (auto& req : requests) {
@@ -50,6 +52,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         // Serialize response
         ReconfigurationResponse res;
         res.success = rsi_res.success;
+        res.additional_data = rsi_res.additional_data;
         std::vector<uint8_t> serialized_response;
         concord::messages::serialize(serialized_response, res);
 
@@ -132,7 +135,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outActualReplySize = 1;
     }
   }
-  if (userRequestsHandler_) return userRequestsHandler_->execute(requests, batchCid, parent_span);
+  if (userRequestsHandler_) return userRequestsHandler_->execute(requests, timestamp, batchCid, parent_span);
   return;
 }
 

@@ -11,4 +11,5 @@ target_link_libraries(clientservice PRIVATE
   gRPC::grpc++
   gRPC::grpc++_reflection
   logging
+  util
 )

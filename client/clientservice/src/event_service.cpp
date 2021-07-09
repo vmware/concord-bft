@@ -57,7 +57,11 @@ Status EventServiceImpl::StreamEventGroups(ServerContext* context,
   };
 
   auto span = opentracing::Tracer::Global()->StartSpan("stream_event_groups", {});
-  client_->subscribe(request, span, callback);
+  try {
+    client_->subscribe(request, span, callback);
+  } catch (cc::ConcordClient::SubscriptionExists& e) {
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
+  }
 
   // TODO: Consider all gRPC return error codes as described in concord_client.proto
   while (!context->IsCancelled()) {

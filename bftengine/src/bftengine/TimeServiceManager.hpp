@@ -16,13 +16,13 @@
 #include "TimeServiceResPageClient.hpp"
 #include "assertUtils.hpp"
 #include "messages/ClientRequestMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
 #include "serialize.hpp"
-#include <chrono>
 #include <cstdlib>
 #include <limits>
 #include <memory>
 
-namespace bftEngine {
+namespace bftEngine::impl {
 
 template <typename ClockT = std::chrono::system_clock>
 class TimeServiceManager {
@@ -58,7 +58,7 @@ class TimeServiceManager {
   }
 
   // Returns a client request message with timestamp (current system clock time)
-  [[nodiscard]] std::unique_ptr<impl::ClientRequestMsg> createClientRequestMsg() {
+  [[nodiscard]] std::unique_ptr<impl::ClientRequestMsg> createClientRequestMsg() const {
     const auto& config = ReplicaConfig::instance();
     const auto now = std::chrono::duration_cast<ConsensusTime>(ClockT::now().time_since_epoch());
     const auto& serialized = concord::util::serialize(now);
@@ -69,6 +69,34 @@ class TimeServiceManager {
                                                     serialized.data(),
                                                     std::numeric_limits<uint64_t>::max(),
                                                     "TIME_SERVICE");
+  }
+
+  [[nodiscard]] bool hasTimeRequest(const impl::PrePrepareMsg& msg) const {
+    if (msg.numberOfRequests() < 2) {
+      LOG_ERROR(TS_MNGR, "PrePrepare with Time Service on, cannot have less than 2 messages");
+      return false;
+    }
+    auto it = impl::RequestsIterator(&msg);
+    char* requestBody = nullptr;
+    ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    if (req.flags() != MsgFlag::TIME_SERVICE_FLAG) {
+      LOG_ERROR(GL, "Time Service is on but first CR in PrePrepare is not TS request");
+      return false;
+    }
+    return true;
+  }
+
+  [[nodiscard]] bool isPrimarysTimeWithinBounds(const impl::PrePrepareMsg& msg) const {
+    ConcordAssertGE(msg.numberOfRequests(), 1);
+
+    auto it = impl::RequestsIterator(&msg);
+    char* requestBody = nullptr;
+    ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    return isPrimarysTimeWithinBounds(req);
   }
 
   [[nodiscard]] bool isPrimarysTimeWithinBounds(impl::ClientRequestMsg& msg) const {
@@ -106,4 +134,4 @@ class TimeServiceManager {
  private:
   TimeServiceResPageClient client_;
 };
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

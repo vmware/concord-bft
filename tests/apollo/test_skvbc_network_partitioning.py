@@ -56,7 +56,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
          """
         num_ops = 500
 
-        self.skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        self.skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         self.bft_network = bft_network
         bft_network.start_all_replicas()
         with net.PacketDroppingAdversary(
@@ -64,7 +64,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
             adversary.interfere()
 
-            await tracker.run_concurrent_ops(num_ops)
+            await self.skvbc.run_concurrent_ops(num_ops)
 
     from os import environ
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
@@ -97,7 +97,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             await adversary.interfere()
             expected_next_primary = 1
 
-            await self._send_random_writes(tracker)
+            await self._send_random_writes(skvbc)
 
             await bft_network.wait_for_view(
                 replica_id=random.choice(bft_network.all_replicas(without={0})),
@@ -107,7 +107,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
             await self._wait_for_read_your_writes_success(skvbc)
 
-            await tracker.run_concurrent_ops(100)
+            await skvbc.run_concurrent_ops(100)
 
     from os import environ
     @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
@@ -134,15 +134,15 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
         # make sure the presence of the adversary triggers the slow path
         # (because f replicas cannot participate in consensus)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
-
             await bft_network.wait_for_slow_path_to_be_prevalent(
-                run_ops=lambda: tracker.run_concurrent_ops(num_ops=2, write_weight=1), threshold=2)
+                run_ops=lambda: skvbc.run_concurrent_ops(num_ops=2, write_weight=1), threshold=2)
 
         # Once the adversary is gone, the disconnected replicas should be able
         # to resume their participation in consensus & request execution
-        await tracker.run_concurrent_ops(num_ops=20, write_weight=1)
+        await skvbc.run_concurrent_ops(num_ops=20, write_weight=1)
         last_executed_seq_num = await bft_network.wait_for_last_executed_seq_num()
 
         for ir in isolated_replicas:
@@ -206,13 +206,13 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
         initial_primary = await bft_network.get_current_primary()
         expected_next_primary = 1 + initial_primary
         isolated_replicas = bft_network.random_set_of_replicas(f - 1, without={initial_primary, expected_next_primary})
-
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         log.log_message(message_type=f'Isolating network traffic to/from replicas {isolated_replicas}.')
         with net.ReplicaSubsetIsolatingAdversary(bft_network, isolated_replicas) as adversary:
             adversary.interfere()
 
             bft_network.stop_replica(initial_primary)
-            await self._send_random_writes(tracker)
+            await self._send_random_writes(skvbc)
 
             await bft_network.wait_for_view(
                 replica_id=random.choice(bft_network.all_replicas(
@@ -234,7 +234,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
             )
 
         # then make sure the isolated replicas participate in consensus & request execution
-        await tracker.run_concurrent_ops(num_ops=50)
+        await skvbc.run_concurrent_ops(num_ops=50)
 
         expected_last_executed_seq_num = await bft_network.wait_for_last_executed_seq_num(
             replica_id=random.choice(bft_network.all_replicas(without={initial_primary}.union(isolated_replicas))))
@@ -305,7 +305,7 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
                         break
 
     @staticmethod
-    async def _send_random_writes(tracker):
+    async def _send_random_writes(skvbc):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops, 1)
+                nursery.start_soon(skvbc.send_indefinite_tracked_ops, 1)

@@ -35,11 +35,12 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
   auto ser_data = std::string(serialized_cmd.begin(), serialized_cmd.end());
   auto ser_sig = std::string(request.signature.begin(), request.signature.end());
   rresp.success = true;
+  auto sender_id = request.sender;
   try {
     // Run pre-reconfiguration handlers
     for (auto& handler : pre_reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(ser_data, ser_sig)) {
+      if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
         continue;
       }
@@ -52,7 +53,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     // Run regular reconfiguration handlers
     for (auto& handler : reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(ser_data, ser_sig)) {
+      if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
         continue;
       }
@@ -65,7 +66,7 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
     // Run post-reconfiguration handlers
     for (auto& handler : post_reconfig_handlers_) {
       // Each reconfiguration handler handles only what it can validate
-      if (!handler->verifySignature(ser_data, ser_sig)) {
+      if (!handler->verifySignature(sender_id, ser_data, ser_sig)) {
         error_msg.error_msg = "Invalid signature";
         continue;
       }

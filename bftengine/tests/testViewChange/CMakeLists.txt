@@ -21,3 +21,14 @@ target_link_libraries(ViewChange_tests PUBLIC
     corebft
     threshsign
     )
+
+add_executable(views_manager_test test_views_manager.cpp ${bftengine_SOURCE_DIR}/tests/messages/helper.cpp)
+
+add_test(views_manager_test views_manager_test)
+target_link_libraries(views_manager_test GTest::Main corebft)
+find_package(cryptopp REQUIRED)
+
+# Not using target_link_libraries, because the header is in the src directory.
+target_include_directories(views_manager_test PRIVATE 
+    ${bftengine_SOURCE_DIR}/src/bftengine 
+    ${bftengine_SOURCE_DIR}/tests/messages)

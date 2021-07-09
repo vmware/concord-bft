@@ -47,9 +47,6 @@ SigManager* SigManager::initImpl(ReplicaId myId,
   for (const auto& repIdToKeyPair : publicKeysOfReplicas) {
     // each replica sign with a unique private key (1 to 1 relation)
     ConcordAssert(repIdToKeyPair.first <= highBound);
-    if (myId == repIdToKeyPair.first)
-      // don't insert my own public key
-      continue;
     publickeys.push_back(make_pair(repIdToKeyPair.second, replicasKeysFormat));
     publicKeysMapping.insert({repIdToKeyPair.first, i++});
   }
@@ -130,7 +127,6 @@ SigManager::SigManager(PrincipalId myId,
   for (const auto& p : publicKeysMapping) {
     ConcordAssert(verifiers_.count(p.first) == 0);
     ConcordAssert(p.second < numPublickeys);
-    ConcordAssert(p.first != myId_);
 
     auto iter = publicKeyIndexToVerifier.find(p.second);
     const auto& [key, format] = publickeys[p.second];
@@ -201,11 +197,11 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
 bool SigManager::verifySig(
     PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
   auto pos = verifiers_.find(pid);
-  bool idOfPeerReplica = false, idOfExternalClient = false, result;
+  bool idOfReplica = false, idOfExternalClient = false, result;
 
   if (pos == verifiers_.end()) {
     LOG_ERROR(GL, "Unrecognized pid " << pid);
-    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_.Get().Inc();
+    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
     metrics_component_.UpdateAggregator();
     updateAggregatorCounter = 0;
     return false;
@@ -215,21 +211,21 @@ bool SigManager::verifySig(
   result = verifier->verify(data, dataLength, sig, sigLength);
   idOfExternalClient = replicasInfo_.isIdOfExternalClient(pid);
   if (!idOfExternalClient) {
-    idOfPeerReplica = replicasInfo_.isIdOfPeerReplica(pid);
+    idOfReplica = replicasInfo_.isIdOfReplica(pid);
   }
-  ConcordAssert(idOfPeerReplica || idOfExternalClient);
+  ConcordAssert(idOfReplica || idOfExternalClient);
   if (!result) {  // failure
     updateAggregatorCounter = 0;
     if (idOfExternalClient)
-      metrics_.externalClientReqSigVerificationFailed_.Get().Inc();
+      metrics_.externalClientReqSigVerificationFailed_++;
     else
-      metrics_.replicaSigVerificationFailed_.Get().Inc();
+      metrics_.replicaSigVerificationFailed_++;
     metrics_component_.UpdateAggregator();
   } else {  // success
     if (idOfExternalClient)
-      metrics_.externalClientReqSigVerified_.Get().Inc();
+      metrics_.externalClientReqSigVerified_++;
     else
-      metrics_.replicaSigVerified_.Get().Inc();
+      metrics_.replicaSigVerified_++;
     if ((++updateAggregatorCounter % updateMetricsAggregatorThresh) == 0) {
       metrics_component_.UpdateAggregator();
     }

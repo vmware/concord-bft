@@ -74,10 +74,10 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
     private_keys_.onKeyExchange(cid, sn);
     for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], kemsg.pubkey, sn);
-    metrics_->self_key_exchange_counter.Get().Inc();
+    metrics_->self_key_exchange_counter++;
   } else {  // initiated by others
     for (auto e : registryToExchange_) e->onPublicKeyExchange(kemsg.pubkey, kemsg.repID, sn);
-    metrics_->public_key_exchange_for_peer_counter.Get().Inc();
+    metrics_->public_key_exchange_for_peer_counter++;
   }
   if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= clusterSize_))
     LOG_INFO(KEY_EX_LOG, "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << clusterSize_ << "]");
@@ -134,7 +134,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
   client_->sendRequest(bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), cid);
-  metrics_->sent_key_exchange_counter.Get().Inc();
+  metrics_->sent_key_exchange_counter++;
 }
 
 // sends the clients public keys via the internal client, if keys weren't published or outdated.

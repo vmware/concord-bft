@@ -427,6 +427,156 @@ class SimpleKVBCProtocol:
 
             action.log(message_type=f'[READ-YOUR-WRITES] OK.')
 
+    async def send_tracked_write(self, client, max_set_size, long_exec=False):
+        with log.start_action(action_type="send_tracked_write") as action:
+            max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
+            readset = self.tracker.readset(0, max_read_set_size)
+            writeset = self.tracker.writeset(max_set_size)
+            read_version = self.tracker.read_block_id()
+            await self.send_tracked_kv_set(client, readset, writeset, read_version, long_exec)
+            action.log(message_type="[send_tracked_write] OK")
+
+    async def send_tracked_kv_set(self, client, readset, writeset, read_version, long_exec=False):
+        msg = self.write_req(readset, writeset, read_version, long_exec)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.tracker.send_write(
+            client_id, seq_num, readset, dict(writeset), read_version)
+        with log.start_action(action_type="send_tracked_kv_set"):
+            try:
+                serialized_reply = await client.write(msg, seq_num, pre_process=self.tracker.pre_exec_all)
+                self.tracker.status.record_client_reply(client_id)
+                reply = self.parse_reply(serialized_reply)
+                self.tracker.handle_write_reply(client_id, seq_num, reply)
+            except trio.TooSlowError:
+                self.tracker.status.record_client_timeout(client_id)
+                return
+
+    async def send_tracked_read(self, client, max_set_size):
+        readset = self.tracker.readset(1, max_set_size)
+        msg = self.read_req(readset)
+        seq_num = client.req_seq_num.next()
+        client_id = client.client_id
+        self.tracker.send_read(client_id, seq_num, readset)
+        try:
+            serialized_reply = await client.read(msg, seq_num)
+            self.tracker.status.record_client_reply(client_id)
+            reply = self.parse_reply(serialized_reply)
+            self.tracker.handle_read_reply(client_id, seq_num, reply)
+        except trio.TooSlowError:
+            self.tracker.status.record_client_timeout(client_id)
+            return
+
+    async def run_concurrent_batch_ops(self, num_ops, batch_size):
+        with log.start_action(action_type="run_concurrent_batch_ops"):
+            max_concurrency = len(self.bft_network.clients) // 2
+            max_size = len(self.keys) // 2
+            sent = 0
+            write_count = 0
+            clients = self.bft_network.random_clients(max_concurrency)
+            with log.start_action(action_type="send_concurrent_ops"):
+                while sent < num_ops:
+                    async with trio.open_nursery() as nursery:
+                        for client in clients:
+                            client.config = client.config._replace(
+                                retry_timeout_milli=500
+                            )
+                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size, None, False)
+                            write_count += 1
+                    sent += len(clients)
+            return write_count
+    
+    async def run_concurrent_ops(self, num_ops, write_weight=.70):
+        with log.start_action(action_type="run_concurrent_ops"):
+            max_concurrency = len(self.bft_network.clients) // 2
+            max_size = len(self.keys) // 2
+            return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
+        if self.tracker.no_conflicts is True:
+            log.log_message(message_type="call to run_concurrent_conflict_ops with no_conflicts=True,"
+                                         " calling run_concurrent_ops instead")
+            return await self.run_concurrent_ops(num_ops, write_weight)
+        max_concurrency = len(self.bft_network.clients) // 2
+        max_size = len(self.keys) // 2
+        return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
+
+    async def send_concurrent_ops(self, num_ops, max_concurrency, max_size, write_weight, create_conflicts=False):
+        max_read_set_size = 0 if self.tracker.no_conflicts else max_size
+        sent = 0
+        write_count = 0
+        read_count = 0
+        clients = self.bft_network.random_clients(max_concurrency)
+        with log.start_action(action_type="send_concurrent_ops"):
+            while sent < num_ops:
+                readset = self.tracker.readset(0, max_read_set_size)
+                writeset = self.tracker.writeset(0, readset)
+                read_version = self.tracker.read_block_id()
+                async with trio.open_nursery() as nursery:
+                    for client in clients:
+                        if random.random() < write_weight:
+                            if create_conflicts is False:
+                                readset = self.tracker.readset(0, max_read_set_size)
+                                writeset = self.tracker.writeset(max_size)
+                                read_version = self.tracker.read_block_id()
+                            nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
+                            write_count += 1
+                        else:
+                            nursery.start_soon(self.send_tracked_read, client, max_size)
+                            read_count += 1
+                sent += len(clients)
+        return read_count, write_count
+
+    async def send_indefinite_tracked_batch_writes(self, batch_size, time_interval=.01):
+        max_size = len(self.keys) // 2
+        while True:
+            client = self.bft_network.random_client()
+            async with trio.open_nursery() as nursery:
+                try:
+                    nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size)
+                except:
+                    pass
+                await trio.sleep(time_interval)
+
+    async def send_indefinite_tracked_ops(self, write_weight=.70, time_interval=.01):
+        max_size = len(self.keys) // 2
+        while True:
+            client = self.bft_network.random_client()
+            async with trio.open_nursery() as nursery:
+                try:
+                    if random.random() < write_weight:
+                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                    else:
+                        nursery.start_soon(self.send_tracked_read, client, max_size)
+                except:
+                    pass
+                await trio.sleep(time_interval)
+
+    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False):
+        msg_batch = []
+        batch_seq_nums = []
+        client_id = client.client_id
+        if read_version is None:
+            read_version = self.tracker.read_block_id()
+        for i in range(batch_size):
+            max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
+            readset = self.tracker.readset(0, max_read_set_size)
+            writeset = self.tracker.writeset(max_set_size)
+            msg_batch.append(self.write_req(readset, writeset, read_version, long_exec))
+            seq_num = client.req_seq_num.next()
+            batch_seq_nums.append(seq_num)
+            self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
+        
+        with log.start_action(action_type="send_tracked_kv_set_batch"):
+            try:
+                replies = await client.write_batch(msg_batch, batch_seq_nums)
+                self.tracker.status.record_client_reply(client_id)
+                for seq_num, reply_msg in replies.items():
+                    reply = self.parse_reply(reply_msg.get_common_data())
+                    self.tracker.handle_write_reply(client_id, seq_num, reply)
+            except trio.TooSlowError:
+                self.tracker.status.record_client_timeout(client_id)
+                return
 
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""

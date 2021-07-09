@@ -12,11 +12,12 @@
 // file.
 
 #include <string.h>
-#include "assertUtils.hpp"
 #include <map>
 #include <set>
 #include <utility>
+#include <future>
 
+#include "assertUtils.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "SimpleBCStateTransfer.hpp"
 #include "memorydb/client.h"
@@ -101,6 +102,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
     bool hasBlock(uint64_t blockId) const override;
 
     bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
+
+    std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
 
     bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
 
@@ -282,7 +285,7 @@ SimpleStateTran::SimpleStateTran(
       pedanticChecks,                       // pedanticChecks
       false,                                // isReadOnly
       128,                                  // maxChunkSize
-      128,                                  // maxNumberOfChunksInBatch
+      256,                                  // maxNumberOfChunksInBatch
       1024,                                 // maxBlockSize
       256 * 1024 * 1024,                    // maxPendingDataFromSourceReplica
       2048,                                 // maxNumOfReservedPages
@@ -290,7 +293,7 @@ SimpleStateTran::SimpleStateTran(
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
-      15000,                                // sourceReplicaReplacementTimeoutMs
+      0,                                    // sourceReplicaReplacementTimeoutMs
       250,                                  // fetchRetransmissionTimeoutMs
       5,                                    // metricsDumpIntervalSec
       true,                                 // runInSeparateThread
@@ -590,6 +593,13 @@ bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return fa
 bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) {
   ConcordAssert(false);
   return false;
+}
+
+std::future<bool> SimpleStateTran::DummyBDState::getBlockAsync(uint64_t blockId,
+                                                               char* outBlock,
+                                                               uint32_t* outBlockSize) {
+  ConcordAssert(false);
+  return std::async([]() { return false; });
 }
 
 bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(uint64_t blockId,

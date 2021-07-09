@@ -14,6 +14,7 @@
 #include <chrono>
 
 using namespace bftEngine;
+using namespace bftEngine::impl;
 
 struct ReservedPagesMock : public IReservedPages {
   mutable bool is_first_load = true;

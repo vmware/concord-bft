@@ -42,12 +42,14 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "messages/ReplicasRestartReadyProofMsg.hpp"
+#include "messages/PreProcessResultMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "secrets_manager_plain.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <bitset>
@@ -98,6 +100,9 @@ void ReplicaImp::registerMsgHandlers() {
 
   msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
                                    bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::PreProcessResult,
+                                   bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
                                    bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
@@ -150,6 +155,10 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
   }
 }
 
+std::function<bool(MessageBase *)> ReplicaImp::getMessageValidator() {
+  return [this](MessageBase *message) { return validateMessage(message); };
+}
+
 void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
   if (clientsManager->isInternal(dest)) {
     LOG_DEBUG(GL, "Not sending reply to internal client id - " << dest);
@@ -165,7 +174,7 @@ void ReplicaImp::send(MessageBase *m, NodeIdType dest) {
 
 void ReplicaImp::sendAndIncrementMetric(MessageBase *m, NodeIdType id, CounterHandle &counterMetric) {
   send(m, id);
-  counterMetric.Get().Inc();
+  counterMetric++;
 }
 
 void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
@@ -177,7 +186,7 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
 template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
-  metric_received_client_requests_.Get().Inc();
+  metric_received_client_requests_++;
   const NodeIdType senderId = m->senderId();
   const NodeIdType clientId = m->clientProxyId();
   const bool readOnly = m->isReadOnly();
@@ -298,6 +307,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 }
 
 template <>
+void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreProcessResultMsg *m) {
+  LOG_DEBUG(GL,
+            "Handling PreProcessResultMsg via ClientRequestMsg handler "
+                << KVLOG(m->clientProxyId(), m->getCid(), m->requestSeqNum()));
+  return onMessage<ClientRequestMsg>(m);
+}
+
+template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
   MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
   if (m->viewNumber() == getCurrentView()) {
@@ -409,14 +426,14 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     pp = buildPrePrepareMessage();
   if (!pp) return false;
   if (batchingLogic) {
-    batch_closed_on_logic_on_.Get().Inc();
+    batch_closed_on_logic_on_++;
     accumulating_batch_time_.add(
         std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime() - time_to_collect_batch_).count());
     accumulating_batch_avg_time_.Get().Set((uint64_t)accumulating_batch_time_.avg());
     if (accumulating_batch_time_.numOfElements() == 1000)
       accumulating_batch_time_.reset();  // We reset the average on every 1000 samples
   } else {
-    batch_closed_on_logic_off_.Get().Inc();
+    batch_closed_on_logic_off_++;
   }
   time_to_collect_batch_ = MinTime;
   startConsensusProcess(pp);
@@ -598,7 +615,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
 
   if (firstPath == CommitPath::SLOW) {
     seqNumInfo.startSlowPath();
-    metric_slow_path_count_.Get().Inc();
+    metric_slow_path_count_++;
     TimeRecorder scoped_timer(*histograms_.sendPreparePartialToSelf);
     sendPreparePartial(seqNumInfo);
   } else {
@@ -668,6 +685,32 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   }
 }
 
+bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg,
+                                             const bftEngine::impl::ReplicasInfo &replicasInfo) {
+  RequestsIterator reqIter(msg);
+  char *requestBody = nullptr;
+  while (reqIter.getAndGoToNext(requestBody)) {
+    const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
+    if (hdr->msgType == MsgCode::PreProcessResult) {
+      preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
+
+      if (auto err = req.validatePreProcessResultSignatures(getReplicaConfig().replicaId, getReplicaConfig().fVal);
+          err) {
+        // trigger view change
+        LOG_INFO(VC_LOG,
+                 "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
+                     << *err << ". Ask to leave view " << getCurrentView());
+        askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+        return false;
+      }
+    } else {
+      // ClientRequest messages are handled in PrePrepare::validate()
+      continue;
+    }
+  }
+  return true;
+}
+
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   if (isSeqNumToStopAt(msg->seqNumber())) {
@@ -676,7 +719,13 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
              "etc...)");
     return;
   }
-  metric_received_pre_prepares_.Get().Inc();
+
+  if (!validatePreProcessedResults(msg, getReplicasInfo())) {
+    // validatePreProcessedResults() logs the error
+    return;
+  }
+
+  metric_received_pre_prepares_++;
   const SeqNum msgSeqNum = msg->seqNumber();
 
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
@@ -706,6 +755,17 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
     const bool slowStarted = (msg->firstPath() == CommitPath::SLOW || seqNumInfo.slowPathStarted());
 
+    bool time_is_ok = true;
+    if (config_.timeServiceEnabled && msg->numberOfRequests() > 0) {
+      if (!time_service_manager_->hasTimeRequest(*msg)) {
+        LOG_ERROR(GL, "PrePrepare will be ignored");
+        delete msg;
+        return;
+      }
+      if (msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
+        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(*msg);
+      }
+    }
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
     if (seqNumInfo.addMsg(msg)) {
@@ -728,19 +788,6 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         if (slowStarted) ps_->setSlowStartedInSeqNumWindow(msgSeqNum, true);
         ps_->endWriteTran();
       }
-
-      bool time_is_ok = true;
-      if (config_.timeServiceEnabled &&
-          msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
-        ConcordAssertGE(msg->numberOfRequests(), 1);
-
-        auto it = RequestsIterator(msg);
-        char *requestBody = nullptr;
-        ConcordAssertEQ(it.getCurrent(requestBody), true);
-
-        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
-        time_is_ok = time_service_manager_->isPrimarysTimeWithinBounds(req);
-      }
       if (time_is_ok) {
         if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
                            // before PrePrepareMsg
@@ -748,7 +795,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
           sendPartialProof(seqNumInfo);
         } else {
           seqNumInfo.startSlowPath();
-          metric_slow_path_count_.Get().Inc();
+          metric_slow_path_count_++;
           sendPreparePartial(seqNumInfo);
         }
       }
@@ -807,7 +854,7 @@ void ReplicaImp::tryToStartSlowPaths() {
     controller->onStartingSlowCommit(i);
 
     seqNumInfo.startSlowPath();
-    metric_slow_path_count_.Get().Inc();
+    metric_slow_path_count_++;
 
     if (ps_) {
       ps_->beginWriteTran();
@@ -897,7 +944,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
 
 template <>
 void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
-  metric_received_start_slow_commits_.Get().Inc();
+  metric_received_start_slow_commits_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL, " ");
@@ -914,7 +961,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
       LOG_INFO(GL, "Start slow path.");
 
       seqNumInfo.startSlowPath();
-      metric_slow_path_count_.Get().Inc();
+      metric_slow_path_count_++;
 
       if (ps_) {
         ps_->beginWriteTran();
@@ -1054,7 +1101,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
 template <>
 void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
-  metric_received_partial_commit_proofs_.Get().Inc();
+  metric_received_partial_commit_proofs_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const SeqNum msgView = msg->viewNumber();
   const NodeIdType msgSender = msg->senderId();
@@ -1095,7 +1142,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       msg->sizeNeededForObjAndMsgInLocalBuffer(),
       std::bind(&IncomingMsgsStorage::pushExternalMsgRaw, &getIncomingMsgsStorage(), _1, _2));
 
-  metric_received_full_commit_proofs_.Get().Inc();
+  metric_received_full_commit_proofs_++;
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_full_commit_proof_msg");
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -1132,7 +1179,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
           (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel());  // TODO(GG): check/improve this logic
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
-      metric_total_committed_sn_.Get().Inc();
+      metric_total_committed_sn_++;
       pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
       executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
       return;
@@ -1150,7 +1197,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
 }
 
 void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
-  metric_received_internal_msgs_.Get().Inc();
+  metric_received_internal_msgs_++;
 
   // Handle a full commit proof sent by self
   if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
@@ -1304,7 +1351,7 @@ void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
-  metric_received_prepare_partials_.Get().Inc();
+  metric_received_prepare_partials_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -1358,7 +1405,7 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
-  metric_received_commit_partials_.Get().Inc();
+  metric_received_commit_partials_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
 
@@ -1403,7 +1450,7 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
-  metric_received_prepare_fulls_.Get().Inc();
+  metric_received_prepare_fulls_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
@@ -1447,7 +1494,7 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
 }
 template <>
 void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
-  metric_received_commit_fulls_.Get().Inc();
+  metric_received_commit_fulls_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
@@ -1685,7 +1732,7 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
-  metric_total_committed_sn_.Get().Inc();
+  metric_total_committed_sn_++;
   executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
 }
 
@@ -1734,13 +1781,13 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
-  metric_total_committed_sn_.Get().Inc();
+  metric_total_committed_sn_++;
   executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
 }
 
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
-  metric_received_checkpoints_.Get().Inc();
+  metric_received_checkpoints_++;
   const ReplicaId msgSenderId = msg->senderId();
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -1794,7 +1841,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
                "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, msgGenReplicaId));
       for (auto &[r, cp] : tableOfStableCheckpoints) {
         if (cp->seqNumber() == msgSeqNum && cp->digestOfState() != x->digestOfState()) {
-          metric_indicator_of_non_determinism_.Get().Inc();
+          metric_indicator_of_non_determinism_++;
           LOG_ERROR(GL,
                     "Detect non determinism, for checkpoint: "
                         << msgSeqNum << " [replica: " << r << ", digest: " << cp->digestOfState() << "] Vs [replica: "
@@ -1859,7 +1906,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
  */
 template <>
 void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
-  // metric_received_checkpoints_.Get().Inc(); // TODO [TK]
+  // metric_received_checkpoints_++; // TODO [TK]
 
   // DD: handlers are supposed to either save or delete messages
   std::unique_ptr<AskForCheckpointMsg> m{msg};
@@ -2031,7 +2078,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
 
 template <>
 void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
-  metric_received_replica_statuses_.Get().Inc();
+  metric_received_replica_statuses_++;
   // TODO(GG): we need filter for msgs (to avoid denial of service attack) + avoid sending messages at a high rate.
   // TODO(GG): for some communication modules/protocols, we can also utilize information about
   // connection/disconnection.
@@ -2300,7 +2347,7 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
   }
 
   sendToAllOtherReplicas(&msg);
-  if (!onTimer) metric_sent_status_msgs_not_due_timer_.Get().Inc();
+  if (!onTimer) metric_sent_status_msgs_not_due_timer_++;
 }
 
 template <>
@@ -2310,7 +2357,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     delete msg;
     return;
   }
-  metric_received_view_changes_.Get().Inc();
+  metric_received_view_changes_++;
 
   const ReplicaId generatedReplicaId =
       msg->idOfGeneratedReplica();  // Notice that generatedReplicaId may be != msg->senderId()
@@ -2322,42 +2369,11 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
 
   LOG_INFO(VC_LOG, KVLOG(generatedReplicaId, msg->newView(), msg->lastStable(), msg->numberOfElements(), msgAdded));
 
-  ViewChangeMsg::ComplaintsIterator iter(msg);
-  char *complaint = nullptr;
-  MsgSize size = 0;
+  viewsManager->processComplaintsFromViewChangeMessage(msg, getMessageValidator());
 
-  while (msg->newView() > getCurrentView() && !viewsManager->hasQuorumToJumpToHigherView() &&
-         iter.getAndGoToNext(complaint, size)) {
-    auto baseMsg = MessageBase(msg->senderId(), (MessageBase::Header *)complaint, size, true);
-    auto complaintMsg = std::make_unique<ReplicaAsksToLeaveViewMsg>(&baseMsg);
-    LOG_INFO(VC_LOG,
-             "Got complaint in ViewChangeMsg" << KVLOG(getCurrentView(),
-                                                       msg->senderId(),
-                                                       msg->newView(),
-                                                       msg->idOfGeneratedReplica(),
-                                                       complaintMsg->senderId(),
-                                                       complaintMsg->viewNumber(),
-                                                       complaintMsg->idOfGeneratedReplica()));
-    if (msg->newView() == getCurrentView() + 1) {
-      if (viewsManager->getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) != nullptr) {
-        LOG_INFO(VC_LOG,
-                 "Already have a valid complaint from Replica " << complaintMsg->idOfGeneratedReplica() << " for View "
-                                                                << complaintMsg->viewNumber());
-      } else if (complaintMsg->viewNumber() == getCurrentView() && validateMessage(complaintMsg.get())) {
-        onMessage<ReplicaAsksToLeaveViewMsg>(complaintMsg.release());
-      } else {
-        LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for current View.");
-      }
-    } else {
-      if (complaintMsg->viewNumber() + 1 == msg->newView() && validateMessage(complaintMsg.get())) {
-        viewsManager->storeComplaintForHigherView(std::move(complaintMsg));
-      } else {
-        LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for a higher View.");
-      }
-    }
-  }
-
-  if (viewsManager->tryToJumpToHigherViewAndMoveComplaintsOnQuorum(msg)) {
+  if (viewsManager->hasQuorumToLeaveView()) {
+    GotoNextView();
+  } else if (viewsManager->tryToJumpToHigherViewAndMoveComplaintsOnQuorum(msg)) {
     MoveToHigherView(msg->newView());
   }
 
@@ -2410,7 +2426,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
     delete msg;
     return;
   }
-  metric_received_new_views_.Get().Inc();
+  metric_received_new_views_++;
 
   const ReplicaId senderId = msg->senderId();
 
@@ -2440,7 +2456,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
 
   if (!wasInPrevViewNumber) {
     time_in_active_view_.end();
-    pVC = viewsManager->PrepareViewChangeMsg(nextView, wasInPrevViewNumber);
+    pVC = viewsManager->prepareViewChangeMsgAndSetHigherView(nextView, wasInPrevViewNumber);
   } else {
     std::vector<ViewsManager::PrevViewInfo> prevViewInfo;
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
@@ -2480,7 +2496,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
       ps_->endWriteTran();
     }
 
-    pVC = viewsManager->PrepareViewChangeMsg(
+    pVC = viewsManager->prepareViewChangeMsgAndSetHigherView(
         nextView, wasInPrevViewNumber, lastStableSeqNum, lastExecutedSeqNum, &prevViewInfo);
     ConcordAssertNE(pVC, nullptr);
   }
@@ -2641,7 +2657,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
       seqNumInfo.addMsg(pp);
 
     seqNumInfo.startSlowPath();
-    metric_slow_path_count_.Get().Inc();
+    metric_slow_path_count_++;
   }
 
   if (ps_) ps_->endWriteTran();
@@ -3025,13 +3041,13 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
                  destinationReplica, seqNumber, reqData.getFlags(), reqData.getFlagsAsBits()));
 
     send(&reqData, destRep);
-    metric_sent_req_for_missing_data_.Get().Inc();
+    metric_sent_req_for_missing_data_++;
   }
 }
 
 template <>
 void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
-  metric_received_req_missing_datas_.Get().Inc();
+  metric_received_req_missing_datas_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
@@ -3118,7 +3134,7 @@ void ReplicaImp::askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave)
       ReplicaAsksToLeaveViewMsg::create(config_.getreplicaId(), getCurrentView(), reasonToLeave));
   sendToAllOtherReplicas(askToLeaveView.get());
   viewsManager->storeComplaint(std::move(askToLeaveView));
-  metric_sent_replica_asks_to_leave_view_msg_.Get().Inc();
+  metric_sent_replica_asks_to_leave_view_msg_++;
 
   tryToGotoNextView();
 }
@@ -3240,7 +3256,7 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
 
 template <>
 void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
-  metric_received_simple_acks_.Get().Inc();
+  metric_received_simple_acks_++;
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
   uint16_t relatedMsgType = (uint16_t)msg->ackData();  // TODO(GG): does this make sense ?
   if (retransmissionsLogicEnabled) {
@@ -3268,7 +3284,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
                                                              << " with seq_num" << std::to_string(msg->seqNum()));
   if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
     restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
-    metric_received_restart_ready_.Get().Inc();
+    metric_received_restart_ready_++;
   } else {
     LOG_ERROR(GL,
               "Recieved multiple ReplicaRestartReadyMsg from sender_id "
@@ -3281,7 +3297,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
   if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof();
-    ControlStateManager::instance().onRestartProof();
+    ControlStateManager::instance().onRestartProof(msg->seqNum());
   }
 }
 
@@ -3298,8 +3314,8 @@ void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyPro
   LOG_INFO(GL,
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
-  metric_received_restart_proof_.Get().Inc();
-  ControlStateManager::instance().onRestartProof();
+  metric_received_restart_proof_++;
+  ControlStateManager::instance().onRestartProof(msg->seqNum());
   delete msg;
 }
 
@@ -3396,7 +3412,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   strictLowerBoundOfSeqNums = ld.strictLowerBoundOfSeqNums;
   maxSeqNumTransferredFromPrevViews = ld.maxSeqNumTransferredFromPrevViews;
   lastViewThatTransferredSeqNumbersFullyExecuted = ld.lastViewThatTransferredSeqNumbersFullyExecuted;
-  metric_total_committed_sn_.Get().Inc(lastExecutedSeqNum);
+  metric_total_committed_sn_ += lastExecutedSeqNum;
   mainLog->resetAll(lastStableSeqNum + 1);
   checkpointsLog->resetAll(lastStableSeqNum);
 
@@ -3727,8 +3743,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       time_in_active_view_(histograms_.timeInActiveView),
       time_in_state_transfer_(histograms_.timeInStateTransfer),
       reqBatchingLogic_(*this, config_, metrics_, timers),
-      replStatusHandlers_(*this),
-      rsaSigner_(std::make_unique<bftEngine::impl::RSASigner>(config.replicaPrivateKey.c_str())) {
+      replStatusHandlers_(*this) {
   LOG_INFO(GL, "");
   ConcordAssertLT(config_.getreplicaId(), config_.getnumReplicas());
   // TODO(GG): more asserts on params !!!!!!!!!!!
@@ -3925,16 +3940,16 @@ void ReplicaImp::recoverRequests() {
     const uint16_t numOfRequests = pp->numberOfRequests();
     executeRequestsInPrePrepareMsg(span, pp, true);
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-    metric_total_finished_consensuses_.Get().Inc();
+    metric_total_finished_consensuses_++;
     if (seqNumInfo.slowPathStarted()) {
-      metric_total_slowPath_.Get().Inc();
+      metric_total_slowPath_++;
       if (numOfRequests > 0) {
-        metric_total_slowPath_requests_.Get().Inc(numOfRequests);
+        metric_total_slowPath_requests_ += numOfRequests;
       }
     } else {
-      metric_total_fastPath_.Get().Inc();
+      metric_total_fastPath_++;
       if (numOfRequests > 0) {
-        metric_total_fastPath_requests_.Get().Inc(numOfRequests);
+        metric_total_fastPath_requests_ += numOfRequests;
       }
     }
     recoveringFromExecutionOfRequests = false;
@@ -3964,7 +3979,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
                                                                               reply.replyBuf()});
   {
     TimeRecorder scoped_timer(*histograms_.executeReadOnlyRequest);
-    bftRequestsHandler_->execute(accumulatedRequests, request->getCid(), span);
+    bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request->getCid(), span);
   }
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
@@ -4006,19 +4021,23 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   ConcordAssertNE(ppMsg, nullptr);
   ConcordAssertEQ(ppMsg->viewNumber(), getCurrentView());
   ConcordAssertEQ(ppMsg->seqNumber(), lastExecutedSeqNum + 1);
-
   const uint16_t numOfRequests = ppMsg->numberOfRequests();
 
   // recoverFromErrorInRequestsExecution ==> (numOfRequests > 0)
   ConcordAssertOR(!recoverFromErrorInRequestsExecution, (numOfRequests > 0));
 
   if (numOfRequests > 0) {
+    if (config_.timeServiceEnabled) {
+      ConcordAssert(time_service_manager_->hasTimeRequest(*ppMsg));
+    }
+
     histograms_.numRequestsInPrePrepareMsg->record(numOfRequests);
     Bitmap requestSet(numOfRequests);
     size_t reqIdx = 0;
     RequestsIterator reqIter(ppMsg);
     char *requestBody = nullptr;
 
+    bool seenTimeService = false;
     //////////////////////////////////////////////////////////////////////
     // Phase 1:
     // a. Find the requests that should be executed
@@ -4031,6 +4050,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
         NodeIdType clientId = req.clientProxyId();
 
         if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
+          ConcordAssert(!seenTimeService && "Multiple Time Service messages in PrePrepare");
+          seenTimeService = true;
           reqIdx++;
           continue;
         }
@@ -4186,15 +4207,17 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
+  auto timestamp = config_.timeServiceEnabled ? std::optional<Timestamp>{} : std::nullopt;
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
     if (config_.timeServiceEnabled) {
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
-        auto time = concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
-        time = time_service_manager_->compareAndSwap(time);
-        LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << time.count() << "ms");
+        timestamp->time_since_epoch =
+            concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
+        timestamp->time_since_epoch = time_service_manager_->compareAndSwap(timestamp->time_since_epoch);
+        LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << timestamp->time_since_epoch.count() << "ms");
         continue;
       }
     }
@@ -4223,7 +4246,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
       TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-      bftRequestsHandler_->execute(accumulatedRequests, ppMsg->getCid(), span);
+      bftRequestsHandler_->execute(accumulatedRequests, timestamp, ppMsg->getCid(), span);
     }
   } else {
     LOG_DEBUG(
@@ -4234,7 +4257,10 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       singleRequest.push_back(req);
       {
         TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
-        bftRequestsHandler_->execute(singleRequest, ppMsg->getCid(), span);
+        bftRequestsHandler_->execute(singleRequest, timestamp, ppMsg->getCid(), span);
+        if (config_.timeServiceEnabled) {
+          timestamp->request_position++;
+        }
       }
       req = singleRequest.at(0);
       singleRequest.clear();
@@ -4248,7 +4274,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       const auto requestSeqNum = req.requestSequenceNum;
       LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
     } else {
-      if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_.Get().Inc();
+      if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
           req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
       replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
@@ -4315,16 +4341,16 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     consensus_avg_time_.Get().Set((uint64_t)consensus_time_.avg());
     if (consensus_time_.numOfElements() == 1000) consensus_time_.reset();  // We reset the average every 1000 samples
     metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
-    metric_total_finished_consensuses_.Get().Inc();
+    metric_total_finished_consensuses_++;
     if (seqNumInfo.slowPathStarted()) {
-      metric_total_slowPath_.Get().Inc();
+      metric_total_slowPath_++;
       if (numOfRequests > 0) {
-        metric_total_slowPath_requests_.Get().Inc(numOfRequests);
+        metric_total_slowPath_requests_ += numOfRequests;
       }
     } else {
-      metric_total_fastPath_.Get().Inc();
+      metric_total_fastPath_++;
       if (numOfRequests > 0) {
-        metric_total_fastPath_requests_.Get().Inc(numOfRequests);
+        metric_total_fastPath_requests_ += numOfRequests;
       }
     }
   }
@@ -4334,17 +4360,14 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     // messages queue.
     LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
     concord::messages::ReconfigurationRequest req;
+    req.sender = config_.replicaId;
     req.command = concord::messages::WedgeCommand{config_.replicaId, true};
     // Mark this request as an internal one
     std::vector<uint8_t> data_vec;
     concord::messages::serialize(data_vec, req);
-    std::string sig(rsaSigner_->signatureLength(), '\0');
-    std::size_t sig_length{0};
-    rsaSigner_->sign(reinterpret_cast<char *>(data_vec.data()),
-                     data_vec.size(),
-                     sig.data(),
-                     rsaSigner_->signatureLength(),
-                     sig_length);
+    std::string sig(SigManager::instance()->getMySigLength(), '\0');
+    uint16_t sig_length{0};
+    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
     req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
     data_vec.clear();
     concord::messages::serialize(data_vec, req);

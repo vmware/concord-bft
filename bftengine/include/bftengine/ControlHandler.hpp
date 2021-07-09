@@ -28,6 +28,8 @@ class ControlHandler : public IControlHandler {
   void onStableCheckpoint() override {
     onNMinusFOutOfNCheckpoint_ = true;
     for (auto& cb : onStableCheckpointCallBack) cb();
+
+    ControlStateManager::instance().checkForReplicaReconfigurationAction();
   }
   bool onPruningProcess() override { return onPruningProcess_; }
   bool isOnNOutOfNCheckpoint() const override { return onNoutOfNCheckpoint_; }
@@ -38,6 +40,14 @@ class ControlHandler : public IControlHandler {
   }
   void addOnStableCheckpointCallBack(const std::function<void()>& cb) override {
     onStableCheckpointCallBack.emplace_back(cb);
+  }
+
+  void resetState() override {
+    onNoutOfNCheckpoint_ = false;
+    onNMinusFOutOfNCheckpoint_ = false;
+    onPruningProcess_ = false;
+    onSuperStableCheckpointCallBack.clear();
+    onStableCheckpointCallBack.clear();
   }
 
  private:

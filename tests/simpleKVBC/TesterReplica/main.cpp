@@ -60,7 +60,7 @@ void cronSetup(TestSetup& setup, const Replica& replica) {
   const auto rule = [numberOfExecutes](const Tick&) { return (currentNumberOfExecutes < numberOfExecutes); };
   const auto action = [](const Tick& tick) {
     ++currentNumberOfExecutes;
-    numberOfExecutesHandle.Get().Inc();
+    numberOfExecutesHandle++;
     tickComponentIdHandle.Get().Set(std::to_string(tick.component_id));
     metricsComponent->UpdateAggregator();
   };
