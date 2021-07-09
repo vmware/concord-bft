@@ -15,6 +15,10 @@
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
 
 namespace concord::kvbc::strategy {
+
+// This strategy is provided for the purpose of testing and playing
+// to add any Byzantine Strategy. This strategy should be used as a
+// reference to add new strategies.
 class ShufflePrePrepareMsgStrategy : public IByzantineStrategy {
  public:
   std::string getStrategyName() override;

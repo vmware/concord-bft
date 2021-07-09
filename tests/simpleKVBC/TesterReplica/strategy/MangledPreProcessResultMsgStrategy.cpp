@@ -30,6 +30,10 @@ std::string concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::getStra
 }
 uint16_t concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::getMessageCode() { return MsgCode::PrePrepare; }
 
+// Below function provides the strategy for changing of the message.
+// It mangles all the PreProcessResult message by filling it with
+// some ramdom string
+// Update the digest and then send the mangled message.
 bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& msg) {
   PrePrepareMsg& nmsg = static_cast<PrePrepareMsg&>(*(msg.get()));
 

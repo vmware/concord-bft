@@ -14,7 +14,7 @@
 #include <random>
 #include <tuple>
 
-#include "ShufflePreProcessMsgStrategy.hpp"
+#include "ShufflePrePrepareMsgStrategy.hpp"
 #include "StrategyUtils.hpp"
 
 #include "bftengine/ClientMsgs.hpp"
@@ -30,6 +30,12 @@ using bftEngine::impl::MessageBase;
 using bftEngine::impl::PrePrepareMsg;
 using bftEngine::ClientRequestMsgHeader;
 
+// This is a reference change method, which does the following changes to the message:
+// It first tosses a coin
+// If the coin toss is 1, it will take any 2 random consecutive client requests
+// Changes the request and fill it with some ramdom string
+// Swap the randomly chosen requests
+// Update the digest and then send the shuffled message.
 bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& msg) {
   PrePrepareMsg& nmsg = static_cast<PrePrepareMsg&>(*(msg.get()));
   std::mt19937_64 eng{std::random_device{}()};

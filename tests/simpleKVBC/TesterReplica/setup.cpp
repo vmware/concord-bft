@@ -37,7 +37,7 @@
 #include <experimental/filesystem>
 
 #include "strategy/ByzantineStrategy.hpp"
-#include "strategy/ShufflePreProcessMsgStrategy.hpp"
+#include "strategy/ShufflePrePrepareMsgStrategy.hpp"
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
 

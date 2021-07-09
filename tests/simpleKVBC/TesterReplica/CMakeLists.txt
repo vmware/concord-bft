@@ -7,7 +7,7 @@ add_executable(skvbc_replica main.cpp
 		 ../simpleKVBTestsBuilder.cpp
 		 ${concord_bft_tools_SOURCE_DIR}/KeyfileIOUtils.cpp
 		 WrapCommunication.cpp
-		 strategy/ShufflePreProcessMsgStrategy.cpp
+		 strategy/ShufflePrePrepareMsgStrategy.cpp
 		 strategy/StrategyUtils.cpp
 		 strategy/MangledPreProcessResultMsgStrategy.cpp)
 

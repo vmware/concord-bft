@@ -1341,15 +1341,13 @@ class BftTestNetwork:
                 self.stop_all_replicas()
             return lastExecutedVal
 
-    async def assert_successful_pre_executions_count(self, replica_id, num_requests, threshold=1.0, timeout_in_sec=10):
+    async def assert_successful_pre_executions_count(self, replica_id, num_requests):
         try:
-            threshold = 1.0 if(threshold > 1.0) else threshold
             pre_proc_req = 0
             total_pre_exec_requests_executed = 0
-            threshold_request = num_requests * threshold;
-            with trio.fail_after(timeout_in_sec):
-                while pre_proc_req < threshold_request or \
-                        total_pre_exec_requests_executed < threshold_request:
+            with trio.fail_after(10):
+                while pre_proc_req < num_requests or \
+                        total_pre_exec_requests_executed < num_requests:
                     key1 = ["preProcessor", "Counters", "preProcReqCompleted"]
                     pre_proc_req = await self.metrics.get(replica_id, *key1) - self.initial_preexec_sent
                     key2 = ["replica", "Counters", "totalPreExecRequestsExecuted"]
