@@ -137,6 +137,7 @@ struct ByzantineTestCaseState {
   // ByzantineTestCaseState is fully set up.
   shared_ptr<UpdateQueue> update_queue_;
   unique_ptr<ThinReplicaClientConfig> trc_config_;
+  shared_ptr<concordMetrics::Aggregator> aggregator_;
   unique_ptr<ThinReplicaClient> trc_;
 
   // Initialize this ByzantineTestCaseState such that trc_ points to a
@@ -164,7 +165,8 @@ struct ByzantineTestCaseState {
             update_queue_,
             max_faulty,
             CreateTrsConnections<ByzantineMockThinReplicaServerPreparer::ByzantineMockServer>(mock_servers_))),
-        trc_(new ThinReplicaClient(std::move(trc_config_))) {}
+        aggregator_(std::make_shared<concordMetrics::Aggregator>()),
+        trc_(new ThinReplicaClient(std::move(trc_config_), aggregator_)) {}
 };
 
 namespace {

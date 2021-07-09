@@ -62,14 +62,15 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   auto mock_servers = CreateTrsConnections(num_replicas);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc.reset()) << "ThinReplicaClient destructor failed.";
   update_queue->Clear();
 
   mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
   update_queue->Pop();
   update_queue->Pop();
@@ -81,7 +82,7 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
   update_queue->Pop();
   update_queue->Pop();
@@ -109,7 +110,8 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed.";
 
   trc->Unsubscribe();
@@ -137,7 +139,8 @@ TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
   unique_ptr<Update> update_received = update_queue->Pop();
   uint64_t block_id = update_received->block_id;
@@ -184,7 +187,8 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher, num_unresponsive);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
                                         "exception when trying to subscribe to a cluster with only max_faulty "
                                         "servers responsive.";
@@ -194,7 +198,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   mock_servers = CreateTrsConnections(num_replicas, num_replicas);
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
                                         "exception when trying to subscribe to a cluster with no responsive "
                                         "servers.";
@@ -218,7 +222,8 @@ TEST(thin_replica_client_test, test_unsubscribe_successful) {
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a newly-constructed "
                                          "ThinReplicaClient.";
   trc->Subscribe();
@@ -253,7 +258,8 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
   unique_ptr<Update> update_received = update_queue->Pop();
   EXPECT_TRUE((bool)update_received) << "ThinReplicaClient failed to publish update from initial state.";
@@ -294,7 +300,8 @@ TEST(thin_replica_client_test, test_acknowledge_block_id_success) {
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc->AcknowledgeBlockID(1)) << "ThinReplicaClient::AcknowledgeBlockID fails when called on a "
                                                  "freshly-constructed ThinReplicaClient.";
   trc->Subscribe();
@@ -345,7 +352,8 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_FALSE((bool)(update_queue->TryPop())) << "ThinReplicaClient appears to have published state to update queue "
                                                   "prior to subscription.";
 
