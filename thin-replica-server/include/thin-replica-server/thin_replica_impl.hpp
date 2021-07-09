@@ -88,8 +88,9 @@ class ThinReplicaImpl {
   const std::string kCorrelationIdTag = "cid";
 
  public:
-  ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config, std::unique_ptr<ThinReplicaServerMetrics> metrics)
-      : logger_(logging::getLogger("concord.thin_replica")), config_(std::move(config)), metrics_(std::move(metrics)) {}
+  ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config,
+                  std::shared_ptr<concordMetrics::Aggregator> aggregator)
+      : logger_(logging::getLogger("concord.thin_replica")), config_(std::move(config)), aggregator_(aggregator) {}
 
   ThinReplicaImpl(const ThinReplicaImpl&) = delete;
   ThinReplicaImpl(ThinReplicaImpl&&) = delete;
@@ -196,22 +197,24 @@ class ThinReplicaImpl {
     if (!subscribe_status.ok()) {
       return subscribe_status;
     }
-
-    metrics_->setSubscriberListSize(config_->subscriber_list.Size());
+    // TRS metrics
+    ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
+    metrics_.setAggregator(aggregator_);
+    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
     try {
       syncAndSend<ServerContextT, ServerWriterT, DataT>(context, request->block_id(), live_updates, stream, kvb_filter);
     } catch (StreamCancelled& error) {
       config_->subscriber_list.removeBuffer(live_updates);
       live_updates->removeAllUpdates();
-      metrics_->setSubscriberListSize(config_->subscriber_list.Size());
+      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
       return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (std::exception& error) {
       LOG_ERROR(logger_, error.what());
       config_->subscriber_list.removeBuffer(live_updates);
       live_updates->removeAllUpdates();
 
-      metrics_->setSubscriberListSize(config_->subscriber_list.Size());
+      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
       std::stringstream msg;
       msg << "Couldn't transition from block id " << request->block_id() << " to new blocks";
@@ -221,7 +224,7 @@ class ThinReplicaImpl {
     // Read, filter, and send live updates
     SubUpdate update;
     while (!context->IsCancelled()) {
-      metrics_->setLiveUpdateQueueSize(stream_type, getClientId(context), live_updates->Size());
+      metrics_.queue_size.Get().Set(live_updates->Size());
       try {
         live_updates->Pop(update);
       } catch (concord::thin_replica::ConsumerTooSlow& error) {
@@ -253,11 +256,12 @@ class ThinReplicaImpl {
         LOG_INFO(logger_, "Subscription stream closed: " << error.what());
         break;
       }
-      metrics_->setLastSentBlockId(stream_type, getClientId(context), update.block_id);
+      metrics_.last_sent_block_id.Get().Set(update.block_id);
     }
     config_->subscriber_list.removeBuffer(live_updates);
     live_updates->removeAllUpdates();
-    metrics_->setSubscriberListSize(config_->subscriber_list.Size());
+    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+    metrics_.updateAggregator();
     if (context->IsCancelled()) {
       return grpc::Status::CANCELLED;
     }
@@ -610,7 +614,7 @@ class ThinReplicaImpl {
  private:
   logging::Logger logger_;
   std::unique_ptr<ThinReplicaServerConfig> config_;
-  std::unique_ptr<ThinReplicaServerMetrics> metrics_;
+  std::shared_ptr<concordMetrics::Aggregator> aggregator_;
 };
 }  // namespace thin_replica
 }  // namespace concord

@@ -18,41 +18,31 @@
 namespace concord {
 namespace thin_replica {
 
-// Interface to create and set TRS metrics using any external monitoring system
-// of choice, for e.g. Prometheus, OpenTSDB. The implementations of the methods
-// must be thread-safe, as metrics will be updated per client connection. Note
-// that metrics such as last_sent_block_id and live_update_queue_size are unique
-// per client connection (uniquely identified by stream_type and client_id)
-// whereas subscriber_list_size is not.
-class ThinReplicaServerMetrics {
+struct ThinReplicaServerMetrics {
+  ThinReplicaServerMetrics(std::string stream_type, std::string client_id)
+      : metrics_component_{"ThinReplicaServer", std::make_shared<concordMetrics::Aggregator>()},
+        subscriber_list_size{metrics_component_.RegisterGauge("subscriber_list_size", 0)},
+        queue_size{metrics_component_.RegisterGauge(stream_type + client_id + "queue_size", 0)},
+        last_sent_block_id{metrics_component_.RegisterGauge(stream_type + client_id + "last_sent_block_id", 0)} {
+    metrics_component_.Register();
+  }
+
+  void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+
+  void updateAggregator() { metrics_component_.UpdateAggregator(); }
+
+ private:
+  concordMetrics::Component metrics_component_;
+
  public:
-  virtual ~ThinReplicaServerMetrics(){};
-  // set the gauge metric_subscriber_list_size_
-  virtual void setSubscriberListSize(size_t subscriber_list_size) = 0;
-  // set the gauge metric_last_sent_block_id
-  virtual void setLastSentBlockId(const std::string& stream_type,
-                                  const std::string& client_id,
-                                  std::uint64_t block_id) = 0;
-  // set the gauge metric_queue_size
-  virtual void setLiveUpdateQueueSize(const std::string& stream_type,
-                                      const std::string& client_id,
-                                      size_t queue_size) = 0;
-};
-
-// Ignores TRS metrics
-class IgnoreTrsMetrics : public ThinReplicaServerMetrics {
- public:
-  IgnoreTrsMetrics() {}
-
-  void setSubscriberListSize(size_t subscriber_list_size) override {}
-
-  void setLastSentBlockId(const std::string& stream_type,
-                          const std::string& client_id,
-                          std::uint64_t block_id) override {}
-
-  void setLiveUpdateQueueSize(const std::string& stream_type,
-                              const std::string& client_id,
-                              size_t queue_size) override {}
+  // number of current subscriptions
+  concordMetrics::GaugeHandle subscriber_list_size;
+  // live update queue size
+  concordMetrics::GaugeHandle queue_size;
+  // last sent block id
+  concordMetrics::GaugeHandle last_sent_block_id;
 };
 }  // namespace thin_replica
 }  // namespace concord
