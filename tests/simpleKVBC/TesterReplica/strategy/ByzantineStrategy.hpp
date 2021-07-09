@@ -22,7 +22,7 @@ class IByzantineStrategy {
  public:
   virtual std::string getStrategyName() = 0;
   virtual uint16_t getMessageCode() = 0;
-  virtual bool changeMessage(std::shared_ptr<MessageBase> &msg) = 0;
+  virtual bool changeMessage(std::shared_ptr<bftEngine::impl::MessageBase> &msg) = 0;
   virtual ~IByzantineStrategy() {}
 };
 

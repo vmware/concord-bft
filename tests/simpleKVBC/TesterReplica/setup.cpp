@@ -36,6 +36,9 @@
 #include <boost/algorithm/string.hpp>
 #include <experimental/filesystem>
 
+#include "strategy/ByzantineStrategy.hpp"
+#include "strategy/ShufflePrePrepareMsgStrategy.hpp"
+#include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
 
 namespace fs = std::experimental::filesystem;
@@ -78,6 +81,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     std::string txnSigningKeysPath;
     std::optional<std::uint32_t> cronEntryNumberOfExecutes;
     std::string byzantineStrategies;
+    bool is_separate_communication_mode = false;
 
     static struct option longOptions[] = {{"replica-id", required_argument, 0, 'i'},
                                           {"key-file-prefix", required_argument, 0, 'k'},
@@ -96,6 +100,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"consensus-batching-flush-period", required_argument, 0, 'z'},
                                           {"consensus-concurrency-level", required_argument, 0, 'y'},
                                           {"replica-block-accumulation", no_argument, 0, 'u'},
+                                          {"send-different-messages-to-different-replica", no_argument, 0, 'd'},
                                           {"principals-mapping", optional_argument, 0, 'p'},
                                           {"txn-signing-key-path", optional_argument, 0, 't'},
                                           {"operator-public-key-path", optional_argument, 0, 'o'},
@@ -106,7 +111,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:up:t:o:r:g:x:f:", longOptions, &optionIndex)) !=
+    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:x:f:", longOptions, &optionIndex)) !=
            -1) {
       switch (o) {
         case 'i': {
@@ -149,6 +154,10 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         } break;
         case 'u': {
           replicaConfig.blockAccumulation = true;
+          break;
+        }
+        case 'd': {
+          is_separate_communication_mode = true;
           break;
         }
         case 'l': {
@@ -250,12 +259,16 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     if (!byzantineStrategies.empty()) {
       // Initialise all the strategies here at once.
       const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
-          std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>()};
+          std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>(logger),
+          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger)};
       WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
 
       std::unique_ptr<bft::communication::ICommunication> wrappedComm =
-          std::make_unique<WrapCommunication>(std::move(comm));
+          std::make_unique<WrapCommunication>(std::move(comm), is_separate_communication_mode, logger);
       comm.swap(wrappedComm);
+      LOG_INFO(logger,
+               "Starting the replica with strategies : " << byzantineStrategies << " and randomized send : "
+                                                         << is_separate_communication_mode);
     }
 
     uint16_t metricsPort = conf.listenPort + 1000;

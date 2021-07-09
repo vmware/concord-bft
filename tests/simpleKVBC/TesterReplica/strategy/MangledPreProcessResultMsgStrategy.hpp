@@ -12,16 +12,19 @@
 
 #pragma once
 
+#include "Logger.hpp"
 #include "TesterReplica/strategy/ByzantineStrategy.hpp"
 
 namespace concord::kvbc::strategy {
-class ShufflePrePrepareMsgStrategy : public IByzantineStrategy {
+class MangledPreProcessResultMsgStrategy : public IByzantineStrategy {
  public:
   std::string getStrategyName() override;
   uint16_t getMessageCode() override;
-  bool changeMessage(std::shared_ptr<MessageBase> &msg) override;
-  ShufflePrePrepareMsgStrategy() = default;
-  virtual ~ShufflePrePrepareMsgStrategy() = default;
-};
+  bool changeMessage(std::shared_ptr<bftEngine::impl::MessageBase>& msg) override;
+  explicit MangledPreProcessResultMsgStrategy(logging::Logger& logger) : logger_(logger) {}
+  virtual ~MangledPreProcessResultMsgStrategy() override {}
 
-}  // end of namespace concord::kvbc::strategy
+ private:
+  logging::Logger logger_;
+};
+}  // namespace concord::kvbc::strategy
