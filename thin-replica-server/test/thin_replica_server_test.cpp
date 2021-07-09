@@ -38,7 +38,6 @@ using com::vmware::concord::thin_replica::Hash;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
-using concord::thin_replica::IgnoreTrsMetrics;
 
 using concord::thin_replica::SubUpdateBuffer;
 
@@ -294,8 +293,7 @@ TEST(thin_replica_server_test, SubscribeToUpdatesAlreadySynced) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   SubscriptionRequest request;
   request.set_block_id(1u);
@@ -317,8 +315,7 @@ TEST(thin_replica_server_test, SubscribeToUpdatesWithGap) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   SubscriptionRequest request;
   request.set_block_id(1u);
@@ -340,8 +337,7 @@ TEST(thin_replica_server_test, SubscribeToUpdatesWithGapFromTheMiddleBlock) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   SubscriptionRequest request;
   request.set_block_id(3u);
@@ -363,8 +359,7 @@ TEST(thin_replica_server_test, SubscribeToUpdateHashesAlreadySynced) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   SubscriptionRequest request;
   request.set_block_id(1u);
@@ -386,8 +381,7 @@ TEST(thin_replica_server_test, SubscribeToUpdateHashesWithGap) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   SubscriptionRequest request;
   request.set_block_id(1u);
@@ -411,8 +405,7 @@ TEST(thin_replica_server_test, ReadState) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   ReadStateRequest request;
   auto status = replica.ReadState(&context, &request, &stream);
@@ -433,8 +426,7 @@ TEST(thin_replica_server_test, ReadStateHash) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   ReadStateHashRequest request;
   request.set_block_id(kLastBlockId);
@@ -457,8 +449,7 @@ TEST(thin_replica_server_test, AckUpdate) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   ReadStateHashRequest request;
   request.set_block_id(kLastBlockId);
@@ -482,8 +473,7 @@ TEST(thin_replica_server_test, Unsubscribe) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   TestServerContext context;
   ReadStateHashRequest request;
   request.set_block_id(kLastBlockId);
@@ -515,8 +505,7 @@ TEST(thin_replica_server_test, ContextWithoutClientIdData) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, data_buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   EXPECT_EQ(replica.ReadState(&context, &read_state_request, &data_stream).error_code(), grpc::StatusCode::UNKNOWN);
   EXPECT_EQ(replica.ReadStateHash(&context, &read_state_hash_request, &hash).error_code(), grpc::StatusCode::UNKNOWN);
   auto status = replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(
@@ -539,10 +528,9 @@ TEST(thin_replica_server_test, SubscribeWithWrongBlockId) {
   std::unordered_set<std::string> client_id_set;
 
   TestServerContext context;
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   SubscriptionRequest request;
   request.set_block_id(kLastBlockId + 100);
   auto status =
@@ -562,8 +550,7 @@ TEST(thin_replica_server_test, GetClientIdFromCertSubjectField) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   std::string subject_str =
       "subject=C = NA, ST = NA, L = NA, O = NA, OU = daml_ledger_api1, CN = "
       "daml_ledger_api1";
@@ -587,8 +574,7 @@ TEST(thin_replica_server_test, GetClientIdSetFromRootCert) {
   concord::thin_replica::ThinReplicaImpl::getClientIdFromRootCert(logger, root_cert_path, parsed_client_id_set);
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, parsed_client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
   EXPECT_GT(parsed_client_id_set.size(), 0);
   for (auto& client_id : client_id_set) {
     auto parsed_client_id_it = parsed_client_id_set.find(client_id);
@@ -611,8 +597,7 @@ TEST(thin_replica_server_test, getClientIdFromClientCert) {
 
   auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
       is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set);
-  auto mock_metrics = std::make_unique<IgnoreTrsMetrics>();
-  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::move(mock_metrics));
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
 
   std::string expected_client_id = "daml_ledger_api1";
   std::string client_id = replica.getClientIdFromClientCert<TestServerContext>(&context);
