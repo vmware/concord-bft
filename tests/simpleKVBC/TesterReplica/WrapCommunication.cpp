@@ -25,6 +25,38 @@ using bftEngine::ReplicaConfig;
 
 std::map<uint16_t, std::shared_ptr<IByzantineStrategy>> WrapCommunication::changeStrategy;
 
+int WrapCommunication::send(NodeNum destNode, std::vector<uint8_t>&& msg) {
+  std::shared_ptr<MessageBase> newMsg;
+  if (changeMesssage(msg, newMsg) && newMsg) {
+    std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
+    LOG_INFO(logger_, "Sending the changed message to destNode : " << destNode);
+    return communication_->send(destNode, std::move(chgMsg));
+  } else {
+    return communication_->send(destNode, std::move(msg));
+  }
+}
+
+std::set<NodeNum> WrapCommunication::send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) {
+  if (separate_communication_) {
+    std::set<NodeNum> failedNodes;
+    for (auto dst : dests) {
+      std::vector<uint8_t> nMsg(msg);
+      if (send(dst, std::move(nMsg)) != 0) {
+        failedNodes.insert(dst);
+      }
+    }
+    return failedNodes;
+  } else {
+    std::shared_ptr<MessageBase> newMsg;
+    if (changeMesssage(msg, newMsg) && newMsg) {
+      std::vector<uint8_t> chgMsg(newMsg->body(), newMsg->body() + newMsg->size());
+      LOG_INFO(logger_, "Sending the changed message to all replicas");
+      return communication_->send(dests, std::move(chgMsg));
+    }
+    return communication_->send(dests, std::move(msg));
+  }
+}
+
 void WrapCommunication::addStrategy(uint16_t msgCode, std::shared_ptr<IByzantineStrategy> byzantineStrategy) {
   WrapCommunication::changeStrategy.insert(std::make_pair(msgCode, byzantineStrategy));
 }
@@ -40,6 +72,10 @@ bool WrapCommunication::changeMesssage(std::vector<uint8_t> const& msg, std::sha
     if (newMsg) {
       auto it = changeStrategy.find(static_cast<uint16_t>(newMsg->type()));
       if (it != changeStrategy.end()) {
+        LOG_INFO(logger_,
+                 "Trying to change the message with type : " << newMsg->type()
+                                                             << " with sender : " << newMsg->senderId()
+                                                             << " with message size : " << newMsg->size());
         is_strategy_changed = it->second->changeMessage(newMsg);
       }
     }
@@ -54,10 +90,16 @@ void WrapCommunication::addStrategies(std::string const& strategies,
   while (stgs.good()) {
     std::string strategy;
     std::getline(stgs, strategy, delim);
+    bool strategyAdded = false;
     for (auto const& s : allStrategies) {
       if (s->getStrategyName() == strategy) {
         addStrategy(s->getMessageCode(), s);
+        strategyAdded = true;
+        break;
       }
+    }
+    if (!strategyAdded) {
+      throw std::runtime_error("invalid strategy specified in the commandline : " + strategy);
     }
   }
 }
