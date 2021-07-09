@@ -571,8 +571,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
 
-  std::unique_ptr<bftEngine::impl::RSASigner> rsaSigner_;
-
 #ifdef USE_FAKE_CLOCK_IN_TIME_SERVICE
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;
 #else
