@@ -111,8 +111,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:x", longOptions, &optionIndex)) !=
-           -1) {
+    while ((o = getopt_long(
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:x:f:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -211,6 +211,11 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         }
         case 'x': {
           replicaConfig.preExecutionResultAuthEnabled = true;
+          break;
+        }
+        case 'f': {
+          bool time_service_option = concord::util::to<bool>(std::string(optarg));
+          replicaConfig.timeServiceEnabled = time_service_option;
           break;
         }
         case '?': {

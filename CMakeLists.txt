@@ -54,6 +54,9 @@ option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
 # Build KVBC Benchmarking tool
 option(BUILD_KVBC_BENCH "BUILD kvbcbench" FALSE)
 
+# Build Time service with fake clock
+option(USE_FAKE_CLOCK_IN_TIME_SERVICE "BUILD TimeService Using Fake Clock" FALSE)
+
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
     math(EXPR COMM_MODULES "${COMM_MODULES}+1")
