@@ -111,8 +111,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
-    while ((o = getopt_long(argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:x:f:", longOptions, &optionIndex)) !=
-           -1) {
+    while ((o = getopt_long(
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:x:f:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
@@ -208,199 +208,199 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case 'f': {
           bool time_service_option = concord::util::to<bool>(std::string(optarg));
           replicaConfig.timeServiceEnabled = time_service_option;
-        case 'g': {
-          byzantineStrategies = optarg;
-          break;
-        }
-        case 'x': {
-          replicaConfig.preExecutionResultAuthEnabled = true;
-          break;
-        }
-        case '?': {
-          throw std::runtime_error("invalid arguments");
-        } break;
+          case 'g': {
+            byzantineStrategies = optarg;
+            break;
+          }
+          case 'x': {
+            replicaConfig.preExecutionResultAuthEnabled = true;
+            break;
+          }
+          case '?': {
+            throw std::runtime_error("invalid arguments");
+          } break;
 
-        default:
-          break;
+          default:
+            break;
+        }
       }
-    }
 
-    if (keysFilePrefix.empty()) throw std::runtime_error("missing --key-file-prefix");
+      if (keysFilePrefix.empty()) throw std::runtime_error("missing --key-file-prefix");
 
-    // If -p and -t are set, enable clientTransactionSigningEnabled. If only one of them is set, throw an error
-    if (!principalsMapping.empty() && !txnSigningKeysPath.empty()) {
-      replicaConfig.clientTransactionSigningEnabled = true;
-      TestSetup::setPublicKeysOfClients(principalsMapping, txnSigningKeysPath, replicaConfig.publicKeysOfClients);
-    } else if (principalsMapping.empty() != txnSigningKeysPath.empty()) {
-      throw std::runtime_error("Params principals-mapping and txn-signing-key-path must be set simultaneously.");
-    }
+      // If -p and -t are set, enable clientTransactionSigningEnabled. If only one of them is set, throw an error
+      if (!principalsMapping.empty() && !txnSigningKeysPath.empty()) {
+        replicaConfig.clientTransactionSigningEnabled = true;
+        TestSetup::setPublicKeysOfClients(principalsMapping, txnSigningKeysPath, replicaConfig.publicKeysOfClients);
+      } else if (principalsMapping.empty() != txnSigningKeysPath.empty()) {
+        throw std::runtime_error("Params principals-mapping and txn-signing-key-path must be set simultaneously.");
+      }
 
-    logging::Logger logger = logging::getLogger("skvbctest.replica");
+      logging::Logger logger = logging::getLogger("skvbctest.replica");
 
-    TestCommConfig testCommConfig(logger);
-    testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
-    uint16_t numOfReplicas =
-        (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 + replicaConfig.numRoReplicas);
-    auto numOfClients =
-        replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
+      TestCommConfig testCommConfig(logger);
+      testCommConfig.GetReplicaConfig(replicaConfig.replicaId, keysFilePrefix, &replicaConfig);
+      uint16_t numOfReplicas =
+          (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 + replicaConfig.numRoReplicas);
+      auto numOfClients =
+          replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
 #ifdef USE_COMM_PLAIN_TCP
-    bft::communication::PlainTcpConfig conf =
-        testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
+      bft::communication::PlainTcpConfig conf =
+          testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
-    bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
-        true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
+      bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
+          true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
 #else
-    bft::communication::PlainUdpConfig conf =
-        testCommConfig.GetUDPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
+      bft::communication::PlainUdpConfig conf =
+          testCommConfig.GetUDPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #endif
 
-    std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
+      std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
 
-    if (!byzantineStrategies.empty()) {
-      // Initialise all the strategies here at once.
-      const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
-          std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>(logger),
-          std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger)};
-      WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
+      if (!byzantineStrategies.empty()) {
+        // Initialise all the strategies here at once.
+        const std::vector<std::shared_ptr<concord::kvbc::strategy::IByzantineStrategy>> allStrategies = {
+            std::make_shared<concord::kvbc::strategy::ShufflePrePrepareMsgStrategy>(logger),
+            std::make_shared<concord::kvbc::strategy::MangledPreProcessResultMsgStrategy>(logger)};
+        WrapCommunication::addStrategies(byzantineStrategies, ',', allStrategies);
 
-      std::unique_ptr<bft::communication::ICommunication> wrappedComm =
-          std::make_unique<WrapCommunication>(std::move(comm), is_separate_communication_mode, logger);
-      comm.swap(wrappedComm);
-      LOG_INFO(logger,
-               "Starting the replica with strategies : " << byzantineStrategies << " and randomized send : "
-                                                         << is_separate_communication_mode);
-    }
-
-    uint16_t metricsPort = conf.listenPort + 1000;
-
-    LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
-
-    return std::unique_ptr<TestSetup>(new TestSetup{replicaConfig,
-                                                    std::move(comm),
-                                                    logger,
-                                                    metricsPort,
-                                                    persistMode == PersistencyMode::RocksDB,
-                                                    s3ConfigFile,
-                                                    logPropsFile,
-                                                    cronEntryNumberOfExecutes});
-
-  } catch (const std::exception& e) {
-    LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
-    throw;
-  }
-}
-
-#ifdef USE_S3_OBJECT_STORE
-concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3ConfigFile) {
-  ConfigFileParser parser(logger_, s3ConfigFile);
-  if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
-
-  auto get_config_value = [&s3ConfigFile, &parser](const std::string& key) {
-    std::vector<std::string> v = parser.GetValues(key);
-    if (v.size()) {
-      return v[0];
-    } else {
-      throw std::runtime_error("failed to parse " + s3ConfigFile + ": " + key + " is not set.");
-    }
-  };
-
-  concord::storage::s3::StoreConfig config;
-  config.bucketName = get_config_value("s3-bucket-name");
-  config.accessKey = get_config_value("s3-access-key");
-  config.protocol = get_config_value("s3-protocol");
-  config.url = get_config_value("s3-url");
-  config.secretKey = get_config_value("s3-secret-key");
-  try {
-    // TesterReplica is used for Apollo tests. Each test is executed against new blockchain, so we need brand new
-    // bucket for the RO replica. To achieve this we use a hack - set the prefix to a uniqe value so each RO replica
-    // writes in the same bucket but in different directory.
-    // So if s3-path-prefix is NOT SET it is initialised to a unique value based on current time.
-    config.pathPrefix = get_config_value("s3-path-prefix");
-  } catch (std::runtime_error& e) {
-    config.pathPrefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-  }
-
-  LOG_INFO(logger_,
-           "\nS3 Configuration:"
-               << "\nbucket:\t\t" << config.bucketName << "\nprotocol:\t" << config.protocol << "\nurl:\t\t"
-               << config.url);
-  return config;
-}
-#endif
-
-std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
-  // TODO handle persistancy mode
-  std::stringstream dbPath;
-  dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
-
-#ifdef USE_S3_OBJECT_STORE
-  if (GetReplicaConfig().isReadOnly) {
-    if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
-    const auto s3Config = ParseS3Config(s3ConfigFile_);
-    return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
-  }
-#endif
-  return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
-}
-
-std::vector<std::string> TestSetup::getKeyDirectories(const std::string& path) {
-  std::vector<std::string> result;
-  if (!fs::exists(path) || !fs::is_directory(path)) {
-    throw std::invalid_argument{"Transaction signing keys path doesn't exist at " + path};
-  }
-  for (auto& dir : fs::directory_iterator(path)) {
-    if (fs::exists(dir) && fs::is_directory(dir)) {
-      result.push_back(dir.path().string());
-    }
-  }
-  return result;
-}
-
-void TestSetup::setPublicKeysOfClients(
-    const std::string& principalsMapping,
-    const std::string& keysRootPath,
-    std::set<std::pair<const std::string, std::set<uint16_t>>>& publicKeysOfClients) {
-  // The string principalsMapping looks like:
-  // "11 12;13 14;15 16;17 18;19 20", for 10 client ids divided into 5 participants.
-
-  LOG_INFO(GL, "" << KVLOG(principalsMapping, keysRootPath));
-  std::vector<std::string> keysDirectories = TestSetup::getKeyDirectories(keysRootPath);
-  std::vector<std::string> clientIdChunks;
-  boost::split(clientIdChunks, principalsMapping, boost::is_any_of(";"));
-
-  if (clientIdChunks.size() != keysDirectories.size()) {
-    std::stringstream msg;
-    msg << "Number of keys directory should match the number of sets of clientIds mappings in principals "
-           "mapping string "
-        << KVLOG(keysDirectories.size(), clientIdChunks.size(), principalsMapping);
-    throw std::runtime_error(msg.str());
-  }
-
-  // Sort keysDirectories just to ensure ordering of the folders
-  std::sort(keysDirectories.begin(), keysDirectories.end());
-
-  // Build publicKeysOfClients of replicaConfig
-  for (std::size_t i = 0; i < clientIdChunks.size(); ++i) {
-    std::string keyFilePath =
-        keysDirectories.at(i) + "/transaction_signing_pub.pem";  // Will be "../1/transaction_signing_pub.pem" etc.
-
-    secretsmanager::SecretsManagerPlain smp;
-    std::optional<std::string> keyPlaintext;
-    keyPlaintext = smp.decryptFile(keyFilePath);
-    if (keyPlaintext.has_value()) {
-      // Each clientIdChunk would look like "11 12 13 14"
-      std::vector<std::string> clientIds;
-      boost::split(clientIds, clientIdChunks.at(i), boost::is_any_of(" "));
-      std::set<uint16_t> clientIdsSet;
-      for (const std::string& clientId : clientIds) {
-        clientIdsSet.insert(std::stoi(clientId));
+        std::unique_ptr<bft::communication::ICommunication> wrappedComm =
+            std::make_unique<WrapCommunication>(std::move(comm), is_separate_communication_mode, logger);
+        comm.swap(wrappedComm);
+        LOG_INFO(logger,
+                 "Starting the replica with strategies : " << byzantineStrategies << " and randomized send : "
+                                                           << is_separate_communication_mode);
       }
-      const std::string key = keyPlaintext.value();
-      publicKeysOfClients.insert(std::pair<const std::string, std::set<uint16_t>>(key, clientIdsSet));
-    } else {
-      throw std::runtime_error("Key public_key.pem not found in directory " + keysDirectories.at(i));
+
+      uint16_t metricsPort = conf.listenPort + 1000;
+
+      LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
+
+      return std::unique_ptr<TestSetup>(new TestSetup{replicaConfig,
+                                                      std::move(comm),
+                                                      logger,
+                                                      metricsPort,
+                                                      persistMode == PersistencyMode::RocksDB,
+                                                      s3ConfigFile,
+                                                      logPropsFile,
+                                                      cronEntryNumberOfExecutes});
+    }
+    catch (const std::exception& e) {
+      LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());
+      throw;
     }
   }
-}
+
+#ifdef USE_S3_OBJECT_STORE
+  concord::storage::s3::StoreConfig TestSetup::ParseS3Config(const std::string& s3ConfigFile) {
+    ConfigFileParser parser(logger_, s3ConfigFile);
+    if (!parser.Parse()) throw std::runtime_error("failed to parse" + s3ConfigFile);
+
+    auto get_config_value = [&s3ConfigFile, &parser](const std::string& key) {
+      std::vector<std::string> v = parser.GetValues(key);
+      if (v.size()) {
+        return v[0];
+      } else {
+        throw std::runtime_error("failed to parse " + s3ConfigFile + ": " + key + " is not set.");
+      }
+    };
+
+    concord::storage::s3::StoreConfig config;
+    config.bucketName = get_config_value("s3-bucket-name");
+    config.accessKey = get_config_value("s3-access-key");
+    config.protocol = get_config_value("s3-protocol");
+    config.url = get_config_value("s3-url");
+    config.secretKey = get_config_value("s3-secret-key");
+    try {
+      // TesterReplica is used for Apollo tests. Each test is executed against new blockchain, so we need brand new
+      // bucket for the RO replica. To achieve this we use a hack - set the prefix to a uniqe value so each RO replica
+      // writes in the same bucket but in different directory.
+      // So if s3-path-prefix is NOT SET it is initialised to a unique value based on current time.
+      config.pathPrefix = get_config_value("s3-path-prefix");
+    } catch (std::runtime_error& e) {
+      config.pathPrefix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    }
+
+    LOG_INFO(logger_,
+             "\nS3 Configuration:"
+                 << "\nbucket:\t\t" << config.bucketName << "\nprotocol:\t" << config.protocol << "\nurl:\t\t"
+                 << config.url);
+    return config;
+  }
+#endif
+
+  std::unique_ptr<IStorageFactory> TestSetup::GetStorageFactory() {
+    // TODO handle persistancy mode
+    std::stringstream dbPath;
+    dbPath << BasicRandomTests::DB_FILE_PREFIX << GetReplicaConfig().replicaId;
+
+#ifdef USE_S3_OBJECT_STORE
+    if (GetReplicaConfig().isReadOnly) {
+      if (s3ConfigFile_.empty()) throw std::runtime_error("--s3-config-file must be provided");
+      const auto s3Config = ParseS3Config(s3ConfigFile_);
+      return std::make_unique<v1DirectKeyValue::S3StorageFactory>(dbPath.str(), s3Config);
+    }
+#endif
+    return std::make_unique<v2MerkleTree::RocksDBStorageFactory>(dbPath.str());
+  }
+
+  std::vector<std::string> TestSetup::getKeyDirectories(const std::string& path) {
+    std::vector<std::string> result;
+    if (!fs::exists(path) || !fs::is_directory(path)) {
+      throw std::invalid_argument{"Transaction signing keys path doesn't exist at " + path};
+    }
+    for (auto& dir : fs::directory_iterator(path)) {
+      if (fs::exists(dir) && fs::is_directory(dir)) {
+        result.push_back(dir.path().string());
+      }
+    }
+    return result;
+  }
+
+  void TestSetup::setPublicKeysOfClients(
+      const std::string& principalsMapping,
+      const std::string& keysRootPath,
+      std::set<std::pair<const std::string, std::set<uint16_t>>>& publicKeysOfClients) {
+    // The string principalsMapping looks like:
+    // "11 12;13 14;15 16;17 18;19 20", for 10 client ids divided into 5 participants.
+
+    LOG_INFO(GL, "" << KVLOG(principalsMapping, keysRootPath));
+    std::vector<std::string> keysDirectories = TestSetup::getKeyDirectories(keysRootPath);
+    std::vector<std::string> clientIdChunks;
+    boost::split(clientIdChunks, principalsMapping, boost::is_any_of(";"));
+
+    if (clientIdChunks.size() != keysDirectories.size()) {
+      std::stringstream msg;
+      msg << "Number of keys directory should match the number of sets of clientIds mappings in principals "
+             "mapping string "
+          << KVLOG(keysDirectories.size(), clientIdChunks.size(), principalsMapping);
+      throw std::runtime_error(msg.str());
+    }
+
+    // Sort keysDirectories just to ensure ordering of the folders
+    std::sort(keysDirectories.begin(), keysDirectories.end());
+
+    // Build publicKeysOfClients of replicaConfig
+    for (std::size_t i = 0; i < clientIdChunks.size(); ++i) {
+      std::string keyFilePath =
+          keysDirectories.at(i) + "/transaction_signing_pub.pem";  // Will be "../1/transaction_signing_pub.pem" etc.
+
+      secretsmanager::SecretsManagerPlain smp;
+      std::optional<std::string> keyPlaintext;
+      keyPlaintext = smp.decryptFile(keyFilePath);
+      if (keyPlaintext.has_value()) {
+        // Each clientIdChunk would look like "11 12 13 14"
+        std::vector<std::string> clientIds;
+        boost::split(clientIds, clientIdChunks.at(i), boost::is_any_of(" "));
+        std::set<uint16_t> clientIdsSet;
+        for (const std::string& clientId : clientIds) {
+          clientIdsSet.insert(std::stoi(clientId));
+        }
+        const std::string key = keyPlaintext.value();
+        publicKeysOfClients.insert(std::pair<const std::string, std::set<uint16_t>>(key, clientIdsSet));
+      } else {
+        throw std::runtime_error("Key public_key.pem not found in directory " + keysDirectories.at(i));
+      }
+    }
+  }
 
 }  // namespace concord::kvbc
