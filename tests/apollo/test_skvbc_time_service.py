@@ -230,6 +230,5 @@ class SkvbcTimeServiceTest(unittest.TestCase):
     @classmethod
     async def manipulate_time_file_write(self, path, data):
         with open(path, 'w') as fp:
-            fp.truncate()
             fp.write(str(data))
             fp.close()
