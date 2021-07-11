@@ -52,6 +52,7 @@ apt-get ${APT_GET_FLAGS} install \
     libsnappy-dev \
     libssl-dev \
     libtool \
+    libyaml-cpp-dev \
     libz-dev \
     libzstd-dev
 
