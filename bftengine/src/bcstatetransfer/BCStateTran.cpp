@@ -698,6 +698,7 @@ void BCStateTran::onTimerImp() {
   }
   if (fs == FetchingState::GettingCheckpointSummaries) {
     if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMs) {
+      LOG_DEBUG(getLogger(), "Retransmitting AskForCheckpointSummaries");
       if (++retransmissionNumberOfAskForCheckpointSummariesMsg > kResetCount_AskForCheckpointSummaries)
         clearInfoAboutGettingCheckpointSummary();
 
@@ -1215,6 +1216,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   LOG_DEBUG(getLogger(), KVLOG(replicaId, m->checkpointNum, m->lastBlock, m->requestMsgSeqNum));
 
   FetchingState fs = getFetchingState();
+  LOG_DEBUG(getLogger(), "Fetching state is " << stateName(fs));
   ConcordAssertEQ(fs, FetchingState::GettingCheckpointSummaries);
   metrics_.received_checkpoint_summary_msg_++;
 
@@ -1266,7 +1268,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     return true;
   }
 
-  LOG_DEBUG(getLogger(), "Has enough CheckpointSummaryMsg messages");
+  LOG_INFO(getLogger(), "Has enough CheckpointSummaryMsg messages");
   CheckpointSummaryMsg *checkSummary = cert->bestCorrectMsg();
 
   ConcordAssertNE(checkSummary, nullptr);
