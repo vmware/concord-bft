@@ -16,6 +16,7 @@
 #include <fstream>
 #include <string>
 #include "ReplicaConfig.hpp"
+#include "Logger.hpp"
 
 namespace concord {
 namespace util {
@@ -29,10 +30,17 @@ class FakeClock {
   static std::chrono::system_clock::time_point now() {
     // read the file for this replica id and return time based on the command present in file
     auto& config = ReplicaConfig::instance();
-    std::string path = "/tmp/simulated_clock_" + std::to_string(config.replicaId) + ".config";
+    std::string path = "/tmp/fake_clock_" + std::to_string(config.replicaId) + ".config";
     std::fstream file_reader(path, std::ios_base::in);
+    if (!file_reader.good()) return std::chrono::system_clock::now();
     int clock_drift = 0;
     file_reader >> clock_drift;
+    LOG_INFO(TS_MNGR,
+             "Current time(" << std::chrono::duration_cast<bftEngine::ConsensusTime>(
+                                    std::chrono::system_clock::now().time_since_epoch())
+                                    .count()
+                             << "ms since epoch) and clock drift = (" << clock_drift << " ms)");
+    file_reader.close();
     return std::chrono::system_clock::now() + std::chrono::milliseconds(clock_drift);
   }
 };

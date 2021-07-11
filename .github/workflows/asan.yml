@@ -34,7 +34,7 @@ jobs:
           run: |
               script -q -e -c "make pull"
               sudo df -h
-              script -q -e -c "CONCORD_BFT_CMAKE_ASAN=TRUE make build" \
+              script -q -e -c "CONCORD_BFT_CMAKE_ASAN=TRUE CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE make build" \
               && script -q -e -c "make test"
         - name: Check if ASAN passed
           if: always()
