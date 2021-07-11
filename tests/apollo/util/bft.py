@@ -251,7 +251,7 @@ class BftTestNetwork:
         self.test_start_time = None
         self.perf_proc = None
         self.ro_replicas = ro_replicas
-        self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() == "true")
+        self.txn_signing_enabled = (os.environ.get('TXN_SIGNING_ENABLED', "").lower() in ["true", "on"])
         self.with_cre = False
         self.cre_pid = None
         self.cre_fds = None
