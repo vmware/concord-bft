@@ -34,7 +34,7 @@ MSG_TYPE_SIZE = struct.calcsize(MSG_TYPE_FMT)
 # Little Endian format with no padding
 # We don't include the msg type here, since we have to read it first to
 # understand what message is incoming.
-REQUEST_HEADER_FMT = "<LHQQLQLH"
+REQUEST_HEADER_FMT = "<LHQQLQLHL"
 REQUEST_HEADER_SIZE = struct.calcsize(REQUEST_HEADER_FMT)
 
 # The struct definition of the client batch request msg header
@@ -51,7 +51,7 @@ REPLY_HEADER_FMT = "<LHQLL"
 REPLY_HEADER_SIZE = struct.calcsize(REPLY_HEADER_FMT)
 
 RequestHeader = namedtuple('RequestHeader', ['span_context_size', 'client_id', 'flags',
-    'req_seq_num', 'length', 'timeout_milli', 'cid', 'req_sig_len'])
+    'req_seq_num', 'length', 'timeout_milli', 'cid', 'req_sig_len', 'extra_data_length'])
 BatchRequestHeader = namedtuple('BatchRequestHeader', ['cid', 'client_id', 
     'num_of_messages_in_batch', 'data_size'])
 
@@ -74,7 +74,8 @@ def pack_request(client_id, req_seq_num, read_only, timeout_milli, cid, msg, pre
     if reconfiguration:
         flags |= RECONFIG_FLAG
     sig_len = len(signature) if signature else 0
-    header = RequestHeader(len(span_context), client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid), sig_len)
+    extra_data_len = 0
+    header = RequestHeader(len(span_context), client_id, flags, req_seq_num, len(msg), timeout_milli, len(cid), sig_len, extra_data_len)
     data = b''.join([pack_request_header(header, pre_process), span_context, msg, cid.encode(), signature])
     return data
 

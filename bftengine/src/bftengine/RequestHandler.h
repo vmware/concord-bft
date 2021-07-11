@@ -10,23 +10,32 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#pragma once
+
 #include "reconfiguration/reconfiguration_handler.hpp"
 #include "reconfiguration/dispatcher.hpp"
 #include "IRequestHandler.hpp"
-#pragma once
+
+#include <ccron/cron_table_registry.hpp>
+#include <optional>
 
 namespace bftEngine {
 
 class RequestHandler : public IRequestsHandler {
  public:
-  RequestHandler() : reconfig_dispatcher_{std::make_shared<concord::reconfiguration::ReconfigurationHandler>()} {}
+  RequestHandler() {
+    reconfig_handler_ = std::make_shared<concord::reconfiguration::ReconfigurationHandler>();
+    reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
+  }
 
-  void execute(ExecutionRequestsQueue &requests, const std::string &batchCid, concordUtils::SpanWrapper &) override;
+  void execute(ExecutionRequestsQueue &requests,
+               std::optional<Timestamp> timestamp,
+               const std::string &batchCid,
+               concordUtils::SpanWrapper &) override;
 
   void setUserRequestHandler(std::shared_ptr<IRequestsHandler> userHdlr) {
     if (userHdlr) {
       userRequestsHandler_ = userHdlr;
-      reconfig_handler_ = userHdlr->getReconfigurationHandler();
       reconfig_dispatcher_.addReconfigurationHandler(userHdlr->getReconfigurationHandler());
     }
   }
@@ -36,11 +45,17 @@ class RequestHandler : public IRequestsHandler {
                                      concord::reconfiguration::ReconfigurationHandlerType::REGULAR) override {
     reconfig_dispatcher_.addReconfigurationHandler(rh, type);
   }
+
+  void setCronTableRegistry(const std::shared_ptr<concord::cron::CronTableRegistry> &reg) {
+    cron_table_registry_ = reg;
+  }
+
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
 
  private:
   std::shared_ptr<IRequestsHandler> userRequestsHandler_ = nullptr;
   concord::reconfiguration::Dispatcher reconfig_dispatcher_;
+  std::shared_ptr<concord::cron::CronTableRegistry> cron_table_registry_;
 };
 
 }  // namespace bftEngine

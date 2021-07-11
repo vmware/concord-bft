@@ -13,7 +13,9 @@
 
 #pragma once
 
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <utility>
 #include "ReplicaConfig.hpp"
 #include "communication/ICommunication.hpp"
@@ -42,6 +44,10 @@ class TestSetup {
   const bool UsePersistentStorage() const { return usePersistentStorage_; }
   std::string getLogPropertiesFile() { return logPropsFile_; }
   std::shared_ptr<concord::performance::PerformanceManager> GetPerformanceManager() { return pm_; }
+  std::optional<std::uint32_t> GetCronEntryNumberOfExecutes() const { return cronEntryNumberOfExecutes_; }
+
+  static inline constexpr auto kCronTableComponentId = 42;
+  static inline constexpr auto kTickGeneratorPeriod = std::chrono::seconds{1};
 
  private:
   TestSetup(const bftEngine::ReplicaConfig& config,
@@ -50,7 +56,8 @@ class TestSetup {
             uint16_t metricsPort,
             bool usePersistentStorage,
             const std::string& s3ConfigFile,
-            const std::string& logPropsFile)
+            const std::string& logPropsFile,
+            const std::optional<std::uint32_t>& cronEntryNumberOfExecutes)
       : replicaConfig_(config),
         communication_(std::move(comm)),
         logger_(logger),
@@ -58,7 +65,8 @@ class TestSetup {
         usePersistentStorage_(usePersistentStorage),
         s3ConfigFile_(s3ConfigFile),
         logPropsFile_(logPropsFile),
-        pm_{std::make_shared<concord::performance::PerformanceManager>()} {}
+        pm_{std::make_shared<concord::performance::PerformanceManager>()},
+        cronEntryNumberOfExecutes_{cronEntryNumberOfExecutes} {}
 
   TestSetup() = delete;
 
@@ -79,6 +87,7 @@ class TestSetup {
   std::string s3ConfigFile_;
   std::string logPropsFile_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
+  std::optional<std::uint32_t> cronEntryNumberOfExecutes_;
 };
 
 }  // namespace concord::kvbc

@@ -44,6 +44,9 @@ class ThresholdAccumulatorBase : public IThresholdAccumulator {
   // Valid shares indexed by signer ID
   std::vector<NumType> validShares;
 
+  // Invalid shares indexed by signer ID
+  std::set<ShareID> invalidShares;
+
   // Bit vectors of pending (unverified) shares and valid shares (|validSharesBits| <= reqSigners)
   VectorOfShares validSharesBits, pendingSharesBits;
 
@@ -121,21 +124,23 @@ class ThresholdAccumulatorBase : public IThresholdAccumulator {
    * Keeps track of the digest and makes sure it's never changed.
    * Verifies and moves the pending shares into the list of valid shares.
    */
-  virtual void setExpectedDigest(const unsigned char* msg, int len);
+  void setExpectedDigest(const unsigned char* msg, int len) override;
 
   /**
    * Parses signer ID out of sigShare and calls internal addNumById() method.
    */
-  virtual int add(const char* sigShare, int len);
+  int add(const char* sigShare, int len) override;
 
   /**
    * When verification is enabled, returns the number of valid shares. Otherwise
    * returns 0.
    */
-  virtual int getNumValidShares() const {
+  int getNumValidShares() const override {
     if (!hasShareVerificationEnabled() || hasExpectedDigest())
       return validSharesBits.count();
     else
       return 0;
   }
+
+  std::set<ShareID> getInvalidShareIds() const override { return invalidShares; }
 };

@@ -293,43 +293,47 @@ class ThinReplicaImpl {
   std::string getClientIdFromClientCert(ServerContextT* context) {
     std::string client_id;
     // get certificate from the client
-    for (auto& temp : context->auth_context()->FindPropertyValues(GRPC_X509_PEM_CERT_PROPERTY_NAME)) {
-      std::string cert_str = temp.data();
-      const char* data = (const char*)cert_str.c_str();
-
-      // encode the certificate received in string format to x509 certificate
-      BIO* bio;
-      X509* certificate;
-
-      // A BIO is an I/O stream abstraction used by openssl
-      bio = BIO_new(BIO_s_mem());  // returns a new BIO
-      if (!bio) {
-        throw std::runtime_error(
-            "Failed to read certificate received from client for client "
-            "authorization - BIO_new() failed!");
-      }
-      // attempts to write a null terminated string to BIO
-      BIO_puts(bio, data);
-
-      // read a certificate in PEM format from a BIO
-      certificate = PEM_read_bio_X509(bio, NULL, NULL, NULL);
-      if (!certificate) {
-        throw std::runtime_error(
-            "Failed to encode certificate received from client for client "
-            "authorization - PEM_read_bio_X509() failed!");
-      }
-
-      // get the subject from the certificate
-      char* subj = X509_NAME_oneline(X509_get_subject_name(certificate), NULL, 0);
-      std::string result(subj);
-
-      // parse the OU field i.e., the client_id from the certificate
-      std::string delim = "OU=";
-      size_t start = result.find(delim) + delim.length();
-      size_t end = result.find('/', start);
-      client_id = result.substr(start, end - start);
+    // on the client side `GRPC_X509_PEM_CERT_PROPERTY_NAME` returns the full certificate chain
+    auto cert_prop_vec = context->auth_context()->FindPropertyValues(GRPC_X509_PEM_CERT_PROPERTY_NAME);
+    if (cert_prop_vec.empty()) {
+      LOG_FATAL(logger_, "No certificate chain received from the client");
       return client_id;
     }
+    // cert_prop_vec is of type std::vector<grpc::string_ref>, the cert is the first element in the vector
+    std::string cert_str = cert_prop_vec.front().data();
+    const char* data = (const char*)cert_str.c_str();
+
+    // encode the certificate received in string format to x509 certificate
+    BIO* bio;
+    X509* certificate;
+
+    // A BIO is an I/O stream abstraction used by openssl
+    bio = BIO_new(BIO_s_mem());  // returns a new BIO
+    if (!bio) {
+      throw std::runtime_error(
+          "Failed to read certificate received from client for client "
+          "authorization - BIO_new() failed!");
+    }
+    // attempts to write a null terminated string to BIO
+    BIO_puts(bio, data);
+
+    // read a certificate in PEM format from a BIO
+    certificate = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    if (!certificate) {
+      throw std::runtime_error(
+          "Failed to encode certificate received from client for client "
+          "authorization - PEM_read_bio_X509() failed!");
+    }
+
+    // get the subject from the certificate
+    char* subj = X509_NAME_oneline(X509_get_subject_name(certificate), NULL, 0);
+    std::string result(subj);
+
+    // parse the OU field i.e., the client_id from the certificate
+    std::string delim = "OU=";
+    size_t start = result.find(delim) + delim.length();
+    size_t end = result.find('/', start);
+    client_id = result.substr(start, end - start);
     return client_id;
   }
 
@@ -570,8 +574,7 @@ class ThinReplicaImpl {
   std::tuple<grpc::Status, KvbAppFilterPtr> createKvbFilter(ServerContextT* context, const RequestT* request) {
     KvbAppFilterPtr kvb_filter;
     try {
-      kvb_filter =
-          std::make_shared<kvbc::KvbAppFilter>(config_->rostorage, getClientId(context), request->key_prefix());
+      kvb_filter = std::make_shared<kvbc::KvbAppFilter>(config_->rostorage, getClientId(context));
     } catch (std::exception& error) {
       std::stringstream msg;
       msg << "Failed to set up filter: " << error.what();

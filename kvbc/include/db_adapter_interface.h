@@ -20,8 +20,6 @@ class NotFoundException : public std::runtime_error {
   const char* what() const noexcept override { return std::runtime_error::what(); }
 };
 
-inline constexpr auto INITIAL_GENESIS_BLOCK_ID = BlockId{1};
-
 class IDbAdapter {
  public:
   // Returns the added block ID.

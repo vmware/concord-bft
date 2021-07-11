@@ -82,10 +82,9 @@ class VectorMockDataStreamPreparer : public MockDataStreamPreparer {
     grpc::Status Finish();
     bool Read(com::vmware::concord::thin_replica::Data* msg);
   };
-  grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* PrepareInitialStateDataStream(
-      const std::string& filter) const;
+  grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* PrepareInitialStateDataStream() const;
   grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* PrepareSubscriptionDataStream(
-      uint64_t block_id, const std::string& filter) const;
+      uint64_t block_id) const;
 
   const std::vector<com::vmware::concord::thin_replica::Data> data_;
   size_t num_updates_in_initial_state_;
@@ -129,11 +128,10 @@ class RepeatedMockDataStreamPreparer : public MockDataStreamPreparer {
     bool Read(com::vmware::concord::thin_replica::Data* msg);
   };
 
-  grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* PrepareInitialStateDataStream(
-      const std::string& filter) const;
+  grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* PrepareInitialStateDataStream() const;
 
   grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* PrepareSubscriptionDataStream(
-      uint64_t block_id, const std::string& filter) const;
+      uint64_t block_id) const;
 
   com::vmware::concord::thin_replica::Data data_;
   size_t num_updates_in_initial_state_;

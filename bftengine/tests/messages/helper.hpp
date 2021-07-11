@@ -59,6 +59,7 @@ class IThresholdAccumulatorDummy : public IThresholdAccumulator {
   bool hasShareVerificationEnabled() const override { return true; }
   int getNumValidShares() const override { return 0; }
   void getFullSignedData(char *outThreshSig, int threshSigLen) override {}
+  std::set<ShareID> getInvalidShareIds() const override { return {}; }
 };
 
 class IThresholdVerifierDummy : public IThresholdVerifier {

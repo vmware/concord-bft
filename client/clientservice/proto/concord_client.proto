@@ -77,12 +77,15 @@ message Response {
 // https://github.com/grpc/grpc/blob/master/doc/health-checking.md
 service EventService {
   // Subscribe to a continuous stream of EventGroups from the blockchain.
+  // Note: Only one stream can be active at a time (will change in the future).
+  // The active stream has to be cancelled fist before a new stream can be established.
   // Errors:
   // OUT_OF_RANGE: if the requested starting EventGroup is not available yet.
   // NOT_FOUND: if the requested starting EventGroup was pruned.
   // RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
   // UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
   // INTERNAL: if Concord Client cannot progress independent of the request.
+  // ALREADY_EXISTS: if Concord Client serves an active stream already. See note above.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
 }
 

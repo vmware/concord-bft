@@ -38,6 +38,7 @@ endif()
 
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TXN_SIGNING_ENABLED=${TXN_SIGNING_ENABLED}")
+set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TIME_SERVICE_ENABLED=TRUE")
 
 if (OMIT_TEST_OUTPUT)
     set(TEST_OUTPUT "2>&1 > /dev/null")
@@ -74,8 +75,12 @@ add_test(NAME skvbc_auto_view_change_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_auto_view_change_tests python3 -m unittest test_skvbc_auto_view_change ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+# PreExecution tests are executed two times - with PreExecution Result Authentication enabled and disabled.
 add_test(NAME skvbc_preexecution_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_preexecution_tests python3 -m unittest test_skvbc_preexecution ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME skvbc_preexecution_with_result_auth_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} PRE_EXEC_RESULT_AUTH_ENABLED=True TEST_NAME=skvbc_preexecution_with_result_auth_tests python3 -m unittest test_skvbc_preexecution ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME skvbc_batch_preexecution_tests COMMAND sh -c
@@ -92,6 +97,10 @@ add_test(NAME skvbc_checkpoints COMMAND sh -c
 
 add_test(NAME skvbc_chaotic_startup COMMAND sudo sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_chaotic_startup python3 -m unittest test_skvbc_chaotic_startup 2>&1 > /dev/null"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_test(NAME skvbc_publish_clients_keys COMMAND sudo sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_publish_clients_keys python3 -m unittest test_skvbc_publish_clients_keys 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_test(NAME skvbc_backup_restore COMMAND sh -c
@@ -129,3 +138,15 @@ if (TXN_SIGNING_ENABLED)
             "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_client_transaction_signing python3 -m unittest test_skvbc_client_transaction_signing ${TEST_OUTPUT}"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
+
+add_test(NAME skvbc_pyclient_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_pyclient_tests python3 -m unittest test_skvbc_pyclient ${TEST_OUTPUT}"
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_test(NAME skvbc_cron COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_cron python3 -m unittest test_skvbc_cron ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_test(NAME skvbc_byzantine_primary_preexecution_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_byzantine_primary_preexecution_tests python3 -m unittest test_skvbc_byzantine_primary_preexecution ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

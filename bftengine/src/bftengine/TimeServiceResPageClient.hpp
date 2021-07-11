@@ -12,10 +12,9 @@
 #pragma once
 
 #include "ReservedPagesClient.hpp"
-#include <chrono>
+#include "TimeService.hpp"
 
-namespace bftEngine {
-using ConsensusTime = std::chrono::milliseconds;
+namespace bftEngine::impl {
 class TimeServiceResPageClient : private ResPagesClient<TimeServiceResPageClient, 1> {
  public:
   TimeServiceResPageClient();
@@ -33,4 +32,4 @@ class TimeServiceResPageClient : private ResPagesClient<TimeServiceResPageClient
  private:
   ConsensusTime last_timestamp_ = ConsensusTime::min();
 };
-}  // namespace bftEngine
+}  // namespace bftEngine::impl

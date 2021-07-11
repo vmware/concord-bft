@@ -22,12 +22,15 @@ class PreProcessorRecorder {
                                      {onClientPreProcessRequestMsg,
                                       onClientBatchPreProcessRequestMsg,
                                       onPreProcessRequestMsg,
+                                      onPreProcessBatchRequestMsg,
                                       onPreProcessReplyMsg,
+                                      onPreProcessBatchReplyMsg,
                                       launchReqPreProcessing,
                                       handlePreProcessedReqByNonPrimary,
                                       handlePreProcessedReqPrimaryRetry,
                                       handlePreProcessedReqByPrimary,
                                       sendPreProcessRequestToAllReplicas,
+                                      sendPreProcessBatchRequestToAllReplicas,
                                       finalizePreProcessing,
                                       signPreProcessReplyHash,
                                       verifyPreProcessReplySig,
@@ -45,12 +48,15 @@ class PreProcessorRecorder {
   DEFINE_SHARED_RECORDER(onClientPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onClientBatchPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onPreProcessRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onPreProcessBatchRequestMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(onPreProcessBatchReplyMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(onPreProcessReplyMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(launchReqPreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByNonPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqPrimaryRetry, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(handlePreProcessedReqByPrimary, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(sendPreProcessRequestToAllReplicas, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(sendPreProcessBatchRequestToAllReplicas, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(verifyPreProcessReplySig, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(signPreProcessReplyHash, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(finalizePreProcessing, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);

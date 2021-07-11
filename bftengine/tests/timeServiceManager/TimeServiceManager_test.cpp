@@ -16,6 +16,7 @@
 #include <chrono>
 
 using namespace bftEngine;
+using namespace bftEngine::impl;
 
 struct ReservedPagesMock : public IReservedPages {
   mutable bool is_first_load = true;
@@ -160,7 +161,7 @@ TEST(TimeServiceManager, CompareAndSwap) {
   config.timeServiceSoftLimitMillis = std::chrono::milliseconds{500};
 
   const auto now = ConsensusTime{1000};
-  auto manager = TimeServiceManager{};
+  auto manager = TimeServiceManager<std::chrono::system_clock>{};
 
   // check that if now does not move, the manager increases it by epsilon
   for (size_t i = 0U; i < 10; ++i) {
@@ -185,6 +186,85 @@ TEST(TimeServiceManager, CreateClientRequestMsg) {
   EXPECT_EQ(now,
             concord::util::deserialize<ConsensusTime>(msg->requestBuf(), msg->requestBuf() + msg->requestLength()));
   EXPECT_EQ(MsgFlag::TIME_SERVICE_FLAG, msg->flags());
+}
+
+TEST(TimeServiceManager, hasTimeRequest_positive) {
+  ReservedPagesMock m;
+  ReplicaConfig::instance();
+  const auto now = ConsensusTime{1000};
+  FakeClock::current_time = now;
+
+  auto manager = TimeServiceManager<FakeClock>{};
+
+  const auto msg = manager.createClientRequestMsg();
+  size_t req_size = msg->size();
+  std::vector<std::unique_ptr<ClientRequestMsg>> client_request;
+  const std::string request_bytes = "bla-bla";
+  for (size_t i = 0; i < 10; ++i) {
+    client_request.emplace_back(std::make_unique<ClientRequestMsg>(
+        1u, MsgFlag::EMPTY_FLAGS, i, request_bytes.size(), request_bytes.data(), 1111u));
+    req_size += client_request.back()->size();
+  }
+
+  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
+  pp_msg.addRequest(msg->body(), msg->size());
+  for (const auto& c : client_request) {
+    pp_msg.addRequest(c->body(), c->size());
+  }
+  pp_msg.finishAddingRequests();
+  EXPECT_TRUE(manager.hasTimeRequest(pp_msg));
+}
+
+TEST(TimeServiceManager, hasTimeRequest_ts_in_the_end) {
+  ReservedPagesMock m;
+  ReplicaConfig::instance();
+  const auto now = ConsensusTime{1000};
+  FakeClock::current_time = now;
+
+  auto manager = TimeServiceManager<FakeClock>{};
+
+  const auto msg = manager.createClientRequestMsg();
+  size_t req_size = msg->size();
+  std::vector<std::unique_ptr<ClientRequestMsg>> client_request;
+  const std::string request_bytes = "bla-bla";
+  for (size_t i = 0; i < 10; ++i) {
+    client_request.emplace_back(std::make_unique<ClientRequestMsg>(
+        1u, MsgFlag::EMPTY_FLAGS, i, request_bytes.size(), request_bytes.data(), 1111u));
+    req_size += client_request.back()->size();
+  }
+
+  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
+  for (const auto& c : client_request) {
+    pp_msg.addRequest(c->body(), c->size());
+  }
+  pp_msg.addRequest(msg->body(), msg->size());
+  pp_msg.finishAddingRequests();
+  EXPECT_FALSE(manager.hasTimeRequest(pp_msg));
+}
+
+TEST(TimeServiceManager, hasTimeRequest_no_ts_msg) {
+  ReservedPagesMock m;
+  ReplicaConfig::instance();
+  const auto now = ConsensusTime{1000};
+  FakeClock::current_time = now;
+
+  auto manager = TimeServiceManager<FakeClock>{};
+
+  size_t req_size = 0;
+  std::vector<std::unique_ptr<ClientRequestMsg>> client_request;
+  const std::string request_bytes = "bla-bla";
+  for (size_t i = 0; i < 10; ++i) {
+    client_request.emplace_back(std::make_unique<ClientRequestMsg>(
+        1u, MsgFlag::EMPTY_FLAGS, i, request_bytes.size(), request_bytes.data(), 1111u));
+    req_size += client_request.back()->size();
+  }
+
+  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
+  for (const auto& c : client_request) {
+    pp_msg.addRequest(c->body(), c->size());
+  }
+  pp_msg.finishAddingRequests();
+  EXPECT_FALSE(manager.hasTimeRequest(pp_msg));
 }
 
 int main(int argc, char** argv) {

@@ -41,7 +41,7 @@ class ReplicasInfo {
     return _idsOfInternalClients.find(id) != _idsOfInternalClients.end();
   }
 
-  bool isValidParticipantId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
+  bool isValidPrincipalId(PrincipalId id) const { return id <= _maxValidPrincipalId; }
   const std::set<ReplicaId>& idsOfPeerReplicas() const { return _idsOfPeerReplicas; }
   const std::set<ReplicaId>& idsOfPeerROReplicas() const { return _idsOfPeerROReplicas; }
   const std::set<PrincipalId>& idsOfClientProxies() const { return _idsOfClientProxies; }

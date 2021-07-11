@@ -35,11 +35,16 @@
 #include "performance_handler.h"
 #include "RequestsBatchingLogic.hpp"
 #include "ReplicaStatusHandlers.hpp"
-#include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "PerformanceManager.hpp"
 #include "secrets_manager_impl.h"
 #include "SigManager.hpp"
+#include "TimeServiceManager.hpp"
 
+#include <ccron/ticks_generator.hpp>
+
+namespace preprocessor {
+class PreProcessResultMsg;
+}
 namespace bftEngine::impl {
 
 class ClientRequestMsg;
@@ -58,6 +63,8 @@ class ReplicaStatusMsg;
 class ReplicaImp;
 struct LoadedReplicaData;
 class PersistentStorage;
+class ReplicaRestartReadyMsg;
+class ReplicasRestartReadyProofMsg;
 
 using bftEngine::ReplicaConfig;
 using std::shared_ptr;
@@ -88,9 +95,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // view change logic
   ViewsManager* viewsManager = nullptr;
 
-  // the current view of this replica
-  ViewNum curView = 0;
-
   // the last SeqNum used to generate a new SeqNum (valid when this replica is the primary)
   SeqNum primaryLastUsedSeqNum = 0;
 
@@ -109,7 +113,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
-  typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1> WindowOfSeqNumInfo;
+  typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1, false> WindowOfSeqNumInfo;
   std::shared_ptr<WindowOfSeqNumInfo> mainLog;
 
   // bounded log used to store information about checkpoints in the range [lastStableSeqNum,lastStableSeqNum +
@@ -166,13 +170,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool recoveringFromExecutionOfRequests = false;
   Bitmap mapOfRequestsThatAreBeingRecovered;
 
-  ReplicasAskedToLeaveViewInfo complainedReplicas;
-
   shared_ptr<concord::performance::PerformanceManager> pm_;
 
   // sm_ MUST be initialized. If nullptr sm provided in constructor
   // it will be initialized to a SecretsManagerPlain
   shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+
+  std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
+
+  std::map<ReplicaId, std::unique_ptr<ReplicaRestartReadyMsg>> restart_ready_msgs_;
 
   //******** METRICS ************************************
   GaugeHandle metric_view_;
@@ -240,6 +246,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_slowPath_requests_;
   CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
+  CounterHandle metric_received_restart_ready_;
+  CounterHandle metric_received_restart_proof_;
   //*****************************************************
   RollingAvgAndVar consensus_time_;
   RollingAvgAndVar accumulating_batch_time_;
@@ -271,6 +279,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void start() override;
   void stop() override;
 
+  std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const { return ticks_gen_; }
+
   virtual bool isReadOnly() const override { return false; }
 
   shared_ptr<PersistentStorage> getPersistentStorage() const { return ps_; }
@@ -279,16 +289,17 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void recoverRequests();
 
   bool validateMessage(MessageBase* msg);
+  std::function<bool(MessageBase*)> getMessageValidator();
 
   // InternalReplicaApi
   bool isCollectingState() const override { return stateTransfer->isCollectingState(); }
   bool isValidClient(NodeIdType clientId) const override { return clientsManager->isValidClient(clientId); }
   bool isIdOfReplica(NodeIdType id) const override { return repsInfo->isIdOfReplica(id); }
   const std::set<ReplicaId>& getIdsOfPeerReplicas() const override { return repsInfo->idsOfPeerReplicas(); }
-  ViewNum getCurrentView() const override { return curView; }
-  ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(curView); }
+  ViewNum getCurrentView() const override { return viewsManager->getCurrentView(); }
+  ReplicaId currentPrimary() const override { return repsInfo->primaryOfView(getCurrentView()); }
   bool isCurrentPrimary() const override { return (currentPrimary() == config_.replicaId); }
-  bool currentViewIsActive() const override { return (viewsManager->viewIsActive(curView)); }
+  bool currentViewIsActive() const override { return (viewsManager->viewIsActive(getCurrentView())); }
   bool isReplyAlreadySentToClient(NodeIdType clientId, ReqId reqSeqNum) const override {
     return clientsManager->hasReply(clientId, reqSeqNum);
   }
@@ -434,12 +445,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   virtual const ReplicasInfo& getReplicasInfo() const override { return (*repsInfo); }
 
+  void askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave);
   void onViewsChangeTimer(concordUtil::Timers::Handle);
   void onRetransmissionsTimer(concordUtil::Timers::Handle);
   void onStatusReportTimer(concordUtil::Timers::Handle);
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
   void onSuperStableCheckpointTimer(concordUtil::Timers::Handle);
+  void sendRepilcaRestartReady();
+  void sendReplicasRestartReadyProof();
 
   // handlers for internal messages
 
@@ -467,8 +481,10 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void addTimers();
   void startConsensusProcess(PrePrepareMsg* pp, bool isInternalNoop);
   void startConsensusProcess(PrePrepareMsg* pp);
-  void sendInternalNoopPrePrepareMsg(CommitPath firstPath = CommitPath::OPTIMISTIC_FAST);
   bool isSeqNumToStopAt(SeqNum seq_num);
+
+  bool validatePreProcessedResults(const PrePrepareMsg* msg, const bftEngine::impl::ReplicasInfo& replicasInfo);
+  bool validatePreProcessResultSignatures(preprocessor::PreProcessResultMsg& msg);
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
@@ -554,7 +570,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
 
-  std::unique_ptr<bftEngine::impl::RSASigner> rsaSigner_;
+  std::optional<TimeServiceManager<std::chrono::system_clock>> time_service_manager_;
 };  // namespace bftEngine::impl
 
 }  // namespace bftEngine::impl

@@ -16,18 +16,22 @@
 #include <string_view>
 #include <utility>
 #include "assertUtils.hpp"
+#include "endianness.hpp"
 #include "communication/CommDefs.hpp"
 #include "kv_types.hpp"
 #include "hex_tools.h"
 #include "replica_state_sync.h"
 #include "sliver.hpp"
+#include "metadata_block_id.h"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "rocksdb/native_client.h"
 #include "pruning_handler.hpp"
 #include "IRequestHandler.hpp"
-#include "reconfiguration_add_block_handler.hpp"
+#include "RequestHandler.h"
+#include "reconfiguration_kvbc_handler.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
+#include "throughput.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -52,7 +56,7 @@ Status Replica::start() {
 
   if (replicaConfig_.isReadOnly) {
     LOG_INFO(logger, "ReadOnly mode");
-    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+    auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
   } else {
@@ -68,25 +72,82 @@ Status Replica::start() {
   return Status::OK();
 }
 
+class KvbcRequestHandler : public bftEngine::RequestHandler {
+ public:
+  static std::shared_ptr<KvbcRequestHandler> create(
+      const std::shared_ptr<IRequestsHandler> &user_req_handler,
+      const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
+      categorization::KeyValueBlockchain &blockchain) {
+    return std::shared_ptr<KvbcRequestHandler>{
+        new KvbcRequestHandler{user_req_handler, cron_table_registry, blockchain}};
+  }
+
+ public:
+  // Make sure we persist the last kvbc block ID in metadata after every execute() call.
+  void onFinishExecutingReadWriteRequests() override {
+    bftEngine::RequestHandler::onFinishExecutingReadWriteRequests();
+    constexpr auto in_transaction = true;
+    persistLastBlockIdInMetadata<in_transaction>(blockchain_, persistent_storage_);
+  }
+
+  void setPersistentStorage(const std::shared_ptr<bftEngine::impl::PersistentStorage> &persistent_storage) {
+    persistent_storage_ = persistent_storage;
+  }
+
+ private:
+  KvbcRequestHandler(const std::shared_ptr<IRequestsHandler> &user_req_handler,
+                     const std::shared_ptr<concord::cron::CronTableRegistry> &cron_table_registry,
+                     categorization::KeyValueBlockchain &blockchain)
+      : blockchain_{blockchain} {
+    setUserRequestHandler(user_req_handler);
+    setCronTableRegistry(cron_table_registry);
+  }
+
+  KvbcRequestHandler(const KvbcRequestHandler &) = delete;
+  KvbcRequestHandler(KvbcRequestHandler &&) = delete;
+  KvbcRequestHandler &operator=(const RequestHandler &) = delete;
+  KvbcRequestHandler &operator=(KvbcRequestHandler &&) = delete;
+
+ private:
+  std::shared_ptr<bftEngine::impl::PersistentStorage> persistent_storage_;
+  categorization::KeyValueBlockchain &blockchain_;
+};
+
 void Replica::createReplicaAndSyncState() {
-  auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler);
+  ConcordAssert(m_kvBlockchain.has_value());
+  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain);
+  stReconfigurationSM_->registerHandler(requestHandler->getReconfigurationHandler());
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(std::shared_ptr<kvbc::pruning::PruningHandler>(
-      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, *m_stateTransfer, true)));
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
+      new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
+  requestHandler->setReconfigurationHandler(pruning_handler);
+  stReconfigurationSM_->registerHandler(pruning_handler);
+  stReconfigurationSM_->pruneOnStartup();
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
+  requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
+
+  // Make sure that when state transfer completes, we persist the last kvbc block ID in metadata.
+  m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
+    constexpr auto in_transaction = false;
+    persistLastBlockIdInMetadata<in_transaction>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
+  });
+
   const auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   LOG_INFO(logger, KVLOG(lastExecutedSeqNum));
   if (!replicaConfig_.isReadOnly && !m_stateTransfer->isCollectingState()) {
     try {
       const auto maxNumOfBlocksToDelete = replicaConfig_.maxNumOfRequestsInBatch;
-      const auto removedBlocksNum =
-          replicaStateSync_->execute(logger, *m_kvBlockchain, lastExecutedSeqNum, maxNumOfBlocksToDelete);
+      const auto removedBlocksNum = replicaStateSync_->execute(
+          logger, *m_kvBlockchain, m_replicaPtr->persistentStorage(), lastExecutedSeqNum, maxNumOfBlocksToDelete);
       LOG_INFO(logger,
                KVLOG(lastExecutedSeqNum,
                      removedBlocksNum,
@@ -215,7 +276,9 @@ Replica::Replica(ICommunication *comm,
       replicaConfig_(replicaConfig),
       aggregator_(aggregator),
       pm_{pm},
-      secretsManager_{secretsManager} {
+      secretsManager_{secretsManager},
+      blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
+                                                                          : std::thread::hardware_concurrency()) {
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
@@ -228,7 +291,7 @@ Replica::Replica(ICommunication *comm,
 
 #if defined USE_COMM_PLAIN_TCP || defined USE_COMM_TLS_TCP
     replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 30 * 1024 * 1024),
-    replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 64),
+    replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 256),
 #else
     replicaConfig_.get<uint32_t>("concord.bft.st.maxChunkSize", 2048),
     replicaConfig_.get<uint16_t>("concord.bft.st.maxNumberOfChunksInBatch", 32),
@@ -240,11 +303,12 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
-    replicaConfig_.get<uint32_t>("concord.bft.st.sourceReplicaReplacementTimeoutMs", 15000),
+    replicaConfig_.get<uint32_t>("concord.bft.st.sourceReplicaReplacementTimeoutMs", 0),
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 1000),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
-    replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly)
+    replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly),
+    replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
   };
 
 #if !defined USE_COMM_PLAIN_TCP && !defined USE_COMM_TLS_TCP
@@ -389,6 +453,42 @@ bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize)
   LOG_DEBUG(logger, KVLOG(blockId, *outBlockSize));
   std::memcpy(outBlock, ser.data(), *outBlockSize);
   return true;
+}
+
+std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+  static uint64_t callCounter = 0;
+  static constexpr size_t snapshotThresh = 1000;
+
+  auto future = blocksIOWorkersPool_.async(
+      [this](uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+        auto start = std::chrono::steady_clock::now();
+        *outBlockSize = 0;
+
+        // getBlock will throw exception if block doesn't exist
+        try {
+          getBlock(blockId, outBlock, outBlockSize);
+        } catch (NotFoundException &ex) {
+          *outBlockSize = 0;
+          LOG_ERROR(logger, "Block not found:" << KVLOG(blockId));
+          return false;
+        }
+        ConcordAssertGT(*outBlockSize, 0);
+        auto jobDuration =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        LOG_DEBUG(logger, "Job done: " << KVLOG(blockId, *outBlockSize, jobDuration));
+        histograms_.get_block_duration->record(jobDuration);
+        return true;
+      },
+      std::forward<decltype(blockId)>(blockId),
+      std::forward<decltype(outBlock)>(outBlock),
+      std::forward<decltype(outBlockSize)>(outBlockSize));
+
+  if ((++callCounter % snapshotThresh) == 0) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("iappstate");
+    LOG_INFO(logger, registrar.perf.toString(registrar.perf.get("iappstate")));
+  }
+  return future;
 }
 
 bool Replica::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {

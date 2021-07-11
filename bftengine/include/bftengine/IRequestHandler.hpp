@@ -12,19 +12,25 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <functional>
 #include <deque>
-
 #include "OpenTracing.hpp"
+#include "TimeService.hpp"
 
 namespace concord::reconfiguration {
 class IReconfigurationHandler;
 enum ReconfigurationHandlerType : unsigned int;
 }  // namespace concord::reconfiguration
+
+namespace concord::cron {
+class CronTableRegistry;
+}
 
 namespace bftEngine {
 class IRequestsHandler {
@@ -36,6 +42,7 @@ class IRequestsHandler {
     uint64_t flags = 0;  // copy of ClientRequestMsg flags
     uint32_t requestSize = 0;
     const char *request;
+    std::string signature;
     uint32_t maxReplySize = 0;
     char *outReply;
     uint64_t requestSequenceNum = executionSequenceNum;
@@ -44,10 +51,12 @@ class IRequestsHandler {
     int outExecutionStatus = 1;
   };
 
-  static std::shared_ptr<IRequestsHandler> createRequestsHandler(std::shared_ptr<IRequestsHandler> userReqHandler);
+  static std::shared_ptr<IRequestsHandler> createRequestsHandler(
+      std::shared_ptr<IRequestsHandler> userReqHandler, const std::shared_ptr<concord::cron::CronTableRegistry> &);
   typedef std::deque<ExecutionRequest> ExecutionRequestsQueue;
 
   virtual void execute(ExecutionRequestsQueue &requests,
+                       std::optional<Timestamp> timestamp,
                        const std::string &batchCid,
                        concordUtils::SpanWrapper &parent_span) = 0;
 

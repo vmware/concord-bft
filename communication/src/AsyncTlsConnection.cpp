@@ -299,7 +299,8 @@ void AsyncTlsConnection::initServerSSLContext() {
   ssl_context_.set_verify_mode(asio::ssl::verify_peer | asio::ssl::verify_fail_if_no_peer_cert);
   ssl_context_.set_options(asio::ssl::context::default_workarounds | asio::ssl::context::no_sslv2 |
                            asio::ssl::context::no_sslv3 | asio::ssl::context::no_tlsv1 |
-                           asio::ssl::context::no_tlsv1_1 | asio::ssl::context::single_dh_use);
+                           asio::ssl::context::no_tlsv1_1 | asio::ssl::context::no_tlsv1_2 |
+                           asio::ssl::context::single_dh_use);
 
   asio::error_code ec;
   ssl_context_.set_verify_callback(

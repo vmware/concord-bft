@@ -84,7 +84,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         # num_of_checkpoints_to_add=1)
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops)
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+                nursery.start_soon(skvbc.send_indefinite_tracked_ops)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
@@ -135,7 +136,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         # num_of_checkpoints_to_add=1)
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.send_indefinite_tracked_ops, .7, .1)
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+                nursery.start_soon(skvbc.send_indefinite_tracked_ops, .7, .1)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
@@ -252,6 +254,60 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         )
 
         await self._wait_for_st(bft_network, ro_replica_id, 150)
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_prefix, num_ro_replicas=1, selected_configs=lambda n, f, c: n == 7)
+    async def test_ro_replica_state_fetch(self, bft_network):
+        """
+        Start all replicas without starting any RORs
+        Generate a checkpoint
+        Stop n - f committers
+        Start ROR
+        Verify ROR doesn't fetch state
+        Start all committers
+        Verify ROR has fetched state
+        """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        
+        await skvbc.fill_and_wait_for_checkpoint(
+            initial_nodes=bft_network.all_replicas(),
+            num_of_checkpoints_to_add=1,
+            verify_checkpoint_persistency=False
+        )
+        n = bft_network.config.n
+        f = bft_network.config.f
+        primary_replica = await bft_network.get_current_primary()
+        crashed_replicas = bft_network.random_set_of_replicas(n-f, without={primary_replica})
+        self.assertEqual(len(crashed_replicas), n-f,
+                         "Make sure n-f comitters have stopped.")
+ 
+        bft_network.stop_replicas(crashed_replicas)
+        ro_replica_id = bft_network.config.n
+        
+        bft_network.start_replica(ro_replica_id)
+        
+        await self._check_st_not_started(bft_network, ro_replica_id) 
+
+        bft_network.start_replicas(crashed_replicas)
+
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+        
+    async def _check_st_not_started(self, bft_network, ro_replica_id):
+        with trio.fail_after(seconds=70):
+            # the ro replica should be able to survive these failures
+            while True:
+                with trio.move_on_after(seconds=.5):
+                    try:
+                        key = ['replica', 'Gauges', 'lastExecutedSeqNum']
+                        lastExecutedSeqNum = await bft_network.metrics.get(ro_replica_id, *key)
+                    except KeyError:
+                        continue
+                    else:
+                        # success!
+                        if lastExecutedSeqNum == 0:
+                            log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
+                            break
 
     async def _wait_for_st(self, bft_network, ro_replica_id, seqnum_threshold=150):
         # TODO replace the below function with the library function:

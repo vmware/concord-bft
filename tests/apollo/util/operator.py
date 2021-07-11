@@ -34,113 +34,95 @@ class Operator:
     def _sign_reconf_msg(self, msg):
         return self.private_key.sign_deterministic(msg.serialize())
 
-    def _construct_reconfiguration_wedge_coammand(self):
+
+    def _construct_basic_reconfiguration_request(self, command):
+        reconf_msg = cmf_msgs.ReconfigurationRequest()
+        reconf_msg.additional_data = bytes(0)
+        reconf_msg.sender = 1000
+        reconf_msg.signature = bytes(0)
+        reconf_msg.command = command
+        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
+        return reconf_msg
+
+    def _construct_reconfiguration_wedge_command(self):
             wedge_cmd = cmf_msgs.WedgeCommand()
             wedge_cmd.sender = 1000
             wedge_cmd.noop = False
-            reconf_msg = cmf_msgs.ReconfigurationRequest()
-            reconf_msg.command = wedge_cmd
-            reconf_msg.additional_data = bytes(0)
-            reconf_msg.signature = bytes(0)
-            reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-            return reconf_msg
+            return self._construct_basic_reconfiguration_request(wedge_cmd)
 
-    def _construct_reconfiguration_latest_prunebale_block_coammand(self):
+    def _construct_reconfiguration_latest_prunebale_block_command(self):
         lpab_cmd = cmf_msgs.LatestPrunableBlockRequest()
         lpab_cmd.sender = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = lpab_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(lpab_cmd)
 
     def _construct_reconfiguration_wedge_status(self, fullWedge=True):
         wedge_status_cmd = cmf_msgs.WedgeStatusRequest()
         wedge_status_cmd.sender = 1000
         wedge_status_cmd.fullWedge = fullWedge
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = wedge_status_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(wedge_status_cmd)
+
+    def _construct_reconfiguration_unwedge_status(self):
+        unwedge_status_cmd = cmf_msgs.UnwedgeStatusRequest()
+        unwedge_status_cmd.sender = 1000
+        return self._construct_basic_reconfiguration_request(unwedge_status_cmd)
+
+    def _construct_reconfiguration_unwedge_command(self, signatures):
+        unwedge_cmd = cmf_msgs.UnwedgeCommand()
+        unwedge_cmd.sender = 1000
+        unwedge_cmd.noop = False
+        unwedge_cmd.signatures = signatures
+        return self._construct_basic_reconfiguration_request(unwedge_cmd)
 
     def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks):
         prune_cmd = cmf_msgs.PruneRequest()
         prune_cmd.sender = 1000
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = prune_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(prune_cmd)
 
     def _construct_reconfiguration_prune_status_request(self):
         prune_status_cmd = cmf_msgs.PruneStatusRequest()
         prune_status_cmd.sender = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = prune_status_cmd
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(prune_status_cmd)
 
-    def _construct_reconfiguration_keMsg_coammand(self, target_replicas = []):
+    def _construct_reconfiguration_keMsg_command(self, target_replicas = []):
         ke_command = cmf_msgs.KeyExchangeCommand()
         ke_command.sender_id = 1000
         ke_command.target_replicas = target_replicas
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = ke_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(ke_command)
 
-    def _construct_reconfiguration_addRemove_coammand(self, new_config):
+    def _construct_reconfiguration_addRemove_command(self, new_config):
         addRemove_command = cmf_msgs.AddRemoveCommand()
         addRemove_command.reconfiguration = new_config
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemove_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemove_command)
     
-    def _construct_reconfiguration_addRemoveWithWedge_coammand(self, new_config, bft=True):
+    def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
         addRemove_command.config_descriptor = new_config
+        addRemove_command.token = "dummy"
         addRemove_command.bft = bft
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemove_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        addRemove_command.restart = restart
+        return self._construct_basic_reconfiguration_request(addRemove_command)
 
-    def _construct_reconfiguration_addRemoveStatus_coammand(self):
+    def _construct_reconfiguration_addRemoveStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveStatus()
         addRemoveStatus_command.sender_id = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemoveStatus_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
-    def _construct_reconfiguration_addRemoveWithWedgeStatus_coammand(self):
+    def _construct_reconfiguration_addRemoveWithWedgeStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveWithWedgeStatus()
         addRemoveStatus_command.sender_id = 1000
-        reconf_msg = cmf_msgs.ReconfigurationRequest()
-        reconf_msg.command = addRemoveStatus_command
-        reconf_msg.additional_data = bytes()
-        reconf_msg.signature = bytes(0)
-        reconf_msg.signature = self._sign_reconf_msg(reconf_msg)
-        return reconf_msg
+        return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
+    def _construct_reconfiguration_clientKe_command(self, target_clients = []):
+        cke_command = cmf_msgs.ClientKeyExchangeCommand()
+        cke_command.target_clients = target_clients
+        return self._construct_basic_reconfiguration_request(cke_command)
+    
+    def get_rsi_replies(self):
+        return self.client.get_rsi_replies()
+    
     async def wedge(self):
-        reconf_msg = self._construct_reconfiguration_wedge_coammand()
+        reconf_msg = self._construct_reconfiguration_wedge_command()
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def wedge_status(self, quorum=None, fullWedge=True):
@@ -149,8 +131,26 @@ class Operator:
         msg = self._construct_reconfiguration_wedge_status(fullWedge)
         return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
+    async def unwedge(self):
+        await self.can_unwedge()
+        signatures = []
+        for r in self.client.get_rsi_replies().values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            signatures.append(
+                (res.response.replica_id, bytes(res.response.signature)))
+
+        msg = self._construct_reconfiguration_unwedge_command(signatures)
+        return await self.client.read(msg.serialize(), reconfiguration=True)
+
+    async def can_unwedge(self, quorum=None, fullWedge=True):
+        if quorum is None:
+            quorum = bft_client.MofNQuorum.All(
+                self.client.config, [r for r in range(self.config.n)])
+        msg = self._construct_reconfiguration_unwedge_status()
+        return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
+
     async def latest_pruneable_block(self):
-        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_coammand()
+        reconf_msg = self._construct_reconfiguration_latest_prunebale_block_command()
         return await self.client.read(reconf_msg.serialize(),
                           m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config,
                                                                   [r for r in range(self.client.get_total_num_replicas())]), reconfiguration=True, include_ro=True)
@@ -167,19 +167,24 @@ class Operator:
                               self.config.n)]), reconfiguration=True)
 
     async def key_exchange(self, target_replicas):
-        reconf_msg = self._construct_reconfiguration_keMsg_coammand(target_replicas)
-        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
-
-    async def add_remove(self, new_config):
-        reconf_msg = self._construct_reconfiguration_addRemove_coammand(new_config)
+        reconf_msg = self._construct_reconfiguration_keMsg_command(target_replicas)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
-    async def add_remove_with_wedge(self, new_config, bft=True):
-        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_coammand(new_config, bft)
+    async def client_key_exchange(self, target_clients):
+        reconf_msg = self._construct_reconfiguration_clientKe_command(target_clients)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+    
+    async def add_remove(self, new_config):
+        reconf_msg = self._construct_reconfiguration_addRemove_command(new_config)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+    
+    async def add_remove_with_wedge(self, new_config, bft=True, restart=True):
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_command(new_config, bft, restart)
+
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def add_remove_status(self):
-        reconf_msg = self._construct_reconfiguration_addRemoveStatus_coammand()
+        reconf_msg = self._construct_reconfiguration_addRemoveStatus_command()
         return await self.client.read(reconf_msg.serialize(), 
                                 m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
                                 self.config.n)]), reconfiguration=True)
@@ -187,5 +192,5 @@ class Operator:
     async def add_remove_with_wedge_status(self, quorum=None):
         if quorum is None:
             quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
-        reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_coammand()
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_command()
         return await self.client.read(reconf_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)

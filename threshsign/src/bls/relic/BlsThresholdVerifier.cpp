@@ -97,67 +97,11 @@ bool BlsThresholdVerifier::verify(const G1T &msgHash, const G1T &sigShare, const
   return result;
 }
 
-/************** Serialization **************/
-
-void BlsThresholdVerifier::serializePublicKey(const BlsPublicKey &key, std::ostream &outStream) const {
-  int publicKeySize = key.y.getByteCount();
-  LOG_TRACE(logger(), "<<< public key size: " << publicKeySize);
-  serialize(outStream, publicKeySize);
-  unsigned char *publicKeyBuf = new unsigned char[static_cast<size_t>(publicKeySize)];
-  key.y.toBytes(publicKeyBuf, publicKeySize);
-  outStream.write((char *)publicKeyBuf, publicKeySize);
-  LOG_TRACE(logger(), "<<< public key buf: [" << key.y.toString() << "]");
-  delete[] publicKeyBuf;
-}
-
-void BlsThresholdVerifier::serializeDataMembers(ostream &outStream) const {
-  params_.serialize(outStream);
-  serializePublicKey(publicKey_, outStream);
-
-  serialize(outStream, publicKeysVector_.size());
-  for (const auto &elem : publicKeysVector_) serializePublicKey(elem, outStream);
-
-  serialize(outStream, reqSigners_);
-  serialize(outStream, numSigners_);
-}
-
 bool BlsThresholdVerifier::operator==(const BlsThresholdVerifier &other) const {
   bool result = ((other.params_ == params_) && (other.publicKey_ == publicKey_) &&
                  (other.publicKeysVector_ == publicKeysVector_) && (other.generator2_ == generator2_) &&
                  (other.reqSigners_ == reqSigners_) && (other.numSigners_ == numSigners_));
   return result;
-}
-
-/************** Deserialization **************/
-// static
-G2T BlsThresholdVerifier::deserializePublicKey(istream &inStream) {
-  int publicKeySize = 0;
-  deserialize(inStream, publicKeySize);
-  LOG_TRACE(logging::getLogger("serialize"), ">>> public key size: " << publicKeySize);
-  unsigned char *publicKeyBuf = new unsigned char[static_cast<size_t>(publicKeySize)];
-  inStream.read((char *)publicKeyBuf, publicKeySize);
-  G2T g2t_(publicKeyBuf, publicKeySize);
-  LOG_TRACE(logging::getLogger("serialize"), ">>> public key buf: [" << g2t_.toString() << "]");
-  delete[] publicKeyBuf;
-  return g2t_;
-}
-
-void BlsThresholdVerifier::deserializeDataMembers(istream &inStream) {
-  BlsPublicParameters *params = nullptr;
-  deserialize(inStream, params);
-  params_ = BlsPublicParameters(*params);
-  generator2_ = G2T(params_.getGenerator2());
-
-  publicKey_ = BlsPublicKey(deserializePublicKey(inStream));
-
-  vector<BlsPublicKey>::size_type publicKeysVectorNum = 0;
-  deserialize(inStream, publicKeysVectorNum);
-  for (std::vector<BlsPublicKey>::size_type i = 0; i < publicKeysVectorNum; ++i)
-    publicKeysVector_.emplace_back(deserializePublicKey(inStream));
-
-  deserialize(inStream, reqSigners_);
-  deserialize(inStream, numSigners_);
-  delete params;
 }
 
 } /* namespace Relic */

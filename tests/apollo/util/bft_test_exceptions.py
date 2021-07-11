@@ -47,3 +47,11 @@ class KeyExchangeError(Error):
     def __repr__(self):
         return f'{self.__class__.__name__}\n'
 
+class CreError(Error):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __repr__(self):
+        return f'{self.__class__.__name__, self.msg}\n'
+
+

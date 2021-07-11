@@ -94,10 +94,45 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::PruneRequest&, uint64_t, concord::messages::ReconfigurationResponse&) {
     return true;
   }
+  virtual bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::UnwedgeStatusRequest&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientReconfigurationStateRequest&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientExchangePublicKey&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientKeyExchangeCommand&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
+                      uint64_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.
-  virtual bool verifySignature(const std::string& data, const std::string& signature) const = 0;
+  virtual bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const = 0;
   virtual ~IReconfigurationHandler() = default;
+
+ protected:
+  logging::Logger getLogger() const {
+    static logging::Logger logger_(logging::getLogger("concord.bft.reconfiguration"));
+    return logger_;
+  }
 };
 
 }  // namespace concord::reconfiguration

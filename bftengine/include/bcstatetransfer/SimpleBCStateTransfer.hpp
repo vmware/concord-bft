@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <set>
 #include <memory>
+#include <future>
 
 #include "bftengine/IStateTransfer.hpp"
 #include "Metrics.hpp"
@@ -76,6 +77,14 @@ class IAppState {
   // outBlock and outBlockSize. Returns true IFF block blockId exists.
   virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
 
+  // An asynchronous version for the above getBlock.
+  // For a given blockId, a job is invoked asynchronously, to get the block from storage and fill outBlock and
+  // outBlockSize. After job is created, this call returns immidiately with a future<bool>, while job is executed by a
+  // seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
+  // job has been done. User should 1st check the future value: if true - block exist and outBlock, outBlockSize are
+  // valid if false - block does not exist, all output should be ignored.
+  virtual std::future<bool> getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
+
   // If block blockId exists, then the digest of block blockId-1 is returned via
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.
   virtual bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) = 0;
@@ -130,6 +139,7 @@ struct Config {
   // misc
   bool runInSeparateThread = false;
   bool enableReservedPages = true;
+  bool enableSourceBlocksPreFetch = true;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Config &c) {
@@ -154,7 +164,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.fetchRetransmissionTimeoutMs,
               c.metricsDumpIntervalSec,
               c.runInSeparateThread,
-              c.enableReservedPages);
+              c.enableReservedPages,
+              c.enableSourceBlocksPreFetch);
   return os;
 }
 // creates an instance of the state transfer module.

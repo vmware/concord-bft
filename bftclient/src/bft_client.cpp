@@ -119,7 +119,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
       histograms_->transaction_size->record(request.size());
     }
 
-    metrics_.transactionSigning.Get().Inc();
+    metrics_.transactionSigning++;
     if ((metrics_.transactionSigning.Get().Get() % count_between_snapshots) == 0) {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
       auto& name = histograms_->getComponenetName();
@@ -227,7 +227,7 @@ Reply Client::send(const MatchConfig& match_config,
       reply_certificates_.clear();
       return reply.value();
     }
-    metrics_.retransmissions.Get().Inc();
+    metrics_.retransmissions++;
   }
 
   expected_commit_time_ms_.add(request_config.timeout.count());
@@ -255,7 +255,7 @@ SeqNumToReplyMap Client::sendBatch(std::deque<WriteRequest>& write_requests, con
     }
 
     wait(replies);
-    metrics_.retransmissions.Get().Inc();
+    metrics_.retransmissions++;
   }
   reply_certificates_.clear();
   if (replies.size() == pending_requests_.size()) {
@@ -278,7 +278,7 @@ std::optional<Reply> Client::wait() {
     auto req = reply_certificates_.begin();
     if (req->second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
       req->second.clearReplies();
-      metrics_.repliesCleared.Get().Inc();
+      metrics_.repliesCleared++;
     }
     primary_ = std::nullopt;
     return std::nullopt;
@@ -346,13 +346,25 @@ MatchConfig Client::readConfigToMatchConfig(const ReadConfig& read_config) {
   return mc;
 }
 
-bool Client::isServing(int numOfReplicas, int requiredNumOfReplicas) const {
+bool Client::isServing(int num_replicas, int num_replicas_required) const {
+  ConcordAssert(num_replicas >= num_replicas_required);
   int connected = 0;
-  for (int i = 0; i < numOfReplicas; i++) {
+  for (int i = 0; i < num_replicas; i++) {
     if (communication_->getCurrentConnectionStatus(i) == communication::ConnectionStatus::Connected) connected++;
-    if (connected == requiredNumOfReplicas) return true;
+    if (connected == num_replicas_required) return true;
   }
   return false;
+}
+std::string Client::signMessage(std::vector<uint8_t>& data) {
+  std::string signature = std::string();
+  if (transaction_signer_) {
+    auto expected_sig_len = transaction_signer_->signatureLength();
+    signature.resize(expected_sig_len);
+    size_t actualSigSize = 0;
+    transaction_signer_->sign(
+        reinterpret_cast<char*>(data.data()), data.size(), signature.data(), expected_sig_len, actualSigSize);
+  }
+  return signature;
 }
 
 }  // namespace bft::client

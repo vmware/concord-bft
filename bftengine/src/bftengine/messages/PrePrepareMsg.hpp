@@ -112,6 +112,8 @@ class PrePrepareMsg : public MessageBase {
  protected:
   static int16_t computeFlagsForPrePrepareMsg(bool isNull, bool isReady, CommitPath firstPath);
 
+  void calculateDigestOfRequests(Digest& d) const;
+
   bool isReady() const { return (((b()->flags >> 1) & 0x1) == 1); }
 
   bool checkRequests() const;

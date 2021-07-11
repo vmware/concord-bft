@@ -27,8 +27,19 @@ class ReplicaStateSyncImp : public ReplicaStateSync {
 
   uint64_t execute(logging::Logger& logger,
                    categorization::KeyValueBlockchain& blockchain,
+                   const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
                    uint64_t lastExecutedSeqNum,
                    uint32_t maxNumOfBlocksToDelete) override;
+
+  uint64_t executeBasedOnBftSeqNum(logging::Logger& logger,
+                                   categorization::KeyValueBlockchain& blockchain,
+                                   uint64_t lastExecutedSeqNum,
+                                   uint32_t maxNumOfBlocksToDelete);
+
+  uint64_t executeBasedOnBlockId(logging::Logger& logger,
+                                 categorization::KeyValueBlockchain& blockchain,
+                                 const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
+                                 uint32_t maxNumOfBlocksToDelete);
 
  protected:
   std::unique_ptr<IBlockMetadata> blockMetadata_;

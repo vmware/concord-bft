@@ -1,6 +1,8 @@
 project (bftengine LANGUAGES CXX)
 
 add_subdirectory(src/preprocessor)
+find_package(CMFC REQUIRED)
+add_subdirectory("cmf")
 
 set(corebft_source_files
     src/bftengine/PrimitiveTypes.cpp
@@ -58,6 +60,8 @@ set(corebft_source_files
     src/bftengine/messages/ViewChangeMsg.cpp
     src/bftengine/messages/ReplicaStatusMsg.cpp
     src/bftengine/messages/StateTransferMsg.cpp
+    src/bftengine/messages/ReplicaRestartReadyMsg.cpp
+    src/bftengine/messages/ReplicasRestartReadyProofMsg.cpp
     src/bftengine/messages/ReplicaAsksToLeaveViewMsg.cpp
     src/bftengine/KeyExchangeManager.cpp
     src/bftengine/RequestHandler.cpp
@@ -65,6 +69,9 @@ set(corebft_source_files
     src/bftengine/InternalBFTClient.cpp
     src/bftengine/KeyStore.cpp
     src/bftengine/TimeServiceResPageClient.cpp
+    ../ccron/src/ticks_generator.cpp
+    ../ccron/src/periodic_action.cpp
+    ../ccron/src/cron_table.cpp
 )
 
 #
@@ -97,6 +104,7 @@ target_include_directories(corebft PRIVATE src/bftengine)
 target_include_directories(corebft PRIVATE src/preprocessor)
 target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(corebft PUBLIC ${perf_include}/performance/include)
+target_include_directories(corebft PUBLIC tests/mocks)
 target_link_libraries(corebft PUBLIC
   threshsign
   Threads::Threads
@@ -106,7 +114,9 @@ target_link_libraries(corebft PUBLIC
   bftcommunication
   diagnostics
   concordbft_reconfiguration
-  secretsmanager)
+  secretsmanager
+  keys_and_signatures_cmf
+  )
 
 
 target_include_directories(bftclient PUBLIC include/bftengine)

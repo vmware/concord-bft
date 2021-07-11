@@ -16,13 +16,17 @@ set(preprocessor_source_files
     messages/ClientPreProcessRequestMsg.cpp
     messages/ClientBatchRequestMsg.cpp
     messages/PreProcessRequestMsg.cpp
-    messages/PreProcessReplyMsg.cpp)
+    messages/PreProcessBatchRequestMsg.cpp
+    messages/PreProcessReplyMsg.cpp
+    messages/PreProcessBatchReplyMsg.cpp
+    messages/PreProcessResultMsg.cpp)
 
 add_library(preprocessor STATIC ${preprocessor_source_files})
 
 target_include_directories(preprocessor PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(preprocessor PUBLIC ${OPENSSL_INCLUDE_DIR})
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include)
+target_include_directories(preprocessor PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../../cmf)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include/bftengine)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/src/bftengine)
 get_property(perf_include GLOBAL PROPERTY PERF_MANAGER_INCLUDE_DIR)

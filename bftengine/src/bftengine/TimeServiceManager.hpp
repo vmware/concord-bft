@@ -16,13 +16,13 @@
 #include "TimeServiceResPageClient.hpp"
 #include "assertUtils.hpp"
 #include "messages/ClientRequestMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
 #include "serialize.hpp"
-#include <chrono>
 #include <cstdlib>
 #include <limits>
 #include <memory>
 
-namespace bftEngine {
+namespace bftEngine::impl {
 
 template <typename ClockT = std::chrono::system_clock>
 class TimeServiceManager {
@@ -30,6 +30,12 @@ class TimeServiceManager {
   TimeServiceManager() = default;
   ~TimeServiceManager() = default;
   TimeServiceManager(const TimeServiceManager&) = delete;
+
+  // Loads timestamp from reserved pages, to be called once ST is done
+  void load() {
+    client_.load();
+    LOG_INFO(TS_MNGR, "Loaded time data from reserved pages");
+  }
 
   // Checks if the new time is less or equal to the one reserved pages,
   // if this is the case, returns reserved pages time + epsilon
@@ -52,7 +58,7 @@ class TimeServiceManager {
   }
 
   // Returns a client request message with timestamp (current system clock time)
-  [[nodiscard]] std::unique_ptr<impl::ClientRequestMsg> createClientRequestMsg() {
+  [[nodiscard]] std::unique_ptr<impl::ClientRequestMsg> createClientRequestMsg() const {
     const auto& config = ReplicaConfig::instance();
     const auto now = std::chrono::duration_cast<ConsensusTime>(ClockT::now().time_since_epoch());
     const auto& serialized = concord::util::serialize(now);
@@ -61,7 +67,36 @@ class TimeServiceManager {
                                                     0U,
                                                     serialized.size(),
                                                     serialized.data(),
-                                                    std::numeric_limits<uint64_t>::max());
+                                                    std::numeric_limits<uint64_t>::max(),
+                                                    "TIME_SERVICE");
+  }
+
+  [[nodiscard]] bool hasTimeRequest(const impl::PrePrepareMsg& msg) const {
+    if (msg.numberOfRequests() < 2) {
+      LOG_ERROR(TS_MNGR, "PrePrepare with Time Service on, cannot have less than 2 messages");
+      return false;
+    }
+    auto it = impl::RequestsIterator(&msg);
+    char* requestBody = nullptr;
+    ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    if (req.flags() != MsgFlag::TIME_SERVICE_FLAG) {
+      LOG_ERROR(GL, "Time Service is on but first CR in PrePrepare is not TS request");
+      return false;
+    }
+    return true;
+  }
+
+  [[nodiscard]] bool isPrimarysTimeWithinBounds(const impl::PrePrepareMsg& msg) const {
+    ConcordAssertGE(msg.numberOfRequests(), 1);
+
+    auto it = impl::RequestsIterator(&msg);
+    char* requestBody = nullptr;
+    ConcordAssertEQ(it.getCurrent(requestBody), true);
+
+    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    return isPrimarysTimeWithinBounds(req);
   }
 
   [[nodiscard]] bool isPrimarysTimeWithinBounds(impl::ClientRequestMsg& msg) const {
@@ -77,7 +112,8 @@ class TimeServiceManager {
       // TODO(DD): Add metrics
       LOG_ERROR(TS_MNGR,
                 "Current primary's time reached hard limit, requests will be ignored. Please synchronize local clocks! "
-                    << "Primary's time: " << t.count() << ", local time: " << now.count() << ", time limits: +/-"
+                    << "Primary's time: " << t.count() << ", local time: " << now.count()
+                    << ", difference: " << (t - now).count() << ", time limits: +/-"
                     << config.timeServiceHardLimitMillis.count() << ". Time is presented as ms since epoch");
       return false;
     }
@@ -88,7 +124,8 @@ class TimeServiceManager {
       // TODO(DD): Add metrics
       LOG_WARN(TS_MNGR,
                "Current primary's time reached soft limit, please synchronize local clocks! "
-                   << "Primary's time: " << t.count() << ", local time: " << now.count() << ", time limits: +/-"
+                   << "Primary's time: " << t.count() << ", local time: " << now.count()
+                   << ", difference: " << (t - now).count() << ", time limits: +/-"
                    << config.timeServiceSoftLimitMillis.count() << ". Time is presented as ms since epoch");
     }
     return true;
@@ -97,4 +134,4 @@ class TimeServiceManager {
  private:
   TimeServiceResPageClient client_;
 };
-}  // namespace bftEngine
+}  // namespace bftEngine::impl
