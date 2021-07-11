@@ -659,6 +659,7 @@ void BCStateTran::onTimerImp() {
   FetchingState fs = getFetchingState();
   if (fs == FetchingState::GettingCheckpointSummaries) {
     if ((currTime - lastTimeSentAskForCheckpointSummariesMsg) > config_.checkpointSummariesRetransmissionTimeoutMs) {
+      LOG_DEBUG(getLogger(), "Retransmitting AskForCheckpointSummaries");
       if (++retransmissionNumberOfAskForCheckpointSummariesMsg > kResetCount_AskForCheckpointSummaries)
         clearInfoAboutGettingCheckpointSummary();
 
@@ -1106,6 +1107,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   LOG_DEBUG(getLogger(), "");
 
   FetchingState fs = getFetchingState();
+  LOG_DEBUG(getLogger(), "Fetching state is " << stateName(fs));
   ConcordAssertEQ(fs, FetchingState::GettingCheckpointSummaries);
   metrics_.received_checkpoint_summary_msg_.Get().Inc();
 
@@ -1157,7 +1159,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     return true;
   }
 
-  LOG_DEBUG(getLogger(), "Has enough CheckpointSummaryMsg messages");
+  LOG_INFO(getLogger(), "Has enough CheckpointSummaryMsg messages");
   CheckpointSummaryMsg *checkSummary = cert->bestCorrectMsg();
 
   ConcordAssertNE(checkSummary, nullptr);
@@ -1204,7 +1206,9 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
     metrics_.last_reachable_block_.Get().Set(lastReachableBlockNum);
 
-    LOG_INFO(getLogger(),
+    
+    if (newCheckpoint.lastBlock > lastReachableBlockNum) {
+      LOG_INFO(getLogger(),
              "Start fetching checkpoint: " << KVLOG(newCheckpoint.checkpointNum,
                                                     newCheckpoint.lastBlock,
                                                     newCheckpoint.digestOfLastBlock,
@@ -1219,6 +1223,8 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
       ConcordAssertEQ(newCheckpoint.lastBlock, lastReachableBlockNum);
       ConcordAssertEQ(g.txn()->getFirstRequiredBlock(), 0);
       ConcordAssertEQ(g.txn()->getLastRequiredBlock(), 0);
+      LOG_INFO(getLogger(), "Checkpoint " << newCheckpoint.checkpointNum << " already fetched");
+      return true;
     }
   }
   metrics_.last_block_.Get().Set(newCheckpoint.lastBlock);
