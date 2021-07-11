@@ -1104,7 +1104,6 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
 
 bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, uniqueMsgSeqNum()));
-  LOG_DEBUG(getLogger(), "");
 
   FetchingState fs = getFetchingState();
   LOG_DEBUG(getLogger(), "Fetching state is " << stateName(fs));
