@@ -36,8 +36,7 @@ def start_replica_cmd(builddir, replica_id, time_service_enabled='1'):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "3000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
-    return [path,
-            "-f", str(replica_id), 
+    return [path, 
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,

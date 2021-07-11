@@ -139,7 +139,7 @@ install (TARGETS bftclient_shared DESTINATION lib${LIB_SUFFIX})
 install(DIRECTORY include/bftengine DESTINATION include)
 
 if(USE_FAKE_CLOCK_IN_TIME_SERVICE)
-    target_compile_definitions(corebft PUBLIC "USE_FAKE_CLOCK_IN_TIME_SERVICE=1")
+    target_compile_definitions(corebft PUBLIC "USE_FAKE_CLOCK_IN_TS=1")
 endif()
 
 if(BUILD_SLOWDOWN)

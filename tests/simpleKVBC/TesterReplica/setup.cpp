@@ -107,12 +107,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
                                           {"cron-entry-number-of-executes", optional_argument, 0, 'r'},
                                           {"replica-byzantine-strategies", optional_argument, 0, 'g'},
                                           {"pre-exec-result-auth", no_argument, 0, 'x'},
+                                          {"time_service", optional_argument, 0, 'f'},
                                           {0, 0, 0, 0}};
     int o = 0;
     int optionIndex = 0;
     LOG_INFO(GL, "Command line options:");
     while ((o = getopt_long(
-                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:x:f:", longOptions, &optionIndex)) != -1) {
+                argc, argv, "i:k:n:s:v:a:3:l:e:w:c:b:m:q:z:y:udp:t:o:r:g:xf:", longOptions, &optionIndex)) != -1) {
       switch (o) {
         case 'i': {
           replicaConfig.replicaId = concord::util::to<std::uint16_t>(std::string(optarg));
