@@ -1206,8 +1206,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     metrics_.last_reachable_block_.Get().Set(lastReachableBlockNum);
 
     
-    if (newCheckpoint.lastBlock > lastReachableBlockNum) {
-      LOG_INFO(getLogger(),
+    LOG_INFO(getLogger(),
              "Start fetching checkpoint: " << KVLOG(newCheckpoint.checkpointNum,
                                                     newCheckpoint.lastBlock,
                                                     newCheckpoint.digestOfLastBlock,
@@ -1222,8 +1221,6 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
       ConcordAssertEQ(newCheckpoint.lastBlock, lastReachableBlockNum);
       ConcordAssertEQ(g.txn()->getFirstRequiredBlock(), 0);
       ConcordAssertEQ(g.txn()->getLastRequiredBlock(), 0);
-      LOG_INFO(getLogger(), "Checkpoint " << newCheckpoint.checkpointNum << " already fetched");
-      return true;
     }
   }
   metrics_.last_block_.Get().Set(newCheckpoint.lastBlock);
