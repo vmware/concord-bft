@@ -133,22 +133,11 @@ target_link_libraries(multiIO_test PUBLIC
     corebft
 )
 
-add_executable(sparse_merkle_db_editor_test sparse_merkle_storage/sparse_merkle_db_editor_test.cpp )
-add_test(sparse_merkle_db_editor_test sparse_merkle_db_editor_test)
-
-target_link_libraries(sparse_merkle_db_editor_test PUBLIC
-    GTest::Main
-    GTest::GTest
-    lib_db_editor
-    util
-    kvbc
-    stdc++fs
-)
-
 add_executable(kv_blockchain_db_editor_test sparse_merkle_storage/kv_blockchain_db_editor_test.cpp )
 add_test(kv_blockchain_db_editor_test kv_blockchain_db_editor_test)
 
-target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/)
+target_include_directories(kv_blockchain_db_editor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include/kvbc_app_filter/ 
+																${CMAKE_CURRENT_SOURCE_DIR}/../../bftengine/src)
 target_link_libraries(kv_blockchain_db_editor_test PUBLIC
     GTest::Main
     GTest::GTest

@@ -64,8 +64,29 @@ class DbEditorTests : public DbEditorTestsBase {
       ASSERT_NO_THROW(adapter.addBlock(std::move(updates)));
     }
 
-    const auto status = db->multiPut(generateMetadataAndStateTransfer());
+    const auto status = db->multiPut(generateMetadata());
     ASSERT_TRUE(status.isOK());
+
+    {  // Generate ST metadata
+      using bftEngine::bcst::impl::DataStore;
+      using bftEngine::bcst::impl::DBDataStore;
+      using bftEngine::bcst::impl::DataStoreTransaction;
+      using concord::storage::v2MerkleTree::STKeyManipulator;
+      std::unique_ptr<DataStore> ds =
+          std::make_unique<DBDataStore>(db, 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+      DataStoreTransaction::Guard g(ds->beginTransaction());
+      g.txn()->setReplicas({0, 1, 2, 3});
+      g.txn()->setMyReplicaId(0);
+      g.txn()->setFVal(1);
+      g.txn()->setMaxNumOfStoredCheckpoints(3);
+      g.txn()->setNumberOfReservedPages(75);
+      g.txn()->setLastStoredCheckpoint(0);
+      g.txn()->setFirstStoredCheckpoint(0);
+      g.txn()->setIsFetchingState(false);
+      g.txn()->setFirstRequiredBlock(0);
+      g.txn()->setLastRequiredBlock(0);
+      g.txn()->setAsInitialized();
+    }
   }
 
   void DeleteBlocksUntil(std::size_t db_id, BlockId until_block_id) override {
@@ -754,7 +775,7 @@ TEST_F(DbEditorTests, remove_metadata) {
   ASSERT_TRUE(err_.str().empty());
 
   const auto adapter = getAdapter(rocksDbPath(main_path_db_id_));
-  const auto& kvp = generateMetadataAndStateTransfer();
+  const auto& kvp = generateMetadata();
   for (const auto& kv : kvp) {
     ASSERT_TRUE(adapter.db()->asIDBClient()->has(kv.first).isNotFound());
   }
@@ -763,6 +784,13 @@ TEST_F(DbEditorTests, remove_metadata) {
   ASSERT_NE(adapter.getLastReachableBlockId(), 0);
   ASSERT_NE(adapter.getLastReachableBlockId(), concord::kvbc::INITIAL_GENESIS_BLOCK_ID);
   ASSERT_EQ(concord::kvbc::INITIAL_GENESIS_BLOCK_ID, adapter.getGenesisBlockId());
+}
+
+TEST_F(DbEditorTests, get_st_metadata) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getSTMetadata"}}, out_, err_));
+  ASSERT_THAT(out_.str(), HasSubstr("\"NumberOfReservedPages\": \"75\""));
+  ASSERT_TRUE(err_.str().empty());
 }
 
 }  // namespace

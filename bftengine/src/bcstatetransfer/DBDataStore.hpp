@@ -164,10 +164,10 @@ class DBDataStore : public DataStore {
   void put(const GeneralIds& objId, const Sliver& val) { put(genKey(objId), val); }
   void put(const Sliver& key, const Sliver& val) {
     if (txn_) {
-      LOG_TRACE(logger(), "put objId:" << key.toString() << " val: " << val << " txn: " + txn_->getIdStr());
+      LOG_TRACE(logger(), "put objId:" << key.toHexString() << " val: " << val << " txn: " + txn_->getIdStr());
       txn_->put(key, val);
     } else {
-      LOG_TRACE(logger(), "put objId:" << key.toString() << " val: " << val);
+      LOG_TRACE(logger(), "put objId:" << key.toHexString() << " val: " << val);
       dbc_->put(key, val);
     }
   }
@@ -180,12 +180,12 @@ class DBDataStore : public DataStore {
   bool get(const Sliver& key, Sliver& val) {
     Status s = dbc_->get(key, val);
     if (!(s.isOK() || s.isNotFound()))
-      throw std::runtime_error("error get objId: " + key.toString() + std::string(", reason: ") + s.toString());
+      throw std::runtime_error("error get objId: " + key.toHexString() + std::string(", reason: ") + s.toString());
     if (s.isNotFound()) {
-      LOG_TRACE(logger(), "not found: key: " << key.toString());
+      LOG_TRACE(logger(), "not found: key: " << key.toHexString());
       return false;
     }
-    LOG_TRACE(logger(), "get objId:" << key.toString() << " val: " << val);
+    LOG_TRACE(logger(), "get objId:" << key.toHexString() << " val: " << val);
     return true;
   }
   /**
@@ -194,12 +194,12 @@ class DBDataStore : public DataStore {
    */
   bool del(GeneralIds objId) { return del(genKey(objId)); }
   bool del(const Sliver& key) {
-    LOG_TRACE(logger(), "delete k.ey:" << key.toString());
+    LOG_TRACE(logger(), "delete k.ey:" << key.toHexString());
     Status s = dbc_->del(key);
     if (!(s.isOK() || s.isNotFound()))
-      throw std::runtime_error("error del key: " + key.toString() + std::string(", reason: ") + s.toString());
+      throw std::runtime_error("error del key: " + key.toHexString() + std::string(", reason: ") + s.toString());
     if (s.isNotFound()) {
-      LOG_ERROR(logger(), "not found: key: " << key.toString());
+      LOG_ERROR(logger(), "not found: key: " << key.toHexString());
       return false;
     }
     return true;
