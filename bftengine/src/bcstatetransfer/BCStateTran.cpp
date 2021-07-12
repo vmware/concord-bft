@@ -1205,7 +1205,6 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
     metrics_.last_reachable_block_.Get().Set(lastReachableBlockNum);
 
-    
     LOG_INFO(getLogger(),
              "Start fetching checkpoint: " << KVLOG(newCheckpoint.checkpointNum,
                                                     newCheckpoint.lastBlock,
