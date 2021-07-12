@@ -66,11 +66,19 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   uint64_t requestMsgSeqNum;
 
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
-    return (memcmp(a, b, sizeof(CheckpointSummaryMsg)) == 0);
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 82),
+                  "Should newly added field be compared below?");
+    return ((a->lastBlock == b->lastBlock) and (a->checkpointNum == b->checkpointNum) and
+            (a->digestOfLastBlock == b->digestOfLastBlock) and
+            (a->digestOfResPagesDescriptor == b->digestOfResPagesDescriptor));
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
-    if (memcmp(a, b, sizeof(CheckpointSummaryMsg)) != 0) {
+    static_assert((sizeof(CheckpointSummaryMsg) - sizeof(requestMsgSeqNum) == 82),
+                  "Should newly added field be compared below?");
+    if ((a->lastBlock != b->lastBlock) || (a->checkpointNum != b->checkpointNum) ||
+        (a->digestOfLastBlock != b->digestOfLastBlock) ||
+        (a->digestOfResPagesDescriptor != b->digestOfResPagesDescriptor)) {
       auto logger = logging::getLogger("state-transfer");
       LOG_WARN(logger,
                "Mismatched Checkpoints for checkpointNum="
