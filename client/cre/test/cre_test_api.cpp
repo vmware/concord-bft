@@ -30,11 +30,13 @@ class TestStateClient : public IStateClient {
   State getLatestClientUpdate(uint16_t clientId) const override { return {0, {}}; }
   bool updateStateOnChain(const WriteState& state) override {
     blocks_.push_back(blocks_.size() + 1);
+    blocks_size_ = blocks_.size();
     return true;
   }
   void start(uint64_t lastKnownBlock) override {}
   void stop() override {}
   std::vector<uint64_t> blocks_;
+  std::atomic_uint64_t blocks_size_{0};
 };
 
 class TestExecuteHandler : public IStateHandler {
@@ -45,7 +47,7 @@ class TestExecuteHandler : public IStateHandler {
     lastKnownState = state.blockid;
     return true;
   }
-  uint64_t lastKnownState{0};
+  std::atomic_uint64_t lastKnownState{0};
 };
 
 class TestPersistOnChainHandler : public IStateHandler {
@@ -84,7 +86,8 @@ TEST(test_client_reconfiguration_engine, test_invalid_handler) {
   ClientReconfigurationEngine cre(c, new TestStateClient(), aggregator);
   cre.registerHandler(std::make_shared<TestInvalidHandler>());
   cre.start();
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  while (aggregator->GetCounter(metrics_component, invalids_counter).Get() < 2) {
+  }
   ASSERT_GT(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 1);
   cre.stop();
 }
@@ -94,7 +97,8 @@ TEST(test_client_reconfiguration_engine, test_errored_handler) {
   ClientReconfigurationEngine cre(c, new TestStateClient(), aggregator);
   cre.registerHandler(std::make_shared<TestErroredHandler>());
   cre.start();
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  while (aggregator->GetCounter(metrics_component, errors_counter).Get() < 2) {
+  }
   ASSERT_GT(aggregator->GetCounter(metrics_component, errors_counter).Get(), 1);
   cre.stop();
 }
@@ -109,7 +113,8 @@ TEST(test_client_reconfiguration_engine, test_cre) {
   cre->registerHandler(handler);
   cre->registerHandler(chainHandler);
   cre->start();
-  std::this_thread::sleep_for(std::chrono::seconds(1));
+  while (handler->lastKnownState == 0 || rsc.blocks_size_ == 0) {
+  }
   ASSERT_EQ(aggregator->GetCounter(metrics_component, errors_counter).Get(), 0);
   ASSERT_EQ(aggregator->GetCounter(metrics_component, invalids_counter).Get(), 0);
   ASSERT_GT(handler->lastKnownState, 0);

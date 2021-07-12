@@ -75,7 +75,7 @@ class KeyExchangeHandler : public IStateHandler {
     return logger_;
   }
   uint16_t clientId_;
-  uint32_t exchanges_{0};
+  std::atomic_uint32_t exchanges_{0};
 };
 
 class PublicKeyExchangeHandler : public IStateHandler {
@@ -92,7 +92,7 @@ class PublicKeyExchangeHandler : public IStateHandler {
     static logging::Logger logger_(logging::getLogger("cre.stateHandler.PublicKeyExchange"));
     return logger_;
   }
-  uint32_t exchanges_{0};
+  std::atomic_uint32_t exchanges_{0};
 };
 
 class ClientApiTestFixture : public ::testing::Test {
@@ -202,7 +202,9 @@ TEST_F(ClientApiTestFixture, single_key_exchange_command) {
   auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
   cre.registerHandler(keyExchangeHandler);
   cre.start();
-  std::this_thread::sleep_for(1s);
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 2 ||
+         keyExchangeHandler->exchanges_ < 1) {
+  }
   ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
   ASSERT_GE(keyExchangeHandler->exchanges_, 1);
   cre.stop();
@@ -224,7 +226,9 @@ TEST_F(ClientApiTestFixture, single_key_two_phases_exchange_command) {
   cre.registerHandler(keyExchangeHandler);
   cre.registerHandler(clientPubKeyExchangeHandler);
   cre.start();
-  std::this_thread::sleep_for(1s);
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 2 ||
+         keyExchangeHandler->exchanges_ < 1 || clientPubKeyExchangeHandler->exchanges_ < 1) {
+  }
   ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
   ASSERT_GE(keyExchangeHandler->exchanges_, 1);
   ASSERT_GE(clientPubKeyExchangeHandler->exchanges_, 1);
@@ -247,7 +251,9 @@ TEST_F(ClientApiTestFixture, multiple_key_two_phases_exchange_command) {
   cre.registerHandler(keyExchangeHandler);
   cre.registerHandler(clientPubKeyExchangeHandler);
   cre.start();
-  std::this_thread::sleep_for(3s);
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 21 ||
+         keyExchangeHandler->exchanges_ < 10 || clientPubKeyExchangeHandler->exchanges_ < 10) {
+  }
   ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 21);
   ASSERT_GE(keyExchangeHandler->exchanges_, 10);
   ASSERT_GE(clientPubKeyExchangeHandler->exchanges_, 10);
@@ -271,7 +277,8 @@ TEST_F(ClientApiTestFixture, start_witn_an_update_exchange_command) {
   cre.registerHandler(keyExchangeHandler);
   cre.registerHandler(clientPubKeyExchangeHandler);
   cre.start();
-  std::this_thread::sleep_for(1s);
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 10) {
+  }
   ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 10);
   ASSERT_EQ(keyExchangeHandler->exchanges_, 0);
   ASSERT_EQ(clientPubKeyExchangeHandler->exchanges_, 0);
