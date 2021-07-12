@@ -21,6 +21,7 @@
 #include "ControlStateManager.hpp"
 #include "SimpleStateTransfer.hpp"
 #include "FileStorage.hpp"
+#include <optional>
 #include <thread>
 #include "commonDefs.h"
 #include "simple_test_replica_behavior.hpp"
@@ -74,6 +75,7 @@ class SimpleAppState : public IRequestsHandler {
 
   // Handler for the upcall from Concord-BFT.
   void execute(ExecutionRequestsQueue &requests,
+               std::optional<Timestamp> timestamp,
                const std::string &batchCid,
                concordUtils::SpanWrapper &parent_span) override {
     for (auto &req : requests) {

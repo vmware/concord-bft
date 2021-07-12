@@ -17,6 +17,8 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include "messages/ReplicaStatusMsg.hpp"
+#include "ReplicasAskedToLeaveViewInfo.hpp"
 #include "ViewChangeSafetyLogic.hpp"
 
 namespace bftEngine {
@@ -71,6 +73,9 @@ class ViewsManager {
                                                                           // in viewChangeMsgs
                                         std::vector<ViewChangeMsg *> viewChangeMsgs);
 
+  ViewNum getCurrentView() const { return myCurrentView; }
+  void setHigherView(ViewNum higherViewNum);
+  void setViewFromRecovery(ViewNum explicitViewNum) { myCurrentView = explicitViewNum; }
   ViewNum latestActiveView() const { return myLatestActiveView; }
   bool viewIsActive(ViewNum v) const { return (inView() && (myLatestActiveView == v)); }
   bool viewIsPending(ViewNum v) const {
@@ -129,7 +134,30 @@ class ViewsManager {
 
   bool getNumbersOfMissingPP(SeqNum currentLastStable, std::vector<SeqNum> *outMissingPPNumbers);
 
-  bool hasViewChangeMessageForFutureView(uint16_t repId, ViewNum curView);
+  bool hasViewChangeMessageForFutureView(uint16_t repId);
+
+  const auto &getAllMsgsFromComplainedReplicas() const { return complainedReplicas.getAllMsgs(); }
+  void storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  bool hasQuorumToLeaveView() const { return complainedReplicas.hasQuorumToLeaveView(); }
+  std::shared_ptr<ReplicaAsksToLeaveViewMsg> getComplaintFromReplica(ReplicaId replicaId) {
+    return complainedReplicas.getComplaintFromReplica(replicaId);
+  }
+
+  void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
+  void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(); }
+
+  void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
+
+  ViewChangeMsg *prepareViewChangeMsgAndSetHigherView(ViewNum nextView,
+                                                      const bool wasInPrevViewNumber,
+                                                      SeqNum lastStableSeqNum = 0,
+                                                      SeqNum lastExecutedSeqNum = 0,
+                                                      const std::vector<PrevViewInfo> *const prevViewInfo = nullptr);
+
+  void processComplaintsFromViewChangeMessage(ViewChangeMsg *msg,
+                                              const std::function<bool(MessageBase *)> &msgValidator);
+  bool tryToJumpToHigherViewAndMoveComplaintsOnQuorum(const ViewChangeMsg *const msg);
 
  protected:
   bool inView() const { return (stat == Stat::IN_VIEW); }
@@ -167,10 +195,13 @@ class ViewsManager {
   ///////////////////////////////////////////////////////////////////////////
 
   Stat stat;
-
+  ViewNum myCurrentView;
   // myLatestPendingView always >=  myLatestActiveView
   ViewNum myLatestActiveView;
   ViewNum myLatestPendingView;
+
+  ReplicasAskedToLeaveViewInfo complainedReplicas;
+  ReplicasAskedToLeaveViewInfo complainedReplicasForHigherView;
 
   // for each replica it holds the latest ViewChangeMsg message
   ViewChangeMsg **viewChangeMessages;

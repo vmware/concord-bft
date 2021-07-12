@@ -23,14 +23,12 @@ uint16_t ClusterKeyStore::loadAllReplicasKeyStoresFromReservedPages() {
     if (!repKeys.has_value()) continue;
     clusterKeys_[i] = std::move(repKeys.value());
   }
-
   log();
   return clusterKeys_.size();
 }
 
 std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreFromReserevedPages(
     const uint16_t& repID) {
-  LOG_INFO(KEY_EX_LOG, "rid: " << repID);
   if (!loadReservedPage(repID, buffer_.size(), buffer_.data())) {
     LOG_INFO(KEY_EX_LOG, "Failed to load reserved page for replica " << repID << ", first start?");
     return {};
@@ -39,6 +37,7 @@ std::optional<ClusterKeyStore::PublicKeys> ClusterKeyStore::loadReplicaKeyStoreF
     std::istringstream iss(buffer_);
     PublicKeys ks;
     PublicKeys::deserialize(iss, ks);
+    for (auto [sn, pk] : ks.keys) LOG_DEBUG(KEY_EX_LOG, "rid: " << repID << " seqnum: " << sn << " pubkey: " << pk);
     return ks;
   } catch (const std::exception& e) {
     LOG_FATAL(KEY_EX_LOG,
@@ -60,6 +59,22 @@ void ClusterKeyStore::saveReplicaKeyStoreToReserevedPages(const uint16_t& repID)
   concord::serialize::Serializable::serialize(oss, clusterKey);
   auto rkStr = oss.str();
   saveReservedPage(repID, rkStr.size(), rkStr.c_str());
+}
+
+// Save clients keys to res pages and sets `published` to true.
+void ClientKeyStore::save(const std::string& keys) {
+  auto hashed_keys = concord::util::SHA3_256().digest(keys.c_str(), keys.size());
+  auto strHashed_keys = std::string(hashed_keys.begin(), hashed_keys.end());
+  ConcordAssertEQ(strHashed_keys.size(), concord::util::SHA3_256::SIZE_IN_BYTES);
+  saveReservedPage(0, strHashed_keys.size(), strHashed_keys.c_str());
+  published_ = true;
+  LOG_INFO(KEY_EX_LOG, "Clients keys were updated, size " << keys.size());
+}
+
+std::string ClientKeyStore::load() {
+  std::string res_page_version(concord::util::SHA3_256::SIZE_IN_BYTES, '\0');
+  loadReservedPage(0, res_page_version.length(), res_page_version.data());
+  return res_page_version == std::string(concord::util::SHA3_256::SIZE_IN_BYTES, '\0') ? "" : res_page_version;
 }
 
 }  // namespace bftEngine::impl

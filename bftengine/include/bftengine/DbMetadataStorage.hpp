@@ -41,9 +41,9 @@ class DBMetadataStorage : public bftEngine::MetadataStorage {
 
   bool initMaxSizeOfObjects(ObjectDesc *metadataObjectsArray, uint32_t metadataObjectsArrayLength) override;
   void read(uint32_t objectId, uint32_t bufferSize, char *outBufferForObject, uint32_t &outActualObjectSize) override;
-  void atomicWrite(uint32_t objectId, char *data, uint32_t dataLength) override;
+  void atomicWrite(uint32_t objectId, const char *data, uint32_t dataLength) override;
   void beginAtomicWriteOnlyBatch() override;
-  void writeInBatch(uint32_t objectId, char *data, uint32_t dataLength) override;
+  void writeInBatch(uint32_t objectId, const char *data, uint32_t dataLength) override;
   void commitAtomicWriteOnlyBatch() override;
   concordUtils::Status multiDel(const ObjectIdsVector &objectIds);
   bool isNewStorage() override;

@@ -26,6 +26,7 @@
 #include "metrics.h"
 #include "diagnostics.h"
 #include "bftengine/Crypto.hpp"
+#include "seq_num_generator.h"
 
 namespace bft::client {
 
@@ -48,10 +49,13 @@ class Client {
   Reply send(const WriteConfig& config, Msg&& request);
   Reply send(const ReadConfig& config, Msg&& request);
   SeqNumToReplyMap sendBatch(std::deque<WriteRequest>& write_requests, const std::string& cid);
-  bool isServing(int numOfReplicas, int requiredNumOfReplicas) const;
+
+  // Return true if the client has at least num_replicas_required active replica connecions.
+  bool isServing(int num_replicas, int num_replicas_required) const;
 
   // Useful for testing. Shouldn't be relied on in production.
   std::optional<ReplicaId> primary() { return primary_; }
+  std::string signMessage(std::vector<uint8_t>&);
 
  private:
   // Generic function for sending a read or write message.

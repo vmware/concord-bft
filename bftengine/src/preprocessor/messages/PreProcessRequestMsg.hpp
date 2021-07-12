@@ -47,16 +47,14 @@ class PreProcessRequestMsg : public MessageBase {
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
   const uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
   std::string getCid() const;
-  char* requestSignature() const {
+  inline char* requestSignature() const {
     auto* header = msgBody();
     if (header->reqSignatureLength > 0)
       return body() + sizeof(Header) + spanContextSize() + header->requestLength + header->cidLength;
     return nullptr;
   }
 
- protected:
-  template <typename MessageT>
-  friend size_t bftEngine::impl::sizeOfHeader();
+ public:
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;
@@ -67,10 +65,15 @@ class PreProcessRequestMsg : public MessageBase {
     NodeIdType senderId;
     uint32_t requestLength;
     uint32_t cidLength;
+    uint32_t spanContextSize;
     uint64_t reqRetryId;
     uint16_t reqSignatureLength;
   };
 #pragma pack(pop)
+
+ protected:
+  template <typename MessageT>
+  friend size_t bftEngine::impl::sizeOfHeader();
 
  private:
   static logging::Logger& logger() {
@@ -82,14 +85,15 @@ class PreProcessRequestMsg : public MessageBase {
                  uint16_t clientId,
                  uint16_t reqOffsetInBatch,
                  ReqId reqSeqNum,
+                 uint32_t cidLength,
+                 uint32_t spanContextSize,
                  uint64_t reqRetryId,
                  uint32_t reqLength,
                  uint16_t reqSignatureLength);
-
- private:
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 
 typedef std::shared_ptr<PreProcessRequestMsg> PreProcessRequestMsgSharedPtr;
+typedef std::unique_ptr<PreProcessRequestMsg> PreProcessRequestMsgUniquePtr;
 
 }  // namespace preprocessor

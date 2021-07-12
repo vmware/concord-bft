@@ -47,22 +47,16 @@ service ThinReplica {
 }
 
 message ReadStateRequest {
-  // The client's read request is filtered by this prefix
-  bytes key_prefix = 1;
 }
 
 message ReadStateHashRequest {
   // Block id from a prior ReadState response
   uint64 block_id = 1;
-  // Same filter as used in the ReadState request
-  bytes key_prefix = 2;
 }
 
 message SubscriptionRequest {
   // Subscribe from (including) the given block id
   uint64 block_id = 1;
-  // Filter updates with the given key prefix
-  bytes key_prefix = 2;
 }
 
 message BlockId {

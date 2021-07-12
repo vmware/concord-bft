@@ -16,6 +16,8 @@
 #include "KeyExchangeMsg.hpp"
 #include <map>
 #include <optional>
+#include "sha_hash.hpp"
+
 namespace bftEngine::impl {
 
 typedef int64_t SeqNum;  // TODO [TK] redefinition
@@ -48,6 +50,7 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
     LOG_INFO(KEY_EX_LOG, kem.toString() << " seqnum: " << sn);
     clusterKeys_[kem.repID].push(kem.pubkey, sn);
     saveReplicaKeyStoreToReserevedPages(kem.repID);
+    log();
   }
 
   const std::string getKey(const uint16_t& repId, const SeqNum& sn) const {
@@ -97,5 +100,29 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
   const uint32_t clusterSize_;
 
   std::string buffer_;
+};
+
+// Manages the BFT state of the clients public keys:
+// It stores the digest of the keys in the reserved pages and sets the published_ accordingly
+class ClientKeyStore : public ResPagesClient<ClientKeyStore, 1> {
+ public:
+  bool published_{false};
+
+  ClientKeyStore() { checkAndSetState(); }
+
+  // Save client keys to res pages and sets `published` to true.
+  void save(const std::string&);
+
+  std::string load();
+
+  void checkAndSetState() {
+    if (load() == "") {
+      LOG_WARN(KEY_EX_LOG, "Clients keys are empty, set publish flag to false");
+      published_ = false;
+      return;
+    }
+    LOG_DEBUG(KEY_EX_LOG, "Clients keys were published");
+    published_ = true;
+  }
 };
 }  // namespace bftEngine::impl

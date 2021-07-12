@@ -65,12 +65,21 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                0,
                "number of consensus operations that can be executed in parallel "
                "1 <= concurrencyLevel <= 30");
+  CONFIG_PARAM(numWorkerThreadsForBlockIO,
+               uint16_t,
+               0,
+               "Number of workers threads to be used for blocks IO"
+               "operations. When set to 0, std::thread::hardware_concurrency() is set by default");
   CONFIG_PARAM(viewChangeProtocolEnabled, bool, false, "whether the view change protocol enabled");
   CONFIG_PARAM(blockAccumulation, bool, false, "whether the block accumulation enabled");
   CONFIG_PARAM(viewChangeTimerMillisec, uint16_t, 0, "timeout used by the  view change protocol ");
   CONFIG_PARAM(autoPrimaryRotationEnabled, bool, false, "if automatic primary rotation is enabled");
   CONFIG_PARAM(autoPrimaryRotationTimerMillisec, uint16_t, 0, "timeout for automatic primary rotation");
   CONFIG_PARAM(preExecutionFeatureEnabled, bool, false, "enables the pre-execution feature");
+  CONFIG_PARAM(batchedPreProcessEnabled,
+               bool,
+               false,
+               "enables send/receive of batched PreProcess request/reply messages");
   CONFIG_PARAM(clientBatchingEnabled, bool, false, "enables the concord-client-batch feature");
   CONFIG_PARAM(clientBatchingMaxMsgsNbr, uint16_t, 10, "Maximum messages number in one client batch");
   CONFIG_PARAM(clientTransactionSigningEnabled,
@@ -147,7 +156,6 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Keys Management
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
-
   // Time Service
   CONFIG_PARAM(timeServiceEnabled, bool, false, "whether time service enabled");
   CONFIG_PARAM(timeServiceSoftLimitMillis,
@@ -162,6 +170,14 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::milliseconds,
                std::chrono::milliseconds{1},
                "time provided to execution is max(consensus_time, last_time + timeServiceEpsilonMillis)");
+
+  // Ticks Generator
+  CONFIG_PARAM(ticksGeneratorPollPeriod,
+               std::chrono::seconds,
+               std::chrono::seconds{1},
+               "wake up the ticks generator every ticksGeneratorPollPeriod seconds and fire pending ticks");
+
+  CONFIG_PARAM(preExecutionResultAuthEnabled, bool, false, "if PreExecution result authentication is enabled");
 
   // Not predefined configuration parameters
   // Example of usage:
@@ -202,6 +218,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, autoPrimaryRotationTimerMillisec);
 
     serialize(outStream, preExecutionFeatureEnabled);
+    serialize(outStream, batchedPreProcessEnabled);
     serialize(outStream, clientBatchingEnabled);
     serialize(outStream, clientBatchingMaxMsgsNbr);
     serialize(outStream, clientTransactionSigningEnabled);
@@ -248,6 +265,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
     serialize(outStream, timeServiceEpsilonMillis);
+    serialize(outStream, numWorkerThreadsForBlockIO);
 
     serialize(outStream, config_params_);
   }
@@ -268,6 +286,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, autoPrimaryRotationTimerMillisec);
 
     deserialize(inStream, preExecutionFeatureEnabled);
+    deserialize(inStream, batchedPreProcessEnabled);
     deserialize(inStream, clientBatchingEnabled);
     deserialize(inStream, clientBatchingMaxMsgsNbr);
     deserialize(inStream, clientTransactionSigningEnabled);
@@ -314,6 +333,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);
     deserialize(inStream, timeServiceEpsilonMillis);
+    deserialize(inStream, numWorkerThreadsForBlockIO);
 
     deserialize(inStream, config_params_);
   }
@@ -349,7 +369,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.autoPrimaryRotationTimerMillisec,
               rc.preExecutionFeatureEnabled,
               rc.preExecReqStatusCheckTimerMillisec);
-  os << ", ";
+  os << ",";
   os << KVLOG(rc.preExecConcurrencyLevel,
               rc.batchingPolicy,
               rc.batchFlushPeriod,
@@ -366,7 +386,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.metricsDumpIntervalSeconds,
               rc.keyExchangeOnStart,
               rc.blockAccumulation);
-  os << ", ";
+  os << ",";
   os << KVLOG(rc.clientBatchingEnabled,
               rc.clientBatchingMaxMsgsNbr,
               rc.keyViewFilePath,
@@ -380,10 +400,11 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.timeServiceEnabled,
               rc.timeServiceSoftLimitMillis.count(),
               rc.timeServiceHardLimitMillis.count(),
-              rc.timeServiceEpsilonMillis.count());
+              rc.timeServiceEpsilonMillis.count(),
+              rc.numWorkerThreadsForBlockIO,
+              rc.batchedPreProcessEnabled);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
-
   return os;
 }
 

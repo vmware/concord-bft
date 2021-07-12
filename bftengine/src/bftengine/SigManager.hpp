@@ -19,6 +19,7 @@
 #include <map>
 #include <string>
 #include <memory>
+#include "keys_and_signatures.cmf.hpp"
 
 using concordMetrics::AtomicCounterHandle;
 
@@ -72,6 +73,13 @@ class SigManager {
   SigManager(SigManager&&) = delete;
   SigManager& operator=(SigManager&&) = delete;
 
+  concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
+  std::string getClientsPublicKeys() {
+    std::vector<uint8_t> output;
+    concord::messages::keys_and_signatures::serialize(output, clientsPublicKeys_);
+    return std::string(output.begin(), output.end());
+  }
+
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
 
@@ -109,7 +117,6 @@ class SigManager {
 
   mutable concordMetrics::Component metrics_component_;
   mutable Metrics metrics_;
-  mutable std::atomic<uint64_t> updateAggregatorCounter = 0;
 
   // These methods bypass the singelton, and can be used (STRICTLY) for testing.
   // Define the below flag in order to use them in your test.

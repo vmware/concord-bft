@@ -244,7 +244,6 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
 
   SubscriptionRequest request;
   request.set_block_id(latest_verified_block_id_ + 1);
-  request.set_key_prefix(key_prefix_);
   return config_->trs_conns[server_index]->openHashStream(request);
 }
 
@@ -319,7 +318,6 @@ TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) 
 
   SubscriptionRequest request;
   request.set_block_id(latest_verified_block_id_ + 1);
-  request.set_key_prefix(key_prefix_);
   TrsConnection::Result result = config_->trs_conns[server_index]->openDataStream(request);
 
   data_conn_index_ = server_index;
@@ -597,7 +595,7 @@ ThinReplicaClient::~ThinReplicaClient() {
   }
 }
 
-void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
+void ThinReplicaClient::Subscribe() {
   ConcordAssert(config_->trs_conns.size() > 0);
   // XXX: The following implementation does not achieve Subscribe's specified
   //      interface and behavior (see the comments with Subscribe's declaration
@@ -629,7 +627,6 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
 
     LOG4CPLUS_DEBUG(logger_, "Read state from " << data_server_index);
     ReadStateRequest request;
-    request.set_key_prefix(key_prefix_bytes);
     TrsConnection::Result stream_open_result = config_->trs_conns[data_server_index]->openStateStream(request);
     if (stream_open_result == TrsConnection::Result::kTimeout) {
       LOG4CPLUS_WARN(logger_,
@@ -724,7 +721,6 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
       Hash hash_response;
       ReadStateHashRequest hash_request;
       hash_request.set_block_id(block_id);
-      hash_request.set_key_prefix(key_prefix_bytes);
       TrsConnection::Result read_hash_result =
           config_->trs_conns[hash_server_index]->readStateHash(hash_request, &hash_response);
       hash_server_index++;
@@ -786,7 +782,6 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
     config_->update_queue->Push(move(state.front()));
     state.pop_front();
   }
-  key_prefix_ = key_prefix_bytes;
   latest_verified_block_id_ = block_id;
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
@@ -794,7 +789,7 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes) {
   subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
 }
 
-void ThinReplicaClient::Subscribe(const string& key_prefix_bytes, uint64_t block_id) {
+void ThinReplicaClient::Subscribe(uint64_t block_id) {
   // Stop any existing subscription before trying to start a new one.
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
@@ -804,7 +799,6 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes, uint64_t block
   }
 
   config_->update_queue->Clear();
-  key_prefix_ = key_prefix_bytes;
   latest_verified_block_id_ = block_id;
 
   // Create and launch thread to stream updates from the servers and push them
@@ -812,6 +806,8 @@ void ThinReplicaClient::Subscribe(const string& key_prefix_bytes, uint64_t block
   stop_subscription_thread_ = false;
   subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
 }
+
+void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {}
 
 // This is a placeholder implementation as the Unsubscribe gRPC call is not yet
 // implemented on the server side.

@@ -13,34 +13,29 @@
 #include <memory>
 #include <grpcpp/grpcpp.h>
 
-#include <concord_client.grpc.pb.h>
-#include "event_service.hpp"
-#include "request_service.hpp"
+#include "Logger.hpp"
+#include "client_service.hpp"
+#include "client/concordclient/concord_client.hpp"
+#include "Metrics.hpp"
 
-using concord::client::RequestServiceImpl;
-using concord::client::EventServiceImpl;
-
-static std::unique_ptr<grpc::Server> clientservice_server;
-
-void runGrpcServer() {
-  grpc::EnableDefaultHealthCheckService(true);
-
-  auto request_service = std::make_unique<RequestServiceImpl>();
-  auto event_service = std::make_unique<EventServiceImpl>();
-
-  grpc::ServerBuilder builder;
-  builder.AddListeningPort("localhost:1337", grpc::InsecureServerCredentials());
-  builder.RegisterService(request_service.get());
-  builder.RegisterService(event_service.get());
-
-  clientservice_server = std::unique_ptr<grpc::Server>(builder.BuildAndStart());
-  clientservice_server->Wait();
-}
+using concord::client::clientservice::ClientService;
+using concord::client::concordclient::ConcordClient;
+using concord::client::concordclient::ConcordClientConfig;
 
 int main(int argc, char** argv) {
-  std::cout << "Clientservice started" << std::endl;
+  // TODO: Use config file and watch thread
+  auto logger = logging::getLogger("concord.client.clientservice.main");
 
-  runGrpcServer();
+  std::string addr = "localhost:1337";
+  LOG_INFO(logger, "Starting clientservice at " << addr);
+
+  // TODO: Setup ConcordClientConfig and read from config file
+  ConcordClientConfig config{};
+  auto concord_client = std::make_unique<ConcordClient>(config);
+  auto metrics = std::make_shared<concordMetrics::Aggregator>();
+  concord_client->setMetricsAggregator(metrics);
+  ClientService service(std::move(concord_client));
+  service.start(addr);
 
   return 0;
 }

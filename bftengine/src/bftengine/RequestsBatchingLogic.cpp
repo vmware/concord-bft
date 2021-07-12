@@ -74,7 +74,7 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum pri
 
   if (requestsInQueue < minBatchSize) {
     LOG_INFO(GL, "Not enough client requests in the queue to fill the batch" << KVLOG(minBatchSize, requestsInQueue));
-    metric_not_enough_client_requests_event_.Get().Inc();
+    metric_not_enough_client_requests_event_++;
     return nullptr;
   }
 

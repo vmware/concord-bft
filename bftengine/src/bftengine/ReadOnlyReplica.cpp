@@ -10,6 +10,7 @@
 // file.
 
 #include <bftengine/Replica.hpp>
+#include <optional>
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
@@ -78,13 +79,13 @@ void ReadOnlyReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReadOnlyReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
-  ro_metrics_.received_invalid_msg_.Get().Inc();
+  ro_metrics_.received_invalid_msg_++;
   LOG_WARN(GL,
            "Node " << config_.replicaId << " received invalid message from Node " << msg->senderId()
                    << " type=" << msg->type() << " reason: " << reason);
 }
 void ReadOnlyReplica::sendAskForCheckpointMsg() {
-  ro_metrics_.sent_ask_for_checkpoint_msg_.Get().Inc();
+  ro_metrics_.sent_ask_for_checkpoint_msg_++;
   LOG_INFO(GL, "sending AskForCheckpointMsg");
   auto msg = std::make_unique<AskForCheckpointMsg>(config_.replicaId);
   for (auto id : repsInfo->idsOfPeerReplicas()) send(msg.get(), id);
@@ -96,7 +97,7 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     delete msg;
     return;
   }
-  ro_metrics_.received_checkpoint_msg_.Get().Inc();
+  ro_metrics_.received_checkpoint_msg_++;
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
@@ -190,10 +191,12 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
                                                                               request.flags(),
                                                                               request.requestLength(),
                                                                               request.requestBuf(),
+                                                                              "",
                                                                               reply.maxReplyLength(),
                                                                               reply.replyBuf()});
 
-  bftRequestsHandler_->execute(accumulatedRequests, request.getCid(), span);
+  // DD: Do we need to take care of Time Service here?
+  bftRequestsHandler_->execute(accumulatedRequests, std::nullopt, request.getCid(), span);
   const IRequestsHandler::ExecutionRequest &single_request = accumulatedRequests.back();
   status = single_request.outExecutionStatus;
   const uint32_t actualReplyLength = single_request.outActualReplySize;

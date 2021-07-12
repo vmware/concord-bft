@@ -22,19 +22,27 @@ typedef enum { STATUS_GOOD, STATUS_REJECT } ReplyStatus;
 
 class PreProcessReplyMsg : public MessageBase {
  public:
-  PreProcessReplyMsg(preprocessor::PreProcessorRecorder* histograms,
-                     NodeIdType senderId,
+  PreProcessReplyMsg(NodeIdType senderId,
                      uint16_t clientId,
                      uint16_t reqOffsetInBatch,
                      uint64_t reqSeqNum,
-                     uint64_t reqRetryId);
+                     uint64_t reqRetryId,
+                     const char* preProcessResultBuf,
+                     uint32_t preProcessResultBufLen,
+                     const std::string& cid,
+                     ReplyStatus status);
+
+  PreProcessReplyMsg(NodeIdType senderId,
+                     uint16_t clientId,
+                     uint16_t reqOffsetInBatch,
+                     uint64_t reqSeqNum,
+                     uint64_t reqRetryId,
+                     const uint8_t* resultsHash,
+                     const char* signature,
+                     const std::string& cid,
+                     ReplyStatus status);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
-
-  void setupMsgBody(const char* preProcessResultBuf,
-                    uint32_t preProcessResultBufLen,
-                    const std::string& cid,
-                    ReplyStatus status);
 
   void validate(const bftEngine::impl::ReplicasInfo&) const override;
   const uint16_t clientId() const { return msgBody()->clientId; }
@@ -44,12 +52,13 @@ class PreProcessReplyMsg : public MessageBase {
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   const uint8_t status() const { return msgBody()->status; }
+  std::vector<char> getResultHashSignature() const;
   std::string getCid() const;
-  void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {
+  static void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {
     preProcessorHistograms_ = histograms;
   }
 
- protected:
+ public:
 #pragma pack(push, 1)
   struct Header {
     MessageBase::Header header;
@@ -66,19 +75,32 @@ class PreProcessReplyMsg : public MessageBase {
 // The pre-executed results' hash signature resides in the message body
 #pragma pack(pop)
 
+ protected:
+  template <typename MessageT>
+  friend size_t bftEngine::impl::sizeOfHeader();
+
  private:
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
-  void setParams(
-      NodeIdType senderId, uint16_t clientId, uint16_t reqOffsetInBatch, ReqId reqSeqNum, uint64_t reqRetryId);
+  void setParams(NodeIdType senderId,
+                 uint16_t clientId,
+                 uint16_t reqOffsetInBatch,
+                 ReqId reqSeqNum,
+                 uint64_t reqRetryId,
+                 ReplyStatus status);
+  void setupMsgBody(const char* preProcessResultBuf,
+                    uint32_t preProcessResultBufLen,
+                    const std::string& cid,
+                    ReplyStatus status);
+  void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& cid);
+  void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
   static uint16_t maxReplyMsgSize_;
-
-  preprocessor::PreProcessorRecorder* preProcessorHistograms_ = nullptr;
+  inline static preprocessor::PreProcessorRecorder* preProcessorHistograms_ = nullptr;
 };
 
 typedef std::shared_ptr<PreProcessReplyMsg> PreProcessReplyMsgSharedPtr;

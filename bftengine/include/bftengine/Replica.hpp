@@ -25,13 +25,19 @@
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "PerformanceManager.hpp"
+#include "PersistentStorage.hpp"
 #include "IRequestHandler.hpp"
+
+namespace concord::cron {
+class TicksGenerator;
+}
 
 namespace concord::secretsmanager {
 class ISecretsManagerImpl;
 }
 
 namespace bftEngine {
+
 // Possible values for 'flags' parameter
 enum MsgFlag : uint64_t {
   EMPTY_FLAGS = 0x0,
@@ -42,6 +48,8 @@ enum MsgFlag : uint64_t {
   TICK_FLAG = 0x10,
   RECONFIG_FLAG = 0x20,
   TIME_SERVICE_FLAG = 0x40,
+  PUBLISH_ON_CHAIN_OBJECT_FLAG = 0x80,
+  CLIENTS_PUB_KEYS_FLAG = 0x100
 };
 
 // The IControlHandler is a group of methods that enables the userRequestHandler to perform infrastructure
@@ -70,6 +78,7 @@ class IControlHandler {
   virtual void setOnPruningProcess(bool inProcess) = 0;
   virtual void addOnSuperStableCheckpointCallBack(const std::function<void()> &cb) = 0;
   virtual void addOnStableCheckpointCallBack(const std::function<void()> &cb) = 0;
+  virtual void resetState() = 0;
   virtual ~IControlHandler() = default;
 };
 
@@ -110,6 +119,12 @@ class IReplica {
   // TODO(GG) : move the following methods to an "advanced interface"
   virtual void SetAggregator(std::shared_ptr<concordMetrics::Aggregator>) = 0;
   virtual void restartForDebug(uint32_t delayMillis) = 0;  // for debug only.
+
+  // Returns the internal ticks generator or nullptr if not applicable.
+  virtual std::shared_ptr<concord::cron::TicksGenerator> ticksGenerator() const = 0;
+
+  // Returns the internal persistent storage object.
+  virtual std::shared_ptr<impl::PersistentStorage> persistentStorage() const = 0;
 };
 
 }  // namespace bftEngine

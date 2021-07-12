@@ -32,11 +32,13 @@ class SourceSelector {
  public:
   SourceSelector(std::set<uint16_t> allOtherReplicas,
                  uint32_t retransmissionTimeoutMilli,
-                 uint32_t sourceReplicaReplacementTimeoutMilli)
+                 uint32_t sourceReplicaReplacementTimeoutMilli,
+                 logging::Logger &logger)
       : allOtherReplicas_(std::move(allOtherReplicas)),
         randomGen_(std::random_device()()),
         retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
-        sourceReplacementTimeoutMilli_(sourceReplicaReplacementTimeoutMilli) {}
+        sourceReplacementTimeoutMilli_(sourceReplicaReplacementTimeoutMilli),
+        logger_(logger) {}
 
   bool hasSource() const;
   void removeCurrentReplica();
@@ -55,7 +57,7 @@ class SourceSelector {
   void setSourceSelectionTime(uint64_t currTimeMilli);
 
   // Set the latest time of last sent transmission of FetchResPagesMsg or last received ItemDataMsg
-  void setFetchingTimeStamp(logging::Logger &logger, uint64_t currTimeMilli);
+  void setFetchingTimeStamp(uint64_t currTimeMilli);
 
   // Create a list of ids of the form "0, 1, 4"
   std::string preferredReplicasToString() const;
@@ -74,7 +76,6 @@ class SourceSelector {
 
  private:
   uint64_t timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const;
-  uint64_t timeSinceSendMilli(uint64_t currTimeMilli) const;
   void selectSource(uint64_t currTimeMilli);
 
   std::set<uint16_t> preferredReplicas_;
@@ -85,6 +86,7 @@ class SourceSelector {
   std::mt19937 randomGen_;
   uint32_t retransmissionTimeoutMilli_;
   uint32_t sourceReplacementTimeoutMilli_;
+  logging::Logger &logger_;
 };
 }  // namespace impl
 }  // namespace bcst

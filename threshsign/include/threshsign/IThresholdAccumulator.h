@@ -13,7 +13,7 @@
 #pragma once
 
 #include <cstddef>
-
+#include <set>
 #include "ThresholdSignaturesTypes.h"
 
 /**
@@ -56,6 +56,11 @@ class IThresholdAccumulator {
    * Before that, always returns 0, since shares can't be verified without a digest.
    */
   virtual int getNumValidShares() const = 0;
+
+  /**
+   * if share verification enabled, returns invalid share ids.
+   */
+  virtual std::set<ShareID> getInvalidShareIds() const = 0;
 
   /**
    * Computes and returns the final threshold signature on the digest specified in setExpectedDigest().

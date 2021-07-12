@@ -70,7 +70,7 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  trc->Subscribe("");
+  trc->Subscribe();
   update_queue->Pop();
   update_queue->Pop();
   trc_config.reset();
@@ -82,7 +82,7 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  trc->Subscribe("");
+  trc->Subscribe();
   update_queue->Pop();
   update_queue->Pop();
   trc->Unsubscribe();
@@ -110,21 +110,13 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  EXPECT_NO_THROW(trc->Subscribe("")) << "ThinReplicaClient::Subscribe's 1-parameter overload failed.";
+  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed.";
 
   trc->Unsubscribe();
-  EXPECT_NO_THROW(trc->Subscribe("")) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
-                                         "subscribing after closing a subscription.";
-  EXPECT_NO_THROW(trc->Subscribe("")) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
-                                         "subscribing while there is an ongoing subscription.";
-
-  EXPECT_NO_THROW(trc->Subscribe("k")) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
-                                          "subscribing with a non-empty key prefix of an existing key.";
-  EXPECT_NO_THROW(trc->Subscribe("key")) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
-                                            "subscribing with a key prefix entirely matching an existing key.";
-  EXPECT_NO_THROW(trc->Subscribe("There should be no key with this prefix."))
-      << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
-         "subscribing with a key prefix not matching any existing key.";
+  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
+                                       "subscribing after closing a subscription.";
+  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
+                                       "subscribing while there is an ongoing subscription.";
 }
 
 TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
@@ -146,35 +138,25 @@ TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  trc->Subscribe("");
+  trc->Subscribe();
   unique_ptr<Update> update_received = update_queue->Pop();
   uint64_t block_id = update_received->block_id;
   trc->Unsubscribe();
-  EXPECT_NO_THROW(trc->Subscribe("", block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed.";
+  EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 1-parameter overload failed.";
   trc->Unsubscribe();
 
   trc->Unsubscribe();
-  EXPECT_NO_THROW(trc->Subscribe("", block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed after "
-                                                   "closing an existing subscription.";
-  EXPECT_NO_THROW(trc->Subscribe("", block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
-                                                   "there is already an existing subscription.";
-
-  EXPECT_NO_THROW(trc->Subscribe("k", block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
-                                                    "subscribing with a non-empty prefix of an existing key.";
-  EXPECT_NO_THROW(trc->Subscribe("key", block_id))
-      << "ThinReplicaClient::Subscribe's 2-parameter overload failed failed "
-         "when subscribing with a prefix that entirely matches an existing "
-         "key.";
-  EXPECT_NO_THROW(trc->Subscribe("There should be no key with this prefix.", block_id))
-      << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
-         "subscribing with a prefix that matches no existing key.";
+  EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 1-parameter overload failed after "
+                                               "closing an existing subscription.";
+  EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
+                                               "there is already an existing subscription.";
 
   for (size_t i = 0; i < 8; ++i) {
     trc->Unsubscribe();
     update_queue->Clear();
     uint64_t previous_block_id = block_id;
-    EXPECT_NO_THROW(trc->Subscribe("", block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
-                                                     "subscribing with a Block ID from a previously received block.";
+    EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
+                                                 "subscribing with a Block ID from a previously received block.";
     update_received = update_queue->Pop();
     block_id = update_received->block_id;
     EXPECT_GT(block_id, previous_block_id) << "ThinReplicaClient::Subscribe's 2-parameter overload appears to be "
@@ -203,9 +185,9 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  EXPECT_ANY_THROW(trc->Subscribe("")) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
-                                          "exception when trying to subscribe to a cluster with only max_faulty "
-                                          "servers responsive.";
+  EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
+                                        "exception when trying to subscribe to a cluster with only max_faulty "
+                                        "servers responsive.";
   trc_config.reset();
   trc.reset();
 
@@ -213,9 +195,9 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  EXPECT_ANY_THROW(trc->Subscribe("")) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
-                                          "exception when trying to subscribe to a cluster with no responsive "
-                                          "servers.";
+  EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
+                                        "exception when trying to subscribe to a cluster with no responsive "
+                                        "servers.";
 }
 
 TEST(thin_replica_client_test, test_unsubscribe_successful) {
@@ -239,7 +221,7 @@ TEST(thin_replica_client_test, test_unsubscribe_successful) {
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a newly-constructed "
                                          "ThinReplicaClient.";
-  trc->Subscribe("");
+  trc->Subscribe();
   update_queue->Pop();
   update_queue->Pop();
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a ThinReplicaClient with "
@@ -272,7 +254,7 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-  trc->Subscribe("");
+  trc->Subscribe();
   unique_ptr<Update> update_received = update_queue->Pop();
   EXPECT_TRUE((bool)update_received) << "ThinReplicaClient failed to publish update from initial state.";
 
@@ -315,7 +297,7 @@ TEST(thin_replica_client_test, test_acknowledge_block_id_success) {
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
   EXPECT_NO_THROW(trc->AcknowledgeBlockID(1)) << "ThinReplicaClient::AcknowledgeBlockID fails when called on a "
                                                  "freshly-constructed ThinReplicaClient.";
-  trc->Subscribe("");
+  trc->Subscribe();
   update_queue->Pop();
   update_queue->Pop();
   EXPECT_NO_THROW(trc->AcknowledgeBlockID(2)) << "ThinReplicaClient::AcknowledgeBlockID fails when called on a "
@@ -367,7 +349,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   EXPECT_FALSE((bool)(update_queue->TryPop())) << "ThinReplicaClient appears to have published state to update queue "
                                                   "prior to subscription.";
 
-  trc->Subscribe("");
+  trc->Subscribe();
   trc->Unsubscribe();
   for (size_t i = 0; i < num_initial_updates; ++i) {
     unique_ptr<Update> received_update = update_queue->TryPop();
@@ -399,7 +381,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
                                                   "unsubscribing.";
   *spurious_wakeup_indicator = true;
 
-  trc->Subscribe("", num_initial_updates - 1);
+  trc->Subscribe(num_initial_updates - 1);
   for (size_t i = num_initial_updates; i < update_data.size(); ++i) {
     *spurious_wakeup_indicator = false;
     delay_condition->notify_one();
@@ -431,76 +413,6 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   *spurious_wakeup_indicator = false;
   sleep_for(kBriefDelayDuration);
   delay_condition->notify_all();
-}
-
-TEST(thin_replica_client_test, test_key_filtration) {
-  Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key0");
-  update_data->set_value("value0");
-  update_data = update.add_data();
-  update_data->set_key("key1");
-  update_data->set_value("value1");
-  update_data = update.add_data();
-  update_data->set_key("identifier");
-  update_data->set_value("value2");
-
-  shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
-  MockOrderedDataStreamHasher hasher(stream_preparer);
-
-  uint16_t max_faulty = 1;
-  size_t num_replicas = 3 * max_faulty + 1;
-
-  shared_ptr<UpdateQueue> update_queue = make_shared<BasicUpdateQueue>();
-
-  auto mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
-  auto trc_config =
-      make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
-
-  trc->Subscribe("");
-  unique_ptr<Update> update_received = update_queue->Pop();
-  EXPECT_EQ(update_received->kv_pairs[0].first, "key0")
-      << "ThinReplicaClient fails to include a key-value pair in an update "
-         "when subscribing with an empty prefix.";
-  EXPECT_EQ(update_received->kv_pairs[1].first, "key1")
-      << "ThinReplicaClient fails to include a key-value pair in an update "
-         "when subscribing with an empty prefix.";
-  EXPECT_EQ(update_received->kv_pairs[2].first, "identifier")
-      << "ThinReplicaClient fails to include a key-value pair in an update "
-         "when subscribing with an empty prefix.";
-
-  trc->Unsubscribe();
-  trc->Subscribe("key");
-  update_received = update_queue->Pop();
-  EXPECT_EQ(update_received->kv_pairs[0].first, "key0")
-      << "ThinReplicaClient fails to include a key-value pair in an update "
-         "when subscribing with a key prefix that matches that pair.";
-  EXPECT_EQ(update_received->kv_pairs[1].first, "key1")
-      << "ThinReplicaClient fails to include a key-value pair in an update "
-         "when subscribing with a key prefix that matches that pair.";
-  EXPECT_EQ(update_received->kv_pairs.size(), 2)
-      << "ThinReplicaClient appears to include key-value pair(s) in an update "
-         "that do not match the requested prefix.";
-
-  trc->Unsubscribe();
-  trc->Subscribe("key1");
-  update_received = update_queue->Pop();
-  EXPECT_EQ(update_received->kv_pairs[0].first, "key1")
-      << "ThinReplicaClient fails to include a key-value pair in an update "
-         "when subscribing with a key prefix that matches the full length of "
-         "the key.";
-  EXPECT_EQ(update_received->kv_pairs.size(), 1)
-      << "ThinReplicaClient appears to include key-value pair(s) in an update "
-         "that do not match the requested prefix.";
-
-  trc->Unsubscribe();
-  trc->Subscribe("inexistant_key");
-  update_received = update_queue->Pop();
-  EXPECT_EQ(update_received->kv_pairs.size(), 0)
-      << "ThinReplicaClient appears to include key-value pair(s) in an update "
-         "that do not match the requested prefix.";
 }
 
 }  // anonymous namespace

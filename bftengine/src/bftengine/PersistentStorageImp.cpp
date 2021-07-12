@@ -14,6 +14,7 @@
 #include "Logger.hpp"
 #include <list>
 #include <sstream>
+#include <stdexcept>
 
 using namespace std;
 using namespace concord::serialize;
@@ -98,6 +99,7 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[BEGINNING_OF_SEQ_NUM_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
+  metadataObjectsArray.get()[USER_DATA].maxSize = kMaxUserDataSizeBytes;
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
     metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =
@@ -505,6 +507,21 @@ void PersistentStorageImp::setCheckpointMsgInCheckWindow(SeqNum seqNum, Checkpoi
   metadataStorage_->writeInBatch(convertedIndex, buf.get(), actualSize);
 }
 
+void PersistentStorageImp::setUserDataAtomically(const void *data, std::size_t numberOfBytes) {
+  if (numberOfBytes > kMaxUserDataSizeBytes) {
+    throw std::invalid_argument{"Metadata user data is too big"};
+  }
+  metadataStorage_->atomicWrite(USER_DATA, static_cast<const char *>(data), numberOfBytes);
+}
+
+void PersistentStorageImp::setUserDataInTransaction(const void *data, std::size_t numberOfBytes) {
+  ConcordAssert(setIsAllowed());
+  if (numberOfBytes > kMaxUserDataSizeBytes) {
+    throw std::invalid_argument{"Metadata user data is too big"};
+  }
+  metadataStorage_->writeInBatch(USER_DATA, static_cast<const char *>(data), numberOfBytes);
+}
+
 /***** Getters *****/
 
 string PersistentStorageImp::getStoredVersion() {
@@ -810,6 +827,17 @@ CheckpointMsg *PersistentStorageImp::getAndAllocateCheckpointMsgInCheckWindow(Se
 bool PersistentStorageImp::getCompletedMarkInCheckWindow(SeqNum seqNum) {
   ConcordAssert(getIsAllowed());
   return readCompletedMarkFromDisk(seqNum);
+}
+
+std::optional<std::vector<std::uint8_t>> PersistentStorageImp::getUserData() const {
+  auto buf = std::vector<std::uint8_t>(kMaxUserDataSizeBytes);
+  auto actualSize = std::uint32_t{0};
+  metadataStorage_->read(USER_DATA, buf.size(), reinterpret_cast<char *>(buf.data()), actualSize);
+  if (0 == actualSize) {
+    return std::nullopt;
+  }
+  buf.resize(actualSize);
+  return buf;
 }
 
 PrePrepareMsg *PersistentStorageImp::getAndAllocatePrePrepareMsgInSeqNumWindow(SeqNum seqNum) {

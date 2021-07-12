@@ -653,7 +653,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
 
   // Construct the pruning state machine with a nullptr TimeContract to verify
   // it works in case the time service is disabled.
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
@@ -674,7 +674,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_big_num_blocks_to_keep) {
   auto &blocks_deleter = storage;
   const auto verifier = RSAPruningVerifier{replicaConfig.publicKeysOfReplicas};
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
@@ -701,7 +701,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
 
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
@@ -728,7 +728,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
 
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
@@ -749,7 +749,7 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
 
   TestStorage storage(db);
   auto &blocks_deleter = storage;
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
   concord::messages::ReconfigurationResponse rres;
@@ -769,7 +769,7 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   TestStorage storage(db);
   auto &blocks_deleter = storage;
   InitBlockchainStorage(replica_count, storage);
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   const auto latest_prunable_block_id = storage.getLastBlockId() - num_blocks_to_keep;
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas, latest_prunable_block_id);
@@ -778,102 +778,6 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   auto res = sm.handle(req, 0, rres);
 
   ASSERT_TRUE(res);
-
-  // Make sure the state machine has added the last agreed prunable block ID
-  // key.
-  auto output = storage.getLatest(kConcordInternalCategoryId, PruningHandler::lastAgreedPrunableBlockIdKey());
-  auto blockIdFromStorage =
-      concordUtils::fromBigEndianBuffer<BlockId>(std::get<VersionedValue>(output.value()).data.c_str());
-  ASSERT_EQ(latest_prunable_block_id, blockIdFromStorage);
-}
-TEST_F(test_rocksdb, sm_prune_on_startup) {
-  const auto replica_count = 4;
-  const auto num_blocks_to_keep = 30;
-  const auto replica_idx = 1;
-  replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.replicaId = replica_idx;
-  replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = privateKey_1;
-  TestStorage storage(db);
-  auto &blocks_deleter = storage;
-
-  // Simulate a situation in which the replica hasn't fully executed pruning on
-  // startup. For example, that might happen due to a crash just before pruning
-  // has started, but after the last agreed prunable block ID has been
-  // persisted.
-  InitBlockchainStorage(replica_count, storage);
-
-  const auto last_agreed_prunable_block_id = BlockId{storage.getLastBlockId() - num_blocks_to_keep};
-
-  concord::kvbc::categorization::VersionedUpdates versioned_updates;
-  versioned_updates.addUpdate(PruningHandler::lastAgreedPrunableBlockIdKey(),
-                              concordUtils::toBigEndianStringBuffer(last_agreed_prunable_block_id));
-  versioned_updates.calculateRootHash(false);
-
-  concord::kvbc::categorization::Updates updates;
-  updates.add(kConcordInternalCategoryId, std::move(versioned_updates));
-
-  blocks_deleter.deleteBlocksUntil(last_agreed_prunable_block_id + 1);
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
-}
-TEST_F(test_rocksdb, sm_already_pruned_on_startup) {
-  const auto num_blocks_to_keep = 30;
-  const auto replica_idx = 1;
-  replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.replicaId = replica_idx;
-  replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = privateKey_1;
-  TestStorage storage(db);
-  auto &blocks_deleter = storage;
-  const auto last_agreed_prunable_block_id = BlockId{storage.getLastBlockId() - num_blocks_to_keep};
-
-  concord::kvbc::categorization::VersionedUpdates versioned_updates;
-  versioned_updates.addUpdate(PruningHandler::lastAgreedPrunableBlockIdKey(),
-                              concordUtils::toBigEndianStringBuffer(last_agreed_prunable_block_id));
-  versioned_updates.calculateRootHash(false);
-
-  concord::kvbc::categorization::Updates updates;
-  updates.add(kConcordInternalCategoryId, std::move(versioned_updates));
-
-  // Make sure the genesis block ID is bigger than the agreed prunable block ID.
-  // In that case, the state machine should not call any methods on
-  // 'blocks_deleter' (ensured by the strict mock).
-  storage.setGenesisBlockId(last_agreed_prunable_block_id + 1);
-
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
-}
-
-TEST_F(test_rocksdb, sm_prune_on_state_transfer_complete) {
-  const auto replica_count = 4;
-  const auto num_blocks_to_keep = 30;
-  const auto replica_idx = 1;
-  replicaConfig.numBlocksToKeep_ = num_blocks_to_keep;
-  replicaConfig.replicaId = replica_idx;
-  replicaConfig.pruningEnabled_ = true;
-  replicaConfig.replicaPrivateKey = privateKey_1;
-  TestStorage storage(db);
-  auto &blocks_deleter = storage;
-  InitBlockchainStorage(replica_count, storage);
-
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
-
-  const auto last_agreed_prunable_block_id = BlockId{storage.getLastBlockId() - num_blocks_to_keep};
-
-  // Simulate a situation in which the current replica has missed blocks,
-  // pruning has been executed on other replicas and state transfer completes,
-  // bringing in a block that contains the last agreed prunable block ID.
-  concord::kvbc::categorization::VersionedUpdates versioned_updates;
-  versioned_updates.addUpdate(PruningHandler::lastAgreedPrunableBlockIdKey(),
-                              concordUtils::toBigEndianStringBuffer(last_agreed_prunable_block_id));
-  versioned_updates.calculateRootHash(false);
-
-  concord::kvbc::categorization::Updates updates;
-  updates.add(kConcordInternalCategoryId, std::move(versioned_updates));
-
-  // Add 1 as deleteBlocksUntil() deletes in the [genesis, to) range.
-  // Expect to be called when state transfer has completed.
-  blocks_deleter.deleteBlocksUntil(last_agreed_prunable_block_id + 1);
-  state_transfer.complete();
 }
 
 TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
@@ -889,7 +793,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
   auto &blocks_deleter = storage;
   InitBlockchainStorage(replica_count, storage);
 
-  auto sm = PruningHandler{storage, storage, blocks_deleter, state_transfer, false};
+  auto sm = PruningHandler{storage, storage, blocks_deleter, false};
 
   // Add a valid N + 1 latest prunable block.
   {

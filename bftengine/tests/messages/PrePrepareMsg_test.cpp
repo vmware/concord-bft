@@ -9,11 +9,15 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <string>
+#include <vector>
 #include <cstring>
 #include <iostream>
+#include <random>
 #include <memory>
 #include "OpenTracing.hpp"
 #include "gtest/gtest.h"
+#include "Crypto.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
@@ -42,6 +46,47 @@ ClientRequestMsg create_client_request() {
                           concordUtils::SpanContext{spanContext});
 }
 
+std::string getRandomStingOfLength(size_t len) {
+  std::vector<char> alphabet{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'p',
+                             'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                             'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                             'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ' '};
+
+  std::mt19937_64 eng{std::random_device{}()};
+  std::uniform_int_distribution<> dist{0, static_cast<int>(alphabet.size())};
+  std::string res = "";
+  while (len > 0) {
+    res += alphabet[dist(eng)];
+    len--;
+  }
+  return res;
+}
+
+void create_random_client_requests(std::vector<std::shared_ptr<ClientRequestMsg>>& crmv, size_t numMsgs) {
+  crmv.clear();
+  std::mt19937_64 eng{std::random_device{}()};
+  std::uniform_int_distribution<> dist{12, 10000};
+  std::uniform_int_distribution<> msdist{0, 1000};
+
+  while (numMsgs > 0) {
+    uint64_t reqSeqNum = 100u + numMsgs;
+    const std::string request = getRandomStingOfLength(dist(eng));
+    const uint64_t requestTimeoutMilli = msdist(eng);
+    const std::string correlationId = "correlationId";
+    const char rawSpanContext[] = {"span_\0context"};
+    const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+    crmv.push_back(std::shared_ptr<ClientRequestMsg>{new ClientRequestMsg(1u,
+                                                                          'F',
+                                                                          reqSeqNum,
+                                                                          request.size(),
+                                                                          request.c_str(),
+                                                                          requestTimeoutMilli,
+                                                                          correlationId,
+                                                                          concordUtils::SpanContext{spanContext})});
+    numMsgs--;
+  }
+}
+
 class PrePrepareMsgTestFixture : public ::testing::Test {
  public:
   PrePrepareMsgTestFixture()
@@ -57,6 +102,50 @@ class PrePrepareMsgTestFixture : public ::testing::Test {
   ReplicasInfo replicaInfo;
   std::unique_ptr<SigManager> sigManager;
 };
+
+TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
+  ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
+
+  ReplicaId senderId = 1u;
+  ViewNum viewNum = 2u;
+  SeqNum seqNum = 3u;
+  CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  std::vector<std::shared_ptr<ClientRequestMsg>> crmv;
+  create_random_client_requests(crmv, 200u);
+  size_t req_size = 0;
+  for (const auto& crm : crmv) {
+    req_size += crm->size();
+  }
+
+  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, req_size);
+
+  EXPECT_EQ(msg.viewNumber(), viewNum);
+  EXPECT_EQ(msg.seqNumber(), seqNum);
+  EXPECT_EQ(msg.firstPath(), commitPath);
+  EXPECT_EQ(msg.isNull(), false);
+  EXPECT_EQ(msg.numberOfRequests(), 0u);
+
+  std::vector<std::string> dv;
+  for (const auto& crm : crmv) {
+    msg.addRequest(crm->body(), crm->size());
+    Digest d;
+    DigestUtil::compute(crm->body(), crm->size(), (char*)&d, sizeof(Digest));
+    dv.push_back({d.content(), sizeof(Digest)});
+  }
+  EXPECT_NO_THROW(msg.finishAddingRequests());  // create the digest
+  EXPECT_EQ(msg.numberOfRequests(), 200u);
+
+  std::string dod;
+  for (const auto& s : dv) {
+    dod.append(s);
+  }
+  Digest d;
+  DigestUtil::compute(dod.c_str(), dod.size(), (char*)&d, sizeof(Digest));
+  EXPECT_EQ(d, msg.digestOfRequests());
+  EXPECT_NO_THROW(msg.validate(replicaInfo));  // validate the same digest
+}
 
 TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);

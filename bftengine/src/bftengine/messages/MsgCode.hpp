@@ -40,10 +40,15 @@ class MsgCode {
     ReqMissingData,
     StateTransfer,
     ReplicaAsksToLeaveView,
+    ReplicaRestartReady,
+    ReplicasRestartReadyProof,
 
     ClientPreProcessRequest = 500,
     PreProcessRequest,
     PreProcessReply,
+    PreProcessBatchRequest,
+    PreProcessBatchReply,
+    PreProcessResult,
 
     ClientRequest = 700,
     ClientBatchRequest = 750,
@@ -113,6 +118,12 @@ inline std::ostream& operator<<(std::ostream& os, const MsgCode::Type& c) {
       break;
     case MsgCode::ReplicaAsksToLeaveView:
       os << "ReplicaAsksToLeaveView";
+      break;
+    case MsgCode::ReplicaRestartReady:
+      os << "ReplicaRestartReady";
+      break;
+    case MsgCode::ReplicasRestartReadyProof:
+      os << "ReplicasRestartReadyProof";
       break;
     case MsgCode::ClientPreProcessRequest:
       os << "ClientPreProcessRequest";

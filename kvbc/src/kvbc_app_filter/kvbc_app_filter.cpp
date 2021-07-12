@@ -55,11 +55,6 @@ KvbFilteredUpdate::OrderedKVPairs KvbAppFilter::filterKeyValuePairs(const kvbc::
     ConcordAssertGE(prefixed_key.size(), sizeof(kvbc::BlockId));
     auto key = prefixed_key.size() == sizeof(kvbc::BlockId) ? std::string{} : prefixed_key.substr(sizeof(BlockId));
 
-    // Filter by key prefix
-    if (key.compare(0, key_prefix_.size(), key_prefix_) != 0) {
-      continue;
-    }
-
     // If no TRIDs attached then everyone is allowed to view the pair
     // Otherwise, check against the client id
     if (value.tags.size() > 0) {

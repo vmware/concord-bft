@@ -18,8 +18,10 @@
 #include "storage/db_types.h"
 #include "Logger.hpp"
 #include "db_adapter_interface.h"
-
 #include "categorization/kv_blockchain.h"
+#include "PersistentStorage.hpp"
+
+#include <memory>
 
 namespace concord::kvbc {
 
@@ -32,6 +34,7 @@ class ReplicaStateSync {
   // Synchronizes replica state and returns a number of deleted blocks.
   virtual uint64_t execute(logging::Logger& logger,
                            categorization::KeyValueBlockchain& blockchain,
+                           const std::shared_ptr<bftEngine::impl::PersistentStorage>& metadata,
                            uint64_t lastExecutedSeqNum,
                            uint32_t maxNumOfBlocksToDelete) = 0;
 };

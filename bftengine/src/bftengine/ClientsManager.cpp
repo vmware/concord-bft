@@ -270,7 +270,7 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   const auto& replySeqNum = r->reqSeqNum();
   if (replySeqNum != requestSeqNum) {
     if (maxNumOfReqsPerClient_ == 1) {
-      metric_reply_inconsistency_detected_.Get().Inc();
+      metric_reply_inconsistency_detected_++;
       LOG_FATAL(CL_MNGR,
                 "The client reserved page does not contain a reply for specified request"
                     << KVLOG(clientId, replySeqNum, requestSeqNum));
@@ -420,7 +420,7 @@ void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId r
   // than the given one, it means that the highest sequence number is out of the boundries and can be safely removed
   if (requestsInfo.size() == maxNumOfRequestsInBatch && maxReqId > reqSequenceNum) {
     requestsInfo.erase(maxReqId);
-    metric_removed_due_to_out_of_boundaries_.Get().Inc();
+    metric_removed_due_to_out_of_boundaries_++;
   }
 }
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {

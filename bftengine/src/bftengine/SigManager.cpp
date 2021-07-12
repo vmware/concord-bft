@@ -47,9 +47,6 @@ SigManager* SigManager::initImpl(ReplicaId myId,
   for (const auto& repIdToKeyPair : publicKeysOfReplicas) {
     // each replica sign with a unique private key (1 to 1 relation)
     ConcordAssert(repIdToKeyPair.first <= highBound);
-    if (myId == repIdToKeyPair.first)
-      // don't insert my own public key
-      continue;
     publickeys.push_back(make_pair(repIdToKeyPair.second, replicasKeysFormat));
     publicKeysMapping.insert({repIdToKeyPair.first, i++});
   }
@@ -120,8 +117,7 @@ SigManager::SigManager(PrincipalId myId,
           metrics_component_.RegisterAtomicCounter("external_client_request_signatures_verified"),
           metrics_component_.RegisterAtomicCounter("peer_replicas_signature_verification_failed"),
           metrics_component_.RegisterAtomicCounter("peer_replicas_signatures_verified"),
-          metrics_component_.RegisterAtomicCounter("signature_verification_failed_on_unrecognized_participant_id")},
-      updateAggregatorCounter(0) {
+          metrics_component_.RegisterAtomicCounter("signature_verification_failed_on_unrecognized_participant_id")} {
   map<KeyIndex, RSAVerifier*> publicKeyIndexToVerifier;
   size_t numPublickeys = publickeys.size();
 
@@ -130,17 +126,22 @@ SigManager::SigManager(PrincipalId myId,
   for (const auto& p : publicKeysMapping) {
     ConcordAssert(verifiers_.count(p.first) == 0);
     ConcordAssert(p.second < numPublickeys);
-    ConcordAssert(p.first != myId_);
 
     auto iter = publicKeyIndexToVerifier.find(p.second);
+    const auto& [key, format] = publickeys[p.second];
     if (iter == publicKeyIndexToVerifier.end()) {
-      const auto& keyPair = publickeys[p.second];
-      verifiers_[p.first] = new RSAVerifier(keyPair.first.c_str(), keyPair.second);
+      verifiers_[p.first] = new RSAVerifier(key.c_str(), format);
       publicKeyIndexToVerifier[p.second] = verifiers_[p.first];
-    } else
+    } else {
       verifiers_[p.first] = iter->second;
+    }
+    if (replicasInfo_.isIdOfExternalClient(p.first)) {
+      clientsPublicKeys_.ids_to_keys[p.first] = concord::messages::keys_and_signatures::PublicKey{key, (uint8_t)format};
+      LOG_DEBUG(KEY_EX_LOG, "Adding key of client " << p.first << " key size " << key.size());
+    }
   }
-
+  clientsPublicKeys_.version = 1;  // version `1` suggests RSAVerifier.
+  LOG_DEBUG(KEY_EX_LOG, "Map contains " << clientsPublicKeys_.ids_to_keys.size() << " public clients keys");
   metrics_component_.Register();
 
   // This is done mainly for debugging and sanity check:
@@ -195,13 +196,12 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
 bool SigManager::verifySig(
     PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
   auto pos = verifiers_.find(pid);
-  bool idOfPeerReplica = false, idOfExternalClient = false, result;
+  bool idOfReplica = false, idOfExternalClient = false, result;
 
   if (pos == verifiers_.end()) {
     LOG_ERROR(GL, "Unrecognized pid " << pid);
-    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_.Get().Inc();
+    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
     metrics_component_.UpdateAggregator();
-    updateAggregatorCounter = 0;
     return false;
   }
 
@@ -209,23 +209,24 @@ bool SigManager::verifySig(
   result = verifier->verify(data, dataLength, sig, sigLength);
   idOfExternalClient = replicasInfo_.isIdOfExternalClient(pid);
   if (!idOfExternalClient) {
-    idOfPeerReplica = replicasInfo_.isIdOfPeerReplica(pid);
+    idOfReplica = replicasInfo_.isIdOfReplica(pid);
   }
-  ConcordAssert(idOfPeerReplica || idOfExternalClient);
+  ConcordAssert(idOfReplica || idOfExternalClient);
   if (!result) {  // failure
-    updateAggregatorCounter = 0;
     if (idOfExternalClient)
-      metrics_.externalClientReqSigVerificationFailed_.Get().Inc();
+      metrics_.externalClientReqSigVerificationFailed_++;
     else
-      metrics_.replicaSigVerificationFailed_.Get().Inc();
+      metrics_.replicaSigVerificationFailed_++;
     metrics_component_.UpdateAggregator();
   } else {  // success
-    if (idOfExternalClient)
-      metrics_.externalClientReqSigVerified_.Get().Inc();
-    else
-      metrics_.replicaSigVerified_.Get().Inc();
-    if ((++updateAggregatorCounter % updateMetricsAggregatorThresh) == 0) {
-      metrics_component_.UpdateAggregator();
+    if (idOfExternalClient) {
+      metrics_.externalClientReqSigVerified_++;
+      if ((metrics_.externalClientReqSigVerified_.Get().Get() % updateMetricsAggregatorThresh) == 0)
+        metrics_component_.UpdateAggregator();
+    } else {
+      metrics_.replicaSigVerified_++;
+      if ((metrics_.replicaSigVerified_.Get().Get() % updateMetricsAggregatorThresh) == 0)
+        metrics_component_.UpdateAggregator();
     }
   }
   return result;

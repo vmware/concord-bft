@@ -16,6 +16,7 @@ import unittest
 
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
 from util.skvbc_history_tracker import verify_linearizability
+from util import skvbc as kvbc
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -60,9 +61,9 @@ class SkvbcFastPathTest(unittest.TestCase):
         """
 
         bft_network.start_all_replicas()
-
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
@@ -83,16 +84,16 @@ class SkvbcFastPathTest(unittest.TestCase):
         Finally the decorator verifies the KV execution.
         """
         bft_network.start_all_replicas()
-
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
         unstable_replicas = bft_network.all_replicas(without={0})
         bft_network.stop_replica(
             replica_id=random.choice(unstable_replicas))
 
         await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -119,12 +120,12 @@ class SkvbcFastPathTest(unittest.TestCase):
             bft_network.stop_replica(replica_to_stop)
 
         # make sure we first downgrade to the slow path...
-
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
         # ...but eventually (after the evaluation period), the fast path is restored!
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: tracker.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
