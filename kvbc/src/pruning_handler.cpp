@@ -82,6 +82,11 @@ bool RSAPruningVerifier::verify(const concord::messages::PruneRequest& request) 
     return false;
   }
 
+  // Make sure pruning parameters are in range.
+  if (request.tick_period_seconds <= 0 || request.batch_blocks_num <= 0) {
+    return false;
+  }
+
   // Note RSAPruningVerifier does not handle verification of the operator's
   // signature authorizing this pruning order, as the operator's signature is a
   // dedicated application-level signature rather than one of the Concord-BFT
