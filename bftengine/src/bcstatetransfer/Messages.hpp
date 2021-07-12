@@ -66,18 +66,15 @@ struct CheckpointSummaryMsg : public BCStateTranBaseMsg {
   uint64_t requestMsgSeqNum;
 
   static bool equivalent(const CheckpointSummaryMsg* a, const CheckpointSummaryMsg* b) {
-    return (a->lastBlock == b->lastBlock and
-      a->checkpointNum == b->checkpointNum and
-      (memcmp(&a->digestOfLastBlock, &b->digestOfLastBlock, sizeof(STDigest)) == 0) and
-      (memcmp(&a->digestOfResPagesDescriptor, &b->digestOfResPagesDescriptor, sizeof(STDigest)) == 0));
+    return (a->lastBlock == b->lastBlock and a->checkpointNum == b->checkpointNum and
+            (memcmp(&a->digestOfLastBlock, &b->digestOfLastBlock, sizeof(STDigest)) == 0) and
+            (memcmp(&a->digestOfResPagesDescriptor, &b->digestOfResPagesDescriptor, sizeof(STDigest)) == 0));
   }
 
   static bool equivalent(const CheckpointSummaryMsg* a, uint16_t a_id, const CheckpointSummaryMsg* b, uint16_t b_id) {
-    if (a->lastBlock != b->lastBlock ||
-      a->checkpointNum != b->checkpointNum ||
-      (memcmp(&a->digestOfLastBlock, &b->digestOfLastBlock, sizeof(STDigest))!=0) ||
-      (memcmp(&a->digestOfResPagesDescriptor, &b->digestOfResPagesDescriptor, sizeof(STDigest))!=0)) {
-
+    if (a->lastBlock != b->lastBlock || a->checkpointNum != b->checkpointNum ||
+        (memcmp(&a->digestOfLastBlock, &b->digestOfLastBlock, sizeof(STDigest)) != 0) ||
+        (memcmp(&a->digestOfResPagesDescriptor, &b->digestOfResPagesDescriptor, sizeof(STDigest)) != 0)) {
       auto logger = logging::getLogger("state-transfer");
       LOG_WARN(logger,
                "Mismatched Checkpoints for checkpointNum="
