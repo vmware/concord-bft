@@ -59,17 +59,21 @@ struct ThinReplicaServerConfig {
   // the set of client IDs known to the TRS, used to authorize prospective
   // clients.
   std::unordered_set<std::string> client_id_set;
+  // the threshold after which metrics aggregator is updated
+  const uint16_t update_metrics_aggregator_thresh;
 
   ThinReplicaServerConfig(const bool is_insecure_trs_,
                           const std::string& tls_trs_cert_path_,
                           const concord::kvbc::IReader* rostorage_,
                           SubBufferList& subscriber_list_,
-                          std::unordered_set<std::string>& client_id_set_)
+                          std::unordered_set<std::string>& client_id_set_,
+                          const uint16_t update_metrics_aggregator_thresh_ = 100)
       : is_insecure_trs(is_insecure_trs_),
         tls_trs_cert_path(tls_trs_cert_path_),
         rostorage(rostorage_),
         subscriber_list(subscriber_list_),
-        client_id_set(client_id_set_) {}
+        client_id_set(client_id_set_),
+        update_metrics_aggregator_thresh(update_metrics_aggregator_thresh_) {}
 };
 
 class ThinReplicaImpl {
@@ -200,6 +204,7 @@ class ThinReplicaImpl {
     // TRS metrics
     ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
     metrics_.setAggregator(aggregator_);
+    uint16_t update_aggregator_counter = 0;
     metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
     try {
@@ -208,6 +213,7 @@ class ThinReplicaImpl {
       config_->subscriber_list.removeBuffer(live_updates);
       live_updates->removeAllUpdates();
       metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+      metrics_.updateAggregator();
       return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
     } catch (std::exception& error) {
       LOG_ERROR(logger_, error.what());
@@ -215,6 +221,7 @@ class ThinReplicaImpl {
       live_updates->removeAllUpdates();
 
       metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+      metrics_.updateAggregator();
 
       std::stringstream msg;
       msg << "Couldn't transition from block id " << request->block_id() << " to new blocks";
@@ -257,6 +264,10 @@ class ThinReplicaImpl {
         break;
       }
       metrics_.last_sent_block_id.Get().Set(update.block_id);
+      if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
+        metrics_.updateAggregator();
+        update_aggregator_counter = 0;
+      }
     }
     config_->subscriber_list.removeBuffer(live_updates);
     live_updates->removeAllUpdates();
