@@ -60,16 +60,27 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
     throw SubscriptionExists();
   }
 
+  // TODO: Define SubscribeRequest in TRC
+  trc_->Subscribe(::client::thin_replica_client::SubscribeRequest{});
+
   stop_subscriber_ = false;
   subscriber_ = std::make_unique<std::thread>([&] {
     while (not stop_subscriber_) {
-      // Note: The following returns an artificial event group.
-      // This will be replaced with the actual thin replica client integration.
-      // The thread is in place to simulate the asynchronous subscription.
+      auto update = trc_queue_->TryPop();
+      if (not update) {
+        // We need to check if the client cancelled the subscription.
+        // Therefore, we cannot block via Pop(). Can we do bettern than sleep?
+        std::this_thread::sleep_for(10ms);
+        continue;
+      }
+
+      // TODO: We fill event group with data from legacy updates.
+      // This needs to change depending on how the legacy API will be implemented.
       EventGroup eg;
-      eg.id = request.event_group_id;
-      std::string event = std::to_string(request.event_group_id);
-      eg.events.push_back({event.begin(), event.end()});
+      eg.id = update->block_id;
+      for (const auto& e : update->kv_pairs) {
+        eg.events.push_back({e.second.begin(), e.second.end()});
+      }
       std::chrono::duration time_now = std::chrono::system_clock::now().time_since_epoch();
       eg.record_time = std::chrono::duration_cast<std::chrono::microseconds>(time_now);
       eg.trace_context = {};
