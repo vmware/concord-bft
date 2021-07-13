@@ -332,11 +332,6 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       ConcordAssertLE(numberOfRequiredReservedPages, config_.maxNumOfReservedPages);
 
       DataStoreTransaction::Guard g(psd_->beginTransaction());
-      g.txn()->setReplicas(replicas_);
-      g.txn()->setMyReplicaId(config_.myReplicaId);
-      g.txn()->setFVal(config_.fVal);
-      g.txn()->setMaxNumOfStoredCheckpoints(maxNumOfRequiredStoredCheckpoints);
-      g.txn()->setNumberOfReservedPages(numberOfRequiredReservedPages);
       g.txn()->setLastStoredCheckpoint(0);
       g.txn()->setFirstStoredCheckpoint(0);
       g.txn()->setIsFetchingState(false);
@@ -345,6 +340,14 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       g.txn()->setAsInitialized();
 
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
+    }
+    {
+      DataStoreTransaction::Guard g(psd_->beginTransaction());
+      g.txn()->setReplicas(replicas_);
+      g.txn()->setMyReplicaId(config_.myReplicaId);
+      g.txn()->setFVal(config_.fVal);
+      g.txn()->setMaxNumOfStoredCheckpoints(maxNumOfRequiredStoredCheckpoints);
+      g.txn()->setNumberOfReservedPages(numberOfRequiredReservedPages);
     }
   } catch (const std::exception &e) {
     LOG_FATAL(getLogger(), e.what());

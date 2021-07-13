@@ -101,6 +101,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // the latest stable SeqNum known to this replica
   SeqNum lastStableSeqNum = 0;
 
+  SeqNum lastSuperStableSeqNum = 0;
+
   //
   SeqNum strictLowerBoundOfSeqNums = 0;
 

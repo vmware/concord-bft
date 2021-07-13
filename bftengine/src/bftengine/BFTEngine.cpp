@@ -163,10 +163,18 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     auto objectDescriptors =
         ((PersistentStorageImp *)persistentStoragePtr.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
     isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-    bool erasedMetaData;
-    ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr), erasedMetaData);
+
+    // Check if we need to remove the metadata or start a new epoch
+    bool erasedMetaData = false;
+    uint32_t actualObjectSize = 0;
+    metadataStoragePtr->read(ConstMetadataParameterIds::ERASE_METADATA_ON_STARTUP,
+                             sizeof(erasedMetaData),
+                             (char *)&erasedMetaData,
+                             actualObjectSize);
+    LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
     if (erasedMetaData) {
-      isNewStorage = true;
+      metadataStoragePtr->eraseData();
+      isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
       auto secFile = ReplicaConfig::instance().getkeyViewFilePath() + std::string("/" + secFilePrefix + ".") +
                      std::to_string(ReplicaConfig::instance().getreplicaId());
       LOG_INFO(GL, "removing " << secFile << " if exist");
@@ -176,7 +184,9 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
         LOG_FATAL(GL, "unable to remove the secret file, as we erased the metadata we won't be able to restart");
       }
     }
-    LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
+
+    // Init the persistent storage
+    ((PersistentStorageImp *)persistentStoragePtr.get())->init(move(metadataStoragePtr));
   }
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   shared_ptr<MsgHandlersRegistrator> msgHandlersPtr(new MsgHandlersRegistrator());
