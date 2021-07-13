@@ -52,6 +52,7 @@
 #include "trs_connection.hpp"
 #include "update.hpp"
 #include "assertUtils.hpp"
+#include "Metrics.hpp"
 
 #include <log4cplus/loggingmacros.h>
 #include <opentracing/span.h>
@@ -236,25 +237,46 @@ struct ThinReplicaClientConfig {
 
 // TRC metrics
 struct ThinReplicaClientMetrics {
+  ThinReplicaClientMetrics()
+      : metrics_component_{"ThinReplicaClient", std::make_shared<concordMetrics::Aggregator>()},
+        read_timeouts_per_update{metrics_component_.RegisterGauge("read_timeouts_per_update", 0)},
+        read_failures_per_update{metrics_component_.RegisterGauge("read_failures_per_update", 0)},
+        read_ignored_per_update{metrics_component_.RegisterGauge("read_ignored_per_update", 0)},
+        current_queue_size{metrics_component_.RegisterGauge("current_queue_size", 0)},
+        last_verified_block_id{metrics_component_.RegisterGauge("last_verified_block_id", 0)},
+        update_dur_ms{metrics_component_.RegisterGauge("update_dur_ms", 0)} {
+    metrics_component_.Register();
+  }
+
+  void setAggregator(const std::shared_ptr<concordMetrics::Aggregator>& aggregator) {
+    metrics_component_.SetAggregator(aggregator);
+  }
+
+  void updateAggregator() { metrics_component_.UpdateAggregator(); }
+
+ private:
+  concordMetrics::Component metrics_component_;
+
+ public:
   // read_timeouts_per_update - the number of times data/hash streams timeouts
   // per update
-  uint32_t read_timeouts_per_update;
+  concordMetrics::GaugeHandle read_timeouts_per_update;
   // read_failures_per_update - the number of times data/hash streams fails per
   // update
-  uint32_t read_failures_per_update;
+  concordMetrics::GaugeHandle read_failures_per_update;
   // read_ignored_per_update - the number of times data/hash stream
   // updates/hashes are ignored
-  uint32_t read_ignored_per_update;
+  concordMetrics::GaugeHandle read_ignored_per_update;
   // current_queue_size - the current size of the update queue i.e., number of
   // updates in the update_queue
-  uint64_t current_queue_size;
+  concordMetrics::GaugeHandle current_queue_size;
   // last_verified_block_id - block ID of the latest block that has been read
   // and verified by TRC
-  uint64_t last_verified_block_id;
+  concordMetrics::GaugeHandle last_verified_block_id;
   // update_dur_ms - duration of time (ms) between when an update is received by
   // the TRC, to when it is pushed to the update queue for consumption by the
   // application using TRC
-  std::chrono::milliseconds update_dur_ms{};
+  concordMetrics::GaugeHandle update_dur_ms;
 };
 
 struct SubscribeRequest {};
@@ -355,7 +377,8 @@ class ThinReplicaClient final {
   // The constructor takes unique_ptr to ThinReplicaClientConfig struct as a
   // parameter. See ThinReplicaClientConfig's definition for description of
   // configuration parameters accepted by TRC.
-  ThinReplicaClient(std::unique_ptr<ThinReplicaClientConfig> config)
+  ThinReplicaClient(std::unique_ptr<ThinReplicaClientConfig> config,
+                    const std::shared_ptr<concordMetrics::Aggregator>& aggregator)
       : metrics_(),
         logger_(log4cplus::Logger::getInstance("com.vmware.thin_replica_client")),
         config_(std::move(config)),
@@ -363,6 +386,7 @@ class ThinReplicaClient final {
         latest_verified_block_id_(0),
         subscription_thread_(),
         stop_subscription_thread_(false) {
+    metrics_.setAggregator(aggregator);
     if (config_->trs_conns.size() < (3 * (size_t)config_->max_faulty + 1)) {
       size_t num_servers = config_->trs_conns.size();
       config_->update_queue.reset();

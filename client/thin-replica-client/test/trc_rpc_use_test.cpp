@@ -61,7 +61,8 @@ TEST(trc_rpc_use_test, test_trc_constructor_and_destructor) {
   auto mock_servers = CreateTrsConnections(server_recorders);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
 
   EXPECT_EQ(record->GetTotalCallCount(), 0) << "ThinReplicaClient's constructor appears to have generated RPC "
                                                "call(s) (none were expected).";
@@ -91,7 +92,8 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   auto mock_servers = CreateTrsConnections(server_recorders);
   auto trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  std::shared_ptr<concordMetrics::Aggregator> aggregator;
+  auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
 
   trc->Subscribe();
   vector<bool> servers_used(num_replicas, false);
@@ -152,7 +154,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   trc.reset();
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
-  trc = make_unique<ThinReplicaClient>(std::move(trc_config));
+  trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   update_queue->Clear();
   trc->Subscribe(1);
 
