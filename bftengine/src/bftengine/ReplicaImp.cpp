@@ -47,7 +47,7 @@
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "secrets_manager_plain.h"
-
+#include "bftengine/EpochManager.hpp"
 #include <memory>
 #include <optional>
 #include <string>
@@ -2872,7 +2872,6 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   if (hasStateInformation) {
     if (lastStableSeqNum > lastExecutedSeqNum) {
       lastExecutedSeqNum = lastStableSeqNum;
-      if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
       metric_last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
       if (config_.getdebugStatisticsEnabled()) {
         DebugStatistics::onLastExecutedSequenceNumberChanged(lastExecutedSeqNum);
@@ -3386,7 +3385,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   });
 
   bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
-
+  bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   lastAgreedView = ld.viewsManager->latestActiveView();
 
   if (ld.viewsManager->viewIsActive(lastAgreedView)) {
@@ -3635,6 +3634,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
       stateTransfer->setEraseMetadataFlag();
     });
     bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
+    bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   }
 
   auto numThreads = 8;
@@ -4153,6 +4153,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
 
   if (lastExecutedSeqNum % checkpointWindowSize == 0) {
+    // Load the epoch to the reserved pages
+    auto epoch = bftEngine::EpochManager::instance().getEpochNumber(false);
+    bftEngine::EpochManager::instance().setEpochNumber(epoch, true);
     Digest checkDigest;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
     stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&checkDigest);

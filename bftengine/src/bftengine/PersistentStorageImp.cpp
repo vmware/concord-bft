@@ -12,6 +12,7 @@
 
 #include "PersistentStorageImp.hpp"
 #include "Logger.hpp"
+#include "bftengine/EpochManager.hpp"
 #include <list>
 #include <sstream>
 #include <stdexcept>
@@ -91,6 +92,7 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[BEGINNING_OF_CHECK_WINDOW].maxSize = sizeof(SeqNum);
   metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
   metadataObjectsArray.get()[USER_DATA].maxSize = kMaxUserDataSizeBytes;
+  metadataObjectsArray.get()[START_NEW_EPOCH].maxSize = sizeof(bool);
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
     metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =
@@ -946,6 +948,20 @@ bool PersistentStorageImp::getEraseMetadataStorageFlag() {
   if (actualObjectSize == 0) return false;
   return eraseMetaDataOnStartup;
 }
+
+void PersistentStorageImp::setNewEpochFlag(bool flag) {
+  bool newEpoch = flag;
+  metadataStorage_->atomicWrite(START_NEW_EPOCH, (char *)&newEpoch, sizeof(newEpoch));
+}
+
+bool PersistentStorageImp::getNewEpochFlag() {
+  uint32_t actualObjectSize = 0;
+  bool newEpoch = false;
+  metadataStorage_->read(START_NEW_EPOCH, sizeof(newEpoch), (char *)&newEpoch, actualObjectSize);
+  if (actualObjectSize == 0) return false;
+  return newEpoch;
+}
+
 void PersistentStorageImp::eraseMetadata() { metadataStorage_->eraseData(); }
 
 }  // namespace impl

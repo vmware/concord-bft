@@ -32,6 +32,7 @@
 #include "st_reconfiguraion_sm.hpp"
 #include "bftengine/ControlHandler.hpp"
 #include "throughput.hpp"
+#include "bftengine/EpochManager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -158,6 +159,40 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
+
+  uint64_t epoch = 0;
+  auto value = getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
+  if (value.has_value()) {
+    const auto &data = std::get<categorization::VersionedValue>(*value).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    epoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+  auto bft_seq_num = lastExecutedSeqNum;
+  // Create a new epoch block if needed
+  bftEngine::EpochManager::instance().setAggregator(aggregator_);
+  if (bftEngine::EpochManager::instance().isNewEpoch()) {
+    epoch += 1;
+    auto data = concordUtils::toBigEndianStringBuffer(epoch);
+    concord::kvbc::categorization::VersionedUpdates ver_updates;
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key},
+                          std::string(data.begin(), data.end()));
+    // All blocks are expected to have the BFT sequence number as a key.
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key},
+                          concordUtils::toBigEndianStringBuffer(bft_seq_num));
+    concord::kvbc::categorization::Updates updates;
+    updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+    try {
+      auto bid = add(std::move(updates));
+      persistLastBlockIdInMetadata<false>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
+      LOG_INFO(logger, "new epoch block" << KVLOG(bid, epoch, bft_seq_num));
+    } catch (const std::exception &e) {
+      LOG_ERROR(logger, "failed to persist the reconfiguration block: " << e.what());
+      throw;
+    }
+    bftEngine::EpochManager::instance().markEpochAsStarted();
+  }
+  LOG_INFO(logger, "replica epoch is: " << epoch);
+  bftEngine::EpochManager::instance().setEpochNumber(epoch, false);
 }
 
 /**

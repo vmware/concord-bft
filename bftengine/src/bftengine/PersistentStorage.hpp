@@ -66,7 +66,6 @@ class PersistentStorage {
   //////////////////////////////////////////////////////////////////////////
   // Update methods (should only be used in write-only transactions)
   //////////////////////////////////////////////////////////////////////////
-
   virtual void setLastExecutedSeqNum(SeqNum seqNum) = 0;
   virtual void setPrimaryLastUsedSeqNum(SeqNum seqNum) = 0;
   virtual void setStrictLowerBoundOfSeqNums(SeqNum seqNum) = 0;
@@ -120,6 +119,9 @@ class PersistentStorage {
   virtual void setEraseMetadataStorageFlag() = 0;
   virtual bool getEraseMetadataStorageFlag() = 0;
   virtual void eraseMetadata() = 0;
+
+  virtual void setNewEpochFlag(bool flag) = 0;
+  virtual bool getNewEpochFlag() = 0;
 
   //////////////////////////////////////////////////////////////////////////
   // Read methods (should only be used before using write-only transactions)
