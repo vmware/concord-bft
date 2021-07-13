@@ -30,30 +30,21 @@ bool InMemoryDataStore::initialized() { return wasInit_; }
 
 void InMemoryDataStore::setAsInitialized() { wasInit_ = true; }
 
-void InMemoryDataStore::setReplicas(const set<uint16_t> replicas) {
-  ConcordAssert(replicas_.empty());
-  replicas_ = replicas;
-}
+void InMemoryDataStore::setReplicas(const set<uint16_t> replicas) { replicas_ = replicas; }
 
 set<uint16_t> InMemoryDataStore::getReplicas() {
   ConcordAssert(!replicas_.empty());
   return replicas_;
 }
 
-void InMemoryDataStore::setMyReplicaId(uint16_t id) {
-  ConcordAssert(myReplicaId_ == UINT16_MAX);
-  myReplicaId_ = id;
-}
+void InMemoryDataStore::setMyReplicaId(uint16_t id) { myReplicaId_ = id; }
 
 uint16_t InMemoryDataStore::getMyReplicaId() {
   ConcordAssert(myReplicaId_ != UINT16_MAX);
   return myReplicaId_;
 }
 
-void InMemoryDataStore::setFVal(uint16_t fVal) {
-  ConcordAssert(fVal_ == UINT16_MAX);
-  fVal_ = fVal;
-}
+void InMemoryDataStore::setFVal(uint16_t fVal) { fVal_ = fVal; }
 
 uint16_t InMemoryDataStore::getFVal() {
   ConcordAssert(fVal_ != UINT16_MAX);
@@ -63,7 +54,6 @@ uint16_t InMemoryDataStore::getFVal() {
 void InMemoryDataStore::setMaxNumOfStoredCheckpoints(uint64_t numChecks) {
   ConcordAssert(numChecks > 0);
 
-  ConcordAssert(maxNumOfStoredCheckpoints_ == UINT64_MAX);
   maxNumOfStoredCheckpoints_ = numChecks;
 }
 
@@ -75,7 +65,6 @@ uint64_t InMemoryDataStore::getMaxNumOfStoredCheckpoints() const {
 void InMemoryDataStore::setNumberOfReservedPages(uint32_t numResPages) {
   ConcordAssert(numResPages > 0);
 
-  ConcordAssert(numberOfReservedPages_ == UINT32_MAX);
   numberOfReservedPages_ = numResPages;
 }
 

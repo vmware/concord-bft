@@ -34,13 +34,8 @@ void PersistentStorageImp::retrieveWindowsMetadata() {
   checkWindowBeginning_ = readBeginningOfActiveWindow(BEGINNING_OF_CHECK_WINDOW);
 }
 
-bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage, bool &erasedMetadata) {
+bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage) {
   metadataStorage_ = move(metadataStorage);
-  erasedMetadata = false;
-  if (getEraseMetadataStorageFlag()) {
-    eraseMetadata();
-    erasedMetadata = true;
-  }
   try {
     if (!getStoredVersion().empty()) {
       LOG_INFO(GL, "PersistentStorageImp::init version=" << version_.c_str());
@@ -56,10 +51,6 @@ bool PersistentStorageImp::init(unique_ptr<MetadataStorage> metadataStorage, boo
   return true;
 }
 
-bool PersistentStorageImp::init(std::unique_ptr<MetadataStorage> metadataStorage) {
-  bool dummy;
-  return init(std::move(metadataStorage), dummy);
-}
 void PersistentStorageImp::setDefaultsInMetadataStorage() {
   LOG_INFO(GL, "");
   beginWriteTran();

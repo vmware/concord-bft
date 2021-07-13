@@ -27,14 +27,6 @@ std::string toString(const DataStore::CheckpointDesc& desc) {
 /** ******************************************************************************************************************/
 void DBDataStore::load(bool loadResPages_) {
   LOG_DEBUG(logger(), "");
-  if (get<bool>(EraseDataOnStartup)) {
-    try {
-      clearDataStoreData();
-    } catch (std::exception& e) {
-      LOG_FATAL(logger(), e.what());
-      std::terminate();
-    }
-  }
   if (!get<bool>(Initialized)) {
     LOG_INFO(logger(), "Not initialized");
     return;
@@ -82,6 +74,16 @@ void DBDataStore::load(bool loadResPages_) {
   LOG_DEBUG(logger(), "LastRequiredBlock:" << inmem_->getLastRequiredBlock());
   // LOG_DEBUG(logger(), "Replicas" << inmem_->getReplicas());
   LOG_DEBUG(logger(), "CheckpointBeingFetched: " << inmem_->getMyReplicaId());
+
+  if (get<bool>(EraseDataOnStartup)) {
+    try {
+      clearDataStoreData();
+      LOG_INFO(logger(), "delete state transfer metadata");
+    } catch (std::exception& e) {
+      LOG_FATAL(logger(), e.what());
+      std::terminate();
+    }
+  }
 }
 /** ******************************************************************************************************************/
 void DBDataStore::setAsInitialized() {
@@ -186,6 +188,17 @@ void DBDataStore::deleteDescOfSmallerCheckpointsTxn(uint64_t checkpoint, ITransa
       break;
   }
 }
+
+void DBDataStore::deleteAllDesc() {
+  auto first_cp = inmem_->getFirstStoredCheckpoint();
+  auto last_cp = inmem_->getLastStoredCheckpoint();
+  ITransaction::Guard g(dbc_->beginTransaction());
+  for (auto cp = first_cp; cp <= last_cp; cp++) {
+    LOG_INFO(logger(), "deletes descriptor for " << cp);
+    g.txn()->del(chkpDescKey(cp));
+  }
+}
+
 void DBDataStore::deleteDescOfSmallerCheckpoints(uint64_t checkpoint) {
   if (txn_)
     deleteDescOfSmallerCheckpointsTxn(checkpoint, txn_);
@@ -377,6 +390,15 @@ void DBDataStore::deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t minChkp, 
   LOG_DEBUG(logger(), oss.str());
 }
 
+void DBDataStore::deleteAllResPages() {
+  auto pages = inmem_->getPagesMap();
+  ITransaction::Guard g(dbc_->beginTransaction());
+  for (const auto& it : pages) {
+    LOG_INFO(logger(), "deletes resPage " << KVLOG(it.first.pageId, it.first.checkpoint));
+    g.txn()->del(dynamicResPageKey(it.first.pageId, it.first.checkpoint));
+  }
+}
+
 void DBDataStore::deleteCoveredResPageInSmallerCheckpoints(uint64_t minChkp) {
   if (txn_)
     deleteCoveredResPageInSmallerCheckpointsTxn(minChkp, txn_);
@@ -401,7 +423,13 @@ void DBDataStore::clearDataStoreData() {
   del(LastRequiredBlock);
   del(Replicas);
   del(CheckpointBeingFetched);
+  del(EraseDataOnStartup);
   deleteAllPendingPages();
+  deleteCheckpointBeingFetched();
+  deleteAllResPages();
+  deleteAllDesc();
+
+  inmem_.reset(new InMemoryDataStore(inmem_->getSizeOfReservedPage()));
 }
 
 /** ******************************************************************************************************************/

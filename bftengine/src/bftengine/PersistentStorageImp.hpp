@@ -174,7 +174,6 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExecution() override;
 
   // Returns 'true' in case storage is empty
-  bool init(std::unique_ptr<MetadataStorage> metadataStorage, bool &erasedMetadata);
   bool init(std::unique_ptr<MetadataStorage> metadataStorage);
 
  protected:

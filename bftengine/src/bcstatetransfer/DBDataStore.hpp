@@ -141,6 +141,7 @@ class DBDataStore : public DataStore {
   void load(bool loadResPages);
   void loadResPages();
   void loadPendingPages();
+  void deleteAllResPages();
 
   void serializeCheckpoint(std::ostream& os, const CheckpointDesc& desc) const;
   void deserializeCheckpoint(std::istream& is, CheckpointDesc& desc) const;
@@ -158,6 +159,7 @@ class DBDataStore : public DataStore {
   void deleteAllPendingPagesTxn(ITransaction*);
   void deleteCoveredResPageInSmallerCheckpointsTxn(uint64_t, ITransaction*);
   void deleteDescOfSmallerCheckpointsTxn(uint64_t, ITransaction*);
+  void deleteAllDesc();
   /** *****************************************************************************************************************
    * db layer access
    */

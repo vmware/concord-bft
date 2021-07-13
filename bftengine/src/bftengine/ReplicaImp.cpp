@@ -2816,6 +2816,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
+  if (lastSuperStableSeqNum >= superStableSeqNum) return;
+  lastSuperStableSeqNum = superStableSeqNum;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == superStableSeqNum) {
     LOG_INFO(GL, "Informing control state manager that consensus should be stopped: " << KVLOG(superStableSeqNum));
@@ -2877,7 +2879,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       }
       clientsManager->loadInfoFromReservedPages();
     }
-
+    if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
     CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
     CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
