@@ -47,8 +47,8 @@ void ConnectionManager::start() {
     accept();
   }
 
-  connect();
   startConnectTimer();
+  connect();
 }
 
 void ConnectionManager::stop() {
@@ -105,8 +105,8 @@ void ConnectionManager::startConnectTimer() {
       LOG_FATAL(logger_, "Connect timer wait failure: " << ec.message());
       abort();
     }
-    connect();
     startConnectTimer();
+    connect();
   }));
 }
 
