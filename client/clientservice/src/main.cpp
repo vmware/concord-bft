@@ -46,7 +46,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
 }
 
 void configureConcordClient(ConcordClientConfig& config, po::variables_map& opts, logging::Logger& l) {
-  auto file_path = opts["c"].as<std::string>();
+  auto file_path = opts["config"].as<std::string>();
   LOG_INFO(l, "config file name " << file_path);
 
   auto yaml = YAML::LoadFile(file_path);
