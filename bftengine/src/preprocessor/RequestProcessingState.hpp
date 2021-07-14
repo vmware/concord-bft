@@ -108,7 +108,7 @@ class RequestProcessingState {
   ReplicaIdsList rejectedReplicaIds_;
   const char* primaryPreProcessResult_ = nullptr;  // This memory is statically pre-allocated per client in PreProcessor
   uint32_t primaryPreProcessResultLen_ = 0;
-  concord::util::SHA3_256::Digest primaryPreProcessResultHash_;
+  concord::util::SHA3_256::Digest primaryPreProcessResultHash_ = {};
   // Maps result hash to a list of replica signatures sent for this hash. Implcitly this also gives the number of
   // replicas returning a specific hash.
   std::map<concord::util::SHA3_256::Digest, std::list<PreProcessResultSignature>> preProcessingResultHashes_;
