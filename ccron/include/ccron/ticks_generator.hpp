@@ -42,6 +42,7 @@ class TicksGenerator {
   // Updates the period if generation for `component_id` has already been started.
   void start(std::uint32_t component_id, const std::chrono::seconds &period);
   void stop(std::uint32_t component_id);
+  bool isGenerating(std::uint32_t component_id) const;
 
  public:
   // Called by the main replica thread on receiving a tick as an internal message.

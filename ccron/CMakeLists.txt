@@ -16,6 +16,7 @@ project(libccron LANGUAGES CXX)
 cmake_policy(VERSION 3.13)
 
 target_include_directories(corebft PUBLIC include)
+target_include_directories(corebft PUBLIC test/include)
 target_link_libraries(corebft PUBLIC ccron_msgs)
 
 add_subdirectory(cmf)
