@@ -63,6 +63,10 @@ void TicksGenerator::stop(std::uint32_t component_id) {
   }
 }
 
+bool TicksGenerator::isGenerating(std::uint32_t component_id) const {
+  return (timer_handles_.find(component_id) != timer_handles_.cend());
+}
+
 void TicksGenerator::onInternalTick(const bftEngine::impl::TickInternalMsg& internal_tick) {
   auto it = component_pending_req_seq_nums_.find(internal_tick.component_id);
   if (it == component_pending_req_seq_nums_.cend()) {
