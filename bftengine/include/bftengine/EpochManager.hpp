@@ -24,8 +24,6 @@ class EpochManager : public bftEngine::ResPagesClient<EpochManager, 1> {
     EpochData() = default;
     EpochData(uint64_t epochNumber) : epochNumber_{epochNumber} {}
 
-    const std::string getVersion() const override { return "1"; }
-
     void serializeDataMembers(std::ostream& outStream) const override { serialize(outStream, epochNumber_); }
     void deserializeDataMembers(std::istream& inStream) override { deserialize(inStream, epochNumber_); }
   };
@@ -42,22 +40,22 @@ class EpochManager : public bftEngine::ResPagesClient<EpochManager, 1> {
     static EpochManager instance_;
     return instance_;
   }
-  uint64_t getEpochNumber(bool fromPages) {
-    if (!fromPages) return epochNumber_;
+  uint64_t getSelfEpochNumber() { return epochNumber_; }
+  uint64_t getGlobalEpochNumber() {
     if (!loadReservedPage(0, sizeOfReservedPage(), page.data())) return 0;
     EpochData edata;
     std::istringstream inStream;
     inStream.str(page);
     concord::serialize::Serializable::deserialize(inStream, edata);
-    epochNumber_ = edata.epochNumber_;
     return edata.epochNumber_;
   }
-  void setEpochNumber(uint64_t newEopch, bool toPages) {
-    epoch_number_gauge_.Get().Set(newEopch);
+  void setSelfEpochNumber(uint64_t newEpoch) {
+    epochNumber_ = newEpoch;
+    epoch_number_gauge_.Get().Set(newEpoch);
     metrics_.UpdateAggregator();
-    epochNumber_ = newEopch;
-    if (!toPages) return;
-    EpochData edata{newEopch};
+  }
+  void setGlobalEpochNumber(uint64_t newEpoch) {
+    EpochData edata{newEpoch};
     std::ostringstream outStream;
     concord::serialize::Serializable::serialize(outStream, edata);
     auto data = outStream.str();

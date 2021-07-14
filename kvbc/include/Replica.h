@@ -136,7 +136,8 @@ class Replica : public IReplica,
   friend class StorageWrapperForIdleMode;
 
   void createReplicaAndSyncState();
-
+  void registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler);
+  void handleNewEpochEvent();
   // INTERNAL TYPES
 
   // represents <key,blockId>

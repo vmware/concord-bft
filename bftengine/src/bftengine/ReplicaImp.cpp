@@ -4154,8 +4154,9 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
   if (lastExecutedSeqNum % checkpointWindowSize == 0) {
     // Load the epoch to the reserved pages
-    auto epoch = bftEngine::EpochManager::instance().getEpochNumber(false);
-    bftEngine::EpochManager::instance().setEpochNumber(epoch, true);
+    auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+    bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
+    bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
     Digest checkDigest;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
     stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&checkDigest);

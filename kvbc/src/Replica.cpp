@@ -113,12 +113,7 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   std::shared_ptr<bftEngine::impl::PersistentStorage> persistent_storage_;
   categorization::KeyValueBlockchain &blockchain_;
 };
-
-void Replica::createReplicaAndSyncState() {
-  ConcordAssert(m_kvBlockchain.has_value());
-  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain);
-  stReconfigurationSM_->registerHandler(requestHandler->getReconfigurationHandler());
-  stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
+void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
   requestHandler->setReconfigurationHandler(
@@ -130,8 +125,51 @@ void Replica::createReplicaAndSyncState() {
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
+  stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   stReconfigurationSM_->registerHandler(pruning_handler);
   stReconfigurationSM_->pruneOnStartup();
+}
+
+void Replica::handleNewEpochEvent() {
+  uint64_t epoch = 0;
+  auto value = getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
+  if (value.has_value()) {
+    const auto &data = std::get<categorization::VersionedValue>(*value).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    epoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+  auto bft_seq_num = m_replicaPtr->getLastExecutedSequenceNum();
+  // Create a new epoch block if needed
+  bftEngine::EpochManager::instance().setAggregator(aggregator_);
+  if (bftEngine::EpochManager::instance().isNewEpoch()) {
+    epoch += 1;
+    auto data = concordUtils::toBigEndianStringBuffer(epoch);
+    concord::kvbc::categorization::VersionedUpdates ver_updates;
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key},
+                          std::string(data.begin(), data.end()));
+    // All blocks are expected to have the BFT sequence number as a key.
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key},
+                          concordUtils::toBigEndianStringBuffer(bft_seq_num));
+    concord::kvbc::categorization::Updates updates;
+    updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+    try {
+      auto bid = add(std::move(updates));
+      persistLastBlockIdInMetadata<false>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
+      bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
+      LOG_INFO(logger, "new epoch block" << KVLOG(bid, epoch, bft_seq_num));
+    } catch (const std::exception &e) {
+      LOG_ERROR(logger, "failed to persist the reconfiguration block: " << e.what());
+      throw;
+    }
+    bftEngine::EpochManager::instance().markEpochAsStarted();
+  }
+  LOG_INFO(logger, "replica epoch is: " << epoch);
+  bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
+}
+void Replica::createReplicaAndSyncState() {
+  ConcordAssert(m_kvBlockchain.has_value());
+  auto requestHandler = KvbcRequestHandler::create(m_cmdHandler, cronTableRegistry_, *m_kvBlockchain);
+  registerReconfigurationHandlers(requestHandler);
   m_replicaPtr = bftEngine::IReplica::createNewReplica(
       replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage, pm_, secretsManager_);
   requestHandler->setPersistentStorage(m_replicaPtr->persistentStorage());
@@ -159,40 +197,7 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
-
-  uint64_t epoch = 0;
-  auto value = getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
-  if (value.has_value()) {
-    const auto &data = std::get<categorization::VersionedValue>(*value).data;
-    ConcordAssertEQ(data.size(), sizeof(uint64_t));
-    epoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
-  }
-  auto bft_seq_num = lastExecutedSeqNum;
-  // Create a new epoch block if needed
-  bftEngine::EpochManager::instance().setAggregator(aggregator_);
-  if (bftEngine::EpochManager::instance().isNewEpoch()) {
-    epoch += 1;
-    auto data = concordUtils::toBigEndianStringBuffer(epoch);
-    concord::kvbc::categorization::VersionedUpdates ver_updates;
-    ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key},
-                          std::string(data.begin(), data.end()));
-    // All blocks are expected to have the BFT sequence number as a key.
-    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key},
-                          concordUtils::toBigEndianStringBuffer(bft_seq_num));
-    concord::kvbc::categorization::Updates updates;
-    updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
-    try {
-      auto bid = add(std::move(updates));
-      persistLastBlockIdInMetadata<false>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
-      LOG_INFO(logger, "new epoch block" << KVLOG(bid, epoch, bft_seq_num));
-    } catch (const std::exception &e) {
-      LOG_ERROR(logger, "failed to persist the reconfiguration block: " << e.what());
-      throw;
-    }
-    bftEngine::EpochManager::instance().markEpochAsStarted();
-  }
-  LOG_INFO(logger, "replica epoch is: " << epoch);
-  bftEngine::EpochManager::instance().setEpochNumber(epoch, false);
+  handleNewEpochEvent();
 }
 
 /**
