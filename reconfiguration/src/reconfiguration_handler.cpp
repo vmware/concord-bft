@@ -144,4 +144,12 @@ bool ReconfigurationHandler::handle(const UnwedgeStatusRequest& req,
   rres.response = response;
   return true;
 }
+
+bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& msg,
+                                          uint64_t,
+                                          concord::messages::ReconfigurationResponse&) {
+  LOG_INFO(getLogger(), "public key: " << msg.pub_key << " sender: " << msg.sender_id);
+  bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(msg.pub_key, msg.sender_id);
+  return true;
+}
 }  // namespace concord::reconfiguration

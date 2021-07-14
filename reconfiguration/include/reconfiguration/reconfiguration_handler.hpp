@@ -51,6 +51,10 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+  bool handle(const concord::messages::ClientExchangePublicKey&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
     return true;
   }

@@ -117,7 +117,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         all_client_ids=bft_network.all_client_ids()
         log.log_message(message_type=f"sending client key exchange command for clients {all_client_ids}")
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.client_key_exchange(all_client_ids)
+        rep = await op.client_key_exchange_command(all_client_ids)
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is True
         log.log_message(message_type=f"block_id {rep.response.block_id}")
@@ -281,12 +281,27 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             all_client_ids=bft_network.all_client_ids()
             log.log_message(message_type=f"sending client key exchange command for clients {all_client_ids}")
             op = operator.Operator(bft_network.config, client, bft_network.builddir)
-            rep = await op.client_key_exchange(all_client_ids)
+            rep = await op.client_key_exchange_command(all_client_ids)
             rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
             assert rep.success is True        
             log.log_message(message_type=f"block_id {rep.response.block_id}")
             assert rep.response.block_id == 1
     
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_client_exchange_public_key(self, bft_network):
+        """
+            Second phase of a client key exchange sequence
+        """
+        with log.start_action(action_type="test_client_exchange_public_key"):
+            bft_network.start_all_replicas()
+            client = bft_network.random_client()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            log.log_message(message_type=f"sending client exchange public key for client {client.client_id}")
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            rep = await op.client_exchange_public_key()
+            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+            assert rep.success is True        
      
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

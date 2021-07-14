@@ -14,6 +14,7 @@
 #include "InternalBFTClient.hpp"
 #include "kvstream.h"
 #include "json_output.hpp"
+#include "SigManager.hpp"
 #include <thread>
 
 namespace bftEngine::impl {
@@ -161,11 +162,15 @@ void KeyExchangeManager::onPublishClientsKeys(const std::string& keys, std::opti
       LOG_FATAL(KEY_EX_LOG, "Initial Published Clients keys and replica client keys do not match");
       ConcordAssertEQ(keys, *bootstrap_keys);
     }
-    if (impl::KeyExchangeManager::instance().clientKeysPublished()) save = false;
+    if (clientKeysPublished()) save = false;
   }
-  if (save) {
-    impl::KeyExchangeManager::instance().saveClientsPublicKeys(keys);
-  }
+  if (save) saveClientsPublicKeys(keys);
+}
+
+void KeyExchangeManager::onClientPublicKeyExchange(const std::string& key, std::uint16_t clientId) {
+  LOG_INFO(KEY_EX_LOG, "key: " << key << " client: " << clientId);
+  SigManager::instance()->setClientPublicKey(key, clientId, KeyFormat::PemFormat);
+  saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
 void KeyExchangeManager::sendInitialKey() {

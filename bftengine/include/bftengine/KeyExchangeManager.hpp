@@ -46,7 +46,7 @@ class KeyExchangeManager {
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
   ///////// Clients public keys interface///////////////
   // whether clients keys were published
-  bool clientKeysPublished() { return clientsPublicKeys_.published_; }
+  bool clientKeysPublished() const { return clientsPublicKeys_.published_; }
   void setClientKeysAsPublished() { clientsPublicKeys_.published_ = true; }
   void saveClientsPublicKeys(const std::string& keys) {
     metrics_->clients_keys_published_status.Get().Set("True");
@@ -55,6 +55,7 @@ class KeyExchangeManager {
   // Publish the public keys of the clients
   void sendInitialClientsKeys(const std::string&);
   void onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys);
+  void onClientPublicKeyExchange(const std::string& key, std::uint16_t clientId);
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;
