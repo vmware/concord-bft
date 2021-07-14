@@ -161,7 +161,7 @@ class ConcordClient {
 
   // TODO: Allow multiple subscriptions
   std::atomic_bool stop_subscriber_{true};
-  std::thread subscriber_;
+  std::unique_ptr<std::thread> subscriber_;
 };
 
 }  // namespace concord::client::concordclient

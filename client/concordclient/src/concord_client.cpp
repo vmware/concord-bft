@@ -35,13 +35,13 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
 void ConcordClient::subscribe(const SubscribeRequest& request,
                               const std::unique_ptr<opentracing::Span>& parent_span,
                               const std::function<void(SubscribeResult&&)>& callback) {
-  if (not stop_subscriber_) {
+  if (subscriber_) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
     throw SubscriptionExists();
   }
 
   stop_subscriber_ = false;
-  subscriber_ = std::thread([&] {
+  subscriber_ = std::make_unique<std::thread>([&] {
     while (not stop_subscriber_) {
       // Note: The following returns an artificial event group.
       // This will be replaced with the actual thin replica client integration.
@@ -61,9 +61,11 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
 
 void ConcordClient::unsubscribe() {
   if (stop_subscriber_ == false) {
-    LOG_INFO(logger_, "Closing subscription");
+    LOG_INFO(logger_, "Closing subscription. Waiting for subscriber to finish.");
     stop_subscriber_ = true;
-    subscriber_.join();
+    subscriber_->join();
+    subscriber_.reset();
+    LOG_INFO(logger_, "Subscriber finished.");
   }
 }
 
