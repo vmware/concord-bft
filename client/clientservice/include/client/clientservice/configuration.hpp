@@ -11,15 +11,12 @@
 
 #pragma once
 
-#include <boost/program_options.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "client/concordclient/concord_client.hpp"
-#include "Logger.hpp"
 
 namespace concord::client::clientservice {
 
-void configureConcordClient(concord::client::concordclient::ConcordClientConfig& config,
-                            boost::program_options::variables_map& opts,
-                            logging::Logger& l);
+void parseConfigFile(concord::client::concordclient::ConcordClientConfig&, const YAML::Node&);
 
 }

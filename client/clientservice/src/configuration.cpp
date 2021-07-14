@@ -13,24 +13,15 @@
 
 #include <chrono>
 #include <string>
-#include <boost/program_options.hpp>
-#include <yaml-cpp/yaml.h>
 
 #include "assertUtils.hpp"
 #include "client/clientservice/client_service.hpp"
-#include "Logger.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
 
-namespace po = boost::program_options;
-
 namespace concord::client::clientservice {
 
-void configureConcordClient(ConcordClientConfig& config, po::variables_map& opts, logging::Logger& l) {
-  auto file_path = opts["config"].as<std::string>();
-  LOG_INFO(l, "config file name " << file_path);
-
-  auto yaml = YAML::LoadFile(file_path);
+void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   config.topology.f_val = yaml["f_val"].as<uint16_t>();
   config.topology.c_val = yaml["c_val"].as<uint16_t>();
 
@@ -92,13 +83,6 @@ void configureConcordClient(ConcordClientConfig& config, po::variables_map& opts
     // TODO: client_port
     config.bft_clients.push_back(ci);
   }
-
-  // Event service
-  config.subscribe_config.id = opts["event-service-id"].as<std::string>();
-
-  // TODO: Read TLS certs and fill config struct
-
-  // TODO: Configure TRS endpoints
 }
 
 }  // namespace concord::client::clientservice

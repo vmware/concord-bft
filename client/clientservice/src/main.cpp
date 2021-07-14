@@ -13,6 +13,7 @@
 #include <string>
 #include <grpcpp/grpcpp.h>
 #include <boost/program_options.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "client/clientservice/client_service.hpp"
 #include "client/clientservice/configuration.hpp"
@@ -23,7 +24,7 @@
 using concord::client::clientservice::ClientService;
 using concord::client::concordclient::ConcordClient;
 using concord::client::concordclient::ConcordClientConfig;
-using concord::client::clientservice::configureConcordClient;
+using concord::client::clientservice::parseConfigFile;
 
 namespace po = boost::program_options;
 
@@ -51,7 +52,11 @@ int main(int argc, char** argv) {
 
   ConcordClientConfig config;
   try {
-    configureConcordClient(config, opts, logger);
+    auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
+    parseConfigFile(config, yaml);
+    config.subscribe_config.id = opts["event-service-id"].as<std::string>();
+    // TODO: Read TLS certs and fill config struct
+    // TODO: Configure TRS endpoints
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());
     return 1;
