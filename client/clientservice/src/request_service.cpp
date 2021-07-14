@@ -14,8 +14,8 @@
 #include <iostream>
 #include <opentracing/tracer.h>
 
+#include "client/clientservice/request_service.hpp"
 #include "client/concordclient/concord_client.hpp"
-#include "request_service.hpp"
 
 using grpc::Status;
 using grpc::ServerContext;

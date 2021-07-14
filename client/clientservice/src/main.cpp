@@ -14,9 +14,9 @@
 #include <grpcpp/grpcpp.h>
 #include <boost/program_options.hpp>
 
-#include "client_service.hpp"
+#include "client/clientservice/client_service.hpp"
+#include "client/clientservice/configuration.hpp"
 #include "client/concordclient/concord_client.hpp"
-#include "configuration.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
 

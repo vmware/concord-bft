@@ -9,7 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client_service.hpp"
+#include "client/clientservice/client_service.hpp"
 
 #include <concord_client.grpc.pb.h>
 #include <grpcpp/grpcpp.h>

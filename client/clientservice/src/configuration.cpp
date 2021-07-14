@@ -9,7 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "configuration.hpp"
+#include "client/clientservice/configuration.hpp"
 
 #include <chrono>
 #include <string>
@@ -17,12 +17,9 @@
 #include <yaml-cpp/yaml.h>
 
 #include "assertUtils.hpp"
-#include "client_service.hpp"
-#include "client/concordclient/concord_client.hpp"
+#include "client/clientservice/client_service.hpp"
 #include "Logger.hpp"
 
-using concord::client::clientservice::ClientService;
-using concord::client::concordclient::ConcordClient;
 using concord::client::concordclient::ConcordClientConfig;
 
 namespace po = boost::program_options;

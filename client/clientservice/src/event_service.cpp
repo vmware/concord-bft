@@ -15,7 +15,7 @@
 #include <opentracing/tracer.h>
 #include <thread>
 
-#include "event_service.hpp"
+#include "client/clientservice/event_service.hpp"
 #include "client/concordclient/concord_client.hpp"
 
 using grpc::Status;
