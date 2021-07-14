@@ -73,6 +73,9 @@ class DebugPersistentStorage : public PersistentStorage {
   bool getEraseMetadataStorageFlag() override { return false; };
   void eraseMetadata() override{};
 
+  void setNewEpochFlag(bool flag) override {}
+  bool getNewEpochFlag() override { return false; };
+
  protected:
   bool setIsAllowed() const;
   bool getIsAllowed() const;

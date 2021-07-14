@@ -12,6 +12,8 @@
 
 #include "reconfiguration_kvbc_handler.hpp"
 #include "ControlStateManager.hpp"
+#include "bftengine/EpochManager.hpp"
+#include "endianness.hpp"
 
 namespace concord::kvbc::reconfiguration {
 
@@ -23,7 +25,15 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::
 
   // All blocks are expected to have the BFT sequence number as a key.
   ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
-
+  uint64_t epoch = 0;
+  auto value = ro_storage_.getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
+  if (value.has_value()) {
+    const auto& epoch_str = std::get<categorization::VersionedValue>(*value).data;
+    ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
+    epoch = concordUtils::fromBigEndianBuffer<uint64_t>(epoch_str.data());
+  }
+  auto current_epoch_buf = concordUtils::toBigEndianStringBuffer(epoch);
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, std::move(current_epoch_buf));
   concord::kvbc::categorization::Updates updates;
   updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
   try {

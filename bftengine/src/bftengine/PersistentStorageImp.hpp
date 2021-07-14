@@ -65,6 +65,7 @@ enum ConstMetadataParameterIds : uint32_t {
   LAST_STABLE_SEQ_NUM = 7,
   ERASE_METADATA_ON_STARTUP = 9,
   USER_DATA = 10,
+  START_NEW_EPOCH = 11,
   CONST_METADATA_PARAMETERS_NUM,
 };
 
@@ -140,6 +141,9 @@ class PersistentStorageImp : public PersistentStorage {
   void setEraseMetadataStorageFlag() override;
   bool getEraseMetadataStorageFlag() override;
   void eraseMetadata() override;
+
+  void setNewEpochFlag(bool flag) override;
+  bool getNewEpochFlag() override;
 
   // Getters
   std::string getStoredVersion();

@@ -23,6 +23,7 @@
 #include "MsgReceiver.hpp"
 #include "RequestHandler.h"
 #include "ReservedPagesClient.hpp"
+#include "bftengine/EpochManager.hpp"
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -171,6 +172,13 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                              sizeof(erasedMetaData),
                              (char *)&erasedMetaData,
                              actualObjectSize);
+    bool startNewEpoch = false;
+    metadataStoragePtr->read(
+        ConstMetadataParameterIds::START_NEW_EPOCH, sizeof(startNewEpoch), (char *)&startNewEpoch, actualObjectSize);
+    if (startNewEpoch) {
+      bftEngine::EpochManager::instance().startNewEpoch();
+      LOG_INFO(GL, "We should start a new epoch");
+    }
     LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
     if (erasedMetaData) {
       metadataStoragePtr->eraseData();
