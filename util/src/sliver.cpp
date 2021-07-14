@@ -152,4 +152,6 @@ int Sliver::compare(const Sliver& other) const {
   return comp;
 }
 
+std::string Sliver::toHexString() const { return sliverToHex(*this); }
+
 }  // namespace concordUtils

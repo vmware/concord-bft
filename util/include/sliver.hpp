@@ -60,6 +60,7 @@ class Sliver {
   int compare(const Sliver& other) const;
 
   std::string toString() const { return std::string(data(), length()); }
+  std::string toHexString() const;
 
  private:
   // A wrapper around a std::string. We need to be able to allocate the wrapper

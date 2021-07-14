@@ -67,7 +67,7 @@ class DbEditorTestsBase : public Test {
 
   Sliver getSliver(unsigned value) { return toBigEndianStringBuffer(value); }
 
-  SetOfKeyValuePairs generateMetadataAndStateTransfer() {
+  SetOfKeyValuePairs generateMetadata() {
     // Create a full range of metadata objects
     constexpr auto num_metadata_object_ids = MAX_METADATA_PARAMS_NUM - INITIALIZED_FLAG;
     auto updates = SetOfKeyValuePairs{};
@@ -75,12 +75,6 @@ class DbEditorTestsBase : public Test {
     for (concord::storage::ObjectId i = INITIALIZED_FLAG; i < num_metadata_object_ids; ++i) {
       updates[manipulator.generateMetadataKey(i)] = getSliver(i);
     }
-
-    concord::storage::v2MerkleTree::STKeyManipulator st_manipulator;
-    updates[st_manipulator.generateStateTransferKey(1)] = std::string{"val"};
-    updates[st_manipulator.generateSTPendingPageKey(1)] = std::string{"val"};
-    updates[st_manipulator.generateSTCheckpointDescriptorKey(1)] = std::string{"val"};
-    updates[st_manipulator.generateSTReservedPageDynamicKey(1, 1)] = std::string{"val"};
     return updates;
   }
 

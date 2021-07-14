@@ -21,6 +21,8 @@
 #include "Crypto.hpp"
 #include "kvbc_key_types.h"
 #include "categorization/db_categories.h"
+#include "storage/merkle_tree_key_manipulator.h"
+#include "bcstatetransfer/DBDataStore.hpp"
 
 namespace concord::kvbc::tools::db_editor {
 
@@ -703,6 +705,68 @@ struct RemoveMetadata {
   }
 };
 
+struct GetSTMetadata {
+  const bool read_only = true;
+  std::string description() const {
+    return "getSTMetadata\n"
+           "  Shows State Transfer metadata ";
+  }
+
+  std::string toJson(const bftEngine::bcst::impl::DataStore::CheckpointDesc &chckpDesc,
+                     const bftEngine::bcst::impl::DataStore::ResPagesDescriptor *rpDesc) const {
+    std::ostringstream oss;
+    oss << "{\"checkpointNum\": " << chckpDesc.checkpointNum << ", \"lastBlock\": " << chckpDesc.lastBlock
+        << ", \"digestOfLastBlock\": \"" << chckpDesc.digestOfLastBlock.toString()
+        << "\", \"digestOfResPagesDescriptor\": \"" << chckpDesc.digestOfResPagesDescriptor.toString() << "\"";
+    if (rpDesc) {
+      oss << ", \"reserved_pages\": [";
+      for (uint32_t i = 0; i < rpDesc->numOfPages; ++i)
+        if (rpDesc->d[i].relevantCheckpoint > 0) {
+          oss << "{\"pageId\": " << rpDesc->d[i].pageId << ","
+              << "\"relevantCheckpoint\": " << rpDesc->d[i].relevantCheckpoint << ","
+              << "\"pageDigest\": \"" << rpDesc->d[i].pageDigest.toString() << "\"}";
+          if (i < rpDesc->numOfPages - 1) oss << ", ";
+        }
+      oss << "]";
+    }
+    oss << "}";
+    return oss.str();
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
+    using bftEngine::bcst::impl::DataStore;
+    using bftEngine::bcst::impl::DBDataStore;
+    using storage::v2MerkleTree::STKeyManipulator;
+    std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
+        adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+    std::map<std::string, std::string> result;
+    result["Initialized"] = std::to_string(ds->initialized());
+    std::ostringstream oss;
+    auto replicas = ds->getReplicas();
+    std::copy(replicas.cbegin(), replicas.cend(), std::ostream_iterator<std::uint16_t>(oss, ","));
+    result["replicas"] = "[" + oss.str() + std::string("]");
+    result["MyReplicaId"] = std::to_string(ds->getMyReplicaId());
+    result["fVal"] = std::to_string(ds->getFVal());
+    result["MaxNumOfStoredCheckpoints"] = std::to_string(ds->getMaxNumOfStoredCheckpoints());
+    result["NumberOfReservedPages"] = std::to_string(ds->getNumberOfReservedPages());
+    result["LastStoredCheckpoint"] = std::to_string(ds->getLastStoredCheckpoint());
+    result["FirstStoredCheckpoint"] = std::to_string(ds->getFirstStoredCheckpoint());
+    for (uint64_t chckp = ds->getFirstStoredCheckpoint(); chckp > 0 && chckp <= ds->getLastStoredCheckpoint(); chckp++)
+      if (ds->hasCheckpointDesc(chckp)) {
+        result["checkpoint_" + std::to_string(chckp)] =
+            GetSTMetadata::toJson(ds->getCheckpointDesc(chckp), ds->getResPagesDescriptor(chckp));
+      }
+    result["numOfAllPendingResPage"] = std::to_string(ds->numOfAllPendingResPage());
+    result["IsFetchingState"] = std::to_string(ds->getIsFetchingState());
+    if (ds->hasCheckpointBeingFetched())
+      result["CheckpointBeingFetched"] = GetSTMetadata::toJson(ds->getCheckpointBeingFetched(), nullptr);
+    result["FirstRequiredBlock"] = std::to_string(ds->getFirstRequiredBlock());
+    result["LastRequiredBlock"] = std::to_string(ds->getLastRequiredBlock());
+
+    return concordUtils::toJson(result);
+  }
+};
+
 using Command = std::variant<GetGenesisBlockID,
                              GetLastReachableBlockID,
                              GetLastStateTransferBlockID,
@@ -718,6 +782,7 @@ using Command = std::variant<GetGenesisBlockID,
                              GetValue,
                              CompareTo,
                              RemoveMetadata,
+                             GetSTMetadata,
                              GetBlockRequests,
                              VerifyBlockRequests>;
 
@@ -737,6 +802,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getValue", GetValue{}),
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
+    std::make_pair("getSTMetadata", GetSTMetadata{}),
     std::make_pair("getBlockRequests", GetBlockRequests{}),
     std::make_pair("verifyBlockRequests", VerifyBlockRequests{}),
 };
