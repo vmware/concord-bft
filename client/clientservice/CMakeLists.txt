@@ -24,3 +24,7 @@ add_executable(clientservice "src/main.cpp")
 target_link_libraries(clientservice PRIVATE
   clientservice-lib
 )
+
+if (BUILD_TESTING)
+  add_subdirectory(test)
+endif()
