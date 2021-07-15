@@ -14,6 +14,7 @@
 #include <chrono>
 #include <functional>
 #include <opentracing/span.h>
+#include <memory>
 #include <string>
 #include <thread>
 #include <variant>
@@ -21,6 +22,7 @@
 
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
+#include "client/thin-replica-client/thin_replica_client.hpp"
 #include "Metrics.hpp"
 
 namespace concord::client::concordclient {
@@ -120,8 +122,7 @@ typedef std::variant<SubscribeError, EventGroup> SubscribeResult;
 // observe events.
 class ConcordClient {
  public:
-  ConcordClient(const ConcordClientConfig& config)
-      : logger_(logging::getLogger("concord.client.concordclient")), config_(config) {}
+  ConcordClient(const ConcordClientConfig& config);
   ~ConcordClient() { unsubscribe(); }
 
   void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> m) { metrics_ = m; }
@@ -161,7 +162,10 @@ class ConcordClient {
 
   // TODO: Allow multiple subscriptions
   std::atomic_bool stop_subscriber_{true};
-  std::thread subscriber_;
+  std::unique_ptr<std::thread> subscriber_;
+
+  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue_;
+  std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
 };
 
 }  // namespace concord::client::concordclient
