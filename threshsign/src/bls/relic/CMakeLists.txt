@@ -22,6 +22,7 @@ set(bls_relic_source_files
 
 add_library(bls_relic OBJECT ${bls_relic_source_files})
 
+# TODO: Fix this include nightmare
 target_include_directories(bls_relic PRIVATE 
     ../../../include 
     ../../../lib 

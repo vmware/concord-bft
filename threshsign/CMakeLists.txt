@@ -53,19 +53,15 @@ function(link_with_relic_library targetName)
     )
 endfunction()
 
+# Tests and benchmarks that make use of Relic all need the same boilerplate setup
 function(add_relic_executable appName appSrc appDir)
 
-    # Add compile target
     add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> )
     target_include_directories(${appName} PRIVATE
         ${threshsign_SOURCE_DIR}/src
-        #${threshsign_SOURCE_DIR}/src/bls/relic
-        #${threshsign_SOURCE_DIR}/src/bls/relic/async
-        ${threshsign_SOURCE_DIR}/lib
         ${threshsign_SOURCE_DIR}/include)
     target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PRIVATE relic_mainapp)
-    target_link_libraries(${appName} PRIVATE Threads::Threads)
     link_with_relic_library(${appName})
 
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
