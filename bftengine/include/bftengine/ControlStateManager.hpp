@@ -20,77 +20,44 @@
 #include "callback_registry.hpp"
 
 namespace bftEngine {
-
-class ControlStatePage : public concord::serialize::SerializableFactory<ControlStatePage> {
- public:
-  int64_t seq_num_to_stop_at_ = 0;
-  int64_t erase_metadata_at_seq_num_ = 0;
-  ControlStatePage() {
-    static_assert(sizeof(ControlStatePage) < 4096, "The page exceeds the maximal size of reserved page");
-  }
-
- private:
-  const std::string getVersion() const override { return "1"; }
-
-  void serializeDataMembers(std::ostream& outStream) const override {
-    serialize(outStream, seq_num_to_stop_at_);
-    serialize(outStream, erase_metadata_at_seq_num_);
-  }
-  void deserializeDataMembers(std::istream& inStream) override {
-    deserialize(inStream, seq_num_to_stop_at_);
-    deserialize(inStream, erase_metadata_at_seq_num_);
-  }
-};
-
-static constexpr uint32_t ControlHandlerStateManagerNumOfReservedPages = 1;
-
-class ControlStateManager : public ResPagesClient<ControlStateManager, ControlHandlerStateManagerNumOfReservedPages> {
+class ControlStateManager {
  public:
   enum RestartProofHandlerPriorities { HIGH = 0, DEFAULT = 20, LOW = 40 };
   static ControlStateManager& instance() {
     static ControlStateManager instance_;
     return instance_;
   }
-  ~ControlStateManager() = default;
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
 
-  void setEraseMetadataFlag(int64_t currentSeqNum);
-  std::optional<int64_t> getEraseMetadataFlag();
-
-  void markRemoveMetadata() { removeMetadata_(); }
-  void clearCheckpointToStopAt();
+  void markRemoveMetadata(bool include_st = true) { removeMetadata_(include_st); }
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
   bool getRestartBftFlag() const { return restartBftEnabled_; }
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
 
-  void disable() { enabled_ = false; }
-  void enable() { enabled_ = true; }
-
-  void setRemoveMetadataFunc(std::function<void()> fn) { removeMetadata_ = fn; }
+  void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadata_ = fn; }
   void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
   void sendRestartReadyToAllReplica() { sendRestartReady_(); }
   void addOnRestartProofCallBack(std::function<void()> cb,
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
   void onRestartProof(const SeqNum&);
   void checkForReplicaReconfigurationAction();
+  void restart();
 
   std::pair<bool, std::string> canUnwedge();
   bool verifyUnwedgeSignatures(std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures);
 
  private:
-  ControlStateManager() { scratchPage_.resize(sizeOfReservedPage()); }
+  ControlStateManager() = default;
   ControlStateManager& operator=(const ControlStateManager&) = delete;
   ControlStateManager(const ControlStateManager&) = delete;
 
-  std::string scratchPage_;
-  bool enabled_ = true;
+  uint64_t wedgePoint{0};
   std::atomic_bool restartBftEnabled_ = false;
   std::optional<SeqNum> hasRestartProofAtSeqNum_ = std::nullopt;
-  ControlStatePage page_;
   std::atomic_bool onPruningProcess_ = false;
-  std::function<void()> removeMetadata_;
+  std::function<void(bool)> removeMetadata_;
   std::function<void()> sendRestartReady_;
   std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistery_;
 };

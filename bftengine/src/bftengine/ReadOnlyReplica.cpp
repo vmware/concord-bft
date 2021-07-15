@@ -40,7 +40,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
                   metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
   LOG_INFO(GL, "");
-  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&]() { stateTransfer->setEraseMetadataFlag(); });
+  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool include_st) {
+    if (include_st) stateTransfer->setEraseMetadataFlag();
+  });
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
                                    bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));

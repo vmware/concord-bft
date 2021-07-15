@@ -149,7 +149,6 @@ class SimpleTestReplica {
   std::thread *runnerThread = nullptr;
   ISimpleTestReplicaBehavior *behaviorPtr;
   IRequestsHandler *statePtr;
-  bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST_;
 
  public:
   SimpleTestReplica(ICommunication *commObject,
@@ -158,7 +157,7 @@ class SimpleTestReplica {
                     ISimpleTestReplicaBehavior *behvPtr,
                     bftEngine::SimpleInMemoryStateTransfer::ISimpleInMemoryStateTransfer *inMemoryST,
                     MetadataStorage *metaDataStorage)
-      : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state), inMemoryST_(inMemoryST) {
+      : comm{commObject}, replicaConfig{rc}, behaviorPtr{behvPtr}, statePtr(state) {
     replica = IReplica::createNewReplica(rc,
                                          std::shared_ptr<bftEngine::IRequestsHandler>(state),
                                          inMemoryST,
@@ -185,11 +184,7 @@ class SimpleTestReplica {
 
   uint16_t get_replica_id() { return replicaConfig.replicaId; }
 
-  void start() {
-    replica->start();
-    ControlStateManager::setReservedPages(inMemoryST_);
-    ControlStateManager::instance().disable();
-  }
+  void start() { replica->start(); }
 
   void stop() {
     replica->stop();

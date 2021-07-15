@@ -18,6 +18,7 @@
 #include "concord.cmf.hpp"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "SysConsts.hpp"
+#include "block_metadata.hpp"
 
 namespace concord::kvbc {
 /*
@@ -26,13 +27,14 @@ namespace concord::kvbc {
  */
 class StReconfigurationHandler {
  public:
-  StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage) : ro_storage_(ro_storage) {
+  StReconfigurationHandler(bftEngine::IStateTransfer& st, IReader& ro_storage)
+      : ro_storage_(ro_storage), block_metadata_{ro_storage_} {
     st.addOnTransferringCompleteCallback([&](uint64_t cp) { stCallBack(cp); },
                                          bftEngine::IStateTransfer::StateTransferCallBacksPriorities::HIGH);
   }
 
   void registerHandler(std::shared_ptr<concord::reconfiguration::IReconfigurationHandler> handler) {
-    orig_reconf_handlers_.push_back(handler);
+    if (handler != nullptr) orig_reconf_handlers_.push_back(handler);
   }
 
   void pruneOnStartup();
@@ -45,24 +47,20 @@ class StReconfigurationHandler {
   template <typename T>
   bool handlerStoredCommand(const std::string& key, uint64_t current_cp_num);
   uint64_t getStoredBftSeqNum(BlockId bid);
-  /*
-   * For wedge, we need to do nothing. The wedge point is being cleared only on termination.
-   * Thus, as long no one did unwedge (currently, restarting the replicas) the late replica will get the data
-   * In the reserved pages and behave accordingly.
-   * TODO: Notice that until we have the unwedge command, we cannot distinguish between restart for unwedge and restart
-   * out of a crash
-   */
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t) { return true; }
+  uint64_t getStoredEpochNumber(BlockId bid);
 
-  bool handle(const concord::messages::InstallCommand& cmd, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) { return true; }
 
-  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t) { return true; }
-  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t);
-  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t);
+  bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+
+  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
 
   kvbc::IReader& ro_storage_;
+  BlockMetadata block_metadata_;
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
 };
 }  // namespace concord::kvbc

@@ -874,7 +874,6 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
 
 int main(int argc, char **argv) {
   setUpKeysConfiguration_4();
-  bftEngine::ControlStateManager::ControlStateManager::setReservedPages(&state_transfer);
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

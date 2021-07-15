@@ -65,15 +65,19 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
   if (command.bft) {
-    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().markRemoveMetadata();
+      bftEngine::EpochManager::instance().setNewEpochFlag(true);
+    });
     if (command.restart) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
     }
   } else {
-    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().markRemoveMetadata();
+      bftEngine::EpochManager::instance().setNewEpochFlag(true);
+    });
     if (command.restart) {
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
@@ -144,7 +148,7 @@ bool ReconfigurationHandler::handle(const UnwedgeCommand& cmd,
   auto& controlStateManager = bftEngine::ControlStateManager::instance();
   bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures);
   if (valid) {
-    controlStateManager.clearCheckpointToStopAt();
+    controlStateManager.setStopAtNextCheckpoint(0);
     bftEngine::IControlHandler::instance()->resetState();
     LOG_INFO(getLogger(), "Unwedge command completed sucessfully");
   }
