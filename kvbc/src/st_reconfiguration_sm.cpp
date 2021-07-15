@@ -17,6 +17,7 @@
 #include "bftengine/EpochManager.hpp"
 
 namespace concord::kvbc {
+
 template <typename T>
 void StReconfigurationHandler::deserializeCmfMessage(T &msg, const std::string &strval) {
   std::vector<uint8_t> bytesval(strval.begin(), strval.end());
@@ -112,17 +113,65 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
                                       uint64_t bid) {
+  auto my_last_known_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  auto last_known_global_epoch = bftEngine::EpochManager::instance().getGlobalEpochNumber();
+  auto command_epoch = getStoredEpochNumber(bid);
   auto cp_sn = checkpointWindowSize * current_cp_num;
   auto wedge_point = (bft_seq_num + 2 * checkpointWindowSize);
   wedge_point = wedge_point - (wedge_point % checkpointWindowSize);
-  if (cp_sn == wedge_point) {  // We got to the wedge point, we now need to set a flag to remove the metadata and to
-                               // wait for restart
+
+  LOG_INFO(GL, KVLOG(my_last_known_epoch, last_known_global_epoch, command_epoch, cp_sn, wedge_point));
+  ConcordAssert(last_known_global_epoch >= my_last_known_epoch);
+  // If we are in an already advanced epoch, we don't need to do anything
+  if (my_last_known_epoch > command_epoch) {
+    return true;
+  }
+  if (my_last_known_epoch == command_epoch && my_last_known_epoch == last_known_global_epoch && cp_sn < wedge_point)
+    return true;  // We still need to complete another state transfer
+
+  // If we reached to this point, we are defiantly going to run the addRemove command,
+  // so lets invoke all original reconfiguration handlers from the product layer (without concord-bft's ones)
+  concord::messages::ReconfigurationResponse response;
+  for (auto &h : orig_reconf_handlers_) {
+    h->handle(command, bft_seq_num, response);
+  }
+
+  if (my_last_known_epoch < last_known_global_epoch) {
+    // now, we cannot rely on the received sequence number (as it may be reused), we simply want to stop immediately
+    auto fake_seq_num = cp_sn - 2 * checkpointWindowSize;
+    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(fake_seq_num);
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().markRemoveMetadata(false);
+      // We want to rely on the new transffered epoch and not to start a new one (in case someone marked it)
+      bftEngine::EpochManager::instance().setNewEpochFlag(false);
+      bftEngine::ControlStateManager::instance().restart();
+    });
+    return true;
+  }
+  if (my_last_known_epoch == command_epoch && cp_sn == wedge_point) {
+    // Now we want to act normally as we just managed to catch the "correct state" from our point of view.
+    // So lets simple run manually the concord-bft's reconfiguration handler.
+
+    // First let's set the callbacks on wedgepoint.
+    bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
     if (command.bft) {
-      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-          [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+        bftEngine::ControlStateManager::instance().markRemoveMetadata();
+        bftEngine::EpochManager::instance().setNewEpochFlag(true);
+      });
+      if (command.restart) {
+        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+            [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+      }
     } else {
-      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-          [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+        bftEngine::ControlStateManager::instance().markRemoveMetadata();
+        bftEngine::EpochManager::instance().setNewEpochFlag(true);
+      });
+      if (command.restart) {
+        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+            [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+      }
     }
   }
   return true;
