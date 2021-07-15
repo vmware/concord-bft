@@ -145,7 +145,7 @@ class ViewsManager {
 
   void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
   bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
-  void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(); }
+  void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(), targetView = 0; }
 
   void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
 
@@ -196,6 +196,8 @@ class ViewsManager {
 
   Stat stat;
   ViewNum myCurrentView;
+  // This is the view that the complaints for higher view are aiming for.
+  ViewNum targetView;
   // myLatestPendingView always >=  myLatestActiveView
   ViewNum myLatestActiveView;
   ViewNum myLatestPendingView;

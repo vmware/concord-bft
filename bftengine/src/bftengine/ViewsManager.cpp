@@ -57,6 +57,7 @@ ViewsManager::ViewsManager(const ReplicasInfo* const r)
   stat = Stat::IN_VIEW;
 
   myCurrentView = 0;
+  targetView = 0;
   myLatestActiveView = 0;
   myLatestPendingView = 0;
   viewChangeMessages = new ViewChangeMsg*[N];
@@ -213,6 +214,7 @@ ViewsManager* ViewsManager::createInsideView(const ReplicasInfo* const r,
   ViewsManager* v = new ViewsManager(r);
 
   ConcordAssert(v->stat == Stat::IN_VIEW);
+  v->myCurrentView = view;
   v->myLatestActiveView = view;
   v->myLatestPendingView = view;
 
@@ -1048,10 +1050,15 @@ PrePrepareMsg* ViewsManager::getPrePrepare(SeqNum s) {
 }
 
 void ViewsManager::storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& complaintMessage) {
+  // The complaint should be for the same view that the ViewsManager is currently in.
+  ConcordAssertEQ(complaintMessage->viewNumber(), getCurrentView());
   complainedReplicas.store(std::move(complaintMessage));
 }
 
 void ViewsManager::storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg>&& complaintMessage) {
+  // The complaint should aim to reach the target view(the view of the view message that holds the complaint).
+  ConcordAssertGT(targetView, 0);
+  ConcordAssertEQ(complaintMessage->viewNumber() + 1, targetView);
   complainedReplicasForHigherView.store(std::move(complaintMessage));
 }
 
@@ -1104,6 +1111,9 @@ void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
   char* complaint = nullptr;
   MsgSize size = 0;
   int numberOfProcessedComplaints = 0;
+
+  // Complaints for higher view should aim to reach the view of the message.
+  targetView = msg->newView();
 
   while (msg->newView() > getCurrentView() && !(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) &&
          iter.getAndGoToNext(complaint, size) && numberOfProcessedComplaints <= F + 1) {
