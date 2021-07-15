@@ -130,6 +130,52 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   stReconfigurationSM_->pruneOnStartup();
 }
 
+void Replica::handleWedgeEvent() {
+  auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
+  if (lastExecutedSeqNum == 0) return;
+  uint64_t wedgeBlock{0};
+  auto version = getLatestVersion(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_wedge_key});
+  if (!version.has_value()) return;
+  wedgeBlock = version.value().version;
+
+  uint64_t wedgeBftSeqNum{0};
+  const auto &sn_val = get(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, wedgeBlock);
+  ConcordAssert(sn_val.has_value());
+  {
+    const auto &data = std::get<categorization::VersionedValue>(*sn_val).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    wedgeBftSeqNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+
+  uint64_t wedgePoint = (wedgeBftSeqNum + 2 * checkpointWindowSize);
+  wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
+
+  uint64_t latestKnownEpoch{0};
+  const auto epoch_val = getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
+  ConcordAssert(epoch_val.has_value());
+  {
+    const auto &data = std::get<categorization::VersionedValue>(*epoch_val).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    latestKnownEpoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+
+  uint64_t wedgeEpoch{0};
+  const auto &wedge_epoch_data =
+      get(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, wedgeBlock);
+  ConcordAssert(wedge_epoch_data.has_value());
+  {
+    const auto &data = std::get<categorization::VersionedValue>(*wedge_epoch_data).data;
+    ConcordAssertEQ(data.size(), sizeof(uint64_t));
+    wedgeEpoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+  }
+
+  LOG_INFO(logger,
+           "stored wedge info " << KVLOG(wedgePoint, wedgeBlock, wedgeEpoch, lastExecutedSeqNum, latestKnownEpoch));
+  if (wedgeEpoch == latestKnownEpoch && wedgePoint == (uint64_t)lastExecutedSeqNum) {
+    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(wedgeBftSeqNum);
+    LOG_INFO(logger, "wedge the system on wedgepoint: " << wedgePoint);
+  }
+}
 void Replica::handleNewEpochEvent() {
   uint64_t epoch = 0;
   auto value = getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
@@ -198,6 +244,7 @@ void Replica::createReplicaAndSyncState() {
     }
   }
   handleNewEpochEvent();
+  handleWedgeEvent();
 }
 
 /**

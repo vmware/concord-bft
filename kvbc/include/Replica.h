@@ -138,6 +138,7 @@ class Replica : public IReplica,
   void createReplicaAndSyncState();
   void registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler);
   void handleNewEpochEvent();
+  void handleWedgeEvent();
   // INTERNAL TYPES
 
   // represents <key,blockId>
