@@ -28,12 +28,6 @@ using std::string;
 
 namespace bftEngine {
 namespace impl {
-class CryptographyWrapper {
- public:
-  static void init(const char* randomSeed);
-  static void init();
-};
-
 // TODO(GG): define generic signer/verifier (not sure we want to use RSA)
 
 class ISigner {
