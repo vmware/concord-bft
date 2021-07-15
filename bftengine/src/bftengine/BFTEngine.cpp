@@ -36,11 +36,6 @@ bftEngine::IReservedPages *bftEngine::ReservedPagesClientBase::res_pages_ = null
 
 namespace bftEngine::impl {
 
-namespace {
-bool cryptoInitialized = false;
-std::mutex mutexForCryptoInitialization;
-}  // namespace
-
 class ReplicaInternal : public IReplica {
   friend class IReplica;
 
@@ -141,14 +136,6 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
                                                  MetadataStorage *metadataStorage,
                                                  std::shared_ptr<concord::performance::PerformanceManager> pm,
                                                  const shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &sm) {
-  {
-    std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
-    if (!cryptoInitialized) {
-      cryptoInitialized = true;
-      CryptographyWrapper::init();
-    }
-  }
-
   shared_ptr<PersistentStorage> persistentStoragePtr;
   if (replicaConfig.debugPersistentStorageEnabled)
     if (metadataStorage == nullptr)
@@ -251,14 +238,6 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
                                                    std::shared_ptr<IRequestsHandler> requestsHandler,
                                                    IStateTransfer *stateTransfer,
                                                    bft::communication::ICommunication *communication) {
-  {
-    std::lock_guard<std::mutex> lock(mutexForCryptoInitialization);
-    if (!cryptoInitialized) {
-      cryptoInitialized = true;
-      CryptographyWrapper::init();
-    }
-  }
-
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
   auto incomingMsgsStorageImpPtr =
