@@ -148,6 +148,9 @@ class ViewsManager {
   void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(), targetView = 0; }
 
   void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
+  void fillPropertiesOfStatusMessage(ReplicaStatusMsg &replicaStatusMsg,
+                                     const ReplicasInfo *const replicasInfo,
+                                     const SeqNum lastStableSeqNum);
 
   ViewChangeMsg *prepareViewChangeMsgAndSetHigherView(ViewNum nextView,
                                                       const bool wasInPrevViewNumber,

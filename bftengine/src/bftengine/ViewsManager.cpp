@@ -1068,6 +1068,33 @@ void ViewsManager::addComplaintsToStatusMessage(ReplicaStatusMsg& replicaStatusM
   }
 }
 
+void ViewsManager::fillPropertiesOfStatusMessage(ReplicaStatusMsg& replicaStatusMsg,
+                                                 const ReplicasInfo* const replicasInfo,
+                                                 const SeqNum lastStableSeqNum) {
+  const auto currentView = getCurrentView();
+  const bool currentViewIsActive = viewIsActive(currentView);
+
+  if (!currentViewIsActive) {
+    const bool currentViewIsPending = viewIsPending(currentView);
+    if (!currentViewIsPending) {
+      // Set missing view change messages
+      for (ReplicaId i : replicasInfo->idsOfPeerReplicas()) {
+        if (!hasViewChangeMessageForFutureView(i)) replicaStatusMsg.setMissingViewChangeMsgForViewChange(i);
+      }
+    } else {
+      // Set missing pre-prepare messages
+      std::vector<SeqNum> missPP;
+      if (getNumbersOfMissingPP(lastStableSeqNum, &missPP)) {
+        for (SeqNum i : missPP) {
+          ConcordAssertGT(i, lastStableSeqNum);
+          ConcordAssertLE(i, lastStableSeqNum + kWorkWindowSize);
+          replicaStatusMsg.setMissingPrePrepareMsgForViewChange(i);
+        }
+      }
+    }
+  }
+}
+
 ViewChangeMsg* ViewsManager::prepareViewChangeMsgAndSetHigherView(ViewNum nextView,
                                                                   const bool wasInPrevViewNumber,
                                                                   SeqNum lastStableSeqNum,
