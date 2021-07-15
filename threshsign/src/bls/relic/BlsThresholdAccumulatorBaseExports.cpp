@@ -19,7 +19,6 @@
  * Yes, including a ".[c/t]pp" file is weird, but C++ is weird:
  * https://isocpp.org/wiki/faq/templates#templates-defn-vs-decl
  */
-#include "threshsign/Configuration.h"
 
 #include "ThresholdAccumulatorBase.cpp"
 #include "LagrangeInterpolation.h"

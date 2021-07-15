@@ -14,8 +14,6 @@
 #undef ERROR
 #endif
 
-#include "threshsign/Configuration.h"
-
 #include "threshsign/bls/relic/BlsAccumulatorBase.h"
 #include "threshsign/bls/relic/Library.h"
 #include "threshsign/bls/relic/FastMultExp.h"

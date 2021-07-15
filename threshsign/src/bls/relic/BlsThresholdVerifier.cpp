@@ -14,8 +14,6 @@
 #undef ERROR
 #endif
 
-#include "threshsign/Configuration.h"
-
 #include "threshsign/bls/relic/BlsThresholdVerifier.h"
 #include "threshsign/bls/relic/BlsThresholdAccumulator.h"
 #include "threshsign/bls/relic/BlsPublicKey.h"

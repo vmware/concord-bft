@@ -4,7 +4,6 @@
  *  Created on: Jul 11, 2017
  *      Author: atomescu
  */
-#include "threshsign/Configuration.h"
 
 #include "Main.h"
 
