@@ -20,6 +20,7 @@ target_link_libraries(bftclient_new PUBLIC
     bftcommunication 
     bftheaders
     diagnostics
+    secretsmanager
 )
 
 if (BUILD_TESTING)
