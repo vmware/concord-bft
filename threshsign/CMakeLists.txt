@@ -40,12 +40,17 @@ string(APPEND CMAKE_CXX_FLAGS_DEBUG " ${CXX_FLAGS_DEBUG}")
 string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
 
 # Helper functions
+
+# Relic is a cryptographic "meta-toolkit" which can be used with different
+# concrete implementations. The user has to make sure that the latter is
+# available at compile-/runtime.
 function(link_with_relic_library targetName)
     target_link_libraries(${targetName}
-        PUBLIC
+        PRIVATE
         ${RELIC_STATIC_LIBRARY}
         ${GMP_STATIC_LIBRARY}
-        ${CRYPTOPP_STATIC_LIBRARY})
+        ${CRYPTOPP_STATIC_LIBRARY}
+    )
 endfunction()
 
 function(add_relic_executable appName appSrc appDir)
