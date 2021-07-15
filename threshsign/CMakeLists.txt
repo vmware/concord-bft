@@ -68,12 +68,10 @@ function(add_relic_executable appName appSrc appDir)
 endfunction()
 
 function(add_threshsign_executable appName appSrc appDir)
-    # Add compile target
-    add_executable(${appName} ${appSrc} )
-    # SbftKeygenApp depends on some RSA/Shoup internal functions/classes for generating primes
-    target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src ${threshsign_SOURCE_DIR}/lib ${threshsign_SOURCE_DIR}/include)
+    add_executable(${appName} ${appSrc})
+    target_include_directories(${appName} PRIVATE ${threshsign_SOURCE_DIR}/src)
     target_link_libraries(${appName} PRIVATE mainapp)
-    target_link_libraries(${appName} PUBLIC threshsign)
+    target_link_libraries(${appName} PRIVATE threshsign)
     link_with_relic_library(${appName})
 
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
