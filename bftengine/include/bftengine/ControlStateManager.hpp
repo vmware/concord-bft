@@ -45,8 +45,8 @@ class ControlStateManager {
   void checkForReplicaReconfigurationAction();
   void restart();
 
-  std::pair<bool, std::string> canUnwedge();
-  bool verifyUnwedgeSignatures(std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures);
+  std::pair<bool, std::string> canUnwedge(bool bft);
+  bool verifyUnwedgeSignatures(std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures, bool bft);
 
  private:
   ControlStateManager() = default;

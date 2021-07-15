@@ -365,6 +365,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         self.assertEqual(value, value_read, "A BFT Client failed to read a key-value pair from a "
                          "SimpleKVBC cluster matching the key-value pair it wrote "
                          "immediately prior to the read.")
+        for r in bft_network.all_replicas():
+            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
+            self.assertEqual(epoch, 1)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -446,23 +449,37 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             op = operator.Operator(bft_network.config, client,  bft_network.builddir)
             await op.wedge()
 
-        with trio.fail_after(seconds=60):
-            done = False
-            while done is False:
-                await op.wedge_status(quorum=bft_client.MofNQuorum(on_time_replicas, len(on_time_replicas)), fullWedge=False)
-                rsi_rep = client.get_rsi_replies()
-                done = True
-                for r in rsi_rep.values():
-                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
-                    status = res[0].response.stopped
-                    if status is False:
-                        done = False
-                        break
-
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, False)
 
         # Make sure the system is able to make progress
-        bft_network.stop_replicas(on_time_replicas)
-        bft_network.start_replicas(on_time_replicas)
+        await op.unwedge(bft=True)
+        for i in range(300):
+            await skvbc.write_known_kv()
+
+        # Start late replicas and wait for state transfer to stop
+        bft_network.start_replicas(late_replicas)
+
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in late_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+
+        # Make sure the system is able to make progress
+        for i in range(100):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
+            self.assertEqual(epoch, 1)
+
+        bft_network.stop_replicas(late_replicas)
+        for i in range(200):
+            await skvbc.write_known_kv()
+        await op.wedge()
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, False)
+
+        # Make sure the system is able to make progress
+        await op.unwedge(bft=True)
         for i in range(100):
             await skvbc.write_known_kv()
 
@@ -475,11 +492,42 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                                               r,
                                                               stop_on_stable_seq_num=True)
 
-        replicas_to_stop = bft_network.random_set_of_replicas(2, late_replicas | {initial_prim})
+        # invoke another state transfer to let the late replicas unwedge themselves
+        for i in range(200):
+            await skvbc.write_known_kv()
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in late_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+        for r in bft_network.all_replicas():
+            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
+            self.assertEqual(epoch, 2)
+
+        bft_network.stop_replicas(late_replicas)
+        for i in range(200):
+            await skvbc.write_known_kv()
+        await op.wedge()
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, False)
+
+        # Start late replicas and wait for state transfer to stop
+        bft_network.start_replicas(late_replicas)
+
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in late_replicas:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=True)
+
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, True)
 
         # Make sure the system is able to make progress
+        await op.unwedge(bft=False)
         for i in range(100):
             await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
+            self.assertEqual(epoch, 3)
 
 
 
@@ -1254,7 +1302,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
-    
+
     @with_trio
     @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
     async def test_add_nodes_with_failures(self, bft_network):
@@ -1371,7 +1419,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
-    
+
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

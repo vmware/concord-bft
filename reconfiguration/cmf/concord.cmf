@@ -117,6 +117,7 @@ Msg AddRemoveWithWedgeStatusResponse 31 {
 
 Msg UnwedgeStatusRequest 32{
     uint64 sender
+    bool bft
 }
 
 Msg UnwedgeStatusResponse 33{
@@ -129,6 +130,7 @@ Msg UnwedgeStatusResponse 33{
 Msg UnwedgeCommand 34{
     uint64 sender
     list kvpair uint64 bytes signatures
+    bool bft
 }
 Msg ClientKeyExchangeCommand 35 {
     list uint64 target_clients

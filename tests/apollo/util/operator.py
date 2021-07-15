@@ -62,15 +62,16 @@ class Operator:
         wedge_status_cmd.fullWedge = fullWedge
         return self._construct_basic_reconfiguration_request(wedge_status_cmd)
 
-    def _construct_reconfiguration_unwedge_status(self):
+    def _construct_reconfiguration_unwedge_status(self, bft):
         unwedge_status_cmd = cmf_msgs.UnwedgeStatusRequest()
         unwedge_status_cmd.sender = 1000
+        unwedge_status_cmd.bft = bft
         return self._construct_basic_reconfiguration_request(unwedge_status_cmd)
 
-    def _construct_reconfiguration_unwedge_command(self, signatures):
+    def _construct_reconfiguration_unwedge_command(self, signatures, bft):
         unwedge_cmd = cmf_msgs.UnwedgeCommand()
         unwedge_cmd.sender = 1000
-        unwedge_cmd.noop = False
+        unwedge_cmd.bft = bft
         unwedge_cmd.signatures = signatures
         return self._construct_basic_reconfiguration_request(unwedge_cmd)
 
@@ -153,22 +154,25 @@ class Operator:
         msg = self._construct_reconfiguration_wedge_status(fullWedge)
         return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
-    async def unwedge(self):
-        await self.can_unwedge()
+    async def unwedge(self, bft=False):
+        quorum = None
+        if bft is True:
+            quorum = bft_client.MofNQuorum.LinearizableQuorum(self.client.config, [r for r in range(self.config.n)])
+        await self.can_unwedge(quorum=quorum, bft=bft)
         signatures = []
         for r in self.client.get_rsi_replies().values():
             res = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             signatures.append(
                 (res.response.replica_id, bytes(res.response.signature)))
 
-        msg = self._construct_reconfiguration_unwedge_command(signatures)
-        return await self.client.read(msg.serialize(), reconfiguration=True)
+        msg = self._construct_reconfiguration_unwedge_command(signatures, bft)
+        return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
-    async def can_unwedge(self, quorum=None, fullWedge=True):
+    async def can_unwedge(self, quorum=None, bft=False):
         if quorum is None:
             quorum = bft_client.MofNQuorum.All(
                 self.client.config, [r for r in range(self.config.n)])
-        msg = self._construct_reconfiguration_unwedge_status()
+        msg = self._construct_reconfiguration_unwedge_status(bft)
         return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
     async def latest_pruneable_block(self):

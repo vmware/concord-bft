@@ -221,8 +221,17 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
-  auto blockId = persistReconfigurationBlock(
-      serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1},
+                        std::string(serialized_command.begin(), serialized_command.end()));
+  auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
+  concord::messages::WedgeCommand wedge_command;
+  std::vector<uint8_t> wedge_buf;
+  concord::messages::serialize(wedge_buf, wedge_command);
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_wedge_key},
+                        std::string(wedge_buf.begin(), wedge_buf.end()));
+  auto blockId = persistReconfigurationBlock(ver_updates, sequence_number);
   LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
   return true;
 }
@@ -325,9 +334,12 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
 bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
                                     uint64_t bft_seq_num,
                                     concord::messages::ReconfigurationResponse&) {
-  LOG_INFO(getLogger(), "Unwedge command started");
+  if (!bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
+    LOG_INFO(getLogger(), "replica is already unwedge");
+  }
+  LOG_INFO(getLogger(), "Unwedge command started " << KVLOG(cmd.bft));
   auto& controlStateManager = bftEngine::ControlStateManager::instance();
-  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures);
+  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures, cmd.bft);
   if (valid) {
     auto newEpoch = bftEngine::EpochManager::instance().getSelfEpochNumber() + 1;
     concord::kvbc::categorization::VersionedUpdates ver_updates;
@@ -348,7 +360,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
                                     uint64_t,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
-  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge();
+  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge(req.bft);
   response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
   if (!can_unwedge.first) {
     response.can_unwedge = false;

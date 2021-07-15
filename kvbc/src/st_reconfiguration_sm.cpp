@@ -98,9 +98,14 @@ bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
 
   if (my_last_known_epoch == command_epoch && my_last_known_epoch == last_known_global_epoch) {
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+    return true;
   }
-  // In any other case, it is either the case where we are already in a futuer epoch or we were in previous epoch.
-  // in both cases, there is no need to wedge.
+
+  if (command_epoch < last_known_global_epoch) {
+    LOG_INFO(GL, "unwedge due to higher epoch number after state transfer");
+    bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
+  }
+  bftEngine::EpochManager::instance().setSelfEpochNumber(bftEngine::EpochManager::instance().getGlobalEpochNumber());
   return true;
 }
 bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand &command,

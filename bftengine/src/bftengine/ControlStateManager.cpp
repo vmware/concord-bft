@@ -28,13 +28,19 @@ namespace bftEngine {
  * given sequence number and mark it as a checkpoint to stop at in the reserved pages.
  */
 void ControlStateManager::setStopAtNextCheckpoint(int64_t currentSeqNum) {
-  if (currentSeqNum == 0) wedgePoint = 0;
+  if (currentSeqNum == 0) {
+    wedgePoint = 0;
+    return;
+  }
   uint64_t seq_num_to_stop_at = (currentSeqNum + 2 * checkpointWindowSize);
   seq_num_to_stop_at = seq_num_to_stop_at - (seq_num_to_stop_at % checkpointWindowSize);
   wedgePoint = seq_num_to_stop_at;
 }
 
-std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() { return wedgePoint; }
+std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
+  if (wedgePoint == 0) return {};
+  return wedgePoint;
+}
 
 void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, RestartProofHandlerPriorities priority) {
   if (onRestartProofCbRegistery_.find(priority) == onRestartProofCbRegistery_.end()) {
@@ -66,8 +72,9 @@ void ControlStateManager::checkForReplicaReconfigurationAction() {
   }
 }
 
-std::pair<bool, std::string> ControlStateManager::canUnwedge() {
-  if (!bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
+std::pair<bool, std::string> ControlStateManager::canUnwedge(bool bft) {
+  if ((!bft && !bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint()) ||
+      (bft && !bftEngine::IControlHandler::instance()->isOnStableCheckpoint())) {
     return {false, "Replica has not reached the wedge point yet"};
   }
 
@@ -84,8 +91,9 @@ std::pair<bool, std::string> ControlStateManager::canUnwedge() {
 }
 
 bool ControlStateManager::verifyUnwedgeSignatures(
-    std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures) {
+    std::vector<std::pair<uint64_t, std::vector<uint8_t>>> const& signatures, bool bft) {
   size_t quorum = ReplicaConfig::instance().numReplicas;
+  if (bft) quorum -= ReplicaConfig::instance().fVal;
   if (signatures.size() < quorum) {
     LOG_INFO(GL, "Not enough signatures for verification");
     return false;
@@ -102,21 +110,8 @@ bool ControlStateManager::verifyUnwedgeSignatures(
   for (auto const& sig : signatures) {
     std::string sig_data = std::to_string(sig.first) + std::to_string(last_checkpoint.value());
     std::string signature(sig.second.begin(), sig.second.end());
-    bool valid = false;
-    if (sig.first == ReplicaConfig::instance().replicaId) {
-      // SigManager cannot verify signature coming from same replica
-      // Generate the signature again and compare them.
-      verified_sigs++;
-      std::string sign(sig_manager->getMySigLength(), '\0');
-      sig_manager->sign(sig_data.c_str(), sig_data.size(), sign.data(), sign.size());
-      if (sign == std::string(sig.second.begin(), sig.second.end())) {
-        valid = true;
-        verified_sigs++;
-      }
-    } else {
-      valid = sig_manager->verifySig(sig.first, sig_data.c_str(), sig_data.size(), signature.data(), signature.size());
-    }
-
+    bool valid =
+        sig_manager->verifySig(sig.first, sig_data.c_str(), sig_data.size(), signature.data(), signature.size());
     if (!valid) {
       LOG_INFO(GL, "Invalid signature for principal id " << sig.first);
     } else {
