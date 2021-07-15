@@ -323,8 +323,16 @@ void ConnectionManager::connect(NodeNum i, const asio::ip::tcp::endpoint& endpoi
 void ConnectionManager::connect() {
   auto end = std::min<size_t>(config_.selfId, config_.maxServerId + 1);
   for (auto i = 0u; i < end; i++) {
-    if (connections_.count(i) == 0 && connecting_.count(i) == 0 && resolving_.count(i) == 0 &&
-        connected_waiting_for_handshake_.count(i) == 0) {
+    if (connections_.count(i) == 0 && resolving_.count(i) == 0 && connected_waiting_for_handshake_.count(i) == 0) {
+      // If the connection is delayed more than 1 second in connecting state then we try reconnecting by closing
+      // existing connection.
+      if (connecting_.count(i) != 0) {
+        LOG_WARN(logger_, "Closing Connection in Connecting State");
+        connecting_.at(i).close();
+        connecting_.erase(i);
+        status_->num_connecting = connecting_.size();
+      }
+
       resolve(i);
     }
   }
