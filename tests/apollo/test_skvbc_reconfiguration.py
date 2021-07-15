@@ -1263,7 +1263,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         on_time_replicas = bft_network.all_replicas(without=new_replicas)
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1275,7 +1275,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(new_replicas)
 
         # The new replicas have just removed thier metadata, to let them catch up we need to start aonther state transfer
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
@@ -1316,7 +1316,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         on_time_replicas = bft_network.all_replicas(without=new_replicas)
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1328,7 +1328,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
         # The new replicas have just removed thier metadata, to let them catch up we need to start aonther state transfer
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
@@ -1404,7 +1404,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         on_time_replicas = bft_network.all_replicas(without=new_replicas)
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1415,7 +1415,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
@@ -1457,7 +1457,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         on_time_replicas = bft_network.all_replicas(without=late_replicas)
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         bft_network.start_replicas(late_replicas)
         await bft_network.wait_for_state_transfer_to_start()
@@ -1468,7 +1468,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         bft_network.stop_replicas(late_replicas)
         bft_network.start_replicas(late_replicas)
-        for i in range(300):
+        for i in range(350):
             await skvbc.write_known_kv()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
@@ -1512,78 +1512,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.error_msg == 'key_not_found'
             assert status.success is False
-
-    @with_trio
-    @with_bft_network(start_replica_cmd, bft_configs=[{'n': 4, 'f': 1, 'c': 0, 'num_clients': 10}])
-    async def test_epoch_mechanism(self, bft_network):
-        """
-           Test the  epoch mechanism
-           1. start all replicas but 1
-           2. generate 2 epochs
-           3. start the crashed replica
-           4. verify that all replicas are in new epoch
-         """
-        initial_prim = 0
-        crashed_replica = bft_network.random_set_of_replicas(1, {initial_prim})
-        live_replicas = bft_network.all_replicas(without=crashed_replica)
-        bft_network.start_replicas(live_replicas)
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        for i in range(100):
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
-        client = bft_network.random_client()
-        client.config._replace(req_timeout_milli=10000)
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
-        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-        test_config = 'new_configuration_n_4_f_1_c_0'
-        await op.add_remove_with_wedge(test_config, bft=True)
-        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
-
-        # restart the live replicas
-        bft_network.stop_replicas(live_replicas)
-        bft_network.start_replicas(live_replicas)
-
-        for i in range(300):
-            await skvbc.write_known_kv()
-
-        # We expect the restarted replicas to be at the next quorum
-        for r in live_replicas:
-            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
-            self.assertEqual(epoch, 1)
-
-        # Now, lets trigger another epoch change
-        await op.add_remove_with_wedge(test_config, bft=True)
-        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
-
-        # start a new epoch
-        bft_network.stop_replicas(live_replicas)
-        bft_network.start_replicas(live_replicas)
-
-        for r in live_replicas:
-            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
-            self.assertEqual(epoch, 2)
-
-        for i in range(300):
-            await skvbc.write_known_kv()
-
-        # We now start the crashed replica and we expect it not to start a new epoch
-        bft_network.start_replicas(crashed_replica)
-
-        # let the crashed replica to catch up the state
-        await bft_network.wait_for_state_transfer_to_start()
-        for r in crashed_replica:
-            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
-                                                              r,
-                                                              stop_on_stable_seq_num=False)
-
-        bft_network.stop_replicas(crashed_replica)
-        bft_network.start_replicas(crashed_replica)
-
-        # we expect all replicas to be now at epoch 2
-        for r in bft_network.all_replicas():
-            epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
-            self.assertEqual(epoch, 2)
-
 
     async def validate_stop_on_wedge_point(self, bft_network, skvbc, fullWedge=False):
         with log.start_action(action_type="validate_stop_on_stable_checkpoint") as action:
