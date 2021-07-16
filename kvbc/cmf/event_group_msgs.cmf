@@ -1,0 +1,10 @@
+# Represents an event
+Msg Event 1 {
+  string data
+  list string tags
+}
+
+# Represents an event-group
+Msg EventGroup 2 {
+  list Event events
+}
