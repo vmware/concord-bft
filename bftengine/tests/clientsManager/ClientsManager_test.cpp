@@ -18,7 +18,7 @@ using namespace std;
 using namespace bftEngine;
 concordMetrics::Component metrics{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())};
 
-TEST(ClientsManager, reservedPagesPerClient) {
+TEST(ClientsManager, ) {
   uint32_t sizeOfReservedPage = 1024;
   uint32_t maxReplysize = 1000;
   auto numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
@@ -32,33 +32,9 @@ TEST(ClientsManager, reservedPagesPerClient) {
 }
 
 TEST(ClientsManager, constructor) {
-  std::set<bftEngine::impl::NodeIdType> clset{1, 4, 50, 7};
-  bftEngine::impl::ClientsManager cm{metrics, clset};
-  ASSERT_EQ(50, cm.getHighestIdOfNonInternalClient());
-  auto i = 0;
-  for (auto id : clset) {
-    ASSERT_EQ(i, cm.getIndexOfClient(id));
-    ASSERT_EQ(false, cm.isInternal(id));
-    ++i;
-  }
-}
-
-// Test that interanl clients are added to Client manager data structures
-// and are identifed as internal clients
-TEST(ClientsManager, initInternalClientInfo) {
-  std::set<bftEngine::impl::NodeIdType> clset{1, 4, 50, 7};
-  bftEngine::impl::ClientsManager cm{metrics, clset};
-  auto firstIntClId = cm.getHighestIdOfNonInternalClient() + 1;
-  auto FirstIntIdx = cm.getIndexOfClient(cm.getHighestIdOfNonInternalClient()) + 1;
-  auto numRep = 7;
-  cm.initInternalClientInfo(numRep);
-  for (int i = 0; i < numRep; i++) {
-    ASSERT_EQ(true, cm.isValidClient(firstIntClId + i));
-    ASSERT_EQ(true, cm.isInternal(firstIntClId + 1));
-    ASSERT_EQ(FirstIntIdx + i, cm.getIndexOfClient(firstIntClId + i));
-  }
-  // One over the end
-  ASSERT_EQ(false, cm.isValidClient(firstIntClId + numRep));
+  bftEngine::impl::ClientsManager cm{{1, 4, 50, 7}, {3, 2, 60}, {5, 11, 55}, metrics};
+  for (auto id : {5, 11, 55}) ASSERT_EQ(true, cm.isInternal(id));
+  for (auto id : {1, 4, 50, 3, 2, 60}) ASSERT_EQ(false, cm.isInternal(id));
 }
 
 int main(int argc, char **argv) {

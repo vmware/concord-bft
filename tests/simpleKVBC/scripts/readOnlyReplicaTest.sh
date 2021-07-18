@@ -4,6 +4,7 @@ cleanup() {
   killall -q skvbc_replica || true
   rm -rf simpleKVBTests_DB_*
   rm -rf ro_config_*
+  rm -rf gen-sec.*
 }
 
 trap 'cleanup' SIGINT

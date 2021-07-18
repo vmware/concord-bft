@@ -28,15 +28,14 @@ class IInternalBFTClient {
 
 class InternalBFTClient : public IInternalBFTClient {
  public:
-  InternalBFTClient(const int& id, const NodeIdType& nonInternalNum, std::shared_ptr<MsgsCommunicator>& msgComm);
-  inline NodeIdType getClientId() const { return repID_ + startIdForInternalClient_; };
+  InternalBFTClient(NodeIdType id, std::shared_ptr<MsgsCommunicator>& msgComm) : id_{id}, msgComm_(msgComm) {}
+  NodeIdType getClientId() const { return id_; }
   uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid);
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return msgComm_->numOfConnectedReplicas(clusterSize); }
   bool isUdp() const { return msgComm_->isUdp(); }
 
  private:
-  uint32_t repID_{};
-  NodeIdType startIdForInternalClient_{};
+  NodeIdType id_;
   std::shared_ptr<MsgsCommunicator> msgComm_;
 };
 

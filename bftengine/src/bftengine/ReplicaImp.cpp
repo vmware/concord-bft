@@ -3773,15 +3773,20 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(sigManager);
     viewsManager = viewsMgr;
   }
-
-  std::set<NodeIdType> clientsSet;
-  const auto numOfEntities = config_.getnumReplicas() + config_.getnumRoReplicas() + config_.getnumOfClientProxies() +
-                             config_.getnumOfExternalClients();
-  for (uint16_t i = config_.getnumReplicas() + config_.getnumRoReplicas(); i < numOfEntities; i++) clientsSet.insert(i);
-  clientsManager = new ClientsManager(metrics_, clientsSet);
-  clientsManager->initInternalClientInfo(config_.getnumReplicas());
-  internalBFTClient_.reset(new InternalBFTClient(
-      config_.getreplicaId(), clientsManager->getHighestIdOfNonInternalClient(), msgsCommunicator_));
+  // clients ids are assigned as follows:
+  // - client proxies starting at a subsequent id of the last (ro-)replica
+  // - external clients
+  // - internal replicas' client ids
+  std::set<NodeIdType> proxyClients;
+  std::set<NodeIdType> externalClients;
+  std::set<NodeIdType> internalClients;
+  uint16_t clientId = config_.getnumReplicas() + config_.getnumRoReplicas();
+  for (int i = 0; i < config_.getnumOfClientProxies(); ++i) proxyClients.insert(clientId++);
+  for (int i = 0; i < config_.getnumOfExternalClients(); ++i) externalClients.insert(clientId++);
+  for (int i = 0; i < config_.getnumReplicas(); ++i) internalClients.insert(clientId++);
+  clientsManager = new ClientsManager(proxyClients, externalClients, internalClients, metrics_);
+  internalBFTClient_.reset(
+      new InternalBFTClient(*internalClients.cbegin() + config_.getreplicaId(), msgsCommunicator_));
 
   // autoPrimaryRotationEnabled implies viewChangeProtocolEnabled
   // Note: "p=>q" is equivalent to "not p or q"

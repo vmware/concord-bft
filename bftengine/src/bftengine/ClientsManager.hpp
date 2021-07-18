@@ -18,7 +18,7 @@
 #include "IPendingRequest.hpp"
 #include <map>
 #include <set>
-#include <vector>
+#include <unordered_map>
 #include <memory>
 
 namespace bftEngine {
@@ -30,10 +30,13 @@ class ClientRequestMsg;
 
 class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingRequest {
  public:
-  ClientsManager(concordMetrics::Component& metrics, std::set<NodeIdType>& clientsSet);
+  ClientsManager(const std::set<NodeIdType>& proxyClients,
+                 const std::set<NodeIdType>& externalClients,
+                 const std::set<NodeIdType>& internalClients,
+                 concordMetrics::Component& metrics);
   ~ClientsManager();
 
-  uint32_t numberOfRequiredReservedPages() const;
+  uint32_t numberOfRequiredReservedPages() const { return requiredNumberOfPages_; }
 
   void loadInfoFromReservedPages();
 
@@ -41,9 +44,9 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   // TODO(GG): make sure that ReqId is based on time (and ignore requests with time that does
   // not make sense (too high) - this will prevent some potential attacks)
-  bool hasReply(NodeIdType clientId, ReqId reqSeqNum);
+  bool hasReply(NodeIdType clientId, ReqId reqSeqNum) const;
 
-  bool isValidClient(NodeIdType clientId) const;
+  bool isValidClient(NodeIdType clientId) const { return clientIds_.find(clientId) != clientIds_.end(); }
 
   std::unique_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
       NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength);
@@ -73,18 +76,16 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   void deleteOldestReply(NodeIdType clientId);
 
-  // Internal Clients
-  void initInternalClientInfo(const int& numReplicas);
-  inline bool isInternal(NodeIdType clientId) const { return clientId > highestIdOfNonInternalClient_; };
-
-  // Returns the ID of the last client before internal clients.
-  NodeIdType getHighestIdOfNonInternalClient();
+  bool isInternal(NodeIdType clientId) const { return internalClients_.find(clientId) != internalClients_.end(); }
 
   // General
   static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
-  int getIndexOfClient(const NodeIdType& id) const;
 
  protected:
+  uint32_t getFirstPageId(NodeIdType clientId) const {
+    return (clientId - *clientIds_.cbegin()) * reservedPagesPerClient_;
+  }
+
   const ReplicaId myId_;
   const uint32_t sizeOfReservedPage_;
 
@@ -92,11 +93,6 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   uint32_t reservedPagesPerClient_;
   uint32_t requiredNumberOfPages_;
-
-  uint16_t numOfClients_{0};
-  NodeIdType highestIdOfNonInternalClient_{0};
-
-  std::map<NodeIdType, uint16_t> clientIdToIndex_;
 
   struct RequestInfo {
     RequestInfo() : time(MinTime) {}
@@ -112,7 +108,11 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
     std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
   };
 
-  std::vector<ClientInfo> indexToClientInfo_;
+  std::set<NodeIdType> proxyClients_;
+  std::set<NodeIdType> externalClients_;
+  std::set<NodeIdType> internalClients_;
+  std::set<NodeIdType> clientIds_;
+  std::unordered_map<NodeIdType, ClientInfo> clientsInfo_;
   const uint32_t maxReplySize_;
   const uint16_t maxNumOfReqsPerClient_;
   concordMetrics::Component& metrics_;
