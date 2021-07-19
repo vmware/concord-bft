@@ -21,6 +21,7 @@ syntax = "proto3";
 package com.vmware.concord.thin_replica;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 service ThinReplica {
   // Finite stream which sends the current state that is visible to the Thin Replica client
@@ -46,15 +47,23 @@ service ThinReplica {
   rpc Unsubscribe(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
-message ReadStateRequest {
-}
+message ReadStateRequest {}
 
 message ReadStateHashRequest {
-  // Block id from a prior ReadState response
-  uint64 block_id = 1;
+  oneof request {
+    EventsRequest events = 1;
+    EventGroupsRequest event_groups = 2;
+  }
 }
 
 message SubscriptionRequest {
+  oneof request {
+    EventsRequest events = 1;
+    EventGroupsRequest event_groups = 2;
+  }
+}
+
+message EventsRequest {
   // Subscribe from (including) the given block id
   uint64 block_id = 1;
 }
@@ -65,6 +74,13 @@ message BlockId {
 }
 
 message Data {
+  oneof data {
+    Events events = 1;
+    EventGroup event_group = 2;
+  }
+}
+
+message Events {
   // The data was found in this block
   uint64 block_id = 1;
   repeated KVPair data = 2;
@@ -78,11 +94,38 @@ message KVPair {
 }
 
 message Hash {
+  oneof hash {
+    EventsHash events = 1;
+    EventGroupHash event_group = 2;
+  }
+}
+
+message EventsHash {
   uint64 block_id = 1;
+  bytes hash = 2;
+}
+
+message EventGroupHash {
+  uint64 event_group_id = 1;
   bytes hash = 2;
 }
 
 // Trace contexts are serialized as the below message in Updates sent to clients.
 message W3cTraceContext {
   map<string, string> key_values = 1;
+}
+
+// See concord_client.proto for documentation on EventGroups.
+// Note: We don't want to depend on concord_client.proto because any change to
+// concord_client.proto would result in a change for the TRS and therefore the
+// replica itself. By keeping them separate we will have an easier time
+// changing/maintaining those two interfaces.
+message EventGroupsRequest {
+  uint64 event_group_id = 1;
+}
+message EventGroup {
+  uint64 id = 1;
+  repeated bytes events = 2;
+  google.protobuf.Timestamp record_time = 3;
+  map<string, string> trace_context = 4;
 }
