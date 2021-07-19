@@ -54,7 +54,7 @@ using namespace std::literals;
 
 class replica_state_sync_test : public Test, public IReader {
   void SetUp() override {
-    cleanup();
+    destroyDb();
     db_ = TestRocksDb::createNative();
     const auto link_st_chain = true;
     blockchain_.emplace(
@@ -71,7 +71,16 @@ class replica_state_sync_test : public Test, public IReader {
     metadata_->init(std::move(db_metadata_storage));
   }
 
-  void TearDown() override { cleanup(); }
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    blockchain_.reset();
+    metadata_.reset();
+    db_.reset();
+    ASSERT_EQ(0, db_.use_count());
+    ASSERT_EQ(0, metadata_.use_count());
+    cleanup();
+  }
 
  public:
   std::optional<Value> get(const std::string &category_id, const std::string &key, BlockId block_id) const override {

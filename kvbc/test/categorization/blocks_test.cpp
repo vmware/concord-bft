@@ -35,12 +35,19 @@ namespace {
 
 class categorized_kvbc : public ::testing::Test {
   void SetUp() override {
-    cleanup();
+    destroyDb();
     db = TestRocksDb::createNative();
     db->createColumnFamily(BLOCKS_CF);
     db->createColumnFamily(ST_CHAIN_CF);
   }
-  void TearDown() override { cleanup(); }
+
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    db.reset();
+    ASSERT_EQ(0, db.use_count());
+    cleanup();
+  }
 
  protected:
   std::shared_ptr<NativeClient> db;

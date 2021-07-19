@@ -40,11 +40,19 @@ using namespace std::literals;
 
 class immutable_kv_category : public Test {
   void SetUp() override {
-    cleanup();
+    destroyDb();
     db = TestRocksDb::createNative();
     cat = ImmutableKeyValueCategory{category_id, db};
   }
-  void TearDown() override { cleanup(); }
+
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    cat = ImmutableKeyValueCategory{};
+    db.reset();
+    ASSERT_EQ(0, db.use_count());
+    cleanup();
+  }
 
  protected:
   auto add(BlockId block_id, ImmutableInput &&update) {
