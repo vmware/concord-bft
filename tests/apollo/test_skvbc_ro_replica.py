@@ -177,7 +177,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
             num_of_checkpoints_to_add=1,
-            verify_checkpoint_persistency=False
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
         )
 
         await self._wait_for_st(bft_network, ro_replica_id)
@@ -207,7 +208,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
             num_of_checkpoints_to_add=1,
-            verify_checkpoint_persistency=False
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
         )
 
         await self._wait_for_st(bft_network, ro_replica_id)
@@ -237,7 +239,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
             num_of_checkpoints_to_add=1,
-            verify_checkpoint_persistency=False
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
         )
 
         await self._wait_for_st(bft_network, ro_replica_id)
@@ -273,7 +276,8 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         await skvbc.fill_and_wait_for_checkpoint(
             initial_nodes=bft_network.all_replicas(),
             num_of_checkpoints_to_add=1,
-            verify_checkpoint_persistency=False
+            verify_checkpoint_persistency=False,
+            assert_state_transfer_not_started=False
         )
         n = bft_network.config.n
         f = bft_network.config.f
