@@ -73,24 +73,43 @@ message Response {
 // The replicas will filter and deliver all events in EventGroups in the order they were created.
 // Concord Client will continuously try to get new EventGroups once the subscription has been established.
 // If the user encounters errors then it is recommended to check the service's health via
-// gRPC's health check API or re-subscribe with exponential back-off to its last known event id.
+// gRPC's health check API or re-subscribe with exponential back-off to its last known event group id.
 // https://github.com/grpc/grpc/blob/master/doc/health-checking.md
 service EventService {
-  // Subscribe to a continuous stream of EventGroups from the blockchain.
-  // Note: Only one stream can be active at a time (will change in the future).
-  // The active stream has to be cancelled fist before a new stream can be established.
+  // Subscribe to a continuous stream of events from the blockchain.
+  // Note: Only one active stream per Concord client is supported at this time.
+  // The active stream has to be cancelled first before a new stream can be established.
   // Errors:
-  // OUT_OF_RANGE: if the requested starting EventGroup is not available yet.
-  // NOT_FOUND: if the requested starting EventGroup was pruned.
+  // OUT_OF_RANGE: if the requested starting point is not available yet. See SubscribeRequest for details.
+  // NOT_FOUND: if the requested starting point was pruned. See SubscribeRequest for details.
   // RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
   // UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
   // INTERNAL: if Concord Client cannot progress independent of the request.
   // ALREADY_EXISTS: if Concord Client serves an active stream already. See note above.
-  rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
 }
 
-message StreamEventGroupsRequest {
-  // Start the continous stream at EventGroup `event_group_id`.
+// Events come in two formats - Events (old API) and EventGroups (new API).
+// An EventsRequest will result in a stream of EventGroups or a stream of Events which turns into a stream of EventGroups.
+// If the block requested by EventsRequest contains EventGroups only then the stream will start at EventGroup id 0.
+// An EventGroupsRequest will result in a stream of EventGroups.
+// If you don't know about Events then use EventGroupsRequest.
+message SubscribeRequest {
+  oneof request {
+    EventsRequest events = 1;
+    EventGroupsRequest event_groups = 2;
+  }
+}
+
+message SubscribeResponse {
+  oneof response {
+    Events events = 1;
+    EventGroup event_group = 2;
+  }
+}
+
+message EventGroupsRequest {
+  // Stream EventGroups starting at EventGroup `event_group_id`.
   uint64 event_group_id = 1;
 }
 
@@ -112,6 +131,44 @@ message EventGroup {
 
   // Timestamp for when the request execution result was included in the blockchain.
   google.protobuf.Timestamp record_time = 3;
+
+  // Optional trace data in `trace_context`.
+  // Trace information will be provided if the event was created after the subscription stream was established.
+  // The trace context is compliant with the W3C Trace Context specification:
+  // https://www.w3.org/TR/trace-context/#trace-context-http-headers-format
+  // Note: Trace contexts can be transferred via gRPC metadata but are per-RPC only.
+  // https://grpc.io/docs/what-is-grpc/core-concepts/#metadata
+  map<string, string> trace_context = 4;
+}
+
+message EventsRequest {
+  // Stream Events starting at block `block_id`.
+  uint64 block_id = 1;
+}
+
+message Event {
+  // Event key provided by the execution engine.
+  bytes event_key = 1;
+  // Event value provided by the execution engine.
+  bytes event_value = 2;
+}
+
+// Legacy format of events visible to a Concord client within a single block.
+message Events {
+  // Identifier of the block whose events are being sent.
+  // The very first block has identity 1.
+  uint64 block_id = 1;
+
+  // All events visible to the requesting Concord client that are part of the block `block_id`.
+  // These events should be interpreted as a finite map from `event_key`s to `event_value`s.
+  // This means that the`event_key`s of the events are guaranteed to be unique and always
+  // mapped to the same `event_value`. However, the order of events might change between
+  // different calls to `Subscribe`.
+  repeated Event events = 2;
+
+  // Depending on how many requests were executed in block `block_id` this id is the correlation id
+  // of a single request or a batched correlation id of multiple requests.
+  string correlation_id = 3;
 
   // Optional trace data in `trace_context`.
   // Trace information will be provided if the event was created after the subscription stream was established.
