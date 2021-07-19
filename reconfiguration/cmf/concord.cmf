@@ -197,6 +197,7 @@ Msg ReconfigurationRequest 1 {
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
     ClientReconfigurationLastUpdate
+    RestartCommand
   } command
   bytes additional_data
 }

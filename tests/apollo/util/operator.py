@@ -119,6 +119,13 @@ class Operator:
         cke_command = cmf_msgs.ClientKeyExchangeCommand()
         cke_command.target_clients = target_clients
         return self._construct_basic_reconfiguration_request(cke_command)
+
+    def _construct_reconfiguration_restart_command(self, bft, restart, data):
+        restart_command = cmf_msgs.RestartCommand()
+        restart_command.bft = bft
+        restart_command.restart = restart
+        restart_command.data = data
+        return self._construct_basic_reconfiguration_request(restart_command)
     
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
@@ -183,6 +190,10 @@ class Operator:
     async def add_remove_with_wedge(self, new_config, bft=True, restart=True):
         reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_command(new_config, bft, restart)
 
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+
+    async def restart(self, data, bft=True, restart=True):
+        reconf_msg = self._construct_reconfiguration_restart_command(bft, restart, data)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def add_remove_status(self):

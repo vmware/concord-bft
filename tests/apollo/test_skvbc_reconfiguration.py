@@ -847,6 +847,52 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
             assert status.response.reconfiguration == test_config
 
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_restart_command(self, bft_network):
+        """
+             Send a restart command and verify that replicas have stopped and removed their metadata in two cases
+             1. Where all replicas are alive
+             2. When we have up to f failures
+        """
+        # 1. Test without bft
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(500):
+            await skvbc.write_known_kv()
+        client = bft_network.random_client()
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        await op.restart("hello", bft=False, restart=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        previous_last_exec_num = await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
+        bft_network.stop_all_replicas()
+        bft_network.start_all_replicas()
+        for r in bft_network.all_replicas():
+            new_exec_sn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
+            assert(previous_last_exec_num > new_exec_sn)
+
+        # 2. Test with bft
+        crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
+        live_replicas = bft_network.all_replicas(without=crashed_replicas)
+        bft_network.stop_replicas(crashed_replicas)
+        for i in range(500):
+            await skvbc.write_known_kv()
+
+        await op.restart("hello2", bft=True, restart=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
+        previous_last_exec_num = await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
+        bft_network.stop_replicas(live_replicas)
+        bft_network.start_replicas(live_replicas)
+        for r in live_replicas:
+            new_exec_sn = await bft_network.get_metric(r, bft_network, "Gauges", "lastExecutedSeqNum")
+            assert(previous_last_exec_num > new_exec_sn)
+
+        # make sure the system is alive
+        for i in range(100):
+            await skvbc.write_known_kv()
+
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
     async def test_remove_nodes(self, bft_network):
