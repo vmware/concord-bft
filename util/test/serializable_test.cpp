@@ -100,6 +100,17 @@ TEST(serializable, VectorInt) {
   ASSERT_TRUE(s == s_out);
 }
 
+TEST(serializable, enumeration) {
+  enum class TestEnum : std::uint16_t { FIRST, SECOND, THIRD };
+  TestEnum e_out;
+
+  std::stringstream sstream;
+  Serializable::serialize(sstream, TestEnum::FIRST);
+  Serializable::deserialize(sstream, e_out);
+
+  ASSERT_TRUE(e_out == TestEnum::FIRST);
+}
+
 TEST(serializable, Map) {
   std::stringstream sstream;
   std::map<std::string, int> s_out, s{{"k0", 0}, {"k1", 1}, {"k2", 2}, {"k3", 3}, {"k4", 4}, {"k5", 5}};
