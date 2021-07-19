@@ -11,7 +11,6 @@ set(bls_test_sources
 foreach(appSrc ${bls_test_sources})
     get_filename_component(appName ${appSrc} NAME_WE)
     add_relic_executable(${appName} ${appSrc} ../bin/test)
-    target_link_libraries(${appName} PUBLIC util)
     add_test(NAME ${appName} COMMAND ${appName})
 endforeach()
 

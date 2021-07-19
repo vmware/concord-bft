@@ -10,8 +10,6 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "threshsign/Configuration.h"
-
 #include <string>
 #include <memory>
 #include <stdexcept>

@@ -5,8 +5,6 @@
  *      Author: alinush
  */
 
-#include "threshsign/Configuration.h"
-
 #include "RelicMain.h"
 
 #include "Logger.hpp"
