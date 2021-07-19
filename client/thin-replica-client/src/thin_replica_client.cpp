@@ -160,28 +160,29 @@ void ThinReplicaClient::readUpdateHashFromStream(
   }
   ConcordAssert(read_result == TrsConnection::Result::kSuccess);
 
-  if (hash.block_id() < latest_verified_block_id_) {
+  if (hash.events().block_id() < latest_verified_block_id_) {
     LOG4CPLUS_WARN(
-        logger_, "Hash stream " << server_index << " gave an update with decreasing block number: " << hash.block_id());
+        logger_,
+        "Hash stream " << server_index << " gave an update with decreasing block number: " << hash.events().block_id());
     metrics_.read_ignored_per_update++;
     return;
   }
 
-  if (hash.hash().length() > kThinReplicaHashLength) {
+  if (hash.events().hash().length() > kThinReplicaHashLength) {
     LOG4CPLUS_WARN(logger_,
-                   "Hash stream " << server_index << " gave an update (block " << hash.block_id()
-                                  << ") with an unexpectedly long hash: " << hash.hash().length());
+                   "Hash stream " << server_index << " gave an update (block " << hash.events().block_id()
+                                  << ") with an unexpectedly long hash: " << hash.events().hash().length());
     metrics_.read_ignored_per_update++;
     return;
   }
 
-  LOG4CPLUS_DEBUG(logger_, "Record hash for block " << hash.block_id());
-  string hash_string = hash.hash();
+  LOG4CPLUS_DEBUG(logger_, "Record hash for block " << hash.events().block_id());
+  string hash_string = hash.events().hash();
   ConcordAssert(hash_string.length() <= kThinReplicaHashLength);
   hash_string.resize(kThinReplicaHashLength, '\0');
 
   recordCollectedHash(server_index,
-                      hash.block_id(),
+                      hash.events().block_id(),
                       hash_string,
                       server_indexes_by_reported_update,
                       maximal_agreeing_subset_size,
@@ -217,12 +218,12 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
   ConcordAssert(read_result == TrsConnection::Result::kSuccess);
 
   auto span = TraceContexts::CreateChildSpanFromBinary(
-      update_in.span_context(), "trc_read_block", update_in.correlation_id(), logger_);
-  cid.reset(new LogCid(update_in.correlation_id()));
-  if (update_in.block_id() < latest_verified_block_id_) {
-    LOG4CPLUS_WARN(
-        logger_,
-        "Data stream " << data_conn_index_ << " gave an update with decreasing block number: " << update_in.block_id());
+      update_in.events().span_context(), "trc_read_block", update_in.events().correlation_id(), logger_);
+  cid.reset(new LogCid(update_in.events().correlation_id()));
+  if (update_in.events().block_id() < latest_verified_block_id_) {
+    LOG4CPLUS_WARN(logger_,
+                   "Data stream " << data_conn_index_
+                                  << " gave an update with decreasing block number: " << update_in.events().block_id());
     metrics_.read_ignored_per_update++;
     cid.reset(nullptr);
     return {false, nullptr};
@@ -230,7 +231,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
 
   string update_data_hash = hashUpdate(update_in);
   recordCollectedHash(data_conn_index_,
-                      update_in.block_id(),
+                      update_in.events().block_id(),
                       update_data_hash,
                       agreeing_subset_members,
                       most_agreeing,
@@ -243,7 +244,7 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
   config_->trs_conns[server_index]->cancelHashStream();
 
   SubscriptionRequest request;
-  request.set_block_id(latest_verified_block_id_ + 1);
+  request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
   return config_->trs_conns[server_index]->openHashStream(request);
 }
 
@@ -317,7 +318,7 @@ TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) 
   config_->trs_conns[data_conn_index_]->cancelHashStream();
 
   SubscriptionRequest request;
-  request.set_block_id(latest_verified_block_id_ + 1);
+  request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
   TrsConnection::Result result = config_->trs_conns[server_index]->openDataStream(request);
 
   data_conn_index_ = server_index;
@@ -370,10 +371,11 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
                   read_result == TrsConnection::Result::kSuccess);
 
     cid.reset();
-    cid.reset(new LogCid(update_in.correlation_id()));
-    if (update_in.block_id() != most_agreed_block.first) {
+    cid.reset(new LogCid(update_in.events().correlation_id()));
+    if (update_in.events().block_id() != most_agreed_block.first) {
       LOG4CPLUS_WARN(logger_,
-                     "Data stream " << server_index << " gave an update with a block number (" << update_in.block_id()
+                     "Data stream " << server_index << " gave an update with a block number ("
+                                    << update_in.events().block_id()
                                     << ") in "
                                        "disagreement with the consensus and "
                                        "contradicting its own hash update.");
@@ -389,7 +391,7 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
                                     << " gave an update hashing to a value "
                                        "in disagreement with the consensus on the "
                                        "hash for this block ("
-                                    << update_in.block_id()
+                                    << update_in.events().block_id()
                                     << ") and contradicting the "
                                        "server's own hash update.");
       metrics_.read_ignored_per_update++;
@@ -458,9 +460,9 @@ void ThinReplicaClient::receiveUpdates() {
         readBlock(update_in, agreeing_subset_members, most_agreeing, most_agreed_block, update_cid);
     servers_tried[data_conn_index_] = true;
 
-    LOG4CPLUS_DEBUG(
-        logger_,
-        "Find hash agreement amongst all servers for block " << (has_data ? to_string(update_in.block_id()) : "n/a"));
+    LOG4CPLUS_DEBUG(logger_,
+                    "Find hash agreement amongst all servers for block "
+                        << (has_data ? to_string(update_in.events().block_id()) : "n/a"));
     findBlockHashAgreement(servers_tried, agreeing_subset_members, most_agreeing, most_agreed_block, span);
     if (stop_subscription_thread_) {
       break;
@@ -504,14 +506,14 @@ void ThinReplicaClient::receiveUpdates() {
     }
 
     ConcordAssert(has_verified_data);
-    LOG4CPLUS_DEBUG(logger_, "Read and verified data for block " << update_in.block_id());
+    LOG4CPLUS_DEBUG(logger_, "Read and verified data for block " << update_in.events().block_id());
 
     ConcordAssertNE(config_->update_queue, nullptr);
 
     unique_ptr<Update> update(new Update());
-    update->block_id = update_in.block_id();
-    update->correlation_id_ = update_in.correlation_id();
-    for (const auto& kvp_in : update_in.data()) {
+    update->block_id = update_in.events().block_id();
+    update->correlation_id_ = update_in.events().correlation_id();
+    for (const auto& kvp_in : update_in.events().data()) {
       update->kv_pairs.push_back(make_pair(kvp_in.key(), kvp_in.value()));
     }
     TraceContexts::InjectSpan(span, *update);
@@ -522,10 +524,10 @@ void ThinReplicaClient::receiveUpdates() {
                      metrics_.read_timeouts_per_update.Get().Get()
                          << " timeouts, " << metrics_.read_failures_per_update.Get().Get() << " failures, and "
                          << metrics_.read_ignored_per_update.Get().Get() << " ignored while retrieving block id "
-                         << update_in.block_id());
+                         << update_in.events().block_id());
     }
 
-    latest_verified_block_id_ = update_in.block_id();
+    latest_verified_block_id_ = update_in.events().block_id();
 
     // Push update to update queue for consumption before receiving next update
     pushUpdateToUpdateQueue(std::move(update), start, latest_verified_block_id_);
@@ -538,7 +540,7 @@ void ThinReplicaClient::receiveUpdates() {
     // the loop's implementation.
     for (size_t trsc = 0; trsc < config_->trs_conns.size(); ++trsc) {
       if (agreeing_subset_members[most_agreed_block].count(trsc) < 1 && config_->trs_conns[trsc]->hasHashStream()) {
-        LOG4CPLUS_DEBUG(logger_, "Close hash stream " << trsc << " after block " << update_in.block_id());
+        LOG4CPLUS_DEBUG(logger_, "Close hash stream " << trsc << " after block " << update_in.events().block_id());
         config_->trs_conns[trsc]->cancelHashStream();
       }
     }
@@ -638,7 +640,7 @@ void ThinReplicaClient::Subscribe() {
     TrsConnection::Result read_result = TrsConnection::Result::kUnknown;
     while (!received_state_invalid && (read_result = config_->trs_conns[data_server_index]->readState(&response)) ==
                                           TrsConnection::Result::kSuccess) {
-      if ((state.size() > 0) && (response.block_id() < block_id)) {
+      if ((state.size() > 0) && (response.events().block_id() < block_id)) {
         LOG4CPLUS_WARN(logger_,
                        "While trying to fetch initial state for a "
                        "subscription, ThinReplicaClient received an update "
@@ -646,12 +648,12 @@ void ThinReplicaClient::Subscribe() {
                            << data_server_index << ").");
         received_state_invalid = true;
       } else {
-        block_id = response.block_id();
+        block_id = response.events().block_id();
         unique_ptr<Update> update(new Update());
         update->block_id = block_id;
-        update->correlation_id_ = response.correlation_id();
-        for (int i = 0; i < response.data_size(); ++i) {
-          const KVPair& kvp = response.data(i);
+        update->correlation_id_ = response.events().correlation_id();
+        for (int i = 0; i < response.events().data_size(); ++i) {
+          const KVPair& kvp = response.events().data(i);
           update->kv_pairs.push_back(make_pair(kvp.key(), kvp.value()));
         }
         update_hashes.push_back(hashUpdate(*update));
@@ -708,7 +710,7 @@ void ThinReplicaClient::Subscribe() {
       LOG4CPLUS_DEBUG(logger_, "Read state hash from " << hash_server_index);
       Hash hash_response;
       ReadStateHashRequest hash_request;
-      hash_request.set_block_id(block_id);
+      hash_request.mutable_events()->set_block_id(block_id);
       TrsConnection::Result read_hash_result =
           config_->trs_conns[hash_server_index]->readStateHash(hash_request, &hash_response);
       hash_server_index++;
@@ -729,15 +731,16 @@ void ThinReplicaClient::Subscribe() {
         continue;
       }
       ConcordAssert(read_hash_result == TrsConnection::Result::kSuccess);
-      if (hash_response.block_id() != block_id) {
+      if (hash_response.events().block_id() != block_id) {
         LOG4CPLUS_WARN(logger_,
                        "Server " << hash_server_index - 1
                                  << " gave response to ReadStateHash disagreeing "
                                     "with requested Block ID (requested Block ID: "
-                                 << block_id << ", response contained Block ID: " << hash_response.block_id() << ").");
+                                 << block_id << ", response contained Block ID: " << hash_response.events().block_id()
+                                 << ").");
         continue;
       }
-      if (hash_response.hash() != expected_hash) {
+      if (hash_response.events().hash() != expected_hash) {
         LOG4CPLUS_WARN(logger_,
                        "Server " << hash_server_index - 1
                                  << " gave response to ReadStateHash in disagreement "
