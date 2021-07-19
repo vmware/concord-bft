@@ -24,7 +24,8 @@ using grpc::ServerWriter;
 
 using google::protobuf::util::TimeUtil;
 
-using vmware::concord::client::v1::StreamEventGroupsRequest;
+using vmware::concord::client::v1::SubscribeRequest;
+using vmware::concord::client::v1::SubscribeResponse;
 using vmware::concord::client::v1::EventGroup;
 
 using namespace std::chrono_literals;
@@ -33,11 +34,17 @@ namespace cc = concord::client::concordclient;
 
 namespace concord::client::clientservice {
 
-Status EventServiceImpl::StreamEventGroups(ServerContext* context,
-                                           const StreamEventGroupsRequest* proto_request,
-                                           ServerWriter<EventGroup>* stream) {
+Status EventServiceImpl::Subscribe(ServerContext* context,
+                                   const SubscribeRequest* proto_request,
+                                   ServerWriter<SubscribeResponse>* stream) {
+  if (proto_request->has_events()) {
+    LOG_INFO(logger_, "Legacy events not supported yet");
+    return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "Legacy events");
+  }
+  ConcordAssert(proto_request->has_event_groups());
+
   cc::SubscribeRequest request;
-  request.event_group_id = proto_request->event_group_id();
+  request.event_group_id = proto_request->event_groups().event_group_id();
 
   auto callback = [this, stream](cc::SubscribeResult&& subscribe_result) {
     if (not std::holds_alternative<cc::EventGroup>(subscribe_result)) {
@@ -53,10 +60,13 @@ Status EventServiceImpl::StreamEventGroups(ServerContext* context,
     *proto_event_group.mutable_record_time() = TimeUtil::MicrosecondsToTimestamp(event_group.record_time.count());
     *proto_event_group.mutable_trace_context() = {event_group.trace_context.begin(), event_group.trace_context.end()};
 
-    stream->Write(proto_event_group);
+    SubscribeResponse response;
+    *response.mutable_event_group() = proto_event_group;
+
+    stream->Write(response);
   };
 
-  auto span = opentracing::Tracer::Global()->StartSpan("stream_event_groups", {});
+  auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
   try {
     client_->subscribe(request, span, callback);
   } catch (cc::ConcordClient::SubscriptionExists& e) {
