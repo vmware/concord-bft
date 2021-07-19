@@ -26,6 +26,7 @@
 #include "thin_replica_client_mocks.hpp"
 
 using com::vmware::concord::thin_replica::Data;
+using com::vmware::concord::thin_replica::Events;
 using com::vmware::concord::thin_replica::KVPair;
 using std::make_shared;
 using std::make_unique;
@@ -43,10 +44,12 @@ namespace {
 
 TEST(trc_rpc_use_test, test_trc_constructor_and_destructor) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  Events events;
+  events.set_block_id(0);
+  *update.mutable_events() = events;
+  KVPair* events_data = events.add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update, 1));
   auto hasher = make_shared<MockOrderedDataStreamHasher>(stream_preparer);
@@ -74,10 +77,12 @@ TEST(trc_rpc_use_test, test_trc_constructor_and_destructor) {
 
 TEST(trc_rpc_use_test, test_trc_subscribe) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  Events events;
+  events.set_block_id(0);
+  *update.mutable_events() = events;
+  KVPair* events_data = events.add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update, 1));
   auto hasher = make_shared<MockOrderedDataStreamHasher>(stream_preparer);
@@ -108,9 +113,10 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
     EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 1-parameter overload re-used a "
                                               "server when looking for state consensus.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.block_id(), 0) << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
-                                            "ReadStateHash call with a Block ID inconsistent with the state the "
-                                            "mock servers have been configured to return for ReadState.";
+    EXPECT_EQ(call.second.events().block_id(), 0)
+        << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
+           "ReadStateHash call with a Block ID inconsistent with the state the "
+           "mock servers have been configured to return for ReadState.";
   }
 
   // Block until an update is received through the subscription stream; we pop 2
@@ -123,7 +129,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
       << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "
          "unexpected number of Subscribe calls.";
   servers_used[record->GetSubscribeToUpdatesCalls().front().first] = true;
-  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.block_id(), 1)
+  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.events().block_id(), 1)
       << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
          "SubscribeToUpdates call with a Block ID inconsistent with the "
          "initial state it was provided.";
@@ -134,9 +140,10 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
     EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 1-parameter overload re-used a "
                                               "server when opening subscription streams.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.block_id(), 1) << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
-                                            "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
-                                            "initial state it was provided.";
+    EXPECT_EQ(call.second.events().block_id(), 1)
+        << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
+           "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
+           "initial state it was provided.";
   }
 
   EXPECT_LE(record->GetTotalCallCount(), 2 * (1 + max_faulty))
@@ -165,7 +172,7 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
       << "ThinReplicaClient::Subscribe's 2-parameter overload generated an "
          "unexpected number of Subscribe calls.";
   servers_used[record->GetSubscribeToUpdatesCalls().front().first] = true;
-  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.block_id(), 2)
+  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.events().block_id(), 2)
       << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
          "SubscribeToUpdates call with a Block ID inconsistent with the one "
          "given as a parameter to Subscribe.";
@@ -176,9 +183,10 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
     EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 2-parameter overload re-used a "
                                               "server when opening subscription streams.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.block_id(), 2) << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
-                                            "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
-                                            "one given as a parameter to Subscribe.";
+    EXPECT_EQ(call.second.events().block_id(), 2)
+        << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
+           "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
+           "one given as a parameter to Subscribe.";
   }
   EXPECT_LE(record->GetTotalCallCount(), (1 + max_faulty))
       << "ThinReplicaClient::Subscribe's 2-parameter overload generated "

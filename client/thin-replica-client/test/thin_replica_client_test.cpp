@@ -46,10 +46,10 @@ namespace {
 
 TEST(thin_replica_client_test, test_destructor_always_successful) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
   MockOrderedDataStreamHasher hasher(stream_preparer);
@@ -94,10 +94,10 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
 
 TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
   MockOrderedDataStreamHasher hasher(stream_preparer);
@@ -123,10 +123,10 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
 
 TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
   MockOrderedDataStreamHasher hasher(stream_preparer);
@@ -170,10 +170,10 @@ TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
 
 TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_servers_fails) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
   MockOrderedDataStreamHasher hasher(stream_preparer);
@@ -206,10 +206,10 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
 
 TEST(thin_replica_client_test, test_unsubscribe_successful) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
   MockOrderedDataStreamHasher hasher(stream_preparer);
@@ -237,10 +237,10 @@ TEST(thin_replica_client_test, test_unsubscribe_successful) {
 
 TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> base_stream_preparer(new RepeatedMockDataStreamPreparer(update, 1));
   auto delay_condition = make_shared<condition_variable>();
@@ -284,10 +284,10 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
 
 TEST(thin_replica_client_test, test_acknowledge_block_id_success) {
   Data update;
-  update.set_block_id(0);
-  KVPair* update_data = update.add_data();
-  update_data->set_key("key");
-  update_data->set_value("value");
+  update.mutable_events()->set_block_id(0);
+  KVPair* events_data = update.mutable_events()->add_data();
+  events_data->set_key("key");
+  events_data->set_value("value");
 
   shared_ptr<MockDataStreamPreparer> stream_preparer(new RepeatedMockDataStreamPreparer(update));
   MockOrderedDataStreamHasher hasher(stream_preparer);
@@ -323,10 +323,10 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   vector<Data> update_data;
   for (size_t i = 0; i <= 60; ++i) {
     Data update;
-    update.set_block_id(i);
+    update.mutable_events()->set_block_id(i);
     for (size_t j = 1; j <= 12; ++j) {
       if (i % j == 0) {
-        KVPair* kvp = update.add_data();
+        KVPair* kvp = update.mutable_events()->add_data();
         kvp->set_key("key" + to_string(j));
         kvp->set_value("value" + to_string(i / j));
       }
@@ -364,17 +364,17 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
     Data& expected_update = update_data[i];
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update included in "
                                           "the initial state.";
-    EXPECT_EQ(received_update->block_id, expected_update.block_id())
+    EXPECT_EQ(received_update->block_id, expected_update.events().block_id())
         << "An update the ThinReplicaClient fetched in the initial state has "
            "an incorrect block ID.";
-    EXPECT_EQ(received_update->kv_pairs.size(), expected_update.data_size())
+    EXPECT_EQ(received_update->kv_pairs.size(), expected_update.events().data_size())
         << "An update the ThinReplicaClient fetched in the initial state has "
            "an incorrect number of KV-pair updates.";
-    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.data_size(); ++j) {
-      EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.data(j).key())
+    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.events().data_size(); ++j) {
+      EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.events().data(j).key())
           << "A key in an update the ThinReplicaClient fetched in the initial "
              "state does not match its expected value.";
-      EXPECT_EQ(received_update->kv_pairs[j].second, expected_update.data(j).value())
+      EXPECT_EQ(received_update->kv_pairs[j].second, expected_update.events().data(j).value())
           << "A value in an update the ThinReplicaClient fetched in the "
              "initial state does not match its expected value.";
     }
@@ -399,17 +399,17 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
 
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from an "
                                           "ongoing subscription.";
-    EXPECT_EQ(received_update->block_id, expected_update.block_id())
+    EXPECT_EQ(received_update->block_id, expected_update.events().block_id())
         << "An update the ThinReplicaClient received from an ongoing "
            "subscription has an incorrect Block ID.";
-    EXPECT_EQ(received_update->kv_pairs.size(), expected_update.data_size())
+    EXPECT_EQ(received_update->kv_pairs.size(), expected_update.events().data_size())
         << "An update the ThinReplicaClient received in an ongoing "
            "subscription has an incorrect number of KV-pair updates.";
-    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.data_size(); ++j) {
-      EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.data(j).key())
+    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.events().data_size(); ++j) {
+      EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.events().data(j).key())
           << "A key in an update the ThinReplicaClient received in an ongoing "
              "subscription does not match its expected value.";
-      EXPECT_EQ(received_update->kv_pairs[j].second, expected_update.data(j).value())
+      EXPECT_EQ(received_update->kv_pairs[j].second, expected_update.events().data(j).value())
           << "A value in an update the ThinReplicaClient received in an "
              "ongoing subscription does not match its expected value.";
     }

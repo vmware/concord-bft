@@ -21,6 +21,8 @@
 
 using com::vmware::concord::thin_replica::BlockId;
 using com::vmware::concord::thin_replica::Data;
+using com::vmware::concord::thin_replica::Events;
+using com::vmware::concord::thin_replica::EventsRequest;
 using com::vmware::concord::thin_replica::Hash;
 using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::MockThinReplicaStub;
@@ -62,15 +64,17 @@ bool MockTrsConnection::isConnected() { return true; }
 
 Data FilterUpdate(const Data& raw_update) {
   Data filtered_update;
-  filtered_update.set_block_id(raw_update.block_id());
-  filtered_update.set_correlation_id(raw_update.correlation_id());
-  for (const KVPair& raw_kvp : raw_update.data()) {
+  Events events;
+  events.set_block_id(raw_update.events().block_id());
+  events.set_correlation_id(raw_update.events().correlation_id());
+  for (const KVPair& raw_kvp : raw_update.events().data()) {
     const string& key = raw_kvp.key();
     if ((key.length() >= 0)) {
-      KVPair* filtered_kvp = filtered_update.add_data();
+      KVPair* filtered_kvp = events.add_data();
       *filtered_kvp = raw_kvp;
     }
   }
+  *filtered_update.mutable_events() = events;
   return filtered_update;
 }
 
@@ -126,7 +130,7 @@ ClientReaderInterface<Data>* VectorMockDataStreamPreparer::PrepareSubscriptionDa
   auto data_stream = new MockThinReplicaStream<Data>();
   list<Data> data_queue;
   size_t subscription_start = 0;
-  while ((subscription_start < data_.size()) && (data_[subscription_start].block_id() < block_id)) {
+  while ((subscription_start < data_.size()) && (data_[subscription_start].events().block_id() < block_id)) {
     ++subscription_start;
   }
   for (size_t i = subscription_start; i < data_.size(); ++i) {
@@ -157,7 +161,7 @@ ClientReaderInterface<Data>* VectorMockDataStreamPreparer::ReadStateRaw(ClientCo
 
 ClientReaderInterface<Data>* VectorMockDataStreamPreparer::SubscribeToUpdatesRaw(
     ClientContext* context, const SubscriptionRequest& request) const {
-  return PrepareSubscriptionDataStream(request.block_id());
+  return PrepareSubscriptionDataStream(request.events().block_id());
 }
 
 RepeatedMockDataStreamPreparer::DataRepeater::DataRepeater(const Data& data, uint64_t starting_block_id)
@@ -190,7 +194,7 @@ bool RepeatedMockDataStreamPreparer::DataRepeater::Read(Data* msg) {
   if (finite_length_ && (num_updates_ < 1)) {
     return false;
   } else {
-    data_.set_block_id(current_block_id_++);
+    data_.mutable_events()->set_block_id(current_block_id_++);
     if (finite_length_ && (--num_updates_ < 1)) {
       finished_condition_.notify_all();
     }
@@ -201,7 +205,8 @@ bool RepeatedMockDataStreamPreparer::DataRepeater::Read(Data* msg) {
 
 ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::PrepareInitialStateDataStream() const {
   auto data_stream = new MockThinReplicaStream<Data>();
-  auto data_stream_state = new DataRepeater(FilterUpdate(data_), data_.block_id(), num_updates_in_initial_state_);
+  auto data_stream_state =
+      new DataRepeater(FilterUpdate(data_), data_.events().block_id(), num_updates_in_initial_state_);
   data_stream->state.reset(data_stream_state);
 
   ON_CALL(*data_stream, Finish).WillByDefault(Invoke(data_stream_state, &DataRepeater::Finish));
@@ -230,7 +235,7 @@ ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::ReadStateRaw(Client
 
 ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::SubscribeToUpdatesRaw(
     ClientContext* context, const SubscriptionRequest& request) const {
-  return PrepareSubscriptionDataStream(request.block_id());
+  return PrepareSubscriptionDataStream(request.events().block_id());
 }
 
 DelayedMockDataStreamPreparer::DataDelayer::DataDelayer(ClientReaderInterface<Data>* data,
@@ -305,8 +310,8 @@ bool MockOrderedDataStreamHasher::StreamHasher::Read(Hash* msg) {
   Data data;
   bool read_status = data_stream_->Read(&data);
   if (read_status) {
-    msg->set_block_id(data.block_id());
-    msg->set_hash(hashUpdate(data));
+    msg->mutable_events()->set_block_id(data.events().block_id());
+    msg->mutable_events()->set_hash(hashUpdate(data));
   }
   return read_status;
 }
@@ -325,7 +330,7 @@ MockOrderedDataStreamHasher::MockOrderedDataStreamHasher(shared_ptr<MockDataStre
         "MockDataStreamPreparer that does not successfully provide any "
         "initial state.");
   }
-  base_block_id_ = base_block.block_id();
+  base_block_id_ = base_block.events().block_id();
 }
 
 Status MockOrderedDataStreamHasher::ReadStateHash(ClientContext* context,
@@ -336,23 +341,25 @@ Status MockOrderedDataStreamHasher::ReadStateHash(ClientContext* context,
   list<string> update_hashes;
   auto data_context = make_unique<ClientContext>();
   SubscriptionRequest data_request;
-  data_request.set_block_id(base_block_id_);
+  EventsRequest events_request;
+  events_request.set_block_id(base_block_id_);
+  *data_request.mutable_events() = events_request;
   unique_ptr<ClientReaderInterface<Data>> data_stream(
       data_preparer_->SubscribeToUpdatesRaw(data_context.get(), data_request));
 
   Data data;
   uint64_t latest_block_id_in_hash = 0;
-  while (data_stream->Read(&data) && data.block_id() <= request.block_id()) {
+  while (data_stream->Read(&data) && data.events().block_id() <= request.events().block_id()) {
     update_hashes.push_back(hashUpdate(data));
-    latest_block_id_in_hash = data.block_id();
+    latest_block_id_in_hash = data.events().block_id();
   }
-  if (request.block_id() > latest_block_id_in_hash) {
+  if (request.events().block_id() > latest_block_id_in_hash) {
     return Status(StatusCode::UNKNOWN,
                   "Attempting to read state hash from a block number that "
                   "does not exist.");
   }
-  response->set_block_id(request.block_id());
-  response->set_hash(hashState(update_hashes));
+  response->mutable_events()->set_block_id(request.events().block_id());
+  response->mutable_events()->set_hash(hashState(update_hashes));
   return Status::OK;
 }
 
@@ -1001,7 +1008,7 @@ bool ClusterResponsivenessLimiter::DataStreamState::Read(Data* data) {
     unique_lock<mutex> responsiveness_lock(responsiveness_limiter_.responsiveness_change_mutex_);
     if (result) {
       responsiveness_limiter_.responsiveness_manager_->UpdateResponsiveness(
-          responsiveness_limiter_, server_index_, data->block_id());
+          responsiveness_limiter_, server_index_, data->events().block_id());
     }
     delay = !(responsiveness_limiter_.server_responsiveness_[server_index_]);
   }
@@ -1038,7 +1045,7 @@ bool ClusterResponsivenessLimiter::HashStreamState::Read(Hash* hash) {
     unique_lock<mutex> responsiveness_lock(responsiveness_limiter_.responsiveness_change_mutex_);
     if (result) {
       responsiveness_limiter_.responsiveness_manager_->UpdateResponsiveness(
-          responsiveness_limiter_, server_index_, hash->block_id());
+          responsiveness_limiter_, server_index_, hash->events().block_id());
     }
     delay = !(responsiveness_limiter_.server_responsiveness_[server_index_]);
   }
@@ -1088,7 +1095,7 @@ Status ClusterResponsivenessLimiter::ReadStateHash(size_t server_index,
   bool delay;
   {
     unique_lock<mutex> responsiveness_lock(responsiveness_change_mutex_);
-    responsiveness_manager_->UpdateResponsiveness(*this, server_index, request.block_id());
+    responsiveness_manager_->UpdateResponsiveness(*this, server_index, request.events().block_id());
     delay = !(server_responsiveness_[server_index]);
   }
   if (delay) {
@@ -1105,7 +1112,7 @@ ClientReaderInterface<Data>* ClusterResponsivenessLimiter::SubscribeToUpdatesRaw
   bool delay;
   {
     unique_lock<mutex> responsiveness_lock(responsiveness_change_mutex_);
-    responsiveness_manager_->UpdateResponsiveness(*this, server_index, request.block_id());
+    responsiveness_manager_->UpdateResponsiveness(*this, server_index, request.events().block_id());
     delay = !(server_responsiveness_[server_index]);
   }
   if (delay) {
@@ -1127,7 +1134,7 @@ ClientReaderInterface<Hash>* ClusterResponsivenessLimiter::SubscribeToUpdateHash
   bool delay;
   {
     unique_lock<mutex> responsiveness_lock(responsiveness_change_mutex_);
-    responsiveness_manager_->UpdateResponsiveness(*this, server_index, request.block_id());
+    responsiveness_manager_->UpdateResponsiveness(*this, server_index, request.events().block_id());
     delay = !(server_responsiveness_[server_index]);
   }
   if (delay) {
