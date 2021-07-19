@@ -166,6 +166,11 @@ Msg ClientReconfigurationLastUpdate 41 {
     uint64 sender_id
 }
 
+Msg RestartCommand 42 {
+    bool bft
+    bool restart
+    string data
+}
 
 Msg ReconfigurationRequest 1 {
   uint64 sender

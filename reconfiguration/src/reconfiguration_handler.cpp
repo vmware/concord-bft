@@ -14,6 +14,7 @@
 
 #include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
+#include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
 
@@ -79,7 +80,31 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
     }
   }
   return true;
-}  // namespace concord::reconfiguration
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
+                                    uint64_t bft_seq_num,
+                                    concord::messages::ReconfigurationResponse&) {
+  LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
+  if (command.bft) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
+  }
+  return true;
+}
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
