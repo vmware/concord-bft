@@ -364,15 +364,15 @@ class BftClient(ABC):
 
         if "corrupt_msg" in corrupt_params:
             pos = random.randint(1, len(msg)-2)
-            val = msg[pos] + 1
+            val = (msg[pos] + 1)  % 256     # to avoid ValueError: bytes must be in range(0, 256)
             msg = bytes(msg[0:pos]) + bytes([val]) + bytes(msg[pos+1:])
         if "corrupt_signature" in corrupt_params:
             pos = random.randint(1, len(signature)-2)
-            val = signature[pos] + 1
+            val = (signature[pos] + 1) % 256    # to avoid ValueError: bytes must be in range(0, 256)
             signature = bytes(signature[0:pos]) + bytes([val]) + bytes(signature[pos+1:])
         if "wrong_msg_length" in corrupt_params:
             pos = random.randint(1, len(msg)-2)
-            val = msg[pos]
+            val = msg[pos] % 256    # to avoid ValueError: bytes must be in range(0, 256)
             msg = bytes(msg) + bytes([val])
         if "wrong_signature_length" in corrupt_params:
             pos = random.randint(1, len(signature)-2)
