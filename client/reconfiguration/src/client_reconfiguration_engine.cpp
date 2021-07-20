@@ -8,9 +8,9 @@
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-#include "client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 
-namespace cre {
+namespace concord::client::reconfiguration {
 
 ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
                                                          IStateClient* stateClient,
@@ -91,4 +91,4 @@ void ClientReconfigurationEngine::stop() {
     LOG_ERROR(getLogger(), e.what());
   }
 }
-}  // namespace cre
+}  // namespace concord::client::reconfiguration

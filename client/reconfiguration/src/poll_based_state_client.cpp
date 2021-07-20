@@ -9,8 +9,8 @@
 
 #include "concord.cmf.hpp"
 #include "bftclient/quorums.h"
-#include "poll_based_state_client.hpp"
-namespace cre {
+#include "client/reconfiguration/poll_based_state_client.hpp"
+namespace concord::client::reconfiguration {
 concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigurationRequest(
     concord::messages::ReconfigurationRequest& rreq, const string& cid, uint64_t sn, bool read_request) const {
   std::lock_guard<std::mutex> lock(bftclient_lock_);
@@ -141,4 +141,4 @@ bool PollBasedStateClient::updateStateOnChain(const WriteState& state) {
   if (rres.success && state.callBack != nullptr) state.callBack();
   return rres.success;
 }
-}  // namespace cre
+}  // namespace concord::client::reconfiguration

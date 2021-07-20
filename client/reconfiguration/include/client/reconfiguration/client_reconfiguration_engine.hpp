@@ -18,7 +18,7 @@
 
 #include <vector>
 #include <thread>
-namespace cre {
+namespace concord::client::reconfiguration {
 class ClientReconfigurationEngine {
  public:
   ClientReconfigurationEngine(const Config& config,
@@ -36,7 +36,7 @@ class ClientReconfigurationEngine {
  private:
   void main();
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("cre.bft.ClientReconfigurationEngine"));
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.ClientReconfigurationEngine"));
     return logger_;
   }
   std::vector<std::shared_ptr<IStateHandler>> handlers_;
@@ -51,4 +51,4 @@ class ClientReconfigurationEngine {
   concordMetrics::CounterHandle errored_handlers_;
   concordMetrics::GaugeHandle last_known_block_;
 };
-}  // namespace cre
+}  // namespace concord::client::reconfiguration
