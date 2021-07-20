@@ -57,7 +57,7 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
       kvbc::BlockId, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid);
 };
 /**
- * This component is reposnsible for logging reconfiguraiton request (issued by an autherated operator) in the
+ * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the
  * blockchian.
  */
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,

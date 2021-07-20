@@ -132,7 +132,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExc
       std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                   static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE)} +
           std::to_string(command.sender_id));
-  LOG_INFO(getLogger(), "ClientExchangePublicKey block is " << blockId);
+  LOG_INFO(getLogger(), "block id: " << blockId);
   return true;
 }
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationLastUpdate& command,

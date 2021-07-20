@@ -118,11 +118,11 @@ SigManager::SigManager(PrincipalId myId,
           metrics_component_.RegisterAtomicCounter("peer_replicas_signature_verification_failed"),
           metrics_component_.RegisterAtomicCounter("peer_replicas_signatures_verified"),
           metrics_component_.RegisterAtomicCounter("signature_verification_failed_on_unrecognized_participant_id")} {
-  map<KeyIndex, RSAVerifier*> publicKeyIndexToVerifier;
+  map<KeyIndex, std::shared_ptr<RSAVerifier>> publicKeyIndexToVerifier;
   size_t numPublickeys = publickeys.size();
 
   ConcordAssert(publicKeysMapping.size() >= numPublickeys);
-  mySigner_ = new RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second);
+  mySigner_.reset(new RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second));
   for (const auto& p : publicKeysMapping) {
     ConcordAssert(verifiers_.count(p.first) == 0);
     ConcordAssert(p.second < numPublickeys);
@@ -130,7 +130,7 @@ SigManager::SigManager(PrincipalId myId,
     auto iter = publicKeyIndexToVerifier.find(p.second);
     const auto& [key, format] = publickeys[p.second];
     if (iter == publicKeyIndexToVerifier.end()) {
-      verifiers_[p.first] = new RSAVerifier(key.c_str(), format);
+      verifiers_[p.first] = std::make_shared<RSAVerifier>(key.c_str(), format);
       publicKeyIndexToVerifier[p.second] = verifiers_[p.first];
     } else {
       verifiers_[p.first] = iter->second;
@@ -167,46 +167,35 @@ SigManager::SigManager(PrincipalId myId,
   ConcordAssert(verifiers_.size() >= publickeys.size());
 }
 
-SigManager::~SigManager() {
-  delete mySigner_;
-  set<RSAVerifier*> alreadyDeleted;
-  for (pair<PrincipalId, RSAVerifier*> v : verifiers_) {
-    if (alreadyDeleted.find(v.second) == alreadyDeleted.end()) {
-      delete v.second;
-      alreadyDeleted.insert(v.second);
-    }
-  }
-}
-
 uint16_t SigManager::getSigLength(PrincipalId pid) const {
   if (pid == myId_) {
     return (uint16_t)mySigner_->signatureLength();
   } else {
-    auto pos = verifiers_.find(pid);
-    if (pos == verifiers_.end()) {
+    std::shared_lock lock(mutex_);
+    if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
+      return pos->second->signatureLength();
+    } else {
       LOG_ERROR(GL, "Unrecognized pid " << pid);
       return 0;
     }
-
-    RSAVerifier* verifier = pos->second;
-    return (uint16_t)verifier->signatureLength();
   }
 }
 
 bool SigManager::verifySig(
     PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
-  auto pos = verifiers_.find(pid);
-  bool idOfReplica = false, idOfExternalClient = false, result;
-
-  if (pos == verifiers_.end()) {
-    LOG_ERROR(GL, "Unrecognized pid " << pid);
-    metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
-    metrics_component_.UpdateAggregator();
-    return false;
+  bool result = false;
+  {
+    std::shared_lock lock(mutex_);
+    if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
+      result = pos->second->verify(data, dataLength, sig, sigLength);
+    } else {
+      LOG_ERROR(GL, "Unrecognized pid " << pid);
+      metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
+      metrics_component_.UpdateAggregator();
+      return false;
+    }
   }
-
-  RSAVerifier* verifier = pos->second;
-  result = verifier->verify(data, dataLength, sig, sigLength);
+  bool idOfReplica = false, idOfExternalClient = false;
   idOfExternalClient = replicasInfo_.isIdOfExternalClient(pid);
   if (!idOfExternalClient) {
     idOfReplica = replicasInfo_.isIdOfReplica(pid);
@@ -239,6 +228,17 @@ void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_
 }
 
 uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
+
+void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyFormat format) {
+  if (replicasInfo_.isIdOfExternalClient(id)) {
+    std::unique_lock lock(mutex_);
+    verifiers_.insert_or_assign(id, std::make_shared<RSAVerifier>(key.c_str(), format));
+    clientsPublicKeys_.ids_to_keys[id] = concord::messages::keys_and_signatures::PublicKey{key, (uint8_t)format};
+    LOG_INFO(KEY_EX_LOG, "Adding key for client " << id << " key size " << key.size() << " format " << (uint8_t)format);
+  } else {
+    LOG_WARN(KEY_EX_LOG, "Illegal id for client " << id);
+  }
+}
 
 }  // namespace impl
 }  // namespace bftEngine

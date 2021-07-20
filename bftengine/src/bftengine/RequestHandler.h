@@ -24,8 +24,10 @@ namespace bftEngine {
 class RequestHandler : public IRequestsHandler {
  public:
   RequestHandler() {
-    reconfig_handler_ = std::make_shared<concord::reconfiguration::ReconfigurationHandler>();
+    using namespace concord::reconfiguration;
+    reconfig_handler_ = std::make_shared<ReconfigurationHandler>();
     reconfig_dispatcher_.addReconfigurationHandler(reconfig_handler_);
+    reconfig_dispatcher_.addReconfigurationHandler(std::make_shared<ClientReconfigurationHandler>());
   }
 
   void execute(ExecutionRequestsQueue &requests,
@@ -53,7 +55,7 @@ class RequestHandler : public IRequestsHandler {
   void onFinishExecutingReadWriteRequests() override { userRequestsHandler_->onFinishExecutingReadWriteRequests(); }
 
  private:
-  std::shared_ptr<IRequestsHandler> userRequestsHandler_ = nullptr;
+  std::shared_ptr<IRequestsHandler> userRequestsHandler_;
   concord::reconfiguration::Dispatcher reconfig_dispatcher_;
   std::shared_ptr<concord::cron::CronTableRegistry> cron_table_registry_;
 };

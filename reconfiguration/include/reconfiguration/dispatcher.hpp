@@ -22,7 +22,6 @@ namespace concord::reconfiguration {
 // All handled messages are defined in the IReconfigurationHandler interface.
 class Dispatcher {
  public:
-  Dispatcher(std::shared_ptr<IReconfigurationHandler> rh) { addReconfigurationHandler(rh); }
   Dispatcher() = default;
   // This method is the gate for all reconfiguration actions. It works as
   // follows:

@@ -13,12 +13,15 @@
 #include "PrimitiveTypes.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
+#include "Crypto.hpp"
 
 #include <utility>
 #include <vector>
 #include <map>
 #include <string>
 #include <memory>
+#include <shared_mutex>
+
 #include "keys_and_signatures.cmf.hpp"
 
 using concordMetrics::AtomicCounterHandle;
@@ -26,8 +29,6 @@ using concordMetrics::AtomicCounterHandle;
 namespace bftEngine {
 namespace impl {
 
-class RSASigner;
-class RSAVerifier;
 class ReplicasInfo;
 
 class SigManager {
@@ -56,8 +57,6 @@ class SigManager {
                           KeyFormat clientsKeysFormat,
                           ReplicasInfo& replicasInfo);
 
-  ~SigManager();
-
   // returns 0 if pid is invalid - caller might consider throwing an exception
   uint16_t getSigLength(PrincipalId pid) const;
   // returns false if actual verification failed, or if pid is invalid
@@ -68,6 +67,8 @@ class SigManager {
   void SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     metrics_component_.SetAggregator(aggregator);
   }
+  void setClientPublicKey(const std::string& key, PrincipalId, KeyFormat);
+
   SigManager(const SigManager&) = delete;
   SigManager& operator=(const SigManager&) = delete;
   SigManager(SigManager&&) = delete;
@@ -75,6 +76,7 @@ class SigManager {
 
   concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
   std::string getClientsPublicKeys() {
+    std::shared_lock lock(mutex_);
     std::vector<uint8_t> output;
     concord::messages::keys_and_signatures::serialize(output, clientsPublicKeys_);
     return std::string(output.begin(), output.end());
@@ -100,8 +102,8 @@ class SigManager {
                               ReplicasInfo& replicasInfo);
 
   const PrincipalId myId_;
-  RSASigner* mySigner_;
-  std::map<PrincipalId, RSAVerifier*> verifiers_;
+  std::unique_ptr<RSASigner> mySigner_;
+  std::map<PrincipalId, std::shared_ptr<RSAVerifier>> verifiers_;
   bool clientTransactionSigningEnabled_ = true;
   ReplicasInfo& replicasInfo_;
 
@@ -117,7 +119,7 @@ class SigManager {
 
   mutable concordMetrics::Component metrics_component_;
   mutable Metrics metrics_;
-
+  mutable std::shared_mutex mutex_;
   // These methods bypass the singelton, and can be used (STRICTLY) for testing.
   // Define the below flag in order to use them in your test.
 #ifdef CONCORD_BFT_TESTING
