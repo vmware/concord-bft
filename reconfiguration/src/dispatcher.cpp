@@ -24,7 +24,9 @@ namespace concord::reconfiguration {
     std::copy(str.cbegin(), str.cend(), std::back_inserter((resp).additional_data)); \
   }
 
-ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& request, uint64_t sequence_num) {
+ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& request,
+                                             uint64_t sequence_num,
+                                             const std::optional<bftEngine::Timestamp>& timestamp) {
   ReconfigurationResponse rresp;
   concord::messages::ReconfigurationErrorMsg error_msg;
   bool valid = false;
@@ -46,8 +48,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       }
       error_msg.error_msg.clear();
       valid = true;
-      rresp.success &= std::visit(
-          [&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, rresp, handler); }, request.command);
+      rresp.success &=
+          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, timestamp, rresp, handler); },
+                     request.command);
     }
 
     // Run regular reconfiguration handlers
@@ -59,8 +62,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       }
       error_msg.error_msg.clear();
       valid = true;
-      rresp.success &= std::visit(
-          [&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, rresp, handler); }, request.command);
+      rresp.success &=
+          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, timestamp, rresp, handler); },
+                     request.command);
     }
 
     // Run post-reconfiguration handlers
@@ -72,8 +76,9 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       }
       error_msg.error_msg.clear();
       valid = true;
-      rresp.success &= std::visit(
-          [&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, rresp, handler); }, request.command);
+      rresp.success &=
+          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, timestamp, rresp, handler); },
+                     request.command);
     }
 
     if (!valid) rresp.success = false;  // If no handler was able to verify the request, it is an invalid request

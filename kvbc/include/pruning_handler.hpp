@@ -148,14 +148,17 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
   bool handle(const concord::messages::PruneRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
 
  protected:
@@ -197,6 +200,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &rres) override {
     if (!pruning_enabled_) return true;
     concord::messages::LatestPrunableBlock latest_prunable_block;
@@ -216,6 +220,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   bool handle(const concord::messages::PruneRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override {
     return true;
   }
@@ -223,6 +228,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override {
     return true;
   }
