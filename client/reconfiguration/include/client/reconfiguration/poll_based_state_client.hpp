@@ -22,7 +22,7 @@
 #include "bftclient/seq_num_generator.h"
 #include "concord.cmf.hpp"
 
-namespace cre {
+namespace concord::client::reconfiguration {
 
 class PollBasedStateClient : public IStateClient {
  public:
@@ -44,7 +44,7 @@ class PollBasedStateClient : public IStateClient {
                                                                         uint64_t sn,
                                                                         bool read_request) const;
   logging::Logger getLogger() const {
-    static logging::Logger logger_(logging::getLogger("cre.bft.PollBasedStateClient"));
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.PollBasedStateClient"));
     return logger_;
   }
 
@@ -61,4 +61,4 @@ class PollBasedStateClient : public IStateClient {
   std::thread consumer_;
 };
 
-}  // namespace cre
+}  // namespace concord::client::reconfiguration

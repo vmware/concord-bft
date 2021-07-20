@@ -12,11 +12,11 @@
 
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
-#include "client_reconfiguration_engine.hpp"
-#include "cre_interfaces.hpp"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/cre_interfaces.hpp"
 #include <chrono>
 
-using namespace cre;
+using namespace concord::client::reconfiguration;
 namespace {
 std::string metrics_component = "client_reconfiguration_engine";
 std::string invalids_counter = "invalid_handlers";

@@ -11,10 +11,10 @@
 
 #pragma once
 
-namespace cre {
+namespace concord::client::reconfiguration {
 class Config {
  public:
   uint16_t id_;
   uint64_t interval_timeout_ms_{1000};
 };
-}  // namespace cre
+}  // namespace concord::client::reconfiguration
