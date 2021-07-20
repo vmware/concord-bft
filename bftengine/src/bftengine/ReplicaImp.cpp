@@ -768,7 +768,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     }
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
-    if (seqNumInfo.addMsg(msg)) {
+    if (seqNumInfo.addMsg(msg, false, time_is_ok)) {
       msgAdded = true;
 
       // Start tracking all client requests with in this pp message
@@ -957,7 +957,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
 
     SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
 
-    if (!seqNumInfo.slowPathStarted() && !seqNumInfo.isPrepared()) {
+    if (!seqNumInfo.slowPathStarted() && !seqNumInfo.isPrepared() && seqNumInfo.isTimeCorrect()) {
       LOG_INFO(GL, "Start slow path.");
 
       seqNumInfo.startSlowPath();

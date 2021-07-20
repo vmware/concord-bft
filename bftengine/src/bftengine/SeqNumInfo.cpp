@@ -86,7 +86,7 @@ void SeqNumInfo::getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& out
   resetAndFree();
 }
 
-bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd) {
+bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd, bool isTimeCorrect) {
   if (prePrepareMsg != nullptr) return false;
 
   ConcordAssert(primary == false);
@@ -94,6 +94,7 @@ bool SeqNumInfo::addMsg(PrePrepareMsg* m, bool directAdd) {
   ConcordAssert(!prepareSigCollector->hasPartialMsgFromReplica(replica->getReplicasInfo().myId()));
 
   prePrepareMsg = m;
+  isTimeCorrect_ = isTimeCorrect;
 
   // set expected
   Digest tmpDigest;

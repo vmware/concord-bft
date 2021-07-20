@@ -42,7 +42,7 @@ class SeqNumInfo {
   void resetAndFree();  // TODO(GG): name
   void getAndReset(PrePrepareMsg*& outPrePrepare, PrepareFullMsg*& outCombinedValidSignatureMsg);
 
-  bool addMsg(PrePrepareMsg* m, bool directAdd = false);
+  bool addMsg(PrePrepareMsg* m, bool directAdd = false, bool isTimeCorrect = true);
   bool addSelfMsg(PrePrepareMsg* m, bool directAdd = false);
 
   bool addMsg(PreparePartialMsg* m);
@@ -71,6 +71,7 @@ class SeqNumInfo {
   bool isPrepared() const;
   bool isCommitted__gg() const;  // TODO(GG): beware this name may mislead (not sure...). rename ??
 
+  bool isTimeCorrect() const { return isTimeCorrect_; }
   bool preparedOrHasPreparePartialFromReplica(ReplicaId repId) const;
   bool committedOrHasCommitPartialFromReplica(ReplicaId repId) const;
 
@@ -188,6 +189,8 @@ class SeqNumInfo {
   bool forcedCompleted;
 
   bool slowPathHasStarted;
+
+  bool isTimeCorrect_ = true;
 
   Time firstSeenFromPrimary;
   Time timeOfLastInfoRequest;
