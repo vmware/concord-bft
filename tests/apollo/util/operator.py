@@ -129,10 +129,11 @@ class Operator:
         restart_command.data = data
         return self._construct_basic_reconfiguration_request(restart_command)
     
-    def _construct_reconfiguration_clientExchangePublicKey_(self, clientId, clientPubKey):
+    def _construct_reconfiguration_clientExchangePublicKey_(self, clientId, clientPubKey, effected_clients = []):
         cepk = cmf_msgs.ClientExchangePublicKey()
         cepk.sender_id = clientId
         cepk.pub_key = clientPubKey
+        cepk.effected_clients = effected_clients
         return self._construct_basic_reconfiguration_request(cepk)
     
     def _generate_client_keys(self):
