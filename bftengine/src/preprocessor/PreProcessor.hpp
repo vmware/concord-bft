@@ -65,11 +65,11 @@ class RequestsBatch {
   void increaseNumOfCompletedReqs() { numOfCompletedReqs_++; }
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getCid() const;
-  void cancelBatch();
+  void cancelBatchAndReleaseReqs();
   void releaseReqsAndSendBatchedReplyIfCompleted();
   void finalizeBatchIfCompleted();
   void handlePossiblyExpiredRequests();
-  void cancelBatchedPreProcessingOnNonPrimary(const ClientMsgsList &clientMsgs, NodeIdType destId);
+  void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
 
  private:
   void setBatchParameters(const std::string &cid, uint32_t batchSize);
@@ -152,14 +152,25 @@ class PreProcessor {
                        PreProcessRequestMsgSharedPtr preProcessRequestMsg,
                        uint16_t reqOffsetInBatch);
   void releaseClientPreProcessRequestSafe(uint16_t clientId, uint16_t reqOffsetInBatch, PreProcessingResult result);
+  void releaseClientPreProcessRequestSafe(uint16_t clientId,
+                                          const RequestStateSharedPtr &reqEntry,
+                                          PreProcessingResult result);
   void releaseClientPreProcessRequest(const RequestStateSharedPtr &reqEntry, PreProcessingResult result);
   bool validateMessage(MessageBase *msg) const;
   void registerMsgHandlers();
-  bool checkClientMsgCorrectness(
-      uint64_t reqSeqNum, const std::string &cid, bool isReadOnly, uint16_t clientId, NodeIdType senderId) const;
+  bool checkClientMsgCorrectness(uint64_t reqSeqNum,
+                                 const std::string &cid,
+                                 bool isReadOnly,
+                                 uint16_t clientId,
+                                 NodeIdType senderId,
+                                 const std::string &batchCid = "") const;
   bool checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg);
-  bool checkPreProcessReqPrerequisites(
-      SeqNum reqSeqNum, const std::string &cid, NodeIdType senderId, NodeIdType clientId, uint16_t reqOffsetInBatch);
+  bool checkPreProcessReqPrerequisites(SeqNum reqSeqNum,
+                                       const std::string &cid,
+                                       NodeIdType senderId,
+                                       NodeIdType clientId,
+                                       const std::string &batchCid,
+                                       uint16_t reqOffsetInBatch);
   bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq);
   void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg, bool arrivedInBatch);
   void registerAndHandleClientPreProcessReqOnNonPrimary(const std::string &batchCid,
@@ -240,19 +251,15 @@ class PreProcessor {
   bool isRequestPreProcessingRightNow(const RequestStateSharedPtr &reqEntry,
                                       ReqId reqSeqNum,
                                       NodeIdType clientId,
+                                      const std::string &batchCid,
                                       NodeIdType senderId);
-  bool isBatchAlreadyRegistered(const std::string &batchCid,
-                                const RequestsBatchSharedPtr &batchEntry,
-                                NodeIdType clientId,
-                                NodeIdType senderId) const;
   bool isRequestPreProcessedBefore(const RequestStateSharedPtr &reqEntry,
                                    SeqNum reqSeqNum,
                                    NodeIdType clientId,
+                                   const std::string &batchCid,
                                    const std::string &cid);
-  bool isRequestPassingConsensusOrPostExec(SeqNum reqSeqNum,
-                                           NodeIdType senderId,
-                                           NodeIdType clientId,
-                                           const std::string &cid);
+  bool isRequestPassingConsensusOrPostExec(
+      SeqNum reqSeqNum, NodeIdType senderId, NodeIdType clientId, const std::string &batchCid, const std::string &cid);
   void releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg);
   void handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
 
