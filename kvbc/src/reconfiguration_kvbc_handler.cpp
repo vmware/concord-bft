@@ -227,6 +227,17 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   return true;
 }
 
+bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
+                                    uint64_t bft_seq_num,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command, bft_seq_num, std::string{kvbc::keyTypes::reconfiguration_restart_key});
+  LOG_INFO(getLogger(), "RestartCommand block is " << blockId);
+  return true;
+}
+
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& command,
                                     uint64_t sequence_number,
                                     concord::messages::ReconfigurationResponse& response) {
