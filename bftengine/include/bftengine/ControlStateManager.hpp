@@ -30,13 +30,13 @@ class ControlStateManager {
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
 
-  void markRemoveMetadata(bool include_st = true) { removeMetadata_(include_st); }
+  void markRemoveMetadata(bool include_st = true) { removeMetadataCbRegistry_.invokeAll(include_st); }
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
   bool getRestartBftFlag() const { return restartBftEnabled_; }
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
 
-  void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadata_ = fn; }
+  void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadataCbRegistry_.add(fn); }
   void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
   void sendRestartReadyToAllReplica() { sendRestartReady_(); }
   void addOnRestartProofCallBack(std::function<void()> cb,
@@ -57,7 +57,7 @@ class ControlStateManager {
   std::atomic_bool restartBftEnabled_ = false;
   std::optional<SeqNum> hasRestartProofAtSeqNum_ = std::nullopt;
   std::atomic_bool onPruningProcess_ = false;
-  std::function<void(bool)> removeMetadata_;
+  concord::util::CallbackRegistry<bool> removeMetadataCbRegistry_;
   std::function<void()> sendRestartReady_;
   std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistry_;
 };

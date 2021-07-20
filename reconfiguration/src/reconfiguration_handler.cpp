@@ -63,8 +63,8 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
-  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
-  if (command.bft) {
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft_support);
+  if (command.bft_support) {
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
       bftEngine::ControlStateManager::instance().markRemoveMetadata();
       bftEngine::EpochManager::instance().setNewEpochFlag(true);
@@ -91,8 +91,8 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
-  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
-  if (command.bft) {
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft_support);
+  if (command.bft_support) {
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
         [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
     if (command.restart) {

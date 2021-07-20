@@ -65,13 +65,13 @@ class Operator:
     def _construct_reconfiguration_unwedge_status(self, bft):
         unwedge_status_cmd = cmf_msgs.UnwedgeStatusRequest()
         unwedge_status_cmd.sender = 1000
-        unwedge_status_cmd.bft = bft
+        unwedge_status_cmd.bft_support = bft
         return self._construct_basic_reconfiguration_request(unwedge_status_cmd)
 
     def _construct_reconfiguration_unwedge_command(self, signatures, bft):
         unwedge_cmd = cmf_msgs.UnwedgeCommand()
         unwedge_cmd.sender = 1000
-        unwedge_cmd.bft = bft
+        unwedge_cmd.bft_support = bft
         unwedge_cmd.signatures = signatures
         return self._construct_basic_reconfiguration_request(unwedge_cmd)
 
@@ -103,7 +103,7 @@ class Operator:
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
         addRemove_command.config_descriptor = new_config
         addRemove_command.token = "dummy"
-        addRemove_command.bft = bft
+        addRemove_command.bft_support = bft
         addRemove_command.restart = restart
         return self._construct_basic_reconfiguration_request(addRemove_command)
 
@@ -124,7 +124,7 @@ class Operator:
 
     def _construct_reconfiguration_restart_command(self, bft, restart, data):
         restart_command = cmf_msgs.RestartCommand()
-        restart_command.bft = bft
+        restart_command.bft_support = bft
         restart_command.restart = restart
         restart_command.data = data
         return self._construct_basic_reconfiguration_request(restart_command)

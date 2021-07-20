@@ -153,8 +153,8 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
     // So lets simple run manually the concord-bft's reconfiguration handler.
 
     // First let's set the callbacks on wedgepoint.
-    bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
-    if (command.bft) {
+    bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft_support);
+    if (command.bft_support) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
         bftEngine::ControlStateManager::instance().markRemoveMetadata();
         bftEngine::EpochManager::instance().setNewEpochFlag(true);

@@ -3379,10 +3379,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   ConcordAssertNE(persistentStorage, nullptr);
 
   ps_ = persistentStorage;
-  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool include_st) {
-    ps_->setEraseMetadataStorageFlag();
-    if (include_st) stateTransfer->setEraseMetadataFlag();
-  });
+  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
   bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
   bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   lastAgreedView = ld.viewsManager->latestActiveView();
@@ -3628,10 +3625,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
   LOG_INFO(GL, "");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
-    bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool include_st) {
-      ps_->setEraseMetadataStorageFlag();
-      if (include_st) stateTransfer->setEraseMetadataFlag();
-    });
+    bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
     bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
     bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   }

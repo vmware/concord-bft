@@ -337,9 +337,9 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
   if (!bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(getLogger(), "replica is already unwedge");
   }
-  LOG_INFO(getLogger(), "Unwedge command started " << KVLOG(cmd.bft));
+  LOG_INFO(getLogger(), "Unwedge command started " << KVLOG(cmd.bft_support));
   auto& controlStateManager = bftEngine::ControlStateManager::instance();
-  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures, cmd.bft);
+  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures, cmd.bft_support);
   if (valid) {
     auto newEpoch = bftEngine::EpochManager::instance().getSelfEpochNumber() + 1;
     concord::kvbc::categorization::VersionedUpdates ver_updates;
@@ -360,7 +360,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
                                     uint64_t,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
-  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge(req.bft);
+  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge(req.bft_support);
   response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
   if (!can_unwedge.first) {
     response.can_unwedge = false;

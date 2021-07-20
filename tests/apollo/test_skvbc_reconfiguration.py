@@ -925,7 +925,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for i in range(500):
             await skvbc.write_known_kv()
         client = bft_network.random_client()
-        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.restart("hello", bft=False, restart=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
