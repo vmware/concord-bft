@@ -335,6 +335,7 @@ class ThinReplicaImpl {
     // read a certificate in PEM format from a BIO
     certificate = PEM_read_bio_X509(bio, NULL, NULL, NULL);
     if (!certificate) {
+      BIO_free(bio);
       throw std::runtime_error(
           "Failed to encode certificate received from client for client "
           "authorization - PEM_read_bio_X509() failed!");
@@ -349,6 +350,9 @@ class ThinReplicaImpl {
     size_t start = result.find(delim) + delim.length();
     size_t end = result.find('/', start);
     client_id = result.substr(start, end - start);
+    BIO_free(bio);
+    X509_free(certificate);
+    OPENSSL_free(subj);
     return client_id;
   }
 
