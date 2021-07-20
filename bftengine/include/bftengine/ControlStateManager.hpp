@@ -59,6 +59,6 @@ class ControlStateManager {
   std::atomic_bool onPruningProcess_ = false;
   std::function<void(bool)> removeMetadata_;
   std::function<void()> sendRestartReady_;
-  std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistery_;
+  std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistry_;
 };
 }  // namespace bftEngine

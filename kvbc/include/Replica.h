@@ -139,6 +139,7 @@ class Replica : public IReplica,
   void registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler);
   void handleNewEpochEvent();
   void handleWedgeEvent();
+  uint64_t getStoredReconfigData(const std::string &kCategory, const std::string &key, const kvbc::BlockId &bid);
   // INTERNAL TYPES
 
   // represents <key,blockId>

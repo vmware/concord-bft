@@ -43,10 +43,10 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
 }
 
 void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, RestartProofHandlerPriorities priority) {
-  if (onRestartProofCbRegistery_.find(priority) == onRestartProofCbRegistery_.end()) {
-    onRestartProofCbRegistery_[static_cast<uint32_t>(priority)];
+  if (onRestartProofCbRegistry_.find(priority) == onRestartProofCbRegistry_.end()) {
+    onRestartProofCbRegistry_[static_cast<uint32_t>(priority)];
   }
-  onRestartProofCbRegistery_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
+  onRestartProofCbRegistry_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
 }
 void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
   // If operator sends add-remove request with bft option then
@@ -55,7 +55,7 @@ void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
   // configuration update happens on stable checkpoint.
   if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
       IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
-    for (const auto& kv : onRestartProofCbRegistery_) {
+    for (const auto& kv : onRestartProofCbRegistry_) {
       kv.second.invokeAll();
     }
   }
@@ -66,7 +66,7 @@ void ControlStateManager::checkForReplicaReconfigurationAction() {
   auto seq_num_to_stop_at = getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value() && hasRestartProofAtSeqNum_.has_value() &&
       (seq_num_to_stop_at.value() == hasRestartProofAtSeqNum_.value())) {
-    for (const auto& kv : onRestartProofCbRegistery_) {
+    for (const auto& kv : onRestartProofCbRegistry_) {
       kv.second.invokeAll();
     }
   }
@@ -128,7 +128,7 @@ bool ControlStateManager::verifyUnwedgeSignatures(
 }
 
 void ControlStateManager::restart() {
-  for (const auto& kv : onRestartProofCbRegistery_) {
+  for (const auto& kv : onRestartProofCbRegistry_) {
     kv.second.invokeAll();
   }
 }
