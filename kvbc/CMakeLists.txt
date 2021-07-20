@@ -43,7 +43,7 @@ if (BUILD_ROCKSDB_STORAGE)
 
 endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
-target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs pruning_msgs)
+target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs pruning_msgs event_group_msgs)
 target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
 target_include_directories(kvbc PUBLIC include util)
