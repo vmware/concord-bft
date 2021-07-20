@@ -10,6 +10,10 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <optional>
+#include "TimeService.hpp"
+#include "concord.cmf.hpp"
+#include "kvbc_key_types.hpp"
 #include "st_reconfiguraion_sm.hpp"
 #include "hex_tools.h"
 #include "endianness.hpp"
@@ -78,15 +82,25 @@ bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;
     deserializeCmfMessage(cmd, strval);
-    return handle(cmd, seqNum, current_cp_num, blockid);
+    std::optional<bftEngine::Timestamp> timestamp = std::nullopt;
+    auto value = ro_storage_.get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::timestamp_key}, blockid);
+    if (value) {
+      const auto &data = std::get<categorization::VersionedValue>(*value).data;
+      concord::messages::Timestamp cmf_ts;
+      deserializeCmfMessage(cmf_ts, data);
+      timestamp.emplace(
+          bftEngine::Timestamp{bftEngine::ConsensusTime{cmf_ts.time_since_epoch}, cmf_ts.request_position});
+    }
+    return handle(cmd, seqNum, current_cp_num, blockid, timestamp);
   }
   return false;
-}
+}  // namespace concord::kvbc
 
 bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
-                                      uint64_t bid) {
+                                      uint64_t bid,
+                                      const std::optional<bftEngine::Timestamp> &) {
   auto my_last_known_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto last_known_global_epoch = bftEngine::EpochManager::instance().getGlobalEpochNumber();
   auto command_epoch = getStoredEpochNumber(bid);
@@ -112,7 +126,8 @@ bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
 bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand &command,
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
-                                      uint64_t bid) {
+                                      uint64_t bid,
+                                      const std::optional<bftEngine::Timestamp> &timestamp) {
   auto my_last_known_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto last_known_global_epoch = bftEngine::EpochManager::instance().getGlobalEpochNumber();
   auto command_epoch = getStoredEpochNumber(bid);
@@ -133,7 +148,7 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
   // so lets invoke all original reconfiguration handlers from the product layer (without concord-bft's ones)
   concord::messages::ReconfigurationResponse response;
   for (auto &h : orig_reconf_handlers_) {
-    h->handle(command, bft_seq_num, response);
+    h->handle(command, bft_seq_num, timestamp, response);
   }
 
   if (my_last_known_epoch < last_known_global_epoch) {
@@ -180,7 +195,8 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
 bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &command,
                                       uint64_t bft_seq_num,
                                       uint64_t,
-                                      uint64_t) {
+                                      uint64_t,
+                                      const std::optional<bftEngine::Timestamp> &timestamp) {
   // Actual pruning will be done from the lowest latestPruneableBlock returned by the replicas. It means, that even
   // on every state transfer there might be at most one relevant pruning command. Hence it is enough to take the latest
   // saved command and try to execute it
@@ -188,7 +204,7 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
   concord::messages::ReconfigurationResponse response;
   for (auto &h : orig_reconf_handlers_) {
     // If it was written to the blockchain, it means that this is a valid request.
-    succ &= h->handle(command, bft_seq_num, response);
+    succ &= h->handle(command, bft_seq_num, timestamp, response);
   }
   return succ;
 }

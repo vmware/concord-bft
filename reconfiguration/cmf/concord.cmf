@@ -175,6 +175,11 @@ Msg RestartCommand 42 {
     string data
 }
 
+Msg Timestamp 43 {
+    int64 time_since_epoch
+    uint64 request_position
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature
