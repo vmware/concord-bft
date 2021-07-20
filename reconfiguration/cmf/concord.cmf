@@ -146,6 +146,7 @@ Msg ClientReconfigurationStateRequest 37 {
 Msg ClientExchangePublicKey 38 {
     uint64 sender_id
     string pub_key
+    list uint64 effected_clients
 }
 
 Msg ClientReconfigurationStateReply 39 {
