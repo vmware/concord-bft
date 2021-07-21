@@ -21,6 +21,7 @@
 #include "thin_replica_client_mocks.hpp"
 
 using com::vmware::concord::thin_replica::Data;
+using com::vmware::concord::thin_replica::Events;
 using com::vmware::concord::thin_replica::Hash;
 using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
@@ -57,13 +58,13 @@ static_assert((kMaxFaultyIn4NodeCluster * 3 + 1) == 4);
 // Helper function(s) and struct(s) to test case(s) in this suite.
 
 bool UpdateMatchesExpected(const Update& update_received, const Data& update_expected) {
-  if ((update_received.block_id != update_expected.block_id()) ||
-      (update_received.kv_pairs.size() != (size_t)update_expected.data_size())) {
+  if ((update_received.block_id != update_expected.events().block_id()) ||
+      (update_received.kv_pairs.size() != (size_t)update_expected.events().data_size())) {
     return false;
   }
-  for (size_t i = 0; i < (size_t)update_expected.data_size(); ++i) {
-    if ((update_received.kv_pairs[i].first != update_expected.data(i).key()) ||
-        (update_received.kv_pairs[i].second != update_expected.data(i).value())) {
+  for (size_t i = 0; i < (size_t)update_expected.events().data_size(); ++i) {
+    if ((update_received.kv_pairs[i].first != update_expected.events().data(i).key()) ||
+        (update_received.kv_pairs[i].second != update_expected.events().data(i).value())) {
       return false;
     }
   }
@@ -105,12 +106,12 @@ vector<Data> GenerateSampleUpdateData(size_t data_size) {
   vector<Data> data;
   for (size_t i = 0; i < data_size; ++i) {
     Data update;
-    update.set_block_id(i);
-    KVPair* kvp = update.add_data();
+    update.mutable_events()->set_block_id(i);
+    KVPair* kvp = update.mutable_events()->add_data();
     kvp->set_key("key" + to_string(i));
     kvp->set_value("value" + to_string(i));
     if (i % 2 == 0) {
-      kvp = update.add_data();
+      kvp = update.mutable_events()->add_data();
       kvp->set_key("recurring_key");
       kvp->set_value(to_string(i / 2));
     }
@@ -223,12 +224,12 @@ TEST(trc_byzantine_test, test_read_state_fabricated_state) {
   size_t num_initial_updates = 3;
   size_t fabricated_update_index = 1;
   for (size_t i = fabricated_update_index; i < update_data.size(); ++i) {
-    update_data[i].set_block_id(update_data[i].block_id() + 1);
+    update_data[i].mutable_events()->set_block_id(update_data[i].events().block_id() + 1);
   }
   vector<Data> update_data_with_fabrication = update_data;
   Data fabricated_update;
-  fabricated_update.set_block_id(fabricated_update_index);
-  KVPair* fabricated_update_entry = fabricated_update.add_data();
+  fabricated_update.mutable_events()->set_block_id(fabricated_update_index);
+  KVPair* fabricated_update_entry = fabricated_update.mutable_events()->add_data();
   fabricated_update_entry->set_key("fabricated_key");
   fabricated_update_entry->set_value("fabricated_value");
   update_data_with_fabrication.insert((update_data_with_fabrication.begin() + fabricated_update_index),
@@ -250,7 +251,7 @@ TEST(trc_byzantine_test, test_read_state_erased_block_id) {
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 1;
   vector<Data> corrupted_update_data = update_data;
-  corrupted_update_data[corrupted_update_index].clear_block_id();
+  corrupted_update_data[corrupted_update_index].mutable_events()->clear_block_id();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -269,11 +270,11 @@ TEST(trc_byzantine_test, test_read_state_wrong_block_id) {
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 1;
   for (size_t i = corrupted_update_index; i < update_data.size(); ++i) {
-    update_data[i].set_block_id(update_data[i].block_id() + 1);
+    update_data[i].mutable_events()->set_block_id(update_data[i].events().block_id() + 1);
   }
   vector<Data> corrupted_update_data = update_data;
-  corrupted_update_data[corrupted_update_index].set_block_id(corrupted_update_data[corrupted_update_index].block_id() -
-                                                             1);
+  corrupted_update_data[corrupted_update_index].mutable_events()->set_block_id(
+      corrupted_update_data[corrupted_update_index].events().block_id() - 1);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -293,10 +294,10 @@ TEST(trc_byzantine_test, test_read_state_decreasing_block_id) {
   size_t corrupted_update_index = 3;
   size_t corrupted_block_id = 1;
   for (size_t i = corrupted_block_id; i < update_data.size(); ++i) {
-    update_data[i].set_block_id(update_data[i].block_id() + 1);
+    update_data[i].mutable_events()->set_block_id(update_data[i].events().block_id() + 1);
   }
   vector<Data> corrupted_update_data = update_data;
-  corrupted_update_data[corrupted_update_index].set_block_id(corrupted_block_id);
+  corrupted_update_data[corrupted_update_index].mutable_events()->set_block_id(corrupted_block_id);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -352,11 +353,12 @@ TEST(trc_byzantine_test, test_read_state_update_data_subset_erased) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 2;
-  ConcordAssert(update_data[corrupted_update_index].data_size() > 1);
+  ConcordAssert(update_data[corrupted_update_index].events().data_size() > 1);
   vector<Data> corrupted_update_data = update_data;
-  corrupted_update_data[corrupted_update_index].clear_data();
-  KVPair* non_erased_data = corrupted_update_data[corrupted_update_index].add_data();
-  *non_erased_data = update_data[corrupted_update_index].data(0);
+
+  corrupted_update_data[corrupted_update_index].mutable_events()->clear_data();
+  KVPair* non_erased_data = corrupted_update_data[corrupted_update_index].mutable_events()->add_data();
+  *non_erased_data = update_data[corrupted_update_index].events().data(0);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -375,7 +377,8 @@ TEST(trc_byzantine_test, test_read_state_update_data_added) {
   size_t num_initial_updates = 3;
   size_t update_with_fabrication_index = 1;
   vector<Data> update_data_with_fabrication = update_data;
-  KVPair* fabricated_entry = update_data_with_fabrication[update_with_fabrication_index].add_data();
+  auto* events = update_data_with_fabrication[update_with_fabrication_index].mutable_events();
+  KVPair* fabricated_entry = events->add_data();
   fabricated_entry->set_key("fabricated_key");
   fabricated_entry->set_value("fabricated_value");
 
@@ -396,7 +399,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_key_erased) {
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 1;
   vector<Data> corrupted_update_data = update_data;
-  (corrupted_update_data[corrupted_update_index].mutable_data(0))->clear_key();
+  corrupted_update_data[corrupted_update_index].mutable_events()->mutable_data(0)->clear_key();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -415,7 +418,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_erased) {
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 1;
   vector<Data> corrupted_update_data = update_data;
-  (corrupted_update_data[corrupted_update_index].mutable_data(0))->clear_value();
+  corrupted_update_data[corrupted_update_index].mutable_events()->mutable_data(0)->clear_value();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -434,7 +437,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_incorrect_key) {
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 1;
   vector<Data> corrupted_update_data = update_data;
-  (corrupted_update_data[corrupted_update_index].mutable_data(0))->set_key("incorrect_key");
+  corrupted_update_data[corrupted_update_index].mutable_events()->mutable_data(0)->set_key("incorrect_key");
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -453,7 +456,7 @@ TEST(trc_byzantine_test, test_read_state_update_data_incorrect_value) {
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 1;
   vector<Data> corrupted_update_data = update_data;
-  (corrupted_update_data[corrupted_update_index].mutable_data(0))->set_value("incorrect_value");
+  corrupted_update_data[corrupted_update_index].mutable_events()->mutable_data(0)->set_value("incorrect_value");
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -471,12 +474,12 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_swap) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   size_t corrupted_update_index = 2;
-  ConcordAssert(update_data[corrupted_update_index].data_size() > 1);
+  ConcordAssert(update_data[corrupted_update_index].events().data_size() > 1);
   vector<Data> corrupted_update_data = update_data;
-  Data& corrupted_update = corrupted_update_data[corrupted_update_index];
-  string swap_temp = corrupted_update.data(0).value();
-  (corrupted_update.mutable_data(0))->set_value(corrupted_update.data(1).value());
-  (corrupted_update.mutable_data(1))->set_value(swap_temp);
+  auto* corrupted_events = corrupted_update_data[corrupted_update_index].mutable_events();
+  string swap_temp = corrupted_events->data(0).value();
+  (corrupted_events->mutable_data(0))->set_value(corrupted_events->data(1).value());
+  (corrupted_events->mutable_data(1))->set_value(swap_temp);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -494,17 +497,18 @@ TEST(trc_byzantine_test, test_read_state_update_data_kvp_moved) {
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   vector<Data> corrupted_update_data = update_data;
-  ConcordAssert(update_data[2].data_size() == 2);
-  *(corrupted_update_data[1].add_data()) = corrupted_update_data[2].data(1);
+  ConcordAssert(update_data[2].events().data_size() == 2);
+  Events events;
+  *corrupted_update_data[1].mutable_events()->add_data() = corrupted_update_data[2].events().data(1);
 
   // Protobuf message objects do not appear to have a function for removing a
   // specific instance of a repeated field, so, after copying the key/value pair
   // we are moving to an earlier update, we clear the data from the update it
   // was taken from and then re-add the key/value pair not moved in order to
   // remove the moved key/value pair from its source update.
-  KVPair kvp_retained = corrupted_update_data[2].data(0);
-  corrupted_update_data[2].clear_data();
-  *(corrupted_update_data[2].add_data()) = kvp_retained;
+  KVPair kvp_retained = corrupted_update_data[2].events().data(0);
+  corrupted_update_data[2].mutable_events()->clear_data();
+  *corrupted_update_data[2].mutable_events()->add_data() = kvp_retained;
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -522,13 +526,13 @@ TEST(trc_byzantine_test, test_read_state_update_data_value_swapped_between_updat
   vector<Data> update_data = GenerateSampleUpdateData(5);
   size_t num_initial_updates = 3;
   vector<Data> corrupted_update_data = update_data;
-  ConcordAssert(update_data[0].data_size() == 2);
-  ConcordAssert(update_data[2].data_size() == 2);
-  ConcordAssert(update_data[0].data(1).key() == update_data[2].data(1).key());
-  ConcordAssert(update_data[0].data(1).value() != update_data[2].data(1).value());
-  string swap_temp = update_data[0].data(1).value();
-  update_data[0].mutable_data(1)->set_value(update_data[2].data(1).value());
-  update_data[2].mutable_data(1)->set_value(swap_temp);
+  ConcordAssert(update_data[0].events().data_size() == 2);
+  ConcordAssert(update_data[2].events().data_size() == 2);
+  ConcordAssert(update_data[0].events().data(1).key() == update_data[2].events().data(1).key());
+  ConcordAssert(update_data[0].events().data(1).value() != update_data[2].events().data(1).value());
+  string swap_temp = update_data[0].events().data(1).value();
+  update_data[0].mutable_events()->mutable_data(1)->set_value(update_data[2].events().data(1).value());
+  update_data[2].mutable_events()->mutable_data(1)->set_value(swap_temp);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<InitialStateFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -555,7 +559,7 @@ TEST(trc_byzantine_test, test_read_state_hash_block_id_erased) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
-        response->clear_block_id();
+        response->mutable_events()->clear_block_id();
       }
       return correct_status;
     }
@@ -584,7 +588,7 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_erased) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
-        response->clear_hash();
+        response->mutable_events()->clear_hash();
       }
       return correct_status;
     }
@@ -612,7 +616,7 @@ TEST(trc_byzantine_test, test_read_state_hash_wrong_block_id) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
-        response->set_block_id(response->block_id() + 1);
+        response->mutable_events()->set_block_id(response->events().block_id() + 1);
       }
       return correct_status;
     }
@@ -641,10 +645,10 @@ TEST(trc_byzantine_test, test_read_state_hash_wrong_hash) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
-        string hash_string = response->hash();
+        string hash_string = response->events().hash();
         ConcordAssert(hash_string.length() > 0);
         ++(hash_string[0]);
-        response->set_hash(hash_string);
+        response->mutable_events()->set_hash(hash_string);
       }
       return correct_status;
     }
@@ -673,11 +677,11 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_too_short) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
-        string hash_string = response->hash();
+        string hash_string = response->events().hash();
         ConcordAssert(hash_string.length() > 1);
         hash_string = hash_string.substr(1);
         ConcordAssert(hash_string.length() < kThinReplicaHashLength);
-        response->set_hash(hash_string);
+        response->mutable_events()->set_hash(hash_string);
       }
       return correct_status;
     }
@@ -706,12 +710,12 @@ TEST(trc_byzantine_test, test_read_state_hash_hash_too_long) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, 1)) {
-        string hash_string = response->hash();
+        string hash_string = response->events().hash();
         ConcordAssert(hash_string.length() > 1);
         while (hash_string.length() < kThinReplicaHashLength) {
           hash_string.append(hash_string);
         }
-        response->set_hash(hash_string);
+        response->mutable_events()->set_hash(hash_string);
       }
       return correct_status;
     }
@@ -1002,7 +1006,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_omitted) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  corrupted_update_data[corrupted_update_offset].clear_block_id();
+  corrupted_update_data[corrupted_update_offset].mutable_events()->clear_block_id();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1021,7 +1025,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_incorrect) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert((corrupted_update_offset + 1) < update_data.size());
-  corrupted_update_data[corrupted_update_offset].set_block_id(update_data[corrupted_update_offset + 1].block_id());
+  corrupted_update_data[corrupted_update_offset].mutable_events()->set_block_id(
+      update_data[corrupted_update_offset + 1].events().block_id());
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1040,7 +1045,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_block_id_decreasing) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  corrupted_update_data[corrupted_update_offset].set_block_id(update_data[corrupted_update_offset - 1].block_id() - 1);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->set_block_id(
+      update_data[corrupted_update_offset - 1].events().block_id() - 1);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1059,8 +1065,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_kvps_omitted) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
-  corrupted_update_data[corrupted_update_offset].clear_data();
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 0);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->clear_data();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1079,10 +1085,10 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_kvps_partially_omitted
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 1);
-  corrupted_update_data[corrupted_update_offset].clear_data();
-  KVPair* non_erased_data = corrupted_update_data[corrupted_update_offset].add_data();
-  *non_erased_data = update_data[corrupted_update_offset].data(0);
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 1);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->clear_data();
+  KVPair* non_erased_data = corrupted_update_data[corrupted_update_offset].mutable_events()->add_data();
+  *non_erased_data = update_data[corrupted_update_offset].events().data(0);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1101,7 +1107,7 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_includes_fabricated_kv
   vector<Data> update_data_with_fabrication = update_data;
   size_t fabricated_update_offset = num_initial_updates + 2;
   ConcordAssert(fabricated_update_offset < update_data.size());
-  KVPair* fabricated_data = update_data_with_fabrication[fabricated_update_offset].add_data();
+  KVPair* fabricated_data = update_data_with_fabrication[fabricated_update_offset].mutable_events()->add_data();
   fabricated_data->set_key("fabricated_key");
   fabricated_data->set_value("fabricated_value");
 
@@ -1122,8 +1128,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_key_omitted) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
-  corrupted_update_data[corrupted_update_offset].mutable_data(0)->clear_key();
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 0);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->mutable_data(0)->clear_key();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1142,8 +1148,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_value_omitted) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
-  corrupted_update_data[corrupted_update_offset].mutable_data(0)->clear_value();
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 0);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->mutable_data(0)->clear_value();
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1162,8 +1168,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_incorrect_key) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
-  corrupted_update_data[corrupted_update_offset].mutable_data(0)->set_key("incorrect_key");
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 0);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->mutable_data(0)->set_key("incorrect_key");
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1183,8 +1189,8 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_update_incorrect_value) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 0);
-  corrupted_update_data[corrupted_update_offset].mutable_data(0)->set_value("incorrect_value");
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 0);
+  corrupted_update_data[corrupted_update_offset].mutable_events()->mutable_data(0)->set_value("incorrect_value");
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1204,11 +1210,11 @@ TEST(trc_byzantine_test, test_subscribe_to_updates_keys_swapped_within_updat) {
   vector<Data> corrupted_update_data = update_data;
   size_t corrupted_update_offset = num_initial_updates + 2;
   ConcordAssert(corrupted_update_offset < update_data.size());
-  ConcordAssert(corrupted_update_data[corrupted_update_offset].data_size() > 1);
-  string swap_temp = corrupted_update_data[corrupted_update_offset].data(0).key();
-  corrupted_update_data[corrupted_update_offset].mutable_data(0)->set_key(
-      corrupted_update_data[corrupted_update_offset].data(1).key());
-  corrupted_update_data[corrupted_update_offset].mutable_data(1)->set_key(swap_temp);
+  ConcordAssert(corrupted_update_data[corrupted_update_offset].events().data_size() > 1);
+  string swap_temp = corrupted_update_data[corrupted_update_offset].events().data(0).key();
+  corrupted_update_data[corrupted_update_offset].mutable_events()->mutable_data(0)->set_key(
+      corrupted_update_data[corrupted_update_offset].events().data(1).key());
+  corrupted_update_data[corrupted_update_offset].mutable_events()->mutable_data(1)->set_key(swap_temp);
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
                                     make_shared<UpdateDataFabricator>(make_shared<VectorMockDataStreamPreparer>(
@@ -1416,7 +1422,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_omitted) {
   ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class OmitBlockId : public UpdateHashCorrupter::CorruptHash {
-    void operator()(Hash* hash) override { hash->clear_block_id(); }
+    void operator()(Hash* hash) override { hash->mutable_events()->clear_block_id(); }
   };
 
   ByzantineTestCaseState test_state(
@@ -1437,7 +1443,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_incorrect) {
   ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class CorruptBlockId : public UpdateHashCorrupter::CorruptHash {
-    void operator()(Hash* hash) override { hash->set_block_id(hash->block_id() + 1); }
+    void operator()(Hash* hash) override { hash->mutable_events()->set_block_id(hash->events().block_id() + 1); }
   };
 
   ByzantineTestCaseState test_state(
@@ -1457,9 +1463,9 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_block_id_decreasing) {
   size_t corrupted_hash_offset = 2;
   ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
-  ConcordAssert(update_data[num_initial_updates + corrupted_hash_offset - 1].block_id() > 1);
+  ConcordAssert(update_data[num_initial_updates + corrupted_hash_offset - 1].events().block_id() > 1);
   class MakeBlockIdDecreasing : public UpdateHashCorrupter::CorruptHash {
-    void operator()(Hash* hash) override { hash->set_block_id(1); }
+    void operator()(Hash* hash) override { hash->mutable_events()->set_block_id(1); }
   };
 
   ByzantineTestCaseState test_state(
@@ -1481,7 +1487,7 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_omitted) {
   ConcordAssert(num_initial_updates + corrupted_hash_offset < update_data.size());
 
   class OmitHash : public UpdateHashCorrupter::CorruptHash {
-    void operator()(Hash* hash) override { hash->clear_hash(); }
+    void operator()(Hash* hash) override { hash->mutable_events()->clear_hash(); }
   };
 
   ByzantineTestCaseState test_state(make_shared<VectorMockDataStreamPreparer>(update_data, num_initial_updates),
@@ -1502,10 +1508,10 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_incorrect) {
 
   class MakeHashIncorrect : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override {
-      string hash_value = hash->hash();
+      string hash_value = hash->events().hash();
       ConcordAssert(hash_value.length() > 0);
       ++hash_value[0];
-      hash->set_hash(hash_value);
+      hash->mutable_events()->set_hash(hash_value);
     }
   };
 
@@ -1528,12 +1534,12 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_too_short) {
 
   class TruncateHash : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override {
-      string hash_value = hash->hash();
+      string hash_value = hash->events().hash();
       ConcordAssert(hash_value.length() > 0);
       while (hash_value.length() >= kThinReplicaHashLength) {
         hash_value = hash_value.substr(1);
       }
-      hash->set_hash(hash_value);
+      hash->mutable_events()->set_hash(hash_value);
     }
   };
 
@@ -1557,12 +1563,12 @@ TEST(trc_byzantine_test, test_subscribe_to_update_hashes_hash_too_long) {
 
   class ExtendHash : public UpdateHashCorrupter::CorruptHash {
     void operator()(Hash* hash) override {
-      string hash_value = hash->hash();
+      string hash_value = hash->events().hash();
       ConcordAssert(hash_value.length() > 0);
       while (hash_value.length() <= kThinReplicaHashLength) {
         hash_value += hash_value[0];
       }
-      hash->set_hash(hash_value);
+      hash->mutable_events()->set_hash(hash_value);
     }
   };
 
@@ -1611,7 +1617,7 @@ TEST(trc_byzantine_test, test_multiple_servers_timeout) {
 TEST(trc_byzantine_test, test_multiple_servers_begin_timing_out) {
   vector<Data> update_data = GenerateSampleUpdateData(12);
   size_t num_initial_updates = 4;
-  uint64_t block_id_to_limit_responsiveness_at = update_data[6].block_id();
+  uint64_t block_id_to_limit_responsiveness_at = update_data[6].events().block_id();
 
   uint16_t max_faulty = 3;
   size_t num_servers = max_faulty * 3 + 1;
@@ -1683,7 +1689,7 @@ TEST(trc_byzantine_test, test_minimal_subset_of_servers_responsive) {
 TEST(trc_byzantine_test, test_minimal_subset_of_servers_left_responsive_after_others_timeout) {
   vector<Data> update_data = GenerateSampleUpdateData(12);
   size_t num_initial_updates = 4;
-  uint64_t block_id_to_limit_responsiveness_at = update_data[6].block_id();
+  uint64_t block_id_to_limit_responsiveness_at = update_data[6].events().block_id();
 
   uint16_t max_faulty = 3;
   size_t num_servers = max_faulty * 3 + 1;
@@ -1726,7 +1732,7 @@ TEST(trc_byzantine_test, test_minimal_subset_of_servers_left_responsive_after_ot
 TEST(trc_byzantine_test, test_cluster_temporarily_becomes_unresponsive) {
   vector<Data> update_data = GenerateSampleUpdateData(12);
   size_t num_initial_updates = 4;
-  uint64_t block_id_to_limit_responsiveness_at = update_data[6].block_id();
+  uint64_t block_id_to_limit_responsiveness_at = update_data[6].events().block_id();
 
   uint16_t max_faulty = 3;
   size_t num_servers = max_faulty * 3 + 1;
@@ -1866,10 +1872,10 @@ TEST(trc_byzantine_test, test_f_servers_give_false_state_hashes) {
                          Hash* response,
                          Status correct_status) override {
       if (MakeByzantineFaulty(server_index, max_faulty_)) {
-        string hash_string = response->hash();
+        string hash_string = response->events().hash();
         ConcordAssert(hash_string.length() > 0);
         ++(hash_string[0]);
-        response->set_hash(hash_string);
+        response->mutable_events()->set_hash(hash_string);
       }
       return correct_status;
     }

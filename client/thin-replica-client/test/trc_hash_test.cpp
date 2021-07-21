@@ -42,9 +42,9 @@ TEST(trc_hash, hash_update) {
 
 TEST(trc_hash, hash_data) {
   Data update;
-  update.set_block_id(1337);
+  update.mutable_events()->set_block_id(1337);
   for (int i = 0; i < 3; ++i) {
-    auto data = update.add_data();
+    auto data = update.mutable_events()->add_data();
     data->set_key(to_string(i));
     data->set_value(to_string(i));
   }
