@@ -74,7 +74,6 @@ class SigManager {
   SigManager(SigManager&&) = delete;
   SigManager& operator=(SigManager&&) = delete;
 
-  concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
   std::string getClientsPublicKeys() {
     std::shared_lock lock(mutex_);
     std::vector<uint8_t> output;
@@ -84,6 +83,7 @@ class SigManager {
 
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
+  concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
 
   SigManager(PrincipalId myId,
              uint16_t numReplicas,
