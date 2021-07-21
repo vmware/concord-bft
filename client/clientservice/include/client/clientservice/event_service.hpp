@@ -22,9 +22,9 @@ class EventServiceImpl final : public vmware::concord::client::v1::EventService:
  public:
   EventServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client)
       : logger_(logging::getLogger("concord.client.clientservice.event")), client_(client){};
-  grpc::Status StreamEventGroups(grpc::ServerContext* context,
-                                 const vmware::concord::client::v1::StreamEventGroupsRequest* request,
-                                 grpc::ServerWriter<vmware::concord::client::v1::EventGroup>* stream) override;
+  grpc::Status Subscribe(grpc::ServerContext* context,
+                         const vmware::concord::client::v1::SubscribeRequest* request,
+                         grpc::ServerWriter<vmware::concord::client::v1::SubscribeResponse>* stream) override;
 
  private:
   logging::Logger logger_;
