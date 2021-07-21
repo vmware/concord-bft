@@ -39,6 +39,9 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
       metric_state_transfer_timer_{metrics_.RegisterGauge("replicaForStateTransferTimer", 0)},
       firstTime_(firstTime) {
   LOG_INFO(GL, "");
+  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool include_st) {
+    if (include_st) this->stateTransfer->setEraseMetadataFlag();
+  });
   msgHandlers_->registerMsgHandler(
       MsgCode::StateTransfer,
       std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>, this, std::placeholders::_1));

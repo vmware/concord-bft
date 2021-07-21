@@ -105,6 +105,11 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint64_t sequence_number,
               concord::messages::ReconfigurationResponse& response) override;
   bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::UnwedgeStatusRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop commands)

@@ -3379,11 +3379,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   ConcordAssertNE(persistentStorage, nullptr);
 
   ps_ = persistentStorage;
-  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&]() {
-    ps_->setEraseMetadataStorageFlag();
-    stateTransfer->setEraseMetadataFlag();
-  });
-
+  bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
   bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
   bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   lastAgreedView = ld.viewsManager->latestActiveView();
@@ -3629,10 +3625,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
   LOG_INFO(GL, "");
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
-    bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&]() {
-      ps_->setEraseMetadataStorageFlag();
-      stateTransfer->setEraseMetadataFlag();
-    });
+    bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
     bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
     bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   }
@@ -3914,12 +3907,6 @@ void ReplicaImp::start() {
   if (config_.timeServiceEnabled) {
     time_service_manager_.emplace();
     LOG_INFO(GL, "Time Service enabled");
-  }
-  // If we have just unwedged, clear the wedge point
-  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
-  if (seqNumToStopAt.has_value() && lastStableSeqNum == seqNumToStopAt.value()) {
-    LOG_INFO(GL, "unwedge the system" << KVLOG(lastStableSeqNum));
-    ControlStateManager::instance().clearCheckpointToStopAt();
   }
 
   if (!firstTime_ || config_.getdebugPersistentStorageEnabled()) clientsManager->loadInfoFromReservedPages();
