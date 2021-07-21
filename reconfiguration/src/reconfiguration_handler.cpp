@@ -14,6 +14,8 @@
 
 #include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
+#include "bftengine/ReconfigurationCmd.hpp"
+#include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
 
@@ -78,6 +80,10 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
     }
   }
+  // update reserved pages for RO replica
+  auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(command, bft_seq_num, epochNum);
+
   return true;
 }  // namespace concord::reconfiguration
 

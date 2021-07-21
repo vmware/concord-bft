@@ -33,6 +33,7 @@
 #include "bftengine/ControlHandler.hpp"
 #include "throughput.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "bftengine/ReconfigurationCmd.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -162,9 +163,40 @@ void Replica::handleNewEpochEvent() {
       throw;
     }
     bftEngine::EpochManager::instance().markEpochAsStarted();
+    // update reserved pages with reconfiguration command from previous epoch
+    saveReconfigurationCmdToResPages();
   }
   LOG_INFO(logger, "replica epoch is: " << epoch);
   bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
+}
+void Replica::saveReconfigurationCmdToResPages() {
+  auto res = getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
+  if (res.has_value()) {
+    auto blockid =
+        getLatestVersion(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1})
+            .value()
+            .version;
+    auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
+    concord::messages::AddRemoveWithWedgeCommand cmd;
+    std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+    concord::messages::deserialize(bytesval, cmd);
+    auto value = get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, blockid);
+    auto sequenceNum = uint64_t{0};
+    if (value) {
+      const auto &data = std::get<categorization::VersionedValue>(*value).data;
+      ConcordAssertEQ(data.size(), sizeof(uint64_t));
+      sequenceNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+    }
+    auto epochVal =
+        get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_key}, blockid);
+    auto epochNum = uint64_t{0};
+    if (epochVal) {
+      const auto &data = std::get<categorization::VersionedValue>(*value).data;
+      ConcordAssertEQ(data.size(), sizeof(uint64_t));
+      epochNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+    }
+    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(cmd, sequenceNum, epochNum);
+  }
 }
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
@@ -347,7 +379,7 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 1000),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
-    replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly),
+    replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
   };
 
