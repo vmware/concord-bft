@@ -1364,7 +1364,7 @@ uint16_t BCStateTran::asyncGetBlocksConcurrent(uint64_t nextBlockId,
       LOG_DEBUG(getLogger(), "Waiting for previous thread to finish job on context " << KVLOG(ctx.blockId, ctx.index));
     }
     ctx.blockId = i;
-    ctx.future = as_->getBlockAsync(ctx.blockId, ctx.block.get(), &ctx.blockSize);
+    ctx.future = as_->getBlockAsync(ctx.blockId, ctx.block.get(), config_.maxBlockSize, &ctx.blockSize);
   }
 
   return j;
@@ -2734,7 +2734,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
         // Extra debugging needed here for BC-2821
         if (computedBlockDigest != desc.digestOfLastBlock) {
           uint32_t blockSize = 0;
-          as_->getBlock(desc.lastBlock, buffer_, &blockSize);
+          as_->getBlock(desc.lastBlock, buffer_, config_.maxBlockSize, &blockSize);
           concordUtils::HexPrintBuffer blockData{buffer_, blockSize};
           LOG_FATAL(getLogger(), "Invalid stored checkpoint: " << KVLOG(desc.checkpointNum, desc.lastBlock, blockData));
           ConcordAssertEQ(computedBlockDigest, desc.digestOfLastBlock);
@@ -2830,7 +2830,7 @@ STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
   static std::unique_ptr<char[]> buffer(new char[maxItemSize_]);
   STDigest currDigest;
   uint32_t blockSize = 0;
-  as_->getBlock(currBlock, buffer.get(), &blockSize);
+  as_->getBlock(currBlock, buffer.get(), config_.maxBlockSize, &blockSize);
   computeDigestOfBlock(currBlock, buffer.get(), blockSize, &currDigest);
   return currDigest;
 }

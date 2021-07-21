@@ -38,16 +38,19 @@ class TestAppState : public IAppState {
     return it != blocks_.end();
   }
 
-  bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override {
+  bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override {
     auto it = blocks_.find(blockId);
     if (it == blocks_.end()) return false;
     std::memcpy(outBlock, it->second.block, it->second.actualSize);
-    *outBlockSize = it->second.actualSize;
+    *outBlockActualSize = it->second.actualSize;
     return true;
   };
 
   // TODO - implement
-  std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override {
+  std::future<bool> getBlockAsync(uint64_t blockId,
+                                  char* outBlock,
+                                  uint32_t outBlockMaxSize,
+                                  uint32_t* outBlockActualSize) override {
     ConcordAssert(false);
     return std::async([]() { return false; });
   }
