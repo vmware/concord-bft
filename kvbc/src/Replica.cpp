@@ -441,7 +441,10 @@ Replica::~Replica() {
  * This method can't return false by current insertBlockInternal impl.
  * It is used only by State Transfer to synchronize state between replicas.
  */
-bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlock(const uint64_t blockId,
+                       const char *blockData,
+                       const uint32_t blockSize,
+                       bool trylinkSTChainFrom) {
   if (replicaConfig_.isReadOnly) {
     return putBlockToObjectStore(blockId, blockData, blockSize);
   }
@@ -462,7 +465,7 @@ bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint
           std::to_string(blockId));
     }
   } else {
-    m_kvBlockchain->addRawBlock(rawBlock, blockId);
+    m_kvBlockchain->addRawBlock(rawBlock, blockId, trylinkSTChainFrom);
   }
   return true;
 }

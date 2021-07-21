@@ -58,7 +58,8 @@ class TestAppState : public IAppState {
     return true;
   };
 
-  bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override {
+
+  bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool trylinkSTChainFrom) override {
     ConcordAssert(blockId < last_block_);
     Block bl;
     computeBlockDigest(blockId, block, blockSize, &bl.digest);
