@@ -494,6 +494,7 @@ std::unique_ptr<AsymmetricPrivateKey> concord::util::openssl_utils::deserializeP
 
   EC_KEY* eckey = EVP_PKEY_get1_EC_KEY(pkey);
   if (!eckey) {
+    BIO_free(bio);
     throw UnexpectedOpenSSLCryptoFailureException("Error getting EC KEY: EVP_PKEY_get1_EC_KEY()");
   }
   EVP_PKEY_free(pkey);
