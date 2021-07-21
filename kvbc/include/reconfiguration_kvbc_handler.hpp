@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "TimeService.hpp"
 #include "reconfiguration/ireconfiguration.hpp"
 #include "db_interfaces.h"
 #include "hex_tools.h"
@@ -25,9 +26,13 @@ class ReconfigurationBlockTools {
  protected:
   ReconfigurationBlockTools(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
       : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {}
-  kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key);
+  kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data,
+                                            const uint64_t bft_seq_num,
+                                            const std::optional<bftEngine::Timestamp>& timestamp,
+                                            string key);
   kvbc::BlockId persistReconfigurationBlock(concord::kvbc::categorization::VersionedUpdates& ver_updates,
-                                            const uint64_t bft_seq_num);
+                                            const uint64_t bft_seq_num,
+                                            const std::optional<bftEngine::Timestamp>& timestamp);
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;
@@ -43,13 +48,16 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
       : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::ClientExchangePublicKey&,
               uint64_t,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
               uint64_t,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::ClientReconfigurationStateRequest&,
               uint64_t,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
  private:
@@ -67,48 +75,67 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
       : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
+
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::DownloadCommand& command,
               uint64_t bft_seq_num,
+
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::InstallCommand& command,
               uint64_t bft_seq_num,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::KeyExchangeCommand& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::AddRemoveCommand& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::AddRemoveWithWedgeCommand& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::AddRemoveStatus& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse& response) override;
 
   bool handle(const concord::messages::AddRemoveWithWedgeStatus& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse& response) override;
 
   bool handle(const concord::messages::PruneRequest& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::ClientKeyExchangeCommand& command,
               uint64_t sequence_number,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse& response) override;
-  bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::RestartCommand&,
+              uint64_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::UnwedgeCommand&,
+              uint64_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::UnwedgeStatusRequest&,
               uint64_t,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 };
 /**
@@ -123,6 +150,7 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
 
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
+              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 };
 }  // namespace concord::kvbc::reconfiguration
