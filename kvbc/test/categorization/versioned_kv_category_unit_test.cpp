@@ -40,11 +40,19 @@ using namespace std::literals;
 
 class versioned_kv_category : public Test {
   void SetUp() override {
-    cleanup();
+    destroyDb();
     db = TestRocksDb::createNative();
     cat = VersionedKeyValueCategory{category_id, db};
   }
-  void TearDown() override { cleanup(); }
+
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    cat = VersionedKeyValueCategory{};
+    db.reset();
+    ASSERT_EQ(0, db.use_count());
+    cleanup();
+  }
 
  protected:
   auto add(BlockId block_id, VersionedInput &&in) {

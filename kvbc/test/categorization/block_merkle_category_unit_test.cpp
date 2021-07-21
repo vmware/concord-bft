@@ -136,11 +136,19 @@ std::set<LeafKey> deserializeLeafKeys(const std::vector<std::vector<uint8_t>> &s
 
 class block_merkle_category : public Test {
   void SetUp() override {
-    cleanup();
+    destroyDb();
     db = TestRocksDb::createNative();
     cat = BlockMerkleCategory{db};
   }
-  void TearDown() override { cleanup(); }
+
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    cat = BlockMerkleCategory{};
+    db.reset();
+    ASSERT_EQ(0, db.use_count());
+    cleanup();
+  }
 
  protected:
   auto add(BlockId block_id, BlockMerkleInput &&update) {
