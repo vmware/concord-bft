@@ -15,8 +15,6 @@
 #undef ERROR
 #endif
 
-#include "threshsign/Configuration.h"
-
 #include "BlsAlmostMultisigAccumulator.h"
 #include "BlsAlmostMultisigCoefficients.h"
 

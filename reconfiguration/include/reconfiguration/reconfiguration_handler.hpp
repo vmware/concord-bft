@@ -43,14 +43,14 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
   bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
-
-  bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
-  bool handle(const concord::messages::UnwedgeStatusRequest&,
-              uint64_t,
-              concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
+  bool handle(const concord::messages::ClientExchangePublicKey&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
     return true;
   }

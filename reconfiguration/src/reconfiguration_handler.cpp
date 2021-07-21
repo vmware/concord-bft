@@ -64,8 +64,36 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
-  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft);
-  if (command.bft) {
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft_support);
+  if (command.bft_support) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().markRemoveMetadata();
+      bftEngine::EpochManager::instance().setNewEpochFlag(true);
+    });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().markRemoveMetadata();
+      bftEngine::EpochManager::instance().setNewEpochFlag(true);
+    });
+    if (command.restart) {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    }
+  }
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
+                                    uint64_t bft_seq_num,
+                                    concord::messages::ReconfigurationResponse&) {
+  LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft_support);
+  if (command.bft_support) {
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
         [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
     if (command.restart) {
@@ -85,7 +113,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(command, bft_seq_num, epochNum);
 
   return true;
-}  // namespace concord::reconfiguration
+}
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;
@@ -118,36 +146,11 @@ bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,
   return pub_key_->verify(data, signature) || verifier_->verify(data, signature);
 }
 
-bool ReconfigurationHandler::handle(const UnwedgeCommand& cmd,
-                                    uint64_t bft_seq_num,
-                                    concord::messages::ReconfigurationResponse&) {
-  LOG_INFO(getLogger(), "Unwedge command started");
-  auto& controlStateManager = bftEngine::ControlStateManager::instance();
-  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures);
-  if (valid) {
-    controlStateManager.clearCheckpointToStopAt();
-    bftEngine::IControlHandler::instance()->resetState();
-    LOG_INFO(getLogger(), "Unwedge command completed sucessfully");
-  }
-  return valid;
-}
-
-bool ReconfigurationHandler::handle(const UnwedgeStatusRequest& req,
-                                    uint64_t,
-                                    concord::messages::ReconfigurationResponse& rres) {
-  concord::messages::UnwedgeStatusResponse response;
-  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge();
-  response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
-  if (!can_unwedge.first) {
-    response.can_unwedge = false;
-    response.reason = can_unwedge.second;
-    LOG_INFO(getLogger(), "Replica is not ready to unwedge. Reason: " << can_unwedge.second);
-  } else {
-    response.can_unwedge = true;
-    response.signature = std::vector<uint8_t>(can_unwedge.second.begin(), can_unwedge.second.end());
-    LOG_INFO(getLogger(), "Replica is ready to unwedge");
-  }
-  rres.response = response;
+bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& msg,
+                                          uint64_t,
+                                          concord::messages::ReconfigurationResponse&) {
+  LOG_INFO(getLogger(), "public key: " << msg.pub_key << " sender: " << msg.sender_id);
+  bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(msg.pub_key, msg.sender_id);
   return true;
 }
 }  // namespace concord::reconfiguration

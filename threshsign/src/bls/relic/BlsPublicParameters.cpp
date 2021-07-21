@@ -10,7 +10,6 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
-#include "threshsign/Configuration.h"
 #include "threshsign/bls/relic/BlsPublicParameters.h"
 #include "threshsign/bls/relic/Library.h"
 

@@ -247,12 +247,28 @@ class Serializable {
     inStream.read((char*)&t, sizeof(T));
     LOG_TRACE(logger(), t);
   }
+
+  /** *****************************************************************************************************************
+   * integral enum
+   */
+  template <typename T, typename std::enable_if_t<std::is_enum_v<T>>* = nullptr>
+  static void serialize_impl(std::ostream& outStream, const T& t, int) {
+    static_assert(std::is_integral_v<std::underlying_type_t<T>>);
+    LOG_TRACE(logger(), static_cast<std::underlying_type_t<T>>(t));
+    outStream.write((char*)&t, sizeof(T));
+  }
+  template <typename T, typename std::enable_if_t<std::is_enum_v<T>>* = nullptr>
+  static void deserialize_impl(std::istream& inStream, T& t, int) {
+    static_assert(std::is_integral_v<std::underlying_type_t<T>>);
+    inStream.read((char*)&t, sizeof(T));
+    LOG_TRACE(logger(), static_cast<std::underlying_type_t<T>>(t));
+  }
+
   /** *****************************************************************************************************************
    * std::pair
    */
   template <typename T, typename std::enable_if_t<is_pair_v<T>>* = nullptr>
   static void serialize_impl(std::ostream& outStream, const T& t, int) {
-    LOG_TRACE(logger(), t.first << ": " << t.second);
     serialize(outStream, t.first);
     serialize(outStream, t.second);
   }
@@ -260,7 +276,6 @@ class Serializable {
   static void deserialize_impl(std::istream& inStream, T& t, int) {
     deserialize(inStream, t.first);
     deserialize(inStream, t.second);
-    LOG_TRACE(logger(), t.first << ": " << t.second);
   }
 
  public:

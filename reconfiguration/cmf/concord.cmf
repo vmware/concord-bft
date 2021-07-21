@@ -103,7 +103,7 @@ Msg AddRemoveStatusResponse 28 {
 Msg AddRemoveWithWedgeCommand 29 {
     string config_descriptor
     string token
-    bool bft
+    bool bft_support
     bool restart
 }
 
@@ -117,6 +117,7 @@ Msg AddRemoveWithWedgeStatusResponse 31 {
 
 Msg UnwedgeStatusRequest 32{
     uint64 sender
+    bool bft_support
 }
 
 Msg UnwedgeStatusResponse 33{
@@ -129,6 +130,7 @@ Msg UnwedgeStatusResponse 33{
 Msg UnwedgeCommand 34{
     uint64 sender
     list kvpair uint64 bytes signatures
+    bool bft_support
 }
 Msg ClientKeyExchangeCommand 35 {
     list uint64 target_clients
@@ -146,6 +148,7 @@ Msg ClientReconfigurationStateRequest 37 {
 Msg ClientExchangePublicKey 38 {
     uint64 sender_id
     string pub_key
+    list uint64 effected_clients
 }
 
 Msg ClientReconfigurationStateReply 39 {
@@ -166,6 +169,11 @@ Msg ClientReconfigurationLastUpdate 41 {
     uint64 sender_id
 }
 
+Msg RestartCommand 42 {
+    bool bft_support
+    bool restart
+    string data
+}
 
 Msg ReconfigurationRequest 1 {
   uint64 sender
@@ -192,6 +200,7 @@ Msg ReconfigurationRequest 1 {
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
     ClientReconfigurationLastUpdate
+    RestartCommand
   } command
   bytes additional_data
 }

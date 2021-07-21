@@ -14,8 +14,6 @@
 #undef ERROR
 #endif
 
-#include "threshsign/Configuration.h"
-
 #include <vector>
 #include <iterator>
 #include <algorithm>

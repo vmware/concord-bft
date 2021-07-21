@@ -148,7 +148,7 @@ class ThinReplicaImpl {
 
     // TODO: Determine oldest block available (pruning)
     kvbc::BlockId block_id_start = 1;
-    kvbc::BlockId block_id_end = request->block_id();
+    kvbc::BlockId block_id_end = request->events().block_id();
 
     if (block_id_end < block_id_start) {
       std::string msg{"Invalid block range"};
@@ -167,8 +167,8 @@ class ThinReplicaImpl {
       return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
     }
 
-    hash->set_block_id(block_id_end);
-    hash->set_hash(kvb_hash);
+    hash->mutable_events()->set_block_id(block_id_end);
+    hash->mutable_events()->set_hash(kvb_hash);
 
     return grpc::Status::OK;
   }
@@ -208,7 +208,8 @@ class ThinReplicaImpl {
     metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
     try {
-      syncAndSend<ServerContextT, ServerWriterT, DataT>(context, request->block_id(), live_updates, stream, kvb_filter);
+      syncAndSend<ServerContextT, ServerWriterT, DataT>(
+          context, request->events().block_id(), live_updates, stream, kvb_filter);
     } catch (StreamCancelled& error) {
       config_->subscriber_list.removeBuffer(live_updates);
       live_updates->removeAllUpdates();
@@ -224,7 +225,7 @@ class ThinReplicaImpl {
       metrics_.updateAggregator();
 
       std::stringstream msg;
-      msg << "Couldn't transition from block id " << request->block_id() << " to new blocks";
+      msg << "Couldn't transition from block id " << request->events().block_id() << " to new blocks";
       return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
     }
 
@@ -519,17 +520,17 @@ class ThinReplicaImpl {
                 const kvbc::KvbFilteredUpdate& update,
                 const std::optional<std::string>& span = std::nullopt) {
     com::vmware::concord::thin_replica::Data data;
-    data.set_block_id(update.block_id);
-    data.set_correlation_id(update.correlation_id);
+    data.mutable_events()->set_block_id(update.block_id);
+    data.mutable_events()->set_correlation_id(update.correlation_id);
 
     for (const auto& [key, value] : update.kv_pairs) {
-      com::vmware::concord::thin_replica::KVPair* kvp_out = data.add_data();
+      com::vmware::concord::thin_replica::KVPair* kvp_out = data.mutable_events()->add_data();
       kvp_out->set_key(key.data(), key.length());
       kvp_out->set_value(value.data(), value.length());
     }
 
     if (span) {
-      data.set_span_context(*span);
+      data.mutable_events()->set_span_context(*span);
     }
     if (!stream->Write(data)) {
       throw StreamClosed("Data stream closed");
@@ -539,8 +540,8 @@ class ThinReplicaImpl {
   template <typename ServerWriterT>
   void sendHash(ServerWriterT* stream, kvbc::BlockId block_id, const std::string& update_hash) {
     com::vmware::concord::thin_replica::Hash hash;
-    hash.set_block_id(block_id);
-    hash.set_hash(update_hash);
+    hash.mutable_events()->set_block_id(block_id);
+    hash.mutable_events()->set_hash(update_hash);
     LOG_DEBUG(logger_, "COMPARE SendHash block_id " << block_id << " update_hash " << update_hash);
     if (!stream->Write(hash)) {
       throw StreamClosed("Hash stream closed");
@@ -610,11 +611,11 @@ class ThinReplicaImpl {
       return {grpc::Status(grpc::StatusCode::INTERNAL, msg.str()), live_updates};
     }
     auto last_block_id = (config_->rostorage)->getLastBlockId();
-    if (request->block_id() > last_block_id) {
+    if (request->events().block_id() > last_block_id) {
       config_->subscriber_list.removeBuffer(live_updates);
       live_updates->removeAllUpdates();
       std::stringstream msg;
-      msg << "Block " << request->block_id() << " doesn't exist yet "
+      msg << "Block " << request->events().block_id() << " doesn't exist yet "
           << " latest block is " << last_block_id;
       LOG_ERROR(logger_, msg.str());
       return {grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, msg.str()), live_updates};

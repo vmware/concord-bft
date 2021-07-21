@@ -1,4 +1,3 @@
-#include "threshsign/Configuration.h"
 
 #include "threshsign/ThresholdAccumulatorBase.h"
 

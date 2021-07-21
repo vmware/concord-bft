@@ -57,7 +57,7 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
       kvbc::BlockId, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid);
 };
 /**
- * This component is reposnsible for logging reconfiguraiton request (issued by an autherated operator) in the
+ * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the
  * blockchian.
  */
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
@@ -104,6 +104,12 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
   bool handle(const concord::messages::ClientKeyExchangeCommand& command,
               uint64_t sequence_number,
               concord::messages::ReconfigurationResponse& response) override;
+  bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::UnwedgeStatusRequest&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop commands)

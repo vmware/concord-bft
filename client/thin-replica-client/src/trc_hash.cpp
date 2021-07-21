@@ -16,6 +16,7 @@
 #include <map>
 
 #include "boost/detail/endian.hpp"
+#include "assertUtils.hpp"
 
 using com::vmware::concord::thin_replica::Data;
 using std::invalid_argument;
@@ -81,8 +82,9 @@ string hashUpdate(const Update& update) {
 }
 
 string hashUpdate(const Data& update) {
+  ConcordAssert(update.has_events());  // EventGroups not supported yet
   map<string, string> entry_hashes;
-  for (const auto& kvp : update.data()) {
+  for (const auto& kvp : update.events().data()) {
     string key_hash = ComputeSHA256Hash(kvp.key());
     if (entry_hashes.count(key_hash) > 0) {
       throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
@@ -90,7 +92,7 @@ string hashUpdate(const Data& update) {
     entry_hashes[key_hash] = ComputeSHA256Hash(kvp.value());
   }
 
-  return hashUpdateFromEntryHashes(update.block_id(), entry_hashes);
+  return hashUpdateFromEntryHashes(update.events().block_id(), entry_hashes);
 }
 
 string hashState(const list<string>& state) {

@@ -20,14 +20,14 @@
 #include "bftclient/config.h"
 #include "bftclient/bft_client.h"
 #include "config/test_comm_config.hpp"
-#include "config.hpp"
-#include "poll_based_state_client.hpp"
-#include "client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/config.hpp"
+#include "client/reconfiguration/poll_based_state_client.hpp"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <variant>
 
 using namespace bftEngine;
 using namespace bft::communication;
-
+using namespace concord::client::reconfiguration;
 using std::string;
 using bft::client::ClientConfig;
 using bft::client::ClientId;
@@ -36,7 +36,7 @@ struct creParams {
   string commConfigFile;
   string certFolder;
   ClientConfig bftConfig;
-  cre::Config CreConfig;
+  Config CreConfig;
 };
 creParams setupCreParams(int argc, char** argv) {
   // We assume that cre bft client is the highest external client id in the system
@@ -123,15 +123,15 @@ ICommunication* createCommunication(const ClientConfig& cc,
   return CommFactory::create(conf);
 }
 
-class KeyExchangeCommandHandler : public cre::IStateHandler {
+class KeyExchangeCommandHandler : public IStateHandler {
  public:
   KeyExchangeCommandHandler(uint16_t clientId) : clientId_{clientId} {}
-  bool validate(const cre::State& state) const {
+  bool validate(const State& state) const {
     concord::messages::ClientReconfigurationStateReply crep;
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientKeyExchangeCommand>(crep.response);
   };
-  bool execute(const cre::State& state, cre::WriteState& out) {
+  bool execute(const State& state, WriteState& out) {
     LOG_INFO(getLogger(), "execute key exchange request");
     concord::messages::ClientReconfigurationStateReply crep;
     concord::messages::deserialize(state.data, crep);
@@ -154,25 +154,25 @@ class KeyExchangeCommandHandler : public cre::IStateHandler {
 
  private:
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("cre.stateHandler.KeyExchangeHandler"));
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.testerCre.KeyExchangeHandler"));
     return logger_;
   }
   uint16_t clientId_;
 };
 
-class PublicKeyExchangeHandler : public cre::IStateHandler {
+class PublicKeyExchangeHandler : public IStateHandler {
  public:
-  bool validate(const cre::State& state) const override {
+  bool validate(const State& state) const override {
     concord::messages::ClientReconfigurationStateReply crep;
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientExchangePublicKey>(crep.response);
   }
-  bool execute(const cre::State&, cre::WriteState&) override {
+  bool execute(const State&, WriteState&) override {
     LOG_INFO(getLogger(), "restart client components");
     return true;
   }
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("cre.stateHandler.PublicKeyExchange"));
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.testerCre.PublicKeyExchange"));
     return logger_;
   }
 };
@@ -182,10 +182,9 @@ int main(int argc, char** argv) {
   std::unique_ptr<ICommunication> comm_ptr(
       createCommunication(creParams.bftConfig, creParams.commConfigFile, creParams.certFolder));
   Client* bft_client = new Client(std::move(comm_ptr), creParams.bftConfig);
-  cre::IStateClient* pollBasedClient =
-      new cre::PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
-  cre::ClientReconfigurationEngine cre(
-      creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
+  IStateClient* pollBasedClient =
+      new PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
+  ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(creParams.CreConfig.id_));
   cre.registerHandler(std::make_shared<PublicKeyExchangeHandler>());
   cre.start();

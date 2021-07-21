@@ -14,12 +14,10 @@
 
 #include <exception>
 
-#include "threshsign/Configuration.h"
-
 class NotImplementedException : public std::exception {
  public:
   NotImplementedException() {}
 
  public:
-  virtual const char* what() const _NOEXCEPT { return "Not implemented exception!"; }
+  virtual const char* what() const noexcept override { return "Not implemented exception!"; }
 };

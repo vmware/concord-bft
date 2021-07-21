@@ -14,8 +14,6 @@
 #undef ERROR
 #endif
 
-#include "threshsign/Configuration.h"
-
 #include "BlsAlmostMultisigCoefficients.h"
 #include "LagrangeInterpolation.h"
 

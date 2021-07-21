@@ -15,7 +15,7 @@
 #include <vector>
 #include <functional>
 
-namespace cre {
+namespace concord::client::reconfiguration {
 struct State {
   uint64_t blockid;
   std::vector<uint8_t> data;
@@ -43,4 +43,4 @@ class IStateHandler {
   virtual ~IStateHandler() = default;
 };
 
-}  // namespace cre
+}  // namespace concord::client::reconfiguration
