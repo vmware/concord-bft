@@ -58,6 +58,12 @@ class TestAppState : public IAppState {
     return true;
   };
 
+  // TODO - implement
+  void getPrevDigestFromBlock(const char* blockData,
+                              const uint32_t blockSize,
+                              StateTransferDigest* outPrevBlockDigest) override {
+    ConcordAssert(false);
+  }
 
   bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool trylinkSTChainFrom) override {
     ConcordAssert(blockId < last_block_);

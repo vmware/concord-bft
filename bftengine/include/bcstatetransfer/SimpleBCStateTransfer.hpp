@@ -89,6 +89,11 @@ class IAppState {
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.
   virtual bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) = 0;
 
+  // Extracts a digest out of in-memory block (raw block).
+  virtual void getPrevDigestFromBlock(const char *blockData,
+                                      const uint32_t blockSize,
+                                      StateTransferDigest *outPrevBlockDigest) = 0;
+
   // Add a block
   // blockId   - the block number
   // block     - pointer to a buffer that contains the new block
