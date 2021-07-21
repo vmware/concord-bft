@@ -36,6 +36,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override;
   void onTransferringComplete(uint64_t checkpointNumberOfNewState) override;
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override;
+  Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override;
 
   bool isCollectingState() const { return stateTransfer->isCollectingState(); }
 
