@@ -84,6 +84,12 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
     }
   }
+
+  // update reserved pages for RO replica
+  auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  auto wedgePoint = (bft_seq_num + 2 * checkpointWindowSize);
+  wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
+  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(command, wedgePoint, epochNum);
   return true;
 }
 
@@ -108,9 +114,6 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
     }
   }
-  // update reserved pages for RO replica
-  auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
-  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(command, bft_seq_num, epochNum);
 
   return true;
 }

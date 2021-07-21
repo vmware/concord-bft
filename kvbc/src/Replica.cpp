@@ -217,21 +217,10 @@ void Replica::saveReconfigurationCmdToResPages() {
     concord::messages::AddRemoveWithWedgeCommand cmd;
     std::vector<uint8_t> bytesval(strval.begin(), strval.end());
     concord::messages::deserialize(bytesval, cmd);
-    auto value = get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, blockid);
-    auto sequenceNum = uint64_t{0};
-    if (value) {
-      const auto &data = std::get<categorization::VersionedValue>(*value).data;
-      ConcordAssertEQ(data.size(), sizeof(uint64_t));
-      sequenceNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
-    }
-    auto epochVal =
-        get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_key}, blockid);
-    auto epochNum = uint64_t{0};
-    if (epochVal) {
-      const auto &data = std::get<categorization::VersionedValue>(*value).data;
-      ConcordAssertEQ(data.size(), sizeof(uint64_t));
-      epochNum = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
-    }
+    auto sequenceNum =
+        getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, blockid);
+    auto epochNum =
+        getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
     bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(cmd, sequenceNum, epochNum);
   }
 }
@@ -266,6 +255,7 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
+  bftEngine::ReconfigurationCmd::instance().setAggregator(aggregator_);
   handleNewEpochEvent();
   handleWedgeEvent();
 }
