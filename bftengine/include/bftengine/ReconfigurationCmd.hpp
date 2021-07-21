@@ -19,11 +19,10 @@
 namespace bftEngine {
 class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 1> {
   struct ReconfigurationCmdData : public concord::serialize::SerializableFactory<ReconfigurationCmdData> {
-    std::vector<uint8_t> data_;
-    uint64_t wedgePoint_{0};
     uint64_t epochNum_{0};
+    uint64_t wedgePoint_{0};
+    std::vector<uint8_t> data_;
     ReconfigurationCmdData() = default;
-    ReconfigurationCmdData(std::vector<uint8_t>& d) { data_ = std::move(d); }
     void serializeDataMembers(std::ostream& outStream) const override {
       serialize(outStream, epochNum_);
       serialize(outStream, wedgePoint_);
@@ -54,9 +53,9 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     ReconfigurationCmdData cmdData;
     concord::messages::serialize(cmdData.data_, cmd);
     cmdData.wedgePoint_ = wedge_point;
+    cmdData.epochNum_ = epoch_number;
     reconfiguration_wedge_point_gauge_.Get().Set(wedge_point);
     metrics_.UpdateAggregator();
-    cmdData.epochNum_ = epoch_number;
     std::ostringstream outStream;
     concord::serialize::Serializable::serialize(outStream, cmdData);
     auto data = outStream.str();

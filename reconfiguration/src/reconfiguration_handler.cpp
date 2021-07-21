@@ -114,7 +114,6 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
     }
   }
-
   return true;
 }
 
