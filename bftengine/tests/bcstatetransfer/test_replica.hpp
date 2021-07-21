@@ -52,6 +52,7 @@ class TestReplica : public IReplicaForStateTransfer {
 
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override{};
 
+  concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override { return concordUtil::Timers::Handle(); }
   ///////////////////////////////////////////////////////////////////////////
   // Data - All public on purpose, so that it can be accessed by tests
   ///////////////////////////////////////////////////////////////////////////
