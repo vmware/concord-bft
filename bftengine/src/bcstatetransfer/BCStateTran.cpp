@@ -509,7 +509,7 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
   ConcordAssertGT(checkpointNumber, 0);
-  ConcordAssertGT(checkpointNumber, lastStoredCheckpointNumber);
+  ConcordAssertGE(checkpointNumber, lastStoredCheckpointNumber);
 
   metrics_.create_checkpoint_++;
 
@@ -519,8 +519,8 @@ void BCStateTran::createCheckpointOfCurrentState(uint64_t checkpointNumber) {
     auto checkDesc = createCheckpointDesc(checkpointNumber, digestOfResPagesDescriptor);
     g.txn()->setCheckpointDesc(checkpointNumber, checkDesc);
     deleteOldCheckpoints(checkpointNumber, g.txn());
-    metrics_.last_stored_checkpoint_.Get().Set(psd_->getLastStoredCheckpoint());
   }
+  metrics_.last_stored_checkpoint_.Get().Set(psd_->getLastStoredCheckpoint());
 }
 
 void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
