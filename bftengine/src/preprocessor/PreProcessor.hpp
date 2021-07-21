@@ -60,6 +60,7 @@ class RequestsBatch {
   void registerBatch(const std::string &cid, uint32_t batchSize);
   void startBatch(const std::string &cid, uint32_t batchSize);
   void addReply(PreProcessReplyMsgSharedPtr replyMsg);
+  void updateBatchSize(uint32_t batchSize);
   bool isBatchRegistered() const { return batchRegistered_; }
   bool isBatchInProcess() const { return batchInProcess_; }
   void increaseNumOfCompletedReqs() { numOfCompletedReqs_++; }
