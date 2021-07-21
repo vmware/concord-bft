@@ -14,10 +14,6 @@
 #include "include/client/client_pool/client_pool_config.hpp"
 
 namespace concord::config_pool {
-using bft::communication::CommFactory;
-using bft::communication::ICommunication;
-using bft::communication::PlainUdpConfig;
-using bft::communication::TlsTcpConfig;
 
 ClientPoolConfig::ClientPoolConfig() { logger_ = logging::getLogger("com.vmware.external_client_pool"); }
 

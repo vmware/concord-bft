@@ -26,7 +26,6 @@
 namespace concord::concord_client_pool {
 
 using bftEngine::ClientMsgFlag;
-using opentracing::Tracer;
 using namespace bftEngine;
 
 static inline const std::string kEmptySpanContext = std::string("");
@@ -46,10 +45,10 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
   externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
   metricsComponent_.UpdateAggregator();
-  bool is_request_processed = false;
   auto serving_candidates = clients_.size();
   int client_id = 0;
-  while (!clients_.empty() && !is_request_processed && serving_candidates != 0) {
+
+  while (!clients_.empty() && serving_candidates != 0) {
     auto client = clients_.front();
     client_id = client->getClientId();
     if (is_overloaded_) {
@@ -69,15 +68,19 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
         LOG_TRACE(logger_, "Set batching timer" << KVLOG(client_id));
         batch_timer_->set(client);
       }
+
       client->AddPendingRequest(
           std::move(request), flags, reply_buffer, timeout_ms, max_reply_size, seq_num, correlation_id, span_context);
-      if (correlation_id.length() > SECOND_LEG_CID_LEN)
+
+      if (correlation_id.length() > SECOND_LEG_CID_LEN) {
         ClientPoolMetrics_.first_leg_counter++;
-      else
+      } else {
         ClientPoolMetrics_.second_leg_counter++;
+      }
       LOG_DEBUG(
           logger_,
           "Added request" << KVLOG(seq_num, correlation_id, client->PendingRequestsCount(), batch_size_, client_id));
+
       if (client->PendingRequestsCount() >= batch_size_) {
         clients_.pop_front();
         LOG_TRACE(logger_, "Cancel batching timer" << KVLOG(client_id));
@@ -88,7 +91,8 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
         ClientPoolMetrics_.full_batch_counter++;
         assignJobToClient(client);
       }
-      is_request_processed = true;
+      LOG_DEBUG(logger_, "Request Acknowledged (batch)" << KVLOG(client_id, correlation_id, seq_num, flags));
+      return SubmitResult::Acknowledged;
     } else {
       clients_.pop_front();
       if (0 != client->PendingRequestsCount()) {
@@ -96,11 +100,13 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
         auto batch_wait_time = batch_timer_->cancel();
         batch_agg_dur_.add(batch_wait_time.count());
         ClientPoolMetrics_.average_batch_agg_dur_gauge.Get().Set((uint64_t)batch_agg_dur_.avg());
-        if (batch_agg_dur_.numOfElements() == 1000) batch_agg_dur_.reset();
+        if (batch_agg_dur_.numOfElements() == 1000) {
+          batch_agg_dur_.reset();
+        }
         ClientPoolMetrics_.full_batch_counter++;
         assignJobToClient(client);
       } else {
-        assignJobToClient(std::move(client),
+        assignJobToClient(client,
                           std::move(request),
                           flags,
                           timeout_ms,
@@ -109,32 +115,32 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                           seq_num,
                           correlation_id,
                           span_context);
-        is_request_processed = true;
+        LOG_DEBUG(logger_, "Request Acknowledged (single)" << KVLOG(client_id, correlation_id, seq_num, flags));
+        return SubmitResult::Acknowledged;
       }
     }
   }
-  if (!is_request_processed) {
-    if (external_requests_queue_.size() < jobs_queue_max_size_) {
-      LOG_DEBUG(logger_, "Request has been inserted to the wait queue" << KVLOG(correlation_id, seq_num));
-      external_requests_queue_.emplace_back(externalRequest{std::move(request),
-                                                            flags,
-                                                            timeout_ms,
-                                                            seq_num,
-                                                            std::move(correlation_id),
-                                                            std::move(span_context),
-                                                            std::chrono::steady_clock::now(),
-                                                            reply_buffer,
-                                                            max_reply_size});
-      return SubmitResult::Acknowledged;
-    } else {
-      ClientPoolMetrics_.rejected_counter++;
-      is_overloaded_ = true;
-      LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
-      return SubmitResult::Overloaded;
-    }
+
+  // Request hasn't been processed yet
+  if (external_requests_queue_.size() < jobs_queue_max_size_) {
+    LOG_DEBUG(logger_, "Request has been inserted to the wait queue" << KVLOG(correlation_id, seq_num));
+    external_requests_queue_.emplace_back(externalRequest{std::move(request),
+                                                          flags,
+                                                          timeout_ms,
+                                                          seq_num,
+                                                          std::move(correlation_id),
+                                                          std::move(span_context),
+                                                          std::chrono::steady_clock::now(),
+                                                          reply_buffer,
+                                                          max_reply_size});
+    LOG_DEBUG(logger_, "Request Acknowledged (external)" << KVLOG(client_id, correlation_id, seq_num, flags));
+    return SubmitResult::Acknowledged;
+  } else {
+    ClientPoolMetrics_.rejected_counter++;
+    is_overloaded_ = true;
+    LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
+    return SubmitResult::Overloaded;
   }
-  LOG_DEBUG(logger_, "Request Acknowledged" << KVLOG(client_id, correlation_id, seq_num, flags));
-  return SubmitResult::Acknowledged;
 }
 
 void ConcordClientPool::assignJobToClient(const ClientPtr &client) {
@@ -147,15 +153,15 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client) {
   jobs_thread_pool_.add(job);
 }
 
-void ConcordClientPool::assignJobToClient(ClientPtr client,
+void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           std::vector<uint8_t> &&request,
                                           ClientMsgFlag flags,
                                           std::chrono::milliseconds timeout_ms,
                                           char *reply_buffer,
                                           std::uint32_t max_reply_size,
                                           uint64_t seq_num,
-                                          std::string correlation_id,
-                                          std::string span_context) {
+                                          const std::string &correlation_id,
+                                          const std::string &span_context) {
   if (max_reply_size) client->setReplyBuffer(reply_buffer, max_reply_size);
 
   LOG_INFO(logger_,
@@ -313,7 +319,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   } else {
     LOG_INFO(logger_, "Batching for client pool is disabled");
   }
-  batch_timer_ = std::make_unique<Timer_t>(timeout, [this](ClientPtr client) -> void { OnBatchingTimeout(client); });
+  batch_timer_ = std::make_unique<Timer_t>(timeout, [this](ClientPtr &&client) -> void { OnBatchingTimeout(client); });
   external_client::ConcordClient::setStatics(required_num_of_replicas, num_replicas, max_buf_size, batch_size_);
   bftEngine::SimpleClientParams clientParams;
   setUpClientParams(clientParams, config);
@@ -325,7 +331,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   jobs_queue_max_size_ = config.external_requests_queue_size;
 }
 
-void ConcordClientPool::OnBatchingTimeout(ClientPtr client) {
+void ConcordClientPool::OnBatchingTimeout(const ClientPtr &client) {
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
     const auto client_id = client->getClientId();
@@ -469,7 +475,7 @@ void ConcordClientPool::InsertClientToQueue(
         auto req = std::move(external_requests_queue_.front());
         external_requests_queue_.pop_front();
 
-        assignJobToClient(std::move(client),
+        assignJobToClient(client,
                           std::move(req.request),
                           req.flags,
                           req.timeout_ms,

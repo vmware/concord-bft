@@ -22,7 +22,6 @@ namespace concord::external_client {
 using bftEngine::ClientMsgFlag;
 using namespace config_pool;
 using namespace bftEngine;
-using std::chrono_literals::operator""s;
 
 using namespace bft::communication;
 
@@ -47,7 +46,7 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
   bft::client::Reply res;
   try {
     res = new_client_->send(config, std::move(request));
-  } catch (TimeoutException e) {
+  } catch (const TimeoutException& e) {
     clientRequestError_ = TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
@@ -67,7 +66,7 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& con
   bft::client::Reply res;
   try {
     res = new_client_->send(config, std::move(request));
-  } catch (TimeoutException e) {
+  } catch (const TimeoutException& e) {
     clientRequestError_ = TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id

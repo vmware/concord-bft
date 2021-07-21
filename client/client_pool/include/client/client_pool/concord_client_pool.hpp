@@ -147,15 +147,15 @@ class ConcordClientPool {
   void assignJobToClient(const ClientPtr& client);
 
   // For single jobs
-  void assignJobToClient(ClientPtr client,
+  void assignJobToClient(const ClientPtr& client,
                          std::vector<uint8_t>&& request,
                          bftEngine::ClientMsgFlag flags,
                          std::chrono::milliseconds timeout_ms,
                          char* reply_buffer,
                          std::uint32_t max_reply_size,
                          uint64_t seq_num,
-                         std::string correlation_id,
-                         std::string span_context);
+                         const std::string& correlation_id,
+                         const std::string& span_context);
 
   PoolStatus HealthStatus();
 
@@ -169,7 +169,7 @@ class ConcordClientPool {
                          const concord::config_pool::ConcordClientPoolConfig&);
   void CreatePool(concord::config_pool::ConcordClientPoolConfig&);
 
-  void OnBatchingTimeout(ClientPtr client);
+  void OnBatchingTimeout(const ClientPtr& client);
   bool clusterHasKeys(ClientPtr& cl);
   std::string SampleSpan(const std::string& span_blob);
   std::atomic_bool hasKeys_{false};
