@@ -520,6 +520,21 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 bft_network.config, client,  bft_network.builddir)
             await op.unwedge(bft=True)
 
+        with trio.fail_after(seconds=90):
+            done = False
+            quorum = bft_client.MofNQuorum.LinearizableQuorum(
+                client.config, bft_network.all_replicas(without=replicas_to_stop))
+            while done is False:
+                await op.wedge_status(quorum=quorum, fullWedge=False)
+                rsi_rep = client.get_rsi_replies()
+                done = True
+                for r in rsi_rep.values():
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    status = res[0].response.stopped
+                    if status is True:
+                        done = False
+                        break
+
         # Make sure the system is able to make progress
         for i in range(500):
             await skvbc.write_known_kv()
@@ -531,8 +546,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
                                                               stop_on_stable_seq_num=False)
-
         await skvbc.wait_for_liveness()
+
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -589,6 +604,21 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             op = operator.Operator(
                 bft_network.config, client,  bft_network.builddir)
             await op.unwedge(bft=True)
+
+        with trio.fail_after(seconds=90):
+            done = False
+            quorum = bft_client.MofNQuorum.LinearizableQuorum(
+                client.config, bft_network.all_replicas(without=replicas_to_stop))
+            while done is False:
+                await op.wedge_status(quorum=quorum, fullWedge=False)
+                rsi_rep = client.get_rsi_replies()
+                done = True
+                for r in rsi_rep.values():
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    status = res[0].response.stopped
+                    if status is True:
+                        done = False
+                        break
 
         # Make sure the system is able to make progress
         for i in range(100):
