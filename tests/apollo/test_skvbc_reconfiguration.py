@@ -509,7 +509,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await self.verify_replicas_are_in_wedged_checkpoint(bft_network, checkpoint_before, on_time_replicas)
 
-        replicas_to_stop = bft_network.random_set_of_replicas(2, {
+        replicas_to_stop = bft_network.random_set_of_replicas(1, {
                                                               initial_prim})
         bft_network.stop_replicas(replicas_to_stop)
 
