@@ -100,6 +100,9 @@ class Replica : public IReplica,
   bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) override;
   std::future<bool> getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) override;
   bool getPrevDigestFromBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *) override;
+  void getPrevDigestFromBlock(const char *blockData,
+                              const uint32_t blockSize,
+                              bftEngine::bcst::StateTransferDigest *outPrevBlockDige) override;
   bool putBlock(const uint64_t blockId,
                 const char *blockData,
                 const uint32_t blockSize,

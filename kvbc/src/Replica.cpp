@@ -601,6 +601,18 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
   return true;
 }
 
+void Replica::getPrevDigestFromBlock(const char *blockData,
+                                     const uint32_t blockSize,
+                                     StateTransferDigest *outPrevBlockDigest) {
+  ConcordAssertGT(blockSize, 0);
+  auto view = std::string_view{blockData, blockSize};
+  const auto rawBlock = categorization::RawBlock::deserialize(view);
+
+  static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
+  static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
+}
+
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
                                                 bftEngine::bcst::StateTransferDigest *outPrevBlockDigest) {
   ConcordAssert(blockId > 0);
