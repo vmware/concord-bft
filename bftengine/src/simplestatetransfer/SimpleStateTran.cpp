@@ -24,6 +24,7 @@
 #include "memorydb/key_comparator.h"
 #include "Logger.hpp"
 #include "storage/direct_kv_key_manipulator.h"
+#include "Timers.hpp"
 
 namespace bftEngine {
 
@@ -146,6 +147,10 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override {
       realInterface_->changeStateTransferTimerPeriod(timerPeriodMilli);
+    }
+
+    concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override {
+      return realInterface_->addOneShotTimer(timeoutMilli);
     }
   };
 
