@@ -89,11 +89,15 @@ class IAppState {
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.
   virtual bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest *outPrevBlockDigest) = 0;
 
-  // adds block
+  // Add a block
   // blockId   - the block number
   // block     - pointer to a buffer that contains the new block
   // blockSize - the size of the new block
-  virtual bool putBlock(const uint64_t blockId, const char *block, const uint32_t blockSize) = 0;
+  // lastBlock - when true, for backup replica - try to remove blocks from State Transfer chain and add them to
+  // the blockchain
+  // Returns true if operation succeeded. Else, returns false. Call may also throw an exception which is also a failure
+  // (false is returned).
+  virtual bool putBlock(const uint64_t blockId, const char *block, const uint32_t blockSize, bool lastBlock = true) = 0;
 
   // returns the maximal block number n such that all blocks 1 <= i <= n exist.
   // if block 1 does not exist, returns 0.

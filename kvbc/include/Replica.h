@@ -100,7 +100,10 @@ class Replica : public IReplica,
   bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) override;
   std::future<bool> getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) override;
   bool getPrevDigestFromBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *) override;
-  bool putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) override;
+  bool putBlock(const uint64_t blockId,
+                const char *blockData,
+                const uint32_t blockSize,
+                bool lastBlock = true) override;
   uint64_t getLastReachableBlockNum() const override;
   uint64_t getGenesisBlockNum() const override;
   // This method is used by state-transfer in order to find the latest block id in either the state-transfer chain or

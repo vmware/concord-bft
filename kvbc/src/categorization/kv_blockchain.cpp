@@ -663,7 +663,7 @@ ImmutableOutput KeyValueBlockchain::handleCategoryUpdates(BlockId block_id,
 }
 
 /////////////////////// state transfer blockchain ///////////////////////
-void KeyValueBlockchain::addRawBlock(const RawBlock& block, const BlockId& block_id) {
+void KeyValueBlockchain::addRawBlock(const RawBlock& block, const BlockId& block_id, bool lastBlock) {
   diagnostics::TimeRecorder scoped_timer(*histograms_.addRawBlock);
   const auto last_reachable_block = getLastReachableBlockId();
   if (block_id <= last_reachable_block) {
@@ -677,14 +677,17 @@ void KeyValueBlockchain::addRawBlock(const RawBlock& block, const BlockId& block
   // Update the cached latest ST temporary block ID if we have received and persisted such a block.
   state_transfer_block_chain_.updateLastId(block_id);
 
-  try {
-    linkSTChainFrom(last_reachable_block + 1);
-  } catch (const std::exception& e) {
-    // LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added, reason: "s + e.what());
-    std::terminate();
-  } catch (...) {
-    // LOG_FATAL(logger_, "Aborting due to failure to link chains after block has been added");
-    std::terminate();
+  if (lastBlock) {
+    try {
+      linkSTChainFrom(last_reachable_block + 1);
+    } catch (const std::exception& e) {
+      LOG_FATAL(CAT_BLOCK_LOG,
+                "Aborting due to failure to link chains after block has been added, reason: " << e.what());
+      std::terminate();
+    } catch (...) {
+      LOG_FATAL(CAT_BLOCK_LOG, "Aborting due to failure to link chains after block has been added");
+      std::terminate();
+    }
   }
 }
 
