@@ -307,6 +307,7 @@ SimpleStateTran::SimpleStateTran(
       256 * 1024 * 1024,                    // maxPendingDataFromSourceReplica
       2048,                                 // maxNumOfReservedPages
       4096,                                 // sizeOfReservedPage
+      600,                                  // gettingMissingBlocksSummaryWindowSize
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
@@ -315,7 +316,7 @@ SimpleStateTran::SimpleStateTran(
       5,                                    // metricsDumpIntervalSec
       true,                                 // runInSeparateThread
       true,                                 // enableReservedPages
-      true,                                 // enableSourceBlocksPreFetch
+      true                                  // enableSourceBlocksPreFetch
   };
 
   auto comparator = concord::storage::memorydb::KeyComparator();
