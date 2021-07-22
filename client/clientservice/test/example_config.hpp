@@ -41,9 +41,9 @@ num_replicas: 4
 num_ro_replicas: 1
 prometheus_port: 9873
 secrets_url: ""
-signing_key_path: /concord/signing_keys
+signing_key_path: /clientservice/bft_signing_keys
 tls_1_3_comm_enabled: true
-tls_certificates_folder_path: /concord/tls_certs
+tls_certificates_folder_path: /clientservice/bft_certs
 tls_cipher_suite_list: ECDHE-ECDSA-AES256-GCM-SHA384
 tls_1_3_cipher_suite_list: TLS_AES_256_GCM_SHA384
 transaction_signing_enabled: true
@@ -52,18 +52,22 @@ node:
       - principal_id: 0
         replica_host: concord1
         replica_port: 3501
+        event_port: 50051
   - replica:
       - principal_id: 1
         replica_host: concord2
         replica_port: 3501
+        event_port: 50051
   - replica:
       - principal_id: 2
         replica_host: concord3
         replica_port: 3501
+        event_port: 50051
   - replica:
       - principal_id: 3
         replica_host: concord4
         replica_port: 3501
+        event_port: 50051
 participant_nodes:
   - participant_node:
       - participant_node_host: 0.0.0.0

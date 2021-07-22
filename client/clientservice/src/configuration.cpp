@@ -18,6 +18,7 @@
 #include "client/clientservice/client_service.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
+using concord::client::concordclient::SubscribeServer;
 
 namespace concord::client::clientservice {
 
@@ -36,8 +37,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     ri.id.val = replica["principal_id"].as<uint16_t>();
     ri.host = replica["replica_host"].as<std::string>();
     ri.bft_port = replica["replica_port"].as<uint16_t>();
-    // TODO: Should come from the configuration as well
-    ri.event_port = 50051;
+    ri.event_port = replica["event_port"].as<uint16_t>();
 
     config.topology.replicas.push_back(ri);
   }
@@ -82,6 +82,27 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     ci.id.val = client["principal_id"].as<uint16_t>();
     // TODO: client_port
     config.bft_clients.push_back(ci);
+  }
+}
+
+void configureSubscription(concord::client::concordclient::ConcordClientConfig& config,
+                           const std::string& tr_id,
+                           bool is_insecure,
+                           const std::string& tls_path) {
+  config.subscribe_config.id = tr_id;
+
+  // TODO: Read TLS certs for this TRC instance
+  // config.subscribe_config.pem_cert_chain
+  // config.subscribe_config.pem_private_key
+
+  for (size_t i = 0; i < config.topology.replicas.size(); ++i) {
+    SubscribeServer trs;
+    trs.use_tls = not is_insecure;
+    if (trs.use_tls) {
+      // TODO: Read TLS certs for TRS
+      // trs.pem_certs
+    }
+    config.subscribe_config.servers.push_back(std::move(trs));
   }
 }
 
