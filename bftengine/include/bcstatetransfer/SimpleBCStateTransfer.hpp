@@ -77,12 +77,16 @@ class IAppState {
   // outBlock and outBlockSize. Returns true IFF block blockId exists.
   virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
 
+  // Get a block (asynchronously)
   // An asynchronous version for the above getBlock.
   // For a given blockId, a job is invoked asynchronously, to get the block from storage and fill outBlock and
   // outBlockSize. After job is created, this call returns immidiately with a future<bool>, while job is executed by a
   // seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
   // job has been done. User should 1st check the future value: if true - block exist and outBlock, outBlockSize are
   // valid if false - block does not exist, all output should be ignored.
+  // Notice: call to future.get() us not expected to throw exception since all expected
+  // exceptions are caught inside the call implementation. If exception is thrown, some severe
+  // error happened.
   virtual std::future<bool> getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
 
   // If block blockId exists, then the digest of block blockId-1 is returned via
@@ -100,9 +104,21 @@ class IAppState {
   // blockSize - the size of the new block
   // lastBlock - when true, for backup replica - try to remove blocks from State Transfer chain and add them to
   // the blockchain
-  // Returns true if operation succeeded. Else, returns false. Call may also throw an exception which is also a failure
-  // (false is returned).
+  // Returns true if operation succeeded.
   virtual bool putBlock(const uint64_t blockId, const char *block, const uint32_t blockSize, bool lastBlock = true) = 0;
+
+  // Add a block (asynchronously)
+  // An asynchronous version for the above putBlock.
+  // For a given blockId, a job is invoked asynchronously, to put the block into storage.
+  // After job is created, this call returns immidiately with a future<bool>, while job is executed by a
+  // seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
+  // job has been done.
+  // All exceptions in putBlock are caught within this call implementation.
+  // Returns true if operation succeeded.
+  virtual std::future<bool> putBlockAsync(uint64_t blockId,
+                                          const char *block,
+                                          const uint32_t blockSize,
+                                          bool trylinkSTChainFrom = true) = 0;
 
   // returns the maximal block number n such that all blocks 1 <= i <= n exist.
   // if block 1 does not exist, returns 0.

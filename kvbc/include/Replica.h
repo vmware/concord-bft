@@ -107,6 +107,10 @@ class Replica : public IReplica,
                 const char *blockData,
                 const uint32_t blockSize,
                 bool lastBlock = true) override;
+  std::future<bool> putBlockAsync(uint64_t blockId,
+                                  const char *block,
+                                  const uint32_t blockSize,
+                                  bool lastBlock = true) override;
   uint64_t getLastReachableBlockNum() const override;
   uint64_t getGenesisBlockNum() const override;
   // This method is used by state-transfer in order to find the latest block id in either the state-transfer chain or
@@ -201,13 +205,14 @@ class Replica : public IReplica,
 
  private:
   struct Recorders {
-    static constexpr uint64_t MAX_VALUE_MICROSECONDS = 60ULL * 1000ULL * 1000ULL;  // 60 seconds
+    static constexpr uint64_t MAX_VALUE_MICROSECONDS = 2ULL * 1000ULL * 1000ULL;  // 2 seconds
 
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("iappstate", {get_block_duration});
+      registrar.perf.registerComponent("iappstate", {get_block_duration, put_block_duration});
     }
     DEFINE_SHARED_RECORDER(get_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(put_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 };  // namespace concord::kvbc

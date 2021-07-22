@@ -467,6 +467,40 @@ bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint
   return true;
 }
 
+std::future<bool> Replica::putBlockAsync(uint64_t blockId,
+                                         const char *block,
+                                         const uint32_t blockSize,
+                                         bool trylinkSTChainFrom) {
+  static uint64_t callCounter = 0;
+  static constexpr size_t snapshotThresh = 1000;
+
+  auto future = blocksIOWorkersPool_.async(
+      [this](uint64_t blockId, const char *block, const uint32_t blockSize, bool trylinkSTChainFrom) {
+        auto start = std::chrono::steady_clock::now();
+        bool result = false;
+
+        LOG_TRACE(logger, "Job Started: " << KVLOG(blockId, blockSize));
+        result = putBlock(blockId, block, blockSize, trylinkSTChainFrom);
+
+        auto jobDuration =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, jobDuration));
+        histograms_.put_block_duration->record(jobDuration);
+        return result;
+      },
+      std::forward<decltype(blockId)>(blockId),
+      std::forward<decltype(block)>(block),
+      std::forward<decltype(blockSize)>(blockSize),
+      std::forward<decltype(trylinkSTChainFrom)>(trylinkSTChainFrom));
+
+  if ((++callCounter % snapshotThresh) == 0) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("iappstate");
+    LOG_INFO(logger, registrar.perf.toString(registrar.perf.get("iappstate")));
+  }
+  return future;
+}
+
 bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
   Sliver block = Sliver::copy(blockData, blockSize);
 
@@ -539,23 +573,34 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint3
 
   auto future = blocksIOWorkersPool_.async(
       [this](uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+        bool result = false;
         auto start = std::chrono::steady_clock::now();
         *outBlockSize = 0;
+        LOG_TRACE(logger, "Job Started: " << KVLOG(blockId));
 
         // getBlock will throw exception if block doesn't exist
         try {
-          getBlock(blockId, outBlock, outBlockSize);
+          result = getBlock(blockId, outBlock, outBlockSize);
         } catch (NotFoundException &ex) {
           *outBlockSize = 0;
           LOG_ERROR(logger, "Block not found:" << KVLOG(blockId));
           return false;
+        } catch (const std::runtime_error &ex) {
+          LOG_ERROR(logger, "runtime_error exception:" << ex.what());
+          return false;
+        } catch (const std::exception &ex) {
+          LOG_ERROR(logger, "exception:" << ex.what());
+          return false;
+        } catch (...) {
+          LOG_ERROR(logger, "Uknown exception!");
+          return false;
         }
-        ConcordAssertGT(*outBlockSize, 0);
+        if (result) ConcordAssertGT(*outBlockSize, 0);
         auto jobDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-        LOG_DEBUG(logger, "Job done: " << KVLOG(blockId, *outBlockSize, jobDuration));
+        LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, *outBlockSize, jobDuration));
         histograms_.get_block_duration->record(jobDuration);
-        return true;
+        return result;
       },
       std::forward<decltype(blockId)>(blockId),
       std::forward<decltype(outBlock)>(outBlock),

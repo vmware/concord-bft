@@ -114,6 +114,11 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock = true) override;
 
+    std::future<bool> putBlockAsync(uint64_t blockId,
+                                    const char* block,
+                                    const uint32_t blockSize,
+                                    bool trylinkSTChainFrom = true) override;
+
     uint64_t getLastReachableBlockNum() const override;
     uint64_t getGenesisBlockNum() const override;
     uint64_t getLastBlockNum() const override;
@@ -630,6 +635,14 @@ bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId,
                                              bool lastBlock) {
   ConcordAssert(false);
   return false;
+}
+
+std::future<bool> SimpleStateTran::DummyBDState::putBlockAsync(uint64_t blockId,
+                                                               const char* block,
+                                                               const uint32_t blockSize,
+                                                               bool trylinkSTChainFrom) {
+  ConcordAssert(false);
+  return std::async([]() { return false; });
 }
 
 uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() const { return 0; }

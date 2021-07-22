@@ -46,8 +46,10 @@ class TestAppState : public IAppState {
     return true;
   };
 
+  // TODO - implement
   std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override {
     ConcordAssert(false);
+    return std::async([]() { return false; });
   }
 
   bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) override {
@@ -73,6 +75,15 @@ class TestAppState : public IAppState {
     bl.actualSize = blockSize;
     last_block_ = blockId;
     return true;
+  }
+
+  // TODO - implement
+  std::future<bool> putBlockAsync(uint64_t blockId,
+                                  const char* block,
+                                  const uint32_t blockSize,
+                                  bool trylinkSTChainFrom = true) override {
+    ConcordAssert(false);
+    return std::async([]() { return false; });
   }
 
   // TODO(AJS): How does this differ from getLastBlockNum?
