@@ -28,7 +28,6 @@
 #include "Logger.hpp"
 #include "Metrics.hpp"
 
-#include "categorization/db_categories.h"
 #include "db_interfaces.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
