@@ -292,6 +292,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     async def test_client_exchange_public_key(self, bft_network):
         """
             Second phase of a client key exchange sequence
+            Client generates key pair and sends client key exchange public key
+            TODO [TK] when implemented in a bft_client, use a newly generated key;
+                      for now use other clients to fill a checkpoint
         """
         with log.start_action(action_type="test_client_exchange_public_key"):
             bft_network.start_all_replicas()
@@ -301,8 +304,33 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             op = operator.Operator(bft_network.config, client, bft_network.builddir)
             rep = await op.client_exchange_public_key()
             rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-            assert rep.success is True        
-     
+            assert rep.success is True
+            await trio.sleep(1) #to avoid inconsistency with bft mdt
+            bft_network.stop_all_replicas()
+            bft_network.start_all_replicas()
+            await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False,
+                                                 without_clients={client.client_id})
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_client_exchange_public_key_failure(self, bft_network):
+        """
+            Client sends key exchange with an invalid public key 
+        """
+        with log.start_action(action_type="test_client_exchange_public_key_failure"):
+            bft_network.start_all_replicas()
+            client = bft_network.random_client()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            log.log_message(message_type=f"sending client exchange public key for client {client.client_id}")
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            rep = await op.client_exchange_public_key(valid=False)
+            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+            assert rep.success is False
+            log.log_message(message_type=f"client key exchange failure: {rep.additional_data}")
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):

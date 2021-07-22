@@ -16,6 +16,7 @@
 #include "bftengine/ReservedPagesClient.hpp"
 #include "Metrics.hpp"
 #include "IPendingRequest.hpp"
+#include "bftengine/IKeyExchanger.hpp"
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -28,15 +29,14 @@ namespace impl {
 class ClientReplyMsg;
 class ClientRequestMsg;
 
-class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingRequest {
+class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingRequest, public IClientPublicKeyStore {
  public:
   ClientsManager(const std::set<NodeIdType>& proxyClients,
                  const std::set<NodeIdType>& externalClients,
                  const std::set<NodeIdType>& internalClients,
                  concordMetrics::Component& metrics);
-  ~ClientsManager();
 
-  uint32_t numberOfRequiredReservedPages() const { return requiredNumberOfPages_; }
+  uint32_t numberOfRequiredReservedPages() const { return clientIds_.size() * reservedPagesPerClient_; }
 
   void loadInfoFromReservedPages();
 
@@ -78,21 +78,24 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   bool isInternal(NodeIdType clientId) const { return internalClients_.find(clientId) != internalClients_.end(); }
 
+  // set/update and persist a client public key
+  void setClientPublicKey(NodeIdType, const std::string& key, KeyFormat) override;
+
   // General
   static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
 
  protected:
-  uint32_t getFirstPageId(NodeIdType clientId) const {
+  uint32_t getReplyFirstPageId(NodeIdType clientId) const { return getKeyPageId(clientId) + 1; }
+
+  uint32_t getKeyPageId(NodeIdType clientId) const {
     return (clientId - *clientIds_.cbegin()) * reservedPagesPerClient_;
   }
 
   const ReplicaId myId_;
-  const uint32_t sizeOfReservedPage_;
 
-  char* scratchPage_ = nullptr;
+  std::string scratchPage_;
 
   uint32_t reservedPagesPerClient_;
-  uint32_t requiredNumberOfPages_;
 
   struct RequestInfo {
     RequestInfo() : time(MinTime) {}
@@ -106,6 +109,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   struct ClientInfo {
     std::map<ReqId, RequestInfo> requestsInfo;
     std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
+    std::pair<std::string, KeyFormat> pubKey;
   };
 
   std::set<NodeIdType> proxyClients_;

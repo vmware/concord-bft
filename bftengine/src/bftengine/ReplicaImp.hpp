@@ -131,7 +131,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
 
   // managing information about the clients
-  ClientsManager* clientsManager = nullptr;
+  std::shared_ptr<ClientsManager> clientsManager;
   std::shared_ptr<InternalBFTClient> internalBFTClient_;
 
   size_t numInvalidClients = 0;

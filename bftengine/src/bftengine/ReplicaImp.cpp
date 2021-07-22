@@ -3777,7 +3777,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   for (int i = 0; i < config_.getnumOfClientProxies(); ++i) proxyClients.insert(clientId++);
   for (int i = 0; i < config_.getnumOfExternalClients(); ++i) externalClients.insert(clientId++);
   for (int i = 0; i < config_.getnumReplicas(); ++i) internalClients.insert(clientId++);
-  clientsManager = new ClientsManager(proxyClients, externalClients, internalClients, metrics_);
+  clientsManager = std::make_shared<ClientsManager>(proxyClients, externalClients, internalClients, metrics_);
   internalBFTClient_.reset(
       new InternalBFTClient(*internalClients.cbegin() + config_.getreplicaId(), msgsCommunicator_));
 
@@ -3825,7 +3825,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   }
 
   KeyExchangeManager::InitData id{
-      internalBFTClient_, &CryptoManager::instance(), &CryptoManager::instance(), sm_, &timers_};
+      internalBFTClient_, &CryptoManager::instance(), &CryptoManager::instance(), sm_, clientsManager.get(), &timers_};
 
   KeyExchangeManager::instance(&id);
 
@@ -3841,7 +3841,6 @@ ReplicaImp::~ReplicaImp() {
   delete controller;
   delete dynamicUpperLimitOfRounds;
   delete checkpointsLog;
-  delete clientsManager;
   delete repsInfo;
   free(replyBuffer);
 

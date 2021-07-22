@@ -292,7 +292,8 @@ class SimpleKVBCProtocol:
             self, initial_nodes,
             num_of_checkpoints_to_add=2,
             verify_checkpoint_persistency=True,
-            assert_state_transfer_not_started=True):
+            assert_state_transfer_not_started=True,
+            without_clients=None):
         """
         A helper function used by tests to fill a window with data and then
         checkpoint it.
@@ -303,7 +304,7 @@ class SimpleKVBCProtocol:
         TODO: Make filling concurrent to speed up tests
         """
         with log.start_action(action_type="fill_and_wait_for_checkpoint"):
-            client = self.bft_network.random_client()
+            client = self.bft_network.random_client(without_clients)
             checkpoint_before = await self.bft_network.wait_for_checkpoint(
                 replica_id=random.choice(initial_nodes))
             # Write enough data to checkpoint and create a need for state transfer

@@ -12,7 +12,7 @@
 #pragma once
 
 #include <threshsign/ThresholdSignaturesSchemes.h>
-#include "PrimitiveTypes.hpp"
+#include "bftengine/IKeyExchanger.hpp"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
