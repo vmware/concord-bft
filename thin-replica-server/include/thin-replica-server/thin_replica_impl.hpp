@@ -28,6 +28,7 @@
 #include "Logger.hpp"
 #include "Metrics.hpp"
 
+#include "categorization/db_categories.h"
 #include "db_interfaces.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
@@ -207,9 +208,18 @@ class ThinReplicaImpl {
     uint16_t update_aggregator_counter = 0;
     metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
+    kvbc::BlockId start_block_id;
+    if (request->has_events()) {
+      start_block_id = request->events().block_id();
+    } else {
+      uint64_t event_group_id = request->event_groups().event_group_id();
+      const auto latest = (config_->rostorage)
+                              ->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupsCategory,
+                                                 std::to_string(event_group_id));
+      start_block_id = latest->version;
+    }
     try {
-      syncAndSend<ServerContextT, ServerWriterT, DataT>(
-          context, request->events().block_id(), live_updates, stream, kvb_filter);
+      syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
     } catch (StreamCancelled& error) {
       config_->subscriber_list.removeBuffer(live_updates);
       live_updates->removeAllUpdates();
