@@ -74,20 +74,22 @@ class IAppState {
   virtual bool hasBlock(uint64_t blockId) const = 0;
 
   // If block blockId exists, then its content is returned via the arguments
-  // outBlock and outBlockSize. Returns true IFF block blockId exists.
-  virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
+  // outBlock and outBlockActualSize. Returns true IFF block blockId exists.
+  // If outBlockMaxSize is too small, an exception is thrown
+  virtual bool getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) = 0;
 
   // Get a block (asynchronously)
   // An asynchronous version for the above getBlock.
   // For a given blockId, a job is invoked asynchronously, to get the block from storage and fill outBlock and
-  // outBlockSize. After job is created, this call returns immidiately with a future<bool>, while job is executed by a
-  // seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure that
-  // job has been done. User should 1st check the future value: if true - block exist and outBlock, outBlockSize are
-  // valid if false - block does not exist, all output should be ignored.
-  // Notice: call to future.get() us not expected to throw exception since all expected
-  // exceptions are caught inside the call implementation. If exception is thrown, some severe
-  // error happened.
-  virtual std::future<bool> getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) = 0;
+  // outBlockActualSize. After job is created, this call returns immidiately with a future<bool>, while job is executed
+  // by a seperate worker thread. Before accesing buffer and size, user must call the returned future.get() to make sure
+  // that job has been done. User should 1st check the future value: if true - block exist and outBlock,
+  // outBlockActualSize are valid if false - block does not exist, all output should be ignored. If outBlockMaxSize is
+  // too small, an exception is thrown.
+  virtual std::future<bool> getBlockAsync(uint64_t blockId,
+                                          char *outBlock,
+                                          uint32_t outBlockMaxSize,
+                                          uint32_t *outBlockActualSize) = 0;
 
   // If block blockId exists, then the digest of block blockId-1 is returned via
   // the argument outPrevBlockDigest. Returns true IFF block blockId exists.

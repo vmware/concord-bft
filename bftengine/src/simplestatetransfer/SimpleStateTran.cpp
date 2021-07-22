@@ -102,9 +102,12 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     bool hasBlock(uint64_t blockId) const override;
 
-    bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
+    bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override;
 
-    std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
+    std::future<bool> getBlockAsync(uint64_t blockId,
+                                    char* outBlock,
+                                    uint32_t outBlockMaxSize,
+                                    uint32_t* outBlockActualSize) override;
 
     bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
 
@@ -605,14 +608,18 @@ void SimpleStateTran::onComplete(int64_t checkpointNumberOfNewState) {
 
 bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return false; }
 
-bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) {
+bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId,
+                                             char* outBlock,
+                                             uint32_t outBlockMaxSize,
+                                             uint32_t* outBlockActualSize) {
   ConcordAssert(false);
   return false;
 }
 
 std::future<bool> SimpleStateTran::DummyBDState::getBlockAsync(uint64_t blockId,
                                                                char* outBlock,
-                                                               uint32_t* outBlockSize) {
+                                                               uint32_t outBlockMaxSize,
+                                                               uint32_t* outBlockActualSize) {
   ConcordAssert(false);
   return std::async([]() { return false; });
 }

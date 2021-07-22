@@ -552,59 +552,58 @@ RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter
  * This method assumes that *outBlock is big enough to hold block content
  * The caller is the owner of the memory
  */
-bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
   if (replicaConfig_.isReadOnly) {
-    return getBlockFromObjectStore(blockId, outBlock, outBlockSize);
+    return getBlockFromObjectStore(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
   }
   const auto rawBlock = m_kvBlockchain->getRawBlock(blockId);
   if (!rawBlock) {
     throw NotFoundException{"Raw block not found: " + std::to_string(blockId)};
   }
   const auto &ser = categorization::RawBlock::serialize(*rawBlock);
-  *outBlockSize = ser.size();
-  LOG_DEBUG(logger, KVLOG(blockId, *outBlockSize));
-  std::memcpy(outBlock, ser.data(), *outBlockSize);
+  if (ser.size() > outBlockMaxSize) {
+    LOG_ERROR(logger, KVLOG(ser.size(), outBlockMaxSize));
+    throw std::runtime_error("not enough space to copy block!");
+  }
+  *outBlockActualSize = ser.size();
+  LOG_DEBUG(logger, KVLOG(blockId, *outBlockActualSize));
+  std::memcpy(outBlock, ser.data(), *outBlockActualSize);
   return true;
 }
 
-std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+std::future<bool> Replica::getBlockAsync(uint64_t blockId,
+                                         char *outBlock,
+                                         uint32_t outBlockMaxSize,
+                                         uint32_t *outBlockActualSize) {
   static uint64_t callCounter = 0;
   static constexpr size_t snapshotThresh = 1000;
 
   auto future = blocksIOWorkersPool_.async(
-      [this](uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+      [this](uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
         bool result = false;
         auto start = std::chrono::steady_clock::now();
-        *outBlockSize = 0;
+        *outBlockActualSize = 0;
         LOG_TRACE(logger, "Job Started: " << KVLOG(blockId));
 
         // getBlock will throw exception if block doesn't exist
         try {
-          result = getBlock(blockId, outBlock, outBlockSize);
+          result = getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
         } catch (NotFoundException &ex) {
-          *outBlockSize = 0;
+          *outBlockActualSize = 0;
           LOG_ERROR(logger, "Block not found:" << KVLOG(blockId));
           return false;
-        } catch (const std::runtime_error &ex) {
-          LOG_ERROR(logger, "runtime_error exception:" << ex.what());
-          return false;
-        } catch (const std::exception &ex) {
-          LOG_ERROR(logger, "exception:" << ex.what());
-          return false;
-        } catch (...) {
-          LOG_ERROR(logger, "Uknown exception!");
-          return false;
         }
-        if (result) ConcordAssertGT(*outBlockSize, 0);
+        if (result) ConcordAssertGT(*outBlockActualSize, 0);
         auto jobDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-        LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, *outBlockSize, jobDuration));
+        LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, *outBlockActualSize, jobDuration));
         histograms_.get_block_duration->record(jobDuration);
         return result;
       },
       std::forward<decltype(blockId)>(blockId),
       std::forward<decltype(outBlock)>(outBlock),
-      std::forward<decltype(outBlockSize)>(outBlockSize));
+      std::forward<decltype(outBlockMaxSize)>(outBlockMaxSize),
+      std::forward<decltype(outBlockActualSize)>(outBlockActualSize));
 
   if ((++callCounter % snapshotThresh) == 0) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -614,9 +613,16 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint3
   return future;
 }
 
-bool Replica::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+bool Replica::getBlockFromObjectStore(uint64_t blockId,
+                                      char *outBlock,
+                                      uint32_t outblockMaxSize,
+                                      uint32_t *outBlockSize) {
   try {
     RawBlock block = getBlockInternal(blockId);
+    if (block.length() > outblockMaxSize) {
+      LOG_ERROR(logger, KVLOG(block.length(), outblockMaxSize));
+      throw std::runtime_error("not enough space to copy block!");
+    }
     *outBlockSize = block.length();
     memcpy(outBlock, block.data(), block.length());
     return true;
