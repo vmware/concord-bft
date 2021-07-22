@@ -24,6 +24,7 @@
 #include "memorydb/key_comparator.h"
 #include "Logger.hpp"
 #include "storage/direct_kv_key_manipulator.h"
+#include "Timers.hpp"
 
 namespace bftEngine {
 
@@ -101,13 +102,25 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     bool hasBlock(uint64_t blockId) const override;
 
-    bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
+    bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override;
 
-    std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override;
+    std::future<bool> getBlockAsync(uint64_t blockId,
+                                    char* outBlock,
+                                    uint32_t outBlockMaxSize,
+                                    uint32_t* outBlockActualSize) override;
 
     bool getPrevDigestFromBlock(uint64_t blockId, bcst::StateTransferDigest* outPrevBlockDigest) override;
 
-    bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override;
+    void getPrevDigestFromBlock(const char* blockData,
+                                const uint32_t blockSize,
+                                bcst::StateTransferDigest* outPrevBlockDigest) override;
+
+    bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock = true) override;
+
+    std::future<bool> putBlockAsync(uint64_t blockId,
+                                    const char* block,
+                                    const uint32_t blockSize,
+                                    bool trylinkSTChainFrom = true) override;
 
     uint64_t getLastReachableBlockNum() const override;
     uint64_t getGenesisBlockNum() const override;
@@ -142,6 +155,10 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
 
     void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override {
       realInterface_->changeStateTransferTimerPeriod(timerPeriodMilli);
+    }
+
+    concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) override {
+      return realInterface_->addOneShotTimer(timeoutMilli);
     }
   };
 
@@ -591,14 +608,18 @@ void SimpleStateTran::onComplete(int64_t checkpointNumberOfNewState) {
 
 bool SimpleStateTran::DummyBDState::hasBlock(uint64_t blockId) const { return false; }
 
-bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) {
+bool SimpleStateTran::DummyBDState::getBlock(uint64_t blockId,
+                                             char* outBlock,
+                                             uint32_t outBlockMaxSize,
+                                             uint32_t* outBlockActualSize) {
   ConcordAssert(false);
   return false;
 }
 
 std::future<bool> SimpleStateTran::DummyBDState::getBlockAsync(uint64_t blockId,
                                                                char* outBlock,
-                                                               uint32_t* outBlockSize) {
+                                                               uint32_t outBlockMaxSize,
+                                                               uint32_t* outBlockActualSize) {
   ConcordAssert(false);
   return std::async([]() { return false; });
 }
@@ -609,9 +630,26 @@ bool SimpleStateTran::DummyBDState::getPrevDigestFromBlock(uint64_t blockId,
   return false;
 }
 
-bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) {
+void SimpleStateTran::DummyBDState::getPrevDigestFromBlock(const char* blockData,
+                                                           const uint32_t blockSize,
+                                                           bcst::StateTransferDigest* outPrevBlockDigest) {
+  ConcordAssert(false);
+}
+
+bool SimpleStateTran::DummyBDState::putBlock(const uint64_t blockId,
+                                             const char* block,
+                                             const uint32_t blockSize,
+                                             bool lastBlock) {
   ConcordAssert(false);
   return false;
+}
+
+std::future<bool> SimpleStateTran::DummyBDState::putBlockAsync(uint64_t blockId,
+                                                               const char* block,
+                                                               const uint32_t blockSize,
+                                                               bool trylinkSTChainFrom) {
+  ConcordAssert(false);
+  return std::async([]() { return false; });
 }
 
 uint64_t SimpleStateTran::DummyBDState::getLastReachableBlockNum() const { return 0; }

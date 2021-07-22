@@ -38,16 +38,21 @@ class TestAppState : public IAppState {
     return it != blocks_.end();
   }
 
-  bool getBlock(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override {
+  bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override {
     auto it = blocks_.find(blockId);
     if (it == blocks_.end()) return false;
     std::memcpy(outBlock, it->second.block, it->second.actualSize);
-    *outBlockSize = it->second.actualSize;
+    *outBlockActualSize = it->second.actualSize;
     return true;
   };
 
-  std::future<bool> getBlockAsync(uint64_t blockId, char* outBlock, uint32_t* outBlockSize) override {
+  // TODO - implement
+  std::future<bool> getBlockAsync(uint64_t blockId,
+                                  char* outBlock,
+                                  uint32_t outBlockMaxSize,
+                                  uint32_t* outBlockActualSize) override {
     ConcordAssert(false);
+    return std::async([]() { return false; });
   }
 
   bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) override {
@@ -58,7 +63,14 @@ class TestAppState : public IAppState {
     return true;
   };
 
-  bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize) override {
+  // TODO - implement
+  void getPrevDigestFromBlock(const char* blockData,
+                              const uint32_t blockSize,
+                              StateTransferDigest* outPrevBlockDigest) override {
+    ConcordAssert(false);
+  }
+
+  bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock) override {
     ConcordAssert(blockId < last_block_);
     Block bl;
     computeBlockDigest(blockId, block, blockSize, &bl.digest);
@@ -66,6 +78,15 @@ class TestAppState : public IAppState {
     bl.actualSize = blockSize;
     last_block_ = blockId;
     return true;
+  }
+
+  // TODO - implement
+  std::future<bool> putBlockAsync(uint64_t blockId,
+                                  const char* block,
+                                  const uint32_t blockSize,
+                                  bool trylinkSTChainFrom = true) override {
+    ConcordAssert(false);
+    return std::async([]() { return false; });
   }
 
   // TODO(AJS): How does this differ from getLastBlockNum?

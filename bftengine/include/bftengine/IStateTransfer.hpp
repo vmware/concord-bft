@@ -17,6 +17,7 @@
 #include <functional>
 #include <string>
 #include "IReservedPages.hpp"
+#include "Timers.hpp"
 
 namespace bftEngine {
 class IReplicaForStateTransfer;  // forward definition
@@ -92,6 +93,9 @@ class IReplicaForStateTransfer {
   // the timer is disabled when timerPeriodMilli==0
   // (notice that the state transfer module can use its own timers and threads)
   virtual void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) = 0;
+
+  // Invoke State Transfer timer callback once
+  virtual concordUtil::Timers::Handle addOneShotTimer(uint32_t timeoutMilli) = 0;
 
   virtual ~IReplicaForStateTransfer() = default;
 };
