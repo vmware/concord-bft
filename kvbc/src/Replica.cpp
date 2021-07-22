@@ -201,27 +201,28 @@ void Replica::handleNewEpochEvent() {
     }
     bftEngine::EpochManager::instance().markEpochAsStarted();
     // update reserved pages with reconfiguration command from previous epoch
-    saveReconfigurationCmdToResPages();
+    saveReconfigurationCmdToResPages<concord::messages::AddRemoveWithWedgeCommand>(
+        std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
   }
   LOG_INFO(logger, "replica epoch is: " << epoch);
   bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
 }
-void Replica::saveReconfigurationCmdToResPages() {
-  auto res = getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
+template <typename T>
+void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
+  auto res = getLatest(kvbc::kConcordInternalCategoryId, key);
   if (res.has_value()) {
-    auto blockid =
-        getLatestVersion(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1})
-            .value()
-            .version;
+    auto blockid = getLatestVersion(kvbc::kConcordInternalCategoryId, key).value().version;
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
-    concord::messages::AddRemoveWithWedgeCommand cmd;
+    T cmd;
     std::vector<uint8_t> bytesval(strval.begin(), strval.end());
     concord::messages::deserialize(bytesval, cmd);
+    concord::messages::ReconfigurationRequest rreq;
+    rreq.command = cmd;
     auto sequenceNum =
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, blockid);
     auto epochNum =
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
-    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(cmd, sequenceNum, epochNum);
+    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(rreq, sequenceNum, epochNum);
   }
 }
 void Replica::createReplicaAndSyncState() {

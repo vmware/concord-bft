@@ -89,7 +89,10 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto wedgePoint = (bft_seq_num + 2 * checkpointWindowSize);
   wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
-  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(command, wedgePoint, epochNum);
+  ReconfigurationRequest rreqWithoutSignature;
+  rreqWithoutSignature.command = command;
+  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
+      rreqWithoutSignature, wedgePoint, epochNum);
   return true;
 }
 

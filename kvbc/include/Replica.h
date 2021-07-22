@@ -138,7 +138,8 @@ class Replica : public IReplica,
   void createReplicaAndSyncState();
   void registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler);
   void handleNewEpochEvent();
-  void saveReconfigurationCmdToResPages();
+  template <typename T>
+  void saveReconfigurationCmdToResPages(const std::string &);
   void handleWedgeEvent();
   uint64_t getStoredReconfigData(const std::string &kCategory, const std::string &key, const kvbc::BlockId &bid);
   // INTERNAL TYPES

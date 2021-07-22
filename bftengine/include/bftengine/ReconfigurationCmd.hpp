@@ -15,6 +15,7 @@
 #include "ReservedPagesClient.hpp"
 #include "Serializable.h"
 #include "concord.cmf.hpp"
+#include <optional>
 
 namespace bftEngine {
 class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 1> {
@@ -47,11 +48,11 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     static ReconfigurationCmd instance_;
     return instance_;
   }
-  void saveReconfigurationCmdToResPages(const concord::messages::AddRemoveWithWedgeCommand& cmd,
+  void saveReconfigurationCmdToResPages(const concord::messages::ReconfigurationRequest& rreq,
                                         const uint64_t& wedge_point,
                                         const uint64_t& epoch_number) {
     ReconfigurationCmdData cmdData;
-    concord::messages::serialize(cmdData.data_, cmd);
+    concord::messages::serialize(cmdData.data_, rreq);
     cmdData.wedgePoint_ = wedge_point;
     cmdData.epochNum_ = epoch_number;
     reconfiguration_wedge_point_gauge_.Get().Set(wedge_point);
@@ -61,7 +62,7 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     auto data = outStream.str();
     saveReservedPage(0, data.size(), data.data());
   }
-  bool getReconfigurationCmdFromResPages(concord::messages::AddRemoveWithWedgeCommand& cmd,
+  bool getReconfigurationCmdFromResPages(concord::messages::ReconfigurationRequest& rreq,
                                          uint64_t& wedge_point,
                                          uint64_t& epoch_number) {
     if (!loadReservedPage(0, sizeOfReservedPage(), page.data())) return false;
@@ -69,13 +70,24 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     std::istringstream inStream;
     inStream.str(page);
     concord::serialize::Serializable::deserialize(inStream, cmdData);
-    concord::messages::deserialize(cmdData.data_, cmd);
+    concord::messages::deserialize(cmdData.data_, rreq);
     wedge_point = cmdData.wedgePoint_;
     epoch_number = cmdData.epochNum_;
     reconfiguration_wedge_point_gauge_.Get().Set(wedge_point);
     metrics_.UpdateAggregator();
     return true;
   }
+
+  std::optional<uint64_t> getReconfigurationCmdWedgePoint() {
+    concord::messages::ReconfigurationRequest cmd;
+    uint64_t wedgePoint{0};
+    uint64_t epochNumber{0};
+    if (getReconfigurationCmdFromResPages(cmd, wedgePoint, epochNumber)) {
+      return wedgePoint;
+    }
+    return {};
+  }
+
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
 
  private:
