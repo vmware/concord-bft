@@ -93,7 +93,6 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       sigPosition,
                                                       cid,
                                                       (ReplyStatus)singleMsgHeader.status);
-    LOG_DEBUG(logger(), "Single reply info:" << KVLOG(batchCid, cid, reqSeqNum, clientId, senderId));
     preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
     dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
   }
