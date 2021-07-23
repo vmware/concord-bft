@@ -39,6 +39,7 @@ TEST(yaml_parsing, example_config) {
     ASSERT_EQ(config.topology.replicas[i].id.val, i);
     ASSERT_EQ(config.topology.replicas[i].host, "concord" + std::to_string(i + 1));
     ASSERT_EQ(config.topology.replicas[i].bft_port, 3501);
+    ASSERT_EQ(config.topology.replicas[i].event_port, 50051);
   }
 
   const auto& retry = config.topology.client_retry_config;
@@ -52,7 +53,7 @@ TEST(yaml_parsing, example_config) {
   // Transport
   ASSERT_EQ(config.transport.comm_type, TransportConfig::CommunicationType::TlsTcp);
   ASSERT_EQ(config.transport.buffer_length, 16777216);
-  ASSERT_EQ(config.transport.tls_cert_root_path, "/concord/tls_certs");
+  ASSERT_EQ(config.transport.tls_cert_root_path, "/clientservice/bft_certs");
   ASSERT_EQ(config.transport.tls_cipher_suite, "ECDHE-ECDSA-AES256-GCM-SHA384");
 
   // BFT Clients

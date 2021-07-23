@@ -22,9 +22,11 @@
 #include "Metrics.hpp"
 
 using concord::client::clientservice::ClientService;
+using concord::client::clientservice::configureSubscription;
+using concord::client::clientservice::parseConfigFile;
+
 using concord::client::concordclient::ConcordClient;
 using concord::client::concordclient::ConcordClientConfig;
-using concord::client::clientservice::parseConfigFile;
 
 namespace po = boost::program_options;
 
@@ -32,9 +34,12 @@ po::variables_map parseCmdLine(int argc, char** argv) {
   po::options_description desc;
   // clang-format off
   desc.add_options()
-    ("server-port", po::value<int>()->default_value(1337), "Clientservice gRPC service port")
     ("config", po::value<std::string>()->required(), "YAML configuration file for the RequestService")
-    ("event-service-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
+    ("port", po::value<int>()->default_value(50505), "Clientservice gRPC service port")
+    ("bft-batching", po::value<bool>()->default_value(false), "Enable batching requests before sending to replicas")
+    ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
+    ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
+    ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
   ;
   // clang-format on
   po::variables_map opts;
@@ -54,20 +59,20 @@ int main(int argc, char** argv) {
   try {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
-    config.subscribe_config.id = opts["event-service-id"].as<std::string>();
-    // TODO: Read TLS certs and fill config struct
-    // TODO: Configure TRS endpoints
+    configureSubscription(
+        config, opts["tr-id"].as<std::string>(), opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());
     return 1;
   }
+  LOG_INFO(logger, "ConcordClient configured");
 
   auto concord_client = std::make_unique<ConcordClient>(config);
   auto metrics = std::make_shared<concordMetrics::Aggregator>();
   concord_client->setMetricsAggregator(metrics);
   ClientService service(std::move(concord_client));
 
-  auto server_addr = std::string("localhost:") + std::to_string(opts["server-port"].as<int>());
+  auto server_addr = std::string("localhost:") + std::to_string(opts["port"].as<int>());
   LOG_INFO(logger, "Starting clientservice at " << server_addr);
   service.start(server_addr);
 
