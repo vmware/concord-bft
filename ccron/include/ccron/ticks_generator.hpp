@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -38,6 +39,9 @@ class TicksGenerator {
   static inline const std::string kTickCid{"__concord__internal__tick__"};
 
  public:
+  // The start(), stop() and isGenerating() methods can be called from multiple threads without explicit synchronization
+  // by users.
+
   // Start tick generation for `component_id` with the given `period`.
   // Updates the period if generation for `component_id` has already been started.
   void start(std::uint32_t component_id, const std::chrono::seconds &period);
@@ -45,7 +49,8 @@ class TicksGenerator {
   bool isGenerating(std::uint32_t component_id) const;
 
  public:
-  // Called by the main replica thread on receiving a tick as an internal message.
+  // Called by the main replica thread *only* on receiving a tick as an internal message.
+  // Do not call from other threads.
   void onInternalTick(const bftEngine::impl::TickInternalMsg &);
 
  private:
@@ -68,7 +73,11 @@ class TicksGenerator {
   std::thread thread_;
   std::atomic_bool stop_{false};
   const std::chrono::seconds poll_period_{1};
+
   concordUtil::Timers timers_;
+  // The mutex ensures multiple user threads can call public methods and modify the timer handles map. It doesn't
+  // protect timers themselves as there is no need - they can be called concurrently.
+  mutable std::mutex mtx_;
   // component_id -> timer handler
   std::map<std::uint32_t, concordUtil::Timers::Handle> timer_handles_;
 
