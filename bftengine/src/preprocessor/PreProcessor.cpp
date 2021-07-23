@@ -90,6 +90,29 @@ const string RequestsBatch::getCid() const {
   return cid_;
 }
 
+// Release not-matching client requests in case PreProcessBatchRequestMsg arrived with less messages
+void RequestsBatch::updateRegisteredBatchIfNeeded(const string &batchCid, const PreProcessReqMsgsList &preProcessReqs) {
+  const std::lock_guard<std::mutex> lock(batchMutex_);
+  if (batchRegistered_ && cid_ == batchCid && batchSize_.load() != preProcessReqs.size()) {
+    LOG_INFO(preProcessor_.logger(),
+             "The batch needs to be updated" << KVLOG(clientId_, cid_, batchSize_, preProcessReqs.size()));
+    for (const auto &regReqEntry : requestsMap_) {
+      if (regReqEntry.second && regReqEntry.second->reqProcessingStatePtr) {
+        bool registeredReqFound = false;
+        for (const auto &arrivedReq : preProcessReqs) {
+          if (regReqEntry.second->reqProcessingStatePtr->getReqSeqNum() == arrivedReq->reqSeqNum()) {
+            registeredReqFound = true;
+            break;
+          }
+        }
+        if (!registeredReqFound)
+          preProcessor_.releaseClientPreProcessRequestSafe(clientId_, regReqEntry.second, CANCELLED_BY_PRIMARY);
+      }
+    }
+    batchSize_ = preProcessReqs.size();
+  }
+}
+
 RequestStateSharedPtr &RequestsBatch::getRequestState(uint16_t reqOffsetInBatch) {
   ConcordAssertLE(reqOffsetInBatch, PreProcessor::clientMaxBatchSize_ - 1);
   return requestsMap_[reqOffsetInBatch];
@@ -795,6 +818,10 @@ void PreProcessor::onMessage<PreProcessBatchRequestMsg>(PreProcessBatchRequestMs
 
   PreProcessReqMsgsList &preProcessReqMsgs = batchMsg->getPreProcessRequestMsgs();
   const auto batchSize = preProcessReqMsgs.size();
+
+  // YS TBD: Support send of batched reject reply message when required
+
+  ongoingReqBatches_[clientId]->updateRegisteredBatchIfNeeded(batchCid, preProcessReqMsgs);
   for (auto &singleMsg : preProcessReqMsgs) {
     LOG_DEBUG(logger(),
               "Start handling single message from the batch:" << KVLOG(

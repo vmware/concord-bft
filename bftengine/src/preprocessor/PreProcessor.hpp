@@ -71,6 +71,7 @@ class RequestsBatch {
   void finalizeBatchIfCompleted();
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
+  void updateRegisteredBatchIfNeeded(const std::string &batchCid, const PreProcessReqMsgsList &preProcessReqs);
 
  private:
   void setBatchParameters(const std::string &cid, uint32_t batchSize);
