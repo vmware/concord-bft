@@ -96,7 +96,7 @@ class SkvbcMultiSig(unittest.TestCase):
         bft_network.start_replica(2)
 
         for i in range(10):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         with trio.fail_after(seconds=20):
             for replica_id in {0,2}:
@@ -129,7 +129,7 @@ class SkvbcMultiSig(unittest.TestCase):
         lastExecutedValST = await bft_network.metrics.get(3, *lastExecutedKey)
 
         for i in range(10):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         with trio.fail_after(seconds=20):
             for replica_id in {3}:
@@ -153,14 +153,14 @@ class SkvbcMultiSig(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
         for i in range(20):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
         lastExecutedValBefore = await bft_network.metrics.get(3, *lastExecutedKey)
         bft_network.stop_replica(3)
         bft_network.start_replica(3)
         for i in range(10):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         with trio.fail_after(seconds=20):
             for replica_id in {3}:
@@ -186,14 +186,14 @@ class SkvbcMultiSig(unittest.TestCase):
 
         bft_network.stop_replica(2)
         for i in range(20):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
         lastExecutedValBefore = await bft_network.metrics.get(3, *lastExecutedKey)
         bft_network.stop_replica(3)
         bft_network.start_replica(3)
         for i in range(10):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         with trio.fail_after(seconds=20):
             for replica_id in {3}:

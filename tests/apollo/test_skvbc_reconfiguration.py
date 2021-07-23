@@ -175,8 +175,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_replica(1)
         
         for i in range(50):
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         await skvbc.assert_kv_write_executed(key, val)
         
         bft_network.start_replica(1)
@@ -454,7 +454,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # Make sure the system is able to make progress
         await op.unwedge(bft=True)
         for i in range(300):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         # Start late replicas and wait for state transfer to stop
         bft_network.start_replicas(late_replicas)
@@ -467,21 +467,21 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # Make sure the system is able to make progress
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
             self.assertEqual(epoch, 1)
 
         bft_network.stop_replicas(late_replicas)
         for i in range(200):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await op.wedge()
         await self.validate_stop_on_wedge_point(bft_network, skvbc, False)
 
         # Make sure the system is able to make progress
         await op.unwedge(bft=True)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         # Start late replicas and wait for state transfer to stop
         bft_network.start_replicas(late_replicas)
@@ -494,7 +494,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # invoke another state transfer to let the late replicas unwedge themselves
         for i in range(200):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await bft_network.wait_for_state_transfer_to_start()
         for r in late_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
@@ -506,7 +506,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         bft_network.stop_replicas(late_replicas)
         for i in range(200):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await op.wedge()
         await self.validate_stop_on_wedge_point(bft_network, skvbc, False)
 
@@ -524,7 +524,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         # Make sure the system is able to make progress
         await op.unwedge(bft=False)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             epoch = await bft_network.get_metric(r, bft_network, "Gauges", "epoch_number", component="epoch_manager")
             self.assertEqual(epoch, 3)
@@ -583,7 +583,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # bring the system to sequence number 299
         for i in range(299):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
             
         # verify that all nodes are in sequence number 299
         not_reached = True
@@ -629,7 +629,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         client = bft_network.random_client()
 
         # Create 100 blocks in total, including the genesis block we have 101 blocks
-        k, v = await skvbc.write_known_kv()
+        k, v = await skvbc.send_write_kv_set()
         for i in range(99):
             v = skvbc.random_value()
             await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -646,7 +646,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 min_prunebale_block = lpab.response.block_id
 
         # Create another 100 blocks
-        k, v = await skvbc.write_known_kv()
+        k, v = await skvbc.send_write_kv_set()
         for i in range(99):
             v = skvbc.random_value()
             await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -671,7 +671,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             client = bft_network.random_client()
 
             # Create 100 blocks in total, including the genesis block we have 101 blocks
-            k, v = await skvbc.write_known_kv()
+            k, v = await skvbc.send_write_kv_set()
             for i in range(99):
                 v = skvbc.random_value()
                 await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -701,7 +701,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             client = bft_network.random_client()
 
             # Create 100 blocks in total, including the genesis block we have 101 blocks
-            k, v = await skvbc.write_known_kv()
+            k, v = await skvbc.send_write_kv_set()
             for i in range(99):
                 v = skvbc.random_value()
                 await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -768,7 +768,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert status.response.last_pruned_block == 0
 
         # Create 100 blocks in total, including the genesis block we have 101 blocks
-        k, v = await skvbc.write_known_kv()
+        k, v = await skvbc.send_write_kv_set()
         for i in range(99):
             v = skvbc.random_value()
             await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -786,7 +786,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # Verify the system is able to get new write requests (which means that pruning has done)
         with trio.fail_after(30):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         await op.prune_status()
 
@@ -810,7 +810,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
 
         # Create more than 150 blocks in total, including the genesis block we have 101 blocks
-        k, v = await skvbc.write_known_kv()
+        k, v = await skvbc.send_write_kv_set()
         for i in range(200):
             v = skvbc.random_value()
             await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -831,7 +831,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # Verify the system is able to get new write requests (which means that pruning has done)
         with trio.fail_after(30):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         await op.prune_status()
 
@@ -856,7 +856,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
 
         # Create more than 150 blocks in total, including the genesis block we have 101 blocks
-        k, v = await skvbc.write_known_kv()
+        k, v = await skvbc.send_write_kv_set()
         for i in range(200):
             v = skvbc.random_value()
             await client.write(skvbc.write_req([], [(k, v)], 0))
@@ -898,7 +898,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
@@ -923,7 +923,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(500):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.restart("hello", bft=False, restart=False)
@@ -940,7 +940,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         live_replicas = bft_network.all_replicas(without=crashed_replicas)
         bft_network.stop_replicas(crashed_replicas)
         for i in range(500):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         await op.restart("hello2", bft=True, restart=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
@@ -953,7 +953,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # make sure the system is alive
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
@@ -971,8 +971,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -1001,7 +1001,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(last_stable_checkpoint, 0)
         await self.validate_state_consistency(skvbc, key, val)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             assert( r < 4 )
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
@@ -1032,8 +1032,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100): # Produce 149 new blocks
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
@@ -1063,7 +1063,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(last_stable_checkpoint, 0)
         await self.validate_state_consistency(skvbc, key, val)
         for i in range(150):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             assert( r < 4 )
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
@@ -1090,14 +1090,14 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         client = bft_network.random_client()
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         # choose two replicas to crash and crash them
         crashed_replicas = {5, 6} # For simplicity, we crash the last two replicas
         bft_network.stop_replicas(crashed_replicas)
         # All next request should be go through the slow path
         for i in range(100):
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         live_replicas = bft_network.all_replicas(without=crashed_replicas)
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
@@ -1132,7 +1132,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(last_stable_checkpoint, 0)
         await self.validate_state_consistency(skvbc, key, val)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             assert (r < 4)
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
@@ -1161,9 +1161,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(live_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(301):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
-        key, val = await skvbc.write_known_kv()
+        key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0, expected_checkpoint_num=lambda x: x == 2)
@@ -1206,7 +1206,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(last_stable_checkpoint, 0)
         await self.validate_state_consistency(skvbc, key, val)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             assert (r < 4)
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
@@ -1236,7 +1236,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
@@ -1263,7 +1263,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
@@ -1275,7 +1275,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         # The new replicas have just removed thier metadata, to let them catch up we need to start aonther state transfer
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
@@ -1284,7 +1284,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1316,19 +1316,18 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                               r,
                                                               stop_on_stable_seq_num=False)
-
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
         # The new replicas have just removed thier metadata, to let them catch up we need to start aonther state transfer
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
@@ -1337,7 +1336,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1368,7 +1367,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(live_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
@@ -1404,7 +1403,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         bft_network.start_replicas(new_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
@@ -1415,7 +1414,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_replicas(new_replicas)
         bft_network.start_replicas(new_replicas)
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
@@ -1424,7 +1423,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1457,7 +1456,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replicas(on_time_replicas)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         bft_network.start_replicas(late_replicas)
         await bft_network.wait_for_state_transfer_to_start()
         for r in late_replicas:
@@ -1468,7 +1467,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_replicas(late_replicas)
         bft_network.start_replicas(late_replicas)
         for i in range(350):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         await bft_network.wait_for_state_transfer_to_start()
         for r in new_replicas:
             await bft_network.wait_for_state_transfer_to_stop(initial_prim,
@@ -1477,7 +1476,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1501,7 +1500,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
@@ -1535,7 +1534,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         done = False
                 with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
                     with self.assertRaises(trio.TooSlowError):
-                        await skvbc.write_known_kv()
+                        await skvbc.send_write_kv_set()
     
     @with_trio
     @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
@@ -1551,8 +1550,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
@@ -1591,7 +1590,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                 break
                 with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
                     with self.assertRaises(trio.TooSlowError):
-                        await skvbc.write_known_kv()
+                        await skvbc.send_write_kv_set()
 
 
     async def verify_replicas_are_in_wedged_checkpoint(self, bft_network, previous_checkpoint, replicas):

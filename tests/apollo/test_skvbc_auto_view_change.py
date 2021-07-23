@@ -53,7 +53,6 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         4) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         initial_primary = 0
 
@@ -65,7 +64,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        await skvbc.read_your_writes()
+        await tracker.skvbc.read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -81,7 +80,6 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         initial_primary = 0
         bft_network.stop_replica(initial_primary)
@@ -94,7 +92,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        await skvbc.read_your_writes()
+        await tracker.skvbc.read_your_writes()
 
     @unittest.skip("Unstable because of BC-5101")
     @with_trio
@@ -111,11 +109,10 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         5) Perform a "read-your-writes" check in the new view
         """
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         initial_primary = 0
 
         for _ in range(150):
-            await skvbc.write_known_kv()
+            await tracker.skvbc.send_write_kv_set()
 
         await bft_network.wait_for_view(
             replica_id=random.choice(
@@ -124,7 +121,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
             err_msg="Make sure automatic view change has occurred."
         )
 
-        await skvbc.assert_kv_write_executed(key, val)
+        await tracker.skvbc.assert_kv_write_executed(key, val)
         await bft_network.assert_fast_path_prevalent()
 
-        await skvbc.read_your_writes()
+        await tracker.skvbc.read_your_writes()

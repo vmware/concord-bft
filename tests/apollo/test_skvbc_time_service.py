@@ -83,14 +83,13 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
         
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
         path = FILE_PATH_PREFIX + str(initial_primary) + FILE_PATH_SUFFIX
         await self.manipulate_time_file_write(path, CLOCK_DRIFT) 
         
-        await skvbc.run_concurrent_ops(400)
+        await tracker.skvbc.run_concurrent_ops(400)
 
         # wait for replicas to go to higher view (View 1 in this case)
         await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), 1)
@@ -105,7 +104,7 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -129,9 +128,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
         
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
         non_primary_replica = random.choice(
             bft_network.all_replicas(without={initial_primary})) 
@@ -140,12 +138,12 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_DRIFT)
         
         await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
         
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
     @with_trio
     @with_bft_network(start_replica_cmd_without_time_service('0'),
@@ -168,16 +166,15 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
         
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
         path = FILE_PATH_PREFIX + str(initial_primary) + FILE_PATH_SUFFIX
 
         initial_view = await bft_network.get_current_view()
         await self.manipulate_time_file_write(path, CLOCK_DRIFT) 
         
-        await skvbc.run_concurrent_ops(400)
+        await tracker.skvbc.run_concurrent_ops(400)
 
         current_view = await bft_network.get_current_view()
         self.assertEqual(initial_view, current_view, "Make sure view change does not happen")
@@ -185,7 +182,7 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
     @with_trio
     @with_bft_network(start_replica_cmd_without_time_service('0'),
@@ -208,9 +205,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
         
         bft_network.start_all_replicas()
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
         initial_view = await bft_network.get_current_view()
 
         non_primary_replica = random.choice(
@@ -220,12 +216,12 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)  
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)  
 
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
+            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
     @classmethod
     async def manipulate_time_file_write(self, path, data):

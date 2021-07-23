@@ -93,7 +93,7 @@ class SkvbcTest(unittest.TestCase):
         stale_nodes = bft_network.random_set_of_replicas(bft_network.config.f, without={0})
 
         for i in range(151):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
             if i == 149:
                 bft_network.stop_replicas(stale_nodes)
 

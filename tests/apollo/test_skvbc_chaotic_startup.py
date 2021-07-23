@@ -81,7 +81,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         async def write_req(num_req=1):
             for _ in range(num_req):
-                await skvbc.write_known_kv()
+                await skvbc.send_read_kv_set()
 
         with net.ReplicaOneWayTwoSubsetsIsolatingAdversary(
                 bft_network, {late_replica},
@@ -162,7 +162,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         async def write_req(num_req=1):
             for _ in range(num_req):
-                await skvbc.write_known_kv()
+                await skvbc.send_read_kv_set()
 
         # create checkpoint and wait for checkpoint propagation
         await skvbc.fill_and_wait_for_checkpoint(
@@ -226,7 +226,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         async def write_req(num_req=1):
             for _ in range(num_req):
-                await skvbc.write_known_kv()
+                await skvbc.send_read_kv_set()
 
         await write_req(num_reqs_before_first_stable)
 
@@ -323,7 +323,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         async def write_req():
             for _ in range(num_req):
-                await skvbc.write_known_kv()
+                await skvbc.send_read_kv_set()
 
         bft_network.start_all_replicas()
         await write_req()
