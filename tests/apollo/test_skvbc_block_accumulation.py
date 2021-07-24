@@ -121,7 +121,8 @@ class SkvbcBlockAccumulationTest(unittest.TestCase):
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
-        wr = await tracker.skvbc.run_concurrent_batch_ops(num_of_requests, BATCH_SIZE)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
+        wr = await skvbc.run_concurrent_batch_ops(num_of_requests, BATCH_SIZE)
         self.assertTrue(wr >= num_of_requests)
 
         await bft_network.assert_successful_pre_executions_count(0, wr * BATCH_SIZE)
@@ -153,7 +154,8 @@ class SkvbcBlockAccumulationTest(unittest.TestCase):
         computed_last_block =  start_block
         try:
             with trio.move_on_after(seconds=30):
-                wr = await tracker.skvbc.run_concurrent_conflict_ops(ops, write_weight=1)
+                skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+                wr = await skvbc.run_concurrent_conflict_ops(ops, write_weight=1)
                 print(f"wr =  {wr}")
                 computed_last_block =  start_block + ops
         except trio.TooSlowError:

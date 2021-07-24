@@ -72,8 +72,9 @@ class SkvbcSlowPathTest(unittest.TestCase):
         unstable_replicas = bft_network.all_replicas(without={0})
         bft_network.stop_replica(
             replica_id=random.choice(unstable_replicas))
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await bft_network.wait_for_slow_path_to_be_prevalent(
-            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -98,7 +99,8 @@ class SkvbcSlowPathTest(unittest.TestCase):
         Finally we check if a known K/V has been executed and readable.
         """
 
-        run_ops = lambda: tracker.skvbc.run_concurrent_ops(num_ops=20, write_weight=1)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        run_ops = lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1)
         bft_network.start_all_replicas()
 
         unstable_replicas = bft_network.all_replicas(without={0})
@@ -133,13 +135,14 @@ class SkvbcSlowPathTest(unittest.TestCase):
         bft_network.start_all_replicas()
 
         num_ops = 5
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: tracker.skvbc.run_concurrent_ops(num_ops=num_ops, write_weight=1), threshold=num_ops)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=num_ops, write_weight=1), threshold=num_ops)
 
         bft_network.stop_replica(0)
 
         # trigger the view change
-        await tracker.skvbc.run_concurrent_ops(num_ops)
+        await skvbc.run_concurrent_ops(num_ops)
 
         randRep = random.choice(
                 bft_network.all_replicas(without={0}))
@@ -157,7 +160,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         with trio.move_on_after(seconds=5):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(tracker.skvbc.send_indefinite_ops, 1)
+                nursery.start_soon(skvbc.send_indefinite_ops, 1)
 
         bft_network.start_replica(0)
 

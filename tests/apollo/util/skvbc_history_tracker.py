@@ -45,8 +45,6 @@ def verify_linearizability(pre_exec_enabled=False, no_conflicts=False, block_Acc
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             init_state = skvbc.initial_state()
             tracker = SkvbcTracker(init_state, skvbc, bft_network, pre_exec_enabled, no_conflicts, block_Accumulation)
-            skvbc.tracker = tracker
-            skvbc.pre_exec_all = pre_exec_enabled
             await async_fn(*args, **kwargs, tracker=tracker)
             await tracker.fill_missing_blocks_and_verify()
 

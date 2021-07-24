@@ -63,11 +63,12 @@ class SkvbcPersistenceTest(unittest.TestCase):
         This is a regression test for
         https://github.com/vmware/concord-bft/issues/194.
         """
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         [bft_network.start_replica(i) for i in range(1, bft_network.config.n - 1)]
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(
-                    tracker.skvbc.send_indefinite_ops)
+                    skvbc.send_indefinite_ops)
                 # See if replica 1 has become the new primary
                 await bft_network.wait_for_view(
                     replica_id=1,
@@ -113,12 +114,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
         3) Verify the same key-value can be read from the blockchain
         """
         bft_network.start_all_replicas()
-        (key, val) = await tracker.skvbc.send_write_kv_set()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        (key, val) = await skvbc.send_write_kv_set()
 
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
 
-        kv_reply = await tracker.skvbc.send_read_kv_set(bft_network.random_client(), key)
+        kv_reply = await skvbc.send_read_kv_set(bft_network.random_client(), key)
 
         self.assertEqual({key: val}, kv_reply)
 
@@ -138,10 +140,11 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         After that ensure that a newly put value can be retrieved.
         """
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         stale_node = random.choice(bft_network.all_replicas(without={0}))
 
         client, known_key, known_val = \
-            await tracker.skvbc.prime_for_state_transfer(stale_nodes={stale_node})
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
 
         # Start the replica without any data, and wait for state transfer to
         # complete.
@@ -157,13 +160,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
-        kvpairs = await tracker.skvbc.send_read_kv_set(client, known_key)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
         # Perform a put/get transaction pair to ensure we can read newly
         # written data after state transfer.
 
-        await tracker.skvbc.read_your_writes()
+        await skvbc.read_your_writes()
 
     @with_trio
     @with_bft_network(start_replica_cmd)
@@ -183,9 +186,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
         After that ensure that a newly put value can be retrieved.
         """
         stale_node = random.choice(bft_network.all_replicas(without={0}))
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         client, known_key, known_val = \
-            await tracker.skvbc.prime_for_state_transfer(stale_nodes={stale_node})
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
 
         # Start the empty replica, wait for it to start fetching, then stop
         # it.
@@ -206,13 +210,13 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
-        kvpairs = await tracker.skvbc.send_read_kv_set(client, known_key)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
         # Perform a put/get transaction pair to ensure we can read newly
         # written data after state transfer.
 
-        await tracker.skvbc.read_your_writes()
+        await skvbc.read_your_writes()
 
     async def _fetch_or_finish_state_transfer_while_crashing(self,
                                                              bft_network,
@@ -265,10 +269,11 @@ class SkvbcPersistenceTest(unittest.TestCase):
         After that ensure that the key-value entry initially written
         can be retrieved.
         """
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         stale_node = random.choice(bft_network.all_replicas(without={0}))
 
         client, known_key, known_val = \
-            await tracker.skvbc.prime_for_state_transfer(stale_nodes={stale_node},
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node},
                                                            num_of_checkpoints_to_add=4)
 
         # exclude the primary and the stale node
@@ -284,7 +289,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
-        kvpairs = await tracker.skvbc.send_read_kv_set(client, known_key)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
     async def _run_state_transfer_while_crashing_non_primary(
@@ -393,9 +398,10 @@ class SkvbcPersistenceTest(unittest.TestCase):
         n = bft_network.config.n
 
         stale_replica = n - 1
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
 
         client, known_key, known_val = \
-            await tracker.skvbc.prime_for_state_transfer(stale_nodes={stale_replica},
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_replica},
                                                            checkpoints_num=2)
         view = await bft_network.wait_for_view(
             replica_id=0,
@@ -407,7 +413,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         if crash_repeatedly:
             await self._run_state_transfer_while_crashing_primary_repeatedly(
-                skvbc=tracker.skvbc,
+                skvbc=skvbc,
                 bft_network=bft_network,
                 n=n,
                 primary=0,
@@ -415,7 +421,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             )
         else:
             await self._run_state_transfer_while_crashing_primary_once(
-                skvbc=tracker.skvbc,
+                skvbc=skvbc,
                 bft_network=bft_network,
                 n=n,
                 primary=0,
@@ -425,7 +431,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         await bft_network.force_quorum_including_replica(stale_replica)
 
-        kvpairs = await tracker.skvbc.send_read_kv_set(client, known_key)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
     async def _run_state_transfer_while_crashing_primary_once(

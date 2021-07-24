@@ -54,7 +54,8 @@ class SkvbcConsensusBatchingPoliciesTest(unittest.TestCase):
 
     async def launch_concurrent_requests(self, bft_network, tracker):
         bft_network.start_all_replicas()
-        rw = await tracker.skvbc.send_concurrent_ops(NUM_OF_WRITES, max_concurrency=MAX_CONCURRENCY, max_size=10, write_weight=0.9)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        rw = await skvbc.send_concurrent_ops(NUM_OF_WRITES, max_concurrency=MAX_CONCURRENCY, max_size=10, write_weight=0.9)
         self.assertTrue(rw[0] + rw[1] >= NUM_OF_WRITES)
 
     @with_trio

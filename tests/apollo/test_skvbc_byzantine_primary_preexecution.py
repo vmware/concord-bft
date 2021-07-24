@@ -123,19 +123,19 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         be triggered.
         Check the view change and then get the new primary and test the counts.
         """
-
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
         await bft_network.init_preexec_count()
         client = bft_network.random_client()
 
-        await tracker.skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
+        await skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
 
         new_primary = await self.check_viewchange_noexcept(bft_network, 0, 10)
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
-            await tracker.skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
+            await skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
 
         await bft_network.assert_successful_pre_executions_count(new_primary, NUM_OF_SEQ_WRITES * BATCH_SIZE)
 
@@ -149,18 +149,18 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         to different replica, view change will be triggered to elect a new primary.
         Check the view change and then get the new primary and test the counts.
         """
-
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
         await bft_network.init_preexec_count()
 
         client = bft_network.random_client()
-        await tracker.skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
+        await skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
         new_primary = await self.check_viewchange_noexcept(bft_network, 0, 10)
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
-            await tracker.skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
+            await skvbc.send_write_kv_set_batch(client, 10, BATCH_SIZE)
 
         await bft_network.assert_successful_pre_executions_count(new_primary, NUM_OF_SEQ_WRITES * BATCH_SIZE)
 
