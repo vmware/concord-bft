@@ -378,6 +378,7 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.maxPendingDataFromSourceReplica", 256 * 1024 * 1024),
     replicaConfig_.getmaxNumOfReservedPages(),
     replicaConfig_.getsizeOfReservedPage(),
+    replicaConfig_.get<uint32_t>("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 600),
     replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
@@ -397,6 +398,11 @@ Replica::Replica(ICommunication *comm,
     stConfig.maxNumberOfChunksInBatch = 32;
   }
 #endif
+
+  if (stConfig.gettingMissingBlocksSummaryWindowSize > 0 and stConfig.gettingMissingBlocksSummaryWindowSize < 100) {
+    LOG_WARN(logger, "Overriding incorrect ST throughput measurement window size configuration to 100");
+    stConfig.gettingMissingBlocksSummaryWindowSize = 100;
+  }
 
   if (!replicaConfig.isReadOnly) {
     const auto linkStChain = true;

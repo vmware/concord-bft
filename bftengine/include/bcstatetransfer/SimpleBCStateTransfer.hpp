@@ -154,6 +154,7 @@ struct Config {
   uint32_t maxPendingDataFromSourceReplica = 0;  // Maximal internal buffer size for all ST data, bytes
   uint32_t maxNumOfReservedPages = 0;
   uint32_t sizeOfReservedPage = 0;  // bytes
+  uint32_t gettingMissingBlocksSummaryWindowSize = 600;
 
   // timeouts
   uint32_t refreshTimerMs = 0;
@@ -192,7 +193,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.metricsDumpIntervalSec,
               c.runInSeparateThread,
               c.enableReservedPages,
-              c.enableSourceBlocksPreFetch);
+              c.enableSourceBlocksPreFetch,
+              c.gettingMissingBlocksSummaryWindowSize);
   return os;
 }
 // creates an instance of the state transfer module.
