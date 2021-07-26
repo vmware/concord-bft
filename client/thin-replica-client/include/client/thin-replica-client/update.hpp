@@ -14,13 +14,25 @@
 #ifndef THIN_REPLICA_CLIENT_UPDATE_HPP_
 #define THIN_REPLICA_CLIENT_UPDATE_HPP_
 
+#include <chrono>
+#include <map>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace client::thin_replica_client {
 
-// Type for updates the Thin Replica Client streams from Thin Replica Servers.
-struct Update {
+// Types for updates the Thin Replica Client streams from Thin Replica Servers.
+struct EventGroup {
+  uint64_t id;
+  std::vector<std::string> events;
+  std::chrono::microseconds record_time;
+  // This map follows the W3C specification for trace context.
+  // https://www.w3.org/TR/trace-context/#trace-context-http-headers-format
+  std::map<std::string, std::string> trace_context;
+};
+
+struct LegacyEvent {
   // Block ID for this update; Block IDs can be expected to be monotonically
   // increasing with each update received in order. It is recommended that
   // applications receiving updates persist at least the Block ID of the most
@@ -34,6 +46,8 @@ struct Update {
   std::string correlation_id_;
   std::string span_context;
 };
+
+typedef std::variant<LegacyEvent, EventGroup> Update;
 
 }  // namespace client::thin_replica_client
 

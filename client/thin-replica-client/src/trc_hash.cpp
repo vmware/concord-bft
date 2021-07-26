@@ -69,8 +69,13 @@ static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, str
 }
 
 string hashUpdate(const Update& update) {
+  if (std::holds_alternative<EventGroup>(update)) {
+    // TODO: Event Group hashes
+    return std::string();
+  }
+  auto& legacy_event = std::get<LegacyEvent>(update);
   map<string, string> entry_hashes;
-  for (const auto& kvp : update.kv_pairs) {
+  for (const auto& kvp : legacy_event.kv_pairs) {
     string key_hash = ComputeSHA256Hash(kvp.first);
     if (entry_hashes.count(key_hash) > 0) {
       throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
@@ -78,11 +83,15 @@ string hashUpdate(const Update& update) {
     entry_hashes[key_hash] = ComputeSHA256Hash(kvp.second);
   }
 
-  return hashUpdateFromEntryHashes(update.block_id, entry_hashes);
+  return hashUpdateFromEntryHashes(legacy_event.block_id, entry_hashes);
 }
 
 string hashUpdate(const Data& update) {
-  ConcordAssert(update.has_events());  // EventGroups not supported yet
+  if (update.has_event_group()) {
+    // TODO: Support Event Group hashes
+    return string();
+  }
+  ConcordAssert(update.has_events());
   map<string, string> entry_hashes;
   for (const auto& kvp : update.events().data()) {
     string key_hash = ComputeSHA256Hash(kvp.key());
