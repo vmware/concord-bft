@@ -231,6 +231,7 @@ void Replica::createReplicaAndSyncState() {
                      getLastReachableBlockNum(),
                      maxNumOfBlocksToDelete));
     } catch (std::exception &e) {
+      LOG_FATAL(logger, "exception: " << e.what());
       std::terminate();
     }
   }

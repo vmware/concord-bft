@@ -78,6 +78,10 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
 
     if (!valid) rresp.success = false;  // If no handler was able to verify the request, it is an invalid request
   } catch (const std::exception& e) {
+    rresp.success = false;
+    LOG_ERROR(getLogger(),
+              "Reconfiguration request from sender: "
+                  << request.sender << " seqnum:" << std::to_string(sequence_num) + " failed, exception: " + e.what());
     ADDITIONAL_DATA(rresp,
                     "Reconfiguration request " + std::to_string(sequence_num) + " failed, exception: " + e.what());
   }

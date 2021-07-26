@@ -13,6 +13,8 @@
 #include <string>
 #include <cstdint>
 
+enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
+
 // Interface for objects that need to be notified on key rotation
 class IKeyExchanger {
  public:
@@ -25,4 +27,10 @@ class IMultiSigKeyGenerator {
  public:
   virtual ~IMultiSigKeyGenerator() {}
   virtual std::pair<std::string, std::string> generateMultisigKeyPair() = 0;
+};
+
+class IClientPublicKeyStore {
+ public:
+  virtual ~IClientPublicKeyStore() = default;
+  virtual void setClientPublicKey(uint16_t clientId, const std::string& key, KeyFormat) = 0;
 };

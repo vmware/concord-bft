@@ -492,8 +492,11 @@ class BftTestNetwork:
             metric_clients[r.id] = bft_metrics_client.MetricsClient(r)
         self.metrics = bft_metrics.BftMetrics(metric_clients)
 
-    def random_client(self):
-        return random.choice(list(self.clients.values()))
+    def random_client(self, without=None):
+        if without == None:
+            without = set()
+
+        return random.choice(list(set(self.clients.values()) - without))
 
     def random_clients(self, max_clients):
         return set(random.choices(list(self.clients.values()), k=max_clients))

@@ -305,8 +305,7 @@ struct VerifyBlockRequests {
       out << "\t\t\"signature_digest\": \"" << std::hash<std::string>{}(req.signature) << "\",\n";
       out << "\t\t\"key_digest\": \"" << std::hash<std::string>{}(client_keys.ids_to_keys[req.clientId].key) << "\",\n";
       auto verifier = std::make_unique<bftEngine::impl::RSAVerifier>(
-          client_keys.ids_to_keys[req.clientId].key.c_str(),
-          (bftEngine::impl::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
+          client_keys.ids_to_keys[req.clientId].key.c_str(), (KeyFormat)client_keys.ids_to_keys[req.clientId].format);
       auto result =
           verifier->verify(req.request.c_str(), req.request.size(), req.signature.c_str(), req.signature.size());
       if (result) {

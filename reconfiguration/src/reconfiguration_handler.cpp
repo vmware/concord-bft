@@ -145,7 +145,10 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
                                           uint64_t,
                                           concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "public key: " << msg.pub_key << " sender: " << msg.sender_id);
-  bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(msg.pub_key, msg.sender_id);
+  // assuming we always send hex DER over the wire
+  for (const auto& clientId : msg.affected_clients)
+    bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(
+        msg.pub_key, KeyFormat::HexaDecimalStrippedFormat, clientId);
   return true;
 }
 }  // namespace concord::reconfiguration
