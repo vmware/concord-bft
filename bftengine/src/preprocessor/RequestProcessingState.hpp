@@ -24,12 +24,13 @@ namespace preprocessor {
 
 // This class collects and stores data relevant to the processing of one specific client request by all replicas.
 
-typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, CANCELLED_BY_PRIMARY, RETRY_PRIMARY } PreProcessingResult;
+typedef enum { NONE, CONTINUE, COMPLETE, CANCEL, EXPIRED, CANCELLED_BY_PRIMARY, RETRY_PRIMARY } PreProcessingResult;
 using ReplicaIdsList = std::vector<ReplicaId>;
 
 class RequestProcessingState {
  public:
   RequestProcessingState(uint16_t numOfReplicas,
+                         const std::string& batchCid,
                          uint16_t clientId,
                          uint16_t reqOffsetInBatch,
                          const std::string& cid,
@@ -66,7 +67,8 @@ class RequestProcessingState {
   }
   uint32_t getReqSignatureLength() const { return clientRequestSignature_.size(); }
 
-  std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
+  const std::string getReqCid() const { return clientPreProcessReqMsg_ ? clientPreProcessReqMsg_->getCid() : ""; }
+  const std::string& getBatchCid() const { return batchCid_; }
   void detectNonDeterministicPreProcessing(const uint8_t* newHash, NodeIdType newSenderId, uint64_t reqRetryId) const;
   void releaseResources();
   ReplicaIdsList getRejectedReplicasList() { return rejectedReplicaIds_; }
@@ -96,6 +98,7 @@ class RequestProcessingState {
   // The use of the class data members is thread-safe. The PreProcessor class uses a per-instance mutex lock for
   // the RequestProcessingState objects.
   const uint16_t numOfReplicas_;
+  const std::string batchCid_;
   const uint16_t clientId_;
   const uint16_t reqOffsetInBatch_;
   const std::string cid_;

@@ -34,6 +34,7 @@ void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRec
 }
 
 RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
+                                               const string &batchCid,
                                                uint16_t clientId,
                                                uint16_t reqOffsetInBatch,
                                                const string &cid,
@@ -43,6 +44,7 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                const char *signature,
                                                const uint32_t signatureLen)
     : numOfReplicas_(numOfReplicas),
+      batchCid_(batchCid),
       clientId_(clientId),
       reqOffsetInBatch_(reqOffsetInBatch),
       cid_(cid),

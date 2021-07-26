@@ -95,8 +95,6 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             requestSignaturePosition,
                                                                             singleMsgHeader.reqSignatureLength,
                                                                             spanContext);
-    LOG_DEBUG(logger(),
-              "Single request info:" << KVLOG(batchCid, clientId, senderId, cid, preProcessReqMsg->reqSeqNum()));
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
                     singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;

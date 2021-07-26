@@ -44,6 +44,7 @@ TicksGenerator::~TicksGenerator() {
 }
 
 void TicksGenerator::start(std::uint32_t component_id, const std::chrono::seconds& period) {
+  auto lock = std::scoped_lock{mtx_};
   auto it = timer_handles_.find(component_id);
   if (it != timer_handles_.cend()) {
     timers_.reset(it->second, period);
@@ -56,6 +57,7 @@ void TicksGenerator::start(std::uint32_t component_id, const std::chrono::second
 }
 
 void TicksGenerator::stop(std::uint32_t component_id) {
+  auto lock = std::scoped_lock{mtx_};
   auto it = timer_handles_.find(component_id);
   if (it != timer_handles_.cend()) {
     timers_.cancel(it->second);
@@ -64,10 +66,12 @@ void TicksGenerator::stop(std::uint32_t component_id) {
 }
 
 bool TicksGenerator::isGenerating(std::uint32_t component_id) const {
+  auto lock = std::scoped_lock{mtx_};
   return (timer_handles_.find(component_id) != timer_handles_.cend());
 }
 
 void TicksGenerator::onInternalTick(const bftEngine::impl::TickInternalMsg& internal_tick) {
+  // No need to lock the mutex as this method is expected to be called from the main thread only.
   auto it = component_pending_req_seq_nums_.find(internal_tick.component_id);
   if (it == component_pending_req_seq_nums_.cend()) {
     sendClientRequestMsgTick(internal_tick.component_id);
