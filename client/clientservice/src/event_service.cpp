@@ -44,7 +44,9 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   ConcordAssert(proto_request->has_event_groups());
 
   cc::SubscribeRequest request;
-  request.event_group_id = proto_request->event_groups().event_group_id();
+  cc::EventGroupRequest eg_request;
+  eg_request.event_group_id = proto_request->event_groups().event_group_id();
+  request.request = eg_request;
 
   auto callback = [this, stream](cc::SubscribeResult&& subscribe_result) {
     if (not std::holds_alternative<cc::EventGroup>(subscribe_result)) {
