@@ -54,7 +54,6 @@ struct BftTopology {
   std::uint32_t client_proxies_per_replica;
   std::string signing_key_path;
   std::uint32_t external_requests_queue_size;
-  std::uint32_t trace_sampling_rate;
   bool encrypted_config_enabled;
   bool transaction_signing_enabled;
   bool client_batching_enabled;
@@ -72,6 +71,7 @@ struct BftClientInfo {
 struct TransportConfig {
   enum CommunicationType { Invalid, TlsTcp, PlainUdp };
   CommunicationType comm_type;
+  // for testing purposes
   bool enable_mock_comm;
   // Communication buffer length
   uint32_t buffer_length;
@@ -179,7 +179,7 @@ class ConcordClient {
   };
 
  private:
-  config_pool::ConcordClientPoolConfig& createClientPoolStruct(const ConcordClientConfig& config);
+  config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
   logging::Logger logger_;
   const ConcordClientConfig& config_;
   std::shared_ptr<concordMetrics::Aggregator> metrics_;

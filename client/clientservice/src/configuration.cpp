@@ -30,10 +30,9 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
       yaml["client_sends_request_to_all_replicas_period_thresh"].as<uint16_t>();
   config.topology.signing_key_path = yaml["signing_key_path"].as<std::string>();
   config.topology.external_requests_queue_size = yaml["external_requests_queue_size"].as<uint32_t>();
-  config.topology.trace_sampling_rate = yaml["trace_sampling_rate"].as<uint32_t>();
   config.topology.encrypted_config_enabled = yaml["encrypted_config_enabled"].as<bool>();
   config.topology.transaction_signing_enabled = yaml["transaction_signing_enabled"].as<bool>();
-  config.topology.client_batching_enabled = yaml["client_proxies_per_replica"].as<bool>();
+  config.topology.client_batching_enabled = yaml["client_batching_enabled"].as<bool>();
   config.topology.client_batching_max_messages_nbr = yaml["client_batching_max_messages_nbr"].as<size_t>();
   config.topology.client_batching_flush_timeout_ms = yaml["client_batching_flush_timeout_ms"].as<uint64_t>();
 
@@ -93,7 +92,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     concord::client::concordclient::BftClientInfo ci;
     ci.id.val = client["principal_id"].as<uint16_t>();
     ci.port = client["client_port"].as<uint16_t>();
-    ci.host = yaml["participant_node_host"].as<std::string>();
+    ci.host = node["participant_node"][0]["participant_node_host"].as<std::string>();
     config.bft_clients.push_back(ci);
   }
 
