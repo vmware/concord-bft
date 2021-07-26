@@ -64,24 +64,19 @@ struct TransportConfig {
   // TLS settings ignored if comm_type is not TlsTcp
   std::string tls_cert_root_path;
   std::string tls_cipher_suite;
-};
-
-struct SubscribeServer {
-  // If set to false then the fields below won't be evaluated
-  bool use_tls;
-  // Buffer with the server's PEM encoded certififactes
-  std::string pem_certs;
+  // Buffer with the servers' PEM encoded certififactes for the event port
+  std::string event_pem_certs;
 };
 
 struct SubscribeConfig {
   // Subscription ID
   std::string id;
+  // If set to false then all certificates related to subscription will be ignored
+  bool use_tls;
   // Buffer with the client's PEM encoded certififacte chain
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
   std::string pem_private_key;
-  // List of SubscribeServer endpoints
-  std::vector<SubscribeServer> servers;
 };
 
 struct ConcordClientConfig {

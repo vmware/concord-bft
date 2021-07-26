@@ -11,11 +11,13 @@
 
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
+#include "assertUtils.hpp"
 
 using ::client::thin_replica_client::BasicUpdateQueue;
 using ::client::thin_replica_client::ThinReplicaClient;
 using ::client::thin_replica_client::ThinReplicaClientConfig;
 using ::client::thin_replica_client::TrsConnection;
+using ::client::thin_replica_client::TrsConnectionConfig;
 
 namespace concord::client::concordclient {
 
@@ -25,6 +27,15 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config)
   for (const auto& replica : config_.topology.replicas) {
     auto addr = replica.host + ":" + std::to_string(replica.event_port);
     auto trsc = std::make_unique<TrsConnection>(addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3);
+
+    // TODO: Adapt TRC API to support PEM buffers
+    ConcordAssert(not config.subscribe_config.use_tls);
+    std::string trs_tls_cert_path = "";
+    std::string trc_tls_key = "";
+    auto trsc_config =
+        std::make_unique<TrsConnectionConfig>(config.subscribe_config.use_tls, trs_tls_cert_path, trc_tls_key);
+
+    trsc->connect(trsc_config);
     trs_connections.push_back(std::move(trsc));
   }
   trc_queue_ = std::make_shared<BasicUpdateQueue>();

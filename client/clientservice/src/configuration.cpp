@@ -18,7 +18,6 @@
 #include "client/clientservice/client_service.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
-using concord::client::concordclient::SubscribeServer;
 
 namespace concord::client::clientservice {
 
@@ -90,20 +89,12 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                            bool is_insecure,
                            const std::string& tls_path) {
   config.subscribe_config.id = tr_id;
+  config.subscribe_config.use_tls = not is_insecure;
 
   // TODO: Read TLS certs for this TRC instance
-  // config.subscribe_config.pem_cert_chain
-  // config.subscribe_config.pem_private_key
-
-  for (size_t i = 0; i < config.topology.replicas.size(); ++i) {
-    SubscribeServer trs;
-    trs.use_tls = not is_insecure;
-    if (trs.use_tls) {
-      // TODO: Read TLS certs for TRS
-      // trs.pem_certs
-    }
-    config.subscribe_config.servers.push_back(std::move(trs));
-  }
+  config.subscribe_config.pem_cert_chain = "";
+  config.subscribe_config.pem_private_key = "";
+  config.transport.event_pem_certs = "";
 }
 
 }  // namespace concord::client::clientservice
