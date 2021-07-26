@@ -279,7 +279,9 @@ struct ThinReplicaClientMetrics {
   concordMetrics::GaugeHandle update_dur_ms;
 };
 
-struct SubscribeRequest {};
+struct SubscribeRequest {
+  uint64_t event_group_id;
+};
 
 // Thin Replica Client implementation; used to subscribe to and stream updates
 // from thin replica servers. Note the ThinReplicaClient is intended to

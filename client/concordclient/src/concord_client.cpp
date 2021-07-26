@@ -63,7 +63,7 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
   callback(SendResult{reply});
 }
 
-void ConcordClient::subscribe(const SubscribeRequest& request,
+void ConcordClient::subscribe(const SubscribeRequest& sub_req,
                               const std::unique_ptr<opentracing::Span>& parent_span,
                               const std::function<void(SubscribeResult&&)>& callback) {
   if (subscriber_) {
@@ -71,8 +71,15 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
     throw SubscriptionExists();
   }
 
-  // TODO: Define SubscribeRequest in TRC
-  trc_->Subscribe(::client::thin_replica_client::SubscribeRequest{});
+  if (std::holds_alternative<EventGroupRequest>(sub_req.request)) {
+    ::client::thin_replica_client::SubscribeRequest trc_request;
+    trc_request.event_group_id = std::get<EventGroupRequest>(sub_req.request).event_group_id;
+    trc_->Subscribe(trc_request);
+  } else if (std::holds_alternative<LegacyEventRequest>(sub_req.request)) {
+    trc_->Subscribe(std::get<LegacyEventRequest>(sub_req.request).block_id);
+  } else {
+    ConcordAssert(false);
+  }
 
   stop_subscriber_ = false;
   subscriber_ = std::make_unique<std::thread>([&] {
@@ -85,18 +92,31 @@ void ConcordClient::subscribe(const SubscribeRequest& request,
         continue;
       }
 
-      // TODO: We fill event group with data from legacy updates.
-      // This needs to change depending on how the legacy API will be implemented.
-      EventGroup eg;
-      eg.id = update->block_id;
-      for (const auto& e : update->kv_pairs) {
-        eg.events.push_back({e.second.begin(), e.second.end()});
-      }
-      std::chrono::duration time_now = std::chrono::system_clock::now().time_since_epoch();
-      eg.record_time = std::chrono::duration_cast<std::chrono::microseconds>(time_now);
-      eg.trace_context = {};
+      // TODO: Distinguish between events and event groups. Depends on TRC API.
+      bool is_event_group = false;
+      if (is_event_group) {
+        EventGroup eg;
+        eg.id = update->block_id;
+        for (const auto& e : update->kv_pairs) {
+          eg.events.push_back({e.second.begin(), e.second.end()});
+        }
+        std::chrono::duration time_now = std::chrono::system_clock::now().time_since_epoch();
+        eg.record_time = std::chrono::duration_cast<std::chrono::microseconds>(time_now);
+        eg.trace_context = {};
 
-      callback(SubscribeResult{eg});
+        callback(SubscribeResult{eg});
+
+      } else {
+        LegacyEvent legacy_events;
+        legacy_events.block_id = update->block_id;
+        for (const auto& [key, value] : update->kv_pairs) {
+          legacy_events.events.push_back({key, value});
+        }
+        legacy_events.correlation_id = update->correlation_id_;
+        // TODO: legacy_events.trace_context
+
+        callback(SubscribeResult{legacy_events});
+      }
     }
   });
 }
