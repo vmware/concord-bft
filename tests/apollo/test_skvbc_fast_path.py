@@ -49,7 +49,7 @@ class SkvbcFastPathTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n >= 6, rotate_keys=True)
     @verify_linearizability()
-    async def test_fast_path_only(self, bft_network, tracker,exchange_keys=True):
+    async def test_fast_path_only(self, bft_network, tracker, exchange_keys=True):
         """
         This test aims to check that the fast commit path is prevalent
         in the normal, synchronous case (no failed replicas, no network partitioning).

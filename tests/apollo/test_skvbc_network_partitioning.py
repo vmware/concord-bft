@@ -308,4 +308,4 @@ class SkvbcNetworkPartitioningTest(unittest.TestCase):
     async def _send_random_writes(skvbc):
         with trio.move_on_after(seconds=1):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(skvbc.send_indefinite_tracked_ops, 1)
+                nursery.start_soon(skvbc.send_indefinite_ops, 1)

@@ -68,7 +68,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         initial_primary = 0
         expected_next_primary = 1
 
-        key_before_vc, value_before_vc = await skvbc.write_known_kv()
+        key_before_vc, value_before_vc = await skvbc.send_write_kv_set()
 
         await skvbc.assert_kv_write_executed(key_before_vc, value_before_vc)
 
@@ -445,7 +445,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
         num_fast_req = 10
         async def write_req():
             for _ in range(num_fast_req):
-                await skvbc.write_known_kv()
+                await skvbc.send_write_kv_set()
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
             run_ops=lambda: write_req(), threshold=num_fast_req)
@@ -571,7 +571,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             while True:
                 with trio.move_on_after(seconds=1):
                     async with trio.open_nursery() as nursery:
-                        nursery.start_soon(skvbc.send_indefinite_tracked_ops, 1)
+                        nursery.start_soon(skvbc.send_indefinite_ops, 1)
 
     async def _crash_replicas_including_primary(
             self, bft_network, nb_crashing, primary, except_replicas=None):
