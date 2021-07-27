@@ -21,6 +21,43 @@ using concord::client::concordclient::ConcordClientConfig;
 
 namespace concord::client::clientservice {
 
+void setDefaultConfiguration(ConcordClientConfig& config) {
+  config.topology.f_val = 1;
+  config.topology.c_val = 0;
+
+  // Default 4 replicas
+  for (int id = 0; id < 4; ++id) {
+    concord::client::concordclient::ReplicaInfo ri;
+    ri.id.val = id;
+    ri.host = "localhost";
+    ri.bft_port = 3501;
+    ri.event_port = 50051;
+    config.topology.replicas.push_back(ri);
+  }
+
+  config.topology.client_retry_config.initial_retry_timeout = std::chrono::milliseconds(1000);
+  config.topology.client_retry_config.min_retry_timeout = std::chrono::milliseconds(1000);
+  config.topology.client_retry_config.max_retry_timeout = std::chrono::milliseconds(1000);
+  config.topology.client_retry_config.number_of_standard_deviations_to_tolerate = 2;
+  config.topology.client_retry_config.samples_per_evaluation = 32;
+  config.topology.client_retry_config.samples_until_reset = 1000;
+
+  config.transport.buffer_length = 1024;
+  config.transport.comm_type = concord::client::concordclient::TransportConfig::PlainUdp;
+
+  // First available external client id
+  // 4 replicas + 16 local clients (client proxies * replicas) + 1
+  int first_bft_client_id = 4 + 4 * 4 + 1;
+
+  // Default 8 bft clients
+  for (int i = 0; i < 8; ++i) {
+    concord::client::concordclient::BftClientInfo ci;
+    ci.id.val = first_bft_client_id + i;
+    // TODO: client_port
+    config.bft_clients.push_back(ci);
+  }
+}
+
 void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   config.topology.f_val = yaml["f_val"].as<uint16_t>();
   config.topology.c_val = yaml["c_val"].as<uint16_t>();
