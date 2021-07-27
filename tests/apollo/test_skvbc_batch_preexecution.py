@@ -90,7 +90,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
-            await skvbc.send_tracked_write_batch(client, 2, BATCH_SIZE)
+            await skvbc.send_write_kv_set_batch(client, 2, BATCH_SIZE)
 
         await bft_network.assert_successful_pre_executions_count(0, NUM_OF_SEQ_WRITES * BATCH_SIZE)
 
@@ -131,7 +131,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
             retry_timeout_milli=1000
         )
         skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
-        await skvbc.send_tracked_write_batch(client, 2, BATCH_SIZE, long_exec=True)
+        await skvbc.send_write_kv_set_batch(client, 2, BATCH_SIZE, long_exec=True)
 
         last_block = await tracker.get_last_block_id(client)
         self.assertEqual(last_block, BATCH_SIZE)
@@ -139,7 +139,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         await bft_network.assert_successful_pre_executions_count(0, BATCH_SIZE)
 
         with trio.move_on_after(seconds=1):
-            await skvbc.send_indefinite_tracked_ops(write_weight=1)
+            await skvbc.send_indefinite_ops(write_weight=1)
 
         initial_primary = 0
         with trio.move_on_after(seconds=15):
@@ -196,7 +196,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         clients = bft_network.clients.values()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network,tracker)
         for client in clients:
-            await skvbc.send_tracked_write_batch(client, 2, BATCH_SIZE)
+            await skvbc.send_write_kv_set_batch(client, 2, BATCH_SIZE)
 
         await bft_network.assert_successful_pre_executions_count(0, len(clients) * BATCH_SIZE)
 
@@ -210,7 +210,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
 
         try:
             with trio.move_on_after(seconds=INDEFINITE_BATCH_WRITES_TIMEOUT):
-                await skvbc.send_indefinite_tracked_batch_writes(BATCH_SIZE)
+                await skvbc.send_indefinite_batch_writes(BATCH_SIZE)
 
         except trio.TooSlowError:
             pass
@@ -219,7 +219,7 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
-            await skvbc.send_tracked_write_batch(client, 2, BATCH_SIZE)
+            await skvbc.send_write_kv_set_batch(client, 2, BATCH_SIZE)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

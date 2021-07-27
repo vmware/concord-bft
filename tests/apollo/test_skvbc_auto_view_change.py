@@ -115,7 +115,7 @@ class SkvbcAutoViewChangeTest(unittest.TestCase):
         initial_primary = 0
 
         for _ in range(150):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
 
         await bft_network.wait_for_view(
             replica_id=random.choice(

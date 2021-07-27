@@ -85,7 +85,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-                nursery.start_soon(skvbc.send_indefinite_tracked_ops)
+                nursery.start_soon(skvbc.send_indefinite_ops)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:
@@ -137,7 +137,7 @@ class SkvbcReadOnlyReplicaTest(unittest.TestCase):
         with trio.fail_after(seconds=60):
             async with trio.open_nursery() as nursery:
                 skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-                nursery.start_soon(skvbc.send_indefinite_tracked_ops, .7, .1)
+                nursery.start_soon(skvbc.send_indefinite_ops, .7, .1)
                 while True:
                     with trio.move_on_after(seconds=.5):
                         try:

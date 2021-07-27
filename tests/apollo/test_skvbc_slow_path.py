@@ -160,7 +160,7 @@ class SkvbcSlowPathTest(unittest.TestCase):
 
         with trio.move_on_after(seconds=5):
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(skvbc.send_indefinite_tracked_ops, 1)
+                nursery.start_soon(skvbc.send_indefinite_ops, 1)
 
         bft_network.start_replica(0)
 

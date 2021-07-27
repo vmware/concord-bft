@@ -39,10 +39,10 @@ class SimpleKVBCProtocol:
     requests.
     """
 
-    def __init__(self, bft_network, tracker = None):
+    def __init__(self, bft_network, tracker = None, pre_process=False):
         self.bft_network = bft_network
         self.tracker = tracker
-
+        self.pre_exec_all = pre_process
         self.alpha = [i for i in range(65, 91)]
         self.alphanum = [i for i in range(48, 58)]
         self.alphanum.extend(self.alpha)
@@ -177,66 +177,6 @@ class SimpleKVBCProtocol:
                     pass
                 await trio.sleep(delay)
 
-    async def write_known_kv(self, kv=None, client=None, long_exec=False):
-        with log.start_action(action_type="write_known_kv"):
-            if client == None:
-                client = self.bft_network.random_client()
-            if kv == None:
-                kv_input = False
-                key = self.random_key()
-                val = self.random_value()
-                kv = [(key, val)]
-            else:
-                kv_input = True
-            read_version = 0
-            if self.tracker is not None:
-                read_version = self.tracker.read_block_id()
-                seq_num = client.req_seq_num.next()
-                seq_num = 0
-                client_id = client.client_id
-                self.tracker.send_write(client_id, seq_num, set(), dict(kv), read_version)
-            msg = self.write_req(set(), kv, read_version, long_exec)
-            
-            try:
-                reply = await client.write(msg)
-                reply = self.parse_reply(reply)
-                assert reply.success
-
-                if self.tracker is not None:
-                    self.tracker.status.record_client_reply(client_id)
-                    self.tracker.handle_write_reply(client_id, seq_num, reply)
-            except trio.TooSlowError:
-                if self.tracker is not None:
-                    self.tracker.status.record_client_timeout(client_id)
-                raise trio.TooSlowError
-
-            if kv_input:
-                return reply
-            else:
-                return key, val
-
-    async def read_known_kv(self, key, client=None):
-        with log.start_action(action_type="read_known_kv"):
-            if client == None:
-                client = self.bft_network.random_client()
-            msg = self.read_req([key])
-            seq_num = client.req_seq_num.next()
-            client_id = client.client_id
-            if self.tracker is not None:
-                self.tracker.send_read(client_id, seq_num, [key])
-            try:
-                serialized_reply = await client.read(msg, seq_num)
-                reply = self.parse_reply(serialized_reply)
-
-                if self.tracker is not None:
-                    self.tracker.status.record_client_reply(client_id)
-                    self.tracker.handle_read_reply(client_id, seq_num, reply)
-                
-                return reply
-            except trio.TooSlowError:
-                self.tracker.status.record_client_timeout(client_id)
-                return
-
     async def assert_kv_write_executed(self, key, val):
         with log.start_action(action_type="assert_kv_write_executed"):
             config = self.bft_network.config
@@ -254,7 +194,7 @@ class SimpleKVBCProtocol:
             while True:
                 with trio.move_on_after(seconds=2 * bft.REQ_TIMEOUT_MILLI/1000):
                     try:
-                        key, value = await self.write_known_kv()
+                        key, value = await self.send_write_kv_set()
                         await self.assert_kv_write_executed(key, value)
                     except (trio.TooSlowError, AssertionError) as e:
                         pass
@@ -276,7 +216,7 @@ class SimpleKVBCProtocol:
             known_key = self.unique_random_key()
             known_val = self.random_value()
             known_kv = [(known_key, known_val)]
-            reply = await self.write_known_kv(known_kv, client)
+            reply = await self.send_write_kv_set(client, known_kv)
             assert reply.success
             # Fill up the initial nodes with data, checkpoint them and stop
             # them. Then bring them back up and ensure the checkpoint data is
@@ -311,7 +251,7 @@ class SimpleKVBCProtocol:
             for i in range(1 + num_of_checkpoints_to_add * 150):
                 key = self.random_key()
                 val = self.random_value()
-                reply = await self.write_known_kv([(key, val)], client)
+                reply = await self.send_write_kv_set(client, [(key, val)])
                 assert reply.success
             
             await self.bft_network.wait_for_replicas_to_collect_stable_checkpoint(
@@ -414,7 +354,7 @@ class SimpleKVBCProtocol:
             kv = [(self.keys[0], self.random_value()),
                   (self.keys[1], self.random_value())]
 
-            reply = await self.write_known_kv(kv)
+            reply = await self.send_write_kv_set(kv=kv)
             assert last_block + 1 == reply.last_block_id
 
             last_block = reply.last_block_id
@@ -425,48 +365,87 @@ class SimpleKVBCProtocol:
             data = await client.read(self.get_block_data_req(last_block))
             kv2 = self.parse_reply(data)
             assert kv2 == dict(kv)
-
             action.log(message_type=f'[READ-YOUR-WRITES] OK.')
 
-    async def send_tracked_write(self, client, max_set_size, long_exec=False):
-        with log.start_action(action_type="send_tracked_write") as action:
-            max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
-            readset = self.tracker.readset(0, max_read_set_size)
-            writeset = self.tracker.writeset(max_set_size)
-            read_version = self.tracker.read_block_id()
-            await self.send_tracked_kv_set(client, readset, writeset, read_version, long_exec)
-            action.log(message_type="[send_tracked_write] OK")
+    async def send_write_kv_set(self, client=None, kv=None, max_set_size=None, long_exec=False, assert_reply=True, raise_slowErrorIfAny=True):
+        with log.start_action(action_type="send_write_kv_set") as action:
+            readset = set()
+            read_version = 0
+            kv_input = True
+            if client is None:
+                client = self.bft_network.random_client()
+            if kv is None and max_set_size is None:
+                kv_input = False
+                max_set_size = 0
+                key = self.random_key()
+                val = self.random_value()
+                writeset = [(key, val)]
+            elif kv is not None and max_set_size is None:
+                max_set_size = 0
+                kv_input = True
+                writeset = kv
+            elif kv is None and max_set_size is not None:
+                writeset = self.writeset(max_set_size)
+            if self.tracker is not None:
+                max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
+                read_version = self.tracker.read_block_id()
+                readset = self.readset(0, max_read_set_size)
+            reply = await self.send_kv_set(client, readset, writeset, read_version, long_exec, assert_reply, raise_slowErrorIfAny)
+            action.log(message_type="[send_write_kv_set] OK")
+            if kv_input is True:
+                return reply
+            else:
+                return writeset[0][0],writeset[0][1]
 
-    async def send_tracked_kv_set(self, client, readset, writeset, read_version, long_exec=False):
-        msg = self.write_req(readset, writeset, read_version, long_exec)
-        seq_num = client.req_seq_num.next()
-        client_id = client.client_id
-        self.tracker.send_write(
-            client_id, seq_num, readset, dict(writeset), read_version)
-        with log.start_action(action_type="send_tracked_kv_set"):
+    async def send_kv_set(self, client, readset, writeset, read_version, long_exec=False, reply_assert=True, raise_slowErrorIfAny=True):
+        with log.start_action(action_type="send_kv_set"):
+            msg = self.write_req(readset, writeset, read_version, long_exec)
+            seq_num = client.req_seq_num.next()
+            client_id = client.client_id
+            if self.tracker is not None:
+                self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
             try:
-                serialized_reply = await client.write(msg, seq_num, pre_process=self.tracker.pre_exec_all)
-                self.tracker.status.record_client_reply(client_id)
+                serialized_reply = await client.write(msg, seq_num, pre_process=self.pre_exec_all)
                 reply = self.parse_reply(serialized_reply)
-                self.tracker.handle_write_reply(client_id, seq_num, reply)
+                if reply_assert is True:
+                    assert reply.success
+                if self.tracker is not None:
+                    self.tracker.status.record_client_reply(client_id)
+                    self.tracker.handle_write_reply(client_id, seq_num, reply)
+                return reply
             except trio.TooSlowError:
-                self.tracker.status.record_client_timeout(client_id)
-                return
+                if self.tracker is not None:
+                    self.tracker.status.record_client_timeout(client_id)
+                if raise_slowErrorIfAny is True:
+                    raise trio.TooSlowError
+                else:
+                    return
 
-    async def send_tracked_read(self, client, max_set_size):
-        readset = self.tracker.readset(1, max_set_size)
-        msg = self.read_req(readset)
-        seq_num = client.req_seq_num.next()
-        client_id = client.client_id
-        self.tracker.send_read(client_id, seq_num, readset)
-        try:
-            serialized_reply = await client.read(msg, seq_num)
-            self.tracker.status.record_client_reply(client_id)
-            reply = self.parse_reply(serialized_reply)
-            self.tracker.handle_read_reply(client_id, seq_num, reply)
-        except trio.TooSlowError:
-            self.tracker.status.record_client_timeout(client_id)
-            return
+    async def send_read_kv_set(self, client, key, max_set_size=0):
+        with log.start_action(action_type="send_read_kv_set"):
+            readData = []
+            if key is None:
+                readData = self.readset(1, max_set_size)
+            else:
+                readData = [key]
+            msg = self.read_req(readData)
+            if client is None:
+                client = self.bft_network.random_client()
+            seq_num = client.req_seq_num.next()
+            client_id = client.client_id
+            if self.tracker is not None:
+                self.tracker.send_read(client_id, seq_num, readData)
+            try:
+                serialized_reply = await client.read(msg, seq_num)
+                reply = self.parse_reply(serialized_reply)
+                if self.tracker is not None:
+                    self.tracker.status.record_client_reply(client_id)
+                    self.tracker.handle_read_reply(client_id, seq_num, reply)
+                return reply
+            except trio.TooSlowError:
+                if self.tracker is not None:
+                    self.tracker.status.record_client_timeout(client_id)
+                return
 
     async def run_concurrent_batch_ops(self, num_ops, batch_size):
         with log.start_action(action_type="run_concurrent_batch_ops"):
@@ -482,7 +461,7 @@ class SimpleKVBCProtocol:
                             client.config = client.config._replace(
                                 retry_timeout_milli=500
                             )
-                            nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size, None, False)
+                            nursery.start_soon(self.send_write_kv_set_batch, client, max_size, batch_size)
                             write_count += 1
                     sent += len(clients)
             return write_count
@@ -494,90 +473,113 @@ class SimpleKVBCProtocol:
             return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
     async def run_concurrent_conflict_ops(self, num_ops, write_weight=.70):
-        if self.tracker.no_conflicts is True:
-            log.log_message(message_type="call to run_concurrent_conflict_ops with no_conflicts=True,"
-                                         " calling run_concurrent_ops instead")
-            return await self.run_concurrent_ops(num_ops, write_weight)
+        if self.tracker is not None:
+            if self.tracker.no_conflicts is True:
+                log.log_message(message_type="call to run_concurrent_conflict_ops with no_conflicts=True,"
+                                            " calling run_concurrent_ops instead")
+                return await self.run_concurrent_ops(num_ops, write_weight)
         max_concurrency = len(self.bft_network.clients) // 2
         max_size = len(self.keys) // 2
         return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
     async def send_concurrent_ops(self, num_ops, max_concurrency, max_size, write_weight, create_conflicts=False):
-        max_read_set_size = 0 if self.tracker.no_conflicts else max_size
+        max_read_set_size = max_size
+        if self.tracker is not None:
+            max_read_set_size = 0 if self.tracker.no_conflicts else max_size
         sent = 0
         write_count = 0
         read_count = 0
         clients = self.bft_network.random_clients(max_concurrency)
         with log.start_action(action_type="send_concurrent_ops"):
             while sent < num_ops:
-                readset = self.tracker.readset(0, max_read_set_size)
-                writeset = self.tracker.writeset(0, readset)
-                read_version = self.tracker.read_block_id()
+                readset = self.readset(0, max_read_set_size)
+                writeset = self.writeset(0, readset)
+                read_version = 0
+                if self.tracker is not None:
+                    read_version = self.tracker.read_block_id()
                 async with trio.open_nursery() as nursery:
                     for client in clients:
                         if random.random() < write_weight:
                             if create_conflicts is False:
-                                readset = self.tracker.readset(0, max_read_set_size)
-                                writeset = self.tracker.writeset(max_size)
-                                read_version = self.tracker.read_block_id()
-                            nursery.start_soon(self.send_tracked_kv_set, client, readset, writeset, read_version)
+                                readset = self.readset(0, max_read_set_size)
+                                writeset = self.writeset(max_size)
+                                read_version = 0
+                                if self.tracker is not None:
+                                    read_version = self.tracker.read_block_id()
+                            nursery.start_soon(self.send_kv_set, client, readset, writeset, read_version, False, False, False)
                             write_count += 1
                         else:
-                            nursery.start_soon(self.send_tracked_read, client, max_size)
+                            nursery.start_soon(self.send_read_kv_set, client, None, max_size)
                             read_count += 1
                 sent += len(clients)
         return read_count, write_count
 
-    async def send_indefinite_tracked_batch_writes(self, batch_size, time_interval=.01):
+    async def send_indefinite_batch_writes(self, batch_size, time_interval=.01):
         max_size = len(self.keys) // 2
         while True:
             client = self.bft_network.random_client()
             async with trio.open_nursery() as nursery:
                 try:
-                    nursery.start_soon(self.send_tracked_write_batch, client, max_size, batch_size)
+                    nursery.start_soon(self.send_write_kv_set_batch, client, max_size, batch_size)
                 except:
                     pass
                 await trio.sleep(time_interval)
 
-    async def send_indefinite_tracked_ops(self, write_weight=.70, time_interval=.01):
+    async def send_indefinite_ops(self, write_weight=.70, time_interval=.01):
         max_size = len(self.keys) // 2
         while True:
             client = self.bft_network.random_client()
             async with trio.open_nursery() as nursery:
                 try:
                     if random.random() < write_weight:
-                        nursery.start_soon(self.send_tracked_write, client, max_size)
+                        nursery.start_soon(self.send_write_kv_set, client, None, max_size, False, False, False)
                     else:
-                        nursery.start_soon(self.send_tracked_read, client, max_size)
+                        nursery.start_soon(self.send_read_kv_set, client, None, max_size)
                 except:
                     pass
                 await trio.sleep(time_interval)
 
-    async def send_tracked_write_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False):
+    async def send_write_kv_set_batch(self, client, max_set_size, batch_size, read_version = None, long_exec = False):
         msg_batch = []
         batch_seq_nums = []
         client_id = client.client_id
         if read_version is None:
-            read_version = self.tracker.read_block_id()
+            read_version=0
+            if self.tracker is not None:
+                read_version = self.tracker.read_block_id()
         for i in range(batch_size):
-            max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
-            readset = self.tracker.readset(0, max_read_set_size)
-            writeset = self.tracker.writeset(max_set_size)
+            max_read_set_size = max_set_size
+            if self.tracker is not None:
+                max_read_set_size = 0 if self.tracker.no_conflicts else max_set_size
+            readset = self.readset(0, max_read_set_size)
+            writeset = self.writeset(max_set_size)
             msg_batch.append(self.write_req(readset, writeset, read_version, long_exec))
             seq_num = client.req_seq_num.next()
             batch_seq_nums.append(seq_num)
-            self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
+            if self.tracker is not None:
+                self.tracker.send_write(client_id, seq_num, readset, dict(writeset), read_version)
         
         with log.start_action(action_type="send_tracked_kv_set_batch"):
             try:
                 replies = await client.write_batch(msg_batch, batch_seq_nums)
-                self.tracker.status.record_client_reply(client_id)
+                if self.tracker is not None:
+                    self.tracker.status.record_client_reply(client_id)
                 for seq_num, reply_msg in replies.items():
                     reply = self.parse_reply(reply_msg.get_common_data())
-                    self.tracker.handle_write_reply(client_id, seq_num, reply)
+                    if self.tracker is not None:
+                        self.tracker.handle_write_reply(client_id, seq_num, reply)
             except trio.TooSlowError:
-                self.tracker.status.record_client_timeout(client_id)
+                if self.tracker is not None:
+                    self.tracker.status.record_client_timeout(client_id)
                 return
+                
+    def readset(self, min_size, max_size):
+        return self.random_keys(random.randint(min_size, max_size))
+
+    def writeset(self, max_size, keys=None):
+        writeset_keys = self.random_keys(random.randint(0, max_size)) if keys is None else keys
+        writeset_values = self.random_values(len(writeset_keys))
+        return list(zip(writeset_keys, writeset_values))
 
 class SkvbcClient:
     """A wrapper around bft_client that uses the SimpleKVBCProtocol"""

@@ -68,7 +68,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
         with trio.fail_after(60):  # seconds
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(
-                    skvbc.send_indefinite_tracked_ops)
+                    skvbc.send_indefinite_ops)
                 # See if replica 1 has become the new primary
                 await bft_network.wait_for_view(
                     replica_id=1,
@@ -115,12 +115,12 @@ class SkvbcPersistenceTest(unittest.TestCase):
         """
         bft_network.start_all_replicas()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
-        (key, val) = await skvbc.write_known_kv()
+        (key, val) = await skvbc.send_write_kv_set()
 
         bft_network.stop_all_replicas()
         bft_network.start_all_replicas()
 
-        kv_reply = await skvbc.read_known_kv(key, bft_network.random_client())
+        kv_reply = await skvbc.send_read_kv_set(bft_network.random_client(), key)
 
         self.assertEqual({key: val}, kv_reply)
 
@@ -160,7 +160,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
-        kvpairs = await skvbc.read_known_kv(known_key, client)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
         # Perform a put/get transaction pair to ensure we can read newly
@@ -210,7 +210,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
-        kvpairs = await skvbc.read_known_kv(known_key, client)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
         # Perform a put/get transaction pair to ensure we can read newly
@@ -289,7 +289,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         # Retrieve the value we put first to ensure state transfer worked
         # when the log went away
-        kvpairs = await skvbc.read_known_kv(known_key, client)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
     async def _run_state_transfer_while_crashing_non_primary(
@@ -431,7 +431,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
 
         await bft_network.force_quorum_including_replica(stale_replica)
 
-        kvpairs = await skvbc.read_known_kv(known_key, client)
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
         self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
 
     async def _run_state_transfer_while_crashing_primary_once(

@@ -849,12 +849,4 @@ class SkvbcTracker:
     def read_block_id(self):
         start = max(0, self.last_known_block - MAX_LOOKBACK)
         return random.randint(start, self.last_known_block)
-
-    def readset(self, min_size, max_size):
-        return self.skvbc.random_keys(random.randint(min_size, max_size))
-
-    def writeset(self, max_size, keys=None):
-        writeset_keys = self.skvbc.random_keys(random.randint(0, max_size)) if keys is None else keys
-        writeset_values = self.skvbc.random_values(len(writeset_keys))
-        return list(zip(writeset_keys, writeset_values))
     
