@@ -210,32 +210,50 @@ class ThinReplicaImpl {
     kvbc::BlockId start_block_id;
     if (request->has_events()) {
       start_block_id = request->events().block_id();
+      try {
+        syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
+      } catch (StreamCancelled& error) {
+        config_->subscriber_list.removeBuffer(live_updates);
+        live_updates->removeAllUpdates();
+        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+        metrics_.updateAggregator();
+        return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
+      } catch (std::exception& error) {
+        LOG_ERROR(logger_, error.what());
+        config_->subscriber_list.removeBuffer(live_updates);
+        live_updates->removeAllUpdates();
+
+        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+        metrics_.updateAggregator();
+
+        std::stringstream msg;
+        msg << "Couldn't transition from block id " << request->events().block_id() << " to new blocks";
+        return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
+      }
     } else {
       uint64_t event_group_id = request->event_groups().event_group_id();
-      const auto latest = (config_->rostorage)
-                              ->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupsCategory,
-                                                 std::to_string(event_group_id));
-      start_block_id = latest->version;
-    }
-    try {
-      syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
-    } catch (StreamCancelled& error) {
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
-      return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
-    } catch (std::exception& error) {
-      LOG_ERROR(logger_, error.what());
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllUpdates();
+      bool event_group_enabled = true;
+      try {
+        syncAndSend<ServerContextT, ServerWriterT, DataT>(
+            context, event_group_id, live_updates, stream, kvb_filter, event_group_enabled);
+      } catch (StreamCancelled& error) {
+        config_->subscriber_list.removeBuffer(live_updates);
+        live_updates->removeAllUpdates();
+        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+        metrics_.updateAggregator();
+        return grpc::Status(grpc::StatusCode::CANCELLED, error.what());
+      } catch (std::exception& error) {
+        LOG_ERROR(logger_, error.what());
+        config_->subscriber_list.removeBuffer(live_updates);
+        live_updates->removeAllUpdates();
 
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
+        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+        metrics_.updateAggregator();
 
-      std::stringstream msg;
-      msg << "Couldn't transition from block id " << request->events().block_id() << " to new blocks";
-      return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
+        std::stringstream msg;
+        msg << "Couldn't transition from block id " << request->events().block_id() << " to new blocks";
+        return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
+      }
     }
 
     // Read, filter, and send live updates
@@ -482,10 +500,11 @@ class ThinReplicaImpl {
   // use the queue as soon as he consumes it.
   template <typename ServerContextT, typename ServerWriterT, typename DataT>
   void syncAndSend(ServerContextT* context,
-                   kvbc::BlockId start,
+                   uint64_t start,  // TODO (Shruti) - Add another SyncAndSend method for event groups
                    std::shared_ptr<SubUpdateBuffer> live_updates,
                    ServerWriterT* stream,
-                   std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
+                   std::shared_ptr<kvbc::KvbAppFilter> kvb_filter,
+                   bool event_group_enabled = false) {
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
     ConcordAssert(start <= end);
 
