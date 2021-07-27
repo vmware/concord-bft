@@ -1614,8 +1614,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100): # Produce 149 new blocks
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         client = bft_network.random_client()
         client.config._replace(req_timeout_milli=10000)
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
@@ -1650,8 +1650,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(last_stable_checkpoint, 0)
         await self.validate_state_consistency(skvbc, key, val)
         for i in range(150):
-            await skvbc.write_known_kv()
-        key, val = await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
@@ -1686,7 +1686,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             self.assertEqual(last_stable_checkpoint, 0)
         await self.validate_state_consistency(skvbc, key, val)
         for i in range(150):
-            await skvbc.write_known_kv()
+            await skvbc.send_write_kv_set()
         for r in bft_network.all_replicas():
             nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
             self.assertGreater(nb_fast_path, 0)
