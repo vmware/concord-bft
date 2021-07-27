@@ -68,6 +68,7 @@ class FakeStorage : public concord::kvbc::IReader {
   FakeStorage(BlockMap&& db) : db_(std::move(db)), block_id_(db_.size()) {}
 
   void addBlocks(const BlockMap& db) {
+    std::scoped_lock sl(mtx_);
     db_.insert(std::cbegin(db), std::cend(db));
     block_id_ = db_.size();
   }
@@ -114,6 +115,7 @@ class FakeStorage : public concord::kvbc::IReader {
   }
 
   std::optional<concord::kvbc::categorization::Updates> getBlockUpdates(BlockId block_id) const override {
+    std::scoped_lock sl(mtx_);
     if (block_id >= 0 && block_id <= block_id_) {
       auto data = db_.at(block_id);
       concord::kvbc::categorization::Updates updates{};
@@ -143,6 +145,7 @@ class FakeStorage : public concord::kvbc::IReader {
  private:
   BlockMap db_;
   BlockId block_id_;
+  mutable std::mutex mtx_;
 };
 
 class TestServerContext {

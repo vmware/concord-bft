@@ -171,5 +171,6 @@ int main(int argc, char **argv) {
   dbClient->init();
   metadataStorage = initiateMetadataStorage(dbClient, "./metadataStorage_test_db", true);
   int res = RUN_ALL_TESTS();
+  delete dbClient;
   return res;
 }
