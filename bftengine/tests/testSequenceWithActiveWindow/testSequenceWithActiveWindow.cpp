@@ -28,8 +28,6 @@ class MockItemFuncs {
 
   static void reset(uint64_t& i) { i = restarted; }
 
-  static void acquire(uint64_t& to, uint64_t& from) { to = from; }
-
   template <typename T>
   static void printActiveWindow(T window) {
     std::cout << "current active window = " << window.currentActiveWindow().first << ":"

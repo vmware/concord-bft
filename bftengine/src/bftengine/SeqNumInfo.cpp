@@ -39,21 +39,6 @@ SeqNumInfo::~SeqNumInfo() {
   delete partialProofsSet;
 }
 
-void SeqNumInfo::acquire(SeqNumInfo& rhs) {
-  primary = rhs.primary;
-  forcedCompleted = rhs.forcedCompleted;
-  slowPathHasStarted = rhs.slowPathHasStarted;
-  firstSeenFromPrimary = rhs.firstSeenFromPrimary;
-  timeOfLastInfoRequest = rhs.timeOfLastInfoRequest;
-  commitUpdateTime = rhs.commitUpdateTime;
-
-  prePrepareMsg = rhs.prePrepareMsg;
-  rhs.prePrepareMsg = nullptr;
-
-  prepareSigCollector->acquire(rhs.prepareSigCollector);
-  commitMsgsCollector->acquire(rhs.commitMsgsCollector);
-  partialProofsSet->acquire(rhs.partialProofsSet);
-}
 void SeqNumInfo::resetCommitSignatres() { commitMsgsCollector->resetAndFree(); }
 
 void SeqNumInfo::resetPrepareSignatures() { prepareSigCollector->resetAndFree(); }
