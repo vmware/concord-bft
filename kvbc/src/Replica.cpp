@@ -34,6 +34,9 @@
 #include "throughput.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
+#include "client/reconfiguration/ror_reconfiguration_client.hpp"
+#include "client/reconfiguration/ror_reconfiguration_handler.hpp"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -61,13 +64,20 @@ Status Replica::start() {
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
+    m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
+      concord::client::reconfiguration::State stateFromReservedPages;
+      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages)) {
+        LOG_INFO(GL, "Pushed new state from block id :" << KVLOG(stateFromReservedPages.blockid));
+        creClient_->pushUpdate(stateFromReservedPages);
+      }
+    });
   } else {
     createReplicaAndSyncState();
   }
   m_replicaPtr->SetAggregator(aggregator_);
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
-
+  startRoReplicaCreEngine();
   /// TODO(IG, GG)
   /// add return value to start/stop
 
@@ -222,7 +232,7 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, blockid);
     auto epochNum =
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
-    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(rreq, sequenceNum, epochNum);
+    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(rreq, blockid, sequenceNum, epochNum);
   }
 }
 void Replica::createReplicaAndSyncState() {
@@ -256,7 +266,6 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
-  bftEngine::ReconfigurationCmd::instance().setAggregator(aggregator_);
   handleNewEpochEvent();
   handleWedgeEvent();
 }
@@ -450,6 +459,7 @@ Replica::Replica(ICommunication *comm,
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
+  bftEngine::ReconfigurationCmd::instance().setAggregator(aggregator);
 }
 
 Replica::~Replica() {
@@ -458,6 +468,7 @@ Replica::~Replica() {
       m_replicaPtr->stop();
     }
   }
+  if (creEngine_) creEngine_->stop();
 }
 
 /*
@@ -639,6 +650,29 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
     LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());
     throw;
   }
+}
+BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
+  if (replicaConfig_.isReadOnly) {
+    return m_bcDbAdapter->getLastKnownReconfigurationCmdBlock();
+  }
+  return 0;
+}
+void Replica::setLastKnownReconfigCmdBlockNum(const BlockId &blockId) {
+  if (replicaConfig_.isReadOnly) {
+    m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(blockId);
+  }
+}
+void Replica::startRoReplicaCreEngine() {
+  concord::client::reconfiguration::Config cre_config;
+  BlockId id = getLastKnownReconfigCmdBlockNum();
+  creClient_.reset(new concord::client::reconfiguration::RorReconfigurationClient(id));
+  cre_config.id_ = replicaConfig_.replicaId;
+  cre_config.interval_timeout_ms_ = 1000;
+  creEngine_.reset(new concord::client::reconfiguration::ClientReconfigurationEngine(
+      cre_config, creClient_.get(), std::make_shared<concordMetrics::Aggregator>()));
+  creEngine_->registerHandler(std::make_shared<concord::client::reconfiguration::RorReconfigurationHandler>(
+      [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }));
+  creEngine_->start();
 }
 
 }  // namespace concord::kvbc

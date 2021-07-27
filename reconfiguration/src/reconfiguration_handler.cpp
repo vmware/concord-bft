@@ -84,15 +84,6 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
     }
   }
-
-  // update reserved pages for RO replica
-  auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
-  auto wedgePoint = (bft_seq_num + 2 * checkpointWindowSize);
-  wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
-  ReconfigurationRequest rreqWithoutSignature;
-  rreqWithoutSignature.command = command;
-  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
-      rreqWithoutSignature, wedgePoint, epochNum);
   return true;
 }
 

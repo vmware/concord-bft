@@ -33,6 +33,7 @@ class IStateClient {
   virtual bool updateStateOnChain(const WriteState& state) = 0;
   virtual void start(uint64_t lastKnownBlock) = 0;
   virtual void stop() = 0;
+  virtual void pushUpdate(State&) {}
   virtual ~IStateClient() = default;
 };
 

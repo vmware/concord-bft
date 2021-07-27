@@ -28,7 +28,7 @@
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
 #include "thread_pool.hpp"
-
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>
 
@@ -126,6 +126,8 @@ class Replica : public IReplica,
 
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry() const { return cronTableRegistry_; }
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
+  BlockId getLastKnownReconfigCmdBlockNum() const;
+  void setLastKnownReconfigCmdBlockNum(const BlockId &);
 
   ~Replica() override;
 
@@ -142,6 +144,7 @@ class Replica : public IReplica,
   void saveReconfigurationCmdToResPages(const std::string &);
   void handleWedgeEvent();
   uint64_t getStoredReconfigData(const std::string &kCategory, const std::string &key, const kvbc::BlockId &bid);
+  void startRoReplicaCreEngine();
   // INTERNAL TYPES
 
   // represents <key,blockId>
@@ -194,6 +197,8 @@ class Replica : public IReplica,
   std::unique_ptr<concord::kvbc::StReconfigurationHandler> stReconfigurationSM_;
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry_{std::make_shared<cron::CronTableRegistry>()};
   concord::util::ThreadPool blocksIOWorkersPool_;
+  std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
+  std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
 
  private:
   struct Recorders {

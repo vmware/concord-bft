@@ -72,6 +72,10 @@ class IDbAdapter {
   // TODO [TK] not sure it's needed for long term
   virtual std::shared_ptr<storage::IDBClient> getDb() const = 0;
 
+  // These two interfaces are implemented only RO db adapter
+  virtual BlockId getLastKnownReconfigurationCmdBlock() const { return 0; }
+  virtual void setLastKnownReconfigurationCmdBlock(const BlockId& blockId) {}
+
   virtual ~IDbAdapter() = default;
 };
 
