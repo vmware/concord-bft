@@ -210,6 +210,25 @@ struct GetBlockInfo {
   }
 };
 
+std::string persistencyType(const concord::messages::execution_data::EPersistecyType type) {
+  std::string ret;
+  switch (type) {
+    case concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN:
+      ret = "on-chain";
+      break;
+    case concord::messages::execution_data::EPersistecyType::SIG_ON_CHAIN:
+      ret = "signature on-chain";
+      break;
+    case concord::messages::execution_data::EPersistecyType::OFF_CHAIN:
+      ret = "request exceeds on-chain size threshold, signature is on chain";
+      break;
+    default:
+      ret = "unknown";
+      break;
+  }
+  return ret;
+}
+
 struct GetBlockRequests {
   const bool read_only = true;
   std::string description() const {
@@ -218,6 +237,7 @@ struct GetBlockRequests {
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -235,16 +255,22 @@ struct GetBlockRequests {
     concord::messages::execution_data::deserialize(v, record);
     std::stringstream out;
     out << "block [" << blockId << "] contains [" << record.requests.size() << "] requests\n";
-    out << "Corrsponding client keys are published at block [" << record.keys_version << "]\n";
+    out << "Corresponding client keys are published at block [" << record.keys_version << "]\n";
     out << "{\n";
     out << "\"requests\": [\n";
     for (const auto &req : record.requests) {
+      HexEncoder encoder;
+      std::string hex_digest;
+      encoder.Attach(new StringSink(hex_digest));
+      encoder.Put(reinterpret_cast<const CryptoPP::byte *>(req.signature.c_str()), req.signature.size());
+      encoder.MessageEnd();
+
       out << "\t{\n";
       out << "\t\t\"client_id\": " << req.clientId << ",\n";
       out << "\t\t\"cid\": \"" << req.cid << "\",\n";
       out << "\t\t\"sequence_number\": " << req.executionSequenceNum << ",\n";
-      out << "\t\t\"request_digest\": \"" << std::hash<std::string>{}(req.request) << "\",\n";
-      out << "\t\t\"signature_digest\": \"" << std::hash<std::string>{}(req.signature) << "\",\n";
+      out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
+      out << "\t\t\"signature_digest\": \"" << hex_digest << "\",\n";
       out << "\t},\n";
     }
     out << "]\n}\n";
@@ -260,6 +286,7 @@ struct VerifyBlockRequests {
   }
 
   std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    using namespace CryptoPP;
     if (args.values.empty()) {
       throw std::invalid_argument{"Missing BLOCK-ID argument"};
     }
@@ -294,27 +321,33 @@ struct VerifyBlockRequests {
 
     std::stringstream out;
     out << "block [" << blockId << "] contains [" << record.requests.size() << "] requests\n";
-    out << "Corrsponding client keys are published at block [" << record.keys_version << "]\n";
+    out << "Corresponding client keys are published at block [" << record.keys_version << "]\n";
     out << "{\n";
     out << "\"requests\": [\n";
     for (const auto &req : record.requests) {
+      HexEncoder encoder;
+      std::string hex_digest;
+      encoder.Attach(new StringSink(hex_digest));
+      encoder.Put(reinterpret_cast<const CryptoPP::byte *>(req.signature.c_str()), req.signature.size());
+      encoder.MessageEnd();
       out << "\t{\n";
       out << "\t\t\"client_id\": " << req.clientId << ",\n";
       out << "\t\t\"cid\": \"" << req.cid << "\",\n";
-      out << "\t\t\"request_digest\": \"" << std::hash<std::string>{}(req.request) << "\",\n";
-      out << "\t\t\"signature_digest\": \"" << std::hash<std::string>{}(req.signature) << "\",\n";
-      out << "\t\t\"key_digest\": \"" << std::hash<std::string>{}(client_keys.ids_to_keys[req.clientId].key) << "\",\n";
+      out << "\t\t\"signature_digest\": \"" << hex_digest << "\",\n";
+      out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
+      std::string verification_result;
       auto verifier = std::make_unique<bftEngine::impl::RSAVerifier>(
           client_keys.ids_to_keys[req.clientId].key.c_str(), (KeyFormat)client_keys.ids_to_keys[req.clientId].format);
-      auto result =
-          verifier->verify(req.request.c_str(), req.request.size(), req.signature.c_str(), req.signature.size());
-      if (result) {
-        out << "\t\t\"verification_result\": \""
-            << "ok\",\n";
+
+      if (req.requestPersistencyType == concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN) {
+        auto result =
+            verifier->verify(req.request.c_str(), req.request.size(), req.signature.c_str(), req.signature.size());
+        verification_result = result ? "ok" : "failed";
       } else {
-        out << "\t\t\"verification_result\": \""
-            << "fail\",\n";
+        verification_result = "Raw request is not available for validation";
       }
+
+      out << "\t\t\"verification_result\": \"" << verification_result << "\",\n";
       out << "\t},\n";
     }
     out << "]\n}\n";
