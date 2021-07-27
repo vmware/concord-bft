@@ -120,21 +120,10 @@ class ConcordClientPool {
                            uint64_t seq_num,
                            std::string correlation_id = {},
                            std::string span_context = std::string());
-  SubmitResult SendTracedRequest(std::vector<uint8_t>&& request,
-                                 bftEngine::ClientMsgFlag flags,
-                                 std::chrono::milliseconds timeout_ms,
-                                 char* reply_buffer,
-                                 std::uint32_t max_reply_size,
-                                 uint64_t seq_num,
-                                 std::string correlation_id,
-                                 const TextMap& span_context);
 
   // This method is responsible to get write requests with the new client
   // paramters and parse it to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request);
-  SubmitResult SendTracedRequest(const bft::client::WriteConfig& config,
-                                 bft::client::Msg&& request,
-                                 const TextMap& span_context);
 
   // This method is responsible to get read requests with the new client
   // paramters and parse it to the old SimpleClient interface.
