@@ -56,7 +56,8 @@ class KeyValueBlockchain {
   /////////////////////// Raw Blocks ///////////////////////
 
   // Adds raw block and tries to link the state transfer blockchain to the main blockchain
-  void addRawBlock(const RawBlock& block, const BlockId& block_id);
+  // If linkSTChainFrom is true, try to remove blocks form the state transfer chain to the blockchain
+  void addRawBlock(const RawBlock& block, const BlockId& block_id, bool lastBlock = true);
   std::optional<RawBlock> getRawBlock(const BlockId& block_id) const;
 
   /////////////////////// Info ///////////////////////

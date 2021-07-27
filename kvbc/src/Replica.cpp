@@ -232,7 +232,9 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, blockid);
     auto epochNum =
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
-    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(rreq, blockid, sequenceNum, epochNum);
+    auto wedgePoint = (sequenceNum + 2 * checkpointWindowSize);
+    wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
+    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(rreq, blockid, wedgePoint, epochNum);
   }
 }
 void Replica::createReplicaAndSyncState() {
@@ -263,6 +265,7 @@ void Replica::createReplicaAndSyncState() {
                      getLastReachableBlockNum(),
                      maxNumOfBlocksToDelete));
     } catch (std::exception &e) {
+      LOG_FATAL(logger, "exception: " << e.what());
       std::terminate();
     }
   }
@@ -410,6 +413,7 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.maxPendingDataFromSourceReplica", 256 * 1024 * 1024),
     replicaConfig_.getmaxNumOfReservedPages(),
     replicaConfig_.getsizeOfReservedPage(),
+    replicaConfig_.get<uint32_t>("concord.bft.st.gettingMissingBlocksSummaryWindowSize", 600),
     replicaConfig_.get<uint32_t>("concord.bft.st.refreshTimerMs", 300),
     replicaConfig_.get<uint32_t>("concord.bft.st.checkpointSummariesRetransmissionTimeoutMs", 2500),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxAcceptableMsgDelayMs", 60000),
@@ -429,6 +433,11 @@ Replica::Replica(ICommunication *comm,
     stConfig.maxNumberOfChunksInBatch = 32;
   }
 #endif
+
+  if (stConfig.gettingMissingBlocksSummaryWindowSize > 0 and stConfig.gettingMissingBlocksSummaryWindowSize < 100) {
+    LOG_WARN(logger, "Overriding incorrect ST throughput measurement window size configuration to 100");
+    stConfig.gettingMissingBlocksSummaryWindowSize = 100;
+  }
 
   if (!replicaConfig.isReadOnly) {
     const auto linkStChain = true;
@@ -475,7 +484,7 @@ Replica::~Replica() {
  * This method can't return false by current insertBlockInternal impl.
  * It is used only by State Transfer to synchronize state between replicas.
  */
-bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize, bool lastBlock) {
   if (replicaConfig_.isReadOnly) {
     return putBlockToObjectStore(blockId, blockData, blockSize);
   }
@@ -496,9 +505,43 @@ bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint
           std::to_string(blockId));
     }
   } else {
-    m_kvBlockchain->addRawBlock(rawBlock, blockId);
+    m_kvBlockchain->addRawBlock(rawBlock, blockId, lastBlock);
   }
   return true;
+}
+
+std::future<bool> Replica::putBlockAsync(uint64_t blockId,
+                                         const char *block,
+                                         const uint32_t blockSize,
+                                         bool trylinkSTChainFrom) {
+  static uint64_t callCounter = 0;
+  static constexpr size_t snapshotThresh = 1000;
+
+  auto future = blocksIOWorkersPool_.async(
+      [this](uint64_t blockId, const char *block, const uint32_t blockSize, bool trylinkSTChainFrom) {
+        auto start = std::chrono::steady_clock::now();
+        bool result = false;
+
+        LOG_TRACE(logger, "Job Started: " << KVLOG(blockId, blockSize));
+        result = putBlock(blockId, block, blockSize, trylinkSTChainFrom);
+
+        auto jobDuration =
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+        LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, jobDuration));
+        histograms_.put_block_duration->record(jobDuration);
+        return result;
+      },
+      std::forward<decltype(blockId)>(blockId),
+      std::forward<decltype(block)>(block),
+      std::forward<decltype(blockSize)>(blockSize),
+      std::forward<decltype(trylinkSTChainFrom)>(trylinkSTChainFrom));
+
+  if ((++callCounter % snapshotThresh) == 0) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("iappstate");
+    LOG_INFO(logger, registrar.perf.toString(registrar.perf.get("iappstate")));
+  }
+  return future;
 }
 
 bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
@@ -552,48 +595,58 @@ RawBlock Replica::getBlockInternal(BlockId blockId) const { return m_bcDbAdapter
  * This method assumes that *outBlock is big enough to hold block content
  * The caller is the owner of the memory
  */
-bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+bool Replica::getBlock(uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
   if (replicaConfig_.isReadOnly) {
-    return getBlockFromObjectStore(blockId, outBlock, outBlockSize);
+    return getBlockFromObjectStore(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
   }
   const auto rawBlock = m_kvBlockchain->getRawBlock(blockId);
   if (!rawBlock) {
     throw NotFoundException{"Raw block not found: " + std::to_string(blockId)};
   }
   const auto &ser = categorization::RawBlock::serialize(*rawBlock);
-  *outBlockSize = ser.size();
-  LOG_DEBUG(logger, KVLOG(blockId, *outBlockSize));
-  std::memcpy(outBlock, ser.data(), *outBlockSize);
+  if (ser.size() > outBlockMaxSize) {
+    LOG_ERROR(logger, KVLOG(ser.size(), outBlockMaxSize));
+    throw std::runtime_error("not enough space to copy block!");
+  }
+  *outBlockActualSize = ser.size();
+  LOG_DEBUG(logger, KVLOG(blockId, *outBlockActualSize));
+  std::memcpy(outBlock, ser.data(), *outBlockActualSize);
   return true;
 }
 
-std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+std::future<bool> Replica::getBlockAsync(uint64_t blockId,
+                                         char *outBlock,
+                                         uint32_t outBlockMaxSize,
+                                         uint32_t *outBlockActualSize) {
   static uint64_t callCounter = 0;
   static constexpr size_t snapshotThresh = 1000;
 
   auto future = blocksIOWorkersPool_.async(
-      [this](uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+      [this](uint64_t blockId, char *outBlock, uint32_t outBlockMaxSize, uint32_t *outBlockActualSize) {
+        bool result = false;
         auto start = std::chrono::steady_clock::now();
-        *outBlockSize = 0;
+        *outBlockActualSize = 0;
+        LOG_TRACE(logger, "Job Started: " << KVLOG(blockId));
 
         // getBlock will throw exception if block doesn't exist
         try {
-          getBlock(blockId, outBlock, outBlockSize);
+          result = getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
         } catch (NotFoundException &ex) {
-          *outBlockSize = 0;
+          *outBlockActualSize = 0;
           LOG_ERROR(logger, "Block not found:" << KVLOG(blockId));
           return false;
         }
-        ConcordAssertGT(*outBlockSize, 0);
+        if (result) ConcordAssertGT(*outBlockActualSize, 0);
         auto jobDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-        LOG_DEBUG(logger, "Job done: " << KVLOG(blockId, *outBlockSize, jobDuration));
+        LOG_TRACE(logger, "Job done: " << KVLOG(result, blockId, *outBlockActualSize, jobDuration));
         histograms_.get_block_duration->record(jobDuration);
-        return true;
+        return result;
       },
       std::forward<decltype(blockId)>(blockId),
       std::forward<decltype(outBlock)>(outBlock),
-      std::forward<decltype(outBlockSize)>(outBlockSize));
+      std::forward<decltype(outBlockMaxSize)>(outBlockMaxSize),
+      std::forward<decltype(outBlockActualSize)>(outBlockActualSize));
 
   if ((++callCounter % snapshotThresh) == 0) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -603,9 +656,16 @@ std::future<bool> Replica::getBlockAsync(uint64_t blockId, char *outBlock, uint3
   return future;
 }
 
-bool Replica::getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t *outBlockSize) {
+bool Replica::getBlockFromObjectStore(uint64_t blockId,
+                                      char *outBlock,
+                                      uint32_t outblockMaxSize,
+                                      uint32_t *outBlockSize) {
   try {
     RawBlock block = getBlockInternal(blockId);
+    if (block.length() > outblockMaxSize) {
+      LOG_ERROR(logger, KVLOG(block.length(), outblockMaxSize));
+      throw std::runtime_error("not enough space to copy block!");
+    }
     *outBlockSize = block.length();
     memcpy(outBlock, block.data(), block.length());
     return true;
@@ -633,6 +693,18 @@ bool Replica::getPrevDigestFromBlock(BlockId blockId, StateTransferDigest *outPr
   static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
   std::memcpy(outPrevBlockDigest, parent_digest->data(), BLOCK_DIGEST_SIZE);
   return true;
+}
+
+void Replica::getPrevDigestFromBlock(const char *blockData,
+                                     const uint32_t blockSize,
+                                     StateTransferDigest *outPrevBlockDigest) {
+  ConcordAssertGT(blockSize, 0);
+  auto view = std::string_view{blockData, blockSize};
+  const auto rawBlock = categorization::RawBlock::deserialize(view);
+
+  static_assert(rawBlock.data.parent_digest.size() == BLOCK_DIGEST_SIZE);
+  static_assert(sizeof(StateTransferDigest) == BLOCK_DIGEST_SIZE);
+  std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
 }
 
 bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,

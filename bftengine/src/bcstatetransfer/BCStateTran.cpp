@@ -233,8 +233,8 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                metrics_component_.RegisterGauge("prev_win_blocks_throughput", 0),
                metrics_component_.RegisterGauge("prev_win_bytes_collected", 0),
                metrics_component_.RegisterGauge("prev_win_bytes_throughput", 0)},
-      blocks_collected_(getMissingBlocksSummaryWindowSize),
-      bytes_collected_(getMissingBlocksSummaryWindowSize),
+      blocks_collected_(config_.gettingMissingBlocksSummaryWindowSize),
+      bytes_collected_(config_.gettingMissingBlocksSummaryWindowSize),
       lastFetchingState_(FetchingState::NotFetching),
       sourceFlag_(false),
       src_send_batch_duration_rec_(histograms_.src_send_batch_duration),
@@ -1364,7 +1364,7 @@ uint16_t BCStateTran::asyncGetBlocksConcurrent(uint64_t nextBlockId,
       LOG_DEBUG(getLogger(), "Waiting for previous thread to finish job on context " << KVLOG(ctx.blockId, ctx.index));
     }
     ctx.blockId = i;
-    ctx.future = as_->getBlockAsync(ctx.blockId, ctx.block.get(), &ctx.blockSize);
+    ctx.future = as_->getBlockAsync(ctx.blockId, ctx.block.get(), config_.maxBlockSize, &ctx.blockSize);
   }
 
   return j;
@@ -2264,7 +2264,7 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
       toPair("overallStats", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
   nested_data.clear();
 
-  if (getMissingBlocksSummaryWindowSize > 0) {
+  if (config_.gettingMissingBlocksSummaryWindowSize > 0) {
     auto blocks_win_r = blocks_collected_.getPrevWinResults();
     auto bytes_win_r = bytes_collected_.getPrevWinResults();
     auto prev_win_index = blocks_collected_.getPrevWinIndex();
@@ -2418,9 +2418,9 @@ void BCStateTran::processData() {
       bool lastBlock = (firstRequiredBlock >= nextRequiredBlock_);
 
       // Report collecting status for every block collected. Log entry is created every fixed window
-      // getMissingBlocksSummaryWindowSize If lastBlock is true: summarize the whole cycle without including "commit
-      // to chain duration" and vblock. In that case last window might be less than the fixed
-      // getMissingBlocksSummaryWindowSize
+      // gettingMissingBlocksSummaryWindowSize. If lastBlock is true: summarize the whole cycle without including
+      // "commit to chain duration" and vblock. In that case last window might be less than the fixed
+      // gettingMissingBlocksSummaryWindowSize.
       reportCollectingStatus(firstRequiredBlock, actualBlockSize, lastBlock);
       if (lastBlock) {
         commitToChainDT_.start();
@@ -2734,7 +2734,7 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
         // Extra debugging needed here for BC-2821
         if (computedBlockDigest != desc.digestOfLastBlock) {
           uint32_t blockSize = 0;
-          as_->getBlock(desc.lastBlock, buffer_, &blockSize);
+          as_->getBlock(desc.lastBlock, buffer_, config_.maxBlockSize, &blockSize);
           concordUtils::HexPrintBuffer blockData{buffer_, blockSize};
           LOG_FATAL(getLogger(), "Invalid stored checkpoint: " << KVLOG(desc.checkpointNum, desc.lastBlock, blockData));
           ConcordAssertEQ(computedBlockDigest, desc.digestOfLastBlock);
@@ -2830,7 +2830,7 @@ STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
   static std::unique_ptr<char[]> buffer(new char[maxItemSize_]);
   STDigest currDigest;
   uint32_t blockSize = 0;
-  as_->getBlock(currBlock, buffer.get(), &blockSize);
+  as_->getBlock(currBlock, buffer.get(), config_.maxBlockSize, &blockSize);
   computeDigestOfBlock(currBlock, buffer.get(), blockSize, &currDigest);
   return currDigest;
 }

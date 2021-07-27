@@ -32,10 +32,17 @@ using namespace std::literals;
 
 class native_rocksdb_test : public Test {
   void SetUp() override {
-    cleanup();
+    destroyDb();
     db = TestRocksDb::createNative();
   }
-  void TearDown() override { cleanup(); }
+
+  void TearDown() override { destroyDb(); }
+
+  void destroyDb() {
+    db.reset();
+    ASSERT_EQ(0, db.use_count());
+    cleanup();
+  }
 
  protected:
   std::shared_ptr<NativeClient> db;

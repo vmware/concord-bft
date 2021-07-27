@@ -230,11 +230,16 @@ void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_
 uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
 
 void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyFormat format) {
+  LOG_INFO(KEY_EX_LOG, "client: " << id << " key: " << key << " format: " << (uint16_t)format);
   if (replicasInfo_.isIdOfExternalClient(id)) {
-    std::unique_lock lock(mutex_);
-    verifiers_.insert_or_assign(id, std::make_shared<RSAVerifier>(key.c_str(), format));
+    try {
+      std::unique_lock lock(mutex_);
+      verifiers_.insert_or_assign(id, std::make_shared<RSAVerifier>(key.c_str(), format));
+    } catch (const std::exception& e) {
+      LOG_ERROR(KEY_EX_LOG, "failed to add a key for client: " << id << " reason: " << e.what());
+      throw;
+    }
     clientsPublicKeys_.ids_to_keys[id] = concord::messages::keys_and_signatures::PublicKey{key, (uint8_t)format};
-    LOG_INFO(KEY_EX_LOG, "Adding key for client " << id << " key size " << key.size() << " format " << (uint8_t)format);
   } else {
     LOG_WARN(KEY_EX_LOG, "Illegal id for client " << id);
   }

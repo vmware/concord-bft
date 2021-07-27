@@ -27,9 +27,9 @@ State RorReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
 void RorReconfigurationClient::pushUpdate(State& s) {
   std::lock_guard<std::mutex> lg(lock_);
   if (s.blockid > lastKnownReconfigurationCmdBlockId_) {
+    lastKnownReconfigurationCmdBlockId_ = s.blockid;
     updates_.push(std::move(s));
     new_updates_.notify_one();
-    lastKnownReconfigurationCmdBlockId_ = s.blockid;
   }
 }
 State RorReconfigurationClient::getLatestClientUpdate(uint16_t clientId) const {

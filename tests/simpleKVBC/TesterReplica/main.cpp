@@ -30,6 +30,7 @@
 #include <memory>
 
 namespace concord::kvbc::test {
+std::shared_ptr<concord::kvbc::Replica> replica;
 
 std::atomic_bool timeToExit = false;
 
@@ -77,16 +78,15 @@ void run_replica(int argc, char** argv) {
   MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(setup->GetReplicaConfig().replicaId));
   MDC_PUT(MDC_THREAD_KEY, "main");
 
-  std::shared_ptr<Replica> replica =
-      std::make_shared<Replica>(setup->GetCommunication(),
-                                setup->GetReplicaConfig(),
-                                setup->GetStorageFactory(),
-                                setup->GetMetricsServer().GetAggregator(),
-                                setup->GetPerformanceManager(),
-                                std::map<std::string, categorization::CATEGORY_TYPE>{
-                                    {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
-                                    {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                std::make_shared<concord::secretsmanager::SecretsManagerPlain>());
+  replica = std::make_shared<Replica>(setup->GetCommunication(),
+                                      setup->GetReplicaConfig(),
+                                      setup->GetStorageFactory(),
+                                      setup->GetMetricsServer().GetAggregator(),
+                                      setup->GetPerformanceManager(),
+                                      std::map<std::string, categorization::CATEGORY_TYPE>{
+                                          {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
+                                          {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
+                                      std::make_shared<concord::secretsmanager::SecretsManagerPlain>());
 
   auto* blockMetadata = new BlockMetadata(*replica);
 

@@ -23,8 +23,9 @@ sys.path.append(os.path.abspath("../../util/pyclient"))
 import bft_client
 from ecdsa import SigningKey
 from ecdsa import SECP256k1
-from ecdsa.util import sigencode_der
 import hashlib
+from Crypto.PublicKey import RSA
+
 class Operator:
     def __init__(self, config, client, priv_key_dir):
         self.config = config
@@ -129,17 +130,18 @@ class Operator:
         restart_command.data = data
         return self._construct_basic_reconfiguration_request(restart_command)
     
-    def _construct_reconfiguration_clientExchangePublicKey_(self, clientId, clientPubKey, effected_clients = []):
+    def _construct_reconfiguration_clientExchangePublicKey_(self, clientPubKey, affected_clients = []):
         cepk = cmf_msgs.ClientExchangePublicKey()
-        cepk.sender_id = clientId
+        cepk.sender_id = 1000
         cepk.pub_key = clientPubKey
-        cepk.effected_clients = effected_clients
+        cepk.affected_clients = affected_clients
         return self._construct_basic_reconfiguration_request(cepk)
     
     def _generate_client_keys(self):
-        sk = SigningKey.generate(curve=SECP256k1)
-        pk = sk.get_verifying_key()
-        print(f'verification key {pk.to_string().hex()}')
+        sk = RSA.generate(2048)
+        pk = sk.public_key().export_key(format='DER').hex()
+        print(f'verification key {pk}')
+        
         return sk, pk 
     
     def get_rsi_replies(self):
@@ -201,9 +203,14 @@ class Operator:
         reconf_msg = self._construct_reconfiguration_clientKe_command(target_clients)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
-    async def client_exchange_public_key(self):
-        sk, pk = self._generate_client_keys()
-        reconf_msg = self._construct_reconfiguration_clientExchangePublicKey_(self.client.client_id, pk.to_string().hex())
+    async def client_exchange_public_key(self, valid=True):
+        pk = ""
+        if valid is True:
+            sk, pk = self._generate_client_keys()
+        else:
+            pk = "invalid client public key".encode("utf-8").hex()
+                
+        reconf_msg = self._construct_reconfiguration_clientExchangePublicKey_(pk, [self.client.client_id])
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
         
     async def add_remove(self, new_config):

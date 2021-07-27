@@ -55,7 +55,10 @@ class KeyExchangeManager {
   // Publish the public keys of the clients
   void sendInitialClientsKeys(const std::string&);
   void onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys);
-  void onClientPublicKeyExchange(const std::string& key, std::uint16_t clientId);
+  // called on a new client key
+  void onClientPublicKeyExchange(const std::string& key, KeyFormat, NodeIdType clientId);
+  // called when client keys are loaded
+  void loadClientPublicKey(const std::string& key, KeyFormat, NodeIdType clientId);
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;
@@ -151,6 +154,7 @@ class KeyExchangeManager {
     IMultiSigKeyGenerator* kg{nullptr};
     IKeyExchanger* ke{nullptr};
     std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsMgr;
+    IClientPublicKeyStore* cpks;
     concordUtil::Timers* timers{nullptr};
   };
 
@@ -192,6 +196,7 @@ class KeyExchangeManager {
   std::shared_ptr<IInternalBFTClient> client_;
   std::vector<IKeyExchanger*> registryToExchange_;
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
+  IClientPublicKeyStore* clientPublicKeyStore_{nullptr};
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;

@@ -27,6 +27,7 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       clientsPublicKeys_(),
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
+      clientPublicKeyStore_{id->cpks},
       timers_(*(id->timers)) {
   registerForNotification(id->ke);
   notifyRegistry();
@@ -167,9 +168,17 @@ void KeyExchangeManager::onPublishClientsKeys(const std::string& keys, std::opti
   if (save) saveClientsPublicKeys(keys);
 }
 
-void KeyExchangeManager::onClientPublicKeyExchange(const std::string& key, std::uint16_t clientId) {
-  LOG_INFO(KEY_EX_LOG, "key: " << key << " client: " << clientId);
-  SigManager::instance()->setClientPublicKey(key, clientId, KeyFormat::PemFormat);
+void KeyExchangeManager::onClientPublicKeyExchange(const std::string& key, KeyFormat fmt, NodeIdType clientId) {
+  LOG_INFO(KEY_EX_LOG, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
+  // persist a new key
+  clientPublicKeyStore_->setClientPublicKey(clientId, key, fmt);
+  // load a new key
+  loadClientPublicKey(key, fmt, clientId);
+}
+
+void KeyExchangeManager::loadClientPublicKey(const std::string& key, KeyFormat fmt, NodeIdType clientId) {
+  LOG_INFO(KEY_EX_LOG, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
+  SigManager::instance()->setClientPublicKey(key, clientId, fmt);
   saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 

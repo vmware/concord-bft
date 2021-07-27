@@ -292,6 +292,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     async def test_client_exchange_public_key(self, bft_network):
         """
             Second phase of a client key exchange sequence
+            Client generates key pair and sends client key exchange public key
+            TODO [TK] when implemented in a bft_client, use a newly generated key;
+                      for now use other clients to fill a checkpoint
         """
         with log.start_action(action_type="test_client_exchange_public_key"):
             bft_network.start_all_replicas()
@@ -301,8 +304,33 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             op = operator.Operator(bft_network.config, client, bft_network.builddir)
             rep = await op.client_exchange_public_key()
             rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-            assert rep.success is True        
-     
+            assert rep.success is True
+            await trio.sleep(1) #to avoid inconsistency with bft mdt
+            bft_network.stop_all_replicas()
+            bft_network.start_all_replicas()
+            await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
+                                                 num_of_checkpoints_to_add=2, 
+                                                 verify_checkpoint_persistency=False,
+                                                 without_clients={client.client_id})
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_client_exchange_public_key_failure(self, bft_network):
+        """
+            Client sends key exchange with an invalid public key 
+        """
+        with log.start_action(action_type="test_client_exchange_public_key_failure"):
+            bft_network.start_all_replicas()
+            client = bft_network.random_client()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            log.log_message(message_type=f"sending client exchange public key for client {client.client_id}")
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            rep = await op.client_exchange_public_key(valid=False)
+            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+            assert rep.success is False
+            log.log_message(message_type=f"client key exchange failure: {rep.additional_data}")
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_wedge_command(self, bft_network):
@@ -1566,6 +1594,109 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
             self.assertEqual(restartReadyMsg, 0)
             self.assertEqual(restartProofMsg, 0)
+    
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
+                      selected_configs=lambda n, f, c: n == 7)
+    async def test_reconfiguration_with_ror(self, bft_network):
+        """
+             Sends a addRemove command and checks that new configuration is written to blockchain.
+             Note that in this test we assume no failures and synchronized network.
+             The test does the following:
+             1. A client sends a reconfiguration command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Wait for read only replica to done with state transfer
+             3. Load  a new configuration to the bft network
+             4. Rerun the cluster with only 4 nodes and make sure they succeed to perform transactions in fast path
+             5. Make sure the read only replica is able to catch up with the new state
+         """
+        bft_network.start_all_replicas()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100): # Produce 149 new blocks
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        test_config = 'new_configuration_1'
+        await op.add_remove_with_wedge(test_config, bft=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        blockIdreplica = await bft_network.get_metric(0, bft_network, "Gauges",
+                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+        await self._wait_for_st(bft_network, ro_replica_id, 300)
+        blockIdRor = await bft_network.get_metric(ro_replica_id, bft_network, "Gauges",
+                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+        self.assertEqual(blockIdRor, blockIdreplica)
+
+        bft_network.stop_all_replicas()
+        # We now expect the replicas to start with a fresh new configuration
+        # Metadata is erased on replicas startup
+        conf = TestConfig(n=7,
+                          f=2,
+                          c=0,
+                          num_clients=10,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd_with_object_store_and_ke,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=1)
+        await bft_network.change_configuration(conf)
+        ro_replica_id = bft_network.config.n
+        await bft_network.check_initital_key_exchange(stop_replicas=False)
+        bft_network.start_replica(ro_replica_id)
+
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 0)
+        await self.validate_state_consistency(skvbc, key, val)
+        for i in range(150):
+            await skvbc.write_known_kv()
+        key, val = await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+        blockIdRor = await bft_network.get_metric(ro_replica_id, bft_network, "Gauges",
+                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+        #validate the reconfiguration blockId is same as before loading this new config
+        self.assertEqual(blockIdRor, blockIdreplica)
+        bft_network.stop_replica(ro_replica_id)
+        test_config = 'new_configuration_2'
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        await op.add_remove_with_wedge(test_config, bft=False)
+        await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
+        blockIdreplica = await bft_network.get_metric(0, bft_network, "Gauges",
+                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+        bft_network.stop_all_replicas()
+        conf = TestConfig(n=7,
+                          f=2,
+                          c=0,
+                          num_clients=10,
+                          key_file_prefix=KEY_FILE_PREFIX,
+                          start_replica_cmd=start_replica_cmd_with_object_store_and_ke,
+                          stop_replica_cmd=None,
+                          num_ro_replicas=1)
+        await bft_network.change_configuration(conf)
+        ro_replica_id = bft_network.config.n
+        await bft_network.check_initital_key_exchange(stop_replicas=False)
+        for r in bft_network.all_replicas():
+            last_stable_checkpoint = await bft_network.get_metric(r, bft_network, "Gauges", "lastStableSeqNum")
+            self.assertEqual(last_stable_checkpoint, 0)
+        await self.validate_state_consistency(skvbc, key, val)
+        for i in range(150):
+            await skvbc.write_known_kv()
+        for r in bft_network.all_replicas():
+            nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+            self.assertGreater(nb_fast_path, 0)
+        bft_network.start_replica(ro_replica_id)
+        await self._wait_for_st(bft_network, ro_replica_id, 150)
+        blockIdRor = await bft_network.get_metric(ro_replica_id, bft_network, "Gauges",
+                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+        #validate the blockId is same as the 2nd reconfiguration command block
+        self.assertEqual(blockIdRor, blockIdreplica)
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):

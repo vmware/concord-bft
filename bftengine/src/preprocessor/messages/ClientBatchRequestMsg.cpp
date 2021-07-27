@@ -90,7 +90,6 @@ ClientMsgsList& ClientBatchRequestMsg::getClientPreProcessRequestMsgs() {
                                                                      spanContext,
                                                                      requestSignaturePosition,
                                                                      singleMsgHeader.reqSignatureLength);
-    LOG_DEBUG(logger(), KVLOG(batchCid, msg->clientProxyId(), msg->getCid(), msg->requestSeqNum()));
     clientMsgsList_.push_back(move(msg));
     dataPosition += sizeof(ClientRequestMsgHeader) + singleMsgHeader.spanContextSize + singleMsgHeader.requestLength +
                     singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;

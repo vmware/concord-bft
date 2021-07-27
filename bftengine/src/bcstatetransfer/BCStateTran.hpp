@@ -465,7 +465,6 @@ class BCStateTran : public IStateTransfer {
   // Internal Statistics (debuging, logging)
   ///////////////////////////////////////////////////////////////////////////
  protected:
-  static constexpr uint32_t getMissingBlocksSummaryWindowSize = (4 * checkpointWindowSize);
   Throughput blocks_collected_;
   Throughput bytes_collected_;
   std::optional<uint64_t> firstCollectedBlockId_;

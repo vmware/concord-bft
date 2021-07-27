@@ -1,4 +1,6 @@
 
+Enum EPersistecyType { RAW_ON_CHAIN, SIG_ON_CHAIN, OFF_CHAIN, LAST }
+
 Msg RequestInput 1 {
     uint16 clientId
     uint64 executionSequenceNum
@@ -6,6 +8,7 @@ Msg RequestInput 1 {
     uint64 flags
     string request
     string signature
+    EPersistecyType requestPersistencyType
     uint64 requestSequenceNum
 }
 
@@ -20,5 +23,4 @@ Msg RequestsRecord 3 {
     list RequestInput requests
     optional TimeService timestamp
     uint64 keys_version
-    bool keys_rotated_at_this_block 
 }

@@ -16,7 +16,7 @@
 
 namespace concord::client::reconfiguration {
 RorReconfigurationHandler::RorReconfigurationHandler(std::function<void(uint64_t)> fn)
-    : storeReconfigBlockToMdtCb_(fn) {}
+    : storeReconfigBlockToMdtCb_(std::move(fn)) {}
 
 bool RorReconfigurationHandler::validate(const State& s) const {
   bftEngine::ReconfigurationCmd::ReconfigurationCmdData cmdData;
@@ -41,6 +41,6 @@ bool RorReconfigurationHandler::execute(const State& s, WriteState&) {
   LOG_INFO(getLogger(),
            "AddRemove command for RO replica:" << KVLOG(cmdData.blockId_, cmdData.wedgePoint_, cmd.config_descriptor));
   if (storeReconfigBlockToMdtCb_) storeReconfigBlockToMdtCb_(cmdData.blockId_);
-  return false;
+  return true;
 }
 }  // namespace concord::client::reconfiguration
