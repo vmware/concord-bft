@@ -149,6 +149,11 @@ TEST(testSequenceWithActiveWindow_test, move_working_window_by_its_full_size_aft
   beginning += windowSize;
   windowOfInts.advanceActiveWindow(beginning);
 
+  // Verify all values from previous Active Window are transferred to history (Inactive Window)
+  for (uint64_t i = beginning - windowSize; i < beginning; i += resolution) {
+    ConcordAssert(i == windowOfInts.getFromHistory(i));
+  }
+
   // Set consecutive values in Active Window
   for (uint64_t i = beginning; i < beginning + windowSize; i += resolution) {
     windowOfInts.get(i) = i;
