@@ -33,6 +33,7 @@ using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 using client::thin_replica_client::BasicUpdateQueue;
+using client::thin_replica_client::EventVariant;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
 using client::thin_replica_client::Update;
@@ -142,8 +143,9 @@ TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  unique_ptr<Update> update_received = update_queue->Pop();
-  uint64_t block_id = update_received->block_id;
+  unique_ptr<EventVariant> update_received = update_queue->Pop();
+  EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
+  uint64_t block_id = std::get<Update>(*update_received).block_id;
   trc->Unsubscribe();
   EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 1-parameter overload failed.";
   trc->Unsubscribe();
@@ -161,7 +163,8 @@ TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
     EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
                                                  "subscribing with a Block ID from a previously received block.";
     update_received = update_queue->Pop();
-    block_id = update_received->block_id;
+    EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
+    block_id = std::get<Update>(*update_received).block_id;
     EXPECT_GT(block_id, previous_block_id) << "ThinReplicaClient::Subscribe's 2-parameter overload appears to be "
                                               "repeating already received blocks even when specifying where to "
                                               "start the subscription to avoid them.";
@@ -261,7 +264,7 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  unique_ptr<Update> update_received = update_queue->Pop();
+  unique_ptr<EventVariant> update_received = update_queue->Pop();
   EXPECT_TRUE((bool)update_received) << "ThinReplicaClient failed to publish update from initial state.";
 
   thread delay_thread([&]() {
@@ -360,21 +363,23 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   trc->Subscribe();
   trc->Unsubscribe();
   for (size_t i = 0; i < num_initial_updates; ++i) {
-    unique_ptr<Update> received_update = update_queue->TryPop();
+    unique_ptr<EventVariant> received_update = update_queue->TryPop();
     Data& expected_update = update_data[i];
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update included in "
                                           "the initial state.";
-    EXPECT_EQ(received_update->block_id, expected_update.events().block_id())
+    EXPECT_TRUE(std::holds_alternative<Update>(*received_update));
+    auto& legacy_event = std::get<Update>(*received_update);
+    EXPECT_EQ(legacy_event.block_id, expected_update.events().block_id())
         << "An update the ThinReplicaClient fetched in the initial state has "
            "an incorrect block ID.";
-    EXPECT_EQ(received_update->kv_pairs.size(), expected_update.events().data_size())
+    EXPECT_EQ(legacy_event.kv_pairs.size(), expected_update.events().data_size())
         << "An update the ThinReplicaClient fetched in the initial state has "
            "an incorrect number of KV-pair updates.";
-    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.events().data_size(); ++j) {
-      EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.events().data(j).key())
+    for (size_t j = 0; j < legacy_event.kv_pairs.size() && j < (size_t)expected_update.events().data_size(); ++j) {
+      EXPECT_EQ(legacy_event.kv_pairs[j].first, expected_update.events().data(j).key())
           << "A key in an update the ThinReplicaClient fetched in the initial "
              "state does not match its expected value.";
-      EXPECT_EQ(received_update->kv_pairs[j].second, expected_update.events().data(j).value())
+      EXPECT_EQ(legacy_event.kv_pairs[j].second, expected_update.events().data(j).value())
           << "A value in an update the ThinReplicaClient fetched in the "
              "initial state does not match its expected value.";
     }
@@ -393,23 +398,25 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   for (size_t i = num_initial_updates; i < update_data.size(); ++i) {
     *spurious_wakeup_indicator = false;
     delay_condition->notify_one();
-    unique_ptr<Update> received_update = update_queue->Pop();
+    unique_ptr<EventVariant> received_update = update_queue->Pop();
     *spurious_wakeup_indicator = true;
     Data& expected_update = update_data[i];
 
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from an "
                                           "ongoing subscription.";
-    EXPECT_EQ(received_update->block_id, expected_update.events().block_id())
+    EXPECT_TRUE(std::holds_alternative<Update>(*received_update));
+    auto& legacy_event = std::get<Update>(*received_update);
+    EXPECT_EQ(legacy_event.block_id, expected_update.events().block_id())
         << "An update the ThinReplicaClient received from an ongoing "
            "subscription has an incorrect Block ID.";
-    EXPECT_EQ(received_update->kv_pairs.size(), expected_update.events().data_size())
+    EXPECT_EQ(legacy_event.kv_pairs.size(), expected_update.events().data_size())
         << "An update the ThinReplicaClient received in an ongoing "
            "subscription has an incorrect number of KV-pair updates.";
-    for (size_t j = 0; j < received_update->kv_pairs.size() && j < (size_t)expected_update.events().data_size(); ++j) {
-      EXPECT_EQ(received_update->kv_pairs[j].first, expected_update.events().data(j).key())
+    for (size_t j = 0; j < legacy_event.kv_pairs.size() && j < (size_t)expected_update.events().data_size(); ++j) {
+      EXPECT_EQ(legacy_event.kv_pairs[j].first, expected_update.events().data(j).key())
           << "A key in an update the ThinReplicaClient received in an ongoing "
              "subscription does not match its expected value.";
-      EXPECT_EQ(received_update->kv_pairs[j].second, expected_update.events().data(j).value())
+      EXPECT_EQ(legacy_event.kv_pairs[j].second, expected_update.events().data(j).value())
           << "A value in an update the ThinReplicaClient received in an "
              "ongoing subscription does not match its expected value.";
     }
