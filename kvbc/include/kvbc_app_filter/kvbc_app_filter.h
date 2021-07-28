@@ -25,6 +25,7 @@
 
 #include "block_update/block_update.hpp"
 #include "db_interfaces.h"
+#include "categorization/db_categories.h"
 #include "kv_types.hpp"
 #include "event_group_msgs.cmf.hpp"
 

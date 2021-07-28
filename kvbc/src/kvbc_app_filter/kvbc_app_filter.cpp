@@ -24,7 +24,6 @@
 #include "Logger.hpp"
 
 #include "concord_kvbc.pb.h"
-#include "categorization/db_categories.h"
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "openssl_crypto.hpp"
