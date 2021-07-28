@@ -69,7 +69,6 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
                 "client_sends_request_to_all_replicas_period_thresh",
                 config.topology.client_sends_request_to_all_replicas_period_thresh);
   readYamlField(yaml, "signing_key_path", config.topology.signing_key_path);
-  readYamlField(yaml, "external_requests_queue_size", config.topology.external_requests_queue_size);
   readYamlField(yaml, "encrypted_config_enabled", config.topology.encrypted_config_enabled);
   readYamlField(yaml, "transaction_signing_enabled", config.topology.transaction_signing_enabled);
   readYamlField(yaml, "client_batching_enabled", config.topology.client_batching_enabled);
