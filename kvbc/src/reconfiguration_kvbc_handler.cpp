@@ -282,7 +282,11 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
     std::vector<uint8_t> bytesval(strval.begin(), strval.end());
     concord::messages::deserialize(bytesval, cmd);
     concord::messages::AddRemoveWithWedgeStatusResponse addRemoveResponse;
+    if (std::holds_alternative<concord::messages::AddRemoveWithWedgeStatusResponse>(response.response)) {
+      addRemoveResponse = std::get<concord::messages::AddRemoveWithWedgeStatusResponse>(response.response);
+    }
     addRemoveResponse.config_descriptor = cmd.config_descriptor;
+    addRemoveResponse.restart_flag = cmd.restart;
     LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand response: " << addRemoveResponse.config_descriptor);
     response.response = std::move(addRemoveResponse);
   } else {
