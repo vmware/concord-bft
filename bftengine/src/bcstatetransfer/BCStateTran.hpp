@@ -39,6 +39,7 @@
 #include "throughput.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "Timers.hpp"
 #include "SimpleMemoryPool.hpp"
 
 using std::set;
@@ -270,6 +271,7 @@ class BCStateTran : public IStateTransfer {
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
   uint64_t nextRequiredBlock_ = 0;
+  uint64_t nextCommittedBlockId_ = 0;
   STDigest digestOfNextRequiredBlock;
 
   struct compareItemDataMsg {
@@ -377,10 +379,25 @@ class BCStateTran : public IStateTransfer {
   const uint32_t finalizePutblockTimeoutMilli_ = 5;
   concord::util::SimpleMemoryPool<BlockIOContext> ioPool_;
   std::deque<BlockIOContextPtr> ioContexts_;
+  // used to control the trigger of oneShotTimer self requests
+  bool oneShotTimerFlag_;
 
   // returns number of jobs pushed to queue
   uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
 
+  // lastBlock: is true if we put the oldest block (firstRequiredBlock)
+  //
+  // waitPolicy:
+  // NO_WAIT: if caller would like to exit immidiately if the next future is not ready
+  // (job not ended yet).
+  // WAIT_SINGLE_JOB: if caller would like to wait for a single job to finish and exit immidiately if the next job is
+  // not ready. WAIT_ALL_JOBS - wait for all jobs to finalize.
+  //
+  // In any case of an early exit (before all jobs are finalized), a ONESHOT timer is invoked to check the future again
+  // soon. return: true if done procesing all futures, and false if the front one was not std::future_status::ready
+  enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
+
+  bool finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitPolicy);
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
@@ -403,6 +420,7 @@ class BCStateTran : public IStateTransfer {
     GaugeHandle size_of_reserved_page_;
     GaugeHandle last_msg_seq_num_;
     GaugeHandle next_required_block_;
+    GaugeHandle next_commited_block_id_;
     GaugeHandle num_pending_item_data_msgs_;
     GaugeHandle total_size_of_pending_item_data_msgs_;
     AtomicGaugeHandle last_block_;
@@ -446,6 +464,7 @@ class BCStateTran : public IStateTransfer {
     CounterHandle zero_reserved_page_;
     CounterHandle start_collecting_state_;
     CounterHandle on_timer_;
+    CounterHandle one_shot_timer_;
 
     CounterHandle on_transferring_complete_;
 
