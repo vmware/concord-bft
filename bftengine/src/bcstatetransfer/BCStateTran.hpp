@@ -39,6 +39,7 @@
 #include "throughput.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "SimpleMemoryPool.hpp"
 
 using std::set;
 using std::map;
@@ -148,7 +149,7 @@ class BCStateTran : public IStateTransfer {
   std::unique_ptr<concord::util::Handoff> handoff_;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 
-  char* buffer_;  // temporary buffer
+  std::unique_ptr<char[]> buffer_;  // temporary buffer
 
   // random generator
   std::random_device randomDevice_;
@@ -357,21 +358,29 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   // Asynchronous Operations - Blocks IO
   ///////////////////////////////////////////////////////////////////////////
-  struct GetBlockContext {
-    uint16_t index;
-    uint64_t blockId;
-    uint32_t blockSize;
-    std::unique_ptr<char[]> block;
+
+  class BlockIOContext {
+   public:
+    static size_t sizeOfBlockData;
+    BlockIOContext() {
+      ConcordAssert(sizeOfBlockData != 0);
+      blockData.reset(new char[sizeOfBlockData]);
+    }
+    uint64_t blockId = 0;
+    uint32_t actualBlockSize = 0;
+    std::unique_ptr<char[]> blockData;
     std::future<bool> future;
   };
 
-  std::vector<GetBlockContext> srcGetBlockContextes_;
+  using BlockIOContextPtr = std::shared_ptr<BlockIOContext>;
+  // Must be less than config_.refreshTimerMs
+  const uint32_t finalizePutblockTimeoutMilli_ = 5;
+  concord::util::SimpleMemoryPool<BlockIOContext> ioPool_;
+  std::deque<BlockIOContextPtr> ioContexts_;
 
   // returns number of jobs pushed to queue
-  uint16_t asyncGetBlocksConcurrent(uint64_t nextBlockId,
-                                    uint64_t firstRequiredBlock,
-                                    uint16_t numBlocks,
-                                    size_t startContextIndex = 0);
+  uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
+
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
@@ -492,6 +501,8 @@ class BCStateTran : public IStateTransfer {
   bool sourceFlag_;
   uint8_t sourceSnapshotCounter_;
 
+  uint64_t sourceBatchCounter_ = 0;
+
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams
   ///////////////////////////////////////////////////////////////////////////
@@ -521,7 +532,7 @@ class BCStateTran : public IStateTransfer {
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
-                                        src_send_batch_size_blocks});
+                                        src_send_batch_size_chunks});
     }
     //////////////////////////////////////////////////////////
     // Shared Recorders - match the above registered recorders
@@ -547,7 +558,7 @@ class BCStateTran : public IStateTransfer {
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
-    DEFINE_SHARED_RECORDER(src_send_batch_size_blocks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(src_send_batch_size_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
   };
   Recorders histograms_;
 
