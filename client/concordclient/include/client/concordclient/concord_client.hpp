@@ -23,6 +23,7 @@
 #include "bftclient/base_types.h"
 #include "bftclient/bft_client.h"
 #include "client/thin-replica-client/thin_replica_client.hpp"
+#include "client/client_pool/concord_client_pool.hpp"
 #include "Metrics.hpp"
 
 namespace concord::client::concordclient {
@@ -48,17 +49,30 @@ struct BftTopology {
   uint16_t c_val;
   std::vector<ReplicaInfo> replicas;
   bft::client::RetryTimeoutConfig client_retry_config;
+  std::uint16_t client_sends_request_to_all_replicas_first_thresh;
+  std::uint16_t client_sends_request_to_all_replicas_period_thresh;
+  std::uint32_t client_proxies_per_replica;
+  std::string signing_key_path;
+  std::uint32_t external_requests_queue_size;
+  bool encrypted_config_enabled;
+  bool transaction_signing_enabled;
+  bool client_batching_enabled;
+  size_t client_batching_max_messages_nbr;
+  std::uint64_t client_batching_flush_timeout_ms;
 };
 
 struct BftClientInfo {
   // ID needs to match the values set in Concord's configuration
   bft::client::ClientId id;
+  uint16_t port;
+  std::string host;
 };
 
 struct TransportConfig {
   enum CommunicationType { Invalid, TlsTcp, PlainUdp };
   CommunicationType comm_type;
-
+  // for testing purposes
+  bool enable_mock_comm;
   // Communication buffer length
   uint32_t buffer_length;
   // TLS settings ignored if comm_type is not TlsTcp
@@ -86,6 +100,7 @@ struct ConcordClientConfig {
   TransportConfig transport;
   // BFT client descriptors
   std::vector<BftClientInfo> bft_clients;
+  std::uint16_t num_of_used_bft_clients;
   // Configuration for subscribe requests
   SubscribeConfig subscribe_config;
 };
@@ -164,6 +179,7 @@ class ConcordClient {
   };
 
  private:
+  config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
   logging::Logger logger_;
   const ConcordClientConfig& config_;
   std::shared_ptr<concordMetrics::Aggregator> metrics_;
@@ -174,6 +190,7 @@ class ConcordClient {
 
   std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue_;
   std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
+  std::unique_ptr<concord::concord_client_pool::ConcordClientPool> client_pool_;
 };
 
 }  // namespace concord::client::concordclient
