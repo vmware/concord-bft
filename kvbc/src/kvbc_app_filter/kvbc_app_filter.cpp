@@ -27,7 +27,6 @@
 #include "kv_types.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "openssl_crypto.hpp"
-#include "endianness.hpp"
 
 using namespace std::chrono_literals;
 
@@ -90,9 +89,9 @@ KvbFilteredUpdate::OrderedKVPairs KvbAppFilter::filterKeyValuePairs(const kvbc::
   return filtered_kvs;
 }
 
-KvbFilteredEventGroup::EventGroup KvbAppFilter::filterEventsInEventGroup(
+KvbFilteredEventGroupUpdate::EventGroup KvbAppFilter::filterEventsInEventGroup(
     EventGroupId event_group_id, kvbc::categorization::EventGroup &event_group) {
-  KvbFilteredEventGroup::EventGroup filtered_event_group;
+  KvbFilteredEventGroupUpdate::EventGroup filtered_event_group;
 
   for (auto &event : event_group.events) {
     // If no TRIDs attached then everyone is allowed to view the pair
@@ -170,7 +169,7 @@ string KvbAppFilter::hashUpdate(const KvbFilteredUpdate &update) {
   return computeSHA256Hash(concatenated_entry_hashes);
 }
 
-string KvbAppFilter::hashEventGroupUpdate(const KvbFilteredEventGroup &update) {
+string KvbAppFilter::hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update) {
   // Note we store the hashes of the events in an std::set as an
   // intermediate step in the computation of the update hash so the set can be
   // used to deterministically order the events' hashes before they are
@@ -247,7 +246,7 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
 
 void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
                                        EventGroupId event_group_id_end,
-                                       spsc_queue<KvbFilteredEventGroup> &queue_out,
+                                       spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                                        const std::atomic_bool &stop_execution) {
   auto last_trid_eg_id_var =
       rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
@@ -270,7 +269,7 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
       msg << "EventGroup doesn't exist for valid event_group_id: " << event_group_id;
       throw KvbReadError(msg.str());
     }
-    KvbFilteredEventGroup update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
+    KvbFilteredEventGroupUpdate update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
     while (!stop_execution) {
       if (queue_out.push(update)) {
         break;
@@ -315,7 +314,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId event_group_id) {
     msg << "Couldn't retrieve block event groups for event_group_id " << event_group_id;
     throw KvbReadError(msg.str());
   }
-  KvbFilteredEventGroup filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
+  KvbFilteredEventGroupUpdate filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
   return hashEventGroupUpdate(filtered_update);
 }
 
@@ -366,7 +365,7 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start, 
       msg << "Couldn't retrieve block event groups for event_group_id: " << event_group_id;
       throw KvbReadError(msg.str());
     }
-    KvbFilteredEventGroup filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
+    KvbFilteredEventGroupUpdate filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
     concatenated_update_hashes.append(hashEventGroupUpdate(filtered_update));
   }
   return computeSHA256Hash(concatenated_update_hashes);

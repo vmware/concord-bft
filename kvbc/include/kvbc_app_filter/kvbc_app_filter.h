@@ -28,6 +28,7 @@
 #include "categorization/db_categories.h"
 #include "kv_types.hpp"
 #include "event_group_msgs.cmf.hpp"
+#include "endianness.hpp"
 
 namespace concord {
 namespace kvbc {
@@ -44,7 +45,7 @@ struct KvbFilteredUpdate {
   OrderedKVPairs kv_pairs;
 };
 
-struct KvbFilteredEventGroup {
+struct KvbFilteredEventGroupUpdate {
   using EventGroup = concord::kvbc::categorization::EventGroup;
   uint64_t event_group_id;
   EventGroup event_group;
@@ -91,12 +92,12 @@ class KvbAppFilter {
   // Filter the given update
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
 
-  KvbFilteredEventGroup::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
-                                                             kvbc::categorization::EventGroup &event_group);
+  KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
+                                                                   kvbc::categorization::EventGroup &event_group);
 
   // Compute hash for the given update
   std::string hashUpdate(const KvbFilteredUpdate &update);
-  std::string hashEventGroupUpdate(const KvbFilteredEventGroup &update);
+  std::string hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update);
 
   // Return all key-value pairs from the KVB in the block range [earliest block
   // available, given block_id] with the following conditions:
@@ -112,7 +113,7 @@ class KvbAppFilter {
 
   void readEventGroupRange(kvbc::EventGroupId event_group_id_start,
                            kvbc::EventGroupId event_group_id_end,
-                           boost::lockfree::spsc_queue<KvbFilteredEventGroup> &queue_out,
+                           boost::lockfree::spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                            const std::atomic_bool &stop_execution);
 
   // Compute the state hash of all key-value pairs in the range of [earliest
