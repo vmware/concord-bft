@@ -25,12 +25,13 @@
 #include <mutex>
 #include <condition_variable>
 #include <future>
+#include <utility>
 
 namespace bftEngine::impl {
 
 class IncomingMsgsStorageImp : public IncomingMsgsStorage {
  public:
-  explicit IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
+  explicit IncomingMsgsStorageImp(const std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
                                   std::chrono::milliseconds msgWaitTimeout,
                                   uint16_t replicaId);
   ~IncomingMsgsStorageImp() override;
@@ -39,10 +40,12 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   void stop() override;
 
   // Can be called by any thread
-  void pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
+  bool pushExternalMsg(std::unique_ptr<MessageBase> msg) override;
+  bool pushExternalMsg(std::unique_ptr<MessageBase> msg, Callback onMsgPopped) override;
 
   // Can be called by any thread. Msg must represent valid message
-  void pushExternalMsgRaw(char* msg, size_t& Ssize) override;
+  bool pushExternalMsgRaw(char* msg, size_t size) override;
+  bool pushExternalMsgRaw(char* msg, size_t size, Callback onMsgPopped) override;
 
   // Can be called by any thread
   void pushInternalMsg(InternalMessage&& msg) override;
@@ -68,8 +71,10 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   std::shared_ptr<MsgHandlersRegistrator> msgHandlers_;
   std::chrono::milliseconds msgWaitTimeout_;
 
+  using MessageWithCallback = std::pair<std::unique_ptr<MessageBase>, Callback>;
+
   // New messages are pushed to ptrProtectedQueue.... ; protected by lock
-  std::queue<std::unique_ptr<MessageBase>>* ptrProtectedQueueForExternalMessages_;
+  std::queue<MessageWithCallback>* ptrProtectedQueueForExternalMessages_;
   std::queue<InternalMessage>* ptrProtectedQueueForInternalMessages_;
 
   // Time of last queue overflow; protected by lock
@@ -77,7 +82,7 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   size_t dropped_msgs = 0;
 
   // Messages are fetched from ptrThreadLocalQueue...; should be accessed only by the dispatching thread
-  std::queue<std::unique_ptr<MessageBase>>* ptrThreadLocalQueueForExternalMessages_;
+  std::queue<MessageWithCallback>* ptrThreadLocalQueueForExternalMessages_;
   std::queue<InternalMessage>* ptrThreadLocalQueueForInternalMessages_;
 
   std::thread dispatcherThread_;
@@ -93,13 +98,16 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   struct Recorders {
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("incomingMsgsStorageImp",
-                                       {external_queue_len_at_swap,
-                                        internal_queue_len_at_swap,
-                                        evaluate_timers,
-                                        take_lock,
-                                        wait_for_cv,
-                                        dropped_msgs_in_a_row});
+      const auto component = "incomingMsgsStorageImp";
+      if (!registrar.perf.isRegisteredComponent(component)) {
+        registrar.perf.registerComponent(component,
+                                         {external_queue_len_at_swap,
+                                          internal_queue_len_at_swap,
+                                          evaluate_timers,
+                                          take_lock,
+                                          wait_for_cv,
+                                          dropped_msgs_in_a_row});
+      }
     }
     DEFINE_SHARED_RECORDER(external_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);
     DEFINE_SHARED_RECORDER(internal_queue_len_at_swap, 1, 10000, 3, concord::diagnostics::Unit::COUNT);

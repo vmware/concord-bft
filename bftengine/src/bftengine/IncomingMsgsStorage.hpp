@@ -18,6 +18,7 @@
 #include "messages/InternalMessage.hpp"
 #include "messages/IncomingMsg.hpp"
 
+#include <functional>
 #include <memory>
 
 namespace bftEngine::impl {
@@ -32,8 +33,15 @@ class IncomingMsgsStorage {
 
   virtual bool isRunning() const = 0;
 
-  virtual void pushExternalMsg(std::unique_ptr<MessageBase> msg) = 0;
-  virtual void pushExternalMsgRaw(char* msg, size_t& size) = 0;
+  using Callback = std::function<void()>;
+
+  // Below methods return true if message is pushed and false otherwise (e.g. queue capacity has been reached).
+  // The optional `onMsgPopped` function is called when the given message is popped from the consumer/replica.
+  virtual bool pushExternalMsg(std::unique_ptr<MessageBase> msg) = 0;
+  virtual bool pushExternalMsg(std::unique_ptr<MessageBase> msg, Callback onMsgPopped) = 0;
+  virtual bool pushExternalMsgRaw(char* msg, size_t size) = 0;
+  virtual bool pushExternalMsgRaw(char* msg, size_t size, Callback onMsgPopped) = 0;
+
   virtual void pushInternalMsg(InternalMessage&& msg) = 0;
 };
 
