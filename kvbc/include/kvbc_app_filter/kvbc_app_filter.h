@@ -95,6 +95,7 @@ class KvbAppFilter {
 
   // Compute hash for the given update
   std::string hashUpdate(const KvbFilteredUpdate &update);
+  std::string hashEventGroupUpdate(const KvbFilteredEventGroup &update);
 
   // Return all key-value pairs from the KVB in the block range [earliest block
   // available, given block_id] with the following conditions:

@@ -171,6 +171,48 @@ string KvbAppFilter::hashUpdate(const KvbFilteredUpdate &update) {
   return computeSHA256Hash(concatenated_entry_hashes);
 }
 
+string KvbAppFilter::hashEventGroupUpdate(const KvbFilteredEventGroup &update) {
+  // Note we store the hashes of the events in an std::set as an
+  // intermediate step in the computation of the update hash so the set can be
+  // used to deterministically order the events' hashes before they are
+  // concatenated for the computation of the update hash. The deterministic
+  // ordering is necessary since two updates with the same set of events
+  // in different orders are considered equivalent so their hashes need to
+  // match.
+  std::set<string> entry_hashes;
+  auto &[event_group_id, event_group] = update;
+
+  for (const auto &event : event_group.events) {
+    string event_hash = computeSHA256Hash(event.data.data(), event.data.length());
+    ConcordAssert(entry_hashes.count(event_hash) < 1);
+    entry_hashes.emplace(event_hash);
+  }
+
+  string concatenated_entry_hashes;
+  concatenated_entry_hashes.reserve(sizeof(EventGroupId) +
+                                    event_group.events.size() * kExpectedSHA256HashLengthInBytes);
+
+#ifdef BOOST_LITTLE_ENDIAN
+  concatenated_entry_hashes.append(reinterpret_cast<const char *>(&(event_group_id)), sizeof(event_group_id));
+#else  // BOOST_LITTLE_ENDIAN not defined in this case
+#ifndef BOOST_BIG_ENDIAN
+  static_assert(false,
+                "Cannot determine endianness (needed for Thin Replica "
+                "mechanism hash function).");
+#endif  // BOOST_BIG_ENDIAN defined
+  const char *event_group_id_as_bytes = reinterpret_cast<const char *>(&(event_group_id));
+  for (size_t i = 1; i <= sizeof(event_group_id); ++i) {
+    concatenated_entry_hashes.append((event_group_id_as_bytes + (sizeof(event_group_id) - i)), 1);
+  }
+#endif  // if BOOST_LITTLE_ENDIAN defined/else
+
+  for (const auto &event_hash : entry_hashes) {
+    concatenated_entry_hashes.append(event_hash);
+  }
+
+  return computeSHA256Hash(concatenated_entry_hashes);
+}
+
 void KvbAppFilter::readBlockRange(BlockId block_id_start,
                                   BlockId block_id_end,
                                   spsc_queue<KvbFilteredUpdate> &queue_out,
@@ -275,8 +317,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId event_group_id) {
     throw KvbReadError(msg.str());
   }
   KvbFilteredEventGroup filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
-  /* TODO (Shruti): Calculate and return hashUpdate(filtered_update)*/
-  return "";
+  return hashEventGroupUpdate(filtered_update);
 }
 
 string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id_end) {
@@ -327,9 +368,9 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start, 
       throw KvbReadError(msg.str());
     }
     KvbFilteredEventGroup filtered_update{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
-    /* TODO (Shruti): Calculate and return computeSHA256Hash(concatenated_update_hashes)*/
+    concatenated_update_hashes.append(hashEventGroupUpdate(filtered_update));
   }
-  return "";
+  return computeSHA256Hash(concatenated_update_hashes);
 }
 
 std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents(kvbc::BlockId block_id,
