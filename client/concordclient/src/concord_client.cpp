@@ -121,18 +121,14 @@ void ConcordClient::send(const bft::client::ReadConfig& config,
                          const std::unique_ptr<opentracing::Span>& parent_span,
                          const std::function<void(SendResult&&)>& callback) {
   LOG_INFO(logger_, "Log message until config is used f=" << config_.topology.f_val);
-  bft::client::Reply reply;
-  reply.matched_data = std::move(msg);
-  callback(SendResult{reply});
+  client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
 void ConcordClient::send(const bft::client::WriteConfig& config,
                          bft::client::Msg&& msg,
                          const std::unique_ptr<opentracing::Span>& parent_span,
                          const std::function<void(SendResult&&)>& callback) {
-  bft::client::Reply reply;
-  reply.matched_data = std::move(msg);
-  callback(SendResult{reply});
+  client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
 void ConcordClient::subscribe(const SubscribeRequest& sub_req,

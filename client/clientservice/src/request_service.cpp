@@ -45,8 +45,8 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
   auto callback = [&](cc::SendResult&& send_result) {
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       LOG_INFO(logger_, "Send returned error");
-      // TODO: Use error codes according to proto file documentation
-      status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "InternalError"));
+      if (std::get<concord_client_pool::SubmitResult>(send_result) == concord_client_pool::Overloaded)
+        status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "Overloaded"));
       return;
     }
     auto reply = std::get<bft::client::Reply>(send_result);

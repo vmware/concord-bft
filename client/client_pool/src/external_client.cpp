@@ -34,8 +34,8 @@ bftEngine::OperationResult ConcordClient::clientRequestError_ = SUCCESS;
 
 ConcordClient::ConcordClient(int client_id,
                              ConcordClientPoolConfig& struct_config,
-                             const SimpleClientParams& client_params) {
-  logger_ = logging::getLogger("com.vmware.external_client_pool");
+                             const SimpleClientParams& client_params)
+    : logger_(logging::getLogger("com.vmware.external_client_pool")) {
   client_id_ = client_id;
   CreateClient(struct_config, client_params);
 }
@@ -89,6 +89,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
                                       std::chrono::milliseconds timeout_ms,
                                       std::uint32_t reply_size,
                                       uint64_t seq_num,
+                                      const RequestCallBack& callback,
                                       const std::string& correlation_id,
                                       const std::string& span_context) {
   bftEngine::ClientRequest pending_request;
@@ -116,6 +117,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
   pending_reply.actualReplyLength = 0UL;
   pending_reply.cid = correlation_id;
   pending_reply.span_context = span_context;
+  pending_reply.cb = callback;
   pending_replies_.push_back(std::move(pending_reply));
 }
 
@@ -145,6 +147,7 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
         if (reply.cid == cid) {
           reply.actualReplyLength = rep.second.matched_data.size();
           memcpy(reply.replyBuffer, rep.second.matched_data.data(), rep.second.matched_data.size());
+          if (reply.cb) reply.cb(std::move(rep.second));
           LOG_DEBUG(logger_, "Request has completed processing" << KVLOG(client_id_, batch_cid, reply.cid));
         }
       }
