@@ -32,6 +32,7 @@ class Status {
   };
 
   bool operator==(const Status& status) const { return type == status.type; };
+  bool operator!=(const Status& status) const { return type != status.type; };
 
  private:
   enum statusType { ok, notFound, invalidArgument, illegalOperation, generalError, interimError };
