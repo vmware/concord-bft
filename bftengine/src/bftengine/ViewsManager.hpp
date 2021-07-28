@@ -143,8 +143,6 @@ class ViewsManager {
     return complainedReplicas.getComplaintFromReplica(replicaId);
   }
 
-  void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
-  bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
   void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(), targetView = 0; }
 
   void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
@@ -174,6 +172,8 @@ class ViewsManager {
 
   bool hasMissingMsgs(SeqNum currentLastStable);
 
+  void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
   ///////////////////////////////////////////////////////////////////////////
   // consts
   ///////////////////////////////////////////////////////////////////////////

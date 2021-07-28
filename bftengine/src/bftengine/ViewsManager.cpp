@@ -1142,7 +1142,7 @@ void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
   // Complaints for higher view should aim to reach the view of the message.
   targetView = msg->newView();
 
-  while (msg->newView() > getCurrentView() && !(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) &&
+  while (targetView > getCurrentView() && !(hasQuorumToLeaveView() || hasQuorumToJumpToHigherView()) &&
          iter.getAndGoToNext(complaint, size) && numberOfProcessedComplaints <= F + 1) {
     numberOfProcessedComplaints++;
 
@@ -1156,7 +1156,7 @@ void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
                                                        complaintMsg->senderId(),
                                                        complaintMsg->viewNumber(),
                                                        complaintMsg->idOfGeneratedReplica()));
-    if (msg->newView() == getCurrentView() + 1) {
+    if (targetView == getCurrentView() + 1) {
       if (getComplaintFromReplica(complaintMsg->idOfGeneratedReplica()) != nullptr) {
         LOG_INFO(VC_LOG,
                  "Already have a valid complaint from Replica " << complaintMsg->idOfGeneratedReplica() << " for View "
@@ -1167,7 +1167,7 @@ void ViewsManager::processComplaintsFromViewChangeMessage(ViewChangeMsg* msg,
         LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for current View.");
       }
     } else {
-      if (complaintMsg->viewNumber() + 1 == msg->newView() && msgValidator(complaintMsg.get())) {
+      if (complaintMsg->viewNumber() + 1 == targetView && msgValidator(complaintMsg.get())) {
         storeComplaintForHigherView(std::move(complaintMsg));
       } else {
         LOG_WARN(VC_LOG, "Invalid complaint in ViewChangeMsg for a higher View.");
