@@ -323,9 +323,9 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   external_client::ConcordClient::setStatics(required_num_of_replicas, num_replicas, max_buf_size, batch_size_);
   bftEngine::SimpleClientParams clientParams;
   setUpClientParams(clientParams, config);
-
   for (int i = 0; i < num_clients; i++) {
     clients_.push_back(std::make_shared<external_client::ConcordClient>(i, config, clientParams));
+    ClientPoolMetrics_.clients_gauge++;
   }
   jobs_thread_pool_.start(num_clients);
   jobs_queue_max_size_ = config.external_requests_queue_size;
