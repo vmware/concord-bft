@@ -180,8 +180,8 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
 
         callback(SubscribeResult{event_group_out});
 
-      } else if (std::holds_alternative<::client::thin_replica_client::LegacyEvent>(*update)) {
-        auto& legacy_event_in = std::get<::client::thin_replica_client::LegacyEvent>(*update);
+      } else if (std::holds_alternative<::client::thin_replica_client::Update>(*update)) {
+        auto& legacy_event_in = std::get<::client::thin_replica_client::Update>(*update);
         LegacyEvent legacy_event_out;
         legacy_event_out.block_id = legacy_event_in.block_id;
         for (const auto& [k, v] : legacy_event_in.kv_pairs) {

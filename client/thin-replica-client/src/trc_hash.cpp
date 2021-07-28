@@ -68,12 +68,12 @@ static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, str
   return ComputeSHA256Hash(concatenated_entry_hashes);
 }
 
-string hashUpdate(const Update& update) {
+string hashUpdate(const EventVariant& update) {
   if (std::holds_alternative<EventGroup>(update)) {
     // TODO: Event Group hashes
     return std::string();
   }
-  auto& legacy_event = std::get<LegacyEvent>(update);
+  auto& legacy_event = std::get<Update>(update);
   map<string, string> entry_hashes;
   for (const auto& kvp : legacy_event.kv_pairs) {
     string key_hash = ComputeSHA256Hash(kvp.first);

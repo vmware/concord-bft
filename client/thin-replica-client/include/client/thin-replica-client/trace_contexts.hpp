@@ -28,8 +28,8 @@ class TraceContexts {
  public:
   using SpanPtr = std::unique_ptr<opentracing::Span>;
 
-  static void InjectSpan(const SpanPtr& span, Update& update);
-  static expected<std::unique_ptr<opentracing::SpanContext>> ExtractSpan(const Update& update);
+  static void InjectSpan(const SpanPtr& span, EventVariant& update);
+  static expected<std::unique_ptr<opentracing::SpanContext>> ExtractSpan(const EventVariant& update);
   static SpanPtr CreateChildSpanFromBinary(const std::string& trace_context,
                                            const std::string& child_name,
                                            const std::string& correlation_id,

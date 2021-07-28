@@ -56,24 +56,24 @@ class SimpleTextMapReaderWriter : public opentracing::TextMapWriter, public open
   std::unordered_map<std::string, std::string>& text_map_;
 };
 
-void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, Update& update) {
+void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, EventVariant& update) {
   if (span) {
     // TODO: Event Group
-    if (std::holds_alternative<LegacyEvent>(update)) {
+    if (std::holds_alternative<Update>(update)) {
       std::unordered_map<std::string, std::string> text_map;
       SimpleTextMapReaderWriter writer(text_map);
       span->tracer().Inject(span->context(), writer);
       W3cTraceContext serialized_context;
       serialized_context.mutable_key_values()->insert(text_map.begin(), text_map.end());
-      std::get<LegacyEvent>(update).span_context = serialized_context.SerializeAsString();
+      std::get<Update>(update).span_context = serialized_context.SerializeAsString();
     }
   }
 }
 
-expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const Update& update) {
+expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const EventVariant& update) {
   // TODO: Event Group
-  if (std::holds_alternative<LegacyEvent>(update)) {
-    auto& legacy_event = std::get<LegacyEvent>(update);
+  if (std::holds_alternative<Update>(update)) {
+    auto& legacy_event = std::get<Update>(update);
     if (!legacy_event.span_context.empty()) {
       W3cTraceContext trace_context;
       trace_context.ParseFromString(legacy_event.span_context);

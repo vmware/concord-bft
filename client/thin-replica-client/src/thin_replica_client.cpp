@@ -85,7 +85,7 @@ void BasicUpdateQueue::Clear() {
   queue_data_.clear();
 }
 
-void BasicUpdateQueue::Push(unique_ptr<Update> update) {
+void BasicUpdateQueue::Push(unique_ptr<EventVariant> update) {
   {
     lock_guard<mutex> lock(mutex_);
     queue_data_.push_back(move(update));
@@ -93,28 +93,28 @@ void BasicUpdateQueue::Push(unique_ptr<Update> update) {
   condition_.notify_one();
 }
 
-unique_ptr<Update> BasicUpdateQueue::Pop() {
+unique_ptr<EventVariant> BasicUpdateQueue::Pop() {
   unique_lock<mutex> lock(mutex_);
   while (!(release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
   }
   if (release_consumers_) {
-    return unique_ptr<Update>(nullptr);
+    return unique_ptr<EventVariant>(nullptr);
   }
   ConcordAssert(queue_data_.size() > 0);
-  unique_ptr<Update> ret = move(queue_data_.front());
+  unique_ptr<EventVariant> ret = move(queue_data_.front());
   queue_data_.pop_front();
   return ret;
 }
 
-unique_ptr<Update> BasicUpdateQueue::TryPop() {
+unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
   lock_guard<mutex> lock(mutex_);
   if (queue_data_.size() > 0) {
-    unique_ptr<Update> ret = move(queue_data_.front());
+    unique_ptr<EventVariant> ret = move(queue_data_.front());
     queue_data_.pop_front();
     return ret;
   } else {
-    return unique_ptr<Update>(nullptr);
+    return unique_ptr<EventVariant>(nullptr);
   }
 }
 uint64_t thin_replica_client::BasicUpdateQueue::Size() { return queue_data_.size(); }
@@ -579,7 +579,7 @@ void ThinReplicaClient::receiveUpdates() {
 
     ConcordAssertNE(config_->update_queue, nullptr);
 
-    auto update = std::make_unique<Update>();
+    auto update = std::make_unique<EventVariant>();
     if (update_in.has_event_group()) {
       auto& event_group = std::get<EventGroup>(*update);
       event_group.id = update_in.event_group().id();
@@ -590,7 +590,7 @@ void ThinReplicaClient::receiveUpdates() {
       latest_verified_event_group_id_ = event_group.id;
     } else {
       ConcordAssert(update_in.has_events());
-      auto& legacy_event = std::get<LegacyEvent>(*update);
+      auto& legacy_event = std::get<Update>(*update);
       legacy_event.block_id = update_in.events().block_id();
       legacy_event.correlation_id_ = update_in.events().correlation_id();
       for (const auto& kvp_in : update_in.events().data()) {
@@ -629,7 +629,7 @@ void ThinReplicaClient::receiveUpdates() {
   stop_subscription_thread_ = true;
 }
 
-void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<Update> update,
+void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
                                                 const std::chrono::steady_clock::time_point& start,
                                                 bool is_event_group) {
   // update current queue size metric before pushing to the update_queue
@@ -691,7 +691,7 @@ void ThinReplicaClient::Subscribe() {
 
   bool has_verified_state = false;
   size_t data_server_index = 0;
-  list<unique_ptr<Update>> state;
+  list<unique_ptr<EventVariant>> state;
   uint64_t block_id = 0;
 
   while (!has_verified_state && (data_server_index < config_->trs_conns.size())) {
@@ -736,8 +736,8 @@ void ThinReplicaClient::Subscribe() {
         received_state_invalid = true;
       } else {
         block_id = response.events().block_id();
-        auto update = std::make_unique<Update>();
-        auto& legacy_event = std::get<LegacyEvent>(*update);
+        auto update = std::make_unique<EventVariant>();
+        auto& legacy_event = std::get<Update>(*update);
         legacy_event.block_id = block_id;
         legacy_event.correlation_id_ = response.events().correlation_id();
         for (int i = 0; i < response.events().data_size(); ++i) {

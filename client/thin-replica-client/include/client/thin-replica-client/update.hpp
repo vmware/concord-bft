@@ -32,7 +32,8 @@ struct EventGroup {
   std::map<std::string, std::string> trace_context;
 };
 
-struct LegacyEvent {
+// LegacyEvent
+struct Update {
   // Block ID for this update; Block IDs can be expected to be monotonically
   // increasing with each update received in order. It is recommended that
   // applications receiving updates persist at least the Block ID of the most
@@ -47,7 +48,7 @@ struct LegacyEvent {
   std::string span_context;
 };
 
-typedef std::variant<LegacyEvent, EventGroup> Update;
+typedef std::variant<Update, EventGroup> EventVariant;
 
 }  // namespace client::thin_replica_client
 

@@ -109,7 +109,7 @@ class UpdateQueue {
   // the queue. UpdateQueue implementations may choose whether they keep this
   // allocated Update or free it after storing the data from the update by some
   // other means.
-  virtual void Push(std::unique_ptr<Update> update) = 0;
+  virtual void Push(std::unique_ptr<EventVariant> update) = 0;
 
   // Synchronously pop and return the update at the front of the queue.
   // Normally, if there are no updates available in the queue, this function
@@ -125,7 +125,7 @@ class UpdateQueue {
   // to null rather than continuing to wait for new updates. Furthermore, a call
   // to ReleaseConsumers will cause any subsequent calls to Pop to return
   // nullptr and will prevent them from blocking their caller.
-  virtual std::unique_ptr<Update> Pop() = 0;
+  virtual std::unique_ptr<EventVariant> Pop() = 0;
 
   // Synchronously pop an update from the front of the queue if one is
   // available, but do not block the calling thread to wait on one if one is not
@@ -133,7 +133,7 @@ class UpdateQueue {
   // immediately found, and a unique_ptr giving ownership of an allocated Update
   // otherwise (this may involve dynamic memory allocation at the discretion of
   // the UpdateQueue implementation).
-  virtual std::unique_ptr<Update> TryPop() = 0;
+  virtual std::unique_ptr<EventVariant> TryPop() = 0;
 
   virtual uint64_t Size() = 0;
 };
@@ -145,7 +145,7 @@ class UpdateQueue {
 // more complete understanding of the needs of this library.
 class BasicUpdateQueue : public UpdateQueue {
  private:
-  std::list<std::unique_ptr<Update>> queue_data_;
+  std::list<std::unique_ptr<EventVariant>> queue_data_;
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
@@ -169,9 +169,9 @@ class BasicUpdateQueue : public UpdateQueue {
   virtual ~BasicUpdateQueue() override;
   virtual void ReleaseConsumers() override;
   virtual void Clear() override;
-  virtual void Push(std::unique_ptr<Update> update) override;
-  virtual std::unique_ptr<Update> Pop() override;
-  virtual std::unique_ptr<Update> TryPop() override;
+  virtual void Push(std::unique_ptr<EventVariant> update) override;
+  virtual std::unique_ptr<EventVariant> Pop() override;
+  virtual std::unique_ptr<EventVariant> TryPop() override;
   virtual uint64_t Size() override;
 };
 
@@ -318,7 +318,7 @@ class ThinReplicaClient final {
 
   // Push update to update queue for consumption by the application using TRC.
   // Set TRC metrics before receiving next update
-  void pushUpdateToUpdateQueue(std::unique_ptr<Update> update,
+  void pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
                                const std::chrono::steady_clock::time_point& start,
                                bool is_event_group);
 

@@ -30,7 +30,7 @@ const size_t kThinReplicaHashLength = kExpectedSHA256HashLengthInBytes;
 // kThinReplicaHashLength. Throws an std::invalid_argument in the event the
 // update contains any duplicated keys (which is something disallowed by the
 // Thin Replica Mechanism).
-std::string hashUpdate(const Update& update);
+std::string hashUpdate(const EventVariant& update);
 std::string hashUpdate(const com::vmware::concord::thin_replica::Data& update);
 
 // Compute the Thin Replica Mechanism hash of a given state (i.e. an ordered
