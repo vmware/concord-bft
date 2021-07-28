@@ -24,6 +24,17 @@ namespace concord::client::clientservice {
 void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   config.topology.f_val = yaml["f_val"].as<uint16_t>();
   config.topology.c_val = yaml["c_val"].as<uint16_t>();
+  config.topology.client_sends_request_to_all_replicas_first_thresh =
+      yaml["client_sends_request_to_all_replicas_first_thresh"].as<uint16_t>();
+  config.topology.client_sends_request_to_all_replicas_period_thresh =
+      yaml["client_sends_request_to_all_replicas_period_thresh"].as<uint16_t>();
+  config.topology.signing_key_path = yaml["signing_key_path"].as<std::string>();
+  config.topology.external_requests_queue_size = yaml["external_requests_queue_size"].as<uint32_t>();
+  config.topology.encrypted_config_enabled = yaml["encrypted_config_enabled"].as<bool>();
+  config.topology.transaction_signing_enabled = yaml["transaction_signing_enabled"].as<bool>();
+  config.topology.client_batching_enabled = yaml["client_batching_enabled"].as<bool>();
+  config.topology.client_batching_max_messages_nbr = yaml["client_batching_max_messages_nbr"].as<size_t>();
+  config.topology.client_batching_flush_timeout_ms = yaml["client_batching_flush_timeout_ms"].as<uint64_t>();
 
   ConcordAssert(yaml["node"].IsSequence());
   for (const auto& node : yaml["node"]) {
@@ -53,6 +64,7 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
   config.topology.client_retry_config.samples_until_reset = yaml["client_samples_until_reset"].as<int16_t>();
 
   config.transport.buffer_length = yaml["concord-bft_communication_buffer_length"].as<uint32_t>();
+  config.transport.enable_mock_comm = yaml["enable_mock_comm"].as<bool>();
   concord::client::concordclient::TransportConfig::CommunicationType comm_type;
   auto comm = yaml["comm_to_use"].as<std::string>();
   if (comm == "tls") {
@@ -79,9 +91,12 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
 
     concord::client::concordclient::BftClientInfo ci;
     ci.id.val = client["principal_id"].as<uint16_t>();
-    // TODO: client_port
+    ci.port = client["client_port"].as<uint16_t>();
+    ci.host = node["participant_node"][0]["participant_node_host"].as<std::string>();
     config.bft_clients.push_back(ci);
   }
+
+  config.num_of_used_bft_clients = yaml["clients_per_participant_node"].as<int16_t>();
 }
 
 void configureSubscription(concord::client::concordclient::ConcordClientConfig& config,
