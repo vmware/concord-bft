@@ -23,7 +23,9 @@ struct ThinReplicaServerMetrics {
       : metrics_component_{"ThinReplicaServer", std::make_shared<concordMetrics::Aggregator>()},
         subscriber_list_size{metrics_component_.RegisterGauge("subscriber_list_size", 0)},
         queue_size{metrics_component_.RegisterGauge(stream_type + client_id + "queue_size", 0)},
-        last_sent_block_id{metrics_component_.RegisterGauge(stream_type + client_id + "last_sent_block_id", 0)} {
+        last_sent_block_id{metrics_component_.RegisterGauge(stream_type + client_id + "last_sent_block_id", 0)},
+        last_sent_event_group_id{
+            metrics_component_.RegisterGauge(stream_type + client_id + "last_sent_event_group_id", 0)} {
     metrics_component_.Register();
   }
 
@@ -43,6 +45,8 @@ struct ThinReplicaServerMetrics {
   concordMetrics::GaugeHandle queue_size;
   // last sent block id
   concordMetrics::GaugeHandle last_sent_block_id;
+  // last sent event group id
+  concordMetrics::GaugeHandle last_sent_event_group_id;
 };
 }  // namespace thin_replica
 }  // namespace concord
