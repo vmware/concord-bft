@@ -287,6 +287,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             log.log_message(message_type=f"block_id {rep.response.block_id}")
             assert rep.response.block_id == 1
     
+    @unittest.skip("Disabling temporarily till the fix is done")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_client_exchange_public_key(self, bft_network):
