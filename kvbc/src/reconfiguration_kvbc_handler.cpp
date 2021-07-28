@@ -14,6 +14,7 @@
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "endianness.hpp"
+#include "kvbc_app_filter/kvbc_key_types.h"
 
 namespace concord::kvbc::reconfiguration {
 
@@ -401,4 +402,19 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeComm
   }
   return false;
 }
+
+bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
+                                                  uint64_t sequence_number,
+                                                  concord::messages::ReconfigurationResponse& response) {
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  auto updated_client_keys = SigManager::instance()->getClientsPublicKeys();
+
+  ver_updates.addUpdate(std::string(1, concord::kvbc::kClientsPublicKeys), std::string(updated_client_keys));
+  auto id = persistReconfigurationBlock(ver_updates, sequence_number);
+  LOG_INFO(getLogger(),
+           "Writing client keys to block [" << id << "] after key exchange, keys "
+                                            << std::hash<std::string>{}(updated_client_keys));
+  return true;
+}
+
 }  // namespace concord::kvbc::reconfiguration
