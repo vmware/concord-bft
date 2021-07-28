@@ -21,6 +21,7 @@
 #include "Metrics.hpp"
 #include "communication/ICommunication.hpp"
 #include "PerformanceManager.hpp"
+#include "../../../bftclient/include/bftclient/base_types.h"
 
 namespace bftEngine {
 struct SimpleClientParams {
@@ -46,6 +47,7 @@ enum ClientMsgFlag : uint8_t {
 };
 
 enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
+typedef std::function<void(bft::client::Reply&&)> RequestCallBack;
 
 struct ClientRequest {
   uint8_t flags = 0;
@@ -64,6 +66,7 @@ struct ClientReply {
   OperationResult opResult = SUCCESS;
   std::string cid;
   std::string span_context;
+  RequestCallBack cb = nullptr;
 };
 
 class SimpleClient {
