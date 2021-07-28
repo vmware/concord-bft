@@ -160,30 +160,35 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
         continue;
       }
 
-      // TODO: Distinguish between events and event groups. Depends on TRC API.
-      bool is_event_group = false;
-      if (is_event_group) {
-        EventGroup eg;
-        eg.id = update->block_id;
-        for (const auto& e : update->kv_pairs) {
-          eg.events.push_back({e.second.begin(), e.second.end()});
+      // TODO: We fill event group with data from legacy updates.
+      // This needs to change depending on how the legacy API will be implemented.
+      if (std::holds_alternative<::client::thin_replica_client::EventGroup>(*update)) {
+        auto& event_group_in = std::get<::client::thin_replica_client::EventGroup>(*update);
+        EventGroup event_group_out;
+        event_group_out.id = event_group_in.id;
+        // TODO: Can we **move** from std::string to a vector<uint8_t>?
+        // Maybe we should use std::vector<std::byte> and align both interfaces?
+        for (const auto& event : event_group_in.events) {
+          event_group_out.events.push_back({event.begin(), event.end()});
         }
-        std::chrono::duration time_now = std::chrono::system_clock::now().time_since_epoch();
-        eg.record_time = std::chrono::duration_cast<std::chrono::microseconds>(time_now);
-        eg.trace_context = {};
+        event_group_out.record_time = event_group_in.record_time;
+        // TODO: proto_eg.trace_context
 
-        callback(SubscribeResult{eg});
+        callback(SubscribeResult{event_group_out});
 
-      } else {
-        LegacyEvent legacy_events;
-        legacy_events.block_id = update->block_id;
-        for (const auto& [key, value] : update->kv_pairs) {
-          legacy_events.events.push_back({key, value});
+      } else if (std::holds_alternative<::client::thin_replica_client::Update>(*update)) {
+        auto& legacy_event_in = std::get<::client::thin_replica_client::Update>(*update);
+        LegacyEvent legacy_event_out;
+        legacy_event_out.block_id = legacy_event_in.block_id;
+        for (const auto& [k, v] : legacy_event_in.kv_pairs) {
+          legacy_event_out.events.push_back({k, v});
         }
-        legacy_events.correlation_id = update->correlation_id_;
+        legacy_event_out.correlation_id = legacy_event_in.correlation_id_;
         // TODO: legacy_events.trace_context
 
-        callback(SubscribeResult{legacy_events});
+        callback(SubscribeResult{legacy_event_out});
+      } else {
+        LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
       }
     }
   });

@@ -21,6 +21,7 @@ using std::make_pair;
 using std::string;
 using std::to_string;
 using client::thin_replica_client::hashUpdate;
+using client::thin_replica_client::EventVariant;
 using client::thin_replica_client::Update;
 
 const string kSampleUpdateExpectedHash({'\x02', '\x3D', '\x0D', '\x8B', '\xC6', '\x54', '\x07', '\xD7',
@@ -31,12 +32,12 @@ const string kSampleUpdateExpectedHash({'\x02', '\x3D', '\x0D', '\x8B', '\xC6', 
 namespace {
 
 TEST(trc_hash, hash_update) {
-  Update update;
-  update.block_id = 1337;
+  Update legacy_event;
+  legacy_event.block_id = 1337;
   for (int i = 0; i < 3; ++i) {
-    update.kv_pairs.push_back(make_pair(to_string(i), to_string(i)));
+    legacy_event.kv_pairs.push_back(make_pair(to_string(i), to_string(i)));
   }
-
+  EventVariant update = legacy_event;
   EXPECT_EQ(hashUpdate(update), kSampleUpdateExpectedHash);
 }
 

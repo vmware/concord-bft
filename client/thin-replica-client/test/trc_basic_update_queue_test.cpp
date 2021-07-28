@@ -27,16 +27,18 @@ using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
 using client::thin_replica_client::BasicUpdateQueue;
+using client::thin_replica_client::EventVariant;
 using client::thin_replica_client::Update;
 
 const milliseconds kBriefDelayDuration = 10ms;
 const uint64_t kNumUpdatesToTest = (uint64_t)1 << 18;
 const size_t kRacingThreadsToTest = 4;
 
-unique_ptr<Update> MakeUniqueUpdate(uint64_t block_id, const vector<pair<string, string>>& kv_pairs) {
-  auto update = make_unique<Update>();
-  update->block_id = block_id;
-  update->kv_pairs = kv_pairs;
+unique_ptr<EventVariant> MakeUniqueUpdate(uint64_t block_id, const vector<pair<string, string>>& kv_pairs) {
+  auto update = make_unique<EventVariant>();
+  auto& legacy_event = std::get<Update>(*update);
+  legacy_event.block_id = block_id;
+  legacy_event.kv_pairs = kv_pairs;
   return update;
 }
 
@@ -94,7 +96,7 @@ TEST(trc_basic_update_queue_test, test_push) {
 
 TEST(trc_basic_update_queue_test, test_pop) {
   BasicUpdateQueue queue;
-  unique_ptr<Update> update;
+  unique_ptr<EventVariant> update;
   thread consumer([&]() {
     EXPECT_NO_THROW(update = queue.Pop()) << "BasicUpdateQueue::Pop call initiated on an empty queue failed with "
                                              "an exception.";
@@ -102,12 +104,13 @@ TEST(trc_basic_update_queue_test, test_pop) {
                                  "null pointer in the absence of any call to ReleaseConsumers, and "
                                  "despite a subsequent push call prior to any competing Popping "
                                  "calls.";
-    EXPECT_EQ(update->block_id, 0) << "BasicUpdateQueue::Pop call returned an update with a Block ID "
-                                      "not "
-                                      "matching the only update the Pop call should have had access to.";
-    EXPECT_EQ(update->kv_pairs.size(), 0) << "BasicUpdateQueue::Pop call returned an update with a set of KV "
-                                             "Pairs not matching the only update the Pop call should have had "
-                                             "access to.";
+    auto& legacy_event = std::get<Update>(*update);
+    EXPECT_EQ(legacy_event.block_id, 0) << "BasicUpdateQueue::Pop call returned an update with a Block ID "
+                                           "not "
+                                           "matching the only update the Pop call should have had access to.";
+    EXPECT_EQ(legacy_event.kv_pairs.size(), 0) << "BasicUpdateQueue::Pop call returned an update with a set of KV "
+                                                  "Pairs not matching the only update the Pop call should have had "
+                                                  "access to.";
   });
   sleep_for(kBriefDelayDuration);
   queue.Push(MakeUniqueUpdate(0, vector<pair<string, string>>{}));
@@ -175,7 +178,7 @@ TEST(trc_basic_update_queue_test, test_ordering) {
   });
   thread consumer([&]() {
     for (uint64_t i = 0; i < kNumUpdatesToTest; ++i) {
-      unique_ptr<Update> update(nullptr);
+      unique_ptr<EventVariant> update(nullptr);
       if (i % 2 == 0) {
         EXPECT_NO_THROW(update = queue.Pop()) << "BasicUpdateQueue::Pop call failed with an exception.";
         ASSERT_TRUE((bool)update) << "BasicUpdateQueue::Pop returned a null pointer in the absence "
@@ -185,11 +188,12 @@ TEST(trc_basic_update_queue_test, test_ordering) {
           EXPECT_NO_THROW(update = queue.TryPop()) << "BasicUpdateQueue::TryPop call failed with an exception.";
         }
       }
-      EXPECT_EQ(update->block_id, i) << "A BasicUpdateQueue either returned an update that returned an "
-                                        "update that was never pushed to it to ordered popping calls or "
-                                        "returned updates to them in an order not matching a known "
-                                        "order in which those updates were pushed by ordered pushing  "
-                                        "calls.";
+      EXPECT_EQ(std::get<Update>(*update).block_id, i)
+          << "A BasicUpdateQueue either returned an update that returned an "
+             "update that was never pushed to it to ordered popping calls or "
+             "returned updates to them in an order not matching a known "
+             "order in which those updates were pushed by ordered pushing  "
+             "calls.";
     }
   });
   producer.join();
@@ -209,7 +213,7 @@ void TestNoUpdateDuplicationOrLossConsumer(BasicUpdateQueue& queue,
                                            vector<uint64_t>& observed_updates,
                                            uint64_t consumer_index) {
   for (uint64_t i = consumer_index; i < kNumUpdatesToTest; i += kRacingThreadsToTest) {
-    unique_ptr<Update> update(nullptr);
+    unique_ptr<EventVariant> update(nullptr);
     if (((i / kRacingThreadsToTest) % 2) == 0) {
       EXPECT_NO_THROW(update = queue.Pop()) << "BasicUpdateQueue::Pop call failed with an exception.";
       ASSERT_TRUE((bool)update) << "BasicUpdateQueue::Pop returned a null pointer in the absence of "
@@ -219,21 +223,22 @@ void TestNoUpdateDuplicationOrLossConsumer(BasicUpdateQueue& queue,
         EXPECT_NO_THROW(update = queue.TryPop()) << "BasicUpdateQueue::TryPop call failed with an exception.";
       }
     }
-    uint64_t block_id = update->block_id;
+    auto& legacy_event = std::get<Update>(*update);
+    uint64_t block_id = legacy_event.block_id;
     observed_updates.push_back(block_id);
-    EXPECT_EQ(update->kv_pairs.size(), 2) << "A BasicUpdateQueue popping call returned an update with an "
-                                             "unexpected number of key value pairs";
-    if (update->kv_pairs.size() == 2) {
-      EXPECT_EQ(update->kv_pairs[0].first, "key" + to_string(block_id))
+    EXPECT_EQ(legacy_event.kv_pairs.size(), 2) << "A BasicUpdateQueue popping call returned an update with an "
+                                                  "unexpected number of key value pairs";
+    if (legacy_event.kv_pairs.size() == 2) {
+      EXPECT_EQ(legacy_event.kv_pairs[0].first, "key" + to_string(block_id))
           << "A BasicUpdateQueue popping call returned an update containing "
              "an unexpected key (or keys in the wrong order).";
-      EXPECT_EQ(update->kv_pairs[0].second, "value" + to_string(block_id))
+      EXPECT_EQ(legacy_event.kv_pairs[0].second, "value" + to_string(block_id))
           << "A BasicUpdateQueue popping call returned an update containing "
              "an unexpected value (or values in the wrong order).";
-      EXPECT_EQ(update->kv_pairs[1].first, "const_key")
+      EXPECT_EQ(legacy_event.kv_pairs[1].first, "const_key")
           << "A BasicUpdateQueue popping call returned an update containing "
              "an unexpected key (or keys in the wrong order).";
-      EXPECT_EQ(update->kv_pairs[1].second, "const_value")
+      EXPECT_EQ(legacy_event.kv_pairs[1].second, "const_value")
           << "A BasicUpdateQueue popping call returned an update containing "
              "an unexpected value (or values in the wrong order).";
     }
