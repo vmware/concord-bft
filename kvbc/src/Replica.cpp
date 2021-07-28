@@ -513,17 +513,17 @@ bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint
 std::future<bool> Replica::putBlockAsync(uint64_t blockId,
                                          const char *block,
                                          const uint32_t blockSize,
-                                         bool trylinkSTChainFrom) {
+                                         bool lastBlock) {
   static uint64_t callCounter = 0;
   static constexpr size_t snapshotThresh = 1000;
 
   auto future = blocksIOWorkersPool_.async(
-      [this](uint64_t blockId, const char *block, const uint32_t blockSize, bool trylinkSTChainFrom) {
+      [this](uint64_t blockId, const char *block, const uint32_t blockSize, bool lastBlock) {
         auto start = std::chrono::steady_clock::now();
         bool result = false;
 
         LOG_TRACE(logger, "Job Started: " << KVLOG(blockId, blockSize));
-        result = putBlock(blockId, block, blockSize, trylinkSTChainFrom);
+        result = putBlock(blockId, block, blockSize, lastBlock);
 
         auto jobDuration =
             std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
@@ -534,7 +534,7 @@ std::future<bool> Replica::putBlockAsync(uint64_t blockId,
       std::forward<decltype(blockId)>(blockId),
       std::forward<decltype(block)>(block),
       std::forward<decltype(blockSize)>(blockSize),
-      std::forward<decltype(trylinkSTChainFrom)>(trylinkSTChainFrom));
+      std::forward<decltype(lastBlock)>(lastBlock));
 
   if ((++callCounter % snapshotThresh) == 0) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();

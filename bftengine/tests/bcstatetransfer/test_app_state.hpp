@@ -84,7 +84,7 @@ class TestAppState : public IAppState {
   std::future<bool> putBlockAsync(uint64_t blockId,
                                   const char* block,
                                   const uint32_t blockSize,
-                                  bool trylinkSTChainFrom = true) override {
+                                  bool lastBlock = true) override {
     ConcordAssert(false);
     return std::async([]() { return false; });
   }

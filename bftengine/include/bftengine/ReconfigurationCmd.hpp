@@ -94,6 +94,7 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     concord::serialize::Serializable::deserialize(inStream, cmdData);
     uint64_t latestKnownBlockId = 0;
     for (auto& [k, v] : cmdData.reconfigurationCommands_) {
+      (void)k;
       std::ostringstream outStream;
       latestKnownBlockId = std::max(latestKnownBlockId, v.blockId_);
       concord::serialize::Serializable::serialize(outStream, v);

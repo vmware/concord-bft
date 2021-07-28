@@ -39,6 +39,8 @@
 #include "throughput.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "Timers.hpp"
+#include "SimpleMemoryPool.hpp"
 
 using std::set;
 using std::map;
@@ -148,7 +150,7 @@ class BCStateTran : public IStateTransfer {
   std::unique_ptr<concord::util::Handoff> handoff_;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 
-  char* buffer_;  // temporary buffer
+  std::unique_ptr<char[]> buffer_;  // temporary buffer
 
   // random generator
   std::random_device randomDevice_;
@@ -269,6 +271,7 @@ class BCStateTran : public IStateTransfer {
   static const uint64_t ID_OF_VBLOCK_RES_PAGES = UINT64_MAX;
 
   uint64_t nextRequiredBlock_ = 0;
+  uint64_t nextCommittedBlockId_ = 0;
   STDigest digestOfNextRequiredBlock;
 
   struct compareItemDataMsg {
@@ -357,21 +360,44 @@ class BCStateTran : public IStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
   // Asynchronous Operations - Blocks IO
   ///////////////////////////////////////////////////////////////////////////
-  struct GetBlockContext {
-    uint16_t index;
-    uint64_t blockId;
-    uint32_t blockSize;
-    std::unique_ptr<char[]> block;
+
+  class BlockIOContext {
+   public:
+    static size_t sizeOfBlockData;
+    BlockIOContext() {
+      ConcordAssert(sizeOfBlockData != 0);
+      blockData.reset(new char[sizeOfBlockData]);
+    }
+    uint64_t blockId = 0;
+    uint32_t actualBlockSize = 0;
+    std::unique_ptr<char[]> blockData;
     std::future<bool> future;
   };
 
-  std::vector<GetBlockContext> srcGetBlockContextes_;
+  using BlockIOContextPtr = std::shared_ptr<BlockIOContext>;
+  // Must be less than config_.refreshTimerMs
+  const uint32_t finalizePutblockTimeoutMilli_ = 5;
+  concord::util::SimpleMemoryPool<BlockIOContext> ioPool_;
+  std::deque<BlockIOContextPtr> ioContexts_;
+  // used to control the trigger of oneShotTimer self requests
+  bool oneShotTimerFlag_;
 
   // returns number of jobs pushed to queue
-  uint16_t asyncGetBlocksConcurrent(uint64_t nextBlockId,
-                                    uint64_t firstRequiredBlock,
-                                    uint16_t numBlocks,
-                                    size_t startContextIndex = 0);
+  uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
+
+  // lastBlock: is true if we put the oldest block (firstRequiredBlock)
+  //
+  // waitPolicy:
+  // NO_WAIT: if caller would like to exit immidiately if the next future is not ready
+  // (job not ended yet).
+  // WAIT_SINGLE_JOB: if caller would like to wait for a single job to finish and exit immidiately if the next job is
+  // not ready. WAIT_ALL_JOBS - wait for all jobs to finalize.
+  //
+  // In any case of an early exit (before all jobs are finalized), a ONESHOT timer is invoked to check the future again
+  // soon. return: true if done procesing all futures, and false if the front one was not std::future_status::ready
+  enum class PutBlockWaitPolicy { NO_WAIT, WAIT_SINGLE_JOB, WAIT_ALL_JOBS };
+
+  bool finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitPolicy);
   ///////////////////////////////////////////////////////////////////////////
   // Metrics
   ///////////////////////////////////////////////////////////////////////////
@@ -394,6 +420,7 @@ class BCStateTran : public IStateTransfer {
     GaugeHandle size_of_reserved_page_;
     GaugeHandle last_msg_seq_num_;
     GaugeHandle next_required_block_;
+    GaugeHandle next_commited_block_id_;
     GaugeHandle num_pending_item_data_msgs_;
     GaugeHandle total_size_of_pending_item_data_msgs_;
     AtomicGaugeHandle last_block_;
@@ -437,6 +464,7 @@ class BCStateTran : public IStateTransfer {
     CounterHandle zero_reserved_page_;
     CounterHandle start_collecting_state_;
     CounterHandle on_timer_;
+    CounterHandle one_shot_timer_;
 
     CounterHandle on_transferring_complete_;
 
@@ -477,8 +505,7 @@ class BCStateTran : public IStateTransfer {
   DurationTracker<std::chrono::milliseconds> gettingCheckpointSummariesDT_;
   DurationTracker<std::chrono::milliseconds> gettingMissingBlocksDT_;
   DurationTracker<std::chrono::milliseconds> gettingMissingResPagesDT_;
-  DurationTracker<std::chrono::milliseconds> betweenPutBlocksStTempDT_;  // TODO(GL) - remove later when unneeded
-  DurationTracker<std::chrono::milliseconds> putBlocksStTempDT_;         // TODO(GL) - remove later when unneeded
+
   FetchingState lastFetchingState_;
 
   void onFetchingStateChange(FetchingState newFetchingState);
@@ -492,6 +519,8 @@ class BCStateTran : public IStateTransfer {
   bool sourceFlag_;
   uint8_t sourceSnapshotCounter_;
 
+  uint64_t sourceBatchCounter_ = 0;
+
   ///////////////////////////////////////////////////////////////////////////
   // Latency Historgrams
   ///////////////////////////////////////////////////////////////////////////
@@ -502,6 +531,7 @@ class BCStateTran : public IStateTransfer {
     static constexpr uint64_t MAX_BATCH_SIZE_BYTES = 10ULL * 1024ULL * 1024ULL * 1024ULL;  // 10GB
     static constexpr uint64_t MAX_BATCH_SIZE_BLOCKS = 1000ULL;
     static constexpr uint64_t MAX_HANDOFF_QUEUE_SIZE = 10000ULL;
+    static constexpr uint64_t MAX_PENDING_BLOCKS_SIZE = 1000ULL;
 
     Recorders() {
       auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -512,7 +542,7 @@ class BCStateTran : public IStateTransfer {
                                        {
                                            dst_handle_ItemData_msg,
                                            dst_time_between_sendFetchBlocksMsg,
-                                           dst_put_block_duration,
+                                           dst_num_pending_blocks_to_commit,
                                            dst_digest_calc_duration,
                                        });
       // source component
@@ -521,7 +551,7 @@ class BCStateTran : public IStateTransfer {
                                         src_get_block_size_bytes,
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
-                                        src_send_batch_size_blocks});
+                                        src_send_batch_size_chunks});
     }
     //////////////////////////////////////////////////////////
     // Shared Recorders - match the above registered recorders
@@ -537,7 +567,7 @@ class BCStateTran : public IStateTransfer {
     DEFINE_SHARED_RECORDER(
         dst_time_between_sendFetchBlocksMsg, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(
-        dst_put_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+        dst_num_pending_blocks_to_commit, 1, MAX_PENDING_BLOCKS_SIZE, 3, concord::diagnostics::Unit::COUNT);
     DEFINE_SHARED_RECORDER(
         dst_digest_calc_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     // source
@@ -547,7 +577,7 @@ class BCStateTran : public IStateTransfer {
     DEFINE_SHARED_RECORDER(
         src_send_batch_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(src_send_batch_size_bytes, 1, MAX_BATCH_SIZE_BYTES, 3, concord::diagnostics::Unit::BYTES);
-    DEFINE_SHARED_RECORDER(src_send_batch_size_blocks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
+    DEFINE_SHARED_RECORDER(src_send_batch_size_chunks, 1, MAX_BATCH_SIZE_BLOCKS, 3, concord::diagnostics::Unit::COUNT);
   };
   Recorders histograms_;
 

@@ -120,7 +120,7 @@ class IAppState {
   virtual std::future<bool> putBlockAsync(uint64_t blockId,
                                           const char *block,
                                           const uint32_t blockSize,
-                                          bool trylinkSTChainFrom = true) = 0;
+                                          bool lastBlock = true) = 0;
 
   // returns the maximal block number n such that all blocks 1 <= i <= n exist.
   // if block 1 does not exist, returns 0.
