@@ -24,7 +24,6 @@
 using concord::client::clientservice::ClientService;
 using concord::client::clientservice::configureSubscription;
 using concord::client::clientservice::parseConfigFile;
-using concord::client::clientservice::setDefaultConfiguration;
 
 using concord::client::concordclient::ConcordClient;
 using concord::client::concordclient::ConcordClientConfig;
@@ -57,8 +56,6 @@ int main(int argc, char** argv) {
   auto opts = parseCmdLine(argc, argv);
 
   ConcordClientConfig config;
-  setDefaultConfiguration(config);
-
   try {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
