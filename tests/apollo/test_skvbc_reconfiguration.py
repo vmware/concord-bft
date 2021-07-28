@@ -1626,7 +1626,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                             "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
         await self._wait_for_st(bft_network, ro_replica_id, 300)
         blockIdRor = await bft_network.get_metric(ro_replica_id, bft_network, "Gauges",
-                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+                                            "last_known_block", component="client_reconfiguration_engine")
         self.assertEqual(blockIdRor, blockIdreplica)
 
         bft_network.stop_all_replicas()
@@ -1693,7 +1693,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_replica(ro_replica_id)
         await self._wait_for_st(bft_network, ro_replica_id, 150)
         blockIdRor = await bft_network.get_metric(ro_replica_id, bft_network, "Gauges",
-                                            "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
+                                            "last_known_block", component="client_reconfiguration_engine")
         #validate the blockId is same as the 2nd reconfiguration command block
         self.assertEqual(blockIdRor, blockIdreplica)
 

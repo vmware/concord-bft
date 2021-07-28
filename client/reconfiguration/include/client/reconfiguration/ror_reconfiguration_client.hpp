@@ -32,7 +32,7 @@ class RorReconfigurationClient : public IStateClient {
   bool updateStateOnChain(const WriteState& state) override { return true; }
   void start(uint64_t lastKnownBlock) override { stopped_ = false; }
   void stop() override { stopped_ = true; }
-  void pushUpdate(State&) override;
+  void pushUpdate(std::vector<State>&) override;
 
  protected:
   mutable std::queue<State> updates_;

@@ -241,7 +241,11 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   concord::messages::ReconfigurationRequest rreqWithoutSignature;
   rreqWithoutSignature.command = command;
   bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
-      rreqWithoutSignature, blockId, wedgePoint, epochNum);
+      rreqWithoutSignature,
+      std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1},
+      blockId,
+      wedgePoint,
+      epochNum);
   return true;
 }
 

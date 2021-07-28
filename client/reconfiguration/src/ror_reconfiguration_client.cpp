@@ -24,13 +24,20 @@ State RorReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
   updates_.pop();
   return ret;
 }
-void RorReconfigurationClient::pushUpdate(State& s) {
+void RorReconfigurationClient::pushUpdate(std::vector<State>& states) {
   std::lock_guard<std::mutex> lg(lock_);
-  if (s.blockid > lastKnownReconfigurationCmdBlockId_) {
-    lastKnownReconfigurationCmdBlockId_ = s.blockid;
-    updates_.push(std::move(s));
-    new_updates_.notify_one();
+  bool notify = false;
+  std::sort(states.begin(), states.end(), [](const State& a, const State& b) {
+    return a.blockid < b.blockid;
+  });  // sort the states with increating blockId
+  for (auto& s : states) {
+    if (s.blockid > lastKnownReconfigurationCmdBlockId_) {
+      lastKnownReconfigurationCmdBlockId_ = s.blockid;
+      updates_.push(std::move(s));
+      notify = true;
+    }
   }
+  if (notify) new_updates_.notify_one();
 }
 State RorReconfigurationClient::getLatestClientUpdate(uint16_t clientId) const {
   return {lastKnownReconfigurationCmdBlockId_, {}};

@@ -19,7 +19,7 @@ RorReconfigurationHandler::RorReconfigurationHandler(std::function<void(uint64_t
     : storeReconfigBlockToMdtCb_(std::move(fn)) {}
 
 bool RorReconfigurationHandler::validate(const State& s) const {
-  bftEngine::ReconfigurationCmd::ReconfigurationCmdData cmdData;
+  bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
   std::istringstream inStream;
   std::string page(s.data.begin(), s.data.end());
   inStream.str(page);
@@ -29,7 +29,7 @@ bool RorReconfigurationHandler::validate(const State& s) const {
   return std::holds_alternative<concord::messages::AddRemoveWithWedgeCommand>(rreq.command);
 }
 bool RorReconfigurationHandler::execute(const State& s, WriteState&) {
-  bftEngine::ReconfigurationCmd::ReconfigurationCmdData cmdData;
+  bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
   std::istringstream inStream;
   std::string page(s.data.begin(), s.data.end());
   inStream.str(page);

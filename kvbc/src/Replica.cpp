@@ -65,9 +65,8 @@ Status Replica::start() {
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
-      concord::client::reconfiguration::State stateFromReservedPages;
+      std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages)) {
-        LOG_INFO(GL, "Pushed new state from block id :" << KVLOG(stateFromReservedPages.blockid));
         creClient_->pushUpdate(stateFromReservedPages);
       }
     });
@@ -234,7 +233,8 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
     auto wedgePoint = (sequenceNum + 2 * checkpointWindowSize);
     wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
-    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(rreq, blockid, wedgePoint, epochNum);
+    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
+        rreq, key, blockid, wedgePoint, epochNum);
   }
 }
 void Replica::createReplicaAndSyncState() {
@@ -740,8 +740,8 @@ void Replica::startRoReplicaCreEngine() {
   creClient_.reset(new concord::client::reconfiguration::RorReconfigurationClient(id));
   cre_config.id_ = replicaConfig_.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
-  creEngine_.reset(new concord::client::reconfiguration::ClientReconfigurationEngine(
-      cre_config, creClient_.get(), std::make_shared<concordMetrics::Aggregator>()));
+  creEngine_.reset(
+      new concord::client::reconfiguration::ClientReconfigurationEngine(cre_config, creClient_.get(), aggregator_));
   creEngine_->registerHandler(std::make_shared<concord::client::reconfiguration::RorReconfigurationHandler>(
       [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }));
   creEngine_->start();
