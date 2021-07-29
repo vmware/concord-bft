@@ -11,7 +11,7 @@
 
 #include "client/clientservice/client_service.hpp"
 
-#include <concord_client.grpc.pb.h>
+#include <clientservice.grpc.pb.h>
 #include <grpcpp/grpcpp.h>
 
 namespace concord::client::clientservice {

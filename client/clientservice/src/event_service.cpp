@@ -24,11 +24,11 @@ using grpc::ServerWriter;
 
 using google::protobuf::util::TimeUtil;
 
-using vmware::concord::client::v1::SubscribeRequest;
-using vmware::concord::client::v1::SubscribeResponse;
-using vmware::concord::client::v1::Event;
-using vmware::concord::client::v1::EventGroup;
-using vmware::concord::client::v1::Events;
+using vmware::concord::clientservice::v1::SubscribeRequest;
+using vmware::concord::clientservice::v1::SubscribeResponse;
+using vmware::concord::clientservice::v1::Event;
+using vmware::concord::clientservice::v1::EventGroup;
+using vmware::concord::clientservice::v1::Events;
 
 using namespace std::chrono_literals;
 
@@ -106,7 +106,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
   }
 
-  // TODO: Consider all gRPC return error codes as described in concord_client.proto
+  // TODO: Consider all gRPC return error codes as described in clientservice.proto
   while (!context->IsCancelled()) {
     std::this_thread::sleep_for(10ms);
   }

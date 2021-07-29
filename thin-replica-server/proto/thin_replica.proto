@@ -115,9 +115,9 @@ message W3cTraceContext {
   map<string, string> key_values = 1;
 }
 
-// See concord_client.proto for documentation on EventGroups.
-// Note: We don't want to depend on concord_client.proto because any change to
-// concord_client.proto would result in a change for the TRS and therefore the
+// See clientservice.proto for documentation on EventGroups.
+// Note: We don't want to depend on clientservice.proto because any change to
+// clientservice.proto would result in a change for the TRS and therefore the
 // replica itself. By keeping them separate we will have an easier time
 // changing/maintaining those two interfaces.
 message EventGroupsRequest {

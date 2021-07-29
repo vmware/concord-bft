@@ -4,10 +4,10 @@ find_package(GRPC REQUIRED)
 include_directories(${GRPC_INCLUDE_DIR})
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${CMAKE_CURRENT_BINARY_DIR}
-  concord_client.proto
+  clientservice.proto
 )
 grpc_generate_cpp(GRPC_SRCS GRPC_HDRS ${CMAKE_CURRENT_BINARY_DIR}
-  concord_client.proto
+  clientservice.proto
 )
 
 add_library(clientservice-proto STATIC ${PROTO_SRCS} ${GRPC_SRCS})

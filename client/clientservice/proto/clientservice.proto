@@ -1,12 +1,12 @@
 // Copyright 2021 VMware, all rights reserved
 //
-// Concord Client gRPC service
+// Concord Client's gRPC service
 
 syntax = "proto3";
-package vmware.concord.client.v1;
+package vmware.concord.clientservice.v1;
 
 // Specifies Java package name, using the standard prefix "com."
-option java_package = "com.vmware.concord.client.v1";
+option java_package = "com.vmware.concord.clientservice.v1";
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
