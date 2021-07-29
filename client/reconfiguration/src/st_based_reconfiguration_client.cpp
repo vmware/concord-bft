@@ -8,13 +8,13 @@
 // file.
 
 #include "concord.cmf.hpp"
-#include "client/reconfiguration/ror_reconfiguration_client.hpp"
+#include "client/reconfiguration/st_based_reconfiguration_client.hpp"
 namespace concord::client::reconfiguration {
 
-RorReconfigurationClient::RorReconfigurationClient(const uint64_t& blockId, uint64_t interval_timeout_ms)
+STBasedReconfigurationClient::STBasedReconfigurationClient(const uint64_t& blockId, uint64_t interval_timeout_ms)
     : lastKnownReconfigurationCmdBlockId_(blockId), interval_timeout_ms_(interval_timeout_ms) {}
 
-State RorReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
+State STBasedReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped_ && updates_.empty()) {
     new_updates_.wait(lk, [this]() { return !updates_.empty(); });
@@ -24,7 +24,7 @@ State RorReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
   updates_.pop();
   return ret;
 }
-void RorReconfigurationClient::pushUpdate(std::vector<State>& states) {
+void STBasedReconfigurationClient::pushUpdate(std::vector<State>& states) {
   std::lock_guard<std::mutex> lg(lock_);
   bool notify = false;
   std::sort(states.begin(), states.end(), [](const State& a, const State& b) {
@@ -39,7 +39,7 @@ void RorReconfigurationClient::pushUpdate(std::vector<State>& states) {
   }
   if (notify) new_updates_.notify_one();
 }
-State RorReconfigurationClient::getLatestClientUpdate(uint16_t clientId) const {
+State STBasedReconfigurationClient::getLatestClientUpdate(uint16_t clientId) const {
   return {lastKnownReconfigurationCmdBlockId_, {}};
 }
 }  // namespace concord::client::reconfiguration

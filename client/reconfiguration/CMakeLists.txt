@@ -3,14 +3,14 @@ project (cre LANGUAGES CXX)
 add_library(cre
         src/client_reconfiguration_engine.cpp
         src/poll_based_state_client.cpp
-        src/ror_reconfiguration_client.cpp
-        src/ror_reconfiguration_handler.cpp
+        src/st_based_reconfiguration_client.cpp
+        src/st_based_reconfiguration_handler.cpp
         )
 
-target_include_directories(cre PUBLIC include
-        bftengine/include)
+target_include_directories(cre PUBLIC include)
 
 target_link_libraries(cre PUBLIC
+        corebft
         bftclient_new
         cmf_messages
         util)

@@ -24,9 +24,9 @@
 
 namespace concord::client::reconfiguration {
 
-class RorReconfigurationClient : public IStateClient {
+class STBasedReconfigurationClient : public IStateClient {
  public:
-  RorReconfigurationClient(const uint64_t& blockId, uint64_t intervalTimeoutMs = 1000);
+  STBasedReconfigurationClient(const uint64_t& blockId, uint64_t intervalTimeoutMs = 1000);
   State getNextState(uint64_t lastKnownBlockId) const override;
   State getLatestClientUpdate(uint16_t clientId) const override;
   bool updateStateOnChain(const WriteState& state) override { return true; }

@@ -11,14 +11,14 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "client/reconfiguration/ror_reconfiguration_handler.hpp"
+#include "client/reconfiguration/st_based_reconfiguration_handler.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
 
 namespace concord::client::reconfiguration {
-RorReconfigurationHandler::RorReconfigurationHandler(std::function<void(uint64_t)> fn)
+STBasedReconfigurationHandler::STBasedReconfigurationHandler(std::function<void(uint64_t)> fn)
     : storeReconfigBlockToMdtCb_(std::move(fn)) {}
 
-bool RorReconfigurationHandler::validate(const State& s) const {
+bool STBasedReconfigurationHandler::validate(const State& s) const {
   bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
   std::istringstream inStream;
   std::string page(s.data.begin(), s.data.end());
@@ -28,7 +28,7 @@ bool RorReconfigurationHandler::validate(const State& s) const {
   concord::messages::deserialize(cmdData.data_, rreq);
   return std::holds_alternative<concord::messages::AddRemoveWithWedgeCommand>(rreq.command);
 }
-bool RorReconfigurationHandler::execute(const State& s, WriteState&) {
+bool STBasedReconfigurationHandler::execute(const State& s, WriteState&) {
   bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
   std::istringstream inStream;
   std::string page(s.data.begin(), s.data.end());

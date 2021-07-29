@@ -16,15 +16,15 @@
 #include "client/reconfiguration/cre_interfaces.hpp"
 
 namespace concord::client::reconfiguration {
-class RorReconfigurationHandler : public IStateHandler {
+class STBasedReconfigurationHandler : public IStateHandler {
  public:
-  RorReconfigurationHandler(std::function<void(uint64_t)> fn);
+  STBasedReconfigurationHandler(std::function<void(uint64_t)> fn);
   bool validate(const State&) const override;
   bool execute(const State&, WriteState&) override;
 
  private:
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("bftengine.RorReconfigurationHandler"));
+    static logging::Logger logger_(logging::getLogger("bftengine.STBasedReconfigurationHandler"));
     return logger_;
   }
   std::function<void(uint64_t)> storeReconfigBlockToMdtCb_;
