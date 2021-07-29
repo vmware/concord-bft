@@ -22,8 +22,6 @@
 #include "memorydb/client.h"
 #include "storage/direct_kv_key_manipulator.h"
 
-using concord::storage::ITransaction;
-
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"

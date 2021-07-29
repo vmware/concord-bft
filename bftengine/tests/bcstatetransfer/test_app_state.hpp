@@ -17,6 +17,9 @@
 #include <cstring>
 #include <unordered_map>
 #include "SimpleBCStateTransfer.hpp"
+#include "categorization/kv_blockchain.h"
+
+using namespace concord::kvbc;
 
 // This should be the same as test config
 const uint32_t kMaxBlockSize = 1024;
@@ -46,13 +49,13 @@ class TestAppState : public IAppState {
     return true;
   };
 
-  // TODO - implement
   std::future<bool> getBlockAsync(uint64_t blockId,
                                   char* outBlock,
                                   uint32_t outBlockMaxSize,
                                   uint32_t* outBlockActualSize) override {
-    ConcordAssert(false);
-    return std::async([]() { return false; });
+    std::future<bool> future = std::async(
+        std::launch::async, [&]() { return getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize); });
+    return future;
   }
 
   bool getPrevDigestFromBlock(uint64_t blockId, StateTransferDigest* outPrevBlockDigest) override {
@@ -63,11 +66,12 @@ class TestAppState : public IAppState {
     return true;
   };
 
-  // TODO - implement
   void getPrevDigestFromBlock(const char* blockData,
                               const uint32_t blockSize,
                               StateTransferDigest* outPrevBlockDigest) override {
-    ConcordAssert(false);
+    auto view = std::string_view{blockData, blockSize};
+    const auto rawBlock = categorization::RawBlock::deserialize(view);
+    std::memcpy(outPrevBlockDigest, rawBlock.data.parent_digest.data(), BLOCK_DIGEST_SIZE);
   }
 
   bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock) override {
@@ -77,16 +81,17 @@ class TestAppState : public IAppState {
     memcpy(&bl.block, block, blockSize);
     bl.actualSize = blockSize;
     last_block_ = blockId;
+    blocks_.emplace(blockId, bl);
     return true;
   }
 
-  // TODO - implement
   std::future<bool> putBlockAsync(uint64_t blockId,
                                   const char* block,
                                   const uint32_t blockSize,
                                   bool lastBlock = true) override {
-    ConcordAssert(false);
-    return std::async([]() { return false; });
+    std::future<bool> future =
+        std::async(std::launch::async, [&]() { return putBlock(blockId, block, blockSize, lastBlock); });
+    return future;
   }
 
   // TODO(AJS): How does this differ from getLastBlockNum?
