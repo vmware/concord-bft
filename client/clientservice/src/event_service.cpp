@@ -24,11 +24,11 @@ using grpc::ServerWriter;
 
 using google::protobuf::util::TimeUtil;
 
-using vmware::concord::client::v1::SubscribeRequest;
-using vmware::concord::client::v1::SubscribeResponse;
-using vmware::concord::client::v1::Event;
-using vmware::concord::client::v1::EventGroup;
-using vmware::concord::client::v1::Events;
+using vmware::concord::client::event::v1::SubscribeRequest;
+using vmware::concord::client::event::v1::SubscribeResponse;
+using vmware::concord::client::event::v1::Event;
+using vmware::concord::client::event::v1::EventGroup;
+using vmware::concord::client::event::v1::Events;
 
 using namespace std::chrono_literals;
 

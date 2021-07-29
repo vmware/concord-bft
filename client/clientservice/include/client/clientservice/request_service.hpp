@@ -10,7 +10,7 @@
 // file.
 
 #include <grpcpp/grpcpp.h>
-#include <concord_client.grpc.pb.h>
+#include <request.grpc.pb.h>
 #include <memory>
 
 #include "Logger.hpp"
@@ -18,13 +18,13 @@
 
 namespace concord::client::clientservice {
 
-class RequestServiceImpl final : public vmware::concord::client::v1::RequestService::Service {
+class RequestServiceImpl final : public vmware::concord::client::request::v1::RequestService::Service {
  public:
   RequestServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client)
       : logger_(logging::getLogger("concord.client.clientservice.request")), client_(client){};
   grpc::Status Send(grpc::ServerContext* context,
-                    const vmware::concord::client::v1::Request* request,
-                    vmware::concord::client::v1::Response* response) override;
+                    const vmware::concord::client::request::v1::Request* request,
+                    vmware::concord::client::request::v1::Response* response) override;
 
  private:
   logging::Logger logger_;
