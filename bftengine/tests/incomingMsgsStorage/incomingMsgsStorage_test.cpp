@@ -32,7 +32,7 @@ using namespace std::chrono_literals;
 class incoming_msgs_storage_test : public ::testing::Test {
   void SetUp() override {
     reg_->registerMsgHandler(msg_id_, [this](MessageBase* msg) { consumer_(msg); });
-    storage_.emplace(reg_, 100ms, replica_id_);
+    storage_.emplace(reg_, msg_wait_timeout_, replica_id_);
     storage_->start();
   }
 
@@ -40,6 +40,7 @@ class incoming_msgs_storage_test : public ::testing::Test {
 
  protected:
   auto newMsg() const { return std::make_unique<MessageBase>(sender_, msg_id_, msg_size_); }
+  auto newMsg(std::uint16_t msg_id) const { return std::make_unique<MessageBase>(sender_, msg_id, msg_size_); }
   static std::unique_ptr<MessageBase> own(MessageBase* msg) { return std::unique_ptr<MessageBase>{msg}; }
   auto waitTillMsgConsumed() { return consumer_.get_future().get(); }
   std::string buffer() const { return std::string(maxMessageSize<MessageBase>(), '\0'); }
@@ -48,6 +49,7 @@ class incoming_msgs_storage_test : public ::testing::Test {
   const std::uint16_t replica_id_{0};
   const std::uint16_t msg_id_{0};
   const NodeIdType sender_{0};
+  const std::chrono::milliseconds msg_wait_timeout_{100ms};
   const MsgSize msg_size_{sizeof(MessageBase::Header)};
   std::packaged_task<std::unique_ptr<MessageBase>(MessageBase*)> consumer_{[](MessageBase* msg) { return own(msg); }};
   const std::shared_ptr<MsgHandlersRegistrator> reg_ = std::make_shared<MsgHandlersRegistrator>();
@@ -82,6 +84,30 @@ TEST_F(incoming_msgs_storage_test, push_external_with_callback) {
   ASSERT_EQ(sender_, msg->senderId());
   ASSERT_EQ(msg_id_, msg->type());
   ASSERT_TRUE(popped);
+}
+
+// Push a message with `msg_id_` that is consumed by a consumer that pushes another message with `msg_id_ + 1` that has
+// a callback. Wait for both consumers and make sure the callback was called.
+TEST_F(incoming_msgs_storage_test, push_external_from_consumer_thread) {
+  // Create a local registrator, storage and consumer to override the default test ones.
+  auto popped = std::atomic_bool{false};
+  auto reg = std::make_shared<MsgHandlersRegistrator>();
+  auto storage = std::unique_ptr<IncomingMsgsStorageImp>{};
+  auto consumer1 = std::packaged_task<std::unique_ptr<MessageBase>(MessageBase*)>{[&](MessageBase* msg) {
+    storage->pushExternalMsg(newMsg(msg_id_ + 1), [&popped]() { popped = true; });
+    return own(msg);
+  }};
+  auto consumer2 =
+      std::packaged_task<std::unique_ptr<MessageBase>(MessageBase*)>{[&](MessageBase* msg) { return own(msg); }};
+  reg->registerMsgHandler(msg_id_, [&](MessageBase* msg) { consumer1(msg); });
+  reg->registerMsgHandler(msg_id_ + 1, [&](MessageBase* msg) { consumer2(msg); });
+  storage = std::make_unique<IncomingMsgsStorageImp>(reg, msg_wait_timeout_, replica_id_);
+  storage->start();
+  storage->pushExternalMsg(newMsg(msg_id_));
+  consumer1.get_future().wait();
+  consumer2.get_future().wait();
+  ASSERT_TRUE(popped);
+  storage->stop();
 }
 
 TEST_F(incoming_msgs_storage_test, push_external_raw_with_callback) {
