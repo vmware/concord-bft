@@ -24,6 +24,7 @@
 #include "Logger.hpp"
 
 #include "block_update/block_update.hpp"
+#include "block_update/event_group_update.hpp"
 #include "db_interfaces.h"
 #include "categorization/db_categories.h"
 #include "kv_types.hpp"
@@ -37,6 +38,7 @@ namespace kvbc {
 typedef size_t KvbStateHash;
 
 typedef BlockUpdate KvbUpdate;
+typedef EventGroupUpdate EgUpdate;
 
 struct KvbFilteredUpdate {
   using OrderedKVPairs = std::vector<std::pair<std::string, std::string>>;
@@ -91,6 +93,8 @@ class KvbAppFilter {
 
   // Filter the given update
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
+
+  KvbFilteredEventGroupUpdate filterEventGroupUpdate(EgUpdate &update);
 
   KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
                                                                    kvbc::categorization::EventGroup &event_group);

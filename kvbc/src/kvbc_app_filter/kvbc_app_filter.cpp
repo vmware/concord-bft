@@ -127,6 +127,11 @@ KvbFilteredUpdate KvbAppFilter::filterUpdate(const KvbUpdate &update) {
   return KvbFilteredUpdate{block_id, cid, filterKeyValuePairs(updates)};
 }
 
+KvbFilteredEventGroupUpdate KvbAppFilter::filterEventGroupUpdate(EgUpdate &update) {
+  auto &[event_group_id, event_group, _] = update;
+  return KvbFilteredEventGroupUpdate{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
+}
+
 string KvbAppFilter::hashUpdate(const KvbFilteredUpdate &update) {
   // Note we store the hashes of the keys and values in an std::map as an
   // intermediate step in the computation of the update hash so the map can be
