@@ -113,6 +113,9 @@ Msg AddRemoveWithWedgeStatus 30 {
 
 Msg AddRemoveWithWedgeStatusResponse 31 {
     string config_descriptor
+    bool wedge_status
+    bool restart_flag
+    bool bft_flag
 }
 
 Msg UnwedgeStatusRequest 32{
