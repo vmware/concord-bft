@@ -43,6 +43,10 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
   bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
+              uint64_t,
+              concord::messages::ReconfigurationResponse&) override;
+
   bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
 };
 

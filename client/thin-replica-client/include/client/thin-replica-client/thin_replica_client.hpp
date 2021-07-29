@@ -109,7 +109,7 @@ class UpdateQueue {
   // the queue. UpdateQueue implementations may choose whether they keep this
   // allocated Update or free it after storing the data from the update by some
   // other means.
-  virtual void Push(std::unique_ptr<Update> update) = 0;
+  virtual void Push(std::unique_ptr<EventVariant> update) = 0;
 
   // Synchronously pop and return the update at the front of the queue.
   // Normally, if there are no updates available in the queue, this function
@@ -125,7 +125,7 @@ class UpdateQueue {
   // to null rather than continuing to wait for new updates. Furthermore, a call
   // to ReleaseConsumers will cause any subsequent calls to Pop to return
   // nullptr and will prevent them from blocking their caller.
-  virtual std::unique_ptr<Update> Pop() = 0;
+  virtual std::unique_ptr<EventVariant> Pop() = 0;
 
   // Synchronously pop an update from the front of the queue if one is
   // available, but do not block the calling thread to wait on one if one is not
@@ -133,7 +133,7 @@ class UpdateQueue {
   // immediately found, and a unique_ptr giving ownership of an allocated Update
   // otherwise (this may involve dynamic memory allocation at the discretion of
   // the UpdateQueue implementation).
-  virtual std::unique_ptr<Update> TryPop() = 0;
+  virtual std::unique_ptr<EventVariant> TryPop() = 0;
 
   virtual uint64_t Size() = 0;
 };
@@ -145,7 +145,7 @@ class UpdateQueue {
 // more complete understanding of the needs of this library.
 class BasicUpdateQueue : public UpdateQueue {
  private:
-  std::list<std::unique_ptr<Update>> queue_data_;
+  std::list<std::unique_ptr<EventVariant>> queue_data_;
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
@@ -169,9 +169,9 @@ class BasicUpdateQueue : public UpdateQueue {
   virtual ~BasicUpdateQueue() override;
   virtual void ReleaseConsumers() override;
   virtual void Clear() override;
-  virtual void Push(std::unique_ptr<Update> update) override;
-  virtual std::unique_ptr<Update> Pop() override;
-  virtual std::unique_ptr<Update> TryPop() override;
+  virtual void Push(std::unique_ptr<EventVariant> update) override;
+  virtual std::unique_ptr<EventVariant> Pop() override;
+  virtual std::unique_ptr<EventVariant> TryPop() override;
   virtual uint64_t Size() override;
 };
 
@@ -244,6 +244,7 @@ struct ThinReplicaClientMetrics {
         read_ignored_per_update{metrics_component_.RegisterGauge("read_ignored_per_update", 0)},
         current_queue_size{metrics_component_.RegisterGauge("current_queue_size", 0)},
         last_verified_block_id{metrics_component_.RegisterGauge("last_verified_block_id", 0)},
+        last_verified_event_group_id{metrics_component_.RegisterGauge("last_verified_event_group_id", 0)},
         update_dur_ms{metrics_component_.RegisterGauge("update_dur_ms", 0)} {
     metrics_component_.Register();
   }
@@ -270,9 +271,9 @@ struct ThinReplicaClientMetrics {
   // current_queue_size - the current size of the update queue i.e., number of
   // updates in the update_queue
   concordMetrics::GaugeHandle current_queue_size;
-  // last_verified_block_id - block ID of the latest block that has been read
-  // and verified by TRC
+  // last_verified_*_id - block or event group ID of the latest update verified by TRC
   concordMetrics::GaugeHandle last_verified_block_id;
+  concordMetrics::GaugeHandle last_verified_event_group_id;
   // update_dur_ms - duration of time (ms) between when an update is received by
   // the TRC, to when it is pushed to the update queue for consumption by the
   // application using TRC
@@ -301,7 +302,9 @@ class ThinReplicaClient final {
   std::unique_ptr<ThinReplicaClientConfig> config_;
   size_t data_conn_index_;
 
+  bool is_event_group_stream_;
   uint64_t latest_verified_block_id_;
+  uint64_t latest_verified_event_group_id_;
 
   std::unique_ptr<std::thread> subscription_thread_;
   std::atomic_bool stop_subscription_thread_;
@@ -315,38 +318,55 @@ class ThinReplicaClient final {
 
   // Push update to update queue for consumption by the application using TRC.
   // Set TRC metrics before receiving next update
-  void pushUpdateToUpdateQueue(std::unique_ptr<Update> update,
+  void pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> update,
                                const std::chrono::steady_clock::time_point& start,
-                               const uint64_t& latest_verified_block_id_);
+                               bool is_event_group);
 
   // Reset metrics before next update
   void resetMetricsBeforeNextUpdate();
 
-  // Pair of block ID and the hash of the block
-  using BlockIdHashPair = std::pair<uint64_t, std::string>;
+  struct HashRecord {
+    enum Type { EventGroup, LegacyEvent };
+    Type type;
+    uint64_t id;
+    std::string hash;
+  };
+  struct CompareHashRecord {
+    bool operator()(const HashRecord& lhs, const HashRecord& rhs) const {
+      if (lhs.type == rhs.type) {
+        return lhs.id < rhs.id || (lhs.id == rhs.id && lhs.hash < rhs.hash);
+      }
+      if (lhs.type == HashRecord::Type::LegacyEvent) {
+        // LegacyEvents are considered "less than" EventGroups due to the order in which they got introduced
+        // Thereby, we assume that replicas will never stream LegacyEvents "after" EventGroups.
+        return true;
+      }
+      return false;
+    }
+  };
 
-  // Map recording every BlockIdHashPair we have seen for the update we are
+  // Map recording every HashRecord we have seen for the update we are
   // seeking and which servers support that pair. Note we choose a map over an
   // unordered_map here as std does not seem to provide a hash implementation
   // for std::pair. The sets of servers supporting each pair are represented as
   // unordered sets of server indexes.
-  using AgreeingSubsetMembers = std::map<BlockIdHashPair, std::unordered_set<size_t>>;
+  using HashRecordMap = std::map<HashRecord, std::unordered_set<size_t>, CompareHashRecord>;
 
   using SpanPtr = std::unique_ptr<opentracing::Span>;
   std::pair<bool, SpanPtr> readBlock(com::vmware::concord::thin_replica::Data& update_in,
-                                     AgreeingSubsetMembers& agreeing_subset_members,
+                                     HashRecordMap& agreeing_subset_members,
                                      size_t& most_agreeing,
-                                     BlockIdHashPair& most_agreed_block,
+                                     HashRecord& most_agreed_block,
                                      std::unique_ptr<LogCid>& cid);
   void findBlockHashAgreement(std::vector<bool>& servers_tried,
-                              AgreeingSubsetMembers& agreeing_subset_members,
+                              HashRecordMap& agreeing_subset_members,
                               size_t& most_agreeing,
-                              BlockIdHashPair& most_agreed_block,
+                              HashRecord& most_agreed_block,
                               SpanPtr& parent_span);
 
   bool rotateDataStreamAndVerify(com::vmware::concord::thin_replica::Data& update_in,
-                                 AgreeingSubsetMembers& agreeing_subset_members,
-                                 BlockIdHashPair& most_agreed_block,
+                                 HashRecordMap& agreeing_subset_members,
+                                 HashRecord& most_agreed_block,
                                  SpanPtr& parent_span,
                                  std::unique_ptr<LogCid>& cid);
 
@@ -356,18 +376,17 @@ class ThinReplicaClient final {
 
   // Helper functions to receiveUpdates.
   void logDataStreamResetResult(const TrsConnection::Result& result, size_t server_index);
-  void recordCollectedHash(
-      size_t update_source,
-      uint64_t block_id,
-      const std::string& update_hash,
-      std::map<std::pair<uint64_t, std::string>, std::unordered_set<size_t>>& server_indexes_by_reported_update,
-      size_t& maximal_agreeing_subset_size,
-      std::pair<uint64_t, std::string>& maximally_agreed_on_update);
-  void readUpdateHashFromStream(
-      size_t server_index,
-      std::map<std::pair<uint64_t, std::string>, std::unordered_set<size_t>>& server_indexes_by_reported_update,
-      size_t& maximal_agreeing_subset_size,
-      std::pair<uint64_t, std::string>& maximally_agreed_on_update);
+  void recordCollectedHash(size_t update_source,
+                           bool is_event_group,
+                           uint64_t id,
+                           const std::string& update_hash,
+                           HashRecordMap& server_indexes_by_reported_update,
+                           size_t& maximal_agreeing_subset_size,
+                           HashRecord& maximally_agreed_on_update);
+  void readUpdateHashFromStream(size_t server_index,
+                                HashRecordMap& server_indexes_by_reported_update,
+                                size_t& maximal_agreeing_subset_size,
+                                HashRecord& maximally_agreed_on_update);
 
  public:
   // Constructor for ThinReplicaClient. Note that, as the ThinReplicaClient
@@ -386,6 +405,7 @@ class ThinReplicaClient final {
         config_(std::move(config)),
         data_conn_index_(0),
         latest_verified_block_id_(0),
+        latest_verified_event_group_id_(std::numeric_limits<uint64_t>::max()),
         subscription_thread_(),
         stop_subscription_thread_(false) {
     metrics_.setAggregator(aggregator);

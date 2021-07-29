@@ -46,15 +46,13 @@ using concord::storage::DBMetadataStorage;
 
 namespace concord::kvbc {
 
-/**
- * Opens the database and creates the replica thread. Replica state moves to
- * Starting.
- */
-Status Replica::start() {
-  LOG_INFO(logger, "Replica::Start() id = " << replicaConfig_.replicaId);
+Status Replica::initInternals() {
+  LOG_INFO(logger, "Replica::initInternals() id = " << replicaConfig_.replicaId);
 
   if (m_currentRepStatus != RepStatus::Idle) {
-    return Status::IllegalOperation("todo");
+    const auto msg = "Replica::initInternals(): replica not in idle state, cannot initialize";
+    LOG_ERROR(logger, msg);
+    return Status::IllegalOperation(msg);
   }
 
   m_currentRepStatus = RepStatus::Starting;
@@ -74,6 +72,25 @@ Status Replica::start() {
     createReplicaAndSyncState();
   }
   m_replicaPtr->SetAggregator(aggregator_);
+  return Status::OK();
+}
+
+/**
+ * Opens the database and creates the replica thread. Replica state moves to
+ * Starting.
+ */
+Status Replica::start() {
+  if (m_currentRepStatus == RepStatus::Idle) {
+    auto initStatus = initInternals();
+    if (initStatus != Status::OK()) {
+      return initStatus;
+    }
+  }
+  if (m_currentRepStatus != RepStatus::Starting) {
+    const auto msg = "Replica::start(): replica not initialized or already started";
+    LOG_ERROR(logger, msg);
+    return Status::IllegalOperation(msg);
+  }
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
   startRoReplicaCreEngine();
@@ -125,7 +142,8 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this));
+      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);

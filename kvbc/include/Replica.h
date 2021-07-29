@@ -133,6 +133,12 @@ class Replica : public IReplica,
           std::map<std::string, categorization::CATEGORY_TYPE> kvbc_categories,
           const std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> &secretsManager);
 
+  // Initialize replica internals, before start(). Used as a workaround, because doing init in the constructor wouldn't
+  // work in all cases due to some external components being set via set* methods. Additionally, some of these external
+  // components depend on the replica itself being constructed.
+  // If not explicitly called by the user, start() will call it automatically.
+  Status initInternals();
+
   void setReplicaStateSync(ReplicaStateSync *rss) { replicaStateSync_.reset(rss); }
 
   bftEngine::IStateTransfer &getStateTransfer() { return *m_stateTransfer; }
