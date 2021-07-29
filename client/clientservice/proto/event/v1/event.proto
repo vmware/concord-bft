@@ -1,72 +1,19 @@
 // Copyright 2021 VMware, all rights reserved
 //
-// Concord Client gRPC service
+// Concordclient's event service
 
 syntax = "proto3";
-package vmware.concord.client.v1;
+package vmware.concord.client.event.v1;
 
-import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // Specifies Java package name, using the standard prefix "com."
-option java_package = "com.vmware.concord.client.v1";
+option java_package = "com.vmware.concord.client.event.v1";
 
 // Service error handling
 // Each service method will return a gRPC status object.
 // All errors are mapped to the common gRPC error codes defined here: https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 // See each method for concrete explanations below.
-
-// The RequestService allows the caller to submit requests to the blockchain
-// network, and receive the result of the request in a synchronous response.
-//
-// You can use the EventService below for asynchronously consuming the
-// events of submitted requests.
-service RequestService {
-  // Send a single request via the Concord Client to the blockchain network.
-  // Errors:
-  // DEADLINE_EXCEEDED: if the request couldn't be processed before the given timeout expired.
-  // INVALID_ARGUMENT: if a required field is not set.
-  // RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
-  // UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
-  // INTERNAL: if Concord Client cannot progress independent of the request.
-  rpc Send(Request) returns (Response);
-}
-
-message Request {
-  // Required application request which gets evaluated by the execution engine.
-  bytes request = 1;
-
-  // Required timeout which defines the maximum amount of time the caller is
-  // willing to wait for the request to be processed by a quorum of replicas.
-  // Returns DEADLINE_EXCEEDED if the request times out.
-  // Returns INVALID_ARGUMENT if the timeout is zero.
-  google.protobuf.Duration timeout = 2;
-
-  // Optional flag to mark the request as read-only.
-  // A read-only request doesn't go through consensus.
-  // Concord Client makes sure it receives matching replies from a quorum of replicas.
-  // `read_only` and `pre_execute` are mutually exclusive.
-  // INVALID_ARGUMENT if read_only and pre_execute are set.
-  optional bool read_only = 3;
-
-  // Optional flag to enable request pre-execution.
-  // Pre-execution evaluates the request before consensus as opposed to after.
-  // If pre-execution is successful and no conflicts are detected during the
-  // execution phase then consensus will speed up for all requests in the system.
-  // `read_only` and `pre_execute` are mutually exclusive.
-  // INVALID_ARGUMENT if `read_only` and `pre_execute` are set.
-  optional bool pre_execute = 4;
-
-  // Optional request identifier. At runtime, Concord Client maps the
-  // `correlation_id` to a sequence number which can be used to track the request
-  // in log messages in the blockchain network.
-  optional string correlation_id = 5;
-}
-
-message Response {
-  // Application data returned by the execution engine.
-  bytes response = 1;
-}
 
 // The EventService can be used to read old events and listen for new ones.
 // Concord Client queries a quorum of replicas to validate those events.
