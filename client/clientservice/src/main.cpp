@@ -35,6 +35,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
   // clang-format off
   desc.add_options()
     ("config", po::value<std::string>()->required(), "YAML configuration file for the RequestService")
+    ("host", po::value<std::string>()->default_value("0.0.0.0"), "Clientservice gRPC service host")
     ("port", po::value<int>()->default_value(50505), "Clientservice gRPC service port")
     ("bft-batching", po::value<bool>()->default_value(false), "Enable batching requests before sending to replicas")
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
@@ -72,7 +73,7 @@ int main(int argc, char** argv) {
   concord_client->setMetricsAggregator(metrics);
   ClientService service(std::move(concord_client));
 
-  auto server_addr = std::string("localhost:") + std::to_string(opts["port"].as<int>());
+  auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<int>());
   LOG_INFO(logger, "Starting clientservice at " << server_addr);
   service.start(server_addr);
 
