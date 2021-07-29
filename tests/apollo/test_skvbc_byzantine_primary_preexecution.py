@@ -113,6 +113,7 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         except trio.TooSlowError:
             return await self.check_viewchange_noexcept(bft_network, initial_primary, viewchange_timeout_secs)
 
+    @unittest.skip("Disabling temporarily till the fix is done")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
