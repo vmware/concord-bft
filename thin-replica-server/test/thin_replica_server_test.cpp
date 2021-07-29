@@ -20,7 +20,6 @@
 #include "thin-replica-server/grpc_services.hpp"
 #include "Logger.hpp"
 
-#include "categorization/db_categories.h"
 #include "kv_types.hpp"
 #include "thin-replica-server/subscription_buffer.hpp"
 #include "thin-replica-server/thin_replica_impl.hpp"

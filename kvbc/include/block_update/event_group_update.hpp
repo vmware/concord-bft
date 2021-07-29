@@ -20,6 +20,7 @@
 #include <optional>
 
 #include "categorization/updates.h"
+#include "event_group_msgs.cmf.hpp"
 #include "kv_types.hpp"
 
 namespace concord::kvbc {
