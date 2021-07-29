@@ -23,9 +23,12 @@ namespace {
 
 using concord::kvbc::categorization::ImmutableInput;
 using concord::kvbc::categorization::ImmutableValueUpdate;
+using concord::kvbc::categorization::EventGroup;
+using concord::kvbc::categorization::Event;
 using concord::thin_replica::ConsumerTooSlow;
 using concord::thin_replica::SubBufferList;
 using concord::thin_replica::SubUpdate;
+using concord::thin_replica::SubEventGroupUpdate;
 using concord::thin_replica::SubUpdateBuffer;
 
 // A producer should be able to "add" updates whether there are consumers or
@@ -40,6 +43,19 @@ TEST(trs_sub_buffer_test, no_consumer) {
   SubUpdate update{1337, "CID", input};
   for (unsigned i = 0; i < 100; ++i) {
     EXPECT_NO_THROW(sub_list.updateSubBuffers(update));
+  }
+}
+
+TEST(trs_sub_buffer_test, no_consumer_eg) {
+  SubBufferList sub_list;
+  EventGroup event_group;
+  Event event;
+  event.data = "value";
+  event.tags = {"tag1", "tag2"};
+  event_group.events.emplace_back(event);
+  SubEventGroupUpdate update{1337, event_group};
+  for (unsigned i = 0; i < 100; ++i) {
+    EXPECT_NO_THROW(sub_list.updateEventGroupSubBuffers(update));
   }
 }
 
@@ -84,6 +100,25 @@ TEST(trs_sub_buffer_test, throw_exception_if_consumer_too_slow) {
   EXPECT_THROW(updates->Pop(consumer_update), ConsumerTooSlow);
 }
 
+TEST(trs_sub_buffer_test, throw_exception_if_consumer_too_slow_eg) {
+  SubBufferList sub_list;
+  EventGroup event_group;
+  Event event;
+  event.data = "value";
+  event.tags = {"tag1", "tag2"};
+  event_group.events.emplace_back(event);
+  SubEventGroupUpdate update{1337, event_group};
+  auto updates = std::make_shared<SubUpdateBuffer>(10);
+
+  sub_list.addBuffer(updates);
+  for (unsigned i = 0; i < 11; ++i) {
+    sub_list.updateEventGroupSubBuffers(update);
+  }
+
+  SubEventGroupUpdate consumer_update;
+  EXPECT_THROW(updates->PopEventGroup(consumer_update), ConsumerTooSlow);
+}
+
 TEST(trs_sub_buffer_test, block_consumer_if_no_updates_available) {
   SubBufferList sub_list;
   std::atomic_bool reader_started;
@@ -107,6 +142,32 @@ TEST(trs_sub_buffer_test, block_consumer_if_no_updates_available) {
   input.kv = {{"key", val}};
   SubUpdate update{1337, "CID", input};
   sub_list.updateSubBuffers(update);
+}
+
+TEST(trs_sub_buffer_test, block_consumer_if_no_updates_available_eg) {
+  SubBufferList sub_list;
+  std::atomic_bool reader_started;
+  auto updates = std::make_shared<SubUpdateBuffer>(10);
+  auto reader = std::async(std::launch::async, [&] {
+    SubEventGroupUpdate update;
+    reader_started = true;
+    updates->PopEventGroup(update);
+    ASSERT_EQ(update.event_group_id, 1337);
+  });
+
+  sub_list.addBuffer(updates);
+
+  // Let's make sure that the reader thread starts first
+  while (!reader_started)
+    ;
+
+  EventGroup event_group;
+  Event event;
+  event.data = "value";
+  event.tags = {"tag1", "tag2"};
+  event_group.events.emplace_back(event);
+  SubEventGroupUpdate update{1337, event_group};
+  sub_list.updateEventGroupSubBuffers(update);
 }
 
 TEST(trs_sub_buffer_test, happy_path_w_two_consumers) {
@@ -137,6 +198,38 @@ TEST(trs_sub_buffer_test, happy_path_w_two_consumers) {
   for (int i = 0; i < num_updates; ++i) {
     update.block_id = i;
     sub_list.updateSubBuffers(update);
+  }
+}
+
+TEST(trs_sub_buffer_test, happy_path_w_two_consumers_eg) {
+  SubBufferList sub_list;
+  EventGroup event_group;
+  Event event;
+  event.data = "value";
+  event.tags = {"tag1", "tag2"};
+  event_group.events.emplace_back(event);
+  SubEventGroupUpdate update{0, event_group};
+  auto updates1 = std::make_shared<SubUpdateBuffer>(10);
+  auto updates2 = std::make_shared<SubUpdateBuffer>(10);
+  int num_updates = 10;
+
+  auto reader_fn = [](std::shared_ptr<SubUpdateBuffer> q, int max) {
+    SubEventGroupUpdate update_;
+    int counter = 0;
+    do {
+      q->PopEventGroup(update_);
+      ASSERT_EQ(update_.event_group_id, counter);
+    } while (++counter < max);
+  };
+  auto reader1 = std::async(std::launch::async, reader_fn, updates1, num_updates);
+  auto reader2 = std::async(std::launch::async, reader_fn, updates2, num_updates);
+
+  sub_list.addBuffer(updates1);
+  sub_list.addBuffer(updates2);
+
+  for (int i = 0; i < num_updates; ++i) {
+    update.event_group_id = i;
+    sub_list.updateEventGroupSubBuffers(update);
   }
 }
 
