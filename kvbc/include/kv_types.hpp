@@ -34,6 +34,7 @@ typedef std::vector<Key> KeysVector;
 typedef std::set<Key> OrderedKeysSet;
 typedef KeysVector ValuesVector;
 typedef std::uint64_t BlockId;
+typedef std::uint64_t EventGroupId;
 
 inline constexpr auto INITIAL_GENESIS_BLOCK_ID = BlockId{1};
 

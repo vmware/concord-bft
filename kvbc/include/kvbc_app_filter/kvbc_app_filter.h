@@ -24,8 +24,12 @@
 #include "Logger.hpp"
 
 #include "block_update/block_update.hpp"
+#include "block_update/event_group_update.hpp"
 #include "db_interfaces.h"
+#include "categorization/db_categories.h"
 #include "kv_types.hpp"
+#include "event_group_msgs.cmf.hpp"
+#include "endianness.hpp"
 
 namespace concord {
 namespace kvbc {
@@ -34,12 +38,19 @@ namespace kvbc {
 typedef size_t KvbStateHash;
 
 typedef BlockUpdate KvbUpdate;
+typedef EventGroupUpdate EgUpdate;
 
 struct KvbFilteredUpdate {
   using OrderedKVPairs = std::vector<std::pair<std::string, std::string>>;
   kvbc::BlockId block_id;
   std::string correlation_id;
   OrderedKVPairs kv_pairs;
+};
+
+struct KvbFilteredEventGroupUpdate {
+  using EventGroup = concord::kvbc::categorization::EventGroup;
+  uint64_t event_group_id;
+  EventGroup event_group;
 };
 
 class KvbReadError : public std::exception {
@@ -63,6 +74,18 @@ class InvalidBlockRange : public std::exception {
   std::string msg_;
 };
 
+class InvalidEventGroupRange : public std::exception {
+ public:
+  InvalidEventGroupRange(const concord::kvbc::EventGroupId begin, const concord::kvbc::EventGroupId end)
+      : msg_("Invalid event group range") {
+    msg_ += " [" + std::to_string(begin) + ", " + std::to_string(end) + "]";
+  }
+  const char *what() const noexcept override { return msg_.c_str(); }
+
+ private:
+  std::string msg_;
+};
+
 class KvbAppFilter {
  public:
   KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id)
@@ -71,8 +94,14 @@ class KvbAppFilter {
   // Filter the given update
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
 
+  KvbFilteredEventGroupUpdate filterEventGroupUpdate(EgUpdate &update);
+
+  KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
+                                                                   kvbc::categorization::EventGroup &event_group);
+
   // Compute hash for the given update
   std::string hashUpdate(const KvbFilteredUpdate &update);
+  std::string hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &update);
 
   // Return all key-value pairs from the KVB in the block range [earliest block
   // available, given block_id] with the following conditions:
@@ -86,18 +115,29 @@ class KvbAppFilter {
                       boost::lockfree::spsc_queue<KvbFilteredUpdate> &queue_out,
                       const std::atomic_bool &stop_execution);
 
+  void readEventGroupRange(kvbc::EventGroupId event_group_id_start,
+                           kvbc::EventGroupId event_group_id_end,
+                           boost::lockfree::spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
+                           const std::atomic_bool &stop_execution);
+
   // Compute the state hash of all key-value pairs in the range of [earliest
   // block available, given block_id] based on the given KvbAppFilter::AppType.
   std::string readBlockRangeHash(kvbc::BlockId start, kvbc::BlockId end);
+
+  std::string readEventGroupRangeHash(kvbc::EventGroupId event_group_id_start, EventGroupId event_group_id_end);
 
   // Compute the hash of a single block based on the given
   // KvbAppFilter::AppType.
   std::string readBlockHash(kvbc::BlockId block_id);
 
+  std::string readEventGroupHash(kvbc::EventGroupId event_group_id);
+
   std::optional<kvbc::categorization::ImmutableInput> getBlockEvents(kvbc::BlockId block_id, std::string &cid);
 
   // Filter the given set of key-value pairs and return the result.
   KvbFilteredUpdate::OrderedKVPairs filterKeyValuePairs(const kvbc::categorization::ImmutableInput &kvs);
+
+  kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
 
  private:
   logging::Logger logger_;
