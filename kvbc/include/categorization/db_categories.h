@@ -10,6 +10,8 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
+#ifndef CONCORD_KVBC_CATEGORIZATION_H_
+#define CONCORD_KVBC_CATEGORIZATION_H_
 
 #include <string>
 
@@ -28,3 +30,5 @@ inline const auto kExecutionEventGroupIdsCategory = "execution_event_group_ids";
 inline const auto kConcordInternalCategoryId = "concord_internal";
 
 }  // namespace concord::kvbc::categorization
+
+#endif  // CONCORD_KVBC_CATEGORIZATION_H_
