@@ -1010,7 +1010,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         test_config = 'new_configuration_n_4_f_1_c_0'
         await op.add_remove_with_wedge(test_config, bft=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
-        await self.verify_add_remove_status(bft_network, test_config, restart_flag=True, quorum_all=False)
+        await self.verify_add_remove_status(bft_network, test_config, restart_flag=True, quorum_all=True)
         await self.verify_restart_ready_proof_msg(bft_network, bft=False)
         bft_network.stop_all_replicas()
         # We now expect the replicas to start with a fresh new configuration
@@ -1589,7 +1589,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         test_config = 'new_configuration_n_4_f_1_c_0'
         await op.add_remove_with_wedge(test_config, bft=False, restart=False)
         await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=True)
-        await self.verify_add_remove_status(bft_network, test_config, restart_flag=False, quorum_all=False)
+        await self.verify_add_remove_status(bft_network, test_config, restart_flag=False, quorum_all=True)
         for r in bft_network.all_replicas():
             restartReadyMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartReadyMsg")
             restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
@@ -1656,8 +1656,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     
     async def verify_add_remove_status(self, bft_network, config_descriptor, restart_flag=True, quorum_all=True ):
         quorum = bft_client.MofNQuorum.All(bft_network.config, [r for r in range(bft_network.config.n)])
+        bft_flag = False
         if quorum_all == False:
             quorum = bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
+            bft_flag = True
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client,  bft_network.builddir)
         await op.add_remove_with_wedge_status(quorum)
@@ -1667,6 +1669,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             assert status.response.config_descriptor == config_descriptor
             assert status.response.restart_flag == restart_flag
             assert status.response.wedge_status == True
+            assert status.response.bft_flag == bft_flag
 
         
 

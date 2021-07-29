@@ -113,10 +113,9 @@ class Operator:
         addRemoveStatus_command.sender_id = 1000
         return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
-    def _construct_reconfiguration_addRemoveWithWedgeStatus_command(self, bft_flag=True):
+    def _construct_reconfiguration_addRemoveWithWedgeStatus_command(self):
         addRemoveStatus_command = cmf_msgs.AddRemoveWithWedgeStatus()
         addRemoveStatus_command.sender_id = 1000
-        addRemoveStatus_command.bft_flag = bft_flag
         return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
     def _construct_reconfiguration_clientKe_command(self, target_clients = []):
@@ -234,9 +233,7 @@ class Operator:
                                 self.config.n)]), reconfiguration=True)
     
     async def add_remove_with_wedge_status(self, quorum=None):
-        bft_flag = True
         if quorum is None:
             quorum = bft_client.MofNQuorum.All(self.client.config, [r for r in range(self.config.n)])
-            bft_flag = False
-        reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_command(bft_flag)
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedgeStatus_command()
         return await self.client.read(reconf_msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)

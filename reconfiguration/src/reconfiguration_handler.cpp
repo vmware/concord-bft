@@ -91,13 +91,15 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
   concord::messages::AddRemoveWithWedgeStatusResponse response;
   if (std::holds_alternative<concord::messages::AddRemoveWithWedgeStatusResponse>(rres.response)) {
     response = std::get<concord::messages::AddRemoveWithWedgeStatusResponse>(rres.response);
-  }
-  if (!req.bft_flag) {
-    response.wedge_status = bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint();
+    if (!response.bft_flag) {
+      response.wedge_status = bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint();
+    } else {
+      response.wedge_status = bftEngine::IControlHandler::instance()->isOnStableCheckpoint();
+    }
+    LOG_INFO(getLogger(), "AddRemoveWithWedgeStatus. wedge_status " << KVLOG(response.wedge_status));
   } else {
-    response.wedge_status = bftEngine::IControlHandler::instance()->isOnStableCheckpoint();
+    LOG_WARN(getLogger(), "AddRemoveWithWedgeCommand is not logged into the chain. Return wedge_status false");
   }
-  LOG_INFO(getLogger(), "AddRemoveWithWedgeStatus. wedge_status " << KVLOG(response.wedge_status, req.bft_flag));
   rres.response = std::move(response);
   return true;
 }

@@ -287,6 +287,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
     }
     addRemoveResponse.config_descriptor = cmd.config_descriptor;
     addRemoveResponse.restart_flag = cmd.restart;
+    addRemoveResponse.bft_flag = cmd.bft_support;
     LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand response: " << addRemoveResponse.config_descriptor);
     response.response = std::move(addRemoveResponse);
   } else {
