@@ -41,71 +41,72 @@ class SequenceWithActiveWindow {
   static constexpr uint32_t maxNumItemsInsideInactiveWindow = (WindowHistory * numItemsInsideActiveWindow);
   static constexpr uint32_t totalItems = maxNumItemsInsideInactiveWindow + numItemsInsideActiveWindow;
 
-  typename std::conditional<TypeSelection, NumbersType, std::atomic<NumbersType>>::type beginningOfActiveWindow;
-  size_t firstItemOfActiveWindow;
-  size_t numItemsInsideInactiveWindow;
-  ItemType workingWindow[totalItems];
+  typename std::conditional<TypeSelection, NumbersType, std::atomic<NumbersType>>::type beginningOfActiveWindow_;
+  size_t firstItemOfActiveWindow_;
+  size_t numItemsInsideInactiveWindow_;
+  ItemType workingWindow_[totalItems];
 
  public:
   SequenceWithActiveWindow(NumbersType windowFirst, void *initData) {
     ConcordAssert(windowFirst % Resolution == 0);
 
-    beginningOfActiveWindow = windowFirst;
+    beginningOfActiveWindow_ = windowFirst;
 
-    firstItemOfActiveWindow = 0;
-    numItemsInsideInactiveWindow = 0;
+    firstItemOfActiveWindow_ = 0;
+    numItemsInsideInactiveWindow_ = 0;
 
     for (uint16_t i = 0; i < totalItems; i++) {
-      ItemFuncs::init(workingWindow[i], initData);
-      ItemFuncs::reset(workingWindow[i]);
+      ItemFuncs::init(workingWindow_[i], initData);
+      ItemFuncs::reset(workingWindow_[i]);
     }
   }
 
   ~SequenceWithActiveWindow() {
-    for (uint16_t i = 0; i < totalItems; i++) ItemFuncs::free(workingWindow[i]);
+    for (uint16_t i = 0; i < totalItems; i++) ItemFuncs::free(workingWindow_[i]);
   }
 
   bool insideActiveWindow(NumbersType n) const {
-    return ((n >= beginningOfActiveWindow) && (n < (beginningOfActiveWindow + WindowSize)));
+    return ((n >= beginningOfActiveWindow_) && (n < (beginningOfActiveWindow_ + WindowSize)));
   }
 
   bool isPressentInHistory(NumbersType n) const {
-    if (numItemsInsideInactiveWindow > 0) {
-      auto beginningOfInactiveWindow = getBeginningOfInactiveWindow();
-      return ((n >= beginningOfInactiveWindow) && (n < beginningOfActiveWindow));
+    if (numItemsInsideInactiveWindow_ > 0) {
+      const auto beginningOfInactiveWindow = getBeginningOfInactiveWindow();
+      return ((n >= beginningOfInactiveWindow) && (n < beginningOfActiveWindow_));
     }
     return false;
   }
 
   NumbersType getBeginningOfInactiveWindow() const {
-    ConcordAssertGT(numItemsInsideInactiveWindow, 0);
-    return (beginningOfActiveWindow - (numItemsInsideInactiveWindow * Resolution));
+    ConcordAssertGT(numItemsInsideInactiveWindow_, 0);
+    return (beginningOfActiveWindow_ - (numItemsInsideInactiveWindow_ * Resolution));
   }
 
   ItemType &get(NumbersType n) {
     ConcordAssert(n % Resolution == 0);
     ConcordAssert(insideActiveWindow(n));
 
-    auto offsetFromActiveWinBegin = (n - beginningOfActiveWindow) / Resolution;
-    uint16_t i = ((firstItemOfActiveWindow + offsetFromActiveWinBegin) % totalItems);
-    return workingWindow[i];
+    const auto offsetFromActiveWinBegin = (n - beginningOfActiveWindow_) / Resolution;
+    const uint16_t i = ((firstItemOfActiveWindow_ + offsetFromActiveWinBegin) % totalItems);
+    return workingWindow_[i];
   }
 
   ItemType &getFromHistory(NumbersType n) {
     ConcordAssert(isPressentInHistory(n));
     ConcordAssert(n % Resolution == 0);
-    ConcordAssertGT(numItemsInsideInactiveWindow, 0);
-    ConcordAssertLE(numItemsInsideInactiveWindow, maxNumItemsInsideInactiveWindow);
+    ConcordAssertGT(numItemsInsideInactiveWindow_, 0);
+    ConcordAssertLE(numItemsInsideInactiveWindow_, maxNumItemsInsideInactiveWindow);
 
-    auto beginningOfInactiveWindow = getBeginningOfInactiveWindow();
+    const auto beginningOfInactiveWindow = getBeginningOfInactiveWindow();
     LOG_DEBUG(GL,
               "Getting info from Inactive Window for SeqNo="
-                  << n << KVLOG(beginningOfActiveWindow, beginningOfInactiveWindow));
+                  << n << KVLOG(beginningOfActiveWindow_, beginningOfInactiveWindow));
 
-    auto offsetFromInactiveWinBegin = (n - beginningOfInactiveWindow) / Resolution;
-    auto i = ((firstItemOfActiveWindow - numItemsInsideInactiveWindow + totalItems + offsetFromInactiveWinBegin) %
-              totalItems);
-    return workingWindow[i];
+    const auto offsetFromInactiveWinBegin = (n - beginningOfInactiveWindow) / Resolution;
+    const auto i =
+        ((firstItemOfActiveWindow_ - numItemsInsideInactiveWindow_ + totalItems + offsetFromInactiveWinBegin) %
+         totalItems);
+    return workingWindow_[i];
   }
 
   ItemType &getFromActiveWindowOrHistory(NumbersType n) {
@@ -119,37 +120,37 @@ class SequenceWithActiveWindow {
 
   std::pair<NumbersType, NumbersType> currentActiveWindow() const {
     std::pair<NumbersType, NumbersType> win;
-    win.first = beginningOfActiveWindow;
-    win.second = beginningOfActiveWindow + WindowSize - 1;
+    win.first = beginningOfActiveWindow_;
+    win.second = beginningOfActiveWindow_ + WindowSize - 1;
     return win;
   }
 
   void resetAll(NumbersType windowFirst) {
     ConcordAssert(windowFirst % Resolution == 0);
 
-    for (uint16_t i = 0; i < totalItems; i++) ItemFuncs::reset(workingWindow[i]);
+    for (uint16_t i = 0; i < totalItems; i++) ItemFuncs::reset(workingWindow_[i]);
 
-    beginningOfActiveWindow = windowFirst;
-    numItemsInsideInactiveWindow = 0;
+    beginningOfActiveWindow_ = windowFirst;
+    numItemsInsideInactiveWindow_ = 0;
   }
 
   void advanceActiveWindow(NumbersType newFirstNumOfActiveWindow) {
     ConcordAssert(newFirstNumOfActiveWindow % Resolution == 0);
-    ConcordAssert(newFirstNumOfActiveWindow >= beginningOfActiveWindow);
+    ConcordAssert(newFirstNumOfActiveWindow >= beginningOfActiveWindow_);
 
-    if (newFirstNumOfActiveWindow == beginningOfActiveWindow) return;
+    if (newFirstNumOfActiveWindow == beginningOfActiveWindow_) return;
 
-    if (newFirstNumOfActiveWindow - beginningOfActiveWindow > WindowSize) {
+    if (newFirstNumOfActiveWindow - beginningOfActiveWindow_ > WindowSize) {
       resetAll(newFirstNumOfActiveWindow);
       return;
     }
 
     const uint16_t numItemsToAdvanceActiveWindowWith =
-        (newFirstNumOfActiveWindow - beginningOfActiveWindow) / Resolution;
+        (newFirstNumOfActiveWindow - beginningOfActiveWindow_) / Resolution;
 
-    const uint16_t oldActiveEnd = (firstItemOfActiveWindow + numItemsInsideActiveWindow) % totalItems;
+    const uint16_t oldActiveEnd = (firstItemOfActiveWindow_ + numItemsInsideActiveWindow) % totalItems;
 
-    const uint16_t newActiveBegin = (firstItemOfActiveWindow + numItemsToAdvanceActiveWindowWith) % totalItems;
+    const uint16_t newActiveBegin = (firstItemOfActiveWindow_ + numItemsToAdvanceActiveWindowWith) % totalItems;
 
     const uint16_t resetSize = numItemsToAdvanceActiveWindowWith;
 
@@ -159,14 +160,14 @@ class SequenceWithActiveWindow {
     // because this is the amount of Items that will be included in the Active Window after scrolling it.
     uint16_t resetCount = 0;
     for (uint16_t i = oldActiveEnd; resetCount < resetSize; resetCount++, (i = ((i + 1) % totalItems))) {
-      ItemFuncs::reset(workingWindow[i]);
+      ItemFuncs::reset(workingWindow_[i]);
     }
 
-    firstItemOfActiveWindow = newActiveBegin;
-    beginningOfActiveWindow = newFirstNumOfActiveWindow;
-    numItemsInsideInactiveWindow += numItemsToAdvanceActiveWindowWith;
-    if (numItemsInsideInactiveWindow > maxNumItemsInsideInactiveWindow) {
-      numItemsInsideInactiveWindow = maxNumItemsInsideInactiveWindow;
+    firstItemOfActiveWindow_ = newActiveBegin;
+    beginningOfActiveWindow_ = newFirstNumOfActiveWindow;
+    numItemsInsideInactiveWindow_ += numItemsToAdvanceActiveWindowWith;
+    if (numItemsInsideInactiveWindow_ > maxNumItemsInsideInactiveWindow) {
+      numItemsInsideInactiveWindow_ = maxNumItemsInsideInactiveWindow;
     }
   }
 
