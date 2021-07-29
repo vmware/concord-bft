@@ -56,28 +56,34 @@ class SimpleTextMapReaderWriter : public opentracing::TextMapWriter, public open
   std::unordered_map<std::string, std::string>& text_map_;
 };
 
-void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, Update& update) {
+void TraceContexts::InjectSpan(const TraceContexts::SpanPtr& span, EventVariant& update) {
   if (span) {
-    std::unordered_map<std::string, std::string> text_map;
-    SimpleTextMapReaderWriter writer(text_map);
-    span->tracer().Inject(span->context(), writer);
-    W3cTraceContext serialized_context;
-    serialized_context.mutable_key_values()->insert(text_map.begin(), text_map.end());
-    update.span_context = serialized_context.SerializeAsString();
+    // TODO: Event Group
+    if (std::holds_alternative<Update>(update)) {
+      std::unordered_map<std::string, std::string> text_map;
+      SimpleTextMapReaderWriter writer(text_map);
+      span->tracer().Inject(span->context(), writer);
+      W3cTraceContext serialized_context;
+      serialized_context.mutable_key_values()->insert(text_map.begin(), text_map.end());
+      std::get<Update>(update).span_context = serialized_context.SerializeAsString();
+    }
   }
 }
 
-expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const Update& update) {
-  if (!update.span_context.empty()) {
-    W3cTraceContext trace_context;
-    trace_context.ParseFromString(update.span_context);
-    std::unordered_map<std::string, std::string> text_map(trace_context.key_values().begin(),
-                                                          trace_context.key_values().end());
-    SimpleTextMapReaderWriter reader(text_map);
-    return opentracing::Tracer::Global()->Extract(reader);
-  } else {
-    return std::unique_ptr<opentracing::SpanContext>();
+expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(const EventVariant& update) {
+  // TODO: Event Group
+  if (std::holds_alternative<Update>(update)) {
+    auto& legacy_event = std::get<Update>(update);
+    if (!legacy_event.span_context.empty()) {
+      W3cTraceContext trace_context;
+      trace_context.ParseFromString(legacy_event.span_context);
+      std::unordered_map<std::string, std::string> text_map(trace_context.key_values().begin(),
+                                                            trace_context.key_values().end());
+      SimpleTextMapReaderWriter reader(text_map);
+      return opentracing::Tracer::Global()->Extract(reader);
+    }
   }
+  return std::unique_ptr<opentracing::SpanContext>();
 }
 
 SpanPtr TraceContexts::CreateChildSpanFromBinary(const std::string& trace_context,

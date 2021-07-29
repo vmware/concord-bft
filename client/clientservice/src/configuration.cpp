@@ -13,28 +13,105 @@
 
 #include <chrono>
 #include <string>
+#include <sstream>
 
 #include "assertUtils.hpp"
 #include "client/clientservice/client_service.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
 
+static auto logger = logging::getLogger("concord.client.clientservice.configuration");
+
 namespace concord::client::clientservice {
 
+void setDefaultConfiguration(ConcordClientConfig& config) {
+  config.topology.f_val = 1;
+  config.topology.c_val = 0;
+
+  // Default 4 replicas
+  for (int id = 0; id < 4; ++id) {
+    concord::client::concordclient::ReplicaInfo ri;
+    ri.id.val = id;
+    ri.host = "localhost";
+    ri.bft_port = 3501;
+    ri.event_port = 50051;
+    config.topology.replicas.push_back(ri);
+  }
+
+  config.topology.client_retry_config.initial_retry_timeout = std::chrono::milliseconds(1000);
+  config.topology.client_retry_config.min_retry_timeout = std::chrono::milliseconds(1000);
+  config.topology.client_retry_config.max_retry_timeout = std::chrono::milliseconds(1000);
+  config.topology.client_retry_config.number_of_standard_deviations_to_tolerate = 2;
+  config.topology.client_retry_config.samples_per_evaluation = 32;
+  config.topology.client_retry_config.samples_until_reset = 1000;
+
+  config.transport.buffer_length = 1024;
+  config.transport.comm_type = concord::client::concordclient::TransportConfig::PlainUdp;
+
+  // First available external client id
+  // 4 replicas + 16 local clients (client proxies * replicas) + 1
+  int first_bft_client_id = 4 + 4 * 4 + 1;
+
+  // Default 8 bft clients
+  for (int i = 0; i < 8; ++i) {
+    concord::client::concordclient::BftClientInfo ci;
+    ci.id.val = first_bft_client_id + i;
+    // TODO: client_port
+    config.bft_clients.push_back(ci);
+  }
+}
+
+// Copy a value from the YAML node to `out`
+// Throws and exception if no value could be read but the value is required.
+template <typename T>
+static void readYamlField(const YAML::Node& yaml, const std::string& index, T& out, bool value_required = false) {
+  try {
+    out = yaml[index].as<T>();
+  } catch (const std::exception& e) {
+    if (value_required) {
+      // We ignore the YAML excpetions because they aren't useful
+      std::ostringstream msg;
+      msg << "Failed to read \"" << index << "\"";
+      throw std::runtime_error(msg.str().data());
+    } else {
+      LOG_INFO(logger, "Using default value for \"" << index << "\"");
+    }
+  }
+}
+static void readYamlField(const YAML::Node& yaml,
+                          const std::string& index,
+                          std::chrono::milliseconds& out,
+                          bool value_required = false) {
+  try {
+    out = std::chrono::milliseconds(yaml[index].as<uint64_t>());
+  } catch (const std::exception& e) {
+    if (value_required) {
+      // We ignore the YAML excpetions because they aren't useful
+      std::ostringstream msg;
+      msg << "Failed to read milliseconds \"" << index << "\"";
+      throw std::runtime_error(msg.str().data());
+    } else {
+      LOG_INFO(logger, "Using default value for \"" << index << "\"");
+    }
+  }
+}
+
 void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
-  config.topology.f_val = yaml["f_val"].as<uint16_t>();
-  config.topology.c_val = yaml["c_val"].as<uint16_t>();
-  config.topology.client_sends_request_to_all_replicas_first_thresh =
-      yaml["client_sends_request_to_all_replicas_first_thresh"].as<uint16_t>();
-  config.topology.client_sends_request_to_all_replicas_period_thresh =
-      yaml["client_sends_request_to_all_replicas_period_thresh"].as<uint16_t>();
-  config.topology.signing_key_path = yaml["signing_key_path"].as<std::string>();
-  config.topology.external_requests_queue_size = yaml["external_requests_queue_size"].as<uint32_t>();
-  config.topology.encrypted_config_enabled = yaml["encrypted_config_enabled"].as<bool>();
-  config.topology.transaction_signing_enabled = yaml["transaction_signing_enabled"].as<bool>();
-  config.topology.client_batching_enabled = yaml["client_batching_enabled"].as<bool>();
-  config.topology.client_batching_max_messages_nbr = yaml["client_batching_max_messages_nbr"].as<size_t>();
-  config.topology.client_batching_flush_timeout_ms = yaml["client_batching_flush_timeout_ms"].as<uint64_t>();
+  readYamlField(yaml, "f_val", config.topology.f_val);
+  readYamlField(yaml, "c_val", config.topology.c_val);
+  readYamlField(yaml,
+                "client_sends_request_to_all_replicas_first_thresh",
+                config.topology.client_sends_request_to_all_replicas_first_thresh);
+  readYamlField(yaml,
+                "client_sends_request_to_all_replicas_period_thresh",
+                config.topology.client_sends_request_to_all_replicas_period_thresh);
+  readYamlField(yaml, "signing_key_path", config.topology.signing_key_path);
+  readYamlField(yaml, "external_requests_queue_size", config.topology.external_requests_queue_size);
+  readYamlField(yaml, "encrypted_config_enabled", config.topology.encrypted_config_enabled);
+  readYamlField(yaml, "transaction_signing_enabled", config.topology.transaction_signing_enabled);
+  readYamlField(yaml, "client_batching_enabled", config.topology.client_batching_enabled);
+  readYamlField(yaml, "client_batching_max_messages_nbr", config.topology.client_batching_max_messages_nbr);
+  readYamlField(yaml, "client_batching_flush_timeout_ms", config.topology.client_batching_flush_timeout_ms);
 
   ConcordAssert(yaml["node"].IsSequence());
   for (const auto& node : yaml["node"]) {
@@ -44,33 +121,33 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     auto replica = node["replica"][0];
 
     concord::client::concordclient::ReplicaInfo ri;
-    ri.id.val = replica["principal_id"].as<uint16_t>();
-    ri.host = replica["replica_host"].as<std::string>();
-    ri.bft_port = replica["replica_port"].as<uint16_t>();
-    ri.event_port = replica["event_port"].as<uint16_t>();
+    readYamlField(replica, "principal_id", ri.id.val);
+    readYamlField(replica, "replica_host", ri.host);
+    readYamlField(replica, "replica_port", ri.bft_port);
+    readYamlField(replica, "event_port", ri.event_port);
 
     config.topology.replicas.push_back(ri);
   }
 
-  config.topology.client_retry_config.initial_retry_timeout =
-      std::chrono::milliseconds(yaml["client_initial_retry_timeout_milli"].as<unsigned>());
-  config.topology.client_retry_config.min_retry_timeout =
-      std::chrono::milliseconds(yaml["client_min_retry_timeout_milli"].as<unsigned>());
-  config.topology.client_retry_config.max_retry_timeout =
-      std::chrono::milliseconds(yaml["client_max_retry_timeout_milli"].as<unsigned>());
-  config.topology.client_retry_config.number_of_standard_deviations_to_tolerate =
-      yaml["client_number_of_standard_deviations_to_tolerate"].as<uint16_t>();
-  config.topology.client_retry_config.samples_per_evaluation = yaml["client_samples_per_evaluation"].as<uint16_t>();
-  config.topology.client_retry_config.samples_until_reset = yaml["client_samples_until_reset"].as<int16_t>();
+  readYamlField(yaml, "client_initial_retry_timeout_milli", config.topology.client_retry_config.initial_retry_timeout);
+  readYamlField(yaml, "client_min_retry_timeout_milli", config.topology.client_retry_config.min_retry_timeout);
+  readYamlField(yaml, "client_max_retry_timeout_milli", config.topology.client_retry_config.max_retry_timeout);
+  readYamlField(yaml, "client_samples_per_evaluation", config.topology.client_retry_config.samples_per_evaluation);
+  readYamlField(yaml,
+                "client_number_of_standard_deviations_to_tolerate",
+                config.topology.client_retry_config.number_of_standard_deviations_to_tolerate);
+  readYamlField(yaml, "client_samples_until_reset", config.topology.client_retry_config.samples_until_reset);
+  readYamlField(yaml, "enable_mock_comm", config.transport.enable_mock_comm);
 
-  config.transport.buffer_length = yaml["concord-bft_communication_buffer_length"].as<uint32_t>();
-  config.transport.enable_mock_comm = yaml["enable_mock_comm"].as<bool>();
+  readYamlField(yaml, "concord-bft_communication_buffer_length", config.transport.buffer_length);
+
   concord::client::concordclient::TransportConfig::CommunicationType comm_type;
-  auto comm = yaml["comm_to_use"].as<std::string>();
+  std::string comm;
+  readYamlField(yaml, "comm_to_use", comm);
   if (comm == "tls") {
     comm_type = concord::client::concordclient::TransportConfig::TlsTcp;
-    config.transport.tls_cert_root_path = yaml["tls_certificates_folder_path"].as<std::string>();
-    config.transport.tls_cipher_suite = yaml["tls_cipher_suite_list"].as<std::string>();
+    readYamlField(yaml, "tls_certificates_folder_path", config.transport.tls_cert_root_path);
+    readYamlField(yaml, "tls_cipher_suite_list", config.transport.tls_cipher_suite);
   } else if (comm == "udp") {
     comm_type = concord::client::concordclient::TransportConfig::PlainUdp;
   } else {
@@ -90,9 +167,9 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
     auto client = item["client"][0];
 
     concord::client::concordclient::BftClientInfo ci;
-    ci.id.val = client["principal_id"].as<uint16_t>();
-    ci.port = client["client_port"].as<uint16_t>();
-    ci.host = node["participant_node"][0]["participant_node_host"].as<std::string>();
+    readYamlField(client, "principal_id", ci.id.val);
+    readYamlField(client, "client_port", ci.port);
+    readYamlField(node["participant_node"][0], "participant_node_host", ci.host);
     config.bft_clients.push_back(ci);
   }
 

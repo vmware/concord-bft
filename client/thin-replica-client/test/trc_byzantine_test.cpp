@@ -44,6 +44,7 @@ using std::chrono::steady_clock;
 using std::chrono::time_point;
 using std::this_thread::sleep_for;
 using client::thin_replica_client::BasicUpdateQueue;
+using client::thin_replica_client::EventVariant;
 using client::thin_replica_client::kThinReplicaHashLength;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
@@ -57,14 +58,16 @@ static_assert((kMaxFaultyIn4NodeCluster * 3 + 1) == 4);
 
 // Helper function(s) and struct(s) to test case(s) in this suite.
 
-bool UpdateMatchesExpected(const Update& update_received, const Data& update_expected) {
-  if ((update_received.block_id != update_expected.events().block_id()) ||
-      (update_received.kv_pairs.size() != (size_t)update_expected.events().data_size())) {
+bool UpdateMatchesExpected(const std::unique_ptr<EventVariant>& update_received, const Data& update_expected) {
+  EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
+  auto& legacy_event = std::get<Update>(*update_received);
+  if ((legacy_event.block_id != update_expected.events().block_id()) ||
+      (legacy_event.kv_pairs.size() != (size_t)update_expected.events().data_size())) {
     return false;
   }
   for (size_t i = 0; i < (size_t)update_expected.events().data_size(); ++i) {
-    if ((update_received.kv_pairs[i].first != update_expected.events().data(i).key()) ||
-        (update_received.kv_pairs[i].second != update_expected.events().data(i).value())) {
+    if ((legacy_event.kv_pairs[i].first != update_expected.events().data(i).key()) ||
+        (legacy_event.kv_pairs[i].second != update_expected.events().data(i).value())) {
       return false;
     }
   }
@@ -76,11 +79,11 @@ void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
                         size_t num_updates,
                         const string& faulty_description) {
   for (size_t i = 0; i < num_updates; ++i) {
-    unique_ptr<Update> received_update = received_updates->Pop();
+    unique_ptr<EventVariant> received_update = received_updates->Pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from the "
                                           "initial state in the presence of "
                                        << faulty_description << ".";
-    EXPECT_TRUE(UpdateMatchesExpected(*received_update, expected_updates[i]))
+    EXPECT_TRUE(UpdateMatchesExpected(received_update, expected_updates[i]))
         << "ThinReplicaClient reported an update not matching an expected "
            "update from the initial state in the presence of "
         << faulty_description << ".";
@@ -91,11 +94,11 @@ void VerifyUpdates(shared_ptr<UpdateQueue>& received_updates,
                    const vector<Data>& expected_updates,
                    const string& faulty_description) {
   for (size_t i = 0; i < expected_updates.size(); ++i) {
-    unique_ptr<Update> received_update = received_updates->Pop();
+    unique_ptr<EventVariant> received_update = received_updates->Pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to stream an expected update from a "
                                           "subscription in the presence of "
                                        << faulty_description << ".";
-    EXPECT_TRUE(UpdateMatchesExpected(*received_update, expected_updates[i]))
+    EXPECT_TRUE(UpdateMatchesExpected(received_update, expected_updates[i]))
         << "ThinReplicaClient reported an update not matching an expected "
            "update in the subscription stream in the presence of "
         << faulty_description << ".";

@@ -17,6 +17,9 @@
 
 namespace concord::client::clientservice {
 
+// Fill the given ConcordClientConfig with default values
+void setDefaultConfiguration(concord::client::concordclient::ConcordClientConfig&);
+
 void parseConfigFile(concord::client::concordclient::ConcordClientConfig&, const YAML::Node&);
 
 // Configure connection between ThinReplicaClient and ThinReplicaServer on the replicas
