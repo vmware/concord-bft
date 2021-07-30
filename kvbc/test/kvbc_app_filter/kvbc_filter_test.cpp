@@ -20,7 +20,6 @@
 #include <vector>
 #include "Logger.hpp"
 #include "categorization/updates.h"
-#include "categorization/db_categories.h"
 #include "endianness.hpp"
 #include "gtest/gtest.h"
 #include "kv_types.hpp"

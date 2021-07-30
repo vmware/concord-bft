@@ -9,9 +9,12 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include <chrono>
+#include <thread>
+
+#include "assertUtils.hpp"
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
-#include "assertUtils.hpp"
 
 using ::client::thin_replica_client::BasicUpdateQueue;
 using ::client::thin_replica_client::ThinReplicaClient;
@@ -48,9 +51,9 @@ ConcordClient::ConcordClient(const ConcordClientConfig& config)
   trc_ = std::make_unique<ThinReplicaClient>(std::move(trc_config), metrics_);
   ConcordClientPoolConfig client_pool_config = createClientPoolStruct(config);
   client_pool_ = std::make_unique<concord::concord_client_pool::ConcordClientPool>(client_pool_config, metrics_);
-  if (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) {
-    LOG_ERROR(KEY_EX_LOG, "Client pool health status is Not Serving");
-    throw concord::concord_client_pool::InternalError();
+  while (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) {
+    LOG_INFO(logger_, "Waiting for client pool to connect");
+    std::this_thread::sleep_for(std::chrono::seconds(2));
   }
 }
 

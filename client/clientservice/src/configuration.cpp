@@ -24,47 +24,10 @@ static auto logger = logging::getLogger("concord.client.clientservice.configurat
 
 namespace concord::client::clientservice {
 
-void setDefaultConfiguration(ConcordClientConfig& config) {
-  config.topology.f_val = 1;
-  config.topology.c_val = 0;
-
-  // Default 4 replicas
-  for (int id = 0; id < 4; ++id) {
-    concord::client::concordclient::ReplicaInfo ri;
-    ri.id.val = id;
-    ri.host = "localhost";
-    ri.bft_port = 3501;
-    ri.event_port = 50051;
-    config.topology.replicas.push_back(ri);
-  }
-
-  config.topology.client_retry_config.initial_retry_timeout = std::chrono::milliseconds(1000);
-  config.topology.client_retry_config.min_retry_timeout = std::chrono::milliseconds(1000);
-  config.topology.client_retry_config.max_retry_timeout = std::chrono::milliseconds(1000);
-  config.topology.client_retry_config.number_of_standard_deviations_to_tolerate = 2;
-  config.topology.client_retry_config.samples_per_evaluation = 32;
-  config.topology.client_retry_config.samples_until_reset = 1000;
-
-  config.transport.buffer_length = 1024;
-  config.transport.comm_type = concord::client::concordclient::TransportConfig::PlainUdp;
-
-  // First available external client id
-  // 4 replicas + 16 local clients (client proxies * replicas) + 1
-  int first_bft_client_id = 4 + 4 * 4 + 1;
-
-  // Default 8 bft clients
-  for (int i = 0; i < 8; ++i) {
-    concord::client::concordclient::BftClientInfo ci;
-    ci.id.val = first_bft_client_id + i;
-    // TODO: client_port
-    config.bft_clients.push_back(ci);
-  }
-}
-
-// Copy a value from the YAML node to `out`
+// Copy a value from the YAML node to `out`.
 // Throws and exception if no value could be read but the value is required.
 template <typename T>
-static void readYamlField(const YAML::Node& yaml, const std::string& index, T& out, bool value_required = false) {
+static void readYamlField(const YAML::Node& yaml, const std::string& index, T& out, bool value_required = true) {
   try {
     out = yaml[index].as<T>();
   } catch (const std::exception& e) {
@@ -74,14 +37,14 @@ static void readYamlField(const YAML::Node& yaml, const std::string& index, T& o
       msg << "Failed to read \"" << index << "\"";
       throw std::runtime_error(msg.str().data());
     } else {
-      LOG_INFO(logger, "Using default value for \"" << index << "\"");
+      LOG_INFO(logger, "No value found for \"" << index << "\"");
     }
   }
 }
 static void readYamlField(const YAML::Node& yaml,
                           const std::string& index,
                           std::chrono::milliseconds& out,
-                          bool value_required = false) {
+                          bool value_required = true) {
   try {
     out = std::chrono::milliseconds(yaml[index].as<uint64_t>());
   } catch (const std::exception& e) {
@@ -91,7 +54,7 @@ static void readYamlField(const YAML::Node& yaml,
       msg << "Failed to read milliseconds \"" << index << "\"";
       throw std::runtime_error(msg.str().data());
     } else {
-      LOG_INFO(logger, "Using default value for \"" << index << "\"");
+      LOG_INFO(logger, "No value found for \"" << index << "\"");
     }
   }
 }
@@ -106,7 +69,6 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
                 "client_sends_request_to_all_replicas_period_thresh",
                 config.topology.client_sends_request_to_all_replicas_period_thresh);
   readYamlField(yaml, "signing_key_path", config.topology.signing_key_path);
-  readYamlField(yaml, "external_requests_queue_size", config.topology.external_requests_queue_size);
   readYamlField(yaml, "encrypted_config_enabled", config.topology.encrypted_config_enabled);
   readYamlField(yaml, "transaction_signing_enabled", config.topology.transaction_signing_enabled);
   readYamlField(yaml, "client_batching_enabled", config.topology.client_batching_enabled);

@@ -1,5 +1,3 @@
-add_subdirectory("proto")
-
 find_package(GRPC REQUIRED)
 find_package(Boost ${MIN_BOOST_VERSION} COMPONENTS program_options REQUIRED)
 
