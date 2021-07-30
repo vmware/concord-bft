@@ -14,6 +14,7 @@ import struct
 import copy
 import random
 import trio
+import time
 
 from collections import namedtuple
 from util.skvbc_exceptions import BadReplyError
@@ -22,6 +23,7 @@ from util import bft
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
+CLIENT_REQ_GRACEFUL_END_TIMER=3
 
 class SimpleKVBCProtocol:
     KV_LEN = 21  ## SimpleKVBC requies fixed size keys and values right now
@@ -228,6 +230,31 @@ class SimpleKVBCProtocol:
 
             return client, known_key, known_val
 
+    async def write_with_multiple_clients_for_state_transfer(
+            self, stale_nodes,
+            write_run_duration=10,
+            persistency_enabled=True):
+        with log.start_action(action_type="write_with_multiple_clients_for_state_transfer"):
+            initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
+            self.bft_network.start_all_replicas()
+            self.bft_network.stop_replicas(stale_nodes)
+            client = self.bft_network.random_client()
+            # Write a KV pair with a known value
+            known_key = self.unique_random_key()
+            known_val = self.random_value()
+            known_kv = [(known_key, known_val)]
+            reply = await self.send_write_kv_set(client, known_kv)
+            assert reply.success
+            # Fill up the initial nodes with data, checkpoint them and stop
+            # them. Then bring them back up and ensure the checkpoint data is
+            # there.
+            await self.run_concurrent_txns_and_wait_for_checkpoint(
+                initial_nodes,
+                write_run_duration,
+                verify_checkpoint_persistency=persistency_enabled)
+
+            return client, known_key, known_val
+
     async def fill_and_wait_for_checkpoint(
             self, initial_nodes,
             num_of_checkpoints_to_add=2,
@@ -262,6 +289,43 @@ class SimpleKVBCProtocol:
                 expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + num_of_checkpoints_to_add,
                 verify_checkpoint_persistency=verify_checkpoint_persistency,
                 assert_state_transfer_not_started=assert_state_transfer_not_started)
+    
+    async def run_concurrent_txns_and_wait_for_checkpoint(
+            self, initial_nodes,
+            write_run_duration=10,
+            verify_checkpoint_persistency=True,
+            assert_state_transfer_not_started=True,
+            without_clients=None):
+        """
+        A helper function used by tests to run txns for a duration and then
+        checkpoint it.
+
+        If persistency flag is set the nodes are then stopped and restarted 
+        to ensure the checkpoint data was persisted.
+
+        filling concurrent to speed up tests
+        """
+        with log.start_action(action_type="run_concurrent_txns_and_wait_for_checkpoint"):
+            clients = self.bft_network.get_all_clients()
+            async def write_random_kv(client):
+                key = self.random_key()
+                val = self.random_value()
+                reply = await self.send_write_kv_set(client,[(key, val)])
+                assert reply.success
+            t_end = time.time() + write_run_duration
+
+            with trio.move_on_after(write_run_duration+CLIENT_REQ_GRACEFUL_END_TIMER):
+                while time.time() < t_end:
+                    async with trio.open_nursery() as nursery:
+                        for client in clients:
+                            nursery.start_soon(write_random_kv, client)
+
+            await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes)               
+            await self.network_wait_for_checkpoint(
+                initial_nodes,
+                expected_checkpoint_num=None,
+                verify_checkpoint_persistency=verify_checkpoint_persistency,
+                assert_state_transfer_not_started=assert_state_transfer_not_started)
 
     async def network_wait_for_checkpoint(
             self, initial_nodes,
@@ -276,6 +340,9 @@ class SimpleKVBCProtocol:
             # Wait for initial replicas to take checkpoints (exhausting
             # the full window)
             await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
+            if expected_checkpoint_num == None:
+                expected_checkpoint_num= await self.bft_network.wait_for_checkpoint(
+                replica_id=random.choice(initial_nodes))
 
             if verify_checkpoint_persistency:
                 # Stop the initial replicas to ensure the checkpoints get persisted

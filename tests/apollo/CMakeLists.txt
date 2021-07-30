@@ -76,6 +76,10 @@ add_test(NAME skvbc_auto_view_change_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_auto_view_change_tests python3 -m unittest test_skvbc_auto_view_change ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_test(NAME skvbc_state_transfer_tests COMMAND sh -c
+        "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_state_transfer_tests python3 -m unittest test_skvbc_state_transfer ${TEST_OUTPUT}"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 # PreExecution tests are executed two times - with PreExecution Result Authentication enabled and disabled.
 add_test(NAME skvbc_preexecution_tests COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_preexecution_tests python3 -m unittest test_skvbc_preexecution ${TEST_OUTPUT}"

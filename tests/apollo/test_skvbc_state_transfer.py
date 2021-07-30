@@ -31,7 +31,6 @@ def start_replica_cmd(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
-    print("Anand path:",path)
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
@@ -60,11 +59,10 @@ class SkvbcStateTransferTest(unittest.TestCase):
 
         stale_node = random.choice(
             bft_network.all_replicas(without={0}))
-        log.log_message(message_type=f'Anand : stale node is #{stale_node}')
 
         await skvbc.prime_for_state_transfer(
             stale_nodes={stale_node},
-            checkpoints_num=1, # key-exchange channges the last executed seqnum
+            checkpoints_num=3, # key-exchange channges the last executed seqnum
             persistency_enabled=False
         )
         bft_network.start_replica(stale_node)
@@ -74,9 +72,10 @@ class SkvbcStateTransferTest(unittest.TestCase):
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
 
+
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
-    async def test_continuous_state_transfer_(self, bft_network,exchange_keys=True):
+    async def test_state_transfer_with_multiple_clients(self, bft_network,exchange_keys=True):
         """
         Test that state transfer starts and completes.
 
@@ -89,11 +88,10 @@ class SkvbcStateTransferTest(unittest.TestCase):
 
         stale_node = random.choice(
             bft_network.all_replicas(without={0}))
-        log.log_message(message_type=f'Anand : stale node is #{stale_node}')
-
-        await skvbc.prime_for_state_transfer(
+    
+        await skvbc.write_with_multiple_clients_for_state_transfer(
             stale_nodes={stale_node},
-            checkpoints_num=1, # key-exchange channges the last executed seqnum
+            write_run_duration=30 , # duration for which clients are sending txns
             persistency_enabled=False
         )
         bft_network.start_replica(stale_node)
