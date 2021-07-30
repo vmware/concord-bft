@@ -39,17 +39,6 @@ class CollectorOfThresholdSignatures {
  public:
   CollectorOfThresholdSignatures(void* cnt) { this->context = cnt; }
 
-  void acquire(CollectorOfThresholdSignatures* rhs) {
-    replicasInfo = rhs->replicasInfo;
-    rhs->replicasInfo.clear();
-
-    combinedValidSignatureMsg = rhs->combinedValidSignatureMsg;
-    rhs->combinedValidSignatureMsg = nullptr;
-
-    candidateCombinedSignatureMsg = rhs->candidateCombinedSignatureMsg;
-    rhs->candidateCombinedSignatureMsg = nullptr;
-  }
-
   ~CollectorOfThresholdSignatures() { resetAndFree(); }
 
   bool addMsgWithPartialSignature(PART* partialSigMsg, ReplicaId repId) {
