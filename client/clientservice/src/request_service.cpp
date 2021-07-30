@@ -20,8 +20,8 @@
 using grpc::Status;
 using grpc::ServerContext;
 
-using vmware::concord::client::v1::Request;
-using vmware::concord::client::v1::Response;
+using vmware::concord::client::request::v1::Request;
+using vmware::concord::client::request::v1::Response;
 
 namespace cc = concord::client::concordclient;
 

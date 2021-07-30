@@ -10,7 +10,7 @@
 // file.
 
 #include <grpcpp/grpcpp.h>
-#include <concord_client.grpc.pb.h>
+#include <event.grpc.pb.h>
 #include <memory>
 
 #include "Logger.hpp"
@@ -18,13 +18,13 @@
 
 namespace concord::client::clientservice {
 
-class EventServiceImpl final : public vmware::concord::client::v1::EventService::Service {
+class EventServiceImpl final : public vmware::concord::client::event::v1::EventService::Service {
  public:
   EventServiceImpl(std::shared_ptr<concord::client::concordclient::ConcordClient> client)
       : logger_(logging::getLogger("concord.client.clientservice.event")), client_(client){};
   grpc::Status Subscribe(grpc::ServerContext* context,
-                         const vmware::concord::client::v1::SubscribeRequest* request,
-                         grpc::ServerWriter<vmware::concord::client::v1::SubscribeResponse>* stream) override;
+                         const vmware::concord::client::event::v1::SubscribeRequest* request,
+                         grpc::ServerWriter<vmware::concord::client::event::v1::SubscribeResponse>* stream) override;
 
  private:
   logging::Logger logger_;

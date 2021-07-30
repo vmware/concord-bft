@@ -29,8 +29,8 @@ class ClientService {
 
   void start(const std::string& addr);
 
-  const std::string kRequestService{"vmware.concord.client.v1.RequestService"};
-  const std::string kEventService{"vmware.concord.client.v1.EventService"};
+  const std::string kRequestService{"vmware.concord.client.request.v1.RequestService"};
+  const std::string kEventService{"vmware.concord.client.event.v1.EventService"};
 
  private:
   logging::Logger logger_;
