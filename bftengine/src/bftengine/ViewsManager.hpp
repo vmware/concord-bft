@@ -143,11 +143,12 @@ class ViewsManager {
     return complainedReplicas.getComplaintFromReplica(replicaId);
   }
 
-  void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
-  bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
-  void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(); }
+  void clearComplaintsForHigherView() { complainedReplicasForHigherView.clear(), targetView = 0; }
 
   void addComplaintsToStatusMessage(ReplicaStatusMsg &replicaStatusMessage) const;
+  void fillPropertiesOfStatusMessage(ReplicaStatusMsg &replicaStatusMsg,
+                                     const ReplicasInfo *const replicasInfo,
+                                     const SeqNum lastStableSeqNum);
 
   ViewChangeMsg *prepareViewChangeMsgAndSetHigherView(ViewNum nextView,
                                                       const bool wasInPrevViewNumber,
@@ -171,6 +172,8 @@ class ViewsManager {
 
   bool hasMissingMsgs(SeqNum currentLastStable);
 
+  void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
+  bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
   ///////////////////////////////////////////////////////////////////////////
   // consts
   ///////////////////////////////////////////////////////////////////////////
@@ -196,6 +199,8 @@ class ViewsManager {
 
   Stat stat;
   ViewNum myCurrentView;
+  // This is the view that the complaints for higher view are aiming for.
+  ViewNum targetView;
   // myLatestPendingView always >=  myLatestActiveView
   ViewNum myLatestActiveView;
   ViewNum myLatestPendingView;
