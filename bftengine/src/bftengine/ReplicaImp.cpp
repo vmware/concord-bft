@@ -3815,10 +3815,10 @@ ReplicaImp::ReplicaImp(bool firstTime,
   else
     retransmissionsManager = nullptr;
 
-  ticks_gen_ = std::make_shared<concord::cron::TicksGenerator>(internalBFTClient_,
-                                                               *clientsManager,
-                                                               msgsCommunicator_->getIncomingMsgsStorage(),
-                                                               config.ticksGeneratorPollPeriod);
+  ticks_gen_ = concord::cron::TicksGenerator::create(internalBFTClient_,
+                                                     *clientsManager,
+                                                     msgsCommunicator_->getIncomingMsgsStorage(),
+                                                     config.ticksGeneratorPollPeriod);
 
   if (currentViewIsActive()) {
     time_in_active_view_.start();

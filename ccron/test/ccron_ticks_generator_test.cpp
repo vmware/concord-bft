@@ -37,24 +37,25 @@ class ccron_ticks_generator_test : public ::testing::Test {
   std::shared_ptr<test::InternalBFTClientMock> bft_client_ = std::make_shared<test::InternalBFTClientMock>();
   test::PendingRequestMock pending_req_;
   std::shared_ptr<test::IncomingMsgsStorageMock> msgs_ = std::make_shared<test::IncomingMsgsStorageMock>();
-  test::TicksGeneratorForTest gen_{bft_client_, pending_req_, msgs_};
+  std::shared_ptr<test::TicksGeneratorForTest> gen_ =
+      test::TicksGeneratorForTest::create(bft_client_, pending_req_, msgs_);
 
   static std::chrono::steady_clock::time_point now() { return std::chrono::steady_clock::now(); }
 };
 
 TEST_F(ccron_ticks_generator_test, no_ticks_if_not_started) {
-  gen_.evaluateTimers(now() + 10s);
-  gen_.evaluateTimers(now() + 11s);
+  gen_->evaluateTimers(now() + 10s);
+  gen_->evaluateTimers(now() + 11s);
 
   ASSERT_TRUE(msgs_->internal_msgs_.empty());
 }
 
 TEST_F(ccron_ticks_generator_test, internal_tick_msg_is_generated) {
-  gen_.start(kComponentId1, 1s);
-  gen_.start(kComponentId2, 2s);
+  gen_->start(kComponentId1, 1s);
+  gen_->start(kComponentId2, 2s);
 
-  gen_.evaluateTimers(now() + 1s);
-  gen_.evaluateTimers(now() + 2s);
+  gen_->evaluateTimers(now() + 1s);
+  gen_->evaluateTimers(now() + 2s);
 
   // Expect the following order: Tick{kComponentId1}, Tick{kComponentId1}, Tick{kComponentId2}
   ASSERT_EQ(3, msgs_->internal_msgs_.size());
@@ -69,65 +70,65 @@ TEST_F(ccron_ticks_generator_test, internal_tick_msg_is_generated) {
 }
 
 TEST_F(ccron_ticks_generator_test, start_updates_if_called_again) {
-  gen_.start(kComponentId1, 1s);
+  gen_->start(kComponentId1, 1s);
 
   // Should generate a tick.
-  gen_.evaluateTimers(now() + 1s);
+  gen_->evaluateTimers(now() + 1s);
   ASSERT_EQ(1, msgs_->internal_msgs_.size());
 
   // Update the period to 4s.
-  gen_.start(kComponentId1, 4s);
+  gen_->start(kComponentId1, 4s);
 
   // Should not generate a tick as we have updated the period.
-  gen_.evaluateTimers(now() + 2s);
-  gen_.evaluateTimers(now() + 3s);
+  gen_->evaluateTimers(now() + 2s);
+  gen_->evaluateTimers(now() + 3s);
   ASSERT_EQ(1, msgs_->internal_msgs_.size());
 
   // Should generate a tick with the new period.
-  gen_.evaluateTimers(now() + 4s);
+  gen_->evaluateTimers(now() + 4s);
   ASSERT_EQ(2, msgs_->internal_msgs_.size());
 
   // Should not generate a tick.
-  gen_.evaluateTimers(now() + 7s);
+  gen_->evaluateTimers(now() + 7s);
   ASSERT_EQ(2, msgs_->internal_msgs_.size());
 
   // Should generate a tick.
-  gen_.evaluateTimers(now() + 8s);
+  gen_->evaluateTimers(now() + 8s);
   ASSERT_EQ(3, msgs_->internal_msgs_.size());
 }
 
 TEST_F(ccron_ticks_generator_test, stop_tick) {
-  gen_.start(kComponentId1, 1s);
-  gen_.start(kComponentId2, 2s);
+  gen_->start(kComponentId1, 1s);
+  gen_->start(kComponentId2, 2s);
 
   // Evaluate twice and fire kComponentId1 twice and kComponentId2 once.
-  gen_.evaluateTimers(now() + 1s);
-  gen_.evaluateTimers(now() + 2s);
+  gen_->evaluateTimers(now() + 1s);
+  gen_->evaluateTimers(now() + 2s);
   ASSERT_EQ(3, msgs_->internal_msgs_.size());
 
   // Stop kComponentId1 and evaluate at 2s in the future, expecting that kComponentId2 will fire once more.
-  gen_.stop(kComponentId1);
-  gen_.evaluateTimers(now() + 4s);
+  gen_->stop(kComponentId1);
+  gen_->evaluateTimers(now() + 4s);
   ASSERT_EQ(4, msgs_->internal_msgs_.size());
 
   // Stop kComponentId2 and expect that no timer will fire further.
-  gen_.stop(kComponentId2);
-  gen_.evaluateTimers(now() + 6s);
-  gen_.evaluateTimers(now() + 8s);
+  gen_->stop(kComponentId2);
+  gen_->evaluateTimers(now() + 6s);
+  gen_->evaluateTimers(now() + 8s);
   ASSERT_EQ(4, msgs_->internal_msgs_.size());
 }
 
 TEST_F(ccron_ticks_generator_test, is_generating) {
-  ASSERT_FALSE(gen_.isGenerating(kComponentId1));
-  gen_.start(kComponentId1, 1s);
-  ASSERT_TRUE(gen_.isGenerating(kComponentId1));
-  gen_.stop(kComponentId1);
-  ASSERT_FALSE(gen_.isGenerating(kComponentId1));
+  ASSERT_FALSE(gen_->isGenerating(kComponentId1));
+  gen_->start(kComponentId1, 1s);
+  ASSERT_TRUE(gen_->isGenerating(kComponentId1));
+  gen_->stop(kComponentId1);
+  ASSERT_FALSE(gen_->isGenerating(kComponentId1));
 }
 
 TEST_F(ccron_ticks_generator_test, client_request_msg_is_generated) {
   // Generate an internal tick.
-  gen_.onInternalTick({kComponentId1});
+  gen_->onInternalTick({kComponentId1});
 
   // Make sure we have converted the internal tick into a ClientRequestMsg tick.
   ASSERT_EQ(1, bft_client_->requests_.size());
@@ -139,17 +140,24 @@ TEST_F(ccron_ticks_generator_test, client_request_msg_is_generated) {
   deserialize(request1.contents, payload1);
   ASSERT_EQ(kComponentId1, payload1.component_id);
 
-  // Simulate the onMessage<ClientRequestMsg>() method marking the request pending in ReplicaImp.
+  // Make sure that we don't generate more ClientRequestMsg ticks until the one for component ID 1 is in the external
+  // message queue.
+  gen_->onInternalTick({kComponentId1});
+  ASSERT_EQ(1, bft_client_->requests_.size());
+  ASSERT_EQ(request1, bft_client_->requests_[0]);
+
+  // Simulate the replica consuming the tick in the external message queue by:
+  //  - "removing" the tick from the external message queue and verifying no tick is added
+  //  - calling the onMessage<ClientRequestMsg>() method and marking the request pending in ReplicaImp
+  // At the end, verify no ClientRequestMsg ticks are generated.
+  gen_->onTickPoppedFromExtQueue(kComponentId1);
   pending_req_.addPending(bft_client_->getClientId(), seq_num1);
   ASSERT_TRUE(pending_req_.isPending(bft_client_->getClientId(), seq_num1));
-
-  // Make sure that we don't generate more ClientRequestMsg ticks until the one for component ID 1 is no longer pending.
-  gen_.onInternalTick({kComponentId1});
   ASSERT_EQ(1, bft_client_->requests_.size());
   ASSERT_EQ(request1, bft_client_->requests_[0]);
 
   // ClientRequestMsg ticks for another component are generated.
-  gen_.onInternalTick({kComponentId2});
+  gen_->onInternalTick({kComponentId2});
   ASSERT_EQ(2, bft_client_->requests_.size());
   const auto seq_num2 = std::prev(bft_client_->requests_.cend())->first;
   const auto request2 = std::prev(bft_client_->requests_.cend())->second;
@@ -162,16 +170,15 @@ TEST_F(ccron_ticks_generator_test, client_request_msg_is_generated) {
 
   // Again, make sure that we don't generate more ClientRequestMsg ticks until the one for component ID 1 is pending,
   // even after ticks for another component ID have been generated.
-  gen_.onInternalTick({kComponentId1});
+  gen_->onInternalTick({kComponentId1});
   ASSERT_EQ(2, bft_client_->requests_.size());
-  ASSERT_EQ(request1, bft_client_->requests_[0]);
 
-  // Simulate that a successful ClientRequestMsg tick has been processed.
+  // Simulate that a successful ClientRequestMsg tick has been committed.
   pending_req_.removePending(bft_client_->getClientId(), seq_num1);
   ASSERT_FALSE(pending_req_.isPending(bft_client_->getClientId(), seq_num1));
 
-  // Generate a second internal tick.
-  gen_.onInternalTick({kComponentId1});
+  // Generate a second internal tick for component ID 1.
+  gen_->onInternalTick({kComponentId1});
   ASSERT_EQ(3, bft_client_->requests_.size());
   const auto seq_num3 = std::prev(bft_client_->requests_.cend())->first;
   const auto request3 = std::prev(bft_client_->requests_.cend())->second;
