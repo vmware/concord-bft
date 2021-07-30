@@ -14,6 +14,7 @@
 #include "client/thin-replica-client/trc_hash.hpp"
 
 #include <map>
+#include <set>
 
 #include "boost/detail/endian.hpp"
 #include "assertUtils.hpp"
@@ -22,6 +23,7 @@ using com::vmware::concord::thin_replica::Data;
 using std::invalid_argument;
 using std::list;
 using std::map;
+using std::set;
 using std::string;
 
 namespace client::thin_replica_client {
@@ -68,40 +70,80 @@ static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, str
   return ComputeSHA256Hash(concatenated_entry_hashes);
 }
 
-string hashUpdate(const EventVariant& update) {
-  if (std::holds_alternative<EventGroup>(update)) {
-    // TODO: Event Group hashes
-    return std::string();
+static string hashUpdateFromEntryHashes(uint64_t id, const set<string>& entry_hashes) {
+  string concatenated_entry_hashes;
+  concatenated_entry_hashes.reserve(sizeof(id) + entry_hashes.size() * kExpectedSHA256HashLengthInBytes);
+
+#ifdef BOOST_LITTLE_ENDIAN
+  concatenated_entry_hashes.append(reinterpret_cast<const char*>(&(id)), sizeof(id));
+#else  // BOOST_LITTLE_ENDIAN not defined in this case
+#ifndef BOOST_BIG_ENDIAN
+  static_assert(false,
+                "Cannot determine endianness (needed for Thin Replica "
+                "mechanism hash function).");
+#endif  // BOOST_BIG_ENDIAN defined
+  const char* id_as_bytes = reinterpret_cast<const char*>(&(id));
+  for (size_t i = 1; i <= sizeof(id); ++i) {
+    concatenated_entry_hashes.append((id_as_bytes + (sizeof(id) - i)), 1);
   }
-  auto& legacy_event = std::get<Update>(update);
-  map<string, string> entry_hashes;
-  for (const auto& kvp : legacy_event.kv_pairs) {
-    string key_hash = ComputeSHA256Hash(kvp.first);
-    if (entry_hashes.count(key_hash) > 0) {
-      throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
-    }
-    entry_hashes[key_hash] = ComputeSHA256Hash(kvp.second);
+#endif  // if BOOST_LITTLE_ENDIAN defined/else
+
+  for (const auto& hash : entry_hashes) {
+    concatenated_entry_hashes.append(hash);
   }
 
-  return hashUpdateFromEntryHashes(legacy_event.block_id, entry_hashes);
+  return ComputeSHA256Hash(concatenated_entry_hashes);
+}
+
+string hashUpdate(const EventVariant& ev) {
+  if (std::holds_alternative<Update>(ev)) {
+    auto& legacy_event = std::get<Update>(ev);
+    map<string, string> entry_hashes;
+    for (const auto& kvp : legacy_event.kv_pairs) {
+      string key_hash = ComputeSHA256Hash(kvp.first);
+      if (entry_hashes.count(key_hash) > 0) {
+        throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
+      }
+      entry_hashes[key_hash] = ComputeSHA256Hash(kvp.second);
+    }
+
+    return hashUpdateFromEntryHashes(legacy_event.block_id, entry_hashes);
+  }
+
+  ConcordAssert(std::holds_alternative<EventGroup>(ev));
+  auto& event_group = std::get<EventGroup>(ev);
+  set<string> entry_hashes;
+  for (const auto& event : event_group.events) {
+    string event_hash = ComputeSHA256Hash(event);
+    ConcordAssert(entry_hashes.count(event_hash) < 1);
+    entry_hashes.emplace(event_hash);
+  }
+
+  return hashUpdateFromEntryHashes(event_group.id, entry_hashes);
 }
 
 string hashUpdate(const Data& update) {
-  if (update.has_event_group()) {
-    // TODO: Support Event Group hashes
-    return string();
-  }
-  ConcordAssert(update.has_events());
-  map<string, string> entry_hashes;
-  for (const auto& kvp : update.events().data()) {
-    string key_hash = ComputeSHA256Hash(kvp.key());
-    if (entry_hashes.count(key_hash) > 0) {
-      throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
+  if (update.has_events()) {
+    map<string, string> entry_hashes;
+    for (const auto& kvp : update.events().data()) {
+      string key_hash = ComputeSHA256Hash(kvp.key());
+      if (entry_hashes.count(key_hash) > 0) {
+        throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
+      }
+      entry_hashes[key_hash] = ComputeSHA256Hash(kvp.value());
     }
-    entry_hashes[key_hash] = ComputeSHA256Hash(kvp.value());
+
+    return hashUpdateFromEntryHashes(update.events().block_id(), entry_hashes);
+  }
+  ConcordAssert(update.has_event_group());
+  set<string> entry_hashes;
+  for (const auto& event : update.event_group().events()) {
+    string event_hash = ComputeSHA256Hash(event);
+    ConcordAssert(entry_hashes.count(event_hash) < 1);
+    entry_hashes.emplace(event_hash);
   }
 
-  return hashUpdateFromEntryHashes(update.events().block_id(), entry_hashes);
+  return hashUpdateFromEntryHashes(update.event_group().id(), entry_hashes);
 }
 
 string hashState(const list<string>& state) {
