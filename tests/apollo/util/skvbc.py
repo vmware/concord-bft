@@ -14,14 +14,19 @@ import struct
 import copy
 import random
 import trio
+import time
 
 from collections import namedtuple
 from util.skvbc_exceptions import BadReplyError
 from util import eliot_logging as log
 from util import bft
+from enum import Enum
 
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
+class ExitPolicy(Enum):
+    COUNT = 0
+    TIME = 1
 
 class SimpleKVBCProtocol:
     KV_LEN = 21  ## SimpleKVBC requies fixed size keys and values right now
@@ -227,6 +232,38 @@ class SimpleKVBCProtocol:
                 verify_checkpoint_persistency=persistency_enabled)
 
             return client, known_key, known_val
+    
+    async def write_with_multiple_clients_for_state_transfer(
+            self, stale_nodes,
+            write_run_duration=10,
+            persistency_enabled=True):
+        with log.start_action(action_type="write_with_multiple_clients_for_state_transfer"):
+            initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
+            self.bft_network.start_all_replicas()
+            self.bft_network.stop_replicas(stale_nodes)
+            client = self.bft_network.random_client()
+            # Write a KV pair with a known value
+            known_key = self.unique_random_key()
+            known_val = self.random_value()
+            known_kv = [(known_key, known_val)]
+            reply = await self.send_write_kv_set(client, known_kv)
+            assert reply.success
+            max_concurrency = len(self.bft_network.clients) #10
+            max_size = len(self.keys) // 2
+            write_weight=.70
+            # Fill up the initial nodes with data, checkpoint them and stop
+            # them. Then bring them back up and ensure the checkpoint data is
+            # there.
+            await self.send_concurrent_ops(write_run_duration,max_concurrency,max_size,write_weight,
+                False, ExitPolicy.TIME)
+            await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes)
+            await self.network_wait_for_checkpoint(
+                initial_nodes,
+                expected_checkpoint_num=None,
+                verify_checkpoint_persistency=persistency_enabled,
+                assert_state_transfer_not_started=True)
+
+            return client, known_key, known_val
 
     async def fill_and_wait_for_checkpoint(
             self, initial_nodes,
@@ -262,7 +299,7 @@ class SimpleKVBCProtocol:
                 expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + num_of_checkpoints_to_add,
                 verify_checkpoint_persistency=verify_checkpoint_persistency,
                 assert_state_transfer_not_started=assert_state_transfer_not_started)
-
+    
     async def network_wait_for_checkpoint(
             self, initial_nodes,
             expected_checkpoint_num=lambda ecn: ecn == 2,
@@ -276,6 +313,10 @@ class SimpleKVBCProtocol:
             # Wait for initial replicas to take checkpoints (exhausting
             # the full window)
             await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
+            
+            if expected_checkpoint_num == None:
+                expected_checkpoint_num= await self.bft_network.wait_for_checkpoint(
+                replica_id=random.choice(initial_nodes))
 
             if verify_checkpoint_persistency:
                 # Stop the initial replicas to ensure the checkpoints get persisted
@@ -482,16 +523,38 @@ class SimpleKVBCProtocol:
         max_size = len(self.keys) // 2
         return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
-    async def send_concurrent_ops(self, num_ops, max_concurrency, max_size, write_weight, create_conflicts=False):
+    async def send_concurrent_ops(
+            self, 
+            exit_factor, 
+            max_concurrency, 
+            max_size, 
+            write_weight, 
+            create_conflicts=False, 
+            exit_policy=ExitPolicy.COUNT):
+        """
+        exit_factor should be number of seconds to run if exit_policy is TIME
+        and number of times to run if exit_policy is COUNT
+        """ 
         max_read_set_size = max_size
         if self.tracker is not None:
             max_read_set_size = 0 if self.tracker.no_conflicts else max_size
         sent = 0
         write_count = 0
         read_count = 0
+        total_run_duration = 0 
+        if exit_policy is ExitPolicy.TIME:
+            total_run_duration = time.time() + exit_factor  
         clients = self.bft_network.random_clients(max_concurrency)
+
+        def exit_predicate():
+            if  exit_policy is ExitPolicy.COUNT:
+                return sent < exit_factor
+            if  exit_policy is ExitPolicy.TIME:
+                return time.time() < total_run_duration
+            assert False, "Unknown exit policy"
+
         with log.start_action(action_type="send_concurrent_ops"):
-            while sent < num_ops:
+            while exit_predicate():
                 readset = self.readset(0, max_read_set_size)
                 writeset = self.writeset(0, readset)
                 read_version = 0

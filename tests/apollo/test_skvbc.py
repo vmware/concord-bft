@@ -45,34 +45,6 @@ class SkvbcTest(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
 
     @with_trio
-    @with_bft_network(start_replica_cmd, rotate_keys=True)
-    async def test_state_transfer(self, bft_network,exchange_keys=True):
-        """
-        Test that state transfer starts and completes.
-
-        Stop one node, add a bunch of data to the rest of the cluster, restart
-        the node and verify state transfer works as expected. We should be able
-        to stop a different set of f nodes after state transfer completes and
-        still operate correctly.
-        """
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-
-        stale_node = random.choice(
-            bft_network.all_replicas(without={0}))
-
-        await skvbc.prime_for_state_transfer(
-            stale_nodes={stale_node},
-            checkpoints_num=3, # key-exchange channges the last executed seqnum
-            persistency_enabled=False
-        )
-        bft_network.start_replica(stale_node)
-        await bft_network.wait_for_state_transfer_to_start()
-        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
-        await skvbc.assert_successful_put_get()
-        await bft_network.force_quorum_including_replica(stale_node)
-        await skvbc.assert_successful_put_get()
-
-    @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_request_missing_data_from_previous_window(self, bft_network, exchange_keys=True):
         """
