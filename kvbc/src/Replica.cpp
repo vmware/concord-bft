@@ -33,6 +33,10 @@
 #include "bftengine/ControlHandler.hpp"
 #include "throughput.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "bftengine/ReconfigurationCmd.hpp"
+#include "client/reconfiguration/st_based_reconfiguration_client.hpp"
+#include "client/reconfiguration/st_based_reconfiguration_handler.hpp"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -58,6 +62,12 @@ Status Replica::initInternals() {
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
+    m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
+      std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
+      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages)) {
+        creClient_->pushUpdate(stateFromReservedPages);
+      }
+    });
   } else {
     createReplicaAndSyncState();
   }
@@ -83,7 +93,7 @@ Status Replica::start() {
   }
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
-
+  startRoReplicaCreEngine();
   /// TODO(IG, GG)
   /// add return value to start/stop
 
@@ -217,9 +227,33 @@ void Replica::handleNewEpochEvent() {
       throw;
     }
     bftEngine::EpochManager::instance().markEpochAsStarted();
+    // update reserved pages with reconfiguration command from previous epoch
+    saveReconfigurationCmdToResPages<concord::messages::AddRemoveWithWedgeCommand>(
+        std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
   }
   LOG_INFO(logger, "replica epoch is: " << epoch);
   bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
+}
+template <typename T>
+void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
+  auto res = getLatest(kvbc::kConcordInternalCategoryId, key);
+  if (res.has_value()) {
+    auto blockid = getLatestVersion(kvbc::kConcordInternalCategoryId, key).value().version;
+    auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
+    T cmd;
+    std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+    concord::messages::deserialize(bytesval, cmd);
+    concord::messages::ReconfigurationRequest rreq;
+    rreq.command = cmd;
+    auto sequenceNum =
+        getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, blockid);
+    auto epochNum =
+        getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
+    auto wedgePoint = (sequenceNum + 2 * checkpointWindowSize);
+    wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
+    bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
+        rreq, key, blockid, wedgePoint, epochNum);
+  }
 }
 void Replica::createReplicaAndSyncState() {
   ConcordAssert(m_kvBlockchain.has_value());
@@ -405,7 +439,7 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 1000),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
     replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
-    replicaConfig_.get("concord.bft.st.enableReservedPages", !replicaConfig_.isReadOnly),
+    replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
   };
 
@@ -452,6 +486,7 @@ Replica::Replica(ICommunication *comm,
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
+  bftEngine::ReconfigurationCmd::instance().setAggregator(aggregator);
 }
 
 Replica::~Replica() {
@@ -460,6 +495,7 @@ Replica::~Replica() {
       m_replicaPtr->stop();
     }
   }
+  if (creEngine_) creEngine_->stop();
 }
 
 /*
@@ -704,6 +740,29 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
     LOG_FATAL(logger, "Block not found for parent digest, ID: " << blockId << " " << e.what());
     throw;
   }
+}
+BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
+  if (replicaConfig_.isReadOnly) {
+    return m_bcDbAdapter->getLastKnownReconfigurationCmdBlock();
+  }
+  return 0;
+}
+void Replica::setLastKnownReconfigCmdBlockNum(const BlockId &blockId) {
+  if (replicaConfig_.isReadOnly) {
+    m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(blockId);
+  }
+}
+void Replica::startRoReplicaCreEngine() {
+  concord::client::reconfiguration::Config cre_config;
+  BlockId id = getLastKnownReconfigCmdBlockNum();
+  creClient_.reset(new concord::client::reconfiguration::STBasedReconfigurationClient(id));
+  cre_config.id_ = replicaConfig_.replicaId;
+  cre_config.interval_timeout_ms_ = 1000;
+  creEngine_.reset(
+      new concord::client::reconfiguration::ClientReconfigurationEngine(cre_config, creClient_.get(), aggregator_));
+  creEngine_->registerHandler(std::make_shared<concord::client::reconfiguration::STBasedReconfigurationHandler>(
+      [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }));
+  creEngine_->start();
 }
 
 }  // namespace concord::kvbc

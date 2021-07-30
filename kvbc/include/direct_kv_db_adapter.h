@@ -163,6 +163,8 @@ class DBAdapter : public IDbAdapter {
   BlockDigest getParentDigest(const RawBlock &rawBlock) const override;
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
+  virtual BlockId getLastKnownReconfigurationCmdBlock() const override;
+  virtual void setLastKnownReconfigurationCmdBlock(const BlockId &blockId) override;
 
  protected:
   void setLastReachableBlockNum(const BlockId &blockId);
@@ -186,6 +188,7 @@ class DBAdapter : public IDbAdapter {
   bool mdt_ = false;  // whether we explicitly store blockchain metadata
   BlockId lastBlockId_ = 0;
   BlockId lastReachableBlockId_ = 0;
+  BlockId lastKnownReconfigurationCmdBlock_ = 0;
   bool saveKvPairsSeparately_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };

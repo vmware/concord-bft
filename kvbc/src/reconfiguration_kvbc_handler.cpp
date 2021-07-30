@@ -13,6 +13,7 @@
 #include "reconfiguration_kvbc_handler.hpp"
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "bftengine/ReconfigurationCmd.hpp"
 #include "endianness.hpp"
 
 namespace concord::kvbc::reconfiguration {
@@ -233,6 +234,18 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                         std::string(wedge_buf.begin(), wedge_buf.end()));
   auto blockId = persistReconfigurationBlock(ver_updates, sequence_number);
   LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
+  // update reserved pages for RO replica
+  auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  auto wedgePoint = (sequence_number + 2 * checkpointWindowSize);
+  wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
+  concord::messages::ReconfigurationRequest rreqWithoutSignature;
+  rreqWithoutSignature.command = command;
+  bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
+      rreqWithoutSignature,
+      std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1},
+      blockId,
+      wedgePoint,
+      epochNum);
   return true;
 }
 
