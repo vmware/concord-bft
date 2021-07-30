@@ -42,18 +42,6 @@ PartialProofsSet::PartialProofsSet(InternalReplicaApi* const rep)
 
 PartialProofsSet::~PartialProofsSet() { resetAndFree(); }
 
-void PartialProofsSet::acquire(PartialProofsSet* rhs) {
-  fullCommitProof = rhs->fullCommitProof;
-  rhs->fullCommitProof = nullptr;
-  selfPartialCommitProof = rhs->selfPartialCommitProof;
-  rhs->selfPartialCommitProof = nullptr;
-  prePrepare_ = rhs->prePrepare_;
-  rhs->prePrepare_ = nullptr;
-  participatingReplicasInFast = rhs->participatingReplicasInFast;
-  participatingReplicasInOptimisticFast = rhs->participatingReplicasInOptimisticFast;
-  expectedDigest = rhs->expectedDigest;
-}
-
 void PartialProofsSet::resetAndFree() {
   seqNumber = 0;
   if (fullCommitProof) delete fullCommitProof;
