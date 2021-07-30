@@ -67,6 +67,7 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   }
 
   auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
+  decltype(+expectedSignatureCount) numReplicas = 0;
   for (const auto& s : sigs) {
     bool verificationResult = false;
     if (myReplicaId == s.sender_replica) {
@@ -84,6 +85,9 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
       err << "PreProcessResult signatures validation failure - invalid signature from replica " << s.sender_replica
           << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
       return err.str();
+    } else {
+      numReplicas++;
+      if (numReplicas == (expectedSignatureCount + 1)) break;
     }
   }
 

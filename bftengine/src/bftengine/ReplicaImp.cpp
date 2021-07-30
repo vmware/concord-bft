@@ -48,6 +48,7 @@
 #include "bftengine/KeyExchangeManager.hpp"
 #include "secrets_manager_plain.h"
 #include "bftengine/EpochManager.hpp"
+#include "RequestThreadPool.hpp"
 #include <memory>
 #include <optional>
 #include <string>
@@ -687,25 +688,37 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
 
 bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg,
                                              const bftEngine::impl::ReplicasInfo &replicasInfo) {
+  TimeRecorder scoped_timer(*histograms_.validatePreProcessedResults);
   RequestsIterator reqIter(msg);
   char *requestBody = nullptr;
+  std::vector<std::future<void>> tasks;
+  std::vector<std::optional<std::string>> errors(msg->numberOfRequests());
+  size_t error_id = 0;
+
   while (reqIter.getAndGoToNext(requestBody)) {
     const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
     if (hdr->msgType == MsgCode::PreProcessResult) {
-      preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
-
-      if (auto err = req.validatePreProcessResultSignatures(getReplicaConfig().replicaId, getReplicaConfig().fVal);
-          err) {
-        // trigger view change
-        LOG_INFO(VC_LOG,
-                 "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
-                     << *err << ". Ask to leave view " << getCurrentView());
-        askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
-        return false;
-      }
-    } else {
-      // ClientRequest messages are handled in PrePrepare::validate()
-      continue;
+      tasks.push_back(RequestThreadPool::getThreadPool().async(
+          [&errors, requestBody, error_id](auto replicaId, auto fVal) {
+            preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
+            errors[error_id] = req.validatePreProcessResultSignatures(replicaId, fVal);
+          },
+          getReplicaConfig().replicaId,
+          getReplicaConfig().fVal));
+    }
+    error_id++;
+  }
+  for (const auto &t : tasks) {
+    t.wait();
+  }
+  for (auto err : errors) {
+    if (err) {
+      // trigger view change
+      LOG_INFO(VC_LOG,
+               "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
+                   << *err << ". Ask to leave view " << getCurrentView());
+      askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+      return false;
     }
   }
   return true;

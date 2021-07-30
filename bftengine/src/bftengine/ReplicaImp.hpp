@@ -486,7 +486,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isSeqNumToStopAt(SeqNum seq_num);
 
   bool validatePreProcessedResults(const PrePrepareMsg* msg, const bftEngine::impl::ReplicasInfo& replicasInfo);
-  bool validatePreProcessResultSignatures(preprocessor::PreProcessResultMsg& msg);
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
@@ -518,6 +517,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         buildPrePrepareMessage,
                                         startConsensusProcess,
                                         finishAddingRequestsToPrePrepareMsg,
+                                        validatePreProcessedResults,
                                         addAllRequestsToPrePrepare,
                                         addSelfMsgPrePrepare,
                                         prePrepareWriteTransaction,
@@ -552,6 +552,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     DEFINE_SHARED_RECORDER(buildPrePrepareMessage, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(startConsensusProcess, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(finishAddingRequestsToPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(validatePreProcessedResults, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(addAllRequestsToPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(addSelfMsgPrePrepare, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(prePrepareWriteTransaction, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
