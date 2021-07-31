@@ -125,4 +125,18 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
               uint64_t bft_seq_num,
               concord::messages::ReconfigurationResponse&) override;
 };
+
+class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
+                                             public ReconfigurationBlockTools {
+ public:
+  InternalPostKvReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
+      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+    return true;
+  }
+
+  bool handle(const concord::messages::ClientExchangePublicKey& command,
+              uint64_t sequence_number,
+              concord::messages::ReconfigurationResponse& response) override;
+};
 }  // namespace concord::kvbc::reconfiguration

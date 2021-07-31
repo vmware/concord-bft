@@ -150,6 +150,9 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
+  requestHandler->setReconfigurationHandler(
+      std::make_shared<kvbc::reconfiguration::InternalPostKvReconfigurationHandler>(*this, *this),
+      concord::reconfiguration::ReconfigurationHandlerType::POST);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
