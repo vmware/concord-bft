@@ -56,59 +56,58 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     ConcordAssert(false);
   }
 
-  auto callback = [this, stream](cc::SubscribeResult&& subscribe_result) {
-    SubscribeResponse response;
-
-    if (std::holds_alternative<cc::SubscribeError>(subscribe_result)) {
-      // TODO: Map subscribe errors to gRPC errors
-      LOG_ERROR(logger_, "TODO: Communicate error to gRPC");
-      return;
-    } else if (std::holds_alternative<cc::EventGroup>(subscribe_result)) {
-      auto event_group = std::get<cc::EventGroup>(subscribe_result);
-      EventGroup proto_event_group;
-      proto_event_group.set_id(event_group.id);
-      for (cc::Event e : event_group.events) {
-        *proto_event_group.add_events() = std::string(e.begin(), e.end());
-      }
-      *proto_event_group.mutable_record_time() = TimeUtil::MicrosecondsToTimestamp(event_group.record_time.count());
-      *proto_event_group.mutable_trace_context() = {event_group.trace_context.begin(), event_group.trace_context.end()};
-
-      *response.mutable_event_group() = proto_event_group;
-
-    } else if (std::holds_alternative<cc::LegacyEvent>(subscribe_result)) {
-      auto result = std::get<cc::LegacyEvent>(subscribe_result);
-      Events proto_events;
-      proto_events.set_block_id(result.block_id);
-      for (auto& [key, value] : result.events) {
-        Event proto_event;
-        *proto_event.mutable_event_key() = std::move(key);
-        *proto_event.mutable_event_value() = std::move(value);
-        *proto_events.add_events() = proto_event;
-      }
-      proto_events.set_correlation_id(result.correlation_id);
-      // TODO: Set trace context
-
-      *response.mutable_events() = proto_events;
-
-    } else {
-      // Should be unreachable
-      LOG_ERROR(logger_, "Subscribe returned with unexpected type");
-      return;
-    }
-
-    stream->Write(response);
-  };
-
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
+  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue;
   try {
-    client_->subscribe(request, span, callback);
+    trc_queue = client_->subscribe(request, span);
   } catch (cc::ConcordClient::SubscriptionExists& e) {
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
   }
 
   // TODO: Consider all gRPC return error codes as described in concord_client.proto
   while (!context->IsCancelled()) {
-    std::this_thread::sleep_for(10ms);
+    SubscribeResponse response;
+    auto update = trc_queue->TryPop();
+    if (not update) {
+      // We need to check if the client cancelled the subscription.
+      // Therefore, we cannot block via Pop(). Can we do bettern than sleep?
+      std::this_thread::sleep_for(10ms);
+      continue;
+    }
+
+    if (std::holds_alternative<::client::thin_replica_client::EventGroup>(*update)) {
+      auto& event_group_in = std::get<::client::thin_replica_client::EventGroup>(*update);
+      EventGroup proto_event_group;
+      proto_event_group.set_id(event_group_in.id);
+      for (const auto& event : event_group_in.events) {
+        *proto_event_group.add_events() = std::string(event.begin(), event.end());
+      }
+      *proto_event_group.mutable_record_time() = TimeUtil::MicrosecondsToTimestamp(event_group_in.record_time.count());
+      *proto_event_group.mutable_trace_context() = {event_group_in.trace_context.begin(),
+                                                    event_group_in.trace_context.end()};
+
+      *response.mutable_event_group() = proto_event_group;
+      stream->Write(response);
+
+    } else if (std::holds_alternative<::client::thin_replica_client::Update>(*update)) {
+      auto& legacy_event_in = std::get<::client::thin_replica_client::Update>(*update);
+      Events proto_events;
+      proto_events.set_block_id(legacy_event_in.block_id);
+      for (auto& [key, value] : legacy_event_in.kv_pairs) {
+        Event proto_event;
+        *proto_event.mutable_event_key() = std::move(key);
+        *proto_event.mutable_event_value() = std::move(value);
+        *proto_events.add_events() = proto_event;
+      }
+      proto_events.set_correlation_id(legacy_event_in.correlation_id_);
+      // TODO: Set trace context
+
+      *response.mutable_events() = proto_events;
+      stream->Write(response);
+
+    } else {
+      LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
+    }
   }
 
   client_->unsubscribe();
