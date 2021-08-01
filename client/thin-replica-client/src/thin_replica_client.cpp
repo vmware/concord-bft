@@ -298,7 +298,11 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
   config_->trs_conns[server_index]->cancelHashStream();
 
   SubscriptionRequest request;
-  request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
+  if (is_event_group_stream_) {
+    request.mutable_event_groups()->set_event_group_id(latest_verified_event_group_id_ + 1);
+  } else {
+    request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
+  }
   return config_->trs_conns[server_index]->openHashStream(request);
 }
 
@@ -581,22 +585,24 @@ void ThinReplicaClient::receiveUpdates() {
 
     auto update = std::make_unique<EventVariant>();
     if (update_in.has_event_group()) {
-      auto& event_group = std::get<EventGroup>(*update);
+      EventGroup event_group;
       event_group.id = update_in.event_group().id();
       for (auto& event : update_in.event_group().events()) {
         event_group.events.push_back(event);
       }
       // TODO: Set trace context
       latest_verified_event_group_id_ = event_group.id;
+      update->emplace<EventGroup>(std::move(event_group));
     } else {
       ConcordAssert(update_in.has_events());
-      auto& legacy_event = std::get<Update>(*update);
+      Update legacy_event;
       legacy_event.block_id = update_in.events().block_id();
       legacy_event.correlation_id_ = update_in.events().correlation_id();
       for (const auto& kvp_in : update_in.events().data()) {
         legacy_event.kv_pairs.push_back(make_pair(kvp_in.key(), kvp_in.value()));
       }
       latest_verified_block_id_ = legacy_event.block_id;
+      update->emplace<Update>(std::move(legacy_event));
       TraceContexts::InjectSpan(span, *update);
     }
 

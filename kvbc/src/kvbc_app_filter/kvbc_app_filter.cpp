@@ -196,7 +196,7 @@ string KvbAppFilter::hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &upd
   auto &[event_group_id, event_group] = update;
 
   for (const auto &event : event_group.events) {
-    string event_hash = computeSHA256Hash(event.data.data(), event.data.length());
+    string event_hash = computeSHA256Hash(event.data);
     ConcordAssert(entry_hashes.count(event_hash) < 1);
     entry_hashes.emplace(event_hash);
   }
@@ -263,10 +263,19 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
                                        EventGroupId event_group_id_end,
                                        spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                                        const std::atomic_bool &stop_execution) {
-  auto last_trid_eg_id_var =
-      rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
-  const auto &val = std::get<concord::kvbc::categorization::ImmutableValue>(*last_trid_eg_id_var);
-  auto last_trid_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val.data.data());
+  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
+  if (not opt) {
+    std::stringstream msg;
+    msg << "An event group for trid \"" << client_id_ << "\" cannot be found";
+    throw std::runtime_error(msg.str());
+  }
+  auto val = std::get_if<concord::kvbc::categorization::VersionedValue>(&(*opt));
+  if (not val) {
+    std::stringstream msg;
+    msg << "Couldn't convert stored event group id to versioned value";
+    throw std::runtime_error(msg.str());
+  }
+  auto last_trid_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 
   if (event_group_id_start > event_group_id_end || event_group_id_end > last_trid_eg_id) {
     throw InvalidEventGroupRange(event_group_id_start, event_group_id_end);
@@ -314,10 +323,19 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
 }
 
 string KvbAppFilter::readEventGroupHash(EventGroupId event_group_id) {
-  auto last_trid_eg_id_var =
-      rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
-  const auto &val = std::get<concord::kvbc::categorization::ImmutableValue>(*last_trid_eg_id_var);
-  auto last_trid_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val.data.data());
+  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
+  if (not opt) {
+    std::stringstream msg;
+    msg << "An event group for the given trid cannot be found";
+    throw std::runtime_error(msg.str());
+  }
+  auto val = std::get_if<concord::kvbc::categorization::VersionedValue>(&(*opt));
+  if (not val) {
+    std::stringstream msg;
+    msg << "Couldn't convert stored event group id to versioned value";
+    throw std::runtime_error(msg.str());
+  }
+  auto last_trid_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 
   if (last_trid_eg_id && event_group_id > last_trid_eg_id) {
     throw InvalidEventGroupRange(event_group_id, event_group_id);
@@ -402,19 +420,44 @@ std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents
 }
 
 kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid) {
+  LOG_DEBUG(logger_, "getEventGroup " << event_group_id << " for " << client_id_);
   // get global_event_group_id corresponding to trid_event_group_id
   const auto key = client_id_ + concordUtils::toBigEndianStringBuffer(event_group_id);
   const auto global_eg_id_val =
       rostorage_->getLatest(concord::kvbc::categorization::kExecutionTridEventGroupsCategory, key);
-  const auto &val = std::get<concord::kvbc::categorization::ImmutableValue>(*global_eg_id_val);
-  auto global_event_group_id = concordUtils::fromBigEndianBuffer<uint64_t>(val.data.data());
+  if (not global_eg_id_val) {
+    stringstream msg;
+    msg << "Failed to get global event group for trid " << client_id_;
+    LOG_ERROR(logger_, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+  const auto val = std::get_if<concord::kvbc::categorization::ImmutableValue>(&(global_eg_id_val.value()));
+  if (not val) {
+    stringstream msg;
+    msg << "Failed to convert stored global event group for trid " << client_id_;
+    LOG_ERROR(logger_, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+  auto global_event_group_id = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 
   // get event group
-  const auto event_group = rostorage_->getLatest(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory,
-                                                 concordUtils::toBigEndianStringBuffer(global_event_group_id));
-  const auto &event_group_val = std::get<concord::kvbc::categorization::ImmutableValue>(*event_group);
-  const std::string serialized_event_group = event_group_val.data.data();
-  const std::vector<uint8_t> input_vec(serialized_event_group.begin(), serialized_event_group.end());
+  const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory,
+                                         concordUtils::toBigEndianStringBuffer(global_event_group_id));
+  if (not opt) {
+    stringstream msg;
+    msg << "Failed to get global event group " << global_event_group_id;
+    LOG_ERROR(logger_, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+  const auto imm_val = std::get_if<concord::kvbc::categorization::ImmutableValue>(&(opt.value()));
+  if (not imm_val) {
+    stringstream msg;
+    msg << "Failed to convert stored global event group " << global_event_group_id;
+    LOG_ERROR(logger_, msg.str());
+    throw std::runtime_error(msg.str());
+  }
+  // TODO: Can we avoid copying?
+  const std::vector<uint8_t> input_vec(imm_val->data.begin(), imm_val->data.end());
   concord::kvbc::categorization::EventGroup event_group_out;
   concord::kvbc::categorization::deserialize(input_vec, event_group_out);
   if (event_group_out.events.empty()) {
