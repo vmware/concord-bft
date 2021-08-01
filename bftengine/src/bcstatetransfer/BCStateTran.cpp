@@ -706,6 +706,7 @@ void BCStateTran::onTimerImp() {
   }
 
   // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
+  // sourceSnapshotCounter_ is zeroed every time fetch message is received
   if (sourceFlag_ &&
       (((++sourceSnapshotCounter_) * config_.refreshTimerMs) >= (2 * config_.fetchRetransmissionTimeoutMs))) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -1383,6 +1384,14 @@ uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t fi
   return j;
 }
 
+void BCStateTran::srcInitialize() {
+  // a new source - reset histograms and snapshot counter
+  sourceFlag_ = true;
+  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  registrar.perf.snapshot("state_transfer");
+  registrar.perf.snapshot("state_transfer_src");
+}
+
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(
@@ -1428,14 +1437,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     return false;
   }
 
-  if (!sourceFlag_) {
-    // a new source - reset histograms and snapshot counter
-    sourceFlag_ = true;
-    sourceSnapshotCounter_ = 0;
-    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    registrar.perf.snapshot("state_transfer");
-    registrar.perf.snapshot("state_transfer_src");
-  }
+  if (!sourceFlag_) srcInitialize();
+  sourceSnapshotCounter_ = 0;
 
   // start recording time to send a whole batch, and its size
   uint64_t batchSizeBytes = 0;
@@ -1639,6 +1642,9 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
 
     return false;
   }
+
+  if (!sourceFlag_) srcInitialize();
+  sourceSnapshotCounter_ = 0;
 
   // find virtual block
   DescOfVBlockForResPages descOfVBlock;

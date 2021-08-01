@@ -316,6 +316,7 @@ class BCStateTran : public IStateTransfer {
   STDigest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
 
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn);
+  void srcInitialize();
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency
