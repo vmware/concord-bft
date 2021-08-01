@@ -134,9 +134,8 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
   client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
-void ConcordClient::subscribe(const SubscribeRequest& sub_req,
-                              const std::unique_ptr<opentracing::Span>& parent_span,
-                              const std::function<void(SubscribeResult&&)>& callback) {
+std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> ConcordClient::subscribe(
+    const SubscribeRequest& sub_req, const std::unique_ptr<opentracing::Span>& parent_span) {
   if (subscriber_) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
     throw SubscriptionExists();
@@ -152,49 +151,7 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
     ConcordAssert(false);
   }
 
-  stop_subscriber_ = false;
-  subscriber_ = std::make_unique<std::thread>([&] {
-    while (not stop_subscriber_) {
-      auto update = trc_queue_->TryPop();
-      if (not update) {
-        // We need to check if the client cancelled the subscription.
-        // Therefore, we cannot block via Pop(). Can we do bettern than sleep?
-        std::this_thread::sleep_for(10ms);
-        continue;
-      }
-
-      // TODO: We fill event group with data from legacy updates.
-      // This needs to change depending on how the legacy API will be implemented.
-      if (std::holds_alternative<::client::thin_replica_client::EventGroup>(*update)) {
-        auto& event_group_in = std::get<::client::thin_replica_client::EventGroup>(*update);
-        EventGroup event_group_out;
-        event_group_out.id = event_group_in.id;
-        // TODO: Can we **move** from std::string to a vector<uint8_t>?
-        // Maybe we should use std::vector<std::byte> and align both interfaces?
-        for (const auto& event : event_group_in.events) {
-          event_group_out.events.push_back({event.begin(), event.end()});
-        }
-        event_group_out.record_time = event_group_in.record_time;
-        // TODO: proto_eg.trace_context
-
-        callback(SubscribeResult{event_group_out});
-
-      } else if (std::holds_alternative<::client::thin_replica_client::Update>(*update)) {
-        auto& legacy_event_in = std::get<::client::thin_replica_client::Update>(*update);
-        LegacyEvent legacy_event_out;
-        legacy_event_out.block_id = legacy_event_in.block_id;
-        for (const auto& [k, v] : legacy_event_in.kv_pairs) {
-          legacy_event_out.events.push_back({k, v});
-        }
-        legacy_event_out.correlation_id = legacy_event_in.correlation_id_;
-        // TODO: legacy_events.trace_context
-
-        callback(SubscribeResult{legacy_event_out});
-      } else {
-        LOG_ERROR(logger_, "Got unexpected update type from TRC. This should never happen!");
-      }
-    }
-  });
+  return trc_queue_;
 }
 
 void ConcordClient::unsubscribe() {

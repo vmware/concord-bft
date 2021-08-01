@@ -117,29 +117,6 @@ struct SubscribeRequest {
   std::variant<EventGroupRequest, LegacyEventRequest> request;
 };
 
-// TODO: With the execution engine interface in place, describe Events.
-typedef std::vector<uint8_t> Event;
-struct EventGroup {
-  uint64_t id;
-  std::vector<Event> events;
-  std::chrono::microseconds record_time;
-  // This map follows the W3C specification for trace context.
-  // https://www.w3.org/TR/trace-context/#trace-context-http-headers-format
-  std::map<std::string, std::string> trace_context;
-};
-
-// Legacy format of event groups visible within a single block.
-struct LegacyEvent {
-  uint64_t block_id;
-  std::vector<std::pair<std::string, std::string>> events;
-  std::string correlation_id;
-  std::unordered_map<std::string, std::string> trace_context;
-};
-
-// TODO
-struct SubscribeError {};
-typedef std::variant<SubscribeError, EventGroup, LegacyEvent> SubscribeResult;
-
 // ConcordClient combines two different client functionalities into one interface.
 // On one side, the bft client to send/recieve request/response and on the other, the subscription API to
 // observe events.
@@ -160,12 +137,9 @@ class ConcordClient {
             const std::unique_ptr<opentracing::Span>& parent_span,
             const std::function<void(SendResult&&)>& callback);
 
-  // Register a callback that gets invoked for every validated event received.
-  // void callback(SubscribeResult);
-  // Return subscriber ID used to unsubscribe.
-  void subscribe(const SubscribeRequest& request,
-                 const std::unique_ptr<opentracing::Span>& parent_span,
-                 const std::function<void(SubscribeResult&&)>& callback);
+  // Subscribe to events which will be populated through the TRC update queue.
+  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> subscribe(
+      const SubscribeRequest& request, const std::unique_ptr<opentracing::Span>& parent_span);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
