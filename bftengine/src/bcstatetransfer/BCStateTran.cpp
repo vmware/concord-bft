@@ -279,7 +279,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
     timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
   } else {
-    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
+    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
     timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
   }
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
@@ -789,7 +789,10 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
 }
 
 // this function can be executed in context of another thread.
-void BCStateTran::handleStateTransferMessageImp(char *msg, uint32_t msgLen, uint16_t senderId) {
+void BCStateTran::handleStateTransferMessageImp(char *msg,
+                                                uint32_t msgLen,
+                                                uint16_t senderId,
+                                                LocalTimePoint msgArrivalTime) {
   if (!running_) return;
   time_in_handoff_queue_rec_.end();
   histograms_.handoff_queue_size->record(handoff_->size());
@@ -841,7 +844,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg, uint32_t msgLen, uint
       if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
         TimeRecorder scoped_timer(*histograms_.dst_handle_ItemData_msg);
         metrics_.handle_ItemData_msg_++;
-        noDelete = onMessage(reinterpret_cast<ItemDataMsg *>(msg), msgLen, senderId);
+        noDelete = onMessage(reinterpret_cast<ItemDataMsg *>(msg), msgLen, senderId, msgArrivalTime);
       }
       break;
     default:
@@ -1787,7 +1790,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 }
 
 // Retrieve either a chunk of a block or a reserved page when fetching
-bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId) {
+bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint msgArrivalTime) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, lastMsgSeqNum_, m->chunkNumber, m->blockNumber));
   LOG_DEBUG(logger_, KVLOG(replicaId, m->requestMsgSeqNum, m->blockNumber));
   metrics_.received_item_data_msg_++;
@@ -1878,7 +1881,16 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
   // set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
+  // Apply correction according to the time message has arrivedto handoff queue
+  auto fetchingTimeStamp = getMonotonicTimeMilli();
+  if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
+    auto timeInHandoffMilli =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - msgArrivalTime)
+            .count();
+    LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
+    fetchingTimeStamp -= timeInHandoffMilli;
+  }
+  sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp);
 
   if (added) {
     LOG_DEBUG(logger_,
