@@ -18,6 +18,9 @@
 #include "SigManager.hpp"
 #include "ViewsManager.hpp"
 
+#include "messages/NewViewMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
+
 namespace {
 
 using namespace bftEngine;
@@ -26,7 +29,7 @@ using namespace bftEngine::impl;
 constexpr int numberOfFaultyReplicas = 2;
 constexpr bool dynamicCollectorForPartialProofs = true, dynamicCollectorForExecutionProofs = false;
 constexpr int initialView = 0;
-constexpr bftEngine::impl::SeqNum lastStableSeqNum = 150;
+constexpr bftEngine::impl::SeqNum lastStableSeqNum = 150, lastExecutedSeqNum = lastStableSeqNum + 1;
 
 std::function<bool(MessageBase*)> mockedMessageValidator() {
   return [](MessageBase* message) { return true; };
@@ -170,6 +173,106 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
   viewsManager->processComplaintsFromViewChangeMessage(&viewChangeMsg, mockedMessageValidator());
 
   ASSERT_EQ(viewsManager->tryToJumpToHigherViewAndMoveComplaintsOnQuorum(&viewChangeMsg), true);
+}
+
+TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
+  const bftEngine::impl::ReplicaId firstMessageSourceReplicaId = (rc.replicaId + 1) % rc.numReplicas,
+                                   secondMessageSourceReplicaId = (rc.replicaId + 2) % rc.numReplicas;
+  const int nextView = initialView + 1;
+  std::set<bftEngine::impl::ReplicaId> replicasWithNoViewChangeMsgSent;
+
+  for (auto replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
+    replicasWithNoViewChangeMsgSent.insert(replicasWithNoViewChangeMsgSent.end(), replicaId);
+  }
+
+  replicasWithNoViewChangeMsgSent.erase(rc.replicaId);  // Remove myself
+  replicasWithNoViewChangeMsgSent.erase(firstMessageSourceReplicaId);
+  replicasWithNoViewChangeMsgSent.erase(secondMessageSourceReplicaId);
+
+  std::vector<bftEngine::impl::ViewsManager::PrevViewInfo> prevView;
+
+  viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
+  viewsManager->setHigherView(nextView);
+
+  ASSERT_NE(rc.replicaId, firstMessageSourceReplicaId);
+  ASSERT_NE(rc.replicaId, secondMessageSourceReplicaId);
+  ASSERT_NE(firstMessageSourceReplicaId, secondMessageSourceReplicaId);
+
+  ViewChangeMsg *viewChangeMsg1 = new ViewChangeMsg(firstMessageSourceReplicaId, nextView, lastStableSeqNum),
+                *viewChangeMsg2 = new ViewChangeMsg(secondMessageSourceReplicaId, nextView, lastStableSeqNum);
+
+  ASSERT_TRUE(viewsManager->add(viewChangeMsg1));
+  ASSERT_TRUE(viewsManager->add(viewChangeMsg2));
+
+  bftEngine::impl::ReplicaStatusMsg replicaStatusMessage(
+      rc.getreplicaId(), initialView, lastStableSeqNum, lastExecutedSeqNum, false, false, false, true, false);
+
+  viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage, &replicasInfo, lastStableSeqNum);
+
+  ASSERT_FALSE(replicaStatusMessage.isMissingViewChangeMsgForViewChange(firstMessageSourceReplicaId));
+  ASSERT_FALSE(replicaStatusMessage.isMissingViewChangeMsgForViewChange(secondMessageSourceReplicaId));
+
+  for (auto replicaId : replicasWithNoViewChangeMsgSent) {
+    ASSERT_TRUE(replicaStatusMessage.isMissingViewChangeMsgForViewChange(replicaId));
+  }
+}
+
+TEST_F(ViewsManagerTest, trigger_view_change) {
+  ASSERT_EQ(rc.numReplicas, 3 * numberOfFaultyReplicas + 1);
+  ASSERT_EQ(rc.fVal, numberOfFaultyReplicas);
+  ASSERT_EQ(rc.cVal, 0);
+
+  const bftEngine::impl::ReplicaId firstMessageSourceReplicaId = (rc.replicaId + 1) % rc.numReplicas,
+                                   secondMessageSourceReplicaId = (rc.replicaId + 2) % rc.numReplicas,
+                                   thirdMessageSourceReplicaId = (rc.replicaId + 3) % rc.numReplicas,
+                                   fourthMessageSourceReplicaId = (rc.replicaId + 4) % rc.numReplicas,
+                                   fifthMessageSourceReplicaId = (rc.replicaId + 5) % rc.numReplicas;
+  vector<ReplicaId> sourceReplicaIds = {firstMessageSourceReplicaId,
+                                        secondMessageSourceReplicaId,
+                                        thirdMessageSourceReplicaId,
+                                        fourthMessageSourceReplicaId,
+                                        fifthMessageSourceReplicaId};
+
+  ASSERT_NE(rc.replicaId, firstMessageSourceReplicaId);
+  ASSERT_NE(rc.replicaId, secondMessageSourceReplicaId);
+  ASSERT_NE(rc.replicaId, thirdMessageSourceReplicaId);
+  ASSERT_NE(rc.replicaId, fourthMessageSourceReplicaId);
+  ASSERT_NE(rc.replicaId, fifthMessageSourceReplicaId);
+
+  const int nextView = initialView + 1;
+
+  std::vector<ViewChangeMsg*> viewChangeMsgs;
+  viewChangeMsgs.push_back(new ViewChangeMsg(firstMessageSourceReplicaId, nextView, lastStableSeqNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(secondMessageSourceReplicaId, nextView, lastStableSeqNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(thirdMessageSourceReplicaId, nextView, lastStableSeqNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(fourthMessageSourceReplicaId, nextView, lastStableSeqNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(fifthMessageSourceReplicaId, nextView, lastStableSeqNum));
+
+  for (auto viewChangeMsg : viewChangeMsgs) {
+    ASSERT_TRUE(viewsManager->add(viewChangeMsg));
+  }
+
+  ASSERT_EQ(sourceReplicaIds.size(), viewChangeMsgs.size());
+
+  NewViewMsg* newViewMsg = new NewViewMsg(firstMessageSourceReplicaId, nextView);
+  Digest digest;
+
+  for (size_t i = 0; i < viewChangeMsgs.size(); ++i) {
+    viewChangeMsgs[i]->getMsgDigest(digest);
+    ConcordAssert(!digest.isZero());
+    newViewMsg->addElement(sourceReplicaIds[i], digest);
+  }
+
+  viewsManager->add(newViewMsg);
+
+  std::vector<bftEngine::impl::ViewsManager::PrevViewInfo> prevView;
+  // In order to change the status from Stat::IN_VIEW, exit should be called beforehand.
+  viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
+
+  vector<PrePrepareMsg*> outPrePrepareMsgs;
+  viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs);
+
+  ASSERT_EQ(viewsManager->latestActiveView(), nextView);
 }
 
 }  // namespace

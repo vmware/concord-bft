@@ -67,8 +67,6 @@ class CheckpointInfo {
   static void free(CheckpointInfo& i);
 
   static void reset(CheckpointInfo& i);
-
-  static void acquire(CheckpointInfo& to, CheckpointInfo& from) {}
 };
 }  // namespace impl
 }  // namespace bftEngine

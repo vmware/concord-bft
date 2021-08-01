@@ -785,7 +785,9 @@ class ThinReplicaImpl {
 
     for (const auto& event : eg_update.event_group.events) {
       std::vector<uint8_t> output;
-      concord::kvbc::categorization::serialize(output, event);
+      // serialize only event data, we must not send tags
+      concord::kvbc::categorization::Event event_no_tags{event.data, {}};
+      concord::kvbc::categorization::serialize(output, event_no_tags);
       std::string serialized_event(output.begin(), output.end());
       data.mutable_event_group()->add_events(serialized_event);
     }

@@ -22,7 +22,7 @@ using namespace concord::diagnostics;
 
 namespace bftEngine::impl {
 
-IncomingMsgsStorageImp::IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
+IncomingMsgsStorageImp::IncomingMsgsStorageImp(const std::shared_ptr<MsgHandlersRegistrator>& msgHandlersPtr,
                                                std::chrono::milliseconds msgWaitTimeout,
                                                uint16_t replicaId)
     : IncomingMsgsStorage(),
@@ -31,10 +31,10 @@ IncomingMsgsStorageImp::IncomingMsgsStorageImp(std::shared_ptr<MsgHandlersRegist
       take_lock_recorder_(histograms_.take_lock),
       wait_for_cv_recorder_(histograms_.wait_for_cv) {
   replicaId_ = replicaId;
-  ptrProtectedQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
+  ptrProtectedQueueForExternalMessages_ = new queue<MessageWithCallback>();
   ptrProtectedQueueForInternalMessages_ = new queue<InternalMessage>();
   lastOverflowWarning_ = MinTime;
-  ptrThreadLocalQueueForExternalMessages_ = new queue<std::unique_ptr<MessageBase>>();
+  ptrThreadLocalQueueForExternalMessages_ = new queue<MessageWithCallback>();
   ptrThreadLocalQueueForInternalMessages_ = new queue<InternalMessage>();
 }
 
@@ -62,8 +62,12 @@ void IncomingMsgsStorageImp::stop() {
   }
 }
 
+bool IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
+  return pushExternalMsg(std::move(msg), Callback{});
+}
+
 // can be called by any thread
-void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
+bool IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg, Callback onMsgPopped) {
   MsgCode::Type type = static_cast<MsgCode::Type>(msg->type());
   LOG_TRACE(MSGS, type);
   std::unique_lock<std::mutex> mlock(lock_);
@@ -75,18 +79,23 @@ void IncomingMsgsStorageImp::pushExternalMsg(std::unique_ptr<MessageBase> msg) {
       lastOverflowWarning_ = now;
     }
     dropped_msgs++;
-  } else {
-    histograms_.dropped_msgs_in_a_row->record(dropped_msgs);
-    dropped_msgs = 0;
-    ptrProtectedQueueForExternalMessages_->push(std::move(msg));
-    condVar_.notify_one();
+    return false;
   }
+  histograms_.dropped_msgs_in_a_row->record(dropped_msgs);
+  dropped_msgs = 0;
+  ptrProtectedQueueForExternalMessages_->push(std::make_pair(std::move(msg), std::move(onMsgPopped)));
+  condVar_.notify_one();
+  return true;
 }
 
-void IncomingMsgsStorageImp::pushExternalMsgRaw(char* msg, size_t& size) {
+bool IncomingMsgsStorageImp::pushExternalMsgRaw(char* msg, size_t size) {
+  return pushExternalMsgRaw(msg, size, Callback{});
+}
+
+bool IncomingMsgsStorageImp::pushExternalMsgRaw(char* msg, size_t size, Callback onMsgPopped) {
   size_t actualSize = 0;
   MessageBase* mb = MessageBase::deserializeMsg(msg, size, actualSize);
-  pushExternalMsg(std::unique_ptr<MessageBase>(mb));
+  return pushExternalMsg(std::unique_ptr<MessageBase>(mb), std::move(onMsgPopped));
 }
 
 // can be called by any thread
@@ -119,7 +128,7 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
       }
 
       // swap queues
-      std::queue<std::unique_ptr<MessageBase>>* t1 = ptrThreadLocalQueueForExternalMessages_;
+      auto t1 = ptrThreadLocalQueueForExternalMessages_;
       ptrThreadLocalQueueForExternalMessages_ = ptrProtectedQueueForExternalMessages_;
       ptrProtectedQueueForExternalMessages_ = t1;
       histograms_.external_queue_len_at_swap->record(ptrThreadLocalQueueForExternalMessages_->size());
@@ -135,15 +144,19 @@ IncomingMsg IncomingMsgsStorageImp::getMsgForProcessing() {
 
 IncomingMsg IncomingMsgsStorageImp::popThreadLocal() {
   if (!ptrThreadLocalQueueForInternalMessages_->empty()) {
-    auto item = IncomingMsg(std::move(ptrThreadLocalQueueForInternalMessages_->front()));
+    auto msg = IncomingMsg{std::move(ptrThreadLocalQueueForInternalMessages_->front())};
     ptrThreadLocalQueueForInternalMessages_->pop();
-    return item;
+    return msg;
   } else if (!ptrThreadLocalQueueForExternalMessages_->empty()) {
-    auto item = IncomingMsg(std::move(ptrThreadLocalQueueForExternalMessages_->front()));
+    auto& item = ptrThreadLocalQueueForExternalMessages_->front();
+    if (item.second) {
+      item.second();
+    }
+    auto msg = IncomingMsg{std::move(item.first)};
     ptrThreadLocalQueueForExternalMessages_->pop();
-    return item;
+    return msg;
   } else {
-    return IncomingMsg();
+    return IncomingMsg{};
   }
 }
 

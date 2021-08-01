@@ -1140,7 +1140,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>(
       (char *)msg,
       msg->sizeNeededForObjAndMsgInLocalBuffer(),
-      std::bind(&IncomingMsgsStorage::pushExternalMsgRaw, &getIncomingMsgsStorage(), _1, _2));
+      [&s = getIncomingMsgsStorage()](char *msg, size_t &size) { s.pushExternalMsgRaw(msg, size); });
 
   metric_received_full_commit_proofs_++;
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
@@ -2331,20 +2331,9 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
       if (mainLog->get(i).hasPrePrepareMsg()) msg.setPrePrepareInActiveWindow(i);
     }
   }
-  if (listOfMissingVCMsg) {
-    for (ReplicaId i : repsInfo->idsOfPeerReplicas()) {
-      if (!viewsManager->hasViewChangeMessageForFutureView(i)) msg.setMissingViewChangeMsgForViewChange(i);
-    }
-  } else if (listOfMissingPPMsg) {
-    std::vector<SeqNum> missPP;
-    if (viewsManager->getNumbersOfMissingPP(lastStableSeqNum, &missPP)) {
-      for (SeqNum i : missPP) {
-        ConcordAssertGT(i, lastStableSeqNum);
-        ConcordAssertLE(i, lastStableSeqNum + kWorkWindowSize);
-        msg.setMissingPrePrepareMsgForViewChange(i);
-      }
-    }
-  }
+
+  // Fill missing pre-prepare and view change messages.
+  viewsManager->fillPropertiesOfStatusMessage(msg, repsInfo, lastStableSeqNum);
 
   sendToAllOtherReplicas(&msg);
   if (!onTimer) metric_sent_status_msgs_not_due_timer_++;

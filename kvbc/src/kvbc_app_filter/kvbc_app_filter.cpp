@@ -90,10 +90,10 @@ KvbFilteredUpdate::OrderedKVPairs KvbAppFilter::filterKeyValuePairs(const kvbc::
 }
 
 KvbFilteredEventGroupUpdate::EventGroup KvbAppFilter::filterEventsInEventGroup(
-    EventGroupId event_group_id, kvbc::categorization::EventGroup &event_group) {
+    EventGroupId event_group_id, const kvbc::categorization::EventGroup &event_group) {
   KvbFilteredEventGroupUpdate::EventGroup filtered_event_group;
 
-  for (auto &event : event_group.events) {
+  for (auto event : event_group.events) {
     // If no TRIDs attached then everyone is allowed to view the pair
     // Otherwise, check against the client id
     if (event.tags.size() > 0) {
@@ -109,14 +109,24 @@ KvbFilteredEventGroupUpdate::EventGroup KvbAppFilter::filterEventsInEventGroup(
       }
     }
 
+    // Event data encodes ValueWithTrids
+    // Extract the value, and assign it to event.data
+    ValueWithTrids proto;
+    if (!proto.ParseFromArray(event.data.c_str(), event.data.length())) {
+      continue;
+    }
+
     // We expect a value - this should never trigger
-    if (!event.data.data()) {
+    if (!proto.has_value()) {
       std::stringstream msg;
       msg << "Couldn't decode value with trids for event_group_id" << event_group_id;
       throw KvbReadError(msg.str());
     }
 
+    auto val = proto.release_value();
+    event.data.assign(std::move(*val));
     filtered_event_group.events.emplace_back(std::move(event));
+    delete val;
   }
 
   return filtered_event_group;
@@ -127,7 +137,7 @@ KvbFilteredUpdate KvbAppFilter::filterUpdate(const KvbUpdate &update) {
   return KvbFilteredUpdate{block_id, cid, filterKeyValuePairs(updates)};
 }
 
-KvbFilteredEventGroupUpdate KvbAppFilter::filterEventGroupUpdate(EgUpdate &update) {
+KvbFilteredEventGroupUpdate KvbAppFilter::filterEventGroupUpdate(const EgUpdate &update) {
   auto &[event_group_id, event_group, _] = update;
   return KvbFilteredEventGroupUpdate{event_group_id, filterEventsInEventGroup(event_group_id, event_group)};
 }

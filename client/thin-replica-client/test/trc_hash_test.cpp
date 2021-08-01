@@ -15,6 +15,7 @@
 #include "gtest/gtest.h"
 
 #include "client/thin-replica-client/trc_hash.hpp"
+#include "kvbc_app_filter/kvbc_app_filter.h"
 
 using com::vmware::concord::thin_replica::Data;
 using std::make_pair;
@@ -51,6 +52,46 @@ TEST(trc_hash, hash_data) {
   }
 
   EXPECT_EQ(hashUpdate(update), kSampleUpdateExpectedHash);
+}
+
+TEST(trc_hash, trs_trc_legacy) {
+  concord::kvbc::KvbAppFilter kvb_app_filter(nullptr, "");
+
+  // Data created on the TRS
+  concord::kvbc::KvbFilteredUpdate kvb_update;
+  kvb_update.block_id = 1337;
+  kvb_update.kv_pairs.push_back(std::make_pair("Hello", "World"));
+  kvb_update.kv_pairs.push_back(std::make_pair("Legacy", "Event"));
+
+  // Data received on the TRC
+  Data data_update;
+  data_update.mutable_events()->set_block_id(kvb_update.block_id);
+  for (const auto& kv : kvb_update.kv_pairs) {
+    auto* data = data_update.mutable_events()->add_data();
+    data->set_key(kv.first);
+    data->set_value(kv.second);
+  }
+
+  EXPECT_EQ(kvb_app_filter.hashUpdate(kvb_update), hashUpdate(data_update));
+}
+
+TEST(trc_hash, trs_trc_event_group) {
+  concord::kvbc::KvbAppFilter kvb_app_filter(nullptr, "");
+
+  // Data created on the TRS
+  concord::kvbc::KvbFilteredEventGroupUpdate kvb_update;
+  kvb_update.event_group_id = 1337;
+  kvb_update.event_group.events.push_back({"Hello", {}});
+  kvb_update.event_group.events.push_back({"World", {}});
+
+  // Data received on the TRC
+  Data data_update;
+  data_update.mutable_event_group()->set_id(kvb_update.event_group_id);
+  for (const auto& event : kvb_update.event_group.events) {
+    *data_update.mutable_event_group()->add_events() = event.data;
+  }
+
+  EXPECT_EQ(kvb_app_filter.hashEventGroupUpdate(kvb_update), hashUpdate(data_update));
 }
 
 }  // anonymous namespace

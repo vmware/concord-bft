@@ -32,8 +32,10 @@ struct IncomingMsgsStorageMock : public bftEngine::impl::IncomingMsgsStorage {
 
   bool isRunning() const override { return true; };
 
-  void pushExternalMsg(std::unique_ptr<MessageBase> msg) override {}
-  void pushExternalMsgRaw(char* msg, size_t& size) override {}
+  bool pushExternalMsg(std::unique_ptr<MessageBase> msg) override { return true; }
+  bool pushExternalMsg(std::unique_ptr<MessageBase> msg, Callback onMsgPopped) override { return true; }
+  bool pushExternalMsgRaw(char* msg, size_t size) override { return true; }
+  bool pushExternalMsgRaw(char* msg, size_t size, Callback onMsgPopped) override { return true; }
   void pushInternalMsg(InternalMessage&& msg) override { internal_msgs_.emplace_back(std::move(msg)); }
 
   std::vector<InternalMessage> internal_msgs_;

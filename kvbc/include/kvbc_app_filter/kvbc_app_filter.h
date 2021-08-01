@@ -94,10 +94,10 @@ class KvbAppFilter {
   // Filter the given update
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
 
-  KvbFilteredEventGroupUpdate filterEventGroupUpdate(EgUpdate &update);
+  KvbFilteredEventGroupUpdate filterEventGroupUpdate(const EgUpdate &update);
 
   KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
-                                                                   kvbc::categorization::EventGroup &event_group);
+                                                                   const kvbc::categorization::EventGroup &event_group);
 
   // Compute hash for the given update
   std::string hashUpdate(const KvbFilteredUpdate &update);

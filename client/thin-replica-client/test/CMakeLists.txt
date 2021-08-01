@@ -50,5 +50,6 @@ add_executable(trc_hash_tests trc_hash_test.cpp)
 target_include_directories(trc_hash_tests PRIVATE ../src)
 target_link_libraries(trc_hash_tests
   thin_replica_client_lib
+  kvbc
   GTest::Main
   GTest::GTest)
