@@ -159,6 +159,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       sourceSelector_{allOtherReplicas(),
                       config_.fetchRetransmissionTimeoutMs,
                       config_.sourceReplicaReplacementTimeoutMs,
+                      config_.maxFetchRetransmissions,
                       ST_SRC_LOG},
       ioPool_(
           config_.maxNumberOfChunksInBatch,
@@ -1133,7 +1134,7 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                   msg.lastRequiredBlock,
                   msg.lastKnownChunkInLastRequiredBlock));
 
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
   dst_time_between_sendFetchBlocksMsg_rec_.clear();
   dst_time_between_sendFetchBlocksMsg_rec_.start();
   replicaForStateTransfer_->sendStateTransferMessage(
@@ -1165,7 +1166,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
                   msg.requiredCheckpointNum,
                   msg.lastKnownChunk));
 
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchResPagesMsg), sourceSelector_.currentReplica());
 }
@@ -1890,7 +1891,7 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
     fetchingTimeStamp -= timeInHandoffMilli;
   }
-  sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp);
+  sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp, false);
 
   if (added) {
     LOG_DEBUG(logger_,

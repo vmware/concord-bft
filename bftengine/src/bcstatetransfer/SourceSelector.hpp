@@ -33,11 +33,14 @@ class SourceSelector {
   SourceSelector(std::set<uint16_t> allOtherReplicas,
                  uint32_t retransmissionTimeoutMilli,
                  uint32_t sourceReplicaReplacementTimeoutMilli,
+                 uint32_t maxFetchRetransmissions,
                  logging::Logger &logger)
       : allOtherReplicas_(std::move(allOtherReplicas)),
         randomGen_(std::random_device()()),
-        retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
         sourceReplacementTimeoutMilli_(sourceReplicaReplacementTimeoutMilli),
+        maxFetchRetransmissions_(maxFetchRetransmissions),
+        retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
+        fetchRetransmissionOngoing_(false),
         logger_(logger) {}
 
   bool hasSource() const;
@@ -56,8 +59,9 @@ class SourceSelector {
   // Reset the source selection time without actually changing the source
   void setSourceSelectionTime(uint64_t currTimeMilli);
 
-  // Set the latest time of last sent transmission of FetchResPagesMsg or last received ItemDataMsg
-  void setFetchingTimeStamp(uint64_t currTimeMilli);
+  // Set the latest time of last sent transmission of FetchResPagesMsg/FetchBlocksMsg or last received ItemDataMsg
+  // If retransmitting - retransmissionOngoing is set to true
+  void setFetchingTimeStamp(uint64_t currTimeMilli, bool retransmissionOngoing);
 
   // Create a list of ids of the form "0, 1, 4"
   std::string preferredReplicasToString() const;
@@ -81,11 +85,17 @@ class SourceSelector {
   std::set<uint16_t> preferredReplicas_;
   uint16_t currentReplica_ = NO_REPLICA;
   uint64_t sourceSelectionTimeMilli_ = 0;
-  uint64_t fetchingTimeStamp_ = 0;
   std::set<uint16_t> allOtherReplicas_;
   std::mt19937 randomGen_;
-  uint32_t retransmissionTimeoutMilli_;
-  uint32_t sourceReplacementTimeoutMilli_;
+  const uint32_t sourceReplacementTimeoutMilli_;
+
+  // Retransmissions
+  const uint32_t maxFetchRetransmissions_;
+  const uint32_t retransmissionTimeoutMilli_;
+  uint64_t fetchingTimeStamp_ = 0;
+  mutable uint32_t fetchRetransmissionCounter_ = 0;
+  mutable bool fetchRetransmissionOngoing_ = false;
+
   logging::Logger &logger_;
 };
 }  // namespace impl

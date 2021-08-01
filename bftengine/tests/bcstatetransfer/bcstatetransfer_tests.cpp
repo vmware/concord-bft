@@ -55,6 +55,7 @@ Config TestConfig() {
       60000,              // maxAcceptableMsgDelayMs
       0,                  // sourceReplicaReplacementTimeoutMs
       250,                // fetchRetransmissionTimeoutMs
+      2,                  // maxFetchRetransmissions
       5,                  // metricsDumpIntervalSec
       false,              // runInSeparateThread
       true,               // enableReservedPages
