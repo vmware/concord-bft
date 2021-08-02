@@ -2934,6 +2934,13 @@ void ReplicaImp::sendRepilcaRestartReady() {
         ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
     sendToAllOtherReplicas(readytToRestartMsg.get());
     restart_ready_msgs_[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
+    bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
+    uint32_t targetNumOfMsgs =
+        (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
+    if (restart_ready_msgs_.size() == targetNumOfMsgs) {
+      LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
+      sendReplicasRestartReadyProof();
+    }
   }
 }
 
