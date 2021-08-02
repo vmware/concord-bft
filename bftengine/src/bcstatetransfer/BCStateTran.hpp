@@ -94,8 +94,11 @@ class BCStateTran : public IStateTransfer {
   void zeroReservedPage(uint32_t reservedPageId) override;
 
   void onTimer() override { timerHandler_(); };
+
+  using LocalTimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+  static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
-    messageHandler_(msg, msgLen, senderId);
+    messageHandler_(msg, msgLen, senderId, UNDEFINED_LOCAL_TIME_POINT);
   };
 
   std::string getStatus() override;
@@ -108,10 +111,14 @@ class BCStateTran : public IStateTransfer {
 
  protected:
   // handling messages from other context
-  std::function<void(char*, uint32_t, uint16_t)> messageHandler_;
-  void handleStateTransferMessageImp(char* msg, uint32_t msgLen, uint16_t senderId);
+  std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> messageHandler_;
+  void handleStateTransferMessageImp(char* msg,
+                                     uint32_t msgLen,
+                                     uint16_t senderId,
+                                     LocalTimePoint msgArrivalTime = UNDEFINED_LOCAL_TIME_POINT);
   void handoffMsg(char* msg, uint32_t msgLen, uint16_t senderId) {
-    handoff_->push(std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId));
+    handoff_->push(std::bind(
+        &BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, std::chrono::steady_clock::now()));
   }
 
   // handling timer from other context
@@ -212,7 +219,7 @@ class BCStateTran : public IStateTransfer {
   bool onMessage(const FetchBlocksMsg* m, uint32_t msgLen, uint16_t replicaId);
   bool onMessage(const FetchResPagesMsg* m, uint32_t msgLen, uint16_t replicaId);
   bool onMessage(const RejectFetchingMsg* m, uint32_t msgLen, uint16_t replicaId);
-  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId);
+  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint msgArrivalTime);
 
   ///////////////////////////////////////////////////////////////////////////
   // cache that holds virtual blocks
@@ -316,6 +323,7 @@ class BCStateTran : public IStateTransfer {
   STDigest checkpointReservedPages(uint64_t checkpointNumber, DataStoreTransaction* txn);
 
   void deleteOldCheckpoints(uint64_t checkpointNumber, DataStoreTransaction* txn);
+  void srcInitialize();
 
   ///////////////////////////////////////////////////////////////////////////
   // Consistency

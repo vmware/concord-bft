@@ -159,6 +159,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       sourceSelector_{allOtherReplicas(),
                       config_.fetchRetransmissionTimeoutMs,
                       config_.sourceReplicaReplacementTimeoutMs,
+                      config_.maxFetchRetransmissions,
                       ST_SRC_LOG},
       ioPool_(
           config_.maxNumberOfChunksInBatch,
@@ -279,7 +280,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
     messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
     timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
   } else {
-    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3);
+    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
     timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
   }
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
@@ -706,6 +707,7 @@ void BCStateTran::onTimerImp() {
   }
 
   // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
+  // sourceSnapshotCounter_ is zeroed every time fetch message is received
   if (sourceFlag_ &&
       (((++sourceSnapshotCounter_) * config_.refreshTimerMs) >= (2 * config_.fetchRetransmissionTimeoutMs))) {
     auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
@@ -788,7 +790,10 @@ void BCStateTran::addOnTransferringCompleteCallback(std::function<void(uint64_t)
 }
 
 // this function can be executed in context of another thread.
-void BCStateTran::handleStateTransferMessageImp(char *msg, uint32_t msgLen, uint16_t senderId) {
+void BCStateTran::handleStateTransferMessageImp(char *msg,
+                                                uint32_t msgLen,
+                                                uint16_t senderId,
+                                                LocalTimePoint msgArrivalTime) {
   if (!running_) return;
   time_in_handoff_queue_rec_.end();
   histograms_.handoff_queue_size->record(handoff_->size());
@@ -840,7 +845,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg, uint32_t msgLen, uint
       if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages) {
         TimeRecorder scoped_timer(*histograms_.dst_handle_ItemData_msg);
         metrics_.handle_ItemData_msg_++;
-        noDelete = onMessage(reinterpret_cast<ItemDataMsg *>(msg), msgLen, senderId);
+        noDelete = onMessage(reinterpret_cast<ItemDataMsg *>(msg), msgLen, senderId, msgArrivalTime);
       }
       break;
     default:
@@ -1129,7 +1134,7 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
                   msg.lastRequiredBlock,
                   msg.lastKnownChunkInLastRequiredBlock));
 
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
   dst_time_between_sendFetchBlocksMsg_rec_.clear();
   dst_time_between_sendFetchBlocksMsg_rec_.start();
   replicaForStateTransfer_->sendStateTransferMessage(
@@ -1161,7 +1166,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
                   msg.requiredCheckpointNum,
                   msg.lastKnownChunk));
 
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchResPagesMsg), sourceSelector_.currentReplica());
 }
@@ -1383,6 +1388,14 @@ uint16_t BCStateTran::getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t fi
   return j;
 }
 
+void BCStateTran::srcInitialize() {
+  // a new source - reset histograms and snapshot counter
+  sourceFlag_ = true;
+  auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  registrar.perf.snapshot("state_transfer");
+  registrar.perf.snapshot("state_transfer_src");
+}
+
 bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t replicaId) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(
@@ -1428,14 +1441,8 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     return false;
   }
 
-  if (!sourceFlag_) {
-    // a new source - reset histograms and snapshot counter
-    sourceFlag_ = true;
-    sourceSnapshotCounter_ = 0;
-    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    registrar.perf.snapshot("state_transfer");
-    registrar.perf.snapshot("state_transfer_src");
-  }
+  if (!sourceFlag_) srcInitialize();
+  sourceSnapshotCounter_ = 0;
 
   // start recording time to send a whole batch, and its size
   uint64_t batchSizeBytes = 0;
@@ -1640,6 +1647,9 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
     return false;
   }
 
+  if (!sourceFlag_) srcInitialize();
+  sourceSnapshotCounter_ = 0;
+
   // find virtual block
   DescOfVBlockForResPages descOfVBlock;
   descOfVBlock.checkpointNum = m->requiredCheckpointNum;
@@ -1781,7 +1791,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
 }
 
 // Retrieve either a chunk of a block or a reserved page when fetching
-bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId) {
+bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t replicaId, LocalTimePoint msgArrivalTime) {
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(config_.myReplicaId, lastMsgSeqNum_, m->chunkNumber, m->blockNumber));
   LOG_DEBUG(logger_, KVLOG(replicaId, m->requestMsgSeqNum, m->blockNumber));
   metrics_.received_item_data_msg_++;
@@ -1872,7 +1882,16 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
   // set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli());
+  // Apply correction according to the time message has arrivedto handoff queue
+  auto fetchingTimeStamp = getMonotonicTimeMilli();
+  if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
+    auto timeInHandoffMilli =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - msgArrivalTime)
+            .count();
+    LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
+    fetchingTimeStamp -= timeInHandoffMilli;
+  }
+  sourceSelector_.setFetchingTimeStamp(fetchingTimeStamp, false);
 
   if (added) {
     LOG_DEBUG(logger_,
