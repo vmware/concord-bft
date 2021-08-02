@@ -145,8 +145,6 @@ class Replica : public IReplica,
 
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry() const { return cronTableRegistry_; }
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
-  BlockId getLastKnownReconfigCmdBlockNum() const;
-  void setLastKnownReconfigCmdBlockNum(const BlockId &);
 
   ~Replica() override;
 
@@ -164,6 +162,8 @@ class Replica : public IReplica,
   void handleWedgeEvent();
   uint64_t getStoredReconfigData(const std::string &kCategory, const std::string &key, const kvbc::BlockId &bid);
   void startRoReplicaCreEngine();
+  BlockId getLastKnownReconfigCmdBlockNum() const;
+  void setLastKnownReconfigCmdBlockNum(const BlockId &);
   // INTERNAL TYPES
 
   // represents <key,blockId>
