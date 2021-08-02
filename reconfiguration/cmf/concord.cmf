@@ -126,14 +126,16 @@ Msg UnwedgeStatusRequest 32{
 Msg UnwedgeStatusResponse 33{
     uint64 replica_id
     bool can_unwedge
+    uint64 curr_epoch
     bytes signature
     string reason
 }
 
 Msg UnwedgeCommand 34{
     uint64 sender
-    list kvpair uint64 bytes signatures
+    list kvpair uint64 UnwedgeStatusResponse unwedges
     bool bft_support
+    bool restart
 }
 Msg ClientKeyExchangeCommand 35 {
     list uint64 target_clients

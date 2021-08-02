@@ -69,11 +69,12 @@ class Operator:
         unwedge_status_cmd.bft_support = bft
         return self._construct_basic_reconfiguration_request(unwedge_status_cmd)
 
-    def _construct_reconfiguration_unwedge_command(self, signatures, bft):
+    def _construct_reconfiguration_unwedge_command(self, unwedges, bft, restart):
         unwedge_cmd = cmf_msgs.UnwedgeCommand()
         unwedge_cmd.sender = 1000
         unwedge_cmd.bft_support = bft
-        unwedge_cmd.signatures = signatures
+        unwedge_cmd.restart = restart
+        unwedge_cmd.unwedges = unwedges
         return self._construct_basic_reconfiguration_request(unwedge_cmd)
 
     def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks, tick_period_seconds=1, batch_blocks_num=600):
@@ -157,18 +158,17 @@ class Operator:
         msg = self._construct_reconfiguration_wedge_status(fullWedge)
         return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
-    async def unwedge(self, bft=False):
-        quorum = None
+    async def unwedge(self, bft=False, restart=False, quorum=None):
         if bft is True:
             quorum = bft_client.MofNQuorum.LinearizableQuorum(self.client.config, [r for r in range(self.config.n)])
         await self.can_unwedge(quorum=quorum, bft=bft)
-        signatures = []
+        unwedges = []
         for r in self.client.get_rsi_replies().values():
             res = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
-            signatures.append(
-                (res.response.replica_id, bytes(res.response.signature)))
-
-        msg = self._construct_reconfiguration_unwedge_command(signatures, bft)
+            unwedges.append((res.response.replica_id, res.response))
+        if quorum is not None and quorum.required < self.config.n:
+            bft = True
+        msg = self._construct_reconfiguration_unwedge_command(unwedges, bft, restart)
         return await self.client.read(msg.serialize(), m_of_n_quorum=quorum, reconfiguration=True)
 
     async def can_unwedge(self, quorum=None, bft=False):

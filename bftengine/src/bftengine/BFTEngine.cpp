@@ -168,6 +168,7 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
     }
     LOG_INFO(GL, "erasedMetaData flag = " << erasedMetaData);
     if (erasedMetaData) {
+      ConcordAssert(startNewEpoch == true);
       metadataStoragePtr->eraseData();
       isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
       auto secFile = ReplicaConfig::instance().getkeyViewFilePath() + std::string("/" + secFilePrefix + ".") +

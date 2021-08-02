@@ -49,28 +49,28 @@ uint64_t StReconfigurationHandler::getStoredEpochNumber(BlockId bid) {
 
 void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
   // Handle reconfiguration state changes if exist
-  handlerStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
-                                                        current_cp_num);
-  handlerStoredCommand<concord::messages::DownloadCommand>(std::string{kvbc::keyTypes::reconfiguration_download_key},
-                                                           current_cp_num);
-  handlerStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
+  handleStoredCommand<concord::messages::DownloadCommand>(std::string{kvbc::keyTypes::reconfiguration_download_key},
                                                           current_cp_num);
-  handlerStoredCommand<concord::messages::KeyExchangeCommand>(std::string{kvbc::keyTypes::reconfiguration_key_exchange},
-                                                              current_cp_num);
-  handlerStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
-                                                            current_cp_num);
-  handlerStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
+  handleStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
+                                                         current_cp_num);
+  handleStoredCommand<concord::messages::KeyExchangeCommand>(std::string{kvbc::keyTypes::reconfiguration_key_exchange},
+                                                             current_cp_num);
+  handleStoredCommand<concord::messages::AddRemoveCommand>(std::string{kvbc::keyTypes::reconfiguration_add_remove},
+                                                           current_cp_num);
+  handleStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
       std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1}, current_cp_num);
-  handlerStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
-                                                        current_cp_num);
+  handleStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
+                                                       current_cp_num);
+  handleStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
+                                                       current_cp_num);
 }
 
 void StReconfigurationHandler::pruneOnStartup() {
-  handlerStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
-                                                        0);
+  handleStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
+                                                       0);
 }
 template <typename T>
-bool StReconfigurationHandler::handlerStoredCommand(const std::string &key, uint64_t current_cp_num) {
+bool StReconfigurationHandler::handleStoredCommand(const std::string &key, uint64_t current_cp_num) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
   if (res.has_value()) {
     auto blockid = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key).value().version;
@@ -102,7 +102,8 @@ bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
     return true;
   }
 
-  if (command_epoch < last_known_global_epoch) {
+  if (command_epoch < last_known_global_epoch &&
+      bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(GL, "unwedge due to higher epoch number after state transfer");
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
   }
@@ -113,10 +114,30 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
                                       uint64_t bft_seq_num,
                                       uint64_t current_cp_num,
                                       uint64_t bid) {
+  return handleWedgeCommands(
+      command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
+}
+
+bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t current_cp_num,
+                                      uint64_t bid) {
+  return handleWedgeCommands(
+      command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
+}
+template <typename T>
+bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
+                                                   uint64_t bid,
+                                                   uint64_t current_cp,
+                                                   uint64_t bft_seq_num,
+                                                   bool bft_support,
+                                                   bool remove_metadata,
+                                                   bool restart,
+                                                   bool unwedge) {
   auto my_last_known_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto last_known_global_epoch = bftEngine::EpochManager::instance().getGlobalEpochNumber();
   auto command_epoch = getStoredEpochNumber(bid);
-  auto cp_sn = checkpointWindowSize * current_cp_num;
+  auto cp_sn = checkpointWindowSize * current_cp;
   auto wedge_point = (bft_seq_num + 2 * checkpointWindowSize);
   wedge_point = wedge_point - (wedge_point % checkpointWindowSize);
 
@@ -133,7 +154,7 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
   // so lets invoke all original reconfiguration handlers from the product layer (without concord-bft's ones)
   concord::messages::ReconfigurationResponse response;
   for (auto &h : orig_reconf_handlers_) {
-    h->handle(command, bft_seq_num, response);
+    h->handle(cmd, bft_seq_num, response);
   }
 
   if (my_last_known_epoch < last_known_global_epoch) {
@@ -141,9 +162,9 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
     auto fake_seq_num = cp_sn - 2 * checkpointWindowSize;
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(fake_seq_num);
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
-      bftEngine::ControlStateManager::instance().markRemoveMetadata(false);
-      // We want to rely on the new transffered epoch and not to start a new one (in case someone marked it)
-      bftEngine::EpochManager::instance().setNewEpochFlag(false);
+      if (remove_metadata) bftEngine::ControlStateManager::instance().markRemoveMetadata(false);
+      // We want to rely on the new transferred epoch and not to start a new one (in case someone marked it)
+      if (unwedge) bftEngine::EpochManager::instance().setNewEpochFlag(false);
       bftEngine::ControlStateManager::instance().restart();
     });
     return true;
@@ -151,24 +172,26 @@ bool StReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedg
   if (my_last_known_epoch == command_epoch && cp_sn == wedge_point) {
     // Now we want to act normally as we just managed to catch the "correct state" from our point of view.
     // So lets simple run manually the concord-bft's reconfiguration handler.
-
-    // First let's set the callbacks on wedgepoint.
-    bftEngine::ControlStateManager::instance().setRestartBftFlag(command.bft_support);
-    if (command.bft_support) {
-      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
-        bftEngine::ControlStateManager::instance().markRemoveMetadata();
-        bftEngine::EpochManager::instance().setNewEpochFlag(true);
-      });
-      if (command.restart) {
+    bftEngine::ControlStateManager::instance().setRestartBftFlag(bft_support);
+    if (bft_support) {
+      if (remove_metadata)
+        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+            [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+      if (unwedge)
+        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+            [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
+      if (restart) {
         bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
             [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
       }
     } else {
-      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
-        bftEngine::ControlStateManager::instance().markRemoveMetadata();
-        bftEngine::EpochManager::instance().setNewEpochFlag(true);
-      });
-      if (command.restart) {
+      if (remove_metadata)
+        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+            [=]() { bftEngine::ControlStateManager::instance().markRemoveMetadata(); });
+      if (unwedge)
+        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+            [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
+      if (cmd.restart) {
         bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
             [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
       }

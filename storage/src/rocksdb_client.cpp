@@ -138,7 +138,7 @@ void Client::initDBFromFile(bool readOnly, const Options &user_options) {
 
   // Some options, notably pointers, are not configurable via the config file. We set them in code here.
   user_options.completeInit(db_options, cf_descs);
-
+  db_options.wal_dir = m_dbPath;
   openRocksDB(readOnly, db_options, cf_descs);
 
   initialized_ = true;
@@ -276,7 +276,7 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
   if (applyOptimizations) {
     options.applyOptimizations();
   }
-
+  options.db_options.wal_dir = m_dbPath;
   openRocksDB(readOnly, options.db_options, cf_descs);
 
   // If an incomplete column family is empty (i.e. has no keys), drop it so that user code can re-create it with the

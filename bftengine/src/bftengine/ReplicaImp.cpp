@@ -2934,6 +2934,13 @@ void ReplicaImp::sendRepilcaRestartReady() {
         ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
     sendToAllOtherReplicas(readytToRestartMsg.get());
     restart_ready_msgs_[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
+    bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
+    uint32_t targetNumOfMsgs =
+        (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
+    if (restart_ready_msgs_.size() == targetNumOfMsgs) {
+      LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
+      sendReplicasRestartReadyProof();
+    }
   }
 }
 
@@ -3261,46 +3268,29 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) {
-  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
-  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
-    LOG_ERROR(GL,
-              "Recieved invalid ReplicaRestartReadyMsg from sender_id "
-                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
-    delete msg;
-    return;  // this is to handle replay attack
-  }
-  LOG_INFO(GL,
-           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
-                                                             << " with seq_num" << std::to_string(msg->seqNum()));
   if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
     restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
     metric_received_restart_ready_++;
   } else {
-    LOG_ERROR(GL,
+    LOG_DEBUG(GL,
               "Recieved multiple ReplicaRestartReadyMsg from sender_id "
                   << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
     delete msg;
   }
+  LOG_INFO(GL,
+           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
+                                                             << " with seq_num" << std::to_string(msg->seqNum()));
   bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
   uint32_t targetNumOfMsgs =
       (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
   if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof();
-    ControlStateManager::instance().onRestartProof(msg->seqNum());
   }
 }
 
 template <>
 void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyProofMsg *msg) {
-  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
-  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
-    LOG_ERROR(GL,
-              "Recieved invalid ReplicasRestartReadyProofMsg from sender_id "
-                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
-    delete msg;
-    return;  // this is to handle replay attack
-  }
   LOG_INFO(GL,
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
@@ -3320,6 +3310,8 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
     }
     restartProofMsg->finalizeMessage();
     sendToAllOtherReplicas(restartProofMsg.get());
+    std::this_thread::sleep_for(1000ms);  // Sleep in order to let the os complete the send before shutting down
+    bftEngine::ControlStateManager::instance().onRestartProof(restartProofMsg->seqNum());
   }
 }
 

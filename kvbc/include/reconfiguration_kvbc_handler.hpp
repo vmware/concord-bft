@@ -25,9 +25,15 @@ class ReconfigurationBlockTools {
  protected:
   ReconfigurationBlockTools(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
       : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {}
-  kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data, const uint64_t bft_seq_num, string key);
+  kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data,
+                                            const uint64_t bft_seq_num,
+                                            string key,
+                                            bool include_wedge);
   kvbc::BlockId persistReconfigurationBlock(concord::kvbc::categorization::VersionedUpdates& ver_updates,
-                                            const uint64_t bft_seq_num);
+                                            const uint64_t bft_seq_num,
+                                            bool include_wedge);
+  kvbc::BlockId persistNewEpochBlock(const uint64_t bft_seq_num);
+
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;

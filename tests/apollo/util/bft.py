@@ -39,7 +39,7 @@ from util import bft_metrics, eliot_logging as log
 from util.eliot_logging import log_call
 from util import skvbc as kvbc
 from util.bft_test_exceptions import AlreadyRunningError, AlreadyStoppedError, KeyExchangeError, CreError
-
+DB_FILE_PREFIX = "simpleKVBTests_DB_"
 
 TestConfig = namedtuple('TestConfig', [
     'n',
@@ -373,15 +373,28 @@ class BftTestNetwork:
                     stderr=stderr_file,
                     close_fds=True)
 
-    async def change_configuration(self, config):
-        """
-        When changing an existing bft-network, we would want to change only its configuration related parts
-        such as: n,f,c and the parts that are affected by this change (keys, and clients)
-        We don't want to remove the logs, db and other state related components
-        """
-        # We cannot change anything if there are running replicas
-        assert(len(self.procs) == 0)
+    def transfer_db_files(self, source, dests):
+        with log.start_action(action_type="transfer db files"):
+            source_db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(source))
+            for r in dests:
+                dest_db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(r))
+                res = subprocess.run(['cp', '-rf', source_db_dir, dest_db_dir])
+                log.log_message(message_type=f"copy db files from {source_db_dir} to {dest_db_dir}, result is {res.returncode}")
 
+    async def change_configuration(self, config, generate_tls=False):
+        self.config = config
+        self.replicas = [bft_config.Replica(i, "127.0.0.1",
+                                            bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
+                         for i in range(0, config.n + config.num_ro_replicas)]
+
+        self._generate_crypto_keys()
+
+        if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
+            # Generate certificates for replicas, clients, and reserved clients
+            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA)
+
+
+    def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
         # remove all existing clients
         for client in self.clients.values():
             client.__exit__()
@@ -391,20 +404,14 @@ class BftTestNetwork:
         self.metrics.__exit__()
         self.clients = {}
 
-        # set the new configuration and init the network
-        self.config = config
-        self.replicas = [bft_config.Replica(i, "127.0.0.1",
-                                            bft_config.bft_msg_port_from_node_id(i), bft_config.metrics_port_from_node_id(i))
-                         for i in range(0, config.n + config.num_ro_replicas)]
-
-        self._generate_crypto_keys()
-        if self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
-            # Generate certificates for replicas, clients, and reserved clients
-            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA)
-
-        # remove existing transaction signing keys and generate again
-        shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
-        self.setup_txn_signing()
+        if generate_tx_signing_keys:
+            # remove existing transaction signing keys and generate again
+            shutil.rmtree(self.txn_signing_keys_base_path, ignore_errors=True)
+            self.setup_txn_signing()
+            if restart_replicas:
+                # Now, we must restart the replicas
+                self.stop_all_replicas()
+                self.start_all_replicas()
 
         self._init_metrics()
         self._create_clients()

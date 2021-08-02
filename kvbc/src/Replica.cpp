@@ -178,7 +178,6 @@ uint64_t Replica::getStoredReconfigData(const std::string &kCategory,
 }
 void Replica::handleWedgeEvent() {
   auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
-  if (lastExecutedSeqNum == 0) return;
   uint64_t wedgeBlock{0};
   auto version = getLatestVersion(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_wedge_key});
   if (!version.has_value()) return;
@@ -197,8 +196,9 @@ void Replica::handleWedgeEvent() {
 
   LOG_INFO(logger,
            "stored wedge info " << KVLOG(wedgePoint, wedgeBlock, wedgeEpoch, lastExecutedSeqNum, latestKnownEpoch));
-  if (wedgeEpoch == latestKnownEpoch && wedgePoint == (uint64_t)lastExecutedSeqNum) {
+  if (wedgeEpoch == latestKnownEpoch && (wedgePoint == (uint64_t)lastExecutedSeqNum)) {
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(wedgeBftSeqNum);
+    bftEngine::IControlHandler::instance()->onStableCheckpoint();
     LOG_INFO(logger, "wedge the system on wedgepoint: " << wedgePoint);
   }
 }
@@ -224,6 +224,7 @@ void Replica::handleNewEpochEvent() {
       auto bid = add(std::move(updates));
       persistLastBlockIdInMetadata<false>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
       bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
+      bftEngine::EpochManager::instance().setNewEpochFlag(false);
       LOG_INFO(logger, "new epoch block" << KVLOG(bid, epoch, bft_seq_num));
     } catch (const std::exception &e) {
       LOG_ERROR(logger, "failed to persist the reconfiguration block: " << e.what());
