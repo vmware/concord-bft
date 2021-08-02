@@ -3268,26 +3268,18 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) {
-  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
-  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
-    LOG_ERROR(GL,
-              "Recieved invalid ReplicaRestartReadyMsg from sender_id "
-                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
-    delete msg;
-    return;  // this is to handle replay attack
-  }
-  LOG_INFO(GL,
-           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
-                                                             << " with seq_num" << std::to_string(msg->seqNum()));
   if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
     restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
     metric_received_restart_ready_++;
   } else {
-    LOG_ERROR(GL,
+    LOG_DEBUG(GL,
               "Recieved multiple ReplicaRestartReadyMsg from sender_id "
                   << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
     delete msg;
   }
+  LOG_INFO(GL,
+           "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
+                                                             << " with seq_num" << std::to_string(msg->seqNum()));
   bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
   uint32_t targetNumOfMsgs =
       (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
@@ -3300,14 +3292,6 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
 
 template <>
 void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyProofMsg *msg) {
-  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
-  if (!seq_num_to_stop_at.has_value() || (msg->seqNum() != seq_num_to_stop_at.value())) {
-    LOG_ERROR(GL,
-              "Recieved invalid ReplicasRestartReadyProofMsg from sender_id "
-                  << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
-    delete msg;
-    return;  // this is to handle replay attack
-  }
   LOG_INFO(GL,
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));

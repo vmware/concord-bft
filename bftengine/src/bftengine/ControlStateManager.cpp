@@ -53,13 +53,16 @@ void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
   // It can happen that some replicas receives a restart proof and yet to reach
   // stable checkpoint. We should not rstart replica in that case since
   // configuration update happens on stable checkpoint.
+  hasRestartProofAtSeqNum_.emplace(seq_num);
   if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
       IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
-    for (const auto& kv : onRestartProofCbRegistry_) {
-      kv.second.invokeAll();
+    auto seq_num_to_stop_at = getCheckpointToStopAt();
+    if (seq_num_to_stop_at.has_value() && seq_num) {
+      for (const auto& kv : onRestartProofCbRegistry_) {
+        kv.second.invokeAll();
+      }
     }
   }
-  hasRestartProofAtSeqNum_.emplace(seq_num);
 }
 void ControlStateManager::checkForReplicaReconfigurationAction() {
   // restart replica is there is proof
