@@ -143,7 +143,7 @@ class replica_state_sync_test : public Test, public IReader {
  protected:
   BlockMetadata block_metadata_{*this};
   ReplicaStateSyncImp replica_state_sync_{new BlockMetadata{*this}};
-  logging::Logger logger_{logging::Logger::getInstance("com.vmware.replica_state_sync_test")};
+  logging::Logger logger_{logging::getLogger("com.vmware.replica_state_sync_test")};
   const std::uint32_t kMaxNumOfBlocksToDelete = 10;
   const std::uint16_t kNumOfReplicas = 4;
   const std::uint16_t kFVal = 1;

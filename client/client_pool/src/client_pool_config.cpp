@@ -11,10 +11,10 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "include/client/client_pool/client_pool_config.hpp"
+#include "client/client_pool/client_pool_config.hpp"
 
 namespace concord::config_pool {
 
-ClientPoolConfig::ClientPoolConfig() { logger_ = logging::getLogger("com.vmware.external_client_pool"); }
+ClientPoolConfig::ClientPoolConfig() : logger_{logging::getLogger("com.vmware.external_client_pool")} {}
 
 }  // namespace concord::config_pool

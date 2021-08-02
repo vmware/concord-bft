@@ -237,6 +237,5 @@ TEST(trs_sub_buffer_test, happy_path_w_two_consumers_eg) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  auto logger = logging::getLogger("trs_sub_buffer_test");
   return RUN_ALL_TESTS();
 }

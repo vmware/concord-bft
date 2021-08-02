@@ -11,7 +11,7 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "include/client/client_pool/concord_client_pool.hpp"
+#include "client/client_pool/concord_client_pool.hpp"
 
 #include <sparse_merkle/base_types.h>
 #include <mutex>
