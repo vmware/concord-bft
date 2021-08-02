@@ -136,7 +136,8 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
 
 std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> ConcordClient::subscribe(
     const SubscribeRequest& sub_req, const std::unique_ptr<opentracing::Span>& parent_span) {
-  if (subscriber_) {
+  bool expected = false;
+  if (!active_subscription_.compare_exchange_weak(expected, true)) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
     throw SubscriptionExists();
   }
@@ -155,11 +156,10 @@ std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> ConcordClient::
 }
 
 void ConcordClient::unsubscribe() {
-  if (stop_subscriber_ == false) {
+  if (active_subscription_) {
     LOG_INFO(logger_, "Closing subscription. Waiting for subscriber to finish.");
-    stop_subscriber_ = true;
-    subscriber_->join();
-    subscriber_.reset();
+    trc_->Unsubscribe();
+    active_subscription_ = false;
     LOG_INFO(logger_, "Subscriber finished.");
   }
 }
