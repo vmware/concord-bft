@@ -45,7 +45,17 @@ class StReconfigurationHandler {
   template <typename T>
   void deserializeCmfMessage(T& msg, const std::string& strval);
   template <typename T>
-  bool handlerStoredCommand(const std::string& key, uint64_t current_cp_num);
+  bool handleStoredCommand(const std::string& key, uint64_t current_cp_num);
+
+  template <typename T>
+  bool handleWedgeCommands(const T& cmd,
+                           uint64_t bid,
+                           uint64_t current_cp,
+                           uint64_t bft_seq_num,
+                           bool bft_support,
+                           bool remove_metadata,
+                           bool restart,
+                           bool unwedge);
   uint64_t getStoredBftSeqNum(BlockId bid);
   uint64_t getStoredEpochNumber(BlockId bid);
 
@@ -57,6 +67,7 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::RestartCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
 
   kvbc::IReader& ro_storage_;

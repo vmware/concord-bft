@@ -471,7 +471,7 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   auto updated_client_keys = SigManager::instance()->getClientsPublicKeys();
 
   ver_updates.addUpdate(std::string(1, concord::kvbc::kClientsPublicKeys), std::string(updated_client_keys));
-  auto id = persistReconfigurationBlock(ver_updates, sequence_number);
+  auto id = persistReconfigurationBlock(ver_updates, sequence_number, false);
   LOG_INFO(getLogger(),
            "Writing client keys to block [" << id << "] after key exchange, keys "
                                             << std::hash<std::string>{}(updated_client_keys));
