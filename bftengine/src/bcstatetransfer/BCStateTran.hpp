@@ -156,9 +156,6 @@ class BCStateTran : public IStateTransfer {
   std::random_device randomDevice_;
   std::mt19937 randomGen_;
 
-  // get ST client or ST server logger according to getFetchingState()
-  logging::Logger& getLogger() const { return (psd_->getIsFetchingState() ? ST_DST_LOG : ST_SRC_LOG); }
-
   ///////////////////////////////////////////////////////////////////////////
   // Unique message IDs
   ///////////////////////////////////////////////////////////////////////////
@@ -507,6 +504,7 @@ class BCStateTran : public IStateTransfer {
   DurationTracker<std::chrono::milliseconds> gettingMissingResPagesDT_;
 
   FetchingState lastFetchingState_;
+  logging::Logger& logger_;
 
   void onFetchingStateChange(FetchingState newFetchingState);
 
