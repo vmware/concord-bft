@@ -3286,7 +3286,6 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
   if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof();
-    ControlStateManager::instance().onRestartProof(msg->seqNum());
   }
 }
 
@@ -3311,6 +3310,7 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
     }
     restartProofMsg->finalizeMessage();
     sendToAllOtherReplicas(restartProofMsg.get());
+    send(restartProofMsg.get(), config_.getreplicaId());
   }
 }
 

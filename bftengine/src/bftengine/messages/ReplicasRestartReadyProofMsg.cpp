@@ -74,8 +74,7 @@ void ReplicasRestartReadyProofMsg::finalizeMessage() {
 
 void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
   auto sigManager = SigManager::instance();
-  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
-      idOfGeneratedReplica() == repInfo.myId())
+  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   auto dataLength = getBodySize();
