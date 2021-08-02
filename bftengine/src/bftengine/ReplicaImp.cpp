@@ -3310,7 +3310,8 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
     }
     restartProofMsg->finalizeMessage();
     sendToAllOtherReplicas(restartProofMsg.get());
-    send(restartProofMsg.get(), config_.getreplicaId());
+    std::this_thread::sleep_for(1000ms);  // Sleep in order to let the os complete the send before shutting down
+    bftEngine::ControlStateManager::instance().onRestartProof(restartProofMsg->seqNum());
   }
 }
 
