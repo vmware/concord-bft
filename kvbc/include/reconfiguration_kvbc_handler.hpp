@@ -32,6 +32,8 @@ class ReconfigurationBlockTools {
   kvbc::BlockId persistReconfigurationBlock(concord::kvbc::categorization::VersionedUpdates& ver_updates,
                                             const uint64_t bft_seq_num,
                                             bool include_wedge);
+  kvbc::BlockId persistNewEpochBlock(const uint64_t bft_seq_num);
+
   kvbc::IBlockAdder& blocks_adder_;
   BlockMetadata block_metadata_;
   kvbc::IReader& ro_storage_;

@@ -75,6 +75,17 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
   }
 }
 
+kvbc::BlockId ReconfigurationBlockTools::persistNewEpochBlock(const uint64_t bft_seq_num) {
+  auto newEpoch = bftEngine::EpochManager::instance().getSelfEpochNumber() + 1;
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key},
+                        concordUtils::toBigEndianStringBuffer(newEpoch));
+  auto block_id = persistReconfigurationBlock(ver_updates, bft_seq_num, false);
+  bftEngine::EpochManager::instance().setSelfEpochNumber(newEpoch);
+  bftEngine::EpochManager::instance().setGlobalEpochNumber(newEpoch);
+  LOG_INFO(GL, "Starting new epoch " << KVLOG(newEpoch, block_id));
+  return block_id;
+}
 concord::messages::ClientReconfigurationStateReply KvbcClientReconfigurationHandler::buildClientStateReply(
     kvbc::BlockId blockid, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid) {
   concord::messages::ClientReconfigurationStateReply creply;
@@ -365,41 +376,63 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
                                     concord::messages::ReconfigurationResponse&) {
   if (!bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(getLogger(), "replica is already unwedge");
+    return true;
   }
   LOG_INFO(getLogger(), "Unwedge command started " << KVLOG(cmd.bft_support));
-  auto& controlStateManager = bftEngine::ControlStateManager::instance();
-  bool valid = controlStateManager.verifyUnwedgeSignatures(cmd.signatures, cmd.bft_support);
-  if (valid) {
-    auto newEpoch = bftEngine::EpochManager::instance().getSelfEpochNumber() + 1;
-    concord::kvbc::categorization::VersionedUpdates ver_updates;
-    ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key},
-                          concordUtils::toBigEndianStringBuffer(newEpoch));
-    auto block_id = persistReconfigurationBlock(ver_updates, bft_seq_num, false);
-    bftEngine::EpochManager::instance().setSelfEpochNumber(newEpoch);
-    bftEngine::EpochManager::instance().setGlobalEpochNumber(newEpoch);
-    LOG_INFO(getLogger(), "Starting new epoch " << KVLOG(newEpoch, block_id));
-    controlStateManager.setStopAtNextCheckpoint(0);
-    bftEngine::IControlHandler::instance()->resetState();
-    LOG_INFO(getLogger(), "Unwedge command completed sucessfully");
+  auto curr_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  auto quorum_size = bftEngine::ReplicaConfig::instance().numReplicas;
+  if (cmd.bft_support)
+    quorum_size = 2 * bftEngine::ReplicaConfig::instance().fVal + bftEngine::ReplicaConfig::instance().cVal + 1;
+  uint32_t valid_sigs{0};
+  for (auto const& [id, unwedge_stat] : cmd.unwedges) {
+    if (unwedge_stat.curr_epoch < curr_epoch) continue;
+    std::string sig_data = std::to_string(id) + std::to_string(unwedge_stat.curr_epoch);
+    auto& sig = unwedge_stat.signature;
+    std::string signature(sig.begin(), sig.end());
+    bool valid = bftEngine::impl::SigManager::instance()->verifySig(
+        id, sig_data.c_str(), sig_data.size(), signature.data(), signature.size());
+    if (valid) valid_sigs++;
   }
-  return valid;
+  LOG_INFO(getLogger(), "verified " << valid_sigs << " unwedge signatures, required quorum is " << quorum_size);
+  bool can_unwedge = (valid_sigs >= quorum_size);
+  if (can_unwedge) {
+    if (!cmd.restart) {
+      persistNewEpochBlock(bft_seq_num);
+      bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
+      bftEngine::IControlHandler::instance()->resetState();
+      LOG_INFO(getLogger(), "Unwedge command completed successfully");
+    } else {
+      bftEngine::EpochManager::instance().setNewEpochFlag(true);
+      bftEngine::ControlStateManager::instance().restart();
+    }
+  }
+  return can_unwedge;
 }
 
 bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
                                     uint64_t,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
-  auto can_unwedge = bftEngine::ControlStateManager::instance().canUnwedge(req.bft_support);
   response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
-  if (!can_unwedge.first) {
-    response.can_unwedge = false;
-    response.reason = can_unwedge.second;
-    LOG_INFO(getLogger(), "Replica is not ready to unwedge. Reason: " << can_unwedge.second);
-  } else {
-    response.can_unwedge = true;
-    response.signature = std::vector<uint8_t>(can_unwedge.second.begin(), can_unwedge.second.end());
-    LOG_INFO(getLogger(), "Replica is ready to unwedge");
+  if (bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
+    if ((!req.bft_support && !bftEngine::IControlHandler::instance()->isOnNOutOfNCheckpoint()) ||
+        (req.bft_support && !bftEngine::IControlHandler::instance()->isOnStableCheckpoint())) {
+      response.can_unwedge = false;
+      response.reason = "replica is not at wedge point";
+      rres.response = response;
+      return true;
+    }
   }
+  auto curr_epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  std::string sig_data =
+      std::to_string(bftEngine::ReplicaConfig::instance().getreplicaId()) + std::to_string(curr_epoch);
+  auto sig_manager = bftEngine::impl::SigManager::instance();
+  std::string sig(sig_manager->getMySigLength(), '\0');
+  sig_manager->sign(sig_data.c_str(), sig_data.size(), sig.data(), sig.size());
+  response.can_unwedge = true;
+  response.curr_epoch = curr_epoch;
+  response.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  LOG_INFO(getLogger(), "Replica is ready to unwedge " << KVLOG(curr_epoch));
   rres.response = response;
   return true;
 }
