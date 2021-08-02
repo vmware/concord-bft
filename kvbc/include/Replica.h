@@ -145,6 +145,7 @@ class Replica : public IReplica,
 
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry() const { return cronTableRegistry_; }
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
+  void registerStBasedReconfigurationHandler(std::shared_ptr<concord::client::reconfiguration::IStateHandler>);
 
   ~Replica() override;
 
