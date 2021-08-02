@@ -16,11 +16,17 @@
 namespace bftEngine {
 namespace impl {
 
+// This class is used to create a thread bag which will assimilate a lot of tasks at once.
+// Then the tasks in the bag will be scheduled and executed.
+// Currently the user of this thread bag will have to do the book keeping of all the tasks
+// and will have to wait for them.
+// TODO (achaudhuri) : Add the functionality of book keeping and wait for finish of tasks for each thread
+// This abstraction will evolve further to provide the functionality of a bag of thread using a theadpool.
 class RequestThreadPool final {
  public:
   static auto& getThreadPool() {
-    static thread_local concord::util::ThreadPool threadBag{
-        ReplicaConfig::instance().get("concord.bft.message.preprepareDigestCalculationConcurrency", 16u)};
+    static concord::util::ThreadPool threadBag{
+        ReplicaConfig::instance().get("concord.bft.bftengine.threadbagConcurrency", 16u)};
     return threadBag;
   }
 
