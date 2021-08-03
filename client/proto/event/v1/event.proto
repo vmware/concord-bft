@@ -70,7 +70,7 @@ message EventGroupsRequest {
 // Therefore, the order of EventGroups mirror the order of request executions visible to Concord Client.
 message EventGroup {
   // Sequentially increasing identifier which is unique to all Concord Clients with the same Concord Client id.
-  // The very first EventGroup is marked with EventGroup id 0.
+  // The very first EventGroup is marked with EventGroup id 1.
   uint64 id = 1;
 
   // The events visible to the client in the order produced by the execution engine.
