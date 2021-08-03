@@ -11,10 +11,9 @@
 
 #pragma once
 
+#include "IncomingMsgsStorage.hpp"
 #include "PrimitiveTypes.hpp"
 #include "MsgsCommunicator.hpp"
-
-#include <functional>
 
 namespace bftEngine {
 namespace impl {
@@ -33,7 +32,7 @@ class IInternalBFTClient {
                                uint32_t requestLength,
                                const char* request,
                                const std::string& cid,
-                               std::function<void()> onPoppedFromQueue) = 0;
+                               IncomingMsgsStorage::Callback onPoppedFromQueue) = 0;
 
   virtual uint32_t numOfConnectedReplicas(uint32_t clusterSize) = 0;
   virtual bool isUdp() const = 0;
@@ -48,7 +47,7 @@ class InternalBFTClient : public IInternalBFTClient {
                        uint32_t requestLength,
                        const char* request,
                        const std::string& cid,
-                       std::function<void()> onPoppedFromQueue) override;
+                       IncomingMsgsStorage::Callback onPoppedFromQueue) override;
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) override {
     return msgComm_->numOfConnectedReplicas(clusterSize);
   }

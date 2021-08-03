@@ -21,14 +21,14 @@ uint64_t InternalBFTClient::sendRequest(uint64_t flags,
                                         uint32_t requestLength,
                                         const char* request,
                                         const std::string& cid) {
-  return sendRequest(flags, requestLength, request, cid, std::function<void()>{});
+  return sendRequest(flags, requestLength, request, cid, IncomingMsgsStorage::Callback{});
 }
 
 uint64_t InternalBFTClient::sendRequest(uint64_t flags,
                                         uint32_t requestLength,
                                         const char* request,
                                         const std::string& cid,
-                                        std::function<void()> onPoppedFromQueue) {
+                                        IncomingMsgsStorage::Callback onPoppedFromQueue) {
   auto now = getMonotonicTime().time_since_epoch();
   auto now_ms = std::chrono::duration_cast<std::chrono::microseconds>(now);
   auto sn = now_ms.count();

@@ -82,7 +82,21 @@ void TicksGenerator::onInternalTick(const bftEngine::impl::TickInternalMsg& inte
   // No need to lock the mutex as this method is expected to be called from the messaging thread only.
   auto ext_queue_it = pending_ticks_in_ext_queue_.find(internal_tick.component_id);
   auto req_it = pending_tick_requests_.find(internal_tick.component_id);
-  // In the beginning, always send.
+  // The path of a tick request is the following:
+  //
+  // -----------------------------------------------------------------------------------------------------------
+  //                                                         onTickPoppedFromExtQueue()
+  //                                                                    |
+  //                                                                    v
+  //  ticks gen -> internal queue -> onInternalTick() -> external queue -> onMessage() -> consensus -> execute()
+  //                                                                            ^
+  //                                                                            |
+  //                                                             ClientsManager::addPendingRequest()
+  // -----------------------------------------------------------------------------------------------------------
+  //
+  // The first time this method is called for a particular component ID, we don't have anything in the external queue or
+  // in the ClientsManager. Therefore, nothing is pending and we can omit the isPending() check and directly send.
+  // If not in the external queue, it might be pending or not and, therefore, we use isPending() to check.
   if (ext_queue_it == pending_ticks_in_ext_queue_.cend() && req_it == pending_tick_requests_.cend()) {
     sendClientRequestMsgTick(internal_tick.component_id);
   } else if (ext_queue_it == pending_ticks_in_ext_queue_.cend()) {
