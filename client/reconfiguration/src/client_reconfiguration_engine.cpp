@@ -33,22 +33,19 @@ void ClientReconfigurationEngine::main() {
       if (update.blockid <= lastKnownBlock_) continue;
 
       // Execute the reconfiguration command
-      for (auto& [key, val] : handlers_) {
-        (void)key;
-        for (auto& h : val) {
-          if (!h->validate(update)) {
-            invalid_handlers_++;
-            continue;
-          }
-          WriteState out_state;
-          if (!h->execute(update, out_state)) {
-            LOG_ERROR(getLogger(), "error while executing the handlers");
-            errored_handlers_++;
-            continue;
-          }
-          if (!out_state.data.empty()) {
-            stateClient_->updateStateOnChain(out_state);
-          }
+      for (auto& h : handlers_) {
+        if (!h->validate(update)) {
+          invalid_handlers_++;
+          continue;
+        }
+        WriteState out_state;
+        if (!h->execute(update, out_state)) {
+          LOG_ERROR(getLogger(), "error while executing the handlers");
+          errored_handlers_++;
+          continue;
+        }
+        if (!out_state.data.empty()) {
+          stateClient_->updateState(out_state);
         }
       }
       lastKnownBlock_ = update.blockid;
@@ -60,8 +57,8 @@ void ClientReconfigurationEngine::main() {
     metrics_.UpdateAggregator();
   }
 }
-void ClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler> handler, CreHandlerType type) {
-  if (handler != nullptr) handlers_[type].push_back(handler);
+void ClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler> handler) {
+  if (handler != nullptr) handlers_.push_back(handler);
 }
 
 ClientReconfigurationEngine::~ClientReconfigurationEngine() {

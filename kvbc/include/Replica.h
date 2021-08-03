@@ -28,7 +28,7 @@
 #include "storage_factory_interface.h"
 #include "ControlStateManager.hpp"
 #include "thread_pool.hpp"
-#include "client/reconfiguration/iclient_reconfiguration_engine.hpp"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include <ccron/cron_table_registry.hpp>
 #include <ccron/ticks_generator.hpp>
 
@@ -145,9 +145,7 @@ class Replica : public IReplica,
 
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry() const { return cronTableRegistry_; }
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
-  void registerStBasedReconfigurationHandler(
-      std::shared_ptr<concord::client::reconfiguration::IStateHandler>,
-      concord::client::reconfiguration::IClientReconfigurationEngine::CreHandlerType type);
+  void registerStBasedReconfigurationHandler(std::shared_ptr<concord::client::reconfiguration::IStateHandler>);
 
   ~Replica() override;
 
@@ -219,7 +217,7 @@ class Replica : public IReplica,
   std::unique_ptr<concord::kvbc::StReconfigurationHandler> stReconfigurationSM_;
   std::shared_ptr<cron::CronTableRegistry> cronTableRegistry_{std::make_shared<cron::CronTableRegistry>()};
   concord::util::ThreadPool blocksIOWorkersPool_;
-  std::unique_ptr<concord::client::reconfiguration::IClientReconfigurationEngine> creEngine_;
+  std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
 
  private:

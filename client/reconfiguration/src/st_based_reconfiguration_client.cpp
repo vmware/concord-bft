@@ -8,11 +8,16 @@
 // file.
 
 #include "concord.cmf.hpp"
+#include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
 namespace concord::client::reconfiguration {
 
-STBasedReconfigurationClient::STBasedReconfigurationClient(const uint64_t& blockId, uint64_t interval_timeout_ms)
-    : lastKnownReconfigurationCmdBlockId_(blockId), interval_timeout_ms_(interval_timeout_ms) {}
+STBasedReconfigurationClient::STBasedReconfigurationClient(std::function<void(uint64_t)> updateStateCb,
+                                                           const uint64_t& blockId,
+                                                           uint64_t interval_timeout_ms)
+    : storeReconfigBlockToMdtCb_(std::move(updateStateCb)),
+      lastKnownReconfigurationCmdBlockId_(blockId),
+      interval_timeout_ms_(interval_timeout_ms) {}
 
 State STBasedReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
   std::unique_lock<std::mutex> lk(lock_);
@@ -41,5 +46,15 @@ void STBasedReconfigurationClient::pushUpdate(std::vector<State>& states) {
 }
 State STBasedReconfigurationClient::getLatestClientUpdate(uint16_t clientId) const {
   return {lastKnownReconfigurationCmdBlockId_, {}};
+}
+bool STBasedReconfigurationClient::updateState(const WriteState& state) {
+  bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
+  std::istringstream inStream;
+  std::string page(state.data.begin(), state.data.end());
+  inStream.str(page);
+  concord::serialize::Serializable::deserialize(inStream, cmdData);
+  if (storeReconfigBlockToMdtCb_) storeReconfigBlockToMdtCb_(cmdData.blockId_);
+  if (state.callBack) state.callBack();
+  return true;
 }
 }  // namespace concord::client::reconfiguration

@@ -10,7 +10,7 @@
 // file.
 
 #pragma once
-#include "iclient_reconfiguration_engine.hpp"
+
 #include "cre_interfaces.hpp"
 #include "config.hpp"
 #include "Logger.hpp"
@@ -19,12 +19,12 @@
 #include <vector>
 #include <thread>
 namespace concord::client::reconfiguration {
-class ClientReconfigurationEngine : public IClientReconfigurationEngine {
+class ClientReconfigurationEngine {
  public:
   ClientReconfigurationEngine(const Config& config,
                               IStateClient* stateClient,
                               std::shared_ptr<concordMetrics::Aggregator> aggregator);
-  void registerHandler(std::shared_ptr<IStateHandler> handler, CreHandlerType type = REGULAR);
+  void registerHandler(std::shared_ptr<IStateHandler> handler);
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     metrics_.SetAggregator(aggregator_);
@@ -39,7 +39,7 @@ class ClientReconfigurationEngine : public IClientReconfigurationEngine {
     static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.ClientReconfigurationEngine"));
     return logger_;
   }
-  std::map<uint32_t, std::vector<std::shared_ptr<IStateHandler>>> handlers_;
+  std::vector<std::shared_ptr<IStateHandler>> handlers_;
   std::unique_ptr<IStateClient> stateClient_;
   Config config_;
   std::atomic_bool stopped_{true};
