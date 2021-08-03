@@ -51,9 +51,6 @@ option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
 # Build Slowdown framework
 option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
 
-# Build KVBC Benchmarking tool
-option(BUILD_KVBC_BENCH "BUILD kvbcbench" FALSE)
-
 # Build Time service with fake clock
 option(USE_FAKE_CLOCK_IN_TIME_SERVICE "BUILD TimeService Using Fake Clock" FALSE)
 
