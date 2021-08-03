@@ -10,17 +10,25 @@
 // file.
 
 #include "SigManager.hpp"
-#include "Crypto.hpp"
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 
-#include <vector>
 #include <algorithm>
+#include "keys_and_signatures.cmf.hpp"
 
 using namespace std;
 
 namespace bftEngine {
 namespace impl {
+
+concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
+
+std::string SigManager::getClientsPublicKeys() {
+  std::shared_lock lock(mutex_);
+  std::vector<uint8_t> output;
+  concord::messages::keys_and_signatures::serialize(output, clientsPublicKeys_);
+  return std::string(output.begin(), output.end());
+}
 
 SigManager* SigManager::initImpl(ReplicaId myId,
                                  const Key& mySigPrivateKey,

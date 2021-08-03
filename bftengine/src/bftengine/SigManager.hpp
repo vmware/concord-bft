@@ -22,8 +22,6 @@
 #include <memory>
 #include <shared_mutex>
 
-#include "keys_and_signatures.cmf.hpp"
-
 using concordMetrics::AtomicCounterHandle;
 
 namespace bftEngine {
@@ -74,16 +72,10 @@ class SigManager {
   SigManager(SigManager&&) = delete;
   SigManager& operator=(SigManager&&) = delete;
 
-  std::string getClientsPublicKeys() {
-    std::shared_lock lock(mutex_);
-    std::vector<uint8_t> output;
-    concord::messages::keys_and_signatures::serialize(output, clientsPublicKeys_);
-    return std::string(output.begin(), output.end());
-  }
+  std::string getClientsPublicKeys();
 
  protected:
   static constexpr uint16_t updateMetricsAggregatorThresh = 1000;
-  concord::messages::keys_and_signatures::ClientsPublicKeys clientsPublicKeys_;
 
   SigManager(PrincipalId myId,
              uint16_t numReplicas,
