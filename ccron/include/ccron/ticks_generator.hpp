@@ -19,21 +19,23 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace concord::cron {
 
 // Generates ticks periodically and, therefore, triggers the cron table even if there is no traffic in the system.
-class TicksGenerator {
+class TicksGenerator : public std::enable_shared_from_this<TicksGenerator> {
  public:
-  TicksGenerator(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &bft_client,
-                 const IPendingRequest &pending_req,
-                 const std::shared_ptr<IncomingMsgsStorage> &msgs_storage,
-                 const std::chrono::seconds &poll_period);
+  static std::shared_ptr<TicksGenerator> create(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &bft_client,
+                                                const IPendingRequest &pending_req,
+                                                const std::shared_ptr<IncomingMsgsStorage> &msgs_storage,
+                                                const std::chrono::seconds &poll_period);
+
   ~TicksGenerator();
 
   static inline const std::string kTickCid{"__concord__internal__tick__"};
@@ -49,9 +51,12 @@ class TicksGenerator {
   bool isGenerating(std::uint32_t component_id) const;
 
  public:
-  // Called by the main replica thread *only* on receiving a tick as an internal message.
+  // Called by the replica messaging thread *only*. Called on receiving a tick as an internal message.
   // Do not call from other threads.
   void onInternalTick(const bftEngine::impl::TickInternalMsg &);
+
+  // Called by the replica messaging thread *only*. Called on popping a tick from the external queue.
+  void onTickPoppedFromExtQueue(std::uint32_t component_id);
 
  private:
   // Called in an internal thread to generate ticks.
@@ -65,10 +70,14 @@ class TicksGenerator {
   const IPendingRequest *pending_req_{nullptr};
   const std::shared_ptr<IncomingMsgsStorage> msgs_storage_;
 
+  // Keep a set of pending ticks per component ID in the external queue.
+  // Needed for throttling ticks per component.
+  std::unordered_set<std::uint32_t> pending_ticks_in_ext_queue_;
+
   // Keep a map of pending tick request sequence numbers per component ID:
   // component_id -> pending tick request sequence number
   // Needed for throttling ticks per component.
-  std::map<std::uint32_t, std::uint64_t> component_pending_req_seq_nums_;
+  std::unordered_map<std::uint32_t, std::uint64_t> pending_tick_requests_;
 
   std::thread thread_;
   std::atomic_bool stop_{false};
@@ -79,17 +88,24 @@ class TicksGenerator {
   // protect timers themselves as there is no need - they can be called concurrently.
   mutable std::mutex mtx_;
   // component_id -> timer handler
-  std::map<std::uint32_t, concordUtil::Timers::Handle> timer_handles_;
+  std::unordered_map<std::uint32_t, concordUtil::Timers::Handle> timer_handles_;
 
-  // Following methods are for testing only, do not use in production.
+  // Following protected methods are for testing only, do not use in production.
  protected:
   void evaluateTimers(const std::chrono::steady_clock::time_point &now);
 
   struct DoNotStartThread {};
+
   TicksGenerator(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &bft_client,
                  const IPendingRequest &pending_req,
                  const std::shared_ptr<IncomingMsgsStorage> &msgs_storage,
                  DoNotStartThread);
+
+ private:
+  TicksGenerator(const std::shared_ptr<bftEngine::impl::IInternalBFTClient> &bft_client,
+                 const IPendingRequest &pending_req,
+                 const std::shared_ptr<IncomingMsgsStorage> &msgs_storage,
+                 const std::chrono::seconds &poll_period);
 };
 
 }  // namespace concord::cron

@@ -44,8 +44,13 @@ struct IncomingMsgsStorageMock : public bftEngine::impl::IncomingMsgsStorage {
 struct InternalBFTClientMock : public IInternalBFTClient {
   NodeIdType getClientId() const override { return 42; }
 
-  // Returns the sent client request sequence number.
   uint64_t sendRequest(uint64_t flags, uint32_t size, const char* request, const std::string& cid) override {
+    return sendRequest(flags, size, request, cid, std::function<void()>{});
+  }
+
+  // Returns the sent client request sequence number.
+  uint64_t sendRequest(
+      uint64_t flags, uint32_t size, const char* request, const std::string& cid, std::function<void()>) override {
     auto seq_num = 0;
     if (!requests_.empty()) {
       seq_num = std::prev(requests_.cend())->first + 1;
@@ -103,11 +108,19 @@ struct PendingRequestMock : public IPendingRequest {
 };
 
 struct TicksGeneratorForTest : public TicksGenerator {
+  static std::shared_ptr<TicksGeneratorForTest> create(
+      const std::shared_ptr<bftEngine::impl::IInternalBFTClient>& bft_client,
+      const IPendingRequest& pending_req,
+      const std::shared_ptr<IncomingMsgsStorage>& msgs_storage) {
+    return std::shared_ptr<TicksGeneratorForTest>{new TicksGeneratorForTest{bft_client, pending_req, msgs_storage}};
+  }
+  void evaluateTimers(const std::chrono::steady_clock::time_point& now) { TicksGenerator::evaluateTimers(now); }
+
+ private:
   TicksGeneratorForTest(const std::shared_ptr<bftEngine::impl::IInternalBFTClient>& bft_client,
                         const IPendingRequest& pending_req,
                         const std::shared_ptr<IncomingMsgsStorage>& msgs_storage)
       : TicksGenerator{bft_client, pending_req, msgs_storage, TicksGenerator::DoNotStartThread{}} {}
-  void evaluateTimers(const std::chrono::steady_clock::time_point& now) { TicksGenerator::evaluateTimers(now); }
 };
 
 }  // namespace concord::cron::test

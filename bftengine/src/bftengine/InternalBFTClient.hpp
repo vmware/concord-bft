@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "IncomingMsgsStorage.hpp"
 #include "PrimitiveTypes.hpp"
 #include "MsgsCommunicator.hpp"
 
@@ -20,8 +21,19 @@ class IInternalBFTClient {
  public:
   virtual ~IInternalBFTClient() {}
   virtual NodeIdType getClientId() const = 0;
-  // Returns the sent client request sequence number.
+
+  // send* methods return the sent client request sequence number.
+  // The optional `onPoppedFromQueue` function is called in the consumer/replica thread(s) when the given request is
+  // popped.
+  // Note: users should be aware that if they push a request from the consumer/replica thread(s), the given callback
+  // will be called in the same thread.
   virtual uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid) = 0;
+  virtual uint64_t sendRequest(uint64_t flags,
+                               uint32_t requestLength,
+                               const char* request,
+                               const std::string& cid,
+                               IncomingMsgsStorage::Callback onPoppedFromQueue) = 0;
+
   virtual uint32_t numOfConnectedReplicas(uint32_t clusterSize) = 0;
   virtual bool isUdp() const = 0;
 };
@@ -29,10 +41,17 @@ class IInternalBFTClient {
 class InternalBFTClient : public IInternalBFTClient {
  public:
   InternalBFTClient(NodeIdType id, std::shared_ptr<MsgsCommunicator>& msgComm) : id_{id}, msgComm_(msgComm) {}
-  NodeIdType getClientId() const { return id_; }
-  uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid);
-  uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return msgComm_->numOfConnectedReplicas(clusterSize); }
-  bool isUdp() const { return msgComm_->isUdp(); }
+  NodeIdType getClientId() const override { return id_; }
+  uint64_t sendRequest(uint64_t flags, uint32_t requestLength, const char* request, const std::string& cid) override;
+  uint64_t sendRequest(uint64_t flags,
+                       uint32_t requestLength,
+                       const char* request,
+                       const std::string& cid,
+                       IncomingMsgsStorage::Callback onPoppedFromQueue) override;
+  uint32_t numOfConnectedReplicas(uint32_t clusterSize) override {
+    return msgComm_->numOfConnectedReplicas(clusterSize);
+  }
+  bool isUdp() const override { return msgComm_->isUdp(); }
 
  private:
   NodeIdType id_;
