@@ -13,6 +13,7 @@
 
 #pragma once
 #include <optional>
+#include <atomic>
 #include "IStateTransfer.hpp"
 #include "ReservedPagesClient.hpp"
 #include "Serializable.h"

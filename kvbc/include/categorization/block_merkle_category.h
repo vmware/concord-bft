@@ -219,7 +219,6 @@ class BlockMerkleCategory {
  private:
   std::shared_ptr<storage::rocksdb::NativeClient> db_;
 
-  logging::Logger logger_;
   sparse_merkle::Tree tree_;
 };
 

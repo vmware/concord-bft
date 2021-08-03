@@ -858,9 +858,10 @@ inline std::string usage() {
 }
 
 inline int run(const CommandLineArguments &cmd_line_args, std::ostream &out, std::ostream &err) {
+#ifdef USE_LOG4CPP
   // Make sure the output is clean
   logging::Logger::getRoot().setLogLevel(log4cplus::WARN_LOG_LEVEL);
-
+#endif
   if (cmd_line_args.values.size() < kMinCmdLineArguments) {
     err << usage();
     return EXIT_FAILURE;

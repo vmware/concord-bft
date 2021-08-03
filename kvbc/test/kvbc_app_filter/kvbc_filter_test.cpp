@@ -509,6 +509,5 @@ TEST(kvbc_filter_test, updates_order) {
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  auto logger = logging::getLogger("kvb_filter_test");
   return RUN_ALL_TESTS();
 }
