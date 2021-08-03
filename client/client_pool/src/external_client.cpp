@@ -11,7 +11,7 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
-#include "include/client/client_pool/external_client.hpp"
+#include "client/client_pool/external_client.hpp"
 #include <string>
 #include <utility>
 #include "SimpleClient.hpp"

@@ -621,6 +621,5 @@ TEST(thin_replica_server_test, getClientIdFromClientCert) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  auto logger = logging::getLogger("thin_replica_server_test");
   return RUN_ALL_TESTS();
 }
