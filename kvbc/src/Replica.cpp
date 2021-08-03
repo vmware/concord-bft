@@ -748,9 +748,10 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
   }
 }
 void Replica::registerStBasedReconfigurationHandler(
-    std::shared_ptr<concord::client::reconfiguration::IStateHandler> handler) {
+    std::shared_ptr<concord::client::reconfiguration::IStateHandler> handler,
+    concord::client::reconfiguration::IClientReconfigurationEngine::CreHandlerType type) {
   // api for higher level application to register the handler
-  if (handler) creEngine_->registerHandler(handler);
+  if (handler) creEngine_->registerHandler(handler, type);
 }
 BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   if (replicaConfig_.isReadOnly) {
