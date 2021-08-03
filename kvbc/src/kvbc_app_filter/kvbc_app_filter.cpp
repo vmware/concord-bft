@@ -422,7 +422,13 @@ std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents
 kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid) {
   LOG_DEBUG(logger_, "getEventGroup " << event_group_id << " for " << client_id_);
   // get global_event_group_id corresponding to trid_event_group_id
-  const auto key = client_id_ + concordUtils::toBigEndianStringBuffer(event_group_id);
+  // trid + # + latest_trid_event_group_id concatenation is used as key for kv-updates of type
+  // kExecutionTridEventGroupsCategory We add a separator character between the tag and latest_trid_event_group_id_str
+  // to avoid key collisions like below -
+  // tag1 + 120 --> "tag1120"
+  // tag11 + 20 --> "tag1120"
+  // this is a temporary solution, and needs to be fixed in a proper manner
+  const auto key = client_id_ + "#" + concordUtils::toBigEndianStringBuffer(event_group_id);
   const auto global_eg_id_val =
       rostorage_->getLatest(concord::kvbc::categorization::kExecutionTridEventGroupsCategory, key);
   if (not global_eg_id_val) {
