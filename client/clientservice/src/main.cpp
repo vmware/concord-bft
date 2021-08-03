@@ -30,6 +30,13 @@ using concord::client::concordclient::ConcordClientConfig;
 
 namespace po = boost::program_options;
 
+const static int kLogConfigRefreshIntervalInMs = 60 * 1000;
+
+const static char* GetLog4CplusConfigLocation() {
+  auto log_location = std::getenv("LOG4CPLUS_CONFIGURATION");
+  return log_location ? log_location : "LOG4CPLUS_CONFIGURATION_NOT_SET";
+}
+
 po::variables_map parseCmdLine(int argc, char** argv) {
   po::options_description desc;
   // clang-format off
@@ -51,9 +58,8 @@ po::variables_map parseCmdLine(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-  // TODO: Use config file and watch thread for logger
   auto logger = logging::getLogger("concord.client.clientservice.main");
-
+  LOG_CONFIGURE_AND_WATCH(GetLog4CplusConfigLocation(), kLogConfigRefreshIntervalInMs);
   auto opts = parseCmdLine(argc, argv);
 
   ConcordClientConfig config;
