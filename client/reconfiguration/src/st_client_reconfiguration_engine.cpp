@@ -8,13 +8,13 @@
 // This product may include a number of subcomponents with separate copyright notices and license terms. Your use of
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-#include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/st_client_reconfiguration_engine.hpp"
 
 namespace concord::client::reconfiguration {
 
-ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
-                                                         IStateClient* stateClient,
-                                                         std::shared_ptr<concordMetrics::Aggregator> aggregator)
+STClientReconfigurationEngine::STClientReconfigurationEngine(const Config& config,
+                                                             IStateClient* stateClient,
+                                                             std::shared_ptr<concordMetrics::Aggregator> aggregator)
     : stateClient_{stateClient},
       config_{config},
       aggregator_{aggregator},
@@ -25,7 +25,7 @@ ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
   metrics_.Register();
 }
 
-void ClientReconfigurationEngine::main() {
+void STClientReconfigurationEngine::main() {
   while (!stopped_) {
     try {
       auto update = stateClient_->getNextState(lastKnownBlock_);
@@ -33,26 +33,30 @@ void ClientReconfigurationEngine::main() {
       if (update.blockid <= lastKnownBlock_) continue;
 
       // Execute the reconfiguration command
+      auto valid = true;
+      auto execStatus = true;
       for (auto& [key, val] : handlers_) {
         (void)key;
         for (auto& h : val) {
-          if (!h->validate(update)) {
+          valid &= h->validate(update);
+          if (!valid) {
             invalid_handlers_++;
             continue;
           }
           WriteState out_state;
-          if (!h->execute(update, out_state)) {
+          execStatus &= h->execute(update, out_state);
+          // skip if previous handler failed to execute
+          if (!execStatus) {
             LOG_ERROR(getLogger(), "error while executing the handlers");
             errored_handlers_++;
             continue;
           }
-          if (!out_state.data.empty()) {
-            stateClient_->updateStateOnChain(out_state);
-          }
         }
       }
-      lastKnownBlock_ = update.blockid;
-      last_known_block_.Get().Set(lastKnownBlock_);
+      if (valid && execStatus) {
+        lastKnownBlock_ = update.blockid;
+        last_known_block_.Get().Set(lastKnownBlock_);
+      }
     } catch (const std::exception& e) {
       LOG_ERROR(getLogger(), "error while executing the handlers " << e.what());
       errored_handlers_++;
@@ -60,11 +64,11 @@ void ClientReconfigurationEngine::main() {
     metrics_.UpdateAggregator();
   }
 }
-void ClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler> handler, CreHandlerType type) {
+void STClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler> handler, CreHandlerType type) {
   if (handler != nullptr) handlers_[type].push_back(handler);
 }
 
-ClientReconfigurationEngine::~ClientReconfigurationEngine() {
+STClientReconfigurationEngine::~STClientReconfigurationEngine() {
   if (!stopped_) {
     try {
       stateClient_->stop();
@@ -75,7 +79,7 @@ ClientReconfigurationEngine::~ClientReconfigurationEngine() {
     }
   }
 }
-void ClientReconfigurationEngine::start() {
+void STClientReconfigurationEngine::start() {
   auto initial_state = stateClient_->getLatestClientUpdate(config_.id_);
   lastKnownBlock_ = initial_state.blockid;
   last_known_block_.Get().Set(lastKnownBlock_);
@@ -84,7 +88,7 @@ void ClientReconfigurationEngine::start() {
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
 }
-void ClientReconfigurationEngine::stop() {
+void STClientReconfigurationEngine::stop() {
   if (stopped_) return;
   stateClient_->stop();
   stopped_ = true;

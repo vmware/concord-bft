@@ -19,24 +19,24 @@
 #include <vector>
 #include <thread>
 namespace concord::client::reconfiguration {
-class ClientReconfigurationEngine : public IClientReconfigurationEngine {
+class STClientReconfigurationEngine : public IClientReconfigurationEngine {
  public:
-  ClientReconfigurationEngine(const Config& config,
-                              IStateClient* stateClient,
-                              std::shared_ptr<concordMetrics::Aggregator> aggregator);
+  STClientReconfigurationEngine(const Config& config,
+                                IStateClient* stateClient,
+                                std::shared_ptr<concordMetrics::Aggregator> aggregator);
   void registerHandler(std::shared_ptr<IStateHandler> handler, CreHandlerType type = REGULAR);
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
     aggregator_ = aggregator;
     metrics_.SetAggregator(aggregator_);
   }
-  ~ClientReconfigurationEngine();
+  ~STClientReconfigurationEngine();
   void start();
   void stop();
 
  private:
   void main();
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.ClientReconfigurationEngine"));
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.STClientReconfigurationEngine"));
     return logger_;
   }
   std::map<uint32_t, std::vector<std::shared_ptr<IStateHandler>>> handlers_;

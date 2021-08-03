@@ -13,6 +13,7 @@
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/iclient_reconfiguration_engine.hpp"
 #include "client/reconfiguration/cre_interfaces.hpp"
 #include <chrono>
 
@@ -107,7 +108,7 @@ TEST(test_client_reconfiguration_engine, test_cre) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   TestStateClient* sc = new TestStateClient();
   TestStateClient& rsc = *sc;
-  std::shared_ptr<ClientReconfigurationEngine> cre = std::make_shared<ClientReconfigurationEngine>(c, sc, aggregator);
+  std::shared_ptr<IClientReconfigurationEngine> cre = std::make_shared<ClientReconfigurationEngine>(c, sc, aggregator);
   std::shared_ptr<TestExecuteHandler> handler = std::make_shared<TestExecuteHandler>();
   std::shared_ptr<TestPersistOnChainHandler> chainHandler = std::make_shared<TestPersistOnChainHandler>();
   cre->registerHandler(handler);

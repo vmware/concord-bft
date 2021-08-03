@@ -37,6 +37,7 @@
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
 #include "client/reconfiguration/st_based_reconfiguration_handler.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/st_client_reconfiguration_engine.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -769,7 +770,7 @@ void Replica::startRoReplicaCreEngine() {
   cre_config.id_ = replicaConfig_.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
   creEngine_.reset(
-      new concord::client::reconfiguration::ClientReconfigurationEngine(cre_config, creClient_.get(), aggregator_));
+      new concord::client::reconfiguration::STClientReconfigurationEngine(cre_config, creClient_.get(), aggregator_));
   creEngine_->registerHandler(std::make_shared<concord::client::reconfiguration::STBasedReconfigurationHandler>(
       [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }));
   creEngine_->start();
