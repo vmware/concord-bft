@@ -22,6 +22,7 @@
 #include <list>
 #include <variant>
 #include "Statistics.hpp"
+#include "Logger.hpp"
 
 namespace concordMetrics {
 template <class T>
@@ -42,6 +43,8 @@ class Component;
 class Values;
 typedef struct metric_ Metric;
 
+/******************************** Class Aggregator ********************************/
+
 // An aggregator maintains metrics for multiple components. Components
 // maintain a handle to the aggregator and update it periodically with
 // all their metric values. Therefore, the state of all metrics is eventually
@@ -52,6 +55,7 @@ typedef struct metric_ Metric;
 // responsible for reporting system metrics should read it from the aggregator.
 class Aggregator {
  public:
+  Aggregator(bool metricsEnabled = true);
   Gauge GetGauge(const std::string& component_name, const std::string& val_name);
   Status GetStatus(const std::string& component_name, const std::string& val_name);
   Counter GetCounter(const std::string& component_name, const std::string& val_name);
@@ -64,16 +68,20 @@ class Aggregator {
   std::string ToJson();
 
  private:
+  const bool metricsEnabled_ = true;
   void RegisterComponent(Component& component);
   void UpdateValues(const std::string& name, Values&& values);
 
   std::map<std::string, Component> components_;
   std::mutex lock_;
+  logging::Logger logger_;
 
   friend class Component;
 };
 
-// A Gauge is a an integer value that shows the current value of something. It
+/******************************** Class BasicGauge ********************************/
+
+// A Gauge is an integer value that shows the current value of something. It
 // can only be varied by directly setting and getting it.
 template <class T>
 class BasicGauge {
@@ -95,6 +103,8 @@ class BasicGauge {
  private:
   T val_;
 };
+
+/******************************** Class BasicCounter ********************************/
 
 template <class T>
 class BasicCounter {
@@ -118,6 +128,8 @@ class BasicCounter {
  private:
   T val_;
 };
+
+/******************************** Class BasicStatus ********************************/
 
 // Status is a text based representation of a value. It's used for things that
 // don't have strictly numeric representations, like the current state of the
@@ -144,6 +156,8 @@ struct metric_ {
   std::variant<Counter, Gauge, Status, SummaryDescription> value;
 };
 
+/******************************** Class Values ********************************/
+
 class Values {
  private:
   std::vector<Gauge> gauges_;
@@ -155,6 +169,8 @@ class Values {
   friend class Component;
   friend class Aggregator;
 };
+
+/******************************** Class Names ********************************/
 
 // We keep the names of values in separate vecs since they remain constant for
 // the life of the program. When we update the component in the aggregator we
@@ -171,6 +187,8 @@ class Names {
   friend class Component;
   friend class Aggregator;
 };
+
+/******************************** Class Component ********************************/
 
 // A Component stores Values of different types and is updated on the local
 // thread. Components are sent to an Aggregator periodically. Components are
@@ -189,13 +207,21 @@ class Component {
   template <typename T>
   class Handle {
    public:
-    Handle(std::vector<T>& values, size_t index) : values_(values), index_(index) {}
+    Handle(std::vector<T>& values, size_t index, bool metricsEnabled)
+        : values_(values), index_(index), metricsEnabled_(metricsEnabled) {}
     T& Get() { return values_[index_]; }
     // postfix
-    T operator++(int) { return Get()++; }
+    T operator++(int) {
+      if (!metricsEnabled_) return Get();
+      return Get()++;
+    }
     // postfix
-    T operator--(int) { return Get()--; }
+    T operator--(int) {
+      if (!metricsEnabled_) return Get();
+      return Get()--;
+    }
     T& operator+=(const typename T::type& rhs) {
+      if (!metricsEnabled_) return Get();
       Get() += rhs;
       return Get();
     }
@@ -203,9 +229,11 @@ class Component {
    private:
     std::vector<T>& values_;
     size_t index_;
+    const bool metricsEnabled_;
   };
 
-  Component(const std::string& name, std::shared_ptr<Aggregator> aggregator) : aggregator_(aggregator), name_(name) {}
+  Component(const std::string& name, std::shared_ptr<Aggregator> aggregator)
+      : aggregator_(aggregator), name_(name), metricsEnabled_(aggregator->metricsEnabled_) {}
   std::string Name() { return name_; }
 
   // Create a Gauge, add it to the component and return a reference to the
@@ -233,12 +261,7 @@ class Component {
   }
 
   // Update the values in the aggregator
-  void UpdateAggregator() {
-    Values copy = values_;
-    if (auto aggregator = aggregator_.lock()) {
-      aggregator->UpdateValues(name_, std::move(copy));
-    }
-  }
+  void UpdateAggregator();
 
   // Change the aggregator used by the component
   //
@@ -258,6 +281,7 @@ class Component {
 
   std::weak_ptr<Aggregator> aggregator_;
   std::string name_;
+  const bool metricsEnabled_;
 
   Names names_;
   Values values_;
