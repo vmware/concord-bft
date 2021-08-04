@@ -438,6 +438,152 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for i in range(100):
             await skvbc.send_write_kv_set()
 
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_unwedge_command_with_state_transfer(self, bft_network):
+        """
+            This test checks that a replica that is stopped after wedge manages to catch up with the unwedged ones with ST
+            The test does the following:
+            1. Start all replicas 
+            2. A client sends a wedge command
+            3. Validate that all started replicas reached to the next next checkpoint
+            4. Stop one replica
+            5. The client sends a unwedge command
+            6. Start the late replica
+            7. Validate that the late replica completed the state transfer
+        """
+        initial_prim = 0
+        on_time_replicas = bft_network.all_replicas()
+
+        bft_network.start_replicas(on_time_replicas)
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.wait_for_liveness()
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        with log.start_action(action_type="send_wedge_cmd",
+                              checkpoint_before=checkpoint_before):
+            op = operator.Operator(
+                bft_network.config, client,  bft_network.builddir)
+            await op.wedge()
+
+        await self.validate_stop_on_wedge_point(bft_network,skvbc)
+
+        replicas_to_stop = bft_network.random_set_of_replicas(1, {
+                                                              initial_prim})
+        bft_network.stop_replicas(replicas_to_stop)
+
+        with log.start_action(action_type="send_unwedge_cmd",
+                              checkpoint_before=checkpoint_before,
+                              stopped_replicas=list(replicas_to_stop)):
+            op = operator.Operator(
+                bft_network.config, client,  bft_network.builddir)
+            await op.unwedge(bft=True)
+
+        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
+
+        # Make sure the system is able to make progress
+        for i in range(500):
+            await skvbc.send_write_kv_set()
+
+        bft_network.start_replicas(replicas_to_stop)
+
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in replicas_to_stop:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
+        await skvbc.wait_for_liveness()
+
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_unwedge_command_with_f_failures(self, bft_network):
+        """
+            This test checks that unwedge is executed with f failures
+            The test does the following:
+            1. Start all replicas
+            2. A client sends a wedge command
+            3. Validate that all started replicas have reached the wedge point
+            4. Stop f of the replicas
+            5. Send unwedge command
+            6. Verify that system is able to make progress
+        """
+        initial_prim = 0
+        replicas_to_stop = bft_network.random_set_of_replicas(
+            bft_network.config.f, {initial_prim})
+        on_time_replicas = bft_network.all_replicas(without=replicas_to_stop)
+        bft_network.start_replicas(bft_network.all_replicas())
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        await skvbc.wait_for_liveness()
+
+        checkpoint_before = await bft_network.wait_for_checkpoint(replica_id=0)
+
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+        with log.start_action(action_type="send_wedge_cmd",
+                              checkpoint_before=checkpoint_before,
+                              stopped_replicas=list(replicas_to_stop)):
+            op = operator.Operator(
+                bft_network.config, client,  bft_network.builddir)
+            await op.wedge()
+
+        await self.validate_stop_on_wedge_point(bft_network,skvbc, fullWedge= False)
+
+        bft_network.stop_replicas(replicas_to_stop)
+
+        with log.start_action(action_type="send_unwedge_cmd",
+                              checkpoint_before=checkpoint_before,
+                              stopped_replicas=list(replicas_to_stop)):
+            op = operator.Operator(
+                bft_network.config, client,  bft_network.builddir)
+            await op.unwedge(bft=True)
+
+        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
+
+        # Make sure the system is able to make progress
+        for i in range(100):
+            await skvbc.send_write_kv_set()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_wedge_status_command(self, bft_network):
+        """
+             Tests that the wedge command returns correct status after wedge and unwedge
+             The test does the following:
+             1. A client sends a wedge command
+             2. The client sends a wedge_status command and verifies that all replicas are reported as wedged
+             3. The client sends an unwedge command
+             4. The client sends a wedge_status command and verifies that all replicas are reported as unwedged
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        client = bft_network.random_client()
+        # We increase the default request timeout because we need to have around 300 consensuses which occasionally may take more than 5 seconds
+        client.config._replace(req_timeout_milli=10000)
+
+        op = operator.Operator(
+            bft_network.config, client,  bft_network.builddir)
+        await op.wedge()
+
+        await self.validate_stop_on_wedge_point(bft_network,skvbc, fullWedge= False)
+
+        await self.validate_stop_on_super_stable_checkpoint(bft_network, skvbc)
+
+        op = operator.Operator(
+            bft_network.config, client,  bft_network.builddir)
+        await op.unwedge()
+
+        await self.validate_start_on_unwedge(bft_network,skvbc,fullWedge=False)
+
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_get_latest_pruneable_block(self, bft_network):
@@ -1063,6 +1209,28 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 with log.start_action(action_type='expect_kv_failure_due_to_wedge'):
                     with self.assertRaises(trio.TooSlowError):
                         await skvbc.send_write_kv_set()
+
+    async def validate_start_on_unwedge(self, bft_network, skvbc, fullWedge=False):
+        with log.start_action(action_type="validate_start_on_unwedge") as action:
+            with trio.fail_after(seconds=90):
+                client = bft_network.random_client()
+                client.config._replace(req_timeout_milli=10000)
+                op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+                done = False
+                quorum = None if fullWedge is True else bft_client.MofNQuorum.LinearizableQuorum(bft_network.config, [r.id for r in bft_network.replicas])
+                while done is False:
+                    started_replicas = 0
+                    await op.wedge_status(quorum=quorum, fullWedge=fullWedge)
+                    rsi_rep = client.get_rsi_replies()
+                    done = True
+                    for r in rsi_rep.values():
+                        res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                        status = res[0].response.stopped
+                        if not status:
+                            started_replicas += 1
+                    stop_condition = bft_network.config.n if fullWedge is True else (bft_network.config.n - bft_network.config.f)
+                    if started_replicas < stop_condition:
+                        done = False
 
 
     async def validate_stop_on_super_stable_checkpoint(self, bft_network, skvbc):
