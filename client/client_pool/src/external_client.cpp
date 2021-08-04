@@ -89,7 +89,7 @@ void ConcordClient::AddPendingRequest(std::vector<uint8_t>&& request,
                                       std::chrono::milliseconds timeout_ms,
                                       std::uint32_t reply_size,
                                       uint64_t seq_num,
-                                      const RequestCallBack& callback,
+                                      const RequestCallBack callback,
                                       const std::string& correlation_id,
                                       const std::string& span_context) {
   bftEngine::ClientRequest pending_request;
@@ -147,7 +147,11 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
         if (reply.cid == cid) {
           reply.actualReplyLength = rep.second.matched_data.size();
           memcpy(reply.replyBuffer, rep.second.matched_data.data(), rep.second.matched_data.size());
-          if (reply.cb) reply.cb(std::move(rep.second));
+          if (reply.cb) {
+            LOG_INFO(logger_, "Got callback - sending response");
+            Reply t = rep.second;
+            reply.cb(bftEngine::SendResult{t});
+          }
           LOG_DEBUG(logger_, "Request has completed processing" << KVLOG(client_id_, batch_cid, reply.cid));
         }
       }
@@ -155,6 +159,8 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
   } catch (BatchTimeoutException& e) {
     LOG_ERROR(logger_, "Batch cid =" << batch_cid << " has failed to invoke, timeout has been reached");
     ret = OperationResult::TIMEOUT;
+  } catch (std::bad_variant_access& e) {
+    LOG_ERROR(logger_, "Bad variant exception in batch" << e.what());
   }
   batching_buffer_reply_offset_ = 0UL;
   pending_requests_.clear();

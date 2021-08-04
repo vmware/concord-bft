@@ -29,11 +29,6 @@ class ConcordConfiguration;
 }
 
 namespace external_client {
-// Call back for request - at this point we know for sure that a client is handling the request so we can assure that we
-// will have reply. This callback will be attached to the client reply struct and whenever we get the reply fro, the bft
-// client we will activate the callback.
-typedef std::function<void(bft::client::Reply&&)> RequestCallBack;
-
 // Represents a Concord BFT client. The purpose of this class is to be easy to
 // use for external users. This is achieved by:
 //  * providing a simple public interface
@@ -66,7 +61,7 @@ class ConcordClient {
                          std::chrono::milliseconds timeout_ms,
                          std::uint32_t reply_size,
                          uint64_t seq_num,
-                         const RequestCallBack& callback,
+                         const bftEngine::RequestCallBack callback,
                          const std::string& correlation_id = {},
                          const std::string& span_context = {});
 

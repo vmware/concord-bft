@@ -35,7 +35,7 @@ struct SendError {
   };
   ErrorType type;
 };
-typedef std::variant<concord_client_pool::SubmitResult, bft::client::Reply> SendResult;
+typedef std::variant<int, bft::client::Reply> SendResult;
 
 struct ReplicaInfo {
   bft::client::ReplicaId id;

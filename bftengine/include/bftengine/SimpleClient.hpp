@@ -47,7 +47,11 @@ enum ClientMsgFlag : uint8_t {
 };
 
 enum OperationResult : int8_t { SUCCESS, NOT_READY, TIMEOUT, BUFFER_TOO_SMALL, INVALID_REQUEST };
-typedef std::function<void(bft::client::Reply&&)> RequestCallBack;
+// Call back for request - at this point we know for sure that a client is handling the request so we can assure that we
+// will have reply. This callback will be attached to the client reply struct and whenever we get the reply fro, the bft
+// client we will activate the callback.
+typedef std::variant<int, bft::client::Reply> SendResult;
+typedef std::function<void(SendResult&&)> RequestCallBack;
 
 struct ClientRequest {
   uint8_t flags = 0;
