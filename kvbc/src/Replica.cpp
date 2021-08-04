@@ -36,6 +36,7 @@
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "bftengine/ReplicaConfig.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -140,8 +141,12 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   categorization::KeyValueBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
+  std::set<std::set<uint16_t>> txSigningClientGroups;
+  for (const auto &val : bftEngine::ReplicaConfig::instance().publicKeysOfClients) {
+    txSigningClientGroups.insert(val.second);
+  }
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this),
+      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, txSigningClientGroups),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),

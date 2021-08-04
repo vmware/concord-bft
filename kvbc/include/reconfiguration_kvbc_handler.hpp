@@ -69,8 +69,10 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
 class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurationHandler,
                                public ReconfigurationBlockTools {
  public:
-  ReconfigurationHandler(kvbc::IBlockAdder& block_adder, kvbc::IReader& ro_storage)
-      : ReconfigurationBlockTools{block_adder, ro_storage} {}
+  ReconfigurationHandler(kvbc::IBlockAdder& block_adder,
+                         kvbc::IReader& ro_storage,
+                         std::set<std::set<uint16_t>>& txKeysClientGroups)
+      : ReconfigurationBlockTools{block_adder, ro_storage}, txKeysClientGroups_{txKeysClientGroups} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
               concord::messages::ReconfigurationResponse&) override;
@@ -116,6 +118,9 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
   bool handle(const concord::messages::UnwedgeStatusRequest&,
               uint64_t,
               concord::messages::ReconfigurationResponse&) override;
+
+ private:
+  std::set<std::set<uint16_t>> txKeysClientGroups_;
 };
 /**
  * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop commands)
