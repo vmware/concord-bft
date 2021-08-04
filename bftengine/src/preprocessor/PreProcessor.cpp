@@ -90,7 +90,7 @@ const string RequestsBatch::getCid() const {
   return cid_;
 }
 
-// Release not-matching client requests in case PreProcessBatchRequestMsg arrived with less messages
+// Release not-matching client requests in case PreProcessBatchRequestMsg arrived with fewer messages
 void RequestsBatch::updateRegisteredBatchIfNeeded(const string &batchCid, const PreProcessReqMsgsList &preProcessReqs) {
   const std::lock_guard<std::mutex> lock(batchMutex_);
   if (batchRegistered_ && cid_ == batchCid && batchSize_.load() != preProcessReqs.size()) {
@@ -119,25 +119,25 @@ RequestStateSharedPtr &RequestsBatch::getRequestState(uint16_t reqOffsetInBatch)
 }
 
 void RequestsBatch::handlePossiblyExpiredRequests() {
-  for (const auto &req : requestsMap_) {
-    const auto &reqStateEntry = req.second;
-    lock_guard<mutex> lock(reqStateEntry->mutex);
-    if (reqStateEntry->reqProcessingStatePtr) preProcessor_.handlePossiblyExpiredRequest(reqStateEntry);
-  }
-  bool cancelled = false;
+  uint32_t reqsExpired = 0;
+  for (const auto &req : requestsMap_)
+    if (preProcessor_.handlePossiblyExpiredRequest(req.second)) reqsExpired++;
+
+  bool batchCancelled = false;
   string cid;
   atomic_uint32_t batchSize = 0;
   {
     const std::lock_guard<std::mutex> lock(batchMutex_);
-    if (batchSize_ && (numOfCompletedReqs_ >= batchSize_)) {
+    if (batchSize_ && reqsExpired && (numOfCompletedReqs_ >= batchSize_)) {
       cid = cid_;
       batchSize = batchSize_.load();
       resetBatchParams();
-      cancelled = true;
+      batchCancelled = true;
     }
   }
-  if (cancelled)
-    LOG_INFO(preProcessor_.logger(), "The batch has been cancelled as expired" << KVLOG(clientId_, cid, batchSize));
+  if (batchCancelled)
+    LOG_INFO(preProcessor_.logger(),
+             "The batch has been cancelled as expired" << KVLOG(clientId_, cid, reqsExpired, batchSize));
 }
 
 void RequestsBatch::cancelBatchAndReleaseReqs() {
@@ -405,7 +405,9 @@ void PreProcessor::resendPreProcessRequest(const RequestProcessingStateUniquePtr
   }
 }
 
-void PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry) {
+bool PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry) {
+  lock_guard<mutex> lock(reqStateEntry->mutex);
+  if (!reqStateEntry->reqProcessingStatePtr) return false;
   const auto &reqStatePtr = reqStateEntry->reqProcessingStatePtr;
   if (reqStatePtr->isReqTimedOut()) {
     preProcessorMetrics_.preProcessRequestTimedOut++;
@@ -418,8 +420,11 @@ void PreProcessor::handlePossiblyExpiredRequest(const RequestStateSharedPtr &req
     LOG_INFO(logger(), "Let replica handle request" << KVLOG(reqSeqNum, clientId, batchCid));
     incomingMsgsStorage_->pushExternalMsg(reqStatePtr->buildClientRequestMsg(true));
     releaseClientPreProcessRequest(reqStateEntry, EXPIRED);
-  } else if (myReplica_.isCurrentPrimary() && reqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
+    return true;
+  }
+  if (myReplica_.isCurrentPrimary() && reqStatePtr->definePreProcessingConsensusResult() == CONTINUE)
     resendPreProcessRequest(reqStatePtr);
+  return false;
 }
 
 void PreProcessor::onRequestsStatusCheckTimer() {
@@ -1201,7 +1206,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
   }
   SCOPED_MDC_CID(cid);
   const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
-  if (batchedPreProcessEnabled_ && batchSize > 1) {
+  if (batchedPreProcessEnabled_ && !batchCid.empty()) {
     if (preProcessRequestMsg)
       ongoingReqBatches_[clientId]->startBatch(batchCid, batchSize);
     else
