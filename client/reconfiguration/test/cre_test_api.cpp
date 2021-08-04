@@ -28,7 +28,7 @@ class TestStateClient : public IStateClient {
     return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
   State getLatestClientUpdate(uint16_t clientId) const override { return {0, {}}; }
-  bool updateStateOnChain(const WriteState& state) override {
+  bool updateState(const WriteState& state) override {
     blocks_.push_back(blocks_.size() + 1);
     blocks_size_ = blocks_.size();
     return true;

@@ -45,7 +45,7 @@ void ClientReconfigurationEngine::main() {
           continue;
         }
         if (!out_state.data.empty()) {
-          stateClient_->updateStateOnChain(out_state);
+          stateClient_->updateState(out_state);
         }
       }
       lastKnownBlock_ = update.blockid;

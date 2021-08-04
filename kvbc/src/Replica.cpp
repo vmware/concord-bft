@@ -35,7 +35,6 @@
 #include "bftengine/EpochManager.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
-#include "client/reconfiguration/st_based_reconfiguration_handler.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 
 using bft::communication::ICommunication;
@@ -765,13 +764,12 @@ void Replica::setLastKnownReconfigCmdBlockNum(const BlockId &blockId) {
 void Replica::startRoReplicaCreEngine() {
   concord::client::reconfiguration::Config cre_config;
   BlockId id = getLastKnownReconfigCmdBlockNum();
-  creClient_.reset(new concord::client::reconfiguration::STBasedReconfigurationClient(id));
+  creClient_.reset(new concord::client::reconfiguration::STBasedReconfigurationClient(
+      [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }, id));
   cre_config.id_ = replicaConfig_.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
   creEngine_.reset(
       new concord::client::reconfiguration::ClientReconfigurationEngine(cre_config, creClient_.get(), aggregator_));
-  creEngine_->registerHandler(std::make_shared<concord::client::reconfiguration::STBasedReconfigurationHandler>(
-      [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }));
   creEngine_->start();
 }
 
