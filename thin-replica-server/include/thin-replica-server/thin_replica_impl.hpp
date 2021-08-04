@@ -89,6 +89,7 @@ class ThinReplicaImpl {
 
   using KvbAppFilterPtr = std::shared_ptr<kvbc::KvbAppFilter>;
   static constexpr size_t kSubUpdateBufferSize{1000u};
+  const std::chrono::milliseconds kWaitForUpdateTimeout{100};
   const std::string kCorrelationIdTag = "cid";
 
  public:
@@ -672,9 +673,12 @@ class ThinReplicaImpl {
     readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
 
     // Let's wait until we have at least one live update
-    live_updates->waitUntilNonEmpty();
-    if (context->IsCancelled()) {
-      throw StreamCancelled("StreamCancelled while waiting for the first live update");
+    bool is_update_available = false;
+    while (not is_update_available) {
+      is_update_available = live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout);
+      if (context->IsCancelled()) {
+        throw StreamCancelled("StreamCancelled while waiting for the first live update");
+      }
     }
 
     // We are in sync already
@@ -740,9 +744,12 @@ class ThinReplicaImpl {
     readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
 
     // Let's wait until we have at least one live update
-    live_updates->waitForEventGroupUntilNonEmpty();
-    if (context->IsCancelled()) {
-      throw StreamCancelled("StreamCancelled while waiting for the first live update");
+    bool is_update_available = false;
+    while (not is_update_available) {
+      is_update_available = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+      if (context->IsCancelled()) {
+        throw StreamCancelled("StreamCancelled while waiting for the first live update");
+      }
     }
 
     // We are in sync already
