@@ -159,8 +159,7 @@ class ConcordClient {
   std::shared_ptr<concordMetrics::Aggregator> metrics_;
 
   // TODO: Allow multiple subscriptions
-  std::atomic_bool stop_subscriber_{true};
-  std::unique_ptr<std::thread> subscriber_;
+  std::atomic_bool active_subscription_{false};
 
   std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue_;
   std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;

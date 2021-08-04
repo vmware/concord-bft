@@ -25,12 +25,19 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
   bft::client::Msg msg;
   concord::messages::serialize(msg, rreq);
   bft::client::Reply rep;
-  if (read_request) {
-    bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
-    rep = bftclient_->send(read_config, std::move(msg));
-  } else {
-    bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
-    rep = bftclient_->send(write_config, std::move(msg));
+  try {
+    if (read_request) {
+      bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
+      rep = bftclient_->send(read_config, std::move(msg));
+    } else {
+      bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
+      rep = bftclient_->send(write_config, std::move(msg));
+    }
+  } catch (std::exception& e) {
+    LOG_ERROR(getLogger(), "error while initiating bft request " << e.what());
+    concord::messages::ReconfigurationResponse rres;
+    rres.success = false;
+    return rres;
   }
   concord::messages::ReconfigurationResponse rres;
   concord::messages::deserialize(rep.matched_data, rres);

@@ -15,15 +15,25 @@
 #include "chrono"
 #include "Logger.hpp"
 
+#include <utility>
+
 uint64_t InternalBFTClient::sendRequest(uint64_t flags,
                                         uint32_t requestLength,
                                         const char* request,
                                         const std::string& cid) {
+  return sendRequest(flags, requestLength, request, cid, IncomingMsgsStorage::Callback{});
+}
+
+uint64_t InternalBFTClient::sendRequest(uint64_t flags,
+                                        uint32_t requestLength,
+                                        const char* request,
+                                        const std::string& cid,
+                                        IncomingMsgsStorage::Callback onPoppedFromQueue) {
   auto now = getMonotonicTime().time_since_epoch();
   auto now_ms = std::chrono::duration_cast<std::chrono::microseconds>(now);
   auto sn = now_ms.count();
   auto crm = new ClientRequestMsg(getClientId(), flags, sn, requestLength, request, 60000, cid);
-  msgComm_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm));
+  msgComm_->getIncomingMsgsStorage()->pushExternalMsg(std::unique_ptr<MessageBase>(crm), std::move(onPoppedFromQueue));
   LOG_DEBUG(GL, "Sent internal consensus: seq num [" << sn << "] client id [" << getClientId() << "]");
   return sn;
 }

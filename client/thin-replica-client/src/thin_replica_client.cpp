@@ -903,7 +903,8 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   }
 
   config_->update_queue->Clear();
-  latest_verified_event_group_id_ = req.event_group_id;
+  // We assume that the latest known event group for the caller is the event group prior to the requested one.
+  latest_verified_event_group_id_ = req.event_group_id > 0 ? req.event_group_id - 1 : req.event_group_id;
   is_event_group_stream_ = true;
 
   // Create and launch thread to stream updates from the servers and push them

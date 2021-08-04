@@ -659,9 +659,9 @@ class ThinReplicaImpl {
   template <typename ServerContextT, typename ServerWriterT, typename DataT>
   void syncAndSend(ServerContextT* context,
                    kvbc::BlockId start,
-                   std::shared_ptr<SubUpdateBuffer> live_updates,
+                   std::shared_ptr<SubUpdateBuffer>& live_updates,
                    ServerWriterT* stream,
-                   std::shared_ptr<kvbc::KvbAppFilter> kvb_filter,
+                   std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter,
                    bool event_group_enabled = false) {
     kvbc::BlockId end = (config_->rostorage)->getLastBlockId();
     ConcordAssert(start <= end);
@@ -673,6 +673,9 @@ class ThinReplicaImpl {
 
     // Let's wait until we have at least one live update
     live_updates->waitUntilNonEmpty();
+    if (context->IsCancelled()) {
+      throw StreamCancelled("StreamCancelled while waiting for the first live update");
+    }
 
     // We are in sync already
     if (live_updates->oldestBlockId() == (end + 1)) {
@@ -712,9 +715,9 @@ class ThinReplicaImpl {
   template <typename ServerContextT, typename ServerWriterT, typename DataT>
   void syncAndSendEventGroups(ServerContextT* context,
                               kvbc::EventGroupId start,
-                              std::shared_ptr<SubUpdateBuffer> live_updates,
+                              std::shared_ptr<SubUpdateBuffer>& live_updates,
                               ServerWriterT* stream,
-                              std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
+                              std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
     auto opt =
         config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, getClientId(context));
     if (not opt) {
@@ -738,6 +741,9 @@ class ThinReplicaImpl {
 
     // Let's wait until we have at least one live update
     live_updates->waitForEventGroupUntilNonEmpty();
+    if (context->IsCancelled()) {
+      throw StreamCancelled("StreamCancelled while waiting for the first live update");
+    }
 
     // We are in sync already
     if (live_updates->oldestEventGroupId() == (end + 1)) {
