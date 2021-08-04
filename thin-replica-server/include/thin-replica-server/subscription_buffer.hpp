@@ -74,7 +74,7 @@ class SubUpdateBuffer {
       }
     }
     cv_.notify_one();
-  };
+  }
 
   // Add an update to the queue and notify waiting subscribers
   void PushEventGroup(const SubEventGroupUpdate& update) {
@@ -92,7 +92,7 @@ class SubUpdateBuffer {
       }
     }
     eg_cv_.notify_one();
-  };
+  }
 
   // Return the oldest update (block if queue is empty)
   void Pop(SubUpdate& out) {
@@ -107,7 +107,26 @@ class SubUpdateBuffer {
     }
 
     ConcordAssert(queue_.pop(out));
-  };
+  }
+
+  template <typename RepT, typename PeriodT>
+  bool TryPop(SubUpdate& out, const std::chrono::duration<RepT, PeriodT>& timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    // Boost's spsc queue is wait-free but we want to block here
+    cv_.wait_for(lock, timeout, [this] { return too_slow_ || queue_.read_available(); });
+
+    if (too_slow_) {
+      // We throw an exception because we cannot handle the clean-up ourselves
+      // and it doesn't make sense to continue pushing/popping updates.
+      throw ConsumerTooSlow();
+    }
+
+    if (queue_.read_available()) {
+      ConcordAssert(queue_.pop(out));
+      return true;
+    }
+    return false;
+  }
 
   // Return the oldest update (event group if queue is empty)
   void PopEventGroup(SubEventGroupUpdate& out) {
@@ -122,7 +141,26 @@ class SubUpdateBuffer {
     }
 
     ConcordAssert(eg_queue_.pop(out));
-  };
+  }
+
+  template <typename RepT, typename PeriodT>
+  bool TryPopEventGroup(SubEventGroupUpdate& out, const std::chrono::duration<RepT, PeriodT>& timeout) {
+    std::unique_lock<std::mutex> lock(eg_mutex_);
+    // Boost's spsc queue is wait-free but we want to block here
+    eg_cv_.wait_for(lock, timeout, [this] { return eg_too_slow_ || eg_queue_.read_available(); });
+
+    if (eg_too_slow_) {
+      // We throw an exception because we cannot handle the clean-up ourselves
+      // and it doesn't make sense to continue pushing/popping updates.
+      throw ConsumerTooSlow();
+    }
+
+    if (eg_queue_.read_available()) {
+      ConcordAssert(eg_queue_.pop(out));
+      return true;
+    }
+    return false;
+  }
 
   void waitUntilNonEmpty() {
     std::unique_lock<std::mutex> lock(mutex_);

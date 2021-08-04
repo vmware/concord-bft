@@ -268,11 +268,15 @@ class ThinReplicaImpl {
       SubUpdate update;
       while (!context->IsCancelled()) {
         metrics_.queue_size.Get().Set(live_updates->Size());
+        bool is_update_available = false;
         try {
-          live_updates->Pop(update);
+          is_update_available = live_updates->TryPop(update, kWaitForUpdateTimeout);
         } catch (concord::thin_replica::ConsumerTooSlow& error) {
           LOG_WARN(logger_, "Closing subscription: " << error.what());
           break;
+        }
+        if (not is_update_available) {
+          continue;
         }
         auto kvb_update = kvbc::KvbUpdate{update.block_id, update.correlation_id, std::move(update.immutable_kv_pairs)};
         const auto& filtered_update = kvb_filter->filterUpdate(kvb_update);
@@ -343,13 +347,17 @@ class ThinReplicaImpl {
 
     // Read, filter, and send live updates
     SubEventGroupUpdate sub_eg_update;
-    while (!context->IsCancelled()) {
+    while (not context->IsCancelled()) {
       metrics_.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
+      bool is_update_available = false;
       try {
-        live_updates->PopEventGroup(sub_eg_update);
+        is_update_available = live_updates->TryPopEventGroup(sub_eg_update, kWaitForUpdateTimeout);
       } catch (concord::thin_replica::ConsumerTooSlow& error) {
         LOG_WARN(logger_, "Closing subscription: " << error.what());
         break;
+      }
+      if (not is_update_available) {
+        continue;
       }
       auto eg_update = kvbc::EgUpdate{sub_eg_update.event_group_id, std::move(sub_eg_update.event_group)};
       const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
