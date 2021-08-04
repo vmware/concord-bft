@@ -48,6 +48,7 @@ tls_certificates_folder_path: /clientservice/bft_certs
 tls_cipher_suite_list: ECDHE-ECDSA-AES256-GCM-SHA384
 tls_1_3_cipher_suite_list: TLS_AES_256_GCM_SHA384
 transaction_signing_enabled: true
+with_cre: false
 node:
   - replica:
       - principal_id: 0
