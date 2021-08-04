@@ -26,7 +26,6 @@ target_include_directories(thin_replica_client_lib PUBLIC include)
 target_include_directories(thin_replica_client_lib PRIVATE
   "${secretsmanager_SOURCE_DIR}/include")
 target_link_libraries(thin_replica_client_lib
-  log4cplus
   opentracing
   util
   cryptopp
