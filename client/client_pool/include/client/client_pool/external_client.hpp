@@ -61,9 +61,9 @@ class ConcordClient {
                          std::chrono::milliseconds timeout_ms,
                          std::uint32_t reply_size,
                          uint64_t seq_num,
-                         const bftEngine::RequestCallBack callback,
                          const std::string& correlation_id = {},
-                         const std::string& span_context = {});
+                         const std::string& span_context = {},
+                         bftEngine::RequestCallBack callback = {});
 
   size_t PendingRequestsCount() const { return pending_requests_.size(); }
 
