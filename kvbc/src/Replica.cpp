@@ -756,21 +756,30 @@ void Replica::registerStBasedReconfigurationHandler(
   if (handler) creEngine_->registerHandler(handler);
 }
 BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
+  std::string blockRawData;
   if (replicaConfig_.isReadOnly) {
-    return m_bcDbAdapter->getLastKnownReconfigurationCmdBlock();
+    m_bcDbAdapter->getLastKnownReconfigurationCmdBlock(blockRawData);
+    if (!blockRawData.empty()) {
+      bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
+      std::istringstream inStream;
+      inStream.str(blockRawData);
+      concord::serialize::Serializable::deserialize(inStream, cmdData);
+      return cmdData.blockId_;
+    }
   }
   return 0;
 }
-void Replica::setLastKnownReconfigCmdBlockNum(const BlockId &blockId) {
+void Replica::setLastKnownReconfigCmdBlock(const std::vector<uint8_t> &blockData) {
   if (replicaConfig_.isReadOnly) {
-    m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(blockId);
+    std::string page(blockData.begin(), blockData.end());
+    m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(page);
   }
 }
 void Replica::startRoReplicaCreEngine() {
   concord::client::reconfiguration::Config cre_config;
   BlockId id = getLastKnownReconfigCmdBlockNum();
   creClient_.reset(new concord::client::reconfiguration::STBasedReconfigurationClient(
-      [this](uint64_t blockId) { setLastKnownReconfigCmdBlockNum(static_cast<BlockId>(blockId)); }, id));
+      [this](const std::vector<uint8_t> &blockData) { setLastKnownReconfigCmdBlock(blockData); }, id));
   cre_config.id_ = replicaConfig_.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
   creEngine_.reset(

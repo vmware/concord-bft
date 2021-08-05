@@ -163,8 +163,8 @@ class DBAdapter : public IDbAdapter {
   BlockDigest getParentDigest(const RawBlock &rawBlock) const override;
 
   std::shared_ptr<storage::IDBClient> getDb() const override { return db_; }
-  virtual BlockId getLastKnownReconfigurationCmdBlock() const override;
-  virtual void setLastKnownReconfigurationCmdBlock(const BlockId &blockId) override;
+  virtual void getLastKnownReconfigurationCmdBlock(std::string &outBlockData) const override;
+  virtual void setLastKnownReconfigurationCmdBlock(std::string &blockData) override;
 
  protected:
   void setLastReachableBlockNum(const BlockId &blockId);

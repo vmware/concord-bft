@@ -26,7 +26,7 @@ namespace concord::client::reconfiguration {
 
 class STBasedReconfigurationClient : public IStateClient {
  public:
-  STBasedReconfigurationClient(std::function<void(uint64_t)> updateStateCb,
+  STBasedReconfigurationClient(std::function<void(const std::vector<uint8_t>&)> updateStateCb,
                                const uint64_t& blockId,
                                uint64_t intervalTimeoutMs = 1000);
   State getNextState(uint64_t lastKnownBlockId) const override;
@@ -41,7 +41,7 @@ class STBasedReconfigurationClient : public IStateClient {
   mutable std::mutex lock_;
   mutable std::condition_variable new_updates_;
   std::atomic_bool stopped_{true};
-  std::function<void(uint64_t)> storeReconfigBlockToMdtCb_;
+  std::function<void(const std::vector<uint8_t>&)> storeReconfigBlockToMdtCb_;
   uint64_t lastKnownReconfigurationCmdBlockId_ = 0;
   uint64_t interval_timeout_ms_ = 1000;
 };

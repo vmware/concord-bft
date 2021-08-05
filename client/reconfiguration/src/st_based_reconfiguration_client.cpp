@@ -12,9 +12,10 @@
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
 namespace concord::client::reconfiguration {
 
-STBasedReconfigurationClient::STBasedReconfigurationClient(std::function<void(uint64_t)> updateStateCb,
-                                                           const uint64_t& blockId,
-                                                           uint64_t interval_timeout_ms)
+STBasedReconfigurationClient::STBasedReconfigurationClient(
+    std::function<void(const std::vector<uint8_t>&)> updateStateCb,
+    const uint64_t& blockId,
+    uint64_t interval_timeout_ms)
     : storeReconfigBlockToMdtCb_(std::move(updateStateCb)),
       lastKnownReconfigurationCmdBlockId_(blockId),
       interval_timeout_ms_(interval_timeout_ms) {}
@@ -48,12 +49,7 @@ State STBasedReconfigurationClient::getLatestClientUpdate(uint16_t clientId) con
   return {lastKnownReconfigurationCmdBlockId_, {}};
 }
 bool STBasedReconfigurationClient::updateState(const WriteState& state) {
-  bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
-  std::istringstream inStream;
-  std::string page(state.data.begin(), state.data.end());
-  inStream.str(page);
-  concord::serialize::Serializable::deserialize(inStream, cmdData);
-  if (storeReconfigBlockToMdtCb_) storeReconfigBlockToMdtCb_(cmdData.blockId_);
+  if (storeReconfigBlockToMdtCb_) storeReconfigBlockToMdtCb_(state.data);
   if (state.callBack) state.callBack();
   return true;
 }

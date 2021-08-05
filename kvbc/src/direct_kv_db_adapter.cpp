@@ -652,23 +652,21 @@ SetOfKeyValuePairs DBAdapter::getBlockData(const RawBlock &rawBlock) const { ret
 BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
   return block::detail::getParentDigest(rawBlock);
 }
-void DBAdapter::setLastKnownReconfigurationCmdBlock(const BlockId &blockId) {
+void DBAdapter::setLastKnownReconfigurationCmdBlock(std::string &blockData) {
   if (mdt_) {
     static Key lastKnownReconfigCmdBlockIdKey = keyGen_->mdtKey(std::string("last-reconfig-cmd-block-id"));
-    mdtPut(lastKnownReconfigCmdBlockIdKey, std::to_string(blockId));
+    mdtPut(lastKnownReconfigCmdBlockIdKey, std::move(blockData));
   }
 }
-BlockId DBAdapter::getLastKnownReconfigurationCmdBlock() const {
-  BlockId lastKnownReconfigurationCmdBlock = 0;
+void DBAdapter::getLastKnownReconfigurationCmdBlock(std::string &outBlockData) const {
   if (mdt_) {
     static Key lastKnownReconfigCmdBlockIdKey = keyGen_->mdtKey(std::string("last-reconfig-cmd-block-id"));
     Sliver val;
     if (Status s = mdtGet(lastKnownReconfigCmdBlockIdKey, val); s.isOK())
-      lastKnownReconfigurationCmdBlock = concord::util::to<BlockId>(val.toString());
+      outBlockData = val.toString();
     else
       LOG_ERROR(logger_, "Error in getting Latest known reconfig block ID ");
   }
-  return lastKnownReconfigurationCmdBlock;
 }
 
 }  // namespace concord::kvbc::v1DirectKeyValue
