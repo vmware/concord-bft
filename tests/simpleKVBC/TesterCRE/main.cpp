@@ -203,7 +203,8 @@ class ClientsAddRemoveHandler : public IStateHandler {
     return true;
   }
   logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.testerCre.PublicKeyExchange"));
+    static logging::Logger logger_(
+        logging::getLogger("concord.client.reconfiguration.testerCre.ClientsAddRemoveHandler"));
     return logger_;
   }
 };

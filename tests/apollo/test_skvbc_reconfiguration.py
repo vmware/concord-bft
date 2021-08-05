@@ -105,23 +105,39 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
-    async def test_basic_cre(self, bft_network):
+    async def test_clients_add_remove_cmd(self, bft_network):
         """
-            send a client key exchange message and see the whole flow working in cre
+            sends a clientsAddRemoveCommand and test the the status for the CRE client is correct
         """
         bft_network.start_all_replicas()
         bft_network.start_cre()
 
         client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-        all_client_ids=bft_network.all_client_ids()
-        log.log_message(message_type=f"sending client key exchange command for clients {all_client_ids}")
+        for i in range(100):
+            await skvbc.send_write_kv_set()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.client_key_exchange_command(all_client_ids)
+        config_desc = "123456789"
+        rep = await op.clients_addRemove_command(config_desc)
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is True
-        log.log_message(message_type=f"block_id {rep.response.block_id}")
-        await trio.sleep(20)
+
+        with trio.fail_after(60):
+            succ = False
+            while not succ:
+                rep = await op.clients_addRemoveStatus_command()
+                rsi_rep = client.get_rsi_replies()
+                data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+                if not data.success:
+                    continue
+                succ = True
+                for r in rsi_rep.values():
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    if len(res[0].response.clients_status) == 0:
+                        succ = False
+                    for k,v in res[0].response.clients_status:
+                        assert(k == 13)
+                        assert(v == config_desc)
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

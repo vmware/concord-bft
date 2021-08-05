@@ -236,7 +236,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
       auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
       if (res.has_value()) {
         auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
-        concord::messages::ClientsAddRemoveCommand cmd;
+        concord::messages::ClientsAddRemoveUpdateCommand cmd;
         std::vector<uint8_t> bytesval(strval.begin(), strval.end());
         concord::messages::deserialize(bytesval, cmd);
 
