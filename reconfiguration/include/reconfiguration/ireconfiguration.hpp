@@ -25,105 +25,137 @@ enum ReconfigurationHandlerType : unsigned int { PRE, REGULAR, POST };
 class IReconfigurationHandler {
  public:
   // Message handlers
-  virtual bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+  virtual bool handle(const concord::messages::WedgeCommand&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::WedgeStatusRequest&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::GetVersionCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::DownloadCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::DownloadStatusCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
-  virtual bool handle(const concord::messages::InstallCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+  virtual bool handle(const concord::messages::InstallCommand&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::InstallStatusCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::KeyExchangeCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveStatus&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::PruneStatusRequest&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
-  virtual bool handle(const concord::messages::PruneRequest&, uint64_t, concord::messages::ReconfigurationResponse&) {
+  virtual bool handle(const concord::messages::PruneRequest&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
     return true;
   }
-  virtual bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+  virtual bool handle(const concord::messages::UnwedgeCommand&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::UnwedgeStatusRequest&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientReconfigurationStateRequest&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientExchangePublicKey&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientKeyExchangeCommand&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
                       uint64_t,
+                      uint32_t,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
 
-  virtual bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) {
+  virtual bool handle(const concord::messages::RestartCommand&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
     return true;
   }
 

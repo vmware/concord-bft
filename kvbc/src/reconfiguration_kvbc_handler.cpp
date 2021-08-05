@@ -123,6 +123,7 @@ concord::messages::ClientReconfigurationStateReply KvbcClientReconfigurationHand
 }
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationStateRequest& command,
                                               uint64_t bft_seq_num,
+                                              uint32_t,
                                               concord::messages::ReconfigurationResponse& rres) {
   // We want to rotate over the latest updates of this client and find the earliest one which is higher than the client
   // last known block
@@ -150,6 +151,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
 
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                               uint64_t bft_seq_num,
+                                              uint32_t,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -165,6 +167,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExc
 }
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationLastUpdate& command,
                                               uint64_t,
+                                              uint32_t,
                                               concord::messages::ReconfigurationResponse& rres) {
   // We want to rotate over the latest updates of this client and find the latest one in the blockchain
   kvbc::BlockId maxKnownUpdate{0};
@@ -191,6 +194,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
 
 bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                     uint64_t bft_seq_num,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -202,6 +206,7 @@ bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& comma
 
 bool ReconfigurationHandler::handle(const concord::messages::DownloadCommand& command,
                                     uint64_t bft_seq_num,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -213,6 +218,7 @@ bool ReconfigurationHandler::handle(const concord::messages::DownloadCommand& co
 
 bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& command,
                                     uint64_t bft_seq_num,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -224,6 +230,7 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& com
 
 bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -235,6 +242,7 @@ bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand&
 
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveCommand& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -246,6 +254,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveCommand& c
 
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -273,6 +282,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
 
 bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
                                     uint64_t bft_seq_num,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -284,6 +294,7 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
 
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse& response) {
   auto res =
       ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove});
@@ -308,6 +319,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& co
 
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeStatus& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse& response) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
                                    std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
@@ -337,6 +349,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
 
 bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -348,6 +361,7 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& comma
 
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCommand& command,
                                     uint64_t sequence_number,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse& response) {
   std::vector<uint32_t> target_clients;
   for (auto& cid : command.target_clients) {
@@ -383,6 +397,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
 
 bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
                                     uint64_t bft_seq_num,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse&) {
   if (!bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(getLogger(), "replica is already unwedge");
@@ -421,6 +436,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
 
 bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
                                     uint64_t,
+                                    uint32_t,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
   response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
@@ -457,6 +473,7 @@ bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
 
 bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                               uint64_t bft_seq_num,
+                                              uint32_t,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -476,6 +493,7 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeComm
 
 bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                                   uint64_t sequence_number,
+                                                  uint32_t,
                                                   concord::messages::ReconfigurationResponse& response) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   auto updated_client_keys = SigManager::instance()->getClientsPublicKeys();

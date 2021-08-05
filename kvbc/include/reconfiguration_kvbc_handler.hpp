@@ -49,13 +49,16 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
       : ReconfigurationBlockTools{block_adder, ro_storage} {}
   bool handle(const concord::messages::ClientExchangePublicKey&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::ClientReconfigurationStateRequest&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
  private:
@@ -75,48 +78,65 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
       : ReconfigurationBlockTools{block_adder, ro_storage}, txKeysClientGroups_{txKeysClientGroups} {}
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::DownloadCommand& command,
               uint64_t bft_seq_num,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::InstallCommand& command,
               uint64_t bft_seq_num,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::KeyExchangeCommand& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::AddRemoveCommand& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::AddRemoveWithWedgeCommand& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::AddRemoveStatus& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse& response) override;
 
   bool handle(const concord::messages::AddRemoveWithWedgeStatus& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse& response) override;
 
   bool handle(const concord::messages::PruneRequest& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::ClientKeyExchangeCommand& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse& response) override;
-  bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::RestartCommand&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::UnwedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::UnwedgeCommand&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::UnwedgeStatusRequest&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
  private:
@@ -134,6 +154,7 @@ class InternalKvReconfigurationHandler : public concord::reconfiguration::IRecon
 
   bool handle(const concord::messages::WedgeCommand& command,
               uint64_t bft_seq_num,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 };
 
@@ -148,6 +169,7 @@ class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IR
 
   bool handle(const concord::messages::ClientExchangePublicKey& command,
               uint64_t sequence_number,
+              uint32_t,
               concord::messages::ReconfigurationResponse& response) override;
 };
 }  // namespace concord::kvbc::reconfiguration
