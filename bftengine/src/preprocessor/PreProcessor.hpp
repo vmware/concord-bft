@@ -263,7 +263,7 @@ class PreProcessor {
   bool isRequestPassingConsensusOrPostExec(
       SeqNum reqSeqNum, NodeIdType senderId, NodeIdType clientId, const std::string &batchCid, const std::string &cid);
   void releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg);
-  void handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
+  bool handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
