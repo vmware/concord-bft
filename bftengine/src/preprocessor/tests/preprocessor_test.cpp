@@ -365,7 +365,8 @@ void clearDiagnosticsHandlers() {
 }
 
 TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
-  RequestProcessingState reqState(replicaConfig.numReplicas,
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
                                   "",
                                   clientId,
                                   0,
@@ -374,7 +375,7 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
                                   ClientPreProcessReqMsgUniquePtr(),
                                   PreProcessRequestMsgSharedPtr());
   bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
-  for (auto i = 1; i < numOfRequiredReplies; i++) {
+  for (auto i = 1; i < numOfRequiredReplies - 1; i++) {
     reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
     ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
   }
@@ -384,7 +385,8 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
 }
 
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
-  RequestProcessingState reqState(replicaConfig.numReplicas,
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
                                   "",
                                   clientId,
                                   0,
@@ -404,7 +406,8 @@ TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCol
 }
 
 TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
-  RequestProcessingState reqState(replicaConfig.numReplicas,
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
                                   "",
                                   clientId,
                                   0,
@@ -424,7 +427,8 @@ TEST(requestPreprocessingState_test, enoughSameRepliesReceived) {
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
-  RequestProcessingState reqState(replicaConfig.numReplicas,
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
                                   "",
                                   clientId,
                                   0,
@@ -448,7 +452,8 @@ TEST(requestPreprocessingState_test, primaryReplicaPreProcessingRetrySucceeds) {
 }
 
 TEST(requestPreprocessingState_test, primaryReplicaDidNotCompletePreProcessingWhileNonPrimariesDid) {
-  RequestProcessingState reqState(replicaConfig.numReplicas,
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
                                   "",
                                   clientId,
                                   0,

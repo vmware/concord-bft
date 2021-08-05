@@ -1127,6 +1127,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
       // controlled by the replica while all PreProcessReply messages get released here.
       if (ReplicaConfig::instance().preExecutionResultAuthEnabled) {
         auto sigsList = reqProcessingStatePtr->getPreProcessResultSignatures();
+        sigsList.resize(numOfRequiredReplies());
         auto sigsBuf = PreProcessResultSignature::serializeResultSignatureList(sigsList);
         preProcessMsg = make_unique<PreProcessResultMsg>(clientId,
                                                          reqSeqNum,
@@ -1167,7 +1168,7 @@ void PreProcessor::finalizePreProcessing(NodeIdType clientId, uint16_t reqOffset
   if (batchedPreProcessEnabled_) batchEntry->finalizeBatchIfCompleted();
 }
 
-uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal; }
+uint16_t PreProcessor::numOfRequiredReplies() { return myReplica_.getReplicaConfig().fVal + 1; }
 
 // This function should be always called under a reqEntry->mutex lock
 bool PreProcessor::registerRequest(const string &batchCid,
@@ -1208,7 +1209,8 @@ bool PreProcessor::registerRequest(const string &batchCid,
       ongoingReqBatches_[clientId]->registerBatch(batchCid, batchSize);
   }
   if (!reqEntry->reqProcessingStatePtr) {
-    reqEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(numOfReplicas_,
+    reqEntry->reqProcessingStatePtr = make_unique<RequestProcessingState>(myReplicaId_,
+                                                                          numOfReplicas_,
                                                                           batchCid,
                                                                           clientId,
                                                                           reqOffsetInBatch,
