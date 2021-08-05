@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <atomic>
 
 #include "assertUtils.hpp"
 #include "base_types.h"
@@ -38,6 +39,7 @@ class SeqNumberGenerator {
   SeqNumberGenerator(ClientId client_id) : client_id_(client_id) {}
 
   uint64_t unique() {
+    std::scoped_lock sl(mtx_);
     std::chrono::time_point<std::chrono::system_clock> now = std::chrono::system_clock::now();
     return unique(now);
   }
@@ -72,12 +74,14 @@ class SeqNumberGenerator {
   const uint64_t LAST_COUNT_LIMIT = 0x3FFFFF;
   // lastMilliOfUniqueFetchID_ holds the last SN generated,
   uint64_t lastMilliOfUniqueFetchID_ = 0;
+
   // lastCount used to preserve uniqueness.
   uint32_t lastCountOfUniqueFetchID_ = 0;
 
   ClientId client_id_;
 
   logging::Logger logger_ = logging::getLogger("bftclient.seqnum");
+  std::mutex mtx_;
 };
 
 }  // namespace bft::client

@@ -73,7 +73,7 @@ TEST_F(ClientPreprocessRequestMsgTestFixture, construct_from_msg_base_and_compar
                                  concordUtils::SpanContext{spanContext});
 
   MessageBase* original_base = &msg;
-  uint8_t* raw_msg = new uint8_t[original_base->size()];
+  uint8_t* raw_msg = (uint8_t*)malloc(original_base->size());
   memcpy(raw_msg, original_base->body(), original_base->size());
   MessageBase m(senderId, (MessageBase::Header*)raw_msg, original_base->size(), true);
 

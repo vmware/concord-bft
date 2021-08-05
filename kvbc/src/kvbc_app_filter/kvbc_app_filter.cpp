@@ -376,10 +376,20 @@ string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id
 }
 
 string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start, EventGroupId event_group_id_end) {
-  auto last_trid_eg_id_var =
-      rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
-  const auto &val = std::get<concord::kvbc::categorization::ImmutableValue>(*last_trid_eg_id_var);
-  auto last_trid_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val.data.data());
+  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
+  if (not opt) {
+    std::stringstream msg;
+    msg << "An event group for trid \"" << client_id_ << "\" cannot be found";
+    throw std::runtime_error(msg.str());
+  }
+  auto val = std::get_if<concord::kvbc::categorization::VersionedValue>(&(*opt));
+  if (not val) {
+    std::stringstream msg;
+    msg << "Couldn't convert stored event group id to versioned value";
+    throw std::runtime_error(msg.str());
+  }
+  auto last_trid_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
+
   if (event_group_id_start > event_group_id_end || event_group_id_end > last_trid_eg_id) {
     throw InvalidEventGroupRange(event_group_id_start, event_group_id_end);
   }
@@ -422,7 +432,13 @@ std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents
 kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid) {
   LOG_DEBUG(logger_, "getEventGroup " << event_group_id << " for " << client_id_);
   // get global_event_group_id corresponding to trid_event_group_id
-  const auto key = client_id_ + concordUtils::toBigEndianStringBuffer(event_group_id);
+  // trid + # + latest_trid_event_group_id concatenation is used as key for kv-updates of type
+  // kExecutionTridEventGroupsCategory We add a separator character between the tag and latest_trid_event_group_id_str
+  // to avoid key collisions like below -
+  // tag1 + 120 --> "tag1120"
+  // tag11 + 20 --> "tag1120"
+  // this is a temporary solution, and needs to be fixed in a proper manner
+  const auto key = client_id_ + "#" + concordUtils::toBigEndianStringBuffer(event_group_id);
   const auto global_eg_id_val =
       rostorage_->getLatest(concord::kvbc::categorization::kExecutionTridEventGroupsCategory, key);
   if (not global_eg_id_val) {

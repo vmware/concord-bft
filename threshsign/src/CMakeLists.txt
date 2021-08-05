@@ -15,4 +15,6 @@ add_library(common OBJECT ${common_source_files})
 target_include_directories(common PRIVATE ../include .)
 
 add_subdirectory(bls)
-add_subdirectory(app)
+if (BUILD_TESTING)
+	add_subdirectory(app)
+endif()

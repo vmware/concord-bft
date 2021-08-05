@@ -36,7 +36,7 @@ const uint8_t kError = 2;
 // JSON strings preceded by a Header with msg_type set to kReply or kError.
 // Since we are using UDP, the entire message will always be included, so no
 // need to worry about framing. We can always change the protocol if we decide
-// to enhance the Metric server later on or move to a different transport.
+// to enhance the Metric server later on or move to different transport.
 struct Header {
   uint8_t msg_type_;
   uint64_t seq_num_;
@@ -46,11 +46,11 @@ struct Header {
 // A UDP server that returns aggregated metrics
 class Server {
  public:
-  Server(uint16_t listenPort)
+  Server(uint16_t listenPort, bool metricsEnabled = true)
       : listenPort_{listenPort},
         logger_{logging::getLogger("metrics-server")},
         running_{false},
-        aggregator_{std::make_shared<Aggregator>()} {}
+        aggregator_{std::make_shared<Aggregator>(metricsEnabled)} {}
 
   void Start();
   void Stop();

@@ -349,19 +349,29 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& comma
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     concord::messages::ReconfigurationResponse& response) {
-  if (command.target_clients.empty()) {
-    return true;
+  std::vector<uint32_t> target_clients;
+  for (auto& cid : command.target_clients) {
+    target_clients.push_back(cid);
+  }
+  if (target_clients.empty()) {
+    LOG_INFO(getLogger(), "exchange client keys for all clients");
+    // We don't want to assume anything about the CRE client id. Hence, we write the update to all clients.
+    // However, only the CRE client will be able to execute the requests.
+    for (const auto& cg : txKeysClientGroups_) {
+      for (auto cid : cg) {
+        target_clients.push_back(cid);
+      }
+    }
   }
   std::ostringstream oss;
-  std::copy(
-      command.target_clients.begin(), command.target_clients.end(), std::ostream_iterator<std::uint64_t>(oss, " "));
+  std::copy(target_clients.begin(), target_clients.end(), std::ostream_iterator<std::uint64_t>(oss, " "));
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                                 static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_KEY_EXCHANGE_COMMAND)};
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   concord::messages::ClientKeyExchangeCommandResponse ckecr;
-  for (auto clientid : command.target_clients) {
+  for (auto clientid : target_clients) {
     ver_updates.addUpdate(key_prefix + std::to_string(clientid),
                           std::string(serialized_command.begin(), serialized_command.end()));
   }

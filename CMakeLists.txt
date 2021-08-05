@@ -51,9 +51,6 @@ option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
 # Build Slowdown framework
 option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
 
-# Build KVBC Benchmarking tool
-option(BUILD_KVBC_BENCH "BUILD kvbcbench" FALSE)
-
 # Build Time service with fake clock
 option(USE_FAKE_CLOCK_IN_TIME_SERVICE "BUILD TimeService Using Fake Clock" FALSE)
 
@@ -77,6 +74,7 @@ if(SLEEP_FOR_DBG)
 endif()
 
 option(USE_OPENTRACING "Enable OpenTracing" ON)
+option(USE_GRPC "Enable GRPC and Protobuf" ON)
 #
 # Compiler options
 #
@@ -149,8 +147,11 @@ add_subdirectory(diagnostics)
 add_subdirectory(bftclient)
 add_subdirectory(reconfiguration)
 add_subdirectory(client)
-add_subdirectory(thin-replica-server)
+if(USE_GRPC)
+	add_subdirectory(thin-replica-server)
+endif()
 add_subdirectory(ccron)
+
 #
 # Setup testing
 #

@@ -77,6 +77,7 @@ void corrupt(char* data, size_t len) {
 TEST(RsaSignerAndRsaVerifierTest, LoadSignVerifyFromPemfiles) {
   string publicKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PUB_KEY_NAME});
   string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PRIV_KEY_NAME});
+
   string privKey, sig;
   char data[RANDOM_DATA_SIZE]{0};
 
@@ -105,9 +106,8 @@ TEST(RsaSignerAndRsaVerifierTest, LoadSignVerifyFromPemfiles) {
   ASSERT_FALSE(verifier_->verify(data1, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
 
   // change signature randomally, expect failure
-  string sig1(sig);
-  corrupt(sig1.data(), 1);
-  ASSERT_FALSE(verifier_->verify(data, RANDOM_DATA_SIZE, sig1.data(), expectedVerifierSigLen));
+  corrupt(sig.data(), 1);
+  ASSERT_FALSE(verifier_->verify(data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
 }
 
 TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
@@ -168,9 +168,8 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
     ASSERT_FALSE(sigManager->verifySig(i, data1, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
 
     // change signature randomally, expect failure
-    string sig1(sig);
-    corrupt(sig1.data(), 1);
-    ASSERT_FALSE(sigManager->verifySig(i, data, RANDOM_DATA_SIZE, sig1.data(), expectedVerifierSigLen));
+    corrupt(sig.data(), 1);
+    ASSERT_FALSE(sigManager->verifySig(i, data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
   }
 }
 
@@ -220,9 +219,8 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   ASSERT_FALSE(verifier->verify(data1, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
 
   // change signature randomally, expect failure
-  string sig1(sig);
-  corrupt(sig1.data(), 1);
-  ASSERT_FALSE(verifier->verify(data, RANDOM_DATA_SIZE, sig1.data(), expectedVerifierSigLen));
+  corrupt(sig.data(), 1);
+  ASSERT_FALSE(verifier->verify(data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
 }
 
 // Check 1 more replica + 1200 clients on 6 additional participants
