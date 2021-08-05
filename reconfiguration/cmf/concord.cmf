@@ -228,6 +228,7 @@ Msg ReconfigurationRequest 1 {
     RestartCommand
     ClientsAddRemoveCommand
     ClientsAddRemoveStatusCommand
+    ClientsAddRemoveUpdateCommand
   } command
   bytes additional_data
 }
