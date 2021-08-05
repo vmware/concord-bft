@@ -60,6 +60,10 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
               uint64_t,
               uint32_t,
               concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::ClientsAddRemoveUpdateCommand&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
 
  private:
   concord::messages::ClientReconfigurationStateReply buildClientStateReply(
@@ -135,6 +139,15 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint32_t,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::UnwedgeStatusRequest&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::ClientsAddRemoveCommand&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::ClientsAddRemoveStatusCommand&,
               uint64_t,
               uint32_t,
               concord::messages::ReconfigurationResponse&) override;

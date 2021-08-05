@@ -112,6 +112,19 @@ concord::messages::ClientReconfigurationStateReply KvbcClientReconfigurationHand
               concord::messages::ClientKeyExchangeCommand cmd;
               concord::messages::deserialize(data_buf, cmd);
               creply.response = cmd;
+              break;
+            }
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND: {
+              concord::messages::ClientsAddRemoveCommand cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
+            }
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS: {
+              concord::messages::ClientsAddRemoveUpdateCommand cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
             }
             default:
               break;
@@ -192,6 +205,49 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
   return true;
 }
 
+bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveUpdateCommand& command,
+                                              uint64_t bft_seq_num,
+                                              uint32_t sender_id,
+                                              concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                  static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)} +
+          std::to_string(sender_id),
+      false);
+  LOG_INFO(getLogger(), "block id: " << blockId);
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveStatusCommand&,
+                                    uint64_t,
+                                    uint32_t,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::ClientsAddRemoveStatusResponse stats;
+  for (const auto& gr : txKeysClientGroups_) {
+    for (auto cid : gr) {
+      std::string key =
+          std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                      static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)} +
+          std::to_string(cid);
+      auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
+      if (res.has_value()) {
+        auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
+        concord::messages::ClientsAddRemoveCommand cmd;
+        std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+        concord::messages::deserialize(bytesval, cmd);
+
+        LOG_INFO(getLogger(), "found scaling status for client" << KVLOG(cid, cmd.config_descriptor));
+        stats.clients_status.push_back(std::make_pair(cid, cmd.config_descriptor));
+      }
+    }
+  }
+  rres.response = stats;
+  return true;
+}
 bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
@@ -392,6 +448,32 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
   ckecr.block_id = persistReconfigurationBlock(ver_updates, sequence_number, false);
   LOG_INFO(getLogger(), "target clients: [" << oss.str() << "] block: " << ckecr.block_id);
   response.response = ckecr;
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCommand& command,
+                                    uint64_t sequence_number,
+                                    uint32_t sender_id,
+                                    concord::messages::ReconfigurationResponse& response) {
+  std::vector<uint32_t> target_clients;
+  // We don't want to assume anything about the CRE client id. Hence, we write the update to all clients.
+  // However, only the CRE client will be able to execute the requests.
+  for (const auto& cg : txKeysClientGroups_) {
+    for (auto cid : cg) {
+      target_clients.push_back(cid);
+    }
+  }
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                                static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND)};
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  for (auto clientid : target_clients) {
+    ver_updates.addUpdate(key_prefix + std::to_string(clientid),
+                          std::string(serialized_command.begin(), serialized_command.end()));
+  }
+  auto block_id = persistReconfigurationBlock(ver_updates, sequence_number, false);
+  LOG_INFO(getLogger(), "ClientsAddRemoveCommand block_id is: " << block_id);
   return true;
 }
 

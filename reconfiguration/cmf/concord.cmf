@@ -156,14 +156,6 @@ Msg ClientExchangePublicKey 38 {
     list uint64 affected_clients
 }
 
-Msg ClientReconfigurationStateReply 39 {
-    uint64 block_id
-    oneof {
-        ClientExchangePublicKey
-        ClientKeyExchangeCommand
-      } response
-}
-
 Msg ClientReconfigurationStateUpdate 40 {
     uint64 sender_id
     uint64 update_version
@@ -178,6 +170,34 @@ Msg RestartCommand 42 {
     bool bft_support
     bool restart
     string data
+}
+
+Msg ClientsAddRemoveCommand 43 {
+    string config_descriptor
+    string token
+    bool restart
+}
+
+Msg ClientsAddRemoveStatusCommand 44 {
+    uint64 sender_id
+}
+
+Msg ClientsAddRemoveStatusResponse 45 {
+    list kvpair uint64 string clients_status
+}
+
+Msg ClientsAddRemoveUpdateCommand 46 {
+    string config_descriptor
+}
+
+Msg ClientReconfigurationStateReply 39 {
+    uint64 block_id
+    oneof {
+        ClientExchangePublicKey
+        ClientKeyExchangeCommand
+        ClientsAddRemoveCommand
+        ClientsAddRemoveUpdateCommand
+      } response
 }
 
 Msg ReconfigurationRequest 1 {
@@ -206,6 +226,8 @@ Msg ReconfigurationRequest 1 {
     ClientExchangePublicKey
     ClientReconfigurationLastUpdate
     RestartCommand
+    ClientsAddRemoveCommand
+    ClientsAddRemoveStatusCommand
   } command
   bytes additional_data
 }
@@ -224,6 +246,7 @@ Msg ReconfigurationResponse 2 {
     AddRemoveWithWedgeStatusResponse
     UnwedgeStatusResponse
     ClientKeyExchangeCommandResponse
+    ClientsAddRemoveStatusResponse
   } response
   bytes additional_data
 }
