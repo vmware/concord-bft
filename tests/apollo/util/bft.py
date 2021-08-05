@@ -508,6 +508,9 @@ class BftTestNetwork:
     def random_clients(self, max_clients):
         return set(random.choices(list(self.clients.values()), k=max_clients))
 
+    def get_all_clients(self):
+        return self.clients.values()
+
     def setup_txn_signing(self):
         self.txn_signing_keys_base_path = ""
         self.principals_mapping = ""
@@ -1107,7 +1110,7 @@ class BftTestNetwork:
 
                                 await trio.sleep(0.5)
                     
-    async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num):
+    async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
         """
         Wait for every replica in `replicas` to take a checkpoint.
         Check every .5 seconds and give fail after 30 seconds.
@@ -1131,7 +1134,8 @@ class BftTestNetwork:
                 key = ['bc_state_transfer', 'Gauges', 'last_stored_checkpoint']
 
                 last_stored_checkpoint = await self.retrieve_metric(replica_id, *key)
-
+                action.log(message_type=f'[checkpoint] #{last_stored_checkpoint}, replica=#{replica_id}')
+    
                 if last_stored_checkpoint is not None and expected_checkpoint_num(last_stored_checkpoint):
                     action.add_success_fields(last_stored_checkpoint=last_stored_checkpoint)
                     return last_stored_checkpoint
