@@ -61,6 +61,8 @@ struct PreProcessResultSignature {
   std::vector<char> signature;
   NodeIdType sender_replica;
 
+  PreProcessResultSignature() = default;
+
   PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender)
       : signature{std::move(sig)}, sender_replica{sender} {}
 
