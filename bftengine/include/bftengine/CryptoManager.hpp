@@ -31,6 +31,17 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
    */
   static CryptoManager& instance(Cryptosystem* cryptoSys = nullptr) {
     static CryptoManager cm_(cryptoSys);
+
+    /**
+     * Below logic protects memory leak. Memory leak occurs if 'instance()' is called
+     * more than once (because cm_ is created only once. It is static in nature).
+     */
+    static int i = 0;
+    if (i == 0) {
+      ++i;
+    } else {
+      delete cryptoSys;
+    }
     return cm_;
   }
   std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit(const SeqNum sn) const {
