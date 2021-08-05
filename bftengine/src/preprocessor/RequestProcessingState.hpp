@@ -29,7 +29,8 @@ using ReplicaIdsList = std::vector<ReplicaId>;
 
 class RequestProcessingState {
  public:
-  RequestProcessingState(uint16_t numOfReplicas,
+  RequestProcessingState(ReplicaId myReplicaId,
+                         uint16_t numOfReplicas,
                          const std::string& batchCid,
                          uint16_t clientId,
                          uint16_t reqOffsetInBatch,
@@ -97,6 +98,7 @@ class RequestProcessingState {
 
   // The use of the class data members is thread-safe. The PreProcessor class uses a per-instance mutex lock for
   // the RequestProcessingState objects.
+  const ReplicaId myReplicaId_;
   const uint16_t numOfReplicas_;
   const std::string batchCid_;
   const uint16_t clientId_;
