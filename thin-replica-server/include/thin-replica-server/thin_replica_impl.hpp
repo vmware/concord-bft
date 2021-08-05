@@ -89,6 +89,7 @@ class ThinReplicaImpl {
 
   using KvbAppFilterPtr = std::shared_ptr<kvbc::KvbAppFilter>;
   static constexpr size_t kSubUpdateBufferSize{1000u};
+  const std::chrono::milliseconds kWaitForUpdateTimeout{100};
   const std::string kCorrelationIdTag = "cid";
 
  public:
@@ -265,17 +266,17 @@ class ThinReplicaImpl {
       }
       // Read, filter, and send live updates
       SubUpdate update;
-      while (!context->IsCancelled()) {
-        metrics_.queue_size.Get().Set(live_updates->Size());
-        try {
-          live_updates->Pop(update);
-        } catch (concord::thin_replica::ConsumerTooSlow& error) {
-          LOG_WARN(logger_, "Closing subscription: " << error.what());
-          break;
-        }
-        auto kvb_update = kvbc::KvbUpdate{update.block_id, update.correlation_id, std::move(update.immutable_kv_pairs)};
-        const auto& filtered_update = kvb_filter->filterUpdate(kvb_update);
-        try {
+      try {
+        while (!context->IsCancelled()) {
+          metrics_.queue_size.Get().Set(live_updates->Size());
+          bool is_update_available = false;
+          is_update_available = live_updates->TryPop(update, kWaitForUpdateTimeout);
+          if (not is_update_available) {
+            continue;
+          }
+          auto kvb_update =
+              kvbc::KvbUpdate{update.block_id, update.correlation_id, std::move(update.immutable_kv_pairs)};
+          const auto& filtered_update = kvb_filter->filterUpdate(kvb_update);
           if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
             LOG_DEBUG(logger_, "Live updates send data");
             auto correlation_id = filtered_update.correlation_id;
@@ -294,20 +295,19 @@ class ThinReplicaImpl {
             LOG_DEBUG(logger_, "Live updates send hash");
             sendHash(stream, update.block_id, kvb_filter->hashUpdate(filtered_update));
           }
-        } catch (std::exception& error) {
-          LOG_INFO(logger_, "Subscription stream closed: " << error.what());
-          break;
+          metrics_.last_sent_block_id.Get().Set(update.block_id);
+          if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
+            metrics_.updateAggregator();
+            update_aggregator_counter = 0;
+          }
         }
-        metrics_.last_sent_block_id.Get().Set(update.block_id);
-        if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
-          metrics_.updateAggregator();
-          update_aggregator_counter = 0;
-        }
+        config_->subscriber_list.removeBuffer(live_updates);
+        live_updates->removeAllUpdates();
+        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+        metrics_.updateAggregator();
+      } catch (std::exception& error) {
+        LOG_INFO(logger_, "Subscription stream closed: " << error.what());
       }
-      config_->subscriber_list.removeBuffer(live_updates);
-      live_updates->removeAllUpdates();
-      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-      metrics_.updateAggregator();
       if (context->IsCancelled()) {
         return grpc::Status::CANCELLED;
       }
@@ -342,17 +342,16 @@ class ThinReplicaImpl {
 
     // Read, filter, and send live updates
     SubEventGroupUpdate sub_eg_update;
-    while (!context->IsCancelled()) {
-      metrics_.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
-      try {
-        live_updates->PopEventGroup(sub_eg_update);
-      } catch (concord::thin_replica::ConsumerTooSlow& error) {
-        LOG_WARN(logger_, "Closing subscription: " << error.what());
-        break;
-      }
-      auto eg_update = kvbc::EgUpdate{sub_eg_update.event_group_id, std::move(sub_eg_update.event_group)};
-      const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
-      try {
+    try {
+      while (not context->IsCancelled()) {
+        metrics_.queue_size.Get().Set(live_updates->SizeEventGroupQueue());
+        bool is_update_available = false;
+        is_update_available = live_updates->TryPopEventGroup(sub_eg_update, kWaitForUpdateTimeout);
+        if (not is_update_available) {
+          continue;
+        }
+        auto eg_update = kvbc::EgUpdate{sub_eg_update.event_group_id, std::move(sub_eg_update.event_group)};
+        const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
         if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
           //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
           // TODO (Shruti) : Get and propagate span context
@@ -361,20 +360,19 @@ class ThinReplicaImpl {
           sendEventGroupHash(
               stream, sub_eg_update.event_group_id, kvb_filter->hashEventGroupUpdate(filtered_eg_update));
         }
-      } catch (std::exception& error) {
-        LOG_INFO(logger_, "Subscription stream closed: " << error.what());
-        break;
+        metrics_.last_sent_event_group_id.Get().Set(sub_eg_update.event_group_id);
+        if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
+          metrics_.updateAggregator();
+          update_aggregator_counter = 0;
+        }
       }
-      metrics_.last_sent_event_group_id.Get().Set(sub_eg_update.event_group_id);
-      if (++update_aggregator_counter == config_->update_metrics_aggregator_thresh) {
-        metrics_.updateAggregator();
-        update_aggregator_counter = 0;
-      }
+      config_->subscriber_list.removeBuffer(live_updates);
+      live_updates->removeAllEventGroupUpdates();
+      metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+      metrics_.updateAggregator();
+    } catch (std::exception& error) {
+      LOG_INFO(logger_, "Subscription stream closed: " << error.what());
     }
-    config_->subscriber_list.removeBuffer(live_updates);
-    live_updates->removeAllEventGroupUpdates();
-    metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-    metrics_.updateAggregator();
     if (context->IsCancelled()) {
       LOG_WARN(logger_, "Subscription cancelled");
       return grpc::Status::CANCELLED;
@@ -672,9 +670,12 @@ class ThinReplicaImpl {
     readAndSend<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
 
     // Let's wait until we have at least one live update
-    live_updates->waitUntilNonEmpty();
-    if (context->IsCancelled()) {
-      throw StreamCancelled("StreamCancelled while waiting for the first live update");
+    bool is_update_available = false;
+    while (not is_update_available) {
+      is_update_available = live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout);
+      if (context->IsCancelled()) {
+        throw StreamCancelled("StreamCancelled while waiting for the first live update");
+      }
     }
 
     // We are in sync already
@@ -740,9 +741,12 @@ class ThinReplicaImpl {
     readAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(logger_, context, stream, start, end, kvb_filter);
 
     // Let's wait until we have at least one live update
-    live_updates->waitForEventGroupUntilNonEmpty();
-    if (context->IsCancelled()) {
-      throw StreamCancelled("StreamCancelled while waiting for the first live update");
+    bool is_update_available = false;
+    while (not is_update_available) {
+      is_update_available = live_updates->waitForEventGroupUntilNonEmpty(kWaitForUpdateTimeout);
+      if (context->IsCancelled()) {
+        throw StreamCancelled("StreamCancelled while waiting for the first live update");
+      }
     }
 
     // We are in sync already

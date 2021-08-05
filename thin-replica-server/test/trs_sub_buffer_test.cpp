@@ -14,10 +14,13 @@
 #include "gtest/gtest.h"
 
 #include <atomic>
+#include <chrono>
 #include <future>
 #include <list>
 #include "Logger.hpp"
 #include "thin-replica-server/subscription_buffer.hpp"
+
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -231,6 +234,54 @@ TEST(trs_sub_buffer_test, happy_path_w_two_consumers_eg) {
     update.event_group_id = i;
     sub_list.updateEventGroupSubBuffers(update);
   }
+}
+
+TEST(trs_sub_buffer_test, waiting_for_updates) {
+  auto updates = std::make_shared<SubUpdateBuffer>(10);
+  auto updates_eg = std::make_shared<SubUpdateBuffer>(10);
+
+  SubUpdate out;
+  SubEventGroupUpdate out_eg;
+
+  SubBufferList sub_list;
+  sub_list.addBuffer(updates);
+  sub_list.addBuffer(updates_eg);
+
+  ASSERT_FALSE(updates->waitUntilNonEmpty(10ms));
+  ASSERT_FALSE(updates_eg->waitForEventGroupUntilNonEmpty(10ms));
+  ASSERT_FALSE(updates->TryPop(out, 10ms));
+  ASSERT_FALSE(updates_eg->TryPopEventGroup(out_eg, 10ms));
+
+  std::atomic_bool reader_started;
+  auto reader = std::async(std::launch::async, [&] {
+    reader_started = true;
+
+    updates->waitUntilNonEmpty();
+    ASSERT_FALSE(updates->Empty());
+    ASSERT_TRUE(updates->waitUntilNonEmpty(10ms));
+
+    updates_eg->waitForEventGroupUntilNonEmpty();
+    ASSERT_FALSE(updates_eg->Empty());
+    ASSERT_TRUE(updates_eg->waitForEventGroupUntilNonEmpty(10ms));
+
+    updates->Pop(out);
+    ASSERT_TRUE(updates->TryPop(out, 10ms));
+    updates_eg->PopEventGroup(out_eg);
+    ASSERT_TRUE(updates_eg->TryPopEventGroup(out_eg, 10ms));
+  });
+
+  // Let's make sure that the reader thread starts first
+  while (!reader_started)
+    ;
+
+  SubUpdate update{};
+  SubEventGroupUpdate update_eg{};
+
+  // The reader is calling pop twice for each update type
+  sub_list.updateSubBuffers(update);
+  sub_list.updateSubBuffers(update);
+  sub_list.updateEventGroupSubBuffers(update_eg);
+  sub_list.updateEventGroupSubBuffers(update_eg);
 }
 
 }  // namespace
