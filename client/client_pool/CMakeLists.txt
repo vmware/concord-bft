@@ -8,9 +8,14 @@ add_library(concord_client_pool STATIC
         )
 target_include_directories(concord_client_pool PUBLIC include)
 target_link_libraries(concord_client_pool PUBLIC
-        bftclient
-        bftclient_new
-        corebft
-      	)
+		${Boost_LIBRARIES}
+		${yaml-cpp_LIBRARIES}
+		logging
+		bftclient
+		bftclient_new
+		kvbc
+		util
+		threshsign
+		secretsmanager)
 
 install (TARGETS concord_client_pool DESTINATION lib${LIB_SUFFIX})
