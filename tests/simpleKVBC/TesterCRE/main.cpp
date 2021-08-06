@@ -197,7 +197,7 @@ class ClientsAddRemoveHandler : public IStateHandler {
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {req_buf, [this, &command]() {
+    out = {req_buf, [this, command]() {
              LOG_INFO(this->getLogger(), "completed scaling procedure for " << command.config_descriptor);
            }};
     return true;
