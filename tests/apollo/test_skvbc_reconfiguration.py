@@ -112,10 +112,12 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_all_replicas()
         bft_network.start_cre()
 
-        client = bft_network.random_client()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
             await skvbc.send_write_kv_set()
+
+        client = bft_network.random_client()
+
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         config_desc = "123456789"
         rep = await op.clients_addRemove_command(config_desc)
@@ -136,7 +138,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                     if len(res[0].response.clients_status) == 0:
                         succ = False
                     for k,v in res[0].response.clients_status:
-                        assert(k == 13)
+                        assert(k == 19)
                         assert(v == config_desc)
 
     @with_trio
