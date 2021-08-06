@@ -23,7 +23,7 @@ namespace concord::kvbc {
 namespace strategy {
 class StrategyUtils {
  public:
-  static std::string getRandomStingOfLength(size_t len);
+  static std::string getRandomStringOfLength(size_t len);
 };
 
 }  // end of namespace strategy

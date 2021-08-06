@@ -57,7 +57,7 @@ bool ShufflePrePrepareMsgStrategy::changeMessage(std::shared_ptr<MessageBase>& m
       if ((idx == swapIdx) || (idx == (swapIdx + 1))) {
         if (req.requestLength() > 0) {
           memcpy(req.requestBuf(),
-                 StrategyUtils::getRandomStingOfLength(req.requestLength()).c_str(),
+                 StrategyUtils::getRandomStringOfLength(req.requestLength()).c_str(),
                  req.requestLength());
         }
         auto cloned_req = std::make_unique<char[]>(req.size());
