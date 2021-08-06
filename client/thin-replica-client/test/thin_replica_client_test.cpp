@@ -14,7 +14,6 @@
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trs_connection.hpp"
 
-#include <log4cplus/configurator.h>
 #include "gtest/gtest.h"
 #include "thin_replica_client_mocks.hpp"
 
@@ -434,8 +433,5 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  log4cplus::initialize();
-  log4cplus::BasicConfigurator config;
-  config.configure();
   return RUN_ALL_TESTS();
 }

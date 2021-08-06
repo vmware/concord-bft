@@ -58,6 +58,7 @@
 #include <opentracing/span.h>
 #include <condition_variable>
 #include <thread>
+#include "Logger.hpp"
 
 namespace client::thin_replica_client {
 
@@ -298,7 +299,7 @@ class ThinReplicaClient final {
   ThinReplicaClientMetrics metrics_;
 
  private:
-  log4cplus::Logger logger_;
+  logging::Logger logger_;
   std::unique_ptr<ThinReplicaClientConfig> config_;
   size_t data_conn_index_;
 
@@ -401,7 +402,7 @@ class ThinReplicaClient final {
   ThinReplicaClient(std::unique_ptr<ThinReplicaClientConfig> config,
                     const std::shared_ptr<concordMetrics::Aggregator>& aggregator)
       : metrics_(),
-        logger_(log4cplus::Logger::getInstance("com.vmware.thin_replica_client")),
+        logger_(logging::getLogger("com.vmware.thin_replica_client")),
         config_(std::move(config)),
         data_conn_index_(0),
         latest_verified_block_id_(0),

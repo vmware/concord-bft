@@ -14,7 +14,6 @@
 #include "client/thin-replica-client/trs_connection.hpp"
 
 #include <grpcpp/grpcpp.h>
-#include <log4cplus/loggingmacros.h>
 #include <future>
 #include "thin_replica.grpc.pb.h"
 
@@ -49,16 +48,16 @@ void TrsConnection::createChannel() {
   args.SetMaxReceiveMessageSize(kGrpcMaxInboundMsgSizeInBytes);
 
   if (config_->use_tls) {
-    LOG4CPLUS_INFO(logger_,
-                   "TLS for thin replica client is enabled, certificate path: " << config_->thin_replica_tls_cert_path
-                                                                                << ", server: " << address_);
+    LOG_INFO(logger_,
+             "TLS for thin replica client is enabled, certificate path: " << config_->thin_replica_tls_cert_path
+                                                                          << ", server: " << address_);
 
     std::string cert_client_id = getClientIdFromClientCert(config_->client_cert_path);
     // If TLS is enabled for TRC-TRS connection, the client cert must have the
     // client ID in the OU field, because the TRS obtains the client_id
     // from the certificate of the connecting client.
     if (cert_client_id.empty()) {
-      LOG4CPLUS_FATAL(logger_, "Failed to construct thin replica client.");
+      LOG_FATAL(logger_, "Failed to construct thin replica client.");
       throw std::runtime_error(
           "The OU field in client certificate is empty. It must contain the "
           "client ID.");
@@ -70,7 +69,7 @@ void TrsConnection::createChannel() {
     // generate requests, if they do not match, the TRS will filter out all the
     // key value pairs meant for the requesting client.
     if (cert_client_id.compare(client_id_) != 0) {
-      LOG4CPLUS_FATAL(logger_, "Failed to construct thin replica client.");
+      LOG_FATAL(logger_, "Failed to construct thin replica client.");
       throw std::runtime_error("The client ID in the OU field of the client certificate (" + cert_client_id +
                                ")does not match the client ID in the environment variable (" + client_id_ + ").");
     }
@@ -85,9 +84,9 @@ void TrsConnection::createChannel() {
     grpc::SslCredentialsOptions opts = {root_cert, config_->client_key, client_cert};
     channel_ = grpc::CreateCustomChannel(address_, grpc::SslCredentials(opts), args);
   } else {
-    LOG4CPLUS_WARN(logger_,
-                   "TLS for thin replica client is disabled, falling back to "
-                   "insecure channel");
+    LOG_WARN(logger_,
+             "TLS for thin replica client is disabled, falling back to "
+             "insecure channel");
     channel_ = grpc::CreateCustomChannel(address_, grpc::InsecureChannelCredentials(), args);
   }
 }
@@ -109,7 +108,7 @@ bool TrsConnection::isConnected() {
     return false;
   }
   auto status = channel_->GetState(false);
-  LOG4CPLUS_DEBUG(logger_, "gRPC connection status (" << address_ << ") " << status);
+  LOG_DEBUG(logger_, "gRPC connection status (" << address_ << ") " << status);
   return status == GRPC_CHANNEL_READY;
 }
 
@@ -254,10 +253,10 @@ TrsConnection::Result TrsConnection::closeStateStream() {
   if (finish_reported_status.ok()) {
     return Result::kSuccess;
   } else {
-    LOG4CPLUS_WARN(logger_,
-                   "Finishing ReadState from "
-                       << address_ << " failed with error code: " << finish_reported_status.error_code() << ", \""
-                       << finish_reported_status.error_message() << "\").");
+    LOG_WARN(logger_,
+             "Finishing ReadState from " << address_
+                                         << " failed with error code: " << finish_reported_status.error_code() << ", \""
+                                         << finish_reported_status.error_message() << "\").");
     return Result::kFailure;
   }
 }
@@ -299,9 +298,9 @@ TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& r
   ConcordAssert(status == future_status::ready);
   Status call_grpc_status = result.get();
   if (!call_grpc_status.ok()) {
-    LOG4CPLUS_WARN(logger_,
-                   "ReadStateHash from " << address_ << " failed with error code: " << call_grpc_status.error_code()
-                                         << ", \"" << call_grpc_status.error_message() << "\".");
+    LOG_WARN(logger_,
+             "ReadStateHash from " << address_ << " failed with error code: " << call_grpc_status.error_code() << ", \""
+                                   << call_grpc_status.error_message() << "\".");
   }
   return call_grpc_status.ok() ? Result::kSuccess : Result::kFailure;
 }
@@ -375,7 +374,7 @@ void TrsConnection::readCert(const std::string& input_filename, std::string& out
   std::ifstream input_file(input_filename.c_str(), std::ios::in);
 
   if (!input_file.is_open()) {
-    LOG4CPLUS_FATAL(logger_, "Failed to construct thin replica client.");
+    LOG_FATAL(logger_, "Failed to construct thin replica client.");
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": Could not open the input file (") + input_filename +
                              std::string(") to establish TLS connection with the thin replica server."));
   } else {
@@ -384,9 +383,9 @@ void TrsConnection::readCert(const std::string& input_filename, std::string& out
       read_buffer << input_file.rdbuf();
       input_file.close();
       out_data = read_buffer.str();
-      LOG4CPLUS_INFO(logger_, "Successfully loaded the contents of " + input_filename);
+      LOG_INFO(logger_, "Successfully loaded the contents of " + input_filename);
     } catch (std::exception& e) {
-      LOG4CPLUS_FATAL(logger_, "Failed to construct thin replica client.");
+      LOG_FATAL(logger_, "Failed to construct thin replica client.");
       throw std::runtime_error(__PRETTY_FUNCTION__ +
                                std::string(": An exception occurred while trying to read the input file (") +
                                input_filename + std::string("): ") + std::string(e.what()));

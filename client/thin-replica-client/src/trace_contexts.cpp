@@ -89,9 +89,9 @@ expected<std::unique_ptr<opentracing::SpanContext>> TraceContexts::ExtractSpan(c
 SpanPtr TraceContexts::CreateChildSpanFromBinary(const std::string& trace_context,
                                                  const std::string& child_name,
                                                  const std::string& correlation_id,
-                                                 const log4cplus::Logger& logger) {
+                                                 const logging::Logger& logger) {
   if (trace_context.empty()) {
-    LOG4CPLUS_DEBUG(logger, "Span for correlation ID: '" << correlation_id << "' is empty");
+    LOG_DEBUG(logger, "Span for correlation ID: '" << correlation_id << "' is empty");
     return nullptr;
   } else {
     std::istringstream context_stream(trace_context);
@@ -101,9 +101,9 @@ SpanPtr TraceContexts::CreateChildSpanFromBinary(const std::string& trace_contex
           child_name,
           {opentracing::FollowsFrom(&**parent_span_context), opentracing::SetTag{kCorrelationIdTag, correlation_id}});
     } else {
-      LOG4CPLUS_DEBUG(logger,
-                      "Failed to extract span for correlation ID: '" << correlation_id
-                                                                     << "', error:" << parent_span_context.error());
+      LOG_DEBUG(logger,
+                "Failed to extract span for correlation ID: '" << correlation_id
+                                                               << "', error:" << parent_span_context.error());
       return nullptr;
     }
   }
