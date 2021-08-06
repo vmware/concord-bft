@@ -97,14 +97,18 @@ void ClientsManager::loadInfoFromReservedPages() {
     ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
     // YS TBD: Multiple replies for client batching should be sorted by incoming time
-    auto& repliesInfo = indexToClientInfo_.at(clientIdx).repliesInfo;
-    if (repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
-    const auto& res = repliesInfo.insert_or_assign(replyHeader->reqSeqNum, MinTime);
-    const bool added = res.second;
-    LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, added));
-
+    auto& clientInfo = indexToClientInfo_.at(clientIdx);
+    {
+      std::unique_lock<std::mutex> lock(clientInfo.repliesInfoGuard);
+      auto& repliesInfo = clientInfo.repliesInfo;
+      if (repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
+      const auto& res = repliesInfo.insert_or_assign(replyHeader->reqSeqNum, MinTime);
+      const bool added = res.second;
+      LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, added));
+    }
     // Remove old pending requests
-    auto& requestsInfo = indexToClientInfo_.at(clientIdx).requestsInfo;
+    std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+    auto& requestsInfo = clientInfo.requestsInfo;
     for (auto it = requestsInfo.begin(); it != requestsInfo.end();) {
       if (it->first <= replyHeader->reqSeqNum) {
         LOG_INFO(CL_MNGR, "Remove old pending request" << KVLOG(clientId, replyHeader->reqSeqNum));
@@ -124,13 +128,16 @@ bool ClientsManager::hasReply(NodeIdType clientId, ReqId reqSeqNum) {
     throw;
   }
 
-  const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.repliesInfoGuard);
+  const auto& repliesInfo = clientInfo.repliesInfo;
   const auto& elem = repliesInfo.find(reqSeqNum);
   const bool found = (elem != repliesInfo.end());
   if (found) LOG_DEBUG(CL_MNGR, "Reply found for" << KVLOG(clientId, reqSeqNum));
   return found;
 }
 
+// This method requires prior locking of the repliesInfo for the clientId
 void ClientsManager::deleteOldestReply(NodeIdType clientId) {
   // YS TBD: Once multiple replies for client batching are sorted by incoming time, they could be deleted properly
   Time earliestTime = MaxTime;
@@ -181,16 +188,18 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
     LOG_FATAL(CL_MNGR, "ClientIdToIndex.at() failed for " << KVLOG(clientId) << e.what());
     throw;
   }
+  {
+    ClientInfo& c = indexToClientInfo_.at(clientIdx);
+    std::unique_lock<std::mutex> lock(c.repliesInfoGuard);
+    if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
+    if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
+      LOG_FATAL(CL_MNGR,
+                "More than maxNumOfReqsPerClient_ items in repliesInfo"
+                    << KVLOG(c.repliesInfo.size(), maxNumOfReqsPerClient_, clientId, requestSeqNum, replyLength));
+    }
 
-  ClientInfo& c = indexToClientInfo_.at(clientIdx);
-  if (c.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
-  if (c.repliesInfo.size() > maxNumOfReqsPerClient_) {
-    LOG_FATAL(CL_MNGR,
-              "More than maxNumOfReqsPerClient_ items in repliesInfo"
-                  << KVLOG(c.repliesInfo.size(), maxNumOfReqsPerClient_, clientId, requestSeqNum, replyLength));
+    c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   }
-
-  c.repliesInfo.insert_or_assign(requestSeqNum, getMonotonicTime());
   LOG_DEBUG(CL_MNGR, KVLOG(clientId, requestSeqNum));
   auto r = std::make_unique<ClientReplyMsg>(myId_, requestSeqNum, reply, replyLength);
   const uint32_t firstPageId = clientIdx * reservedPagesPerClient_;
@@ -297,8 +306,10 @@ bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqN
     throw;
   }
 
-  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
-  const auto& reqIt = indexToClientInfo_.at(idx).requestsInfo.find(reqSeqNum);
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+  const auto& requestsInfo = clientInfo.requestsInfo;
+  const auto& reqIt = clientInfo.requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
     LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
     return true;
@@ -315,7 +326,9 @@ bool ClientsManager::isPending(NodeIdType clientId, ReqId reqSeqNum) const {
     throw;
   }
 
-  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+  const auto& requestsInfo = clientInfo.requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end() && !reqIt->second.committed) {
     return true;
@@ -334,24 +347,31 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
     throw;
   }
 
-  const auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
-  if (requestsInfo.size() == maxNumOfReqsPerClient_) {
-    LOG_DEBUG(CL_MNGR,
-              "Maximum number of requests per client reached" << KVLOG(maxNumOfReqsPerClient_, clientId, reqSeqNum));
-    return false;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  size_t requestsInfoSize = 0;
+  {
+    std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+    const auto& requestsInfo = clientInfo.requestsInfo;
+    requestsInfoSize = requestsInfo.size();
+    if (requestsInfoSize == maxNumOfReqsPerClient_) {
+      LOG_DEBUG(CL_MNGR,
+                "Maximum number of requests per client reached" << KVLOG(maxNumOfReqsPerClient_, clientId, reqSeqNum));
+      return false;
+    }
+    const auto& reqIt = requestsInfo.find(reqSeqNum);
+    if (reqIt != requestsInfo.end()) {
+      LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
+      return false;
+    }
   }
-  const auto& reqIt = requestsInfo.find(reqSeqNum);
-  if (reqIt != requestsInfo.end()) {
-    LOG_DEBUG(CL_MNGR, "The request is executing right now" << KVLOG(clientId, reqSeqNum));
-    return false;
-  }
-  const auto& repliesInfo = indexToClientInfo_.at(idx).repliesInfo;
+  std::unique_lock<std::mutex> lock(clientInfo.repliesInfoGuard);
+  const auto& repliesInfo = clientInfo.repliesInfo;
   const auto& replyIt = repliesInfo.find(reqSeqNum);
   if (replyIt != repliesInfo.end()) {
     LOG_DEBUG(CL_MNGR, "The request has been already executed" << KVLOG(clientId, reqSeqNum));
     return false;
   }
-  LOG_DEBUG(CL_MNGR, "The request can become pending" << KVLOG(clientId, reqSeqNum, requestsInfo.size()));
+  LOG_DEBUG(CL_MNGR, "The request can become pending" << KVLOG(clientId, reqSeqNum, requestsInfoSize));
   return true;
 }
 
@@ -364,7 +384,9 @@ void ClientsManager::addPendingRequest(NodeIdType clientId, ReqId reqSeqNum, con
     throw;
   }
 
-  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+  auto& requestsInfo = clientInfo.requestsInfo;
   if (requestsInfo.find(reqSeqNum) != requestsInfo.end()) {
     LOG_WARN(CL_MNGR, "The request already exists - skip adding" << KVLOG(clientId, reqSeqNum));
     return;
@@ -382,7 +404,9 @@ void ClientsManager::markRequestAsCommitted(NodeIdType clientId, ReqId reqSeqNum
     throw;
   }
 
-  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+  auto& requestsInfo = clientInfo.requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
     reqIt->second.committed = true;
@@ -409,7 +433,9 @@ void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId r
     throw;
   }
 
-  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+  auto& requestsInfo = clientInfo.requestsInfo;
   if (requestsInfo.find(reqSequenceNum) != requestsInfo.end()) return;
   ReqId maxReqId{0};
   for (const auto& entry : requestsInfo) {
@@ -432,7 +458,9 @@ void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId
     throw;
   }
 
-  auto& requestsInfo = indexToClientInfo_.at(idx).requestsInfo;
+  auto& clientInfo = indexToClientInfo_.at(idx);
+  std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+  auto& requestsInfo = clientInfo.requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
     requestsInfo.erase(reqIt);
@@ -441,7 +469,10 @@ void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId
 }
 
 void ClientsManager::clearAllPendingRequests() {
-  for (ClientInfo& clientInfo : indexToClientInfo_) clientInfo.requestsInfo.clear();
+  for (ClientInfo& clientInfo : indexToClientInfo_) {
+    std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
+    clientInfo.requestsInfo.clear();
+  }
   LOG_DEBUG(CL_MNGR, "Cleared pending requests for all clients");
 }
 
@@ -449,7 +480,8 @@ void ClientsManager::clearAllPendingRequests() {
 Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   Time earliestTime = MaxTime;
   RequestInfo earliestPendingReqInfo{MaxTime, std::string()};
-  for (const ClientInfo& clientInfo : indexToClientInfo_) {
+  for (ClientInfo& clientInfo : indexToClientInfo_) {
+    std::unique_lock<std::mutex> lock(clientInfo.requestsInfoGuard);
     for (const auto& req : clientInfo.requestsInfo) {
       // Don't take into account already committed requests
       if ((req.second.time != MinTime) && (earliestTime > req.second.time) && (!req.second.committed)) {
