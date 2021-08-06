@@ -73,8 +73,8 @@ class IDbAdapter {
   virtual std::shared_ptr<storage::IDBClient> getDb() const = 0;
 
   // These two interfaces are implemented only RO db adapter
-  virtual BlockId getLastKnownReconfigurationCmdBlock() const { return 0; }
-  virtual void setLastKnownReconfigurationCmdBlock(const BlockId& blockId) {}
+  virtual void getLastKnownReconfigurationCmdBlock(std::string& outBlockData) const {}
+  virtual void setLastKnownReconfigurationCmdBlock(std::string& blockData) {}
 
   virtual ~IDbAdapter() = default;
 };

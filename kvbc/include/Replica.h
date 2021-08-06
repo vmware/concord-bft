@@ -164,7 +164,7 @@ class Replica : public IReplica,
   uint64_t getStoredReconfigData(const std::string &kCategory, const std::string &key, const kvbc::BlockId &bid);
   void startRoReplicaCreEngine();
   BlockId getLastKnownReconfigCmdBlockNum() const;
-  void setLastKnownReconfigCmdBlockNum(const BlockId &);
+  void setLastKnownReconfigCmdBlock(const std::vector<uint8_t> &);
   // INTERNAL TYPES
 
   // represents <key,blockId>
