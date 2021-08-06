@@ -477,7 +477,7 @@ TEST(testViewchangeSafetyLogic_test, empty_correct_VC_msgs) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   setUpConfiguration_4();
-  bftEngine::CryptoManager::instance(new TestCryptoSystem);
+  bftEngine::CryptoManager::instance(std::unique_ptr<TestCryptoSystem>());
   int res = RUN_ALL_TESTS();
   // TODO cleanup the generated certificates
   return res;

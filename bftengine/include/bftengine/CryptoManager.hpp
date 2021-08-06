@@ -29,19 +29,8 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
    * Singleton access method
    * For the first time should be called with a non-null argument
    */
-  static CryptoManager& instance(Cryptosystem* cryptoSys = nullptr) {
-    static CryptoManager cm_(cryptoSys);
-
-    /**
-     * Below logic protects memory leak. Memory leak occurs if 'instance()' is called
-     * more than once (because cm_ is created only once. It is static in nature).
-     */
-    static int i = 0;
-    if (i == 0) {
-      ++i;
-    } else {
-      delete cryptoSys;
-    }
+  static CryptoManager& instance(std::unique_ptr<Cryptosystem>&& cryptoSys = nullptr) {
+    static CryptoManager cm_(std::move(cryptoSys));
     return cm_;
   }
   std::shared_ptr<IThresholdSigner> thresholdSignerForSlowPathCommit(const SeqNum sn) const {
@@ -98,7 +87,7 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
    *  Holds Cryptosystem, signers and verifiers per checkpoint
    */
   struct CryptoSystemWrapper {
-    CryptoSystemWrapper(Cryptosystem* cs) : cryptosys_(cs) {}
+    CryptoSystemWrapper(std::unique_ptr<Cryptosystem>&& cs) : cryptosys_(std::move(cs)) {}
     CryptoSystemWrapper(const CryptoSystemWrapper&) = delete;
     std::unique_ptr<Cryptosystem> cryptosys_;
     std::shared_ptr<IThresholdSigner> thresholdSigner_;
@@ -144,9 +133,11 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
     uint64_t chckp = sn / checkpointWindowSize + 2;
     if (auto it = cryptoSystems_.find(chckp); it != cryptoSystems_.end()) return it->second;
     // copy construct new Cryptosystem from a last one as we want it to include all the existing keys
-    Cryptosystem* cs = new Cryptosystem(*cryptoSystems_.rbegin()->second->cryptosys_.get());
+    std::unique_ptr<Cryptosystem> cs =
+        std::make_unique<Cryptosystem>(*cryptoSystems_.rbegin()->second->cryptosys_.get());
     LOG_INFO(logger(), "created new Cryptosytem for checkpoint: " << chckp);
-    return cryptoSystems_.insert(std::make_pair(chckp, std::make_shared<CryptoSystemWrapper>(cs))).first->second;
+    return cryptoSystems_.insert(std::make_pair(chckp, std::make_shared<CryptoSystemWrapper>(std::move(cs))))
+        .first->second;
   }
 
   // store at most 2 cryptosystems
@@ -157,9 +148,9 @@ class CryptoManager : public IKeyExchanger, public IMultiSigKeyGenerator {
     }
   }
 
-  CryptoManager(Cryptosystem* cryptoSys) {
+  CryptoManager(std::unique_ptr<Cryptosystem>&& cryptoSys) {
     // default cryptosystem is always at chckp 0
-    cryptoSystems_.insert(std::make_pair(0, std::make_shared<CryptoSystemWrapper>(cryptoSys)));
+    cryptoSystems_.insert(std::make_pair(0, std::make_shared<CryptoSystemWrapper>(std::move(cryptoSys))));
     cryptoSystems_.begin()->second->init();
   }
   logging::Logger& logger() const {
