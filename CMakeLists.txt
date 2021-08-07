@@ -19,40 +19,24 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Enable debug or release builds" FORCE)
 endif()
 
-# Default USE_LOG4CPP to FALSE
 if (NOT DEFINED USE_LOG4CPP)
-  option(USE_LOG4CPP "Enable LOG4CPP" FALSE)
+  option(USE_LOG4CPP "Enable LOG4CPP" ON)
 endif()
 
-# Default KEEP_APOLLO_LOGS to TRUE
-option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs " TRUE)
-
-# Default TXN_SIGNING_ENABLED to FALSE
-option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" TRUE)
-
-# Default BUILD_COMM_TCP_PLAIN to FALSE
-option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" FALSE)
-
-# Default LEAKCHECK to FALSE
-option(LEAKCHECK "Enable Address and Leak Sanitizers" FALSE)
-
-# Default THREADCHECK to FALSE
-option(THREADCHECK "Enable Thread Sanitizer" FALSE)
-
-# Default BUILD_COMM_TCP_TLS to FALSE
-option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" FALSE)
-
+option(KEEP_APOLLO_LOGS "Retains logs from replicas in separate folder for each test in build/tests/apollo/logs" ON)
+option(TXN_SIGNING_ENABLED "Enable External concord client transcattion signing" ON)
+option(BUILD_COMM_TCP_PLAIN "Enable TCP communication" OFF)
+option(LEAKCHECK "Enable Address and Leak Sanitizers" OFF)
+option(THREADCHECK "Enable Thread Sanitizer" OFF)
+option(BUILD_COMM_TCP_TLS "Enable TCP TLS communication" OFF)
 # Rocksdb is required for storage now. Consider removing this flag.
-option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" TRUE)
-
-# Build S3 Object Store support.
-option(USE_S3_OBJECT_STORE "Enable S3 Object Store" FALSE)
-
-# Build Slowdown framework
-option(BUILD_SLOWDOWN "Build Slowdown framework" FALSE)
-
-# Build Time service with fake clock
-option(USE_FAKE_CLOCK_IN_TIME_SERVICE "BUILD TimeService Using Fake Clock" FALSE)
+option(BUILD_ROCKSDB_STORAGE "Enable building of RocksDB storage library" ON)
+option(USE_S3_OBJECT_STORE "Enable S3 Object Store" ON)
+option(BUILD_SLOWDOWN "Build Slowdown framework" OFF)
+option(USE_FAKE_CLOCK_IN_TIME_SERVICE "BUILD TimeService Using Fake Clock" OFF)
+option(USE_OPENTRACING "Enable OpenTracing" ON)
+option(USE_GRPC "Enable GRPC and Protobuf" ON)
+option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
 
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)
@@ -73,8 +57,7 @@ if(SLEEP_FOR_DBG)
     add_definitions(-DSLEEP_DBG)
 endif()
 
-option(USE_OPENTRACING "Enable OpenTracing" ON)
-option(USE_GRPC "Enable GRPC and Protobuf" ON)
+
 #
 # Compiler options
 #
@@ -132,6 +115,10 @@ include(CTest)
 #
 # Subdirectories
 #
+if(BUILD_THIRDPARTY)
+	add_subdirectory(thirdparty)
+endif()
+
 add_subdirectory(logging)
 add_subdirectory(util)
 add_subdirectory(secretsmanager)
