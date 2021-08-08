@@ -19,12 +19,13 @@ namespace concord::util {
 class Crypto {
  public:
   enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
-  Crypto& instance() {
+  static Crypto& instance() {
     static Crypto crypto;
     return crypto;
   }
 
   Crypto();
+  ~Crypto();
   std::pair<std::string, std::string> generateRsaKeyPairs(uint32_t sig_length, KeyFormat fmt);
   std::pair<std::string, std::string> hexToPem(const std::pair<std::string, std::string> key_pair);
 

@@ -23,7 +23,19 @@
 #include "client/reconfiguration/config.hpp"
 #include "client/reconfiguration/poll_based_state_client.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "crypto_utils.hpp"
+#include "secrets_manager_plain.h"
 #include <variant>
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -125,7 +137,8 @@ ICommunication* createCommunication(const ClientConfig& cc,
 
 class KeyExchangeCommandHandler : public IStateHandler {
  public:
-  KeyExchangeCommandHandler(uint16_t clientId) : clientId_{clientId} {}
+  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path, std::function<void()> restart)
+      : clientId_{clientId}, key_path_{key_path}, restart_{std::move(restart)} {}
   bool validate(const State& state) const {
     concord::messages::ClientReconfigurationStateReply crep;
     concord::messages::deserialize(state.data, crep);
@@ -138,16 +151,27 @@ class KeyExchangeCommandHandler : public IStateHandler {
     concord::messages::ClientKeyExchangeCommand command =
         std::get<concord::messages::ClientKeyExchangeCommand>(crep.response);
 
+    // Generate new key pair
+    auto hex_keys = concord::util::Crypto::instance().generateRsaKeyPairs(
+        2048, concord::util::Crypto::KeyFormat::HexaDecimalStrippedFormat);
+    auto pem_keys = concord::util::Crypto::instance().hexToPem(hex_keys);
+
     concord::messages::ReconfigurationRequest rreq;
     concord::messages::ClientExchangePublicKey creq;
-    std::string new_pub_key = "test_pub_key";
+    std::string new_key_path = key_path_ + ".new";
+    sm_.encryptFile(new_key_path, pem_keys.first);
+    std::string new_pub_key = hex_keys.second;
     creq.sender_id = clientId_;
     creq.pub_key = new_pub_key;
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {req_buf, [this, new_pub_key]() {
-             LOG_INFO(this->getLogger(), "writing new public key success, public key is: " << new_pub_key);
+    out = {req_buf, [this, new_key_path]() {
+             fs::copy(this->key_path_, this->key_path_ + ".old");
+             fs::copy(new_key_path, this->key_path_);
+             fs::remove(new_key_path);
+             LOG_INFO(this->getLogger(), "restarting the component");
+             this->restart_();
            }};
     return true;
   }
@@ -158,6 +182,9 @@ class KeyExchangeCommandHandler : public IStateHandler {
     return logger_;
   }
   uint16_t clientId_;
+  std::string key_path_;
+  concord::secretsmanager::SecretsManagerPlain sm_;
+  std::function<void()> restart_;
 };
 
 class PublicKeyExchangeHandler : public IStateHandler {
@@ -217,7 +244,10 @@ int main(int argc, char** argv) {
   IStateClient* pollBasedClient =
       new PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
-  cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(creParams.CreConfig.id_));
+  cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(
+      creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value(), [&] {
+        execv(argv[0], argv);
+      }));
   cre.registerHandler(std::make_shared<PublicKeyExchangeHandler>());
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
   cre.start();

@@ -59,6 +59,7 @@ class Crypto::Impl {
     }
     return keyPair;
   }
+  ~Impl() = default;
 };
 
 std::pair<std::string, std::string> Crypto::generateRsaKeyPairs(uint32_t sig_length, KeyFormat fmt) {
@@ -69,5 +70,6 @@ std::pair<std::string, std::string> Crypto::hexToPem(const std::pair<std::string
   return impl_->hexToPem(key_pair);
 }
 
-Crypto::Crypto() : impl_{std::make_unique<Impl>()} {}
+Crypto::Crypto() : impl_{std::make_unique<Crypto::Impl>()} {}
+Crypto::~Crypto() = default;
 }  // namespace concord::util
