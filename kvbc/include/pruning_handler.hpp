@@ -147,10 +147,15 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   PruningHandler(kvbc::IReader &, kvbc::IBlockAdder &, kvbc::IBlocksDeleter &, bool run_async = false);
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse &) override;
-  bool handle(const concord::messages::PruneRequest &, uint64_t, concord::messages::ReconfigurationResponse &) override;
+  bool handle(const concord::messages::PruneRequest &,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse &) override;
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse &) override;
 
  protected:
@@ -191,6 +196,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
         replica_id_{bftEngine::ReplicaConfig::instance().replicaId} {}
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse &rres) override {
     if (!pruning_enabled_) return true;
     concord::messages::LatestPrunableBlock latest_prunable_block;
@@ -209,12 +215,14 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   // Read only replica doesn't perform the actual pruning
   bool handle(const concord::messages::PruneRequest &,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse &) override {
     return true;
   }
   // Read only replica doesn't know the pruning status
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse &) override {
     return true;
   }
