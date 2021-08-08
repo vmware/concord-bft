@@ -57,6 +57,7 @@ class KeyExchangeManager {
   void onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys);
   // called on a new client key
   void onClientPublicKeyExchange(const std::string& key, KeyFormat, NodeIdType clientId);
+  std::string getClientPublicKey(NodeIdType clientId);
   // called when client keys are loaded
   void loadClientPublicKey(const std::string& key, KeyFormat, NodeIdType clientId);
   ///////// end - Clients public keys interface///////////////

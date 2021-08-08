@@ -70,7 +70,9 @@ class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigu
               concord::messages::ReconfigurationResponse&) override;
 
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
-    return true;
+    if (!bftEngine::impl::SigManager::instance()->hasVerifier(sender_id)) return false;
+    return bftEngine::impl::SigManager::instance()->verifySig(
+        sender_id, data.data(), data.size(), signature.data(), signature.size());
   }
 };
 

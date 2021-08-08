@@ -176,6 +176,10 @@ void KeyExchangeManager::onClientPublicKeyExchange(const std::string& key, KeyFo
   loadClientPublicKey(key, fmt, clientId);
 }
 
+std::string KeyExchangeManager::getClientPublicKey(NodeIdType clientId) {
+  return clientPublicKeyStore_->getClientPublicKey(clientId);
+}
+
 void KeyExchangeManager::loadClientPublicKey(const std::string& key, KeyFormat fmt, NodeIdType clientId) {
   LOG_INFO(KEY_EX_LOG, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
   SigManager::instance()->setClientPublicKey(key, clientId, fmt);

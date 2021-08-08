@@ -257,6 +257,9 @@ void ClientsManager::setClientPublicKey(NodeIdType clientId, const std::string& 
   saveReservedPage(getKeyPageId(clientId), oss.tellp(), oss.str().data());
 }
 
+std::string ClientsManager::getClientPublicKey(uint16_t clientId) {
+  return clientsInfo_[clientId].pubKey.first;
+}
 bool ClientsManager::isClientRequestInProcess(NodeIdType clientId, ReqId reqSeqNum) const {
   try {
     const auto& info = clientsInfo_.at(clientId);
