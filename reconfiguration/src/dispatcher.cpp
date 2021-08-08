@@ -46,8 +46,8 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       }
       error_msg.error_msg.clear();
       valid = true;
-      rresp.success &=
-          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
+      rresp.success &= std::visit(
+          [&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, rresp, handler); }, request.command);
     }
 
     // Run regular reconfiguration handlers
@@ -59,8 +59,8 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       }
       error_msg.error_msg.clear();
       valid = true;
-      rresp.success &=
-          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
+      rresp.success &= std::visit(
+          [&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, rresp, handler); }, request.command);
     }
 
     // Run post-reconfiguration handlers
@@ -72,8 +72,8 @@ ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& reque
       }
       error_msg.error_msg.clear();
       valid = true;
-      rresp.success &=
-          std::visit([&](auto&& arg) { return handleRequest(arg, sequence_num, rresp, handler); }, request.command);
+      rresp.success &= std::visit(
+          [&](auto&& arg) { return handleRequest(arg, sequence_num, sender_id, rresp, handler); }, request.command);
     }
 
     if (!valid) rresp.success = false;  // If no handler was able to verify the request, it is an invalid request

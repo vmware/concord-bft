@@ -154,7 +154,7 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
   // so lets invoke all original reconfiguration handlers from the product layer (without concord-bft's ones)
   concord::messages::ReconfigurationResponse response;
   for (auto &h : orig_reconf_handlers_) {
-    h->handle(cmd, bft_seq_num, response);
+    h->handle(cmd, bft_seq_num, UINT32_MAX, response);
   }
 
   if (my_last_known_epoch < last_known_global_epoch) {
@@ -211,7 +211,7 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
   concord::messages::ReconfigurationResponse response;
   for (auto &h : orig_reconf_handlers_) {
     // If it was written to the blockchain, it means that this is a valid request.
-    succ &= h->handle(command, bft_seq_num, response);
+    succ &= h->handle(command, bft_seq_num, UINT32_MAX, response);
   }
   return succ;
 }
