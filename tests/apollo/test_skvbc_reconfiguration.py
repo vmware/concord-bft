@@ -142,6 +142,78 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         assert(v == config_desc)
 
     @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_key_exchange_command(self, bft_network):
+        """
+            Operator sends client key exchange command for all the clients
+        """
+        with log.start_action(action_type="test_client_key_exchange_command"):
+            bft_network.start_all_replicas()
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+
+            client = bft_network.random_client()
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            rep = await op.client_key_exchange_command([])
+            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+            assert rep.success is True
+            log.log_message(message_type=f"block_id {rep.response.block_id}")
+
+            pub_key = None
+            with trio.fail_after(60):
+                succ = False
+            while not succ:
+                rep = await op.clients_clientKeyExchangeStatus_command()
+                rsi_rep = client.get_rsi_replies()
+                data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+                if not data.success:
+                    continue
+                succ = True
+                for r in rsi_rep.values():
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    if len(res[0].response.clients_keys) == 0:
+                        succ = False
+                    for k,v in res[0].response.clients_keys:
+                        assert(k == 19)
+                        if pub_key is None:
+                            pub_key = v.pub_key
+                        assert (pub_key == v.pub_key)
+            bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
+            client = bft_network.random_client()
+            # Now lets have another cycle to verify that the keys were actually rotated
+            op = operator.Operator(bft_network.config, client, bft_network.builddir)
+            rep = await op.client_key_exchange_command([])
+            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+            assert rep.success is True
+            log.log_message(message_type=f"block_id {rep.response.block_id}")
+
+            with trio.fail_after(60):
+                succ = False
+            while not succ:
+                rep = await op.clients_clientKeyExchangeStatus_command()
+                rsi_rep = client.get_rsi_replies()
+                data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+                if not data.success:
+                    continue
+                succ = True
+                for r in rsi_rep.values():
+                    res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+                    if len(res[0].response.clients_keys) == 0:
+                        succ = False
+                    for k,v in res[0].response.clients_keys:
+                        assert(k == 19)
+                        if pub_key == v.pub_key:
+                            succ = False
+            bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+
+
+    @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_key_exchange(self, bft_network):
         """
@@ -285,70 +357,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             assert self_key_exchange_counter == self_key_exchange_counter_before + 1
                             #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
                             break
-     
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_client_key_exchange_command(self, bft_network):
-        """
-            Operator sends client key exchange command for all the clients
-        """
-        with log.start_action(action_type="test_client_key_exchange_command"):
-            bft_network.start_all_replicas()
-            client = bft_network.random_client()
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            all_client_ids=bft_network.all_client_ids()
-            log.log_message(message_type=f"sending client key exchange command for clients {all_client_ids}")
-            op = operator.Operator(bft_network.config, client, bft_network.builddir)
-            rep = await op.client_key_exchange_command(all_client_ids)
-            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-            assert rep.success is True        
-            log.log_message(message_type=f"block_id {rep.response.block_id}")
-            assert rep.response.block_id == 1
-    
-    @unittest.skip("Disabling temporarily till the fix is done")
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_client_exchange_public_key(self, bft_network):
-        """
-            Second phase of a client key exchange sequence
-            Client generates key pair and sends client key exchange public key
-            TODO [TK] when implemented in a bft_client, use a newly generated key;
-                      for now use other clients to fill a checkpoint
-        """
-        with log.start_action(action_type="test_client_exchange_public_key"):
-            bft_network.start_all_replicas()
-            client = bft_network.random_client()
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            log.log_message(message_type=f"sending client exchange public key for client {client.client_id}")
-            op = operator.Operator(bft_network.config, client, bft_network.builddir)
-            rep = await op.client_exchange_public_key()
-            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-            assert rep.success is True
-            await trio.sleep(1) #to avoid inconsistency with bft mdt
-            bft_network.stop_all_replicas()
-            bft_network.start_all_replicas()
-            await skvbc.fill_and_wait_for_checkpoint(initial_nodes=bft_network.all_replicas(), 
-                                                 num_of_checkpoints_to_add=2, 
-                                                 verify_checkpoint_persistency=False,
-                                                 without_clients={client.client_id})
-
-
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_client_exchange_public_key_failure(self, bft_network):
-        """
-            Client sends key exchange with an invalid public key 
-        """
-        with log.start_action(action_type="test_client_exchange_public_key_failure"):
-            bft_network.start_all_replicas()
-            client = bft_network.random_client()
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            log.log_message(message_type=f"sending client exchange public key for client {client.client_id}")
-            op = operator.Operator(bft_network.config, client, bft_network.builddir)
-            rep = await op.client_exchange_public_key(valid=False)
-            rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-            assert rep.success is False
-            log.log_message(message_type=f"client key exchange failure: {rep.additional_data}")
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

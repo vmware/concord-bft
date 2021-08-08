@@ -136,6 +136,11 @@ class Operator:
         cars_command.sender_id = 1000
         return self._construct_basic_reconfiguration_request(cars_command)
 
+    def _construct_reconfiguration_clientsKeyExchangeStatus_command(self):
+        ckes_command = cmf_msgs.ClientKeyExchangeStatus()
+        ckes_command.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(ckes_command)
+
     def _construct_reconfiguration_restart_command(self, bft, restart, data):
         restart_command = cmf_msgs.RestartCommand()
         restart_command.bft_support = bft
@@ -221,6 +226,10 @@ class Operator:
 
     async def clients_addRemoveStatus_command(self):
         reconf_msg = self._construct_reconfiguration_clientsAddRemoveStatus_command()
+        return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
+
+    async def clients_clientKeyExchangeStatus_command(self):
+        reconf_msg = self._construct_reconfiguration_clientsKeyExchangeStatus_command()
         return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
     
     async def client_exchange_public_key(self, valid=True):

@@ -167,9 +167,10 @@ class KeyExchangeCommandHandler : public IStateHandler {
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
     out = {req_buf, [this, new_key_path]() {
-             fs::copy(this->key_path_, this->key_path_ + ".old");
-             fs::copy(new_key_path, this->key_path_);
+             fs::copy(this->key_path_, this->key_path_ + ".old", fs::copy_options::update_existing);
+             fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
              fs::remove(new_key_path);
+             fs::remove(this->key_path_ + ".old");
              LOG_INFO(this->getLogger(), "restarting the component");
              this->restart_();
            }};
@@ -185,23 +186,6 @@ class KeyExchangeCommandHandler : public IStateHandler {
   std::string key_path_;
   concord::secretsmanager::SecretsManagerPlain sm_;
   std::function<void()> restart_;
-};
-
-class PublicKeyExchangeHandler : public IStateHandler {
- public:
-  bool validate(const State& state) const override {
-    concord::messages::ClientReconfigurationStateReply crep;
-    concord::messages::deserialize(state.data, crep);
-    return std::holds_alternative<concord::messages::ClientExchangePublicKey>(crep.response);
-  }
-  bool execute(const State&, WriteState&) override {
-    LOG_INFO(getLogger(), "restart client components");
-    return true;
-  }
-  logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.testerCre.PublicKeyExchange"));
-    return logger_;
-  }
 };
 
 class ClientsAddRemoveHandler : public IStateHandler {
@@ -248,7 +232,6 @@ int main(int argc, char** argv) {
       creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value(), [&] {
         execv(argv[0], argv);
       }));
-  cre.registerHandler(std::make_shared<PublicKeyExchangeHandler>());
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
   cre.start();
   while (true) std::this_thread::sleep_for(1s);

@@ -22,7 +22,7 @@ class Crypto::Impl {
     std::pair<std::string, std::string> out;
 
     CryptoPP::HexDecoder priv_hd;
-    CryptoPP::StringSource priv_str(key_pair.first, true, &priv_hd);
+    CryptoPP::StringSource priv_str(key_pair.first, true, new CryptoPP::HexDecoder());
     CryptoPP::RSA::PrivateKey priv;
     priv.Load(priv_str);
     CryptoPP::StringSink priv_string_sink(out.first);
@@ -30,9 +30,9 @@ class Crypto::Impl {
     priv_string_sink.MessageEnd();
 
     CryptoPP::HexDecoder pub_hd;
-    CryptoPP::StringSource pub_str(key_pair.second, true, &pub_hd);
+    CryptoPP::StringSource pub_str(key_pair.second, true, new CryptoPP::HexDecoder());
     CryptoPP::RSA::PublicKey pub;
-    priv.Load(pub_str);
+    pub.Load(pub_str);
     CryptoPP::StringSink pub_string_sink(out.second);
     CryptoPP::PEM_Save(pub_string_sink, pub);
     pub_string_sink.MessageEnd();
@@ -45,13 +45,11 @@ class Crypto::Impl {
 
     CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Decryptor priv(rng, sig_length);
     CryptoPP::RSAES<CryptoPP::OAEP<CryptoPP::SHA256>>::Encryptor pub(priv);
-    CryptoPP::StringSink priv_string_sink(keyPair.first);
-    CryptoPP::HexEncoder privEncoder(&priv_string_sink);
+    CryptoPP::HexEncoder privEncoder(new CryptoPP::StringSink(keyPair.first));
     priv.AccessMaterial().Save(privEncoder);
     privEncoder.MessageEnd();
 
-    CryptoPP::StringSink pub_string_sink(keyPair.second);
-    CryptoPP::HexEncoder pubEncoder(&pub_string_sink);
+    CryptoPP::HexEncoder pubEncoder(new CryptoPP::StringSink(keyPair.second));
     pub.AccessMaterial().Save(pubEncoder);
     pubEncoder.MessageEnd();
     if (fmt == Crypto::KeyFormat::PemFormat) {
@@ -70,6 +68,6 @@ std::pair<std::string, std::string> Crypto::hexToPem(const std::pair<std::string
   return impl_->hexToPem(key_pair);
 }
 
-Crypto::Crypto() : impl_{std::make_unique<Crypto::Impl>()} {}
+Crypto::Crypto() : impl_{new Impl()} {}
 Crypto::~Crypto() = default;
 }  // namespace concord::util
