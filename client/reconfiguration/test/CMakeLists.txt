@@ -18,6 +18,5 @@ target_link_libraries(poll_based_state_client_test PRIVATE
         bftclient_new
         cmf_messages
         threshsign
-        cryptopp
         secretsmanager
         )

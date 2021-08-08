@@ -10,7 +10,6 @@ if(NOT BUILD_THIRDPARTY)
 	find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
 endif()
 find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
-find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
@@ -51,7 +50,6 @@ function(link_with_relic_library targetName)
         PRIVATE
         ${RELIC_STATIC_LIBRARY}
         ${GMP_STATIC_LIBRARY}
-        ${CRYPTOPP_STATIC_LIBRARY}
     )
 endfunction()
 

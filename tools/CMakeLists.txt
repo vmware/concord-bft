@@ -13,11 +13,12 @@ target_include_directories(GenerateConcordKeys
                            ${threshsign_SOURCE_DIR}/include
                            ${bftengine_SOURCE_DIR}/src
                            ${bftengine_SOURCE_DIR}/include
-                            ${CRYPTOPP_INCLUDE_DIRS})
+                           ${CRYPTOPP_INCLUDE_DIRS})
 
 target_link_libraries(GenerateConcordKeys
                       PUBLIC
                       threshsign
+                      ${CRYPTOPP_LIBRARIES}
                       util)
 
 link_with_relic_library(GenerateConcordKeys)
@@ -26,8 +27,6 @@ set_target_properties(GenerateConcordKeys
                       PROPERTIES
                       RUNTIME_OUTPUT_DIRECTORY
                       .)
-
-target_compile_options(GenerateConcordKeys PUBLIC "-Wno-extra-semi" "-Wno-undefined-var-template") # TODO tmp cryptopp
 
 if (BUILD_TESTING)
 	add_executable(TestGeneratedKeys
