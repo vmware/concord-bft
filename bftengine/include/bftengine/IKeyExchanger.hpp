@@ -33,5 +33,4 @@ class IClientPublicKeyStore {
  public:
   virtual ~IClientPublicKeyStore() = default;
   virtual void setClientPublicKey(uint16_t clientId, const std::string& key, KeyFormat) = 0;
-  virtual std::string getClientPublicKey(uint16_t clientId);
 };

@@ -190,6 +190,14 @@ Msg ClientsAddRemoveUpdateCommand 46 {
     string config_descriptor
 }
 
+Msg ClientKeyExchangeStatus 47 {
+    uint64 sender_id
+}
+
+Msg ClientKeyExchangeStatusResponse 48 {
+     list kvpair uint32 ClientExchangePublicKey clients_keys
+}
+
 Msg ClientReconfigurationStateReply 39 {
     uint64 block_id
     oneof {
@@ -248,6 +256,7 @@ Msg ReconfigurationResponse 2 {
     UnwedgeStatusResponse
     ClientKeyExchangeCommandResponse
     ClientsAddRemoveStatusResponse
+    ClientKeyExchangeStatusResponse
   } response
   bytes additional_data
 }
