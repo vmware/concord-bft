@@ -70,6 +70,7 @@ typedef struct ConcordClientPoolConfig {
   std::uint64_t client_batching_flush_timeout_ms = 100;
   bool encrypted_config_enabled = false;
   bool transaction_signing_enabled = false;
+  bool with_cre = false;
   std::string secrets_url;
   std::unordered_map<bft::communication::NodeNum, Replica> node;
   std::deque<ParticipantNode> participant_nodes;
