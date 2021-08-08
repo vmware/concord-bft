@@ -62,7 +62,6 @@ target_compile_options(ReqMissingDataMsg_test PUBLIC "-Wno-sign-compare")
 add_executable(ViewChangeMsg_test ViewChangeMsg_test.cpp helper.cpp)
 add_test(ViewChangeMsg_test ViewChangeMsg_test)
 find_package(GTest REQUIRED)
-find_package(cryptopp REQUIRED)
 target_include_directories(ViewChangeMsg_test
       PRIVATE
       ${bftengine_SOURCE_DIR}/src/bftengine)
@@ -123,7 +122,6 @@ target_compile_options(NewViewMsg_test PUBLIC "-Wno-sign-compare")
 add_executable(ReplicaAsksToLeaveViewMsg_test ReplicaAsksToLeaveViewMsg_test.cpp helper.cpp)
 add_test(ReplicaAsksToLeaveViewMsg_test ReplicaAsksToLeaveViewMsg_test)
 find_package(GTest REQUIRED)
-find_package(cryptopp REQUIRED)
 target_include_directories(ReplicaAsksToLeaveViewMsg_test
       PRIVATE
       ${bftengine_SOURCE_DIR}/src/bftengine)
@@ -134,7 +132,6 @@ target_compile_options(ReplicaAsksToLeaveViewMsg_test PUBLIC "-Wno-sign-compare"
 add_executable(ReplicaRestartReadyMsg_test ReplicaRestartReadyMsg_test.cpp helper.cpp)
 add_test(ReplicaRestartReadyMsg_test ReplicaRestartReadyMsg_test)
 find_package(GTest REQUIRED)
-find_package(cryptopp REQUIRED)
 target_include_directories(ReplicaRestartReadyMsg_test
       PRIVATE
       ${bftengine_SOURCE_DIR}/src/bftengine)
