@@ -255,6 +255,7 @@ class BftTestNetwork:
         self.with_cre = False
         self.cre_pid = None
         self.cre_fds = None
+        self.cre_id = self.config.n + self.config.num_ro_replicas + BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA
         # Setup transaction signing parameters
         self.setup_txn_signing()
         self._generate_operator_keys()
@@ -360,14 +361,13 @@ class BftTestNetwork:
 
                 self.cre_fds = (stdout_file, stderr_file)
                 cre_exe = os.path.join(self.builddir, "tests", "simpleKVBC", "TesterCRE", "skvbc_cre")
-                id = self.config.n + self.config.num_ro_replicas + BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA
                 cre_cmd = [cre_exe,
-                           "-i", str(id),
+                           "-i", str(self.cre_id),
                            "-f", str(self.config.f),
                            "-c", str(self.config.c),
                            "-r", str(self.config.n),
                            "-k", self.certdir,
-                           "-t", os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys", str(self.principals_to_participant_map[id]), "transaction_signing_priv.pem"),
+                           "-t", os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys", str(self.principals_to_participant_map[self.cre_id]), "transaction_signing_priv.pem"),
                            "-o", "1000"]
                 self.cre_pid = subprocess.Popen(
                     cre_cmd,
