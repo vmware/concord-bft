@@ -17,7 +17,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     automake \
     build-essential \
     ccache \
-    clang \
+    clang-9 \
     clang-format-9 \
     clang-tidy-10 \
     gdb \
