@@ -28,10 +28,10 @@ if(BUILD_ROCKSDB_STORAGE)
 endif()
 
 find_package(OpenSSL REQUIRED)
-target_link_libraries(util PUBLIC Threads::Threads ${OPENSSL_LIBRARIES} cryptopp)
+target_link_libraries(util PUBLIC Threads::Threads ${OPENSSL_LIBRARIES} ${CRYPTOPP_LIBRARIES})
 target_include_directories(util PUBLIC include)
 
-target_link_libraries(util_shared PUBLIC Threads::Threads ${OPENSSL_LIBRARIES} cryptopp)
+target_link_libraries(util_shared PUBLIC Threads::Threads ${OPENSSL_LIBRARIES} ${CRYPTOPP_LIBRARIES})
 target_include_directories(util_shared PUBLIC include)
 
 if (USE_OPENTRACING)

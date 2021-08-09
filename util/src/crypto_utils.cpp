@@ -60,11 +60,11 @@ class Crypto::Impl {
   ~Impl() = default;
 };
 
-std::pair<std::string, std::string> Crypto::generateRsaKeyPair(uint32_t sig_length, KeyFormat fmt) {
+std::pair<std::string, std::string> Crypto::generateRsaKeyPair(const uint32_t sig_length, const KeyFormat fmt) const {
   return impl_->generateRsaKeyPairs(sig_length, fmt);
 }
 
-std::pair<std::string, std::string> Crypto::hexToPem(const std::pair<std::string, std::string>& key_pair) {
+std::pair<std::string, std::string> Crypto::hexToPem(const std::pair<std::string, std::string>& key_pair) const {
   return impl_->hexToPem(key_pair);
 }
 

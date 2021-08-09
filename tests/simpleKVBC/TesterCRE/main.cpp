@@ -26,16 +26,8 @@
 #include "crypto_utils.hpp"
 #include "secrets_manager_plain.h"
 #include <variant>
-
-#if __has_include(<filesystem>)
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __has_include(<experimental/filesystem>)
 #include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
-#else
-#error "Missing filesystem support"
-#endif
 
 using namespace bftEngine;
 using namespace bft::communication;
@@ -138,7 +130,9 @@ ICommunication* createCommunication(const ClientConfig& cc,
 class KeyExchangeCommandHandler : public IStateHandler {
  public:
   KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path, std::function<void()> restart)
-      : clientId_{clientId}, key_path_{key_path}, restart_{std::move(restart)} {}
+      : clientId_{clientId}, key_path_{key_path}, restart_{std::move(restart)} {
+    sm_.reset(new concord::secretsmanager::SecretsManagerPlain());
+  }
   bool validate(const State& state) const {
     concord::messages::ClientReconfigurationStateReply crep;
     concord::messages::deserialize(state.data, crep);
@@ -158,8 +152,9 @@ class KeyExchangeCommandHandler : public IStateHandler {
 
     concord::messages::ReconfigurationRequest rreq;
     concord::messages::ClientExchangePublicKey creq;
-    std::string new_key_path = key_path_ + ".new";
-    sm_.encryptFile(new_key_path, pem_keys.first);
+    fs::path new_key_path = key_path_;
+    new_key_path += ".new";
+    sm_->encryptFile(new_key_path.string(), pem_keys.first);
     std::string new_pub_key = hex_keys.second;
     creq.sender_id = clientId_;
     creq.pub_key = new_pub_key;
@@ -167,10 +162,12 @@ class KeyExchangeCommandHandler : public IStateHandler {
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
     out = {req_buf, [this, new_key_path]() {
-             fs::copy(this->key_path_, this->key_path_ + ".old", fs::copy_options::update_existing);
+             fs::path old_path = this->key_path_;
+             old_path += ".old";
+             fs::copy(this->key_path_, old_path, fs::copy_options::update_existing);
              fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
              fs::remove(new_key_path);
-             fs::remove(this->key_path_ + ".old");
+             fs::remove(old_path);
              LOG_INFO(this->getLogger(), "restarting the component");
              this->restart_();
            }};
@@ -183,8 +180,8 @@ class KeyExchangeCommandHandler : public IStateHandler {
     return logger_;
   }
   uint16_t clientId_;
-  std::string key_path_;
-  concord::secretsmanager::SecretsManagerPlain sm_;
+  fs::path key_path_;
+  std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
   std::function<void()> restart_;
 };
 

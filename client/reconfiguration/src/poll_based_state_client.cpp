@@ -113,15 +113,15 @@ void PollBasedStateClient::start(uint64_t lastKnownBlock) {
 }
 void PollBasedStateClient::stop() {
   if (stopped) return;
-  stopped = true;
-  {
-    std::lock_guard<std::mutex> lock(bftclient_lock_);
-    bftclient_->stop();
-  }
   try {
     consumer_.join();
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), e.what());
+  }
+  stopped = true;
+  {
+    std::lock_guard<std::mutex> lock(bftclient_lock_);
+    bftclient_->stop();
   }
 }
 State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) const {

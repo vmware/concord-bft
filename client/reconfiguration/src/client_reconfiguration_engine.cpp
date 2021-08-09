@@ -83,12 +83,12 @@ void ClientReconfigurationEngine::start() {
 }
 void ClientReconfigurationEngine::stop() {
   if (stopped_) return;
-  stateClient_->stop();
-  stopped_ = true;
   try {
     mainThread_.join();
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), e.what());
   }
+  stateClient_->stop();
+  stopped_ = true;
 }
 }  // namespace concord::client::reconfiguration
