@@ -18,7 +18,7 @@
 namespace concord::util {
 class Crypto::Impl {
  public:
-  std::pair<std::string, std::string> hexToPem(const std::pair<std::string, std::string> key_pair) {
+  std::pair<std::string, std::string> hexToPem(const std::pair<std::string, std::string>& key_pair) {
     std::pair<std::string, std::string> out;
 
     CryptoPP::HexDecoder priv_hd;
@@ -60,11 +60,11 @@ class Crypto::Impl {
   ~Impl() = default;
 };
 
-std::pair<std::string, std::string> Crypto::generateRsaKeyPairs(uint32_t sig_length, KeyFormat fmt) {
+std::pair<std::string, std::string> Crypto::generateRsaKeyPair(uint32_t sig_length, KeyFormat fmt) {
   return impl_->generateRsaKeyPairs(sig_length, fmt);
 }
 
-std::pair<std::string, std::string> Crypto::hexToPem(const std::pair<std::string, std::string> key_pair) {
+std::pair<std::string, std::string> Crypto::hexToPem(const std::pair<std::string, std::string>& key_pair) {
   return impl_->hexToPem(key_pair);
 }
 

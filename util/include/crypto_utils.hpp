@@ -26,8 +26,8 @@ class Crypto {
 
   Crypto();
   ~Crypto();
-  std::pair<std::string, std::string> generateRsaKeyPairs(uint32_t sig_length, KeyFormat fmt);
-  std::pair<std::string, std::string> hexToPem(const std::pair<std::string, std::string> key_pair);
+  std::pair<std::string, std::string> generateRsaKeyPair(uint32_t sig_length, KeyFormat fmt);
+  std::pair<std::string, std::string> hexToPem(const std::pair<std::string, std::string>& key_pair);
 
  private:
   class Impl;
