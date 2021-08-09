@@ -375,6 +375,17 @@ class BftTestNetwork:
                     stderr=stderr_file,
                     close_fds=True)
 
+    def stop_cre(self):
+        with log.start_action(action_type="stop_cre"):
+            p = self.cre_pid
+            if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                p.terminate()
+            else:
+                p.kill()
+            for fd in self.cre_fds:
+                fd.close()
+            p.wait()
+
     def transfer_db_files(self, source, dests):
         with log.start_action(action_type="transfer db files"):
             source_db_dir = os.path.join(self.testdir, DB_FILE_PREFIX + str(source))

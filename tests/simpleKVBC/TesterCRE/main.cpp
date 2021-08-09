@@ -129,8 +129,7 @@ ICommunication* createCommunication(const ClientConfig& cc,
 
 class KeyExchangeCommandHandler : public IStateHandler {
  public:
-  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path, std::function<void()> restart)
-      : clientId_{clientId}, key_path_{key_path}, restart_{std::move(restart)} {
+  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path) : clientId_{clientId}, key_path_{key_path} {
     sm_.reset(new concord::secretsmanager::SecretsManagerPlain());
   }
   bool validate(const State& state) const {
@@ -168,8 +167,7 @@ class KeyExchangeCommandHandler : public IStateHandler {
              fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
              fs::remove(new_key_path);
              fs::remove(old_path);
-             LOG_INFO(this->getLogger(), "restarting the component");
-             this->restart_();
+             LOG_INFO(this->getLogger(), "exchanged keys");
            }};
     return true;
   }
@@ -182,7 +180,6 @@ class KeyExchangeCommandHandler : public IStateHandler {
   uint16_t clientId_;
   fs::path key_path_;
   std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
-  std::function<void()> restart_;
 };
 
 class ClientsAddRemoveHandler : public IStateHandler {
@@ -226,10 +223,7 @@ int main(int argc, char** argv) {
       new PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(
-      creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value(), [&] {
-        cre.stop();
-        execv(argv[0], argv);
-      }));
+      creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value()));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
   cre.start();
   while (true) std::this_thread::sleep_for(1s);

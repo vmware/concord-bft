@@ -180,6 +180,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         if pub_key is None:
                             pub_key = v.pub_key
                         assert (pub_key == v.pub_key)
+            bft_network.stop_cre()
+            bft_network.start_cre()
             bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
             client = bft_network.random_client()
             # Now lets have another cycle to verify that the keys were actually rotated
@@ -206,6 +208,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         assert(k == 19)
                         if pub_key == v.pub_key:
                             succ = False
+            bft_network.stop_cre()
+            bft_network.start_cre()
             bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
