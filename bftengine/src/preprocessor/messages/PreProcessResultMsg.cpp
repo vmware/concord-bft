@@ -70,7 +70,15 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   }
 
   auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
+  std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
   for (const auto& s : sigs) {
+    // insert returns std::pair<iterator, bool>. The bool indicates if the element was created or it was already in the
+    // set and no insertion was performed. The latter case indicates that we already have got a signature from this
+    // replica.
+    if (!seen_signatures.insert(s.sender_replica).second) {
+      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id";
+    }
+
     bool verificationResult = false;
     if (myReplicaId == s.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
