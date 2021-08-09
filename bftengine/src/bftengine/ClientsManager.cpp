@@ -18,6 +18,9 @@
 #include "bftengine/KeyExchangeManager.hpp"
 #include "Serializable.h"
 
+#include <chrono>
+using namespace std::chrono;
+
 namespace bftEngine::impl {
 // Initialize:
 // * map of client id to indices.
@@ -385,6 +388,24 @@ Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   cid = earliestPendingReqInfo.cid;
   if (earliestPendingReqInfo.time != MaxTime) LOG_DEBUG(CL_MNGR, "Earliest pending request: " << KVLOG(cid));
   return earliestPendingReqInfo.time;
+}
+
+// Iterate over all clients and choose the ones that have not been committed for more than threshold miliseconds.
+std::vector<std::pair<std::string, uint64_t>> ClientsManager::getAllPendingRequestsExceedingThreshold(
+    const int64_t threshold, const Time& currTime) const {
+  std::vector<std::pair<std::string, uint64_t>> retVal;
+  for (const auto& info : clientsInfo_) {
+    for (const auto& req : info.second.requestsInfo) {
+      // Don't take into account already committed requests
+      if ((req.second.time != MinTime) && (!req.second.committed)) {
+        const auto delay = duration_cast<milliseconds>(currTime - req.second.time).count();
+        if (delay > threshold) {
+          retVal.emplace_back(req.second.cid, delay);
+        }
+      }
+    }
+  }
+  return retVal;
 }
 
 }  // namespace bftEngine::impl

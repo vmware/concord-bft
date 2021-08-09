@@ -3202,6 +3202,16 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t diffMilli2 = duration_cast<milliseconds>(currTime - timeOfLastViewEntrance).count();
     const uint64_t diffMilli3 = duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
 
+    const auto delayedCIDs = clientsManager->getAllPendingRequestsExceedingThreshold(viewChangeTimeout / 2, currTime);
+    if (delayedCIDs.size() > 0) {
+      LOG_INFO(VC_LOG,
+               "Total Client request with more than " << viewChangeTimeout / 2 << "ms delay: " << delayedCIDs.size());
+
+      for (const auto &v : delayedCIDs) {
+        LOG_INFO(VC_LOG, "CID " << v.first << ", delayed " << v.second);
+      }
+    }
+
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
       LOG_INFO(
           VC_LOG,
