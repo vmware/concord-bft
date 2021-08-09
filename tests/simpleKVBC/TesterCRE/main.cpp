@@ -230,6 +230,7 @@ int main(int argc, char** argv) {
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(
       creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value(), [&] {
+        cre.stop();
         execv(argv[0], argv);
       }));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
