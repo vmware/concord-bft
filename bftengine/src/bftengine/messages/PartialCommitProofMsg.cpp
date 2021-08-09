@@ -13,6 +13,7 @@
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 #include "Crypto.hpp"
+#include <threshsign/ThresholdSignaturesSchemes.h>
 
 namespace bftEngine {
 namespace impl {

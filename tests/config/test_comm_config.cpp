@@ -21,7 +21,6 @@
 #include <fstream>
 
 #include "communication/CommFactory.hpp"
-#include "threshsign/ThresholdSignaturesSchemes.h"
 #include "KeyfileIOUtils.hpp"
 #include "config_file_parser.hpp"
 #include "CryptoManager.hpp"

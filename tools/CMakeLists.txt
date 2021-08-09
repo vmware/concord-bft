@@ -1,10 +1,16 @@
 project(concord_bft_tools LANGUAGES CXX)
-find_package(cryptopp REQUIRED)
+
 add_executable(GenerateConcordKeys
                GenerateConcordKeys.cpp
                KeyfileIOUtils.hpp
                KeyfileIOUtils.cpp
                )
+
+if(BUILD_THIRDPARTY)
+    add_dependencies(GenerateConcordKeys cryptopp)
+else()
+    find_package(cryptopp REQUIRED)
+endif()
 
 target_include_directories(GenerateConcordKeys
                            PRIVATE
