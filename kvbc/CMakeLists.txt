@@ -44,11 +44,9 @@ endif (BUILD_ROCKSDB_STORAGE)
 target_link_libraries(kvbc PUBLIC corebft util)
 target_link_libraries(kvbc PUBLIC categorized_kvbc_msgs pruning_msgs event_group_msgs)
 
-if(USE_GRPC)
-	add_subdirectory("proto")
-	target_sources(kvbc PRIVATE src/kvbc_app_filter/kvbc_app_filter.cpp)
-	target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
-endif()
+add_subdirectory("proto")
+target_sources(kvbc PRIVATE src/kvbc_app_filter/kvbc_app_filter.cpp)
+target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
 target_include_directories(kvbc PUBLIC include util)
 
