@@ -11,6 +11,7 @@
 
 #include "RequestProcessingState.hpp"
 #include "sparse_merkle/base_types.h"
+#include "SigManager.hpp"
 
 namespace preprocessor {
 
@@ -33,7 +34,8 @@ void RequestProcessingState::init(uint16_t numOfRequiredReplies, PreProcessorRec
   preProcessorHistograms_ = histograms;
 }
 
-RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
+RequestProcessingState::RequestProcessingState(ReplicaId myReplicaId,
+                                               uint16_t numOfReplicas,
                                                const string &batchCid,
                                                uint16_t clientId,
                                                uint16_t reqOffsetInBatch,
@@ -43,7 +45,8 @@ RequestProcessingState::RequestProcessingState(uint16_t numOfReplicas,
                                                PreProcessRequestMsgSharedPtr preProcessRequestMsg,
                                                const char *signature,
                                                const uint32_t signatureLen)
-    : numOfReplicas_(numOfReplicas),
+    : myReplicaId_{myReplicaId},
+      numOfReplicas_(numOfReplicas),
       batchCid_(batchCid),
       clientId_(clientId),
       reqOffsetInBatch_(reqOffsetInBatch),
@@ -74,6 +77,17 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
   primaryPreProcessResultLen_ = preProcessResultLen;
   primaryPreProcessResultHash_ =
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
+
+  auto sm = SigManager::instance();
+  std::vector<char> sig(sm->getMySigLength());
+  sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
+           primaryPreProcessResultHash_.size(),
+           sig.data(),
+           sig.size());
+  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+  // Decision when PreProcessing is complete is made based on the value of received replies. The value should be
+  // increased for the primary hash too.
+  numOfReceivedReplies_++;
 }
 
 void RequestProcessingState::releaseResources() {
@@ -188,7 +202,7 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
         logger(),
         "Not enough equal hashes collected yet" << KVLOG(reqSeqNum_, maxNumOfEqualHashes, numOfRequiredEqualReplies_));
 
-  if (numOfReceivedReplies_ == numOfReplicas_ - 1) {
+  if (numOfReceivedReplies_ == numOfReplicas_) {
     // Replies from all replicas received, but not enough equal hashes collected => pre-execution consensus not
     // reached => cancel request.
     LOG_WARN(logger(), "Not enough equal hashes collected, cancel request" << KVLOG(reqSeqNum_));

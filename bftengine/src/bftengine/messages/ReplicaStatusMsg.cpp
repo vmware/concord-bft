@@ -104,7 +104,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
 void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(Header) + spanContextSize() || senderId() == repInfo.myId() ||
       !repInfo.isIdOfReplica(senderId()) || (getLastStableSeqNum() % checkpointWindowSize != 0) ||
-      getLastExecutedSeqNum() < getLastStableSeqNum() || b()->epochNum != EpochManager::instance().getSelfEpochNumber())
+      getLastExecutedSeqNum() < getLastStableSeqNum())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
   const bool viewIsActive = currentViewIsActive();

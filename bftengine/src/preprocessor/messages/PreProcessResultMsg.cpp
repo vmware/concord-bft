@@ -57,17 +57,28 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
   const auto [buf, buf_len] = getResultSignaturesBuf();
   auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatureList(buf, buf_len);
 
-  // f because the primary also executes the request (check PreProcessor::numOfRequiredReplies())
-  const auto expectedSignatureCount = fVal;
-  if (sigs.size() < static_cast<uint16_t>(expectedSignatureCount)) {
+  // f+1 signatures are required. Primary always sends exactly f+1 signatures so the signature count should always be
+  // f+1. In theory more signatures can be accepted but this makes the non-primary replicas vulnerable to DoS attacks
+  // from a malicious primary (e.g. a Primary sends a PreProcessResult message with 100 signatures, which should be
+  // validated by the replica).
+  const auto expectedSignatureCount = fVal + 1;
+  if (sigs.size() != static_cast<uint16_t>(expectedSignatureCount)) {
     std::stringstream err;
-    err << "PreProcessResult signatures validation failure - not enough signatures. Expected " << expectedSignatureCount
-        << " got " << sigs.size() << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+    err << "PreProcessResult signatures validation failure - unexpected number of signatures received. Expected "
+        << expectedSignatureCount << " got " << sigs.size() << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
     return err.str();
   }
 
   auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
+  std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
   for (const auto& s : sigs) {
+    // insert returns std::pair<iterator, bool>. The bool indicates if the element was created or it was already in the
+    // set and no insertion was performed. The latter case indicates that we already have got a signature from this
+    // replica.
+    if (!seen_signatures.insert(s.sender_replica).second) {
+      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id";
+    }
+
     bool verificationResult = false;
     if (myReplicaId == s.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');

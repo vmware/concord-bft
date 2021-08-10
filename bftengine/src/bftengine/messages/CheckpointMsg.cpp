@@ -49,7 +49,6 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   auto sigManager = SigManager::instance();
 
   if (size() < sizeof(Header) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
-      b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
       (!repInfo.isIdOfReplica(idOfGeneratedReplica())) || (seqNumber() % checkpointWindowSize != 0) ||
       (digestOfState().isZero()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));

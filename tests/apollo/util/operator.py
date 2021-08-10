@@ -37,7 +37,7 @@ class Operator:
         return self.private_key.sign_deterministic(msg.serialize())
 
 
-    def _construct_basic_reconfiguration_request(self, command):
+    def  _construct_basic_reconfiguration_request(self, command):
         reconf_msg = cmf_msgs.ReconfigurationRequest()
         reconf_msg.additional_data = bytes(0)
         reconf_msg.sender = 1000
@@ -124,6 +124,18 @@ class Operator:
         cke_command.target_clients = target_clients
         return self._construct_basic_reconfiguration_request(cke_command)
 
+    def _construct_reconfiguration_clientsAddRemove_command(self, config_desc):
+        car_command = cmf_msgs.ClientsAddRemoveCommand()
+        car_command.config_descriptor = config_desc
+        car_command.token = ""
+        car_command.restart = False
+        return self._construct_basic_reconfiguration_request(car_command)
+
+    def _construct_reconfiguration_clientsAddRemoveStatus_command(self):
+        cars_command = cmf_msgs.ClientsAddRemoveStatusCommand()
+        cars_command.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(cars_command)
+
     def _construct_reconfiguration_restart_command(self, bft, restart, data):
         restart_command = cmf_msgs.RestartCommand()
         restart_command.bft_support = bft
@@ -202,6 +214,14 @@ class Operator:
     async def client_key_exchange_command(self, target_clients):
         reconf_msg = self._construct_reconfiguration_clientKe_command(target_clients)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+
+    async def clients_addRemove_command(self, config_desc):
+        reconf_msg = self._construct_reconfiguration_clientsAddRemove_command(config_desc)
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+
+    async def clients_addRemoveStatus_command(self):
+        reconf_msg = self._construct_reconfiguration_clientsAddRemoveStatus_command()
+        return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
     
     async def client_exchange_public_key(self, valid=True):
         pk = ""

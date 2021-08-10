@@ -28,7 +28,6 @@ target_include_directories(thin_replica_client_lib PRIVATE
 target_link_libraries(thin_replica_client_lib
   opentracing
   util
-  cryptopp
   thin-replica-proto
 )
 

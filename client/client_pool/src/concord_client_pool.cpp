@@ -316,7 +316,7 @@ void ConcordClientPool::setUpClientParams(SimpleClientParams &client_params,
 }
 
 void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig &config) {
-  auto num_clients = config.clients_per_participant_node;
+  auto num_clients = config.clients_per_participant_node - (int)config.with_cre;
   LOG_INFO(logger_, "Creating pool" << KVLOG(num_clients));
   auto f_val = config.f_val;
   auto c_val = config.c_val;
