@@ -4197,7 +4197,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
-  auto timestamp = config_.timeServiceEnabled ? std::optional<Timestamp>{} : std::nullopt;
+  auto timestamp = config_.timeServiceEnabled ? std::make_optional<Timestamp>() : std::nullopt;
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
