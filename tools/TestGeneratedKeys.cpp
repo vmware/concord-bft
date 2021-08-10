@@ -18,6 +18,7 @@
 
 #include "bftengine/Crypto.hpp"
 #include "threshsign/ThresholdSignaturesTypes.h"
+#include <threshsign/ThresholdSignaturesSchemes.h>
 #include "KeyfileIOUtils.hpp"
 
 // How often to output status when testing cryptosystems, measured as an

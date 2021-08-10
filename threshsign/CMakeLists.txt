@@ -6,10 +6,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Dependencies
 find_package(Threads REQUIRED)
-if(NOT BUILD_THIRDPARTY)
-	find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
-endif()
-find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
 
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
@@ -40,6 +36,22 @@ string(APPEND CMAKE_CXX_FLAGS_DEBUG " ${CXX_FLAGS_DEBUG}")
 # When building with 'cmake -DCMAKE_BUILD_TYPE=Trace'
 string(APPEND CMAKE_CXX_FLAGS_TRACE " -DTRACE")
 
+enable_testing()
+
+# Targets
+add_library(threshsign
+    STATIC
+    $<TARGET_OBJECTS:common>
+    $<TARGET_OBJECTS:bls_relic>
+)
+
+if(BUILD_THIRDPARTY)
+    add_dependencies(threshsign relic)
+else()
+    find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+    find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
+endif()
+
 # Helper functions
 
 # Relic is a cryptographic "meta-toolkit" which can be used with different
@@ -59,7 +71,8 @@ function(add_relic_executable appName appSrc appDir)
     add_executable(${appName} ${appSrc} $<TARGET_OBJECTS:bench> $<TARGET_OBJECTS:bls_relic> $<TARGET_OBJECTS:common> )
     target_include_directories(${appName} PRIVATE
         ${threshsign_SOURCE_DIR}/src
-        ${threshsign_SOURCE_DIR}/include)
+        ${threshsign_SOURCE_DIR}/include
+        ${RELIC_INCLUDE_DIRS})
     target_link_libraries(${appName} PRIVATE mainapp)
     target_link_libraries(${appName} PRIVATE relic_mainapp)
     link_with_relic_library(${appName})
@@ -77,25 +90,12 @@ function(add_threshsign_executable appName appSrc appDir)
     set_target_properties(${appName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${appDir})
 endfunction()
 
-enable_testing()
-
-# Targets
-add_library(threshsign
-    STATIC
-    $<TARGET_OBJECTS:common>
-    $<TARGET_OBJECTS:bls_relic>
-)
-target_include_directories(threshsign PUBLIC include)
+target_include_directories(threshsign PUBLIC include ${RELIC_INCLUDE_DIRS})
 
 target_link_libraries(threshsign PUBLIC Threads::Threads)
 link_with_relic_library(threshsign)
 
 add_subdirectory(src)
-
-if(BUILD_THIRDPARTY)
-	add_dependencies(threshsign relic)
-endif()
-
 if (BUILD_TESTING)
 	add_subdirectory(bench)
 	add_subdirectory(test)

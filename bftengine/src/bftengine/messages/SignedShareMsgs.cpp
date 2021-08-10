@@ -14,6 +14,7 @@
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
+#include <threshsign/ThresholdSignaturesSchemes.h>
 
 namespace bftEngine {
 namespace impl {

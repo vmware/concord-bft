@@ -6,7 +6,6 @@ endif()
 
 set(preprocessor_source_files
     ${bftengine_SOURCE_DIR}/src/bftengine/MsgsCommunicator.cpp
-    ${bftengine_SOURCE_DIR}/src/bftengine/Crypto.cpp
     ${bftengine_SOURCE_DIR}/src/bftengine/messages/ClientRequestMsg.cpp
     ${bftengine_SOURCE_DIR}/src/bftengine/messages/MessageBase.cpp
     PreProcessor.cpp
@@ -22,6 +21,7 @@ set(preprocessor_source_files
 add_library(preprocessor STATIC ${preprocessor_source_files})
 
 target_include_directories(preprocessor PUBLIC ${OPENSSL_INCLUDE_DIR})
+target_include_directories(preprocessor PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/include/bftengine)
 target_include_directories(preprocessor PUBLIC ${bftengine_SOURCE_DIR}/src/bftengine)
