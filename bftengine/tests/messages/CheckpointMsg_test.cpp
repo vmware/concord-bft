@@ -52,11 +52,12 @@ const std::string CheckpointMsgTestsFixture::spanContext = {rawSpanContext, size
 void CheckpointMsgTestsFixture::CheckpointMsgBaseTests(const std::string& spanContext) {
   NodeIdType senderId = 1u;
   uint64_t reqSeqNum = 150u;
+  EpochNum epochNum = 0u;
   char digestContext[DIGEST_SIZE] = "digest_content";
   Digest digest(digestContext, sizeof(digestContext));
   bool isStable = false;
   const std::string correlationId = "correlationId";
-  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, concordUtils::SpanContext{spanContext});
+  CheckpointMsg msg(senderId, reqSeqNum, epochNum, digest, isStable, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();

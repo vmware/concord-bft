@@ -18,6 +18,7 @@
 #include "ClientRequestMsg.hpp"
 #include "SigManager.hpp"
 #include "RequestThreadPool.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -76,7 +77,7 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   ConcordAssert(senderId() != repInfo.myId());
 
   if (size() < sizeof(Header) + spanContextSize() ||  // header size
-      !repInfo.isIdOfReplica(senderId()))             // sender
+      !repInfo.isIdOfReplica(senderId()) || b()->epochNum != EpochManager::instance().getSelfEpochNumber())  // sender
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
   // NB: the actual expected sender is verified outside this class (because in some cases, during view-change protocol,
   // this message may sent by a non-primary replica to the primary replica).
@@ -113,20 +114,22 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }
 
-PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
-    : PrePrepareMsg(sender, v, s, firstPath, concordUtils::SpanContext{}, size) {}
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, EpochNum e, CommitPath firstPath, size_t size)
+    : PrePrepareMsg(sender, v, s, e, firstPath, concordUtils::SpanContext{}, size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
+                             EpochNum e,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              size_t size)
-    : PrePrepareMsg::PrePrepareMsg(sender, v, s, firstPath, spanContext, std::to_string(s), size) {}
+    : PrePrepareMsg::PrePrepareMsg(sender, v, s, e, firstPath, spanContext, std::to_string(s), size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
+                             EpochNum e,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              const std::string& batchCid,
@@ -148,6 +151,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->flags = computeFlagsForPrePrepareMsg(ready, ready, firstPath);
   b()->numberOfRequests = 0;
   b()->seqNum = s;
+  b()->epochNum = e;
   b()->viewNum = v;
 
   char* position = body() + sizeof(Header);

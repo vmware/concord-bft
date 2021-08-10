@@ -14,6 +14,7 @@
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -31,6 +32,7 @@ SignedShareBase::SignedShareBase(ReplicaId sender,
 SignedShareBase* SignedShareBase::create(int16_t type,
                                          ViewNum v,
                                          SeqNum s,
+                                         EpochNum e,
                                          ReplicaId senderId,
                                          Digest& digest,
                                          std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -43,6 +45,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 
   m->b()->seqNumber = s;
   m->b()->viewNumber = v;
+  m->b()->epochNum = e;
   m->b()->thresSigLength = (uint16_t)sigLen;
 
   Digest tmpDigest;
@@ -60,6 +63,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 SignedShareBase* SignedShareBase::create(int16_t type,
                                          ViewNum v,
                                          SeqNum s,
+                                         EpochNum e,
                                          ReplicaId senderId,
                                          const char* sig,
                                          uint16_t sigLen,
@@ -70,6 +74,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 
   m->b()->seqNumber = s;
   m->b()->viewNumber = v;
+  m->b()->epochNum = e;
   m->b()->thresSigLength = sigLen;
 
   auto position = m->body() + sizeof(Header);
@@ -85,7 +90,7 @@ void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) cons
   if (size() < sizeof(Header) + spanContextSize() ||
       size() < sizeof(Header) + signatureLen() + spanContextSize() ||  // size
       senderId() == repInfo.myId() ||                                  // sent from another replica
-      !repInfo.isIdOfReplica(senderId()))
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber() || !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 
@@ -95,12 +100,13 @@ void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) cons
 
 PreparePartialMsg* PreparePartialMsg::create(ViewNum v,
                                              SeqNum s,
+                                             EpochNum e,
                                              ReplicaId senderId,
                                              Digest& ppDigest,
                                              std::shared_ptr<IThresholdSigner> thresholdSigner,
                                              const concordUtils::SpanContext& spanContext) {
   return (PreparePartialMsg*)SignedShareBase::create(
-      MsgCode::PreparePartial, v, s, senderId, ppDigest, thresholdSigner, spanContext);
+      MsgCode::PreparePartial, v, s, e, senderId, ppDigest, thresholdSigner, spanContext);
 }
 
 void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
@@ -116,11 +122,12 @@ void PreparePartialMsg::validate(const ReplicasInfo& repInfo) const {
 
 PrepareFullMsg* PrepareFullMsg::create(ViewNum v,
                                        SeqNum s,
+                                       EpochNum e,
                                        ReplicaId senderId,
                                        const char* sig,
                                        uint16_t sigLen,
                                        const concordUtils::SpanContext& spanContext) {
-  return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, senderId, sig, sigLen, spanContext);
+  return (PrepareFullMsg*)SignedShareBase::create(MsgCode::PrepareFull, v, s, e, senderId, sig, sigLen, spanContext);
 }
 
 void PrepareFullMsg::validate(const ReplicasInfo& repInfo) const {
@@ -133,12 +140,13 @@ void PrepareFullMsg::validate(const ReplicasInfo& repInfo) const {
 
 CommitPartialMsg* CommitPartialMsg::create(ViewNum v,
                                            SeqNum s,
+                                           EpochNum e,
                                            ReplicaId senderId,
                                            Digest& ppDoubleDigest,
                                            std::shared_ptr<IThresholdSigner> thresholdSigner,
                                            const concordUtils::SpanContext& spanContext) {
   return (CommitPartialMsg*)SignedShareBase::create(
-      MsgCode::CommitPartial, v, s, senderId, ppDoubleDigest, thresholdSigner, spanContext);
+      MsgCode::CommitPartial, v, s, e, senderId, ppDoubleDigest, thresholdSigner, spanContext);
 }
 
 void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
@@ -154,11 +162,12 @@ void CommitPartialMsg::validate(const ReplicasInfo& repInfo) const {
 
 CommitFullMsg* CommitFullMsg::create(ViewNum v,
                                      SeqNum s,
+                                     EpochNum e,
                                      ReplicaId senderId,
                                      const char* sig,
                                      uint16_t sigLen,
                                      const concordUtils::SpanContext& spanContext) {
-  return (CommitFullMsg*)SignedShareBase::create(MsgCode::CommitFull, v, s, senderId, sig, sigLen, spanContext);
+  return (CommitFullMsg*)SignedShareBase::create(MsgCode::CommitFull, v, s, e, senderId, sig, sigLen, spanContext);
 }
 
 void CommitFullMsg::validate(const ReplicasInfo& repInfo) const {

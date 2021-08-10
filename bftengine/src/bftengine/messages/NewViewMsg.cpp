@@ -11,16 +11,21 @@
 
 #include "NewViewMsg.hpp"
 #include "assertUtils.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const concordUtils::SpanContext& spanContext)
+NewViewMsg::NewViewMsg(ReplicaId senderId,
+                       ViewNum newView,
+                       EpochNum epochNum,
+                       const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::NewView,
                   spanContext.data().size(),
                   ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->newViewNum = newView;
+  b()->epochNum = epochNum;
   b()->elementsCount = 0;
   memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
@@ -70,6 +75,7 @@ void NewViewMsg::validate(const ReplicasInfo& repInfo) const {
 
   if (size() < contentSize || !repInfo.isIdOfReplica(senderId()) ||  // source replica
       repInfo.myId() == senderId() || repInfo.primaryOfView(newView()) != senderId() ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
       b()->elementsCount != expectedElements)  // num of elements
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 

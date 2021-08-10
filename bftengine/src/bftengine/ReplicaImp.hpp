@@ -41,6 +41,7 @@
 #include "TimeServiceManager.hpp"
 #include "FakeClock.hpp"
 #include <ccron/ticks_generator.hpp>
+#include "EpochManager.hpp"
 
 namespace preprocessor {
 class PreProcessResultMsg;
@@ -486,6 +487,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isSeqNumToStopAt(SeqNum seq_num);
 
   bool validatePreProcessedResults(const PrePrepareMsg* msg);
+  EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;

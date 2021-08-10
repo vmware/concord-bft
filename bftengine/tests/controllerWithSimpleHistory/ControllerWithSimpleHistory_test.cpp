@@ -348,7 +348,7 @@ TEST(ControllerWithSimpleHistory, upgrade_slow_to_optimistic) {
     cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
     changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
     for (auto id : {1, 2, 3}) {
-      auto p = impl::PreparePartialMsg::create(0, i, id, d, std::make_shared<ThreshSigMock>());
+      auto p = impl::PreparePartialMsg::create(0, i, 0, id, d, std::make_shared<ThreshSigMock>());
       cwsh.onMessage(p);
       delete p;
     }
@@ -408,7 +408,7 @@ TEST(ControllerWithSimpleHistory, upgrade_slow_to_threshold) {
     cwsh.onSendingPrePrepare((SeqNum)i, CommitPath::OPTIMISTIC_FAST, prePrepareTime);
     changed = cwsh.onNewSeqNumberExecution((SeqNum)i);
     for (auto id : {1, 2, 3, 4}) {
-      auto p = impl::PreparePartialMsg::create(0, i, id, d, std::make_shared<ThreshSigMock>());
+      auto p = impl::PreparePartialMsg::create(0, i, 0, id, d, std::make_shared<ThreshSigMock>());
       cwsh.onMessage(p);
       delete p;
     }

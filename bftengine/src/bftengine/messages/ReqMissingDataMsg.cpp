@@ -13,17 +13,17 @@
 #include <cstring>
 #include "assertUtils.hpp"
 #include "Crypto.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId,
-                                     ViewNum v,
-                                     SeqNum s,
-                                     const concordUtils::SpanContext& spanContext)
+ReqMissingDataMsg::ReqMissingDataMsg(
+    ReplicaId senderId, ViewNum v, SeqNum s, EpochNum e, const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.data().size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
+  b()->epochNum = e;
   resetFlags();
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
@@ -34,7 +34,8 @@ void ReqMissingDataMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(Header) + spanContextSize() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
-      !repInfo.isIdOfReplica(senderId()))
+      !repInfo.isIdOfReplica(senderId()) ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber())
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 

@@ -12,22 +12,23 @@
 #include "StartSlowCommitMsg.hpp"
 #include <cstring>
 #include "assertUtils.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-StartSlowCommitMsg::StartSlowCommitMsg(ReplicaId senderId,
-                                       ViewNum v,
-                                       SeqNum s,
-                                       const concordUtils::SpanContext& spanContext)
+StartSlowCommitMsg::StartSlowCommitMsg(
+    ReplicaId senderId, ViewNum v, SeqNum s, EpochNum e, const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId, MsgCode::StartSlowCommit, spanContext.data().size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
+  b()->epochNum = e;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 void StartSlowCommitMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(Header) + spanContextSize() || repInfo.primaryOfView(viewNumber()) != senderId())
+  if (size() < sizeof(Header) + spanContextSize() || b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
+      repInfo.primaryOfView(viewNumber()) != senderId())
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 

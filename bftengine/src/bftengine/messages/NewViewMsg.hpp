@@ -22,6 +22,7 @@ class NewViewMsg : public MessageBase {
  public:
   NewViewMsg(ReplicaId senderId,
              ViewNum newView,
+             EpochNum epochNum,
              const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(NewViewMsg)
@@ -47,6 +48,7 @@ class NewViewMsg : public MessageBase {
     MessageBase::Header header;
 
     ViewNum newViewNum;  // the new view
+    EpochNum epochNum;
 
     uint16_t elementsCount;  // TODO(GG): remove from header
                              // followed by a sequnce of 2f+2c+1 instances of Header
@@ -58,7 +60,7 @@ class NewViewMsg : public MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == (6 + 8 + 2), "Header is 16B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 24B");
   static_assert(sizeof(NewViewElement) == (2 + DIGEST_SIZE), "Header is 34B");
 
   Header* b() const { return (Header*)msgBody_; }

@@ -12,6 +12,7 @@
 #include <string.h>
 #include "ReplicaStatusMsg.hpp"
 #include "assertUtils.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -55,6 +56,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
                                    ViewNum viewNumber,
                                    SeqNum lastStableSeqNum,
                                    SeqNum lastExecutedSeqNum,
+                                   EpochNum epochNum,
                                    bool viewIsActive,
                                    bool hasNewChangeMsg,
                                    bool listOfPPInActiveWindow,
@@ -78,6 +80,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   b()->viewNumber = viewNumber;
   b()->lastStableSeqNum = lastStableSeqNum;
   b()->lastExecutedSeqNum = lastExecutedSeqNum;
+  b()->epochNum = epochNum;
   b()->flags = 0;
   if (viewIsActive) b()->flags |= powersOf2[0];
   if (hasNewChangeMsg) b()->flags |= powersOf2[1];
@@ -101,7 +104,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
 void ReplicaStatusMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(Header) + spanContextSize() || senderId() == repInfo.myId() ||
       !repInfo.isIdOfReplica(senderId()) || (getLastStableSeqNum() % checkpointWindowSize != 0) ||
-      getLastExecutedSeqNum() < getLastStableSeqNum())
+      getLastExecutedSeqNum() < getLastStableSeqNum() || b()->epochNum != EpochManager::instance().getSelfEpochNumber())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic"));
 
   const bool viewIsActive = currentViewIsActive();

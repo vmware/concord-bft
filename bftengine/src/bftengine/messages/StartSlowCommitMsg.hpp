@@ -24,6 +24,7 @@ class StartSlowCommitMsg : public MessageBase {
   StartSlowCommitMsg(ReplicaId senderId,
                      ViewNum v,
                      SeqNum s,
+                     EpochNum e,
                      const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(StartSlowCommitMsg)
@@ -43,9 +44,10 @@ class StartSlowCommitMsg : public MessageBase {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
+    EpochNum epochNum;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8), "Header is 16B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8), "Header is 30B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

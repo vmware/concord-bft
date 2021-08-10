@@ -29,6 +29,7 @@ class ReplicaAsksToLeaveViewMsg : public MessageBase {
 
   ReplicaAsksToLeaveViewMsg(ReplicaId srcReplicaId,
                             ViewNum v,
+                            EpochNum e,
                             Reason r,
                             uint16_t SignLen,
                             const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
@@ -45,10 +46,8 @@ class ReplicaAsksToLeaveViewMsg : public MessageBase {
 
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
-  static ReplicaAsksToLeaveViewMsg* create(ReplicaId senderId,
-                                           ViewNum v,
-                                           Reason r,
-                                           const concordUtils::SpanContext& spanContext = {});
+  static ReplicaAsksToLeaveViewMsg* create(
+      ReplicaId senderId, ViewNum v, EpochNum e, Reason r, const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
 
@@ -61,11 +60,12 @@ class ReplicaAsksToLeaveViewMsg : public MessageBase {
   struct Header : public MessageBase::Header {
     ReplicaId genReplicaId;
     ViewNum viewNum;
+    EpochNum epochNum;
     Reason reason;
     uint16_t sigLength;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 1 + 2), "Header is 19B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 1 + 2), "Header is 27B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

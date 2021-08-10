@@ -456,6 +456,7 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
     auto pp = new PrePrepareMsg(config_.getreplicaId(),
                                 getCurrentView(),
                                 (primaryLastUsedSeqNum + 1),
+                                getSelfEpochNumber(),
                                 firstPath,
                                 requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
                                 primaryCombinedReqSize + timeServiceMsg->size());
@@ -465,6 +466,7 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
   return new PrePrepareMsg(config_.getreplicaId(),
                            getCurrentView(),
                            (primaryLastUsedSeqNum + 1),
+                           getSelfEpochNumber(),
                            firstPath,
                            requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
                            primaryCombinedReqSize);
@@ -876,7 +878,8 @@ void ReplicaImp::tryToStartSlowPaths() {
 
     // send StartSlowCommitMsg to all replicas
 
-    StartSlowCommitMsg *startSlow = new StartSlowCommitMsg(config_.getreplicaId(), getCurrentView(), i);
+    StartSlowCommitMsg *startSlow =
+        new StartSlowCommitMsg(config_.getreplicaId(), getCurrentView(), i, getSelfEpochNumber());
 
     if (!retransmissionsLogicEnabled) {
       sendToAllOtherReplicas(startSlow);
@@ -1023,8 +1026,14 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
       Digest::calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
 
       const auto &span_context = pp->spanContext<std::remove_pointer<decltype(pp)>::type>();
-      part = new PartialCommitProofMsg(
-          config_.getreplicaId(), getCurrentView(), seqNum, commitPath, tmpDigest, commitSigner, span_context);
+      part = new PartialCommitProofMsg(config_.getreplicaId(),
+                                       getCurrentView(),
+                                       seqNum,
+                                       getSelfEpochNumber(),
+                                       commitPath,
+                                       tmpDigest,
+                                       commitSigner,
+                                       span_context);
       partialProofs.addSelfMsgAndPPDigest(part, tmpDigest);
     }
 
@@ -1064,6 +1073,7 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
     PreparePartialMsg *p =
         PreparePartialMsg::create(getCurrentView(),
                                   pp->seqNumber(),
+                                  getSelfEpochNumber(),
                                   config_.getreplicaId(),
                                   pp->digestOfRequests(),
                                   CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()),
@@ -1102,6 +1112,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
   CommitPartialMsg *c =
       CommitPartialMsg::create(getCurrentView(),
                                s,
+                               getSelfEpochNumber(),
                                config_.getreplicaId(),
                                d,
                                CryptoManager::instance().thresholdSignerForSlowPathCommit(s),
@@ -1803,12 +1814,13 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const ReplicaId msgSenderId = msg->senderId();
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
+  const EpochNum msgEpochNum = msg->epochNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL,
            "Received checkpoint message from node. "
-               << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
+               << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msgEpochNum, msg->size(), msgIsStable, msgDigest));
   LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
@@ -1841,13 +1853,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   bool askForStateTransfer = false;
 
-  if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
+  if (msgIsStable && (msgSeqNum > lastExecutedSeqNum || msgEpochNum >= getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
-    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
+    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
+        msgEpochNum >= getSelfEpochNumber()) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgEpochNum, msgDigest, msgIsStable);
       tableOfStableCheckpoints[msgGenReplicaId] = x;
       LOG_INFO(GL,
                "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, msgGenReplicaId));
@@ -1865,12 +1878,15 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         uint16_t numRelevantAboveWindow = 0;
         auto tableItrator = tableOfStableCheckpoints.begin();
         while (tableItrator != tableOfStableCheckpoints.end()) {
-          if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
+          if (tableItrator->second->seqNumber() <= lastExecutedSeqNum &&
+              tableItrator->second->epochNumber() == getSelfEpochNumber()) {
             delete tableItrator->second;
             tableItrator = tableOfStableCheckpoints.erase(tableItrator);
           } else {
             numRelevant++;
-            if (tableItrator->second->seqNumber() > lastStableSeqNum + kWorkWindowSize) numRelevantAboveWindow++;
+            if (tableItrator->second->seqNumber() > lastStableSeqNum + kWorkWindowSize ||
+                tableItrator->second->epochNumber() > getSelfEpochNumber())
+              numRelevantAboveWindow++;
             tableItrator++;
           }
         }
@@ -1971,7 +1987,8 @@ void ReplicaImp::sendAckIfNeeded(MessageBase *msg, const NodeIdType sourceNode, 
   if (!repsInfo->isIdOfPeerReplica(sourceNode)) return;
 
   if (handledByRetransmissionsManager(sourceNode, config_.getreplicaId(), currentPrimary(), seqNum, msg->type())) {
-    SimpleAckMsg *ackMsg = new SimpleAckMsg(seqNum, getCurrentView(), config_.getreplicaId(), msg->type());
+    SimpleAckMsg *ackMsg =
+        new SimpleAckMsg(seqNum, getCurrentView(), getSelfEpochNumber(), config_.getreplicaId(), msg->type());
 
     send(ackMsg, sourceNode);
 
@@ -2038,7 +2055,8 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
         /*  TODO(GG): do we want to use acks for FullCommitProofMsg ?
          */
       case MsgCode::StartSlowCommit: {
-        StartSlowCommitMsg *msgToSend = new StartSlowCommitMsg(myId, getCurrentView(), s.msgSeqNum);
+        StartSlowCommitMsg *msgToSend =
+            new StartSlowCommitMsg(myId, getCurrentView(), s.msgSeqNum, getSelfEpochNumber());
         sendRetransmittableMsgToReplica(msgToSend, s.replicaId, s.msgSeqNum);
         delete msgToSend;
         LOG_DEBUG(MSGS,
@@ -2327,6 +2345,7 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
                        getCurrentView(),
                        lastStableSeqNum,
                        lastExecutedSeqNum,
+                       getSelfEpochNumber(),
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPPInActiveWindow,
@@ -2790,7 +2809,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   Digest digestOfNewState;
   stateTransfer->getDigestOfCheckpoint(newStateCheckpoint, sizeof(Digest), (char *)&digestOfNewState);
   CheckpointMsg *checkpointMsg =
-      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, digestOfNewState, false);
+      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, getSelfEpochNumber(), digestOfNewState, false);
   checkpointMsg->sign();
   CheckpointInfo &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
   checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
@@ -2887,7 +2906,8 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       Digest digestOfState;
       const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
       stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfState);
-      checkpointMsg = new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, digestOfState, true);
+      checkpointMsg =
+          new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, getSelfEpochNumber(), digestOfState, true);
       checkpointMsg->sign();
       checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
     } else {
@@ -2943,7 +2963,7 @@ void ReplicaImp::sendRepilcaRestartReady() {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicaRestartReadyMsg> readytToRestartMsg(
-        ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
+        ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value(), getSelfEpochNumber()));
     sendToAllOtherReplicas(readytToRestartMsg.get());
     restart_ready_msgs_[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
     bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
@@ -2984,7 +3004,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
   LOG_INFO(GL, "Try to request missing data. " << KVLOG(seqNumber, getCurrentView()));
 
-  ReqMissingDataMsg reqData(config_.getreplicaId(), getCurrentView(), seqNumber);
+  ReqMissingDataMsg reqData(config_.getreplicaId(), getCurrentView(), seqNumber, getSelfEpochNumber());
 
   const bool routerForPartialProofs = repsInfo->isCollectorForPartialProofs(getCurrentView(), seqNumber);
 
@@ -3073,7 +3093,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
       }
 
       if (seqNumInfo.slowPathStarted() && !msg->getSlowPathHasStarted()) {
-        StartSlowCommitMsg startSlowMsg(config_.getreplicaId(), getCurrentView(), msgSeqNum);
+        StartSlowCommitMsg startSlowMsg(config_.getreplicaId(), getCurrentView(), msgSeqNum, getSelfEpochNumber());
         sendAndIncrementMetric(&startSlowMsg, msgSender, metric_sent_startSlowPath_msg_due_to_reqMissingData_);
       }
     }
@@ -3140,7 +3160,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
 
 void ReplicaImp::askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave) {
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> askToLeaveView(
-      ReplicaAsksToLeaveViewMsg::create(config_.getreplicaId(), getCurrentView(), reasonToLeave));
+      ReplicaAsksToLeaveViewMsg::create(config_.getreplicaId(), getCurrentView(), getSelfEpochNumber(), reasonToLeave));
   sendToAllOtherReplicas(askToLeaveView.get());
   viewsManager->storeComplaint(std::move(askToLeaveView));
   metric_sent_replica_asks_to_leave_view_msg_++;
@@ -3315,7 +3335,7 @@ void ReplicaImp::sendReplicasRestartReadyProof() {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
-        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
+        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value(), getSelfEpochNumber()));
     for (auto &[_, v] : restart_ready_msgs_) {
       (void)_;  // unused variable hack
       restartProofMsg->addElement(v);
@@ -3477,8 +3497,13 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         Digest tmpDigest;
         Digest::calcCombination(ppDigest, getCurrentView(), seqNum, tmpDigest);
 
-        PartialCommitProofMsg *p = new PartialCommitProofMsg(
-            config_.getreplicaId(), getCurrentView(), seqNum, pathInPrePrepare, tmpDigest, commitSigner);
+        PartialCommitProofMsg *p = new PartialCommitProofMsg(config_.getreplicaId(),
+                                                             getCurrentView(),
+                                                             seqNum,
+                                                             getSelfEpochNumber(),
+                                                             pathInPrePrepare,
+                                                             tmpDigest,
+                                                             commitSigner);
         seqNumInfo.partialProofs().addSelfMsgAndPPDigest(
             p,
             tmpDigest);  // TODO(GG): consider using a method that directly adds the message/digest (as in the
@@ -3493,6 +3518,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         PreparePartialMsg *p =
             PreparePartialMsg::create(getCurrentView(),
                                       pp->seqNumber(),
+                                      getSelfEpochNumber(),
                                       config_.getreplicaId(),
                                       pp->digestOfRequests(),
                                       CryptoManager::instance().thresholdSignerForSlowPathCommit(pp->seqNumber()));
@@ -3511,6 +3537,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         Digest::digestOfDigest(e.getPrePrepareMsg()->digestOfRequests(), d);
         CommitPartialMsg *c = CommitPartialMsg::create(getCurrentView(),
                                                        s,
+                                                       getSelfEpochNumber(),
                                                        config_.getreplicaId(),
                                                        d,
                                                        CryptoManager::instance().thresholdSignerForSlowPathCommit(s));
@@ -4144,7 +4171,8 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     Digest checkDigest;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
     stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&checkDigest);
-    CheckpointMsg *checkMsg = new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkDigest, false);
+    CheckpointMsg *checkMsg =
+        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, getSelfEpochNumber(), checkDigest, false);
     checkMsg->sign();
     CheckpointInfo &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());

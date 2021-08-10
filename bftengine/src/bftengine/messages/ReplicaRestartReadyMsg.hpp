@@ -26,6 +26,7 @@ class ReplicaRestartReadyMsg : public MessageBase {
  public:
   ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
                          SeqNum seqNum,
+                         EpochNum e,
                          uint16_t sigLen,
                          const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
@@ -41,6 +42,7 @@ class ReplicaRestartReadyMsg : public MessageBase {
 
   static ReplicaRestartReadyMsg* create(ReplicaId senderId,
                                         SeqNum s,
+                                        EpochNum e,
                                         const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
@@ -57,10 +59,11 @@ class ReplicaRestartReadyMsg : public MessageBase {
   struct Header : public MessageBase::Header {
     ReplicaId genReplicaId;
     SeqNum seqNum;
-    uint16_t sigLength;  // TODO(NK): add epoch when support is added
+    EpochNum epochNum;
+    uint16_t sigLength;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 2), "Header is 18B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2), "Header is 26B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

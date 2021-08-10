@@ -12,6 +12,7 @@
 #include <string.h>
 #include "FullCommitProofMsg.hpp"
 #include "assertUtils.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -19,6 +20,7 @@ namespace impl {
 FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
                                        ViewNum v,
                                        SeqNum s,
+                                       EpochNum e,
                                        const char* commitProofSig,
                                        uint16_t commitProofSigLength,
                                        const concordUtils::SpanContext& spanContext)
@@ -26,6 +28,7 @@ FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
           senderId, MsgCode::FullCommitProof, spanContext.data().size(), sizeof(Header) + commitProofSigLength) {
   b()->viewNum = v;
   b()->seqNum = s;
+  b()->epochNum = e;
   b()->thresholSignatureLength = commitProofSigLength;
   auto position = body() + sizeof(Header);
   memcpy(position, spanContext.data().data(), spanContext.data().size());
@@ -35,6 +38,7 @@ FullCommitProofMsg::FullCommitProofMsg(ReplicaId senderId,
 
 void FullCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < sizeof(Header) || senderId() == repInfo.myId() || !repInfo.isIdOfReplica(senderId()) ||
+      (b()->epochNum != EpochManager::instance().getSelfEpochNumber()) ||
       size() < (sizeof(Header) + thresholSignatureLength() + spanContextSize()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 

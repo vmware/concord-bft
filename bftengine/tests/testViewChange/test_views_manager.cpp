@@ -30,6 +30,7 @@ constexpr int numberOfFaultyReplicas = 2;
 constexpr bool dynamicCollectorForPartialProofs = true, dynamicCollectorForExecutionProofs = false;
 constexpr int initialView = 0;
 constexpr bftEngine::impl::SeqNum lastStableSeqNum = 150, lastExecutedSeqNum = lastStableSeqNum + 1;
+constexpr EpochNum epochNum = 0u;
 
 std::function<bool(MessageBase*)> mockedMessageValidator() {
   return [](MessageBase* message) { return true; };
@@ -63,7 +64,7 @@ TEST_F(ViewsManagerTest, moving_to_higher_view) {
 
 TEST_F(ViewsManagerTest, store_complaint) {
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
-      rc.replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
+      rc.replicaId, initialView, 0, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
   if (complaint->viewNumber() == viewsManager->getCurrentView()) {
     viewsManager->storeComplaint(std::move(complaint));
@@ -77,7 +78,7 @@ TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
     if (replicaId == rc.replicaId) continue;
 
     std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
-        replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
+        replicaId, initialView, 0, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
     if (complaint->viewNumber() == viewsManager->getCurrentView()) {
       viewsManager->storeComplaint(std::move(complaint));
@@ -89,15 +90,15 @@ TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
 
 TEST_F(ViewsManagerTest, status_message_with_complaints) {
   bftEngine::impl::SeqNum lastExecutedSeqNum = 200;
+  EpochNum epochNum = 0;
   const bool viewIsActive = true;
   const bool hasNewChangeMsg = true;
   const bool listOfPPInActiveWindow = false, listOfMissingVCMsg = false, listOfMissingPPMsg = false;
-
   for (int replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
     if (replicaId == rc.replicaId) continue;
 
     std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
-        replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
+        replicaId, initialView, epochNum, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
     if (complaint->viewNumber() == viewsManager->getCurrentView()) {
       viewsManager->storeComplaint(std::move(complaint));
@@ -108,6 +109,7 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
                                                          initialView,
                                                          lastStableSeqNum,
                                                          lastExecutedSeqNum,
+                                                         epochNum,
                                                          viewIsActive,
                                                          hasNewChangeMsg,
                                                          listOfPPInActiveWindow,
@@ -126,8 +128,8 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
   const int nextView = initialView + 1;
   const int viewToComplainAbout = initialView;
-
-  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, nextView, lastStableSeqNum);
+  EpochNum epochNum = 0;
+  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, nextView, lastStableSeqNum, epochNum);
 
   for (int i = 0; i < rc.numReplicas; ++i) {
     if (i == rc.replicaId || i == sourceReplicaId) continue;
@@ -140,6 +142,7 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
     viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
         *std::next(otherReplicas.begin(), complaintNumber),  // Add F + 1 Different complaints
         viewToComplainAbout,
+        epochNum,
         ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
   }
 
@@ -153,8 +156,8 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
   const int higherView = initialView + 2;
   const int viewToComplainAbout = higherView - 1;
-
-  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, higherView, lastStableSeqNum);
+  EpochNum epochNum = 0;
+  ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, higherView, lastStableSeqNum, epochNum);
 
   for (int i = 0; i < rc.numReplicas; ++i) {
     if (i == rc.replicaId || i == sourceReplicaId) continue;
@@ -167,6 +170,7 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
     viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
         *std::next(otherReplicas.begin(), complaintNumber),  // Add F + 1 Different complaints
         viewToComplainAbout,
+        epochNum,
         ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
   }
 
@@ -176,11 +180,11 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
 }
 
 TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
+  EpochNum epochNum = 0;
   const bftEngine::impl::ReplicaId firstMessageSourceReplicaId = (rc.replicaId + 1) % rc.numReplicas,
                                    secondMessageSourceReplicaId = (rc.replicaId + 2) % rc.numReplicas;
   const int nextView = initialView + 1;
   std::set<bftEngine::impl::ReplicaId> replicasWithNoViewChangeMsgSent;
-
   for (auto replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
     replicasWithNoViewChangeMsgSent.insert(replicasWithNoViewChangeMsgSent.end(), replicaId);
   }
@@ -198,14 +202,14 @@ TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
   ASSERT_NE(rc.replicaId, secondMessageSourceReplicaId);
   ASSERT_NE(firstMessageSourceReplicaId, secondMessageSourceReplicaId);
 
-  ViewChangeMsg *viewChangeMsg1 = new ViewChangeMsg(firstMessageSourceReplicaId, nextView, lastStableSeqNum),
-                *viewChangeMsg2 = new ViewChangeMsg(secondMessageSourceReplicaId, nextView, lastStableSeqNum);
+  ViewChangeMsg *viewChangeMsg1 = new ViewChangeMsg(firstMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum),
+                *viewChangeMsg2 = new ViewChangeMsg(secondMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum);
 
   ASSERT_TRUE(viewsManager->add(viewChangeMsg1));
   ASSERT_TRUE(viewsManager->add(viewChangeMsg2));
 
   bftEngine::impl::ReplicaStatusMsg replicaStatusMessage(
-      rc.getreplicaId(), initialView, lastStableSeqNum, lastExecutedSeqNum, false, false, false, true, false);
+      rc.getreplicaId(), initialView, lastStableSeqNum, lastExecutedSeqNum, epochNum, false, false, false, true, false);
 
   viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage, &replicasInfo, lastStableSeqNum);
 
@@ -242,11 +246,11 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
   const int nextView = initialView + 1;
 
   std::vector<ViewChangeMsg*> viewChangeMsgs;
-  viewChangeMsgs.push_back(new ViewChangeMsg(firstMessageSourceReplicaId, nextView, lastStableSeqNum));
-  viewChangeMsgs.push_back(new ViewChangeMsg(secondMessageSourceReplicaId, nextView, lastStableSeqNum));
-  viewChangeMsgs.push_back(new ViewChangeMsg(thirdMessageSourceReplicaId, nextView, lastStableSeqNum));
-  viewChangeMsgs.push_back(new ViewChangeMsg(fourthMessageSourceReplicaId, nextView, lastStableSeqNum));
-  viewChangeMsgs.push_back(new ViewChangeMsg(fifthMessageSourceReplicaId, nextView, lastStableSeqNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(firstMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(secondMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(thirdMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(fourthMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum));
+  viewChangeMsgs.push_back(new ViewChangeMsg(fifthMessageSourceReplicaId, nextView, lastStableSeqNum, epochNum));
 
   for (auto viewChangeMsg : viewChangeMsgs) {
     ASSERT_TRUE(viewsManager->add(viewChangeMsg));
@@ -254,7 +258,7 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
 
   ASSERT_EQ(sourceReplicaIds.size(), viewChangeMsgs.size());
 
-  NewViewMsg* newViewMsg = new NewViewMsg(firstMessageSourceReplicaId, nextView);
+  NewViewMsg* newViewMsg = new NewViewMsg(firstMessageSourceReplicaId, nextView, 0);
   Digest digest;
 
   for (size_t i = 0; i < viewChangeMsgs.size(); ++i) {

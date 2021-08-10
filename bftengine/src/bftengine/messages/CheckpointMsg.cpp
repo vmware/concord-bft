@@ -13,12 +13,14 @@
 #include "assertUtils.hpp"
 #include "Crypto.hpp"
 #include "SigManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
 CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                              SeqNum seqNum,
+                             EpochNum epochNum,
                              const Digest& stateDigest,
                              bool stateIsStable,
                              const concordUtils::SpanContext& spanContext)
@@ -27,6 +29,7 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                   spanContext.data().size(),
                   sizeof(Header) + SigManager::instance()->getMySigLength()) {
   b()->seqNum = seqNum;
+  b()->epochNum = epochNum;
   b()->stateDigest = stateDigest;
   b()->flags = 0;
   b()->genReplicaId = genReplica;
@@ -46,6 +49,7 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
   auto sigManager = SigManager::instance();
 
   if (size() < sizeof(Header) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
       (!repInfo.isIdOfReplica(idOfGeneratedReplica())) || (seqNumber() % checkpointWindowSize != 0) ||
       (digestOfState().isZero()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));

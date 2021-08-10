@@ -26,6 +26,7 @@ class PartialCommitProofMsg : public MessageBase {
   PartialCommitProofMsg(ReplicaId senderId,
                         ViewNum v,
                         SeqNum s,
+                        EpochNum e,
                         CommitPath commitPath,
                         Digest& digest,
                         std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -54,12 +55,13 @@ class PartialCommitProofMsg : public MessageBase {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
+    EpochNum epochNum;
     CommitPath commitPath;  // TODO(GG): can never be SLOW. Replace with a simple flag
     uint16_t thresholSignatureLength;
     // followed by a partial signature
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + sizeof(CommitPath) + 2), "Header is 24B+sizeof(CommitPath)");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + sizeof(CommitPath) + 2), "Header is 32B+sizeof(CommitPath)");
 
   Header* b() const { return (Header*)msgBody_; }
 };

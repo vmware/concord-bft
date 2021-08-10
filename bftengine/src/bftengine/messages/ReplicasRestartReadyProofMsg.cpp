@@ -13,6 +13,7 @@
 #include "ReplicasRestartReadyProofMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
+#include "EpochManager.hpp"
 #include "SigManager.hpp"
 
 namespace bftEngine {
@@ -20,6 +21,7 @@ namespace impl {
 
 ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                                            SeqNum seqNum,
+                                                           EpochNum epochNum,
                                                            const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::ReplicasRestartReadyProof,
@@ -27,6 +29,7 @@ ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
                   ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->genReplicaId = senderId;
   b()->seqNum = seqNum;
+  b()->epochNum = epochNum;
   b()->elementsCount = 0;
   b()->locationAfterLast = 0;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
@@ -39,8 +42,9 @@ const uint32_t ReplicasRestartReadyProofMsg::getBodySize() const {
 
 ReplicasRestartReadyProofMsg* ReplicasRestartReadyProofMsg::create(ReplicaId id,
                                                                    SeqNum s,
+                                                                   EpochNum e,
                                                                    const concordUtils::SpanContext& spanContext) {
-  ReplicasRestartReadyProofMsg* m = new ReplicasRestartReadyProofMsg(id, s, spanContext);
+  ReplicasRestartReadyProofMsg* m = new ReplicasRestartReadyProofMsg(id, s, e, spanContext);
   return m;
 }
 
@@ -74,9 +78,9 @@ void ReplicasRestartReadyProofMsg::finalizeMessage() {
 
 void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
   auto sigManager = SigManager::instance();
-  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
+  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
-
   auto dataLength = getBodySize();
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 
@@ -96,6 +100,7 @@ bool ReplicasRestartReadyProofMsg::checkElements(const ReplicasInfo& repInfo, ui
     numOfActualElements++;
     ReplicaRestartReadyMsg::Header* hdr = (ReplicaRestartReadyMsg::Header*)currLoc;
     if (seqNum != hdr->seqNum) return false;
+    if (hdr->epochNum != EpochManager::instance().getSelfEpochNumber()) return false;
     if (repInfo.myId() != hdr->genReplicaId) {
       if (!sigManager->verifySig(hdr->genReplicaId,
                                  currLoc,

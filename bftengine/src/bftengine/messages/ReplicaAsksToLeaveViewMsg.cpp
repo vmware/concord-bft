@@ -18,28 +18,32 @@
 #include "Crypto.hpp"
 #include "ViewsManager.hpp"
 #include "SigManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-ReplicaAsksToLeaveViewMsg::ReplicaAsksToLeaveViewMsg(
-    ReplicaId srcReplicaId, ViewNum v, Reason r, uint16_t sigLen, const concordUtils::SpanContext& spanContext)
+ReplicaAsksToLeaveViewMsg::ReplicaAsksToLeaveViewMsg(ReplicaId srcReplicaId,
+                                                     ViewNum v,
+                                                     EpochNum e,
+                                                     Reason r,
+                                                     uint16_t sigLen,
+                                                     const concordUtils::SpanContext& spanContext)
     : MessageBase(srcReplicaId, MsgCode::ReplicaAsksToLeaveView, spanContext.data().size(), sizeof(Header) + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->viewNum = v;
+  b()->epochNum = e;
   b()->reason = r;
   b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
-ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
-                                                             ViewNum v,
-                                                             Reason r,
-                                                             const concordUtils::SpanContext& spanContext) {
+ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(
+    ReplicaId senderId, ViewNum v, EpochNum e, Reason r, const concordUtils::SpanContext& spanContext) {
   auto sigManager = SigManager::instance();
   const size_t sigLen = sigManager->getMySigLength();
 
-  ReplicaAsksToLeaveViewMsg* m = new ReplicaAsksToLeaveViewMsg(senderId, v, r, sigLen, spanContext);
+  ReplicaAsksToLeaveViewMsg* m = new ReplicaAsksToLeaveViewMsg(senderId, v, e, r, sigLen, spanContext);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
@@ -53,7 +57,8 @@ ReplicaAsksToLeaveViewMsg* ReplicaAsksToLeaveViewMsg::create(ReplicaId senderId,
 void ReplicaAsksToLeaveViewMsg::validate(const ReplicasInfo& repInfo) const {
   auto sigManager = SigManager::instance();
   auto totalSize = sizeof(Header) + spanContextSize();
-  if (size() < totalSize || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
+  if (size() < totalSize || b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
+      !repInfo.isIdOfReplica(idOfGeneratedReplica()))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());

@@ -13,6 +13,7 @@
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 #include "Crypto.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -20,6 +21,7 @@ namespace impl {
 PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
                                              ViewNum v,
                                              SeqNum s,
+                                             EpochNum e,
                                              CommitPath commitPath,
                                              Digest& digest,
                                              std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -32,6 +34,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
 
   b()->viewNum = v;
   b()->seqNum = s;
+  b()->epochNum = e;
   b()->commitPath = commitPath;
   b()->thresholSignatureLength = thresholSignatureLength;
 
@@ -43,7 +46,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
 }
 
 void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(Header) + spanContextSize() ||
+  if (size() < sizeof(Header) + spanContextSize() || b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()) ||

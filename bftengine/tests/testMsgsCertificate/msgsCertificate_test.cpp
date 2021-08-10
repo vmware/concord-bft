@@ -66,7 +66,7 @@ class msgsCertificateTestsFixture : public ::testing::Test {
     MsgsCertificate<CheckpointMsg, true, true, true, mockCheckpointMsgCmp> replysCertificate(
         numOfReplicas, fval, numOfRequired, selfReplicaId);
 
-    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, Digest(), false);
+    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, 0, Digest(), false);
     replysCertificate.addMsg(selfMsg, selfReplicaId);
 
     ASSERT_TRUE(replysCertificate.selfMsg() != nullptr);

@@ -22,6 +22,7 @@ class FullCommitProofMsg : public MessageBase {
   FullCommitProofMsg(ReplicaId senderId,
                      ViewNum v,
                      SeqNum s,
+                     EpochNum e,
                      const char* commitProofSig,
                      uint16_t commitProofSigLength,
                      const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
@@ -47,10 +48,11 @@ class FullCommitProofMsg : public MessageBase {
     MessageBase::Header header;
     ViewNum viewNum;
     SeqNum seqNum;
+    EpochNum epochNum;
     uint16_t thresholSignatureLength;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 24B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 2), "Header is 32B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

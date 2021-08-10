@@ -12,19 +12,21 @@
 #include "SimpleAckMsg.hpp"
 #include "ReplicasInfo.hpp"
 #include "assertUtils.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData)
+SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, EpochNum e, ReplicaId senderId, uint64_t ackData)
     : MessageBase(senderId, MsgCode::SimpleAck, sizeof(Header)) {
   b()->seqNum = s;
   b()->viewNum = v;
+  b()->epochNum = e;
   b()->ackData = ackData;
 }
 
 void SimpleAckMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(Header) ||
+  if (size() < sizeof(Header) || b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
       senderId() == repInfo.myId() ||  // sent from another replica (otherwise, we don't need to convert)
       !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);

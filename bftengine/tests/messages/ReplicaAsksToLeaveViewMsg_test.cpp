@@ -29,6 +29,7 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   auto& config = createReplicaConfig();
   ReplicaId senderId = 3u;
   ViewNum viewNum = 5u;
+  EpochNum epochNum = 0u;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ReplicasInfo replicaInfo(config, true, true);
@@ -41,6 +42,7 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg(
       ReplicaAsksToLeaveViewMsg::create(senderId,
                                         viewNum,
+                                        epochNum,
                                         ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout,
                                         concordUtils::SpanContext{spanContext}));
   EXPECT_EQ(msg->idOfGeneratedReplica(), senderId);

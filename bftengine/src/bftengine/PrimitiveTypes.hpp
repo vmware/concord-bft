@@ -29,6 +29,7 @@ namespace impl {
 typedef int64_t SeqNum;
 typedef int64_t ViewNum;
 typedef uint64_t ReqId;  // TODO(GG): more meaningful name ... ???
+typedef uint64_t EpochNum;
 
 typedef uint16_t PrincipalId;  // ReplicaId or NodeIdType
 typedef uint16_t ReplicaId;

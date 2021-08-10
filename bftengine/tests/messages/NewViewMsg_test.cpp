@@ -26,10 +26,11 @@ TEST(NewViewMsg, base_methods) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
+  EpochNum epochNum = 0u;
   std::string commitProofSignature{"commitProofSignature"};
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  NewViewMsg msg{senderId, viewNum, concordUtils::SpanContext{spanContext}};
+  NewViewMsg msg{senderId, viewNum, epochNum, concordUtils::SpanContext{spanContext}};
   EXPECT_EQ(msg.newView(), viewNum);
   EXPECT_EQ(msg.elementsCount(), 0);
 

@@ -109,6 +109,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
+  EpochNum epochNum = 0u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
@@ -119,7 +120,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
     req_size += crm->size();
   }
 
-  PrePrepareMsg msg(senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, req_size);
+  PrePrepareMsg msg(senderId, viewNum, seqNum, epochNum, commitPath, concordUtils::SpanContext{spanContext}, req_size);
 
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
@@ -153,12 +154,18 @@ TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
+  EpochNum epochNum = 0u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg client_request = create_client_request();
-  PrePrepareMsg msg(
-      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size() * 2);
+  PrePrepareMsg msg(senderId,
+                    viewNum,
+                    seqNum,
+                    epochNum,
+                    commitPath,
+                    concordUtils::SpanContext{spanContext},
+                    client_request.size() * 2);
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_EQ(msg.firstPath(), commitPath);
@@ -189,11 +196,12 @@ TEST_F(PrePrepareMsgTestFixture, create_null_message) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
+  EpochNum epochNum = 0u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  auto null_msg =
-      std::make_unique<PrePrepareMsg>(senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, 0);
+  auto null_msg = std::make_unique<PrePrepareMsg>(
+      senderId, viewNum, seqNum, epochNum, commitPath, concordUtils::SpanContext{spanContext}, 0);
 
   auto& msg = *null_msg;
   EXPECT_EQ(msg.viewNumber(), viewNum);
@@ -208,12 +216,13 @@ TEST_F(PrePrepareMsgTestFixture, base_methods) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
+  EpochNum epochNum = 0u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ClientRequestMsg client_request = create_client_request();
   PrePrepareMsg msg(
-      senderId, viewNum, seqNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size());
+      senderId, viewNum, seqNum, epochNum, commitPath, concordUtils::SpanContext{spanContext}, client_request.size());
   msg.addRequest(client_request.body(), client_request.size());
   msg.finishAddingRequests();
   EXPECT_NO_THROW(msg.validate(replicaInfo));

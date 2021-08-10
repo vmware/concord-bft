@@ -14,6 +14,7 @@
 #include "OpenTracing.hpp"
 #include "messages/SignatureInternalMsgs.hpp"
 #include "CryptoManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -307,8 +308,13 @@ PrepareFullMsg* SeqNumInfo::ExFuncForPrepareCollector::createCombinedSignatureMs
     uint16_t combinedSigLen,
     const concordUtils::SpanContext& span_context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return PrepareFullMsg::create(
-      viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen, span_context);
+  return PrepareFullMsg::create(viewNumber,
+                                seqNumber,
+                                EpochManager::instance().getSelfEpochNumber(),
+                                r->getReplicasInfo().myId(),
+                                combinedSig,
+                                combinedSigLen,
+                                span_context);
 }
 
 InternalMessage SeqNumInfo::ExFuncForPrepareCollector::createInterCombinedSigFailed(
@@ -363,8 +369,13 @@ CommitFullMsg* SeqNumInfo::ExFuncForCommitCollector::createCombinedSignatureMsg(
     uint16_t combinedSigLen,
     const concordUtils::SpanContext& span_context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
-  return CommitFullMsg::create(
-      viewNumber, seqNumber, r->getReplicasInfo().myId(), combinedSig, combinedSigLen, span_context);
+  return CommitFullMsg::create(viewNumber,
+                               seqNumber,
+                               EpochManager::instance().getSelfEpochNumber(),
+                               r->getReplicasInfo().myId(),
+                               combinedSig,
+                               combinedSigLen,
+                               span_context);
 }
 
 InternalMessage SeqNumInfo::ExFuncForCommitCollector::createInterCombinedSigFailed(

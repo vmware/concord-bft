@@ -26,6 +26,7 @@ TEST(ReplicaRestartReadyMsg, base_methods) {
   auto& config = createReplicaConfig();
   ReplicaId senderId = 3u;
   ViewNum seqNum = 5u;
+  EpochNum epochNum = 0u;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   ReplicasInfo replicaInfo(config, true, true);
@@ -35,7 +36,7 @@ TEST(ReplicaRestartReadyMsg, base_methods) {
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   std::unique_ptr<ReplicaRestartReadyMsg> msg(
-      ReplicaRestartReadyMsg::create(senderId, seqNum, concordUtils::SpanContext{spanContext}));
+      ReplicaRestartReadyMsg::create(senderId, seqNum, epochNum, concordUtils::SpanContext{spanContext}));
   EXPECT_EQ(msg->idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg->seqNum(), seqNum);
 

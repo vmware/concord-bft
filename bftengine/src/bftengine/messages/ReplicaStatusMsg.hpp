@@ -21,6 +21,7 @@ class ReplicaStatusMsg : public MessageBase {
                    ViewNum viewNumber,
                    SeqNum lastStableSeqNum,
                    SeqNum lastExecutedSeqNum,
+                   EpochNum epochNum,
                    bool viewIsActive,
                    bool hasNewChangeMsg,
                    bool listOfPrePrepareMsgsInActiveWindow,
@@ -74,6 +75,7 @@ class ReplicaStatusMsg : public MessageBase {
     ViewNum viewNumber;
     SeqNum lastStableSeqNum;
     SeqNum lastExecutedSeqNum;
+    EpochNum epochNum;
 
     // flags:
     // bit 0 == viewIsActive
@@ -84,7 +86,7 @@ class ReplicaStatusMsg : public MessageBase {
     uint8_t flags;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 1), "Header is 31B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 8 + 1), "Header is 39B");
 
   static MsgSize calcSizeOfReplicaStatusMsg(bool viewIsActive,
                                             bool listOfPrePrepareMsgsInActiveWindow,

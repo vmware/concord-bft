@@ -22,7 +22,7 @@ namespace impl {
 
 class SimpleAckMsg : public MessageBase {
  public:
-  SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData);
+  SimpleAckMsg(SeqNum s, ViewNum v, EpochNum e, ReplicaId senderId, uint64_t ackData);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(SimpleAckMsg)
 
@@ -40,10 +40,11 @@ class SimpleAckMsg : public MessageBase {
     MessageBase::Header header;
     SeqNum seqNum;
     ViewNum viewNum;
+    EpochNum epochNum;
     uint64_t ackData;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 8), "Header is 30B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 8), "Header is 38B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

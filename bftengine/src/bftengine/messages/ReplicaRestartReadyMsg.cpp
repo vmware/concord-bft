@@ -15,28 +15,29 @@
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
 #include "SigManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
 
-ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
-                                               SeqNum s,
-                                               uint16_t sigLen,
-                                               const concordUtils::SpanContext& spanContext)
+ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(
+    ReplicaId srcReplicaId, SeqNum s, EpochNum e, uint16_t sigLen, const concordUtils::SpanContext& spanContext)
     : MessageBase(srcReplicaId, MsgCode::ReplicaRestartReady, spanContext.data().size(), sizeof(Header) + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->seqNum = s;
+  b()->epochNum = e;
   b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
                                                        SeqNum s,
+                                                       EpochNum e,
                                                        const concordUtils::SpanContext& spanContext) {
   auto sigManager = SigManager::instance();
   const size_t sigLen = sigManager->getMySigLength();
 
-  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, spanContext);
+  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, e, sigLen, spanContext);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());
@@ -51,7 +52,8 @@ void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
   auto idOfSenderReplica = idOfGeneratedReplica();
   auto sigManager = SigManager::instance();
   auto dataSize = sizeof(Header) + spanContextSize();
-  if (size() < dataSize || !repInfo.isIdOfReplica(idOfSenderReplica))
+  if (size() < dataSize || !repInfo.isIdOfReplica(idOfSenderReplica) ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t sigLen = sigManager->getSigLength(idOfSenderReplica);

@@ -32,6 +32,7 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
+  EpochNum epochNum = 0u;
   bool viewIsActive = true;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = false;
@@ -44,6 +45,7 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
                        viewNum,
                        lastStable,
                        lastExecuted,
+                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
@@ -83,6 +85,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
+  EpochNum epochNum = 0u;
   bool viewIsActive = true;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = true;
@@ -95,6 +98,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
                        viewNum,
                        lastStable,
                        lastExecuted,
+                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
@@ -146,6 +150,7 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
+  EpochNum epochNum = 0;
   bool viewIsActive = false;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = false;
@@ -158,6 +163,7 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
                        viewNum,
                        lastStable,
                        lastExecuted,
+                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
@@ -201,6 +207,7 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
+  EpochNum epochNum = 0u;
   bool viewIsActive = false;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = false;
@@ -213,6 +220,7 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
                        viewNum,
                        lastStable,
                        lastExecuted,
+                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
