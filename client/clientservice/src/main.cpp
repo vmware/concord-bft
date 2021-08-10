@@ -32,8 +32,9 @@ namespace po = boost::program_options;
 
 const static int kLogConfigRefreshIntervalInMs = 60 * 1000;
 
-const static char* GetLog4CplusConfigLocation() {
+const static char* getLog4CplusConfigLocation() {
   auto log_location = std::getenv("LOG4CPLUS_CONFIGURATION");
+  if (!log_location) std::cerr << "ClientService log4cplus configuration file was not set" << std::endl;
   return log_location ? log_location : "LOG4CPLUS_CONFIGURATION_NOT_SET";
 }
 
@@ -58,8 +59,8 @@ po::variables_map parseCmdLine(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
+  LOG_CONFIGURE_AND_WATCH(getLog4CplusConfigLocation(), kLogConfigRefreshIntervalInMs);
   auto logger = logging::getLogger("concord.client.clientservice.main");
-  LOG_CONFIGURE_AND_WATCH(GetLog4CplusConfigLocation(), kLogConfigRefreshIntervalInMs);
   auto opts = parseCmdLine(argc, argv);
 
   ConcordClientConfig config;
