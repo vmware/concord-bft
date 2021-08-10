@@ -15,10 +15,65 @@
 #include <utility>
 #include <string>
 #include <memory>
-namespace concord::util {
+namespace concord::util::crypto {
+enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
+class IVerifier {
+ public:
+  virtual bool verify(const std::string& data, const std::string& sig) = 0;
+  virtual ~IVerifier() = default;
+};
+
+class ISigner {
+ public:
+  virtual std::string sign(const std::string& data) = 0;
+  virtual ~ISigner() = default;
+};
+
+class ECDSAVerifier : public IVerifier {
+ public:
+  ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt);
+  bool verify(const std::string& data, const std::string& sig) override;
+  ~ECDSAVerifier();
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+class ECDSASigner : public ISigner {
+ public:
+  ECDSASigner(const std::string& str_pub_key, KeyFormat fmt);
+  std::string sign(const std::string& data) override;
+  ~ECDSASigner();
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+class RSAVerifier : public IVerifier {
+ public:
+  RSAVerifier(const std::string& str_pub_key, KeyFormat fmt);
+  bool verify(const std::string& data, const std::string& sig) override;
+  ~RSAVerifier();
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
+class RSASigner : public ISigner {
+ public:
+  RSASigner(const std::string& str_priv_key, KeyFormat fmt);
+  std::string sign(const std::string& data) override;
+  ~RSASigner();
+
+ private:
+  class Impl;
+  std::unique_ptr<Impl> impl_;
+};
+
 class Crypto {
  public:
-  enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
   static Crypto& instance() {
     static Crypto crypto;
     return crypto;
@@ -27,10 +82,12 @@ class Crypto {
   Crypto();
   ~Crypto();
   std::pair<std::string, std::string> generateRsaKeyPair(const uint32_t sig_length, const KeyFormat fmt) const;
-  std::pair<std::string, std::string> hexToPem(const std::pair<std::string, std::string>& key_pair) const;
+  std::pair<std::string, std::string> generateECDSAKeyPair(const KeyFormat fmt) const;
+  std::pair<std::string, std::string> RsaHexToPem(const std::pair<std::string, std::string>& key_pair) const;
+  std::pair<std::string, std::string> ECDSAHexToPem(const std::pair<std::string, std::string>& key_pair) const;
 
  private:
   class Impl;
   std::unique_ptr<Impl> impl_;
 };
-}  // namespace concord::util
+}  // namespace concord::util::crypto
