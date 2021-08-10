@@ -11,7 +11,6 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include <log4cplus/configurator.h>
 #include "gtest/gtest.h"
 
 #include "client/thin-replica-client/trc_hash.hpp"
@@ -98,8 +97,5 @@ TEST(trc_hash, trs_trc_event_group) {
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  log4cplus::initialize();
-  log4cplus::BasicConfigurator config;
-  config.configure();
   return RUN_ALL_TESTS();
 }

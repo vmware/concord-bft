@@ -19,9 +19,9 @@
 #include <sstream>
 
 #include <grpcpp/grpcpp.h>
-#include <log4cplus/loggingmacros.h>
 #include "assertUtils.hpp"
 #include "thin_replica.grpc.pb.h"
+#include "Logger.hpp"
 
 using namespace std::chrono_literals;
 
@@ -79,7 +79,7 @@ class TrsConnection {
                 const std::string& client_id,
                 uint16_t data_operation_timeout_seconds,
                 uint16_t hash_operation_timeout_seconds)
-      : logger_(log4cplus::Logger::getInstance("thin_replica_client.trsconn")),
+      : logger_(logging::getLogger("thin_replica_client.trsconn")),
         address_(address),
         client_id_(client_id),
         data_timeout_(std::chrono::seconds(data_operation_timeout_seconds)),
@@ -161,7 +161,7 @@ class TrsConnection {
   void createStub();
   void createChannel();
 
-  log4cplus::Logger logger_;
+  logging::Logger logger_;
 
   // Connection identifiers
   std::string address_;
