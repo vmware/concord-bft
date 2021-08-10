@@ -160,9 +160,24 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
                                           uint32_t sender_id,
                                           concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "public key: " << msg.pub_key << " sender: " << sender_id);
+  std::vector<uint32_t> affected_clients;
+  if (!msg.affected_clients.empty()) {
+    for (const auto& clientId : msg.affected_clients) {
+      affected_clients.push_back(clientId);
+    }
+  } else {
+    LOG_INFO(getLogger(), "apply all public key to the whole relevant group");
+    for (const auto& [_, cg] : bftEngine::ReplicaConfig::instance().publicKeysOfClients) {
+      (void)_;
+      if (std::find(cg.begin(), cg.end(), sender_id) != cg.end()) {
+        affected_clients.assign(cg.begin(), cg.end());
+        break;
+      }
+    }
+  }
   // TODO: [YB] verify the sender and the affected clients are in the same group
   // assuming we always send hex DER over the wire
-  for (const auto& clientId : msg.affected_clients)
+  for (const auto& clientId : affected_clients)
     bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(
         msg.pub_key, KeyFormat::HexaDecimalStrippedFormat, clientId);
   return true;

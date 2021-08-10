@@ -152,6 +152,11 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
+  bool handle(const concord::messages::ClientKeyExchangeStatus&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
+
  private:
   std::set<std::set<uint16_t>> txKeysClientGroups_;
 };
