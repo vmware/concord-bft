@@ -390,22 +390,24 @@ Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   return earliestPendingReqInfo.time;
 }
 
-// Iterate over all clients and choose the ones that have not been committed for more than threshold miliseconds.
-std::vector<std::pair<std::string, uint64_t>> ClientsManager::getAllPendingRequestsExceedingThreshold(
-    const int64_t threshold, const Time& currTime) const {
-  std::vector<std::pair<std::string, uint64_t>> retVal;
+// Iterate over all clients and log the ones that have not been committed for more than threshold miliseconds.
+void ClientsManager::logAllPendingRequestsExceedingThreshold(const int64_t threshold, const Time& currTime) const {
+  int numExceeding = 0;
   for (const auto& info : clientsInfo_) {
     for (const auto& req : info.second.requestsInfo) {
       // Don't take into account already committed requests
       if ((req.second.time != MinTime) && (!req.second.committed)) {
         const auto delay = duration_cast<milliseconds>(currTime - req.second.time).count();
         if (delay > threshold) {
-          retVal.emplace_back(req.second.cid, delay);
+          LOG_INFO(VC_LOG, "CID " << req.second.cid << ", delayed " << delay);
+          numExceeding++;
         }
       }
     }
   }
-  return retVal;
+  if (numExceeding) {
+    LOG_INFO(VC_LOG, "Total Client request with more than " << threshold << "ms delay: " << numExceeding);
+  }
 }
 
 }  // namespace bftEngine::impl

@@ -74,8 +74,8 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   Time infoOfEarliestPendingRequest(std::string& cid) const;
 
-  std::vector<std::pair<std::string, uint64_t>> getAllPendingRequestsExceedingThreshold(const int64_t threshold,
-                                                                                        const Time& currTime) const;
+  void logAllPendingRequestsExceedingThreshold(const int64_t threshold, const Time& currTime) const;
+
   void deleteOldestReply(NodeIdType clientId);
 
   bool isInternal(NodeIdType clientId) const { return internalClients_.find(clientId) != internalClients_.end(); }
