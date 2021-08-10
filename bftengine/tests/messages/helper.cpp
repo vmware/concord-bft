@@ -85,7 +85,7 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
 
   config.set("concord.bft.message.preprepareDigestCalculationConcurrency", 8);
 
-  bftEngine::CryptoManager::instance(new TestCryptoSystem);
+  bftEngine::CryptoManager::instance(std::make_unique<TestCryptoSystem>());
 
   return config;
 }

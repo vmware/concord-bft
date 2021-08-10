@@ -47,7 +47,7 @@ bool concord::kvbc::strategy::MangledPreProcessResultMsgStrategy::changeMessage(
     if (req.type() == MsgCode::PreProcessResult) {
       if (req.requestLength() > 0) {
         memcpy(
-            req.requestBuf(), StrategyUtils::getRandomStingOfLength(req.requestLength()).c_str(), req.requestLength());
+            req.requestBuf(), StrategyUtils::getRandomStringOfLength(req.requestLength()).c_str(), req.requestLength());
         ischanged = true;
       }
     }
