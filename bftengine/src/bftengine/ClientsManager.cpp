@@ -397,9 +397,10 @@ void ClientsManager::logAllPendingRequestsExceedingThreshold(const int64_t thres
     for (const auto& req : info.second.requestsInfo) {
       // Don't take into account already committed requests
       if ((req.second.time != MinTime) && (!req.second.committed)) {
-        const auto delay = duration_cast<milliseconds>(currTime - req.second.time).count();
-        if (delay > threshold) {
-          LOG_INFO(VC_LOG, "CID " << req.second.cid << ", delayed " << delay);
+        const auto delayed = duration_cast<milliseconds>(currTime - req.second.time).count();
+        const auto& CID = req.second.cid;
+        if (delayed > threshold) {
+          LOG_INFO(VC_LOG, "" << KVLOG(CID, delayed));
           numExceeding++;
         }
       }
