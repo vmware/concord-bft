@@ -117,7 +117,10 @@ unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
     return unique_ptr<EventVariant>(nullptr);
   }
 }
-uint64_t thin_replica_client::BasicUpdateQueue::Size() { return queue_data_.size(); }
+uint64_t thin_replica_client::BasicUpdateQueue::Size() {
+  std::scoped_lock sl(mutex_);
+  return queue_data_.size();
+}
 
 void ThinReplicaClient::recordCollectedHash(size_t update_source,
                                             bool is_event_group,
