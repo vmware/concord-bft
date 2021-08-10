@@ -20,13 +20,14 @@
 #include "messages/ViewChangeMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
-
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 #include <tuple>
 #include <memory>
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 static constexpr char rawSpanContext[] = "span_\0context";
 
 class ViewChangeMsgTestsFixture : public ::testing::Test {
@@ -41,6 +42,7 @@ class ViewChangeMsgTestsFixture : public ::testing::Test {
 void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
                                                    bool bAddComplaints,
                                                    const std::string& spanContext) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -185,6 +187,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
 }
 
 void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::string& spanContext, int totalElements) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;

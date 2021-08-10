@@ -18,11 +18,16 @@
 #include "messages/MsgCode.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
+
 TEST(ReplicaRestartReadyMsg, base_methods) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   auto& config = createReplicaConfig();
   ReplicaId senderId = 3u;
   ViewNum seqNum = 5u;

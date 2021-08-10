@@ -24,9 +24,12 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "helper.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
 ClientRequestMsg create_client_request() {
   uint64_t reqSeqNum = 100u;
@@ -104,6 +107,7 @@ class PrePrepareMsgTestFixture : public ::testing::Test {
 };
 
 TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
 
   ReplicaId senderId = 1u;
@@ -150,7 +154,7 @@ TEST_F(PrePrepareMsgTestFixture, finalize_and_validate) {
 
 TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -193,6 +197,7 @@ TEST_F(PrePrepareMsgTestFixture, create_and_compare) {
 }
 
 TEST_F(PrePrepareMsgTestFixture, create_null_message) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -212,6 +217,7 @@ TEST_F(PrePrepareMsgTestFixture, create_null_message) {
 }
 
 TEST_F(PrePrepareMsgTestFixture, base_methods) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
