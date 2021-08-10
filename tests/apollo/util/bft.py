@@ -361,7 +361,7 @@ class BftTestNetwork:
                 self.cre_fds = (stdout_file, stderr_file)
                 cre_exe = os.path.join(self.builddir, "tests", "simpleKVBC", "TesterCRE", "skvbc_cre")
                 cre_cmd = [cre_exe,
-                           "-i", str(BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA + 1),
+                           "-i", str(self.config.n + self.config.num_ro_replicas + BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA),
                            "-f", str(self.config.f),
                            "-c", str(self.config.c),
                            "-r", str(self.config.n),
@@ -548,7 +548,7 @@ class BftTestNetwork:
         start_id = self.config.n + self.config.num_ro_replicas
         client_ids = range(start_id, start_id + self.config.num_clients)
         start_id = self.num_total_replicas() + self.config.num_clients
-        reserved_client_ids = range(start_id, start_id + RESERVED_CLIENTS_QUOTA)
+        reserved_client_ids = range(start_id, start_id + RESERVED_CLIENTS_QUOTA + 1)
 
         principals = ""
         client_ids = sorted(client_ids)

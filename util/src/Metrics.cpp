@@ -172,10 +172,6 @@ std::string Component::ToJson() {
 
 /******************************** Class Aggregator ********************************/
 
-Aggregator::Aggregator(bool metricsEnabled) : metricsEnabled_(metricsEnabled), logger_{logging::getLogger("metrics")} {
-  LOG_INFO(logger_, KVLOG(metricsEnabled));
-}
-
 void Aggregator::RegisterComponent(Component& component) {
   std::lock_guard<std::mutex> lock(lock_);
   components_.insert(make_pair(component.Name(), component));

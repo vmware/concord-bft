@@ -6,9 +6,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Dependencies
 find_package(Threads REQUIRED)
-find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+if(NOT BUILD_THIRDPARTY)
+	find_library(RELIC_STATIC_LIBRARY NAMES "librelic_s.a")
+endif()
 find_library(GMP_STATIC_LIBRARY NAMES "libgmp.a")
-find_library(CRYPTOPP_STATIC_LIBRARY NAMES "libcryptopp.a")
 
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
@@ -49,7 +50,6 @@ function(link_with_relic_library targetName)
         PRIVATE
         ${RELIC_STATIC_LIBRARY}
         ${GMP_STATIC_LIBRARY}
-        ${CRYPTOPP_STATIC_LIBRARY}
     )
 endfunction()
 
@@ -91,6 +91,11 @@ target_link_libraries(threshsign PUBLIC Threads::Threads)
 link_with_relic_library(threshsign)
 
 add_subdirectory(src)
+
+if(BUILD_THIRDPARTY)
+	add_dependencies(threshsign relic)
+endif()
+
 if (BUILD_TESTING)
 	add_subdirectory(bench)
 	add_subdirectory(test)

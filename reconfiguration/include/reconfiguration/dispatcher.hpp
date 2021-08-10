@@ -61,9 +61,10 @@ class Dispatcher {
   template <typename T>
   bool handleRequest(const T& msg,
                      uint64_t bft_seq_num,
+                     uint32_t sender_id,
                      concord::messages::ReconfigurationResponse& rres,
                      std::shared_ptr<IReconfigurationHandler> handler) {
-    return handler->handle(msg, bft_seq_num, rres);
+    return handler->handle(msg, bft_seq_num, sender_id, rres);
   }
   std::vector<std::shared_ptr<IReconfigurationHandler>> pre_reconfig_handlers_;
   std::vector<std::shared_ptr<IReconfigurationHandler>> reconfig_handlers_;

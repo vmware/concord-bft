@@ -715,9 +715,9 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) {
   for (auto err : errors) {
     if (err) {
       // trigger view change
-      LOG_WARN(VC_LOG,
-               "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
-                   << *err << ". Ask to leave view " << getCurrentView());
+      LOG_ERROR(VC_LOG,
+                "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
+                    << *err << ". Ask to leave view " << getCurrentView());
       askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
       return false;
     }

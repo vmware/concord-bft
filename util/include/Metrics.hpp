@@ -55,7 +55,7 @@ typedef struct metric_ Metric;
 // responsible for reporting system metrics should read it from the aggregator.
 class Aggregator {
  public:
-  Aggregator(bool metricsEnabled = true);
+  Aggregator(bool metricsEnabled = true) : metricsEnabled_(metricsEnabled) {}
   Gauge GetGauge(const std::string& component_name, const std::string& val_name);
   Status GetStatus(const std::string& component_name, const std::string& val_name);
   Counter GetCounter(const std::string& component_name, const std::string& val_name);
@@ -74,7 +74,6 @@ class Aggregator {
 
   std::map<std::string, Component> components_;
   std::mutex lock_;
-  logging::Logger logger_;
 
   friend class Component;
 };

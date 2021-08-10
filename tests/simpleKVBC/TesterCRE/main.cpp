@@ -177,6 +177,38 @@ class PublicKeyExchangeHandler : public IStateHandler {
   }
 };
 
+class ClientsAddRemoveHandler : public IStateHandler {
+ public:
+  bool validate(const State& state) const override {
+    concord::messages::ClientReconfigurationStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    return std::holds_alternative<concord::messages::ClientsAddRemoveCommand>(crep.response);
+  }
+  bool execute(const State& state, WriteState& out) override {
+    LOG_INFO(getLogger(), "execute clientsAddRemoveCommand");
+    concord::messages::ClientReconfigurationStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    concord::messages::ClientsAddRemoveCommand command =
+        std::get<concord::messages::ClientsAddRemoveCommand>(crep.response);
+
+    concord::messages::ReconfigurationRequest rreq;
+    concord::messages::ClientsAddRemoveUpdateCommand creq;
+    creq.config_descriptor = command.config_descriptor;
+    rreq.command = creq;
+    std::vector<uint8_t> req_buf;
+    concord::messages::serialize(req_buf, rreq);
+    out = {req_buf, [this, command]() {
+             LOG_INFO(this->getLogger(), "completed scaling procedure for " << command.config_descriptor);
+           }};
+    return true;
+  }
+  logging::Logger getLogger() {
+    static logging::Logger logger_(
+        logging::getLogger("concord.client.reconfiguration.testerCre.ClientsAddRemoveHandler"));
+    return logger_;
+  }
+};
+
 int main(int argc, char** argv) {
   auto creParams = setupCreParams(argc, argv);
   std::unique_ptr<ICommunication> comm_ptr(
@@ -187,6 +219,7 @@ int main(int argc, char** argv) {
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(creParams.CreConfig.id_));
   cre.registerHandler(std::make_shared<PublicKeyExchangeHandler>());
+  cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }

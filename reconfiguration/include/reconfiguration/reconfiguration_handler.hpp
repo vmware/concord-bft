@@ -33,21 +33,31 @@ class BftReconfigurationHandler : public IReconfigurationHandler {
 class ReconfigurationHandler : public BftReconfigurationHandler {
  public:
   ReconfigurationHandler() {}
-  bool handle(const concord::messages::WedgeCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::WedgeCommand&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::WedgeStatusRequest&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::KeyExchangeCommand&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
-  bool handle(const concord::messages::RestartCommand&, uint64_t, concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::RestartCommand&,
+              uint64_t,
+              uint32_t,
+              concord::messages::ReconfigurationResponse&) override;
 
  private:
   void handleWedgeCommands(bool bft_support, bool remove_metadata, bool restart, bool unwedge);
@@ -56,6 +66,7 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
   bool handle(const concord::messages::ClientExchangePublicKey&,
               uint64_t,
+              uint32_t,
               concord::messages::ReconfigurationResponse&) override;
 
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {

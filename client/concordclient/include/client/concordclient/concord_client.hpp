@@ -56,6 +56,7 @@ struct BftTopology {
   std::uint32_t external_requests_queue_size;
   bool encrypted_config_enabled;
   bool transaction_signing_enabled;
+  bool with_cre;
   bool client_batching_enabled;
   size_t client_batching_max_messages_nbr;
   std::uint64_t client_batching_flush_timeout_ms;

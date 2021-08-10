@@ -8,8 +8,6 @@ add_library(bftclient_new STATIC
   ${bftengine_SOURCE_DIR}/src/bftengine/Crypto.cpp
 )
 
-find_package(cryptopp REQUIRED)
-target_include_directories(corebft PUBLIC ${CRYPTOPP_INCLUDE_DIRS})
 target_include_directories(bftclient_new PUBLIC include)
 target_include_directories(bftclient_new PUBLIC src)
 target_include_directories(bftclient_new PUBLIC ${bftengine_SOURCE_DIR}/src)

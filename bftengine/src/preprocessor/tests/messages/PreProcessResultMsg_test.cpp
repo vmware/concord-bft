@@ -49,6 +49,17 @@ bftEngine::impl::SigManager* createSigManagerWithSigning(
                           replicasInfo);
 }
 
+// Some default message params used through the test
+struct MsgParams {
+  NodeIdType senderId = 5u;
+  uint64_t reqSeqNum = 100u;
+  const char result[12] = {"result body"};
+  const uint64_t requestTimeoutMilli = 0;
+  const std::string correlationId = "correlationId";
+  const char rawSpanContext[14] = {"span_\0context"};  // make clnag-tidy happy
+  const std::string spanContext{rawSpanContext};
+};
+
 class PreProcessResultMsgTestFixture : public testing::Test {
  protected:
   PreProcessResultMsgTestFixture()
@@ -65,59 +76,49 @@ class PreProcessResultMsgTestFixture : public testing::Test {
   ReplicasInfo replicaInfo;
   std::unique_ptr<SigManager> sigManager;
 
-  std::unique_ptr<PreProcessResultMsg> createMessage(NodeIdType senderId,
-                                                     uint64_t reqSeqNum,
-                                                     const char* result,
-                                                     const int resultSize,
-                                                     const uint64_t requestTimeoutMilli,
-                                                     const std::string& correlationId,
-                                                     const std::string& spanContext) {
+  std::unique_ptr<PreProcessResultMsg> createMessage(const MsgParams& p, const int sigCount, bool duplicateSigs) {
     auto msgSigSize = sigManager->getMySigLength();
     std::vector<char> msgSig(msgSigSize, 0);
-    sigManager->sign(result, resultSize, msgSig.data(), msgSigSize);
+    auto hash = concord::util::SHA3_256().digest(p.result, sizeof(p.result));
+    sigManager->sign(reinterpret_cast<const char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
 
     // for simplicity, copy the same signatures
     std::list<PreProcessResultSignature> resultSigs;
-    for (int i = 0; i < replicaInfo.getNumberOfReplicas(); i++) {
-      resultSigs.emplace_back(std::vector<char>(msgSig), 0);
+    for (int i = 0; i < sigCount; i++) {
+      resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i);
     }
     auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatureList(resultSigs);
 
-    return std::make_unique<PreProcessResultMsg>(senderId,
-                                                 reqSeqNum,
-                                                 resultSize,
-                                                 result,
-                                                 requestTimeoutMilli,
-                                                 correlationId,
-                                                 concordUtils::SpanContext{spanContext},
+    return std::make_unique<PreProcessResultMsg>(p.senderId,
+                                                 p.reqSeqNum,
+                                                 sizeof(p.result),
+                                                 p.result,
+                                                 p.requestTimeoutMilli,
+                                                 p.correlationId,
+                                                 concordUtils::SpanContext{p.spanContext},
                                                  msgSig.data(),
                                                  msgSig.size(),
                                                  resultSigsBuf);
   }
+
+  void messageSanityCheck(std::unique_ptr<preprocessor::PreProcessResultMsg>& m, MsgParams& p) {
+    EXPECT_EQ(m->clientProxyId(), p.senderId);
+    EXPECT_EQ(m->flags(), MsgFlag::HAS_PRE_PROCESSED_FLAG);
+    EXPECT_EQ(m->requestSeqNum(), p.reqSeqNum);
+    EXPECT_EQ(m->requestLength(), sizeof(p.result));
+    EXPECT_NE(m->requestBuf(), p.result);
+    EXPECT_TRUE(std::memcmp(m->requestBuf(), p.result, sizeof(p.result)) == 0u);
+    EXPECT_EQ(m->getCid(), p.correlationId);
+    EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), p.spanContext);
+    EXPECT_EQ(m->requestTimeoutMilli(), p.requestTimeoutMilli);
+    EXPECT_NO_THROW(m->validate(replicaInfo));
+  }
 };
 
 TEST_F(PreProcessResultMsgTestFixture, ClientRequestMsgSanityChecks) {
-  NodeIdType senderId = 5u;
-  uint64_t reqSeqNum = 100u;
-  const char result[] = {"result body"};
-  const uint64_t requestTimeoutMilli = 0;
-  const std::string correlationId = "correlationId";
-  const char rawSpanContext[] = {"span_\0context"};  // make clnag-tidy happy
-  const std::string spanContext{rawSpanContext};
-
-  auto m = createMessage(senderId, reqSeqNum, result, sizeof(result), requestTimeoutMilli, correlationId, spanContext);
-
-  // sanity check for ClientRequestMsg part of the message (the inherited part)
-  EXPECT_EQ(m->clientProxyId(), senderId);
-  EXPECT_EQ(m->flags(), MsgFlag::HAS_PRE_PROCESSED_FLAG);
-  EXPECT_EQ(m->requestSeqNum(), reqSeqNum);
-  EXPECT_EQ(m->requestLength(), sizeof(result));
-  EXPECT_NE(m->requestBuf(), result);
-  EXPECT_TRUE(std::memcmp(m->requestBuf(), result, sizeof(result)) == 0u);
-  EXPECT_EQ(m->getCid(), correlationId);
-  EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), spanContext);
-  EXPECT_EQ(m->requestTimeoutMilli(), requestTimeoutMilli);
-  EXPECT_NO_THROW(m->validate(replicaInfo));
+  MsgParams p;
+  auto m = createMessage(p, replicaInfo.getNumberOfReplicas(), false /* duplicateSigs */);
+  messageSanityCheck(m, p);
 
   // check message type
   MessageBase::Header* hdr = (MessageBase::Header*)m->body();
@@ -138,38 +139,20 @@ TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialisation) {
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
-  NodeIdType senderId = 5u;
-  uint64_t reqSeqNum = 100u;
-  const char result[] = {"result body"};
-  const uint64_t requestTimeoutMilli = 0;
-  const std::string correlationId = "correlationId";
-  const char rawSpanContext[] = {"span_\0context"};  // make clnag-tidy happy
-  const std::string spanContext{rawSpanContext};
-
-  auto serialised =
-      createMessage(senderId, reqSeqNum, result, sizeof(result), requestTimeoutMilli, correlationId, spanContext);
+  MsgParams p;
+  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
   auto m = std::make_unique<PreProcessResultMsg>((ClientRequestMsgHeader*)serialised->body());
 
-  // sanity check for ClientRequestMsg part of the message (the inherited part)
-  EXPECT_EQ(m->clientProxyId(), senderId);
-  EXPECT_EQ(m->flags(), MsgFlag::HAS_PRE_PROCESSED_FLAG);
-  EXPECT_EQ(m->requestSeqNum(), reqSeqNum);
-  EXPECT_EQ(m->requestLength(), sizeof(result));
-  EXPECT_NE(m->requestBuf(), result);
-  EXPECT_TRUE(std::memcmp(m->requestBuf(), result, sizeof(result)) == 0u);
-  EXPECT_EQ(m->getCid(), correlationId);
-  EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), spanContext);
-  EXPECT_EQ(m->requestTimeoutMilli(), requestTimeoutMilli);
-  EXPECT_NO_THROW(m->validate(replicaInfo));
+  messageSanityCheck(m, p);
 
   // check message type
   MessageBase::Header* hdr = (MessageBase::Header*)m->body();
   EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
 
   // check the result is correct
-  ASSERT_EQ(sizeof(result), m->requestLength());
+  ASSERT_EQ(sizeof(p.result), m->requestLength());
   for (int i = 0; i < m->requestLength(); i++) {
-    ASSERT_EQ(result[i], m->requestBuf()[i]);
+    ASSERT_EQ(p.result[i], m->requestBuf()[i]);
   }
 
   // Deserialise result signatures
@@ -180,7 +163,8 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   // from the message is signed and then it is compared to each signature in the message
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
-  sigManager->sign(m->requestBuf(), m->requestLength(), msgSig.data(), msgSigSize);
+  auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
+  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, 0);
     EXPECT_THAT(msgSig, s.signature);
@@ -188,38 +172,19 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
-  NodeIdType senderId = 5u;
-  uint64_t reqSeqNum = 100u;
-  const char result[] = {"result body"};
-  const uint64_t requestTimeoutMilli = 0;
-  const std::string correlationId = "correlationId";
-  const char rawSpanContext[] = {"span_\0context"};  // make clnag-tidy happy
-  const std::string spanContext{rawSpanContext};
-
-  auto serialised =
-      createMessage(senderId, reqSeqNum, result, sizeof(result), requestTimeoutMilli, correlationId, spanContext);
+  MsgParams p;
+  auto serialised = createMessage(p, replicaInfo.getNumberOfReplicas(), true /* duplicateSigs */);
   auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
-
-  // sanity check for ClientRequestMsg part of the message (the inherited part)
-  EXPECT_EQ(m->clientProxyId(), senderId);
-  EXPECT_EQ(m->flags(), MsgFlag::HAS_PRE_PROCESSED_FLAG);
-  EXPECT_EQ(m->requestSeqNum(), reqSeqNum);
-  EXPECT_EQ(m->requestLength(), sizeof(result));
-  EXPECT_NE(m->requestBuf(), result);
-  EXPECT_TRUE(std::memcmp(m->requestBuf(), result, sizeof(result)) == 0u);
-  EXPECT_EQ(m->getCid(), correlationId);
-  EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), spanContext);
-  EXPECT_EQ(m->requestTimeoutMilli(), requestTimeoutMilli);
-  EXPECT_NO_THROW(m->validate(replicaInfo));
+  messageSanityCheck(m, p);
 
   // check message type
   MessageBase::Header* hdr = (MessageBase::Header*)m->body();
   EXPECT_EQ(hdr->msgType, MsgCode::PreProcessResult);
 
   // check the result is correct
-  ASSERT_EQ(sizeof(result), m->requestLength());
+  ASSERT_EQ(sizeof(p.result), m->requestLength());
   for (int i = 0; i < m->requestLength(); i++) {
-    ASSERT_EQ(result[i], m->requestBuf()[i]);
+    ASSERT_EQ(p.result[i], m->requestBuf()[i]);
   }
 
   // Deserialise result signatures
@@ -230,11 +195,37 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   // from the message is signed and then it is compared to each signature in the message
   auto msgSigSize = sigManager->getMySigLength();
   std::vector<char> msgSig(msgSigSize, 0);
-  sigManager->sign(m->requestBuf(), m->requestLength(), msgSig.data(), msgSigSize);
+  auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
+  sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
   for (const auto& s : sigs) {
     ASSERT_EQ(s.sender_replica, 0);
     EXPECT_THAT(msgSig, s.signature);
   }
+}
+
+TEST_F(PreProcessResultMsgTestFixture, MsgWithTooMuchSigs) {
+  MsgParams p;
+  auto serialised = createMessage(p, config.fVal, false /* duplicateSigs */);
+
+  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
+  auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
+
+  std::stringstream ss;
+  ss << "unexpected number of signatures received. Expected " << config.fVal + 1 << " got " << config.fVal;
+  EXPECT_TRUE(res && res->find(ss.str()) != std::string::npos);
+}
+
+TEST_F(PreProcessResultMsgTestFixture, MsgWithDuplicatedSigs) {
+  MsgParams p;
+  auto serialised = createMessage(p, config.fVal + 1, true /* duplicateSigs */);
+
+  auto m = std::make_unique<PreProcessResultMsg>((MessageBase*)serialised.get());
+  auto res = m->validatePreProcessResultSignatures(config.replicaId, config.fVal);
+
+  std::stringstream ss;
+  ss << "got more than one signatures with the same sender id";
+  EXPECT_TRUE(res);
+  EXPECT_TRUE(res->find(ss.str()) != std::string::npos);
 }
 
 }  // namespace

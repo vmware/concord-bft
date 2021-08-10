@@ -1,6 +1,6 @@
 # Concord
 #
-# Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+# Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 #
 # This product is licensed to you under the Apache 2.0 license (the "License").
 # You may not use this product except in compliance with the Apache 2.0 License.
@@ -10,7 +10,6 @@
 # terms and conditions of the subcomponent's license, as noted in the LICENSE
 # file.
 
-import struct
 import copy
 import random
 import trio
@@ -22,6 +21,11 @@ from util import eliot_logging as log
 from util import bft
 from enum import Enum
 
+import os.path
+import sys
+sys.path.append(os.path.abspath("../../build/tests/apollo/util/"))
+import skvbc_messages
+
 WriteReply = namedtuple('WriteReply', ['success', 'last_block_id'])
 
 class ExitPolicy(Enum):
@@ -29,14 +33,14 @@ class ExitPolicy(Enum):
     TIME = 1
 
 class SimpleKVBCProtocol:
-    KV_LEN = 21  ## SimpleKVBC requies fixed size keys and values right now
-    READ_LATEST = 0xFFFFFFFFFFFFFFFF
+    # Length to use for randomly generated key and value strings; this length is
+    # effectively arbitrary as the SimpleKVBC protocol permits key and value
+    # bytestrings of any length (usually up to some practical
+    # implementation-imposed upper length limits).
+    LENGTH_FOR_RANDOM_KVS = 21
 
-    READ = 1
-    WRITE = 2
-    GET_LAST_BLOCK = 3
-    GET_BLOCK_DATA = 4
-    LONG_EXEC_WRITE = 5
+    # Maximum value for a 64-bit unsigned integer.
+    READ_LATEST = 0xFFFFFFFFFFFFFFFF
 
     """
     An implementation of the wire protocol for SimpleKVBC requests.
@@ -55,93 +59,61 @@ class SimpleKVBCProtocol:
 
     @classmethod
     def write_req(cls, readset, writeset, block_id, long_exec=False):
-        data = bytearray()
-        # A conditional write request type
-        if long_exec is True:
-            data.append(cls.LONG_EXEC_WRITE)
-        else:
-            data.append(cls.WRITE)
-        # SimpleConditionalWriteHeader
-        data.extend(
-            struct.pack("<QQQ", block_id, len(readset), len(writeset)))
-        # SimpleKey[numberOfKeysInReadSet]
-        for r in readset:
-            data.extend(r)
-        # SimpleKV[numberOfWrites]
-        for kv in writeset:
-            data.extend(kv[0])
-            data.extend(kv[1])
-
-        return data
+        write_request = skvbc_messages.SKVBCWriteRequest()
+        write_request.read_version = block_id
+        write_request.long_exec = long_exec
+        write_request.readset = list(readset)
+        write_request.writeset = writeset
+        request = skvbc_messages.SKVBCRequest()
+        request.request = write_request
+        return request.serialize()
 
     @classmethod
     def read_req(cls, readset, block_id=READ_LATEST):
-        data = bytearray()
-        data.append(cls.READ)
-        # SimpleReadHeader
-        data.extend(struct.pack("<QQ", block_id, len(readset)))
-        # SimpleKey[numberOfKeysToRead]
-        for r in readset:
-            data.extend(r)
-        return data
+        read_request = skvbc_messages.SKVBCReadRequest()
+        read_request.read_version = block_id
+        read_request.keys = list(readset)
+        request = skvbc_messages.SKVBCRequest()
+        request.request = read_request
+        return request.serialize()
 
     @classmethod
     def get_last_block_req(cls):
-        data = bytearray()
-        data.append(cls.GET_LAST_BLOCK)
-        return data
+        request = skvbc_messages.SKVBCRequest()
+        request.request = skvbc_messages.SKVBCGetLastBlockRequest()
+        return request.serialize()
 
     @classmethod
     def get_block_data_req(cls, block_id):
-        data = bytearray()
-        data.append(cls.GET_BLOCK_DATA)
-        data.extend(struct.pack("<Q", block_id))
-        return data
+        get_block_data_request = skvbc_messages.SKVBCGetBlockDataRequest()
+        get_block_data_request.block_id = block_id
+        request = skvbc_messages.SKVBCRequest()
+        request.request = get_block_data_request
+        return request.serialize()
 
     @classmethod
     def parse_reply(cls, data):
-        reply_type = data[0]
-        if reply_type == cls.WRITE:
-            return cls.parse_write_reply(data[1:])
-        elif reply_type == cls.READ:
-            return cls.parse_read_reply(data[1:])
-        elif reply_type == cls.GET_LAST_BLOCK:
-            return cls.parse_get_last_block_reply(data[1:])
+        (reply, offset) = skvbc_messages.SKVBCReply.deserialize(data)
+        if isinstance(reply.reply, skvbc_messages.SKVBCWriteReply):
+            return WriteReply(reply.reply.success, reply.reply.latest_block)
+        elif isinstance(reply.reply, skvbc_messages.SKVBCReadReply):
+            return dict(reply.reply.reads)
+        elif isinstance(reply.reply, skvbc_messages.SKVBCGetLastBlockReply):
+            return reply.reply.latest_block
         else:
             raise BadReplyError
 
-    @staticmethod
-    def parse_write_reply(data):
-        return WriteReply._make(struct.unpack("<?Q", data))
-
-    @classmethod
-    def parse_read_reply(cls, data):
-        num_kv_pairs = struct.unpack("<Q", data[0:8])[0]
-        data = data[8:]
-        kv_pairs = {}
-        for i in range(num_kv_pairs):
-            kv_pairs[data[0:cls.KV_LEN]] = data[cls.KV_LEN:2 * cls.KV_LEN]
-            if i + 1 != num_kv_pairs:
-                data = data[2 * cls.KV_LEN:]
-        return kv_pairs
-
-    @staticmethod
-    def parse_get_last_block_reply(data):
-        return struct.unpack("<Q", data)[0]
-
-    @staticmethod
-    def parse_have_you_stopped_reply(data):
-        with log.start_action(action_type="parse_have_you_stopped_reply"):
-            return struct.unpack("<q", data)[0]
-
     def initial_state(self):
-        """Return a dict with KV_LEN zero byte values for all keys"""
+        """
+        Return a dict with empty byte strings (which is the value SKVBC will
+        report for any key that has never been written to) for all keys
+        """
         with log.start_action(action_type="initial_state"):
-            all_zeros = b''.join([b'\x00' for _ in range(0, self.KV_LEN)])
-            return dict([(k, all_zeros) for k in self.keys])
+            empty_byte_string = b''
+            return dict([(k, empty_byte_string) for k in self.keys])
 
     def random_value(self):
-        return bytes(random.sample(self.alphanum, self.KV_LEN))
+        return bytes(random.sample(self.alphanum, self.LENGTH_FOR_RANDOM_KVS))
 
     def random_values(self, n):
         return [self.random_value() for _ in range(0, n)]
@@ -159,7 +131,7 @@ class SimpleKVBCProtocol:
         from a list of pre-generated keys. Use a prefix of '1' so that every key
         is different than keys pre-generated by _create_keys().
         """
-        unique_random = bytes(random.sample(self.alphanum, self.KV_LEN - 1))
+        unique_random = bytes(random.sample(self.alphanum, self.LENGTH_FOR_RANDOM_KVS - 1))
         return b'1' + unique_random
 
     @classmethod
@@ -167,7 +139,7 @@ class SimpleKVBCProtocol:
         """
         Return the maximum possible key according to the schema in _create_keys.
         """
-        return b''.join([b'Z' for _ in range(0, cls.KV_LEN)])
+        return b''.join([b'Z' for _ in range(0, cls.LENGTH_FOR_RANDOM_KVS)])
 
     async def send_indefinite_write_requests(self, client=None, delay=.1):
         with log.start_action(action_type="send_indefinite_write_requests"):
@@ -361,7 +333,7 @@ class SimpleKVBCProtocol:
         value reaches 'Z', a new character is appended and the sequence starts
         over again.
 
-        Since all keys must be KV_LEN bytes long, they are extended with '.'
+        All keys are extended with '.' to LENGTH_FOR_RANDOM_KVS bytes with '.'
         characters.
         """
         with log.start_action(action_type="_create_keys"):
@@ -377,8 +349,8 @@ class SimpleKVBCProtocol:
                 else:
                     cur[-1] = end + 1
                 key = copy.deepcopy(cur)
-                # Extend the key to be KV_LEN bytes
-                key.extend([ord('.') for _ in range(self.KV_LEN - len(cur))])
+                # Extend the key to be LENGTH_FOR_RANDOM_KVS bytes
+                key.extend([ord('.') for _ in range(self.LENGTH_FOR_RANDOM_KVS - len(cur))])
                 keys.append(bytes(key))
 
             return keys
