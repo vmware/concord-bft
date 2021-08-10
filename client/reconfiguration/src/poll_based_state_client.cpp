@@ -25,6 +25,7 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
   bft::client::Msg msg;
   concord::messages::serialize(msg, rreq);
   bft::client::Reply rep;
+  concord::messages::ReconfigurationResponse rres;
   try {
     if (read_request) {
       bft::client::ReadConfig read_config{request_config, bft::client::LinearizableQuorum{}};
@@ -35,11 +36,9 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
     }
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), "error while initiating bft request " << e.what());
-    concord::messages::ReconfigurationResponse rres;
     rres.success = false;
     return rres;
   }
-  concord::messages::ReconfigurationResponse rres;
   concord::messages::deserialize(rep.matched_data, rres);
   return rres;
 }

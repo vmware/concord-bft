@@ -13,7 +13,7 @@ import os.path
 import unittest
 from shutil import copy2
 import trio
-
+import difflib
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, TestConfig
 from util import operator
@@ -181,6 +181,23 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 succ = True
                 pub_key = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
                 if pub_key == "" or pub_key == prev_pub_key:
+                    succ = False
+        with trio.fail_after(30):
+            succ = False
+            while not succ:
+                await trio.sleep(1)
+                succ = True
+                priv_key_path = os.path.join(bft_network.txn_signing_keys_base_path, "transaction_signing_keys", str(bft_network.principals_to_participant_map[bft_network.cre_id]), "transaction_signing_priv.pem")
+                new_priv_path = priv_key_path + ".new"
+                if not os.path.isfile(new_priv_path):
+                    succ = False
+                    continue
+                with open(priv_key_path) as orig_key:
+                    orig_key_text = orig_key.readlines()
+                with open(new_priv_path) as new_key:
+                    new_key_text = new_key.readlines()
+                diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
+                for line in diff:
                     succ = False
         bft_network.stop_cre()
         bft_network.start_cre()

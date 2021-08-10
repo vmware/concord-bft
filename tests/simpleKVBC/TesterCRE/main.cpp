@@ -165,7 +165,6 @@ class KeyExchangeCommandHandler : public IStateHandler {
              old_path += ".old";
              fs::copy(this->key_path_, old_path, fs::copy_options::update_existing);
              fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
-             fs::remove(new_key_path);
              fs::remove(old_path);
              LOG_INFO(this->getLogger(), "exchanged keys");
            }};
