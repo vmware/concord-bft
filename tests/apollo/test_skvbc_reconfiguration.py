@@ -220,7 +220,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 assert(k == client_id)
                 if pub_key is None:
                     pub_key = v.pub_key
-                assert (pub_key == v.pub_key)
+                if pub_key != v.pub_key:
+                    return "" # Not all live replicas have managed to complete the procedure yet
         return pub_key
 
     @with_trio
