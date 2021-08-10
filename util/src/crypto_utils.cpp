@@ -11,9 +11,13 @@
 // terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 #include "crypto_utils.hpp"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
 #include <cryptopp/dll.h>
 #include <cryptopp/pem.h>
 #include <cryptopp/rsa.h>
+#pragma GCC diagnostic pop
 
 namespace concord::util {
 class Crypto::Impl {
