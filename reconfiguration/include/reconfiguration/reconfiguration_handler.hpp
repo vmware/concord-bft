@@ -20,6 +20,7 @@
 #include "Crypto.hpp"
 #include "openssl_crypto.hpp"
 #include "SigManager.hpp"
+#include "crypto_utils.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
@@ -27,8 +28,7 @@ class BftReconfigurationHandler : public IReconfigurationHandler {
   BftReconfigurationHandler();
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
 
-  std::unique_ptr<concord::util::openssl_utils::AsymmetricPublicKey> pub_key_ = nullptr;
-  std::unique_ptr<bftEngine::impl::IVerifier> verifier_ = nullptr;
+  std::unique_ptr<concord::util::crypto::IVerifier> verifier_;
 };
 class ReconfigurationHandler : public BftReconfigurationHandler {
  public:
