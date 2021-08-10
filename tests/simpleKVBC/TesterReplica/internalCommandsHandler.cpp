@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2020 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -27,22 +27,10 @@ using namespace BasicRandomTests;
 using namespace bftEngine;
 using namespace concord::kvbc::categorization;
 
-using std::holds_alternative;
-using std::runtime_error;
-using std::string;
-
+using concordUtils::Sliver;
 using concord::kvbc::BlockId;
 using concord::kvbc::KeyValuePair;
 using concord::storage::SetOfKeyValuePairs;
-using skvbc::messages::SKVBCGetBlockDataRequest;
-using skvbc::messages::SKVBCGetLastBlockReply;
-using skvbc::messages::SKVBCGetLastBlockRequest;
-using skvbc::messages::SKVBCReadReply;
-using skvbc::messages::SKVBCReadRequest;
-using skvbc::messages::SKVBCReply;
-using skvbc::messages::SKVBCRequest;
-using skvbc::messages::SKVBCWriteReply;
-using skvbc::messages::SKVBCWriteRequest;
 
 using Hasher = concord::util::SHA3_256;
 using Hash = Hasher::Digest;
@@ -93,8 +81,10 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
     if (req.outExecutionStatus != 1) continue;
     req.outReplicaSpecificInfoSize = 0;
     int res;
-    if (req.requestSize <= 0) {
-      LOG_ERROR(m_logger, "Received size-0 request.");
+    if (req.requestSize < sizeof(SimpleRequest)) {
+      LOG_ERROR(m_logger,
+                "The message is too small: requestSize is " << req.requestSize << ", required size is "
+                                                            << sizeof(SimpleRequest));
       req.outExecutionStatus = -1;
       continue;
     }
@@ -138,6 +128,12 @@ void InternalCommandsHandler::addMetadataKeyValue(VersionedUpdates &updates, uin
                     m_blockMetadata->serialize(sequenceNum));
 }
 
+Sliver InternalCommandsHandler::buildSliverFromStaticBuf(char *buf) {
+  char *newBuf = new char[KV_LEN];
+  memcpy(newBuf, buf, KV_LEN);
+  return Sliver(newBuf, KV_LEN);
+}
+
 std::optional<std::string> InternalCommandsHandler::get(const std::string &key, BlockId blockId) const {
   const auto v = m_storage->get(keyToCategory(key), key, blockId);
   if (!v) {
@@ -148,10 +144,10 @@ std::optional<std::string> InternalCommandsHandler::get(const std::string &key, 
 
 std::string InternalCommandsHandler::getAtMost(const std::string &key, BlockId current) const {
   if (m_storage->getLastBlockId() == 0 || m_storage->getGenesisBlockId() == 0 || current == 0) {
-    return std::string();
+    return std::string(KV_LEN, '\0');
   }
 
-  auto value = std::string();
+  auto value = std::string(KV_LEN, '\0');
   do {
     const auto v = get(key, current);
     if (v) {
@@ -166,7 +162,7 @@ std::string InternalCommandsHandler::getAtMost(const std::string &key, BlockId c
 std::string InternalCommandsHandler::getLatest(const std::string &key) const {
   const auto v = m_storage->getLatest(keyToCategory(key), key);
   if (!v) {
-    return std::string();
+    return std::string(KV_LEN, '\0');
   }
   return std::visit([](const auto &v) { return v.data; }, *v);
 }
@@ -221,47 +217,31 @@ void InternalCommandsHandler::writeAccumulatedBlock(ExecutionRequestsQueue &bloc
 
   for (auto &req : blockedRequests) {
     if (req.flags & bftEngine::MsgFlag::HAS_PRE_PROCESSED_FLAG) {
-      SKVBCReply reply;
-      size_t existing_reply_size = req.outActualReplySize;
-      static_assert(sizeof(*(req.outReply)) == sizeof(uint8_t),
-                    "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
-                    "pointer type used by CMF.");
-      const uint8_t *reply_buffer_as_uint8 = reinterpret_cast<uint8_t *>(req.outReply);
-      deserialize(reply_buffer_as_uint8, reply_buffer_as_uint8 + req.outActualReplySize, reply);
-      SKVBCWriteReply &write_rep = std::get<SKVBCWriteReply>(reply.reply);
-      write_rep.latest_block = currBlock + 1;
-      vector<uint8_t> serialized_reply;
-      serialize(serialized_reply, reply);
-
-      // We expect modifying the value of latest_block in the SKVBCWriteReply
-      // will not alter the length of its serialization.
-      ConcordAssert(existing_reply_size == serialized_reply.size());
-
-      copy(serialized_reply.begin(), serialized_reply.end(), req.outReply);
+      auto *reply = (SimpleReply_ConditionalWrite *)req.outReply;
+      reply->latestBlock = currBlock + 1;
       LOG_INFO(
           m_logger,
-          "SKVBCWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << write_rep.latest_block);
+          "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << reply->latestBlock);
     }
   }
   addBlock(verUpdates, merkleUpdates);
 }
 
 bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
-                                                 const uint8_t *request,
+                                                 const SimpleCondWriteRequest &request,
                                                  size_t maxReplySize,
                                                  uint32_t &outReplySize) const {
-  SKVBCRequest deserialized_request;
-  try {
-    deserialize(request, request + requestSize, deserialized_request);
-  } catch (const runtime_error &e) {
-    LOG_ERROR(m_logger, "Failed to deserialize SKVBCRequest: " << e.what());
+  if (requestSize < sizeof(SimpleCondWriteRequest)) {
+    LOG_ERROR(m_logger,
+              "The message is too small: requestSize is " << requestSize << ", required size is "
+                                                          << sizeof(SimpleCondWriteRequest));
     return false;
   }
-  if (!holds_alternative<SKVBCWriteRequest>(deserialized_request.request)) {
-    LOG_ERROR(m_logger, "Received an SKVBCRequest other than an SKVBCWriteRequest but not marked as read-only.");
+  if (requestSize < sizeof(request)) {
+    LOG_ERROR(m_logger,
+              "The message is too small: requestSize is " << requestSize << ", required size is " << sizeof(request));
     return false;
   }
-
   if (maxReplySize < outReplySize) {
     LOG_ERROR(m_logger, "replySize is too big: replySize=" << outReplySize << ", maxReplySize=" << maxReplySize);
     return false;
@@ -269,20 +249,14 @@ bool InternalCommandsHandler::verifyWriteCommand(uint32_t requestSize,
   return true;
 }
 
-void InternalCommandsHandler::addKeys(const SKVBCWriteRequest &writeReq,
+void InternalCommandsHandler::addKeys(SimpleCondWriteRequest *writeReq,
                                       uint64_t sequenceNum,
                                       VersionedUpdates &verUpdates,
                                       BlockMerkleUpdates &merkleUpdates) {
-  for (size_t i = 0; i < writeReq.writeset.size(); i++) {
-    static_assert(
-        (sizeof(*(writeReq.writeset[i].first.data())) == sizeof(string::value_type)) &&
-            (sizeof(*(writeReq.writeset[i].second.data())) == sizeof(string::value_type)),
-        "Byte pointer type used by concord::kvbc::categorization::VersionedUpdates and/or "
-        "concord::kvbc::categorization::BlockMerkleUpdates is incompatible with byte pointer type used by CMF.");
-    add(string(reinterpret_cast<const string::value_type *>(writeReq.writeset[i].first.data()),
-               writeReq.writeset[i].first.size()),
-        string(reinterpret_cast<const string::value_type *>(writeReq.writeset[i].second.data()),
-               writeReq.writeset[i].second.size()),
+  SimpleKV *keyValArray = writeReq->keyValueArray();
+  for (size_t i = 0; i < writeReq->numOfWrites; i++) {
+    add(std::string(keyValArray[i].simpleKey.key, KV_LEN),
+        std::string(keyValArray[i].simpleValue.value, KV_LEN),
         verUpdates,
         merkleUpdates);
   }
@@ -325,56 +299,37 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
                                                   bool isBlockAccumulationEnabled,
                                                   VersionedUpdates &blockAccumulatedVerUpdates,
                                                   BlockMerkleUpdates &blockAccumulatedMerkleUpdates) {
-  static_assert(sizeof(*request) == sizeof(uint8_t),
-                "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
-                "pointer type used by CMF.");
-  const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(request);
-  if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
-    bool result = verifyWriteCommand(requestSize, request_buffer_as_uint8, maxReplySize, outReplySize);
-    if (!result) ConcordAssert(0);
-    if (flags & MsgFlag::PRE_PROCESS_FLAG) {
-      SKVBCRequest deserialized_request;
-      deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
-      const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
-      LOG_INFO(m_logger,
-               "Execute WRITE command:"
-                   << " type=SKVBCWriteRequest seqNum=" << sequenceNum << " numOfWrites=" << write_req.writeset.size()
-                   << " numOfKeysInReadSet=" << write_req.readset.size() << " readVersion=" << write_req.read_version
-                   << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
-                   << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
-                   << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false")
-                   << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled);
-      if (write_req.long_exec) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
-      outReplySize = requestSize;
-      memcpy(outReply, request, requestSize);
-      return result;
-    }
-  }
-  SKVBCRequest deserialized_request;
-  deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
-  const SKVBCWriteRequest &write_req = std::get<SKVBCWriteRequest>(deserialized_request.request);
+  auto *writeReq = (SimpleCondWriteRequest *)request;
   LOG_INFO(m_logger,
            "Execute WRITE command:"
-               << " type=SKVBCWriteRequest seqNum=" << sequenceNum << " numOfWrites=" << write_req.writeset.size()
-               << " numOfKeysInReadSet=" << write_req.readset.size() << " readVersion=" << write_req.read_version
+               << " type=" << writeReq->header.type << " seqNum=" << sequenceNum
+               << " numOfWrites=" << writeReq->numOfWrites << " numOfKeysInReadSet=" << writeReq->numOfKeysInReadSet
+               << " readVersion=" << writeReq->readVersion
                << " READ_ONLY_FLAG=" << ((flags & MsgFlag::READ_ONLY_FLAG) != 0 ? "true" : "false")
                << " PRE_PROCESS_FLAG=" << ((flags & MsgFlag::PRE_PROCESS_FLAG) != 0 ? "true" : "false")
                << " HAS_PRE_PROCESSED_FLAG=" << ((flags & MsgFlag::HAS_PRE_PROCESSED_FLAG) != 0 ? "true" : "false")
                << " BLOCK_ACCUMULATION_ENABLED=" << isBlockAccumulationEnabled);
 
+  if (!(flags & MsgFlag::HAS_PRE_PROCESSED_FLAG)) {
+    bool result = verifyWriteCommand(requestSize, *writeReq, maxReplySize, outReplySize);
+    if (!result) ConcordAssert(0);
+    if (flags & MsgFlag::PRE_PROCESS_FLAG) {
+      if (writeReq->header.type == LONG_EXEC_COND_WRITE) sleep(LONG_EXEC_CMD_TIME_IN_SEC);
+      outReplySize = requestSize;
+      memcpy(outReply, request, requestSize);
+      return result;
+    }
+  }
+
+  SimpleKey *readSetArray = writeReq->readSetArray();
   BlockId currBlock = m_storage->getLastBlockId();
 
   // Look for conflicts
   bool hasConflict = false;
-  for (size_t i = 0; !hasConflict && i < write_req.readset.size(); i++) {
-    static_assert(
-        sizeof(*(write_req.readset[i].data())) == sizeof(string::value_type),
-        "Byte pointer type used by concord::kvbc::IReader, concord::kvbc::categorization::VersionedUpdates, and/or "
-        "concord::kvbc::categorization::BlockMerkleUpdatesis incompatible with byte pointer type used by CMF.");
-    const string key =
-        string(reinterpret_cast<const string::value_type *>(write_req.readset[i].data()), write_req.readset[i].size());
+  for (size_t i = 0; !hasConflict && i < writeReq->numOfKeysInReadSet; i++) {
+    const auto key = std::string(readSetArray[i].key, KV_LEN);
     const auto latest_ver = getLatestVersion(key);
-    hasConflict = (latest_ver && latest_ver > write_req.read_version);
+    hasConflict = (latest_ver && latest_ver > writeReq->readVersion);
     if (isBlockAccumulationEnabled && !hasConflict) {
       if (hasConflictInBlockAccumulatedRequests(key, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates)) {
         hasConflict = true;
@@ -385,46 +340,48 @@ bool InternalCommandsHandler::executeWriteCommand(uint32_t requestSize,
   if (!hasConflict) {
     if (isBlockAccumulationEnabled) {
       // If Block Accumulation is enabled then blocks are added after all requests are processed
-      addKeys(write_req, sequenceNum, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates);
+      addKeys(writeReq, sequenceNum, blockAccumulatedVerUpdates, blockAccumulatedMerkleUpdates);
     } else {
       // If Block Accumulation is not enabled then blocks are added after all requests are processed
       VersionedUpdates verUpdates;
       BlockMerkleUpdates merkleUpdates;
-      addKeys(write_req, sequenceNum, verUpdates, merkleUpdates);
+      addKeys(writeReq, sequenceNum, verUpdates, merkleUpdates);
       addBlock(verUpdates, merkleUpdates);
     }
   }
 
-  SKVBCReply reply;
-  reply.reply = SKVBCWriteReply();
-  SKVBCWriteReply &write_rep = std::get<SKVBCWriteReply>(reply.reply);
-  write_rep.success = (!hasConflict);
+  ConcordAssert(sizeof(SimpleReply_ConditionalWrite) <= maxReplySize);
+  auto *reply = (SimpleReply_ConditionalWrite *)outReply;
+  reply->header.type = COND_WRITE;
+  reply->success = (!hasConflict);
   if (!hasConflict)
-    write_rep.latest_block = currBlock + 1;
+    reply->latestBlock = currBlock + 1;
   else
-    write_rep.latest_block = currBlock;
+    reply->latestBlock = currBlock;
 
-  vector<uint8_t> serialized_reply;
-  serialize(serialized_reply, reply);
-  ConcordAssert(serialized_reply.size() <= maxReplySize);
-  copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-  outReplySize = serialized_reply.size();
+  outReplySize = sizeof(SimpleReply_ConditionalWrite);
   ++m_writesCounter;
 
   if (!isBlockAccumulationEnabled)
-    LOG_INFO(m_logger,
-             "ConditionalWrite message handled; writesCounter=" << m_writesCounter
-                                                                << " currBlock=" << write_rep.latest_block);
+    LOG_INFO(
+        m_logger,
+        "ConditionalWrite message handled; writesCounter=" << m_writesCounter << " currBlock=" << reply->latestBlock);
   return true;
 }
 
-bool InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCGetBlockDataRequest &request,
-                                                         size_t maxReplySize,
-                                                         char *outReply,
-                                                         uint32_t &outReplySize) {
-  LOG_INFO(m_logger, "Execute GET_BLOCK_DATA command: type=SKVBCGetBlockDataRequest, BlockId=" << request.block_id);
+bool InternalCommandsHandler::executeGetBlockDataCommand(
+    uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize) {
+  auto *req = (SimpleGetBlockDataRequest *)request;
+  LOG_INFO(m_logger, "Execute GET_BLOCK_DATA command: type=" << req->h.type << ", BlockId=" << req->block_id);
 
-  auto block_id = request.block_id;
+  auto minRequestSize = std::max(sizeof(SimpleGetBlockDataRequest), req->size());
+  if (requestSize < minRequestSize) {
+    LOG_ERROR(m_logger,
+              "The message is too small: requestSize=" << requestSize << ", minRequestSize=" << minRequestSize);
+    return false;
+  }
+
+  auto block_id = req->block_id;
   const auto updates = getBlockUpdates(block_id);
   if (!updates) {
     LOG_ERROR(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
@@ -434,95 +391,102 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCGetBlockData
   // Each block contains a single metadata key holding the sequence number
   const int numMetadataKeys = 1;
   auto numOfElements = updates->size() - numMetadataKeys;
+  size_t replySize = SimpleReply_Read::getSize(numOfElements);
   LOG_INFO(m_logger, "NUM OF ELEMENTS IN BLOCK = " << numOfElements);
+  if (maxReplySize < replySize) {
+    LOG_ERROR(m_logger, "replySize is too big: replySize=" << replySize << ", maxReplySize=" << maxReplySize);
+    return false;
+  }
 
-  SKVBCReply reply;
-  reply.reply = SKVBCReadReply();
-  SKVBCReadReply &read_rep = std::get<SKVBCReadReply>(reply.reply);
-  read_rep.reads.resize(numOfElements);
-  size_t i = 0;
+  SimpleReply_Read *pReply = (SimpleReply_Read *)(outReply);
+  outReplySize = replySize;
+  memset(pReply, 0, replySize);
+  pReply->header.type = READ;
+  pReply->numOfItems = numOfElements;
+
+  auto i = 0;
   for (const auto &[key, value] : *updates) {
     if (key != concord::kvbc::IBlockMetadata::kBlockMetadataKeyStr) {
-      read_rep.reads[i].first.assign(key.begin(), key.end());
-      read_rep.reads[i].second.assign(value.begin(), value.end());
+      memcpy(pReply->items[i].simpleKey.key, key.data(), KV_LEN);
+      memcpy(pReply->items[i].simpleValue.value, value.data(), KV_LEN);
       ++i;
     }
   }
-
-  vector<uint8_t> serialized_reply;
-  serialize(serialized_reply, reply);
-  if (maxReplySize < serialized_reply.size()) {
-    LOG_ERROR(m_logger,
-              "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
-    return false;
-  }
-  copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-  outReplySize = serialized_reply.size();
   return true;
 }
 
-bool InternalCommandsHandler::executeReadCommand(const SKVBCReadRequest &request,
-                                                 size_t maxReplySize,
-                                                 char *outReply,
-                                                 uint32_t &outReplySize) {
+bool InternalCommandsHandler::executeReadCommand(
+    uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize) {
+  auto *readReq = (SimpleReadRequest *)request;
   LOG_INFO(m_logger,
-           "Execute READ command: type=SKVBCReadRequest, numberOfKeysToRead=" << request.keys.size() << ", readVersion="
-                                                                              << request.read_version);
+           "Execute READ command: type=" << readReq->header.type << ", numberOfKeysToRead="
+                                         << readReq->numberOfKeysToRead << ", readVersion=" << readReq->readVersion);
 
-  SKVBCReply reply;
-  reply.reply = SKVBCReadReply();
-  SKVBCReadReply &read_rep = std::get<SKVBCReadReply>(reply.reply);
-  read_rep.reads.resize(request.keys.size());
-  for (size_t i = 0; i < request.keys.size(); i++) {
-    read_rep.reads[i].first = request.keys[i];
-    string value = "";
-    static_assert(
-        sizeof(*(request.keys[i].data())) == sizeof(string::value_type),
-        "Byte pointer type used by concord::kvbc::IReader is incompatible with byte pointer type used by CMF.");
-    string key(reinterpret_cast<const string::value_type *>(request.keys[i].data()), request.keys[i].size());
-    if (request.read_version > m_storage->getLastBlockId()) {
-      value = getLatest(key);
-    } else {
-      value = getAtMost(key, request.read_version);
-    }
-    read_rep.reads[i].second.assign(value.begin(), value.end());
-  }
-
-  vector<uint8_t> serialized_reply;
-  serialize(serialized_reply, reply);
-  if (maxReplySize < serialized_reply.size()) {
+  auto minRequestSize = std::max(sizeof(SimpleReadRequest), readReq->getSize());
+  if (requestSize < minRequestSize) {
     LOG_ERROR(m_logger,
-              "replySize is too big: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
+              "The message is too small: requestSize=" << requestSize << ", minRequestSize=" << minRequestSize);
     return false;
   }
-  copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-  outReplySize = serialized_reply.size();
+
+  size_t numOfItems = readReq->numberOfKeysToRead;
+  size_t replySize = SimpleReply_Read::getSize(numOfItems);
+
+  if (maxReplySize < replySize) {
+    LOG_ERROR(m_logger, "replySize is too big: replySize=" << replySize << ", maxReplySize=" << maxReplySize);
+    return false;
+  }
+
+  auto *reply = (SimpleReply_Read *)(outReply);
+  outReplySize = replySize;
+  reply->header.type = READ;
+  reply->numOfItems = numOfItems;
+
+  SimpleKey *readKeys = readReq->keys;
+  SimpleKV *replyItems = reply->items;
+  for (size_t i = 0; i < numOfItems; i++) {
+    memcpy(replyItems->simpleKey.key, readKeys->key, KV_LEN);
+    auto value = std::string(KV_LEN, '\0');
+    if (readReq->readVersion > m_storage->getLastBlockId()) {
+      value = getLatest(std::string(readKeys->key, KV_LEN));
+    } else {
+      value = getAtMost(std::string(readKeys->key, KV_LEN), readReq->readVersion);
+    }
+    memcpy(replyItems->simpleValue.value, value.data(), KV_LEN);
+    ++readKeys;
+    ++replyItems;
+  }
   ++m_readsCounter;
   LOG_INFO(m_logger, "READ message handled; readsCounter=" << m_readsCounter);
   return true;
 }
 
-bool InternalCommandsHandler::executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize) {
+bool InternalCommandsHandler::executeGetLastBlockCommand(uint32_t requestSize,
+                                                         size_t maxReplySize,
+                                                         char *outReply,
+                                                         uint32_t &outReplySize) {
   LOG_INFO(m_logger, "GET LAST BLOCK!!!");
 
-  SKVBCReply reply;
-  reply.reply = SKVBCGetLastBlockReply();
-  SKVBCGetLastBlockReply &glb_rep = std::get<SKVBCGetLastBlockReply>(reply.reply);
-  glb_rep.latest_block = m_storage->getLastBlockId();
-
-  vector<uint8_t> serialized_reply;
-  serialize(serialized_reply, reply);
-  if (maxReplySize < serialized_reply.size()) {
+  if (requestSize < sizeof(SimpleGetLastBlockRequest)) {
     LOG_ERROR(m_logger,
-              "maxReplySize is too small: replySize=" << serialized_reply.size() << ", maxReplySize=" << maxReplySize);
+              "The message is too small: requestSize is " << requestSize << ", required size is "
+                                                          << sizeof(SimpleGetLastBlockRequest));
     return false;
   }
-  copy(serialized_reply.begin(), serialized_reply.end(), outReply);
-  outReplySize = serialized_reply.size();
+
+  outReplySize = sizeof(SimpleReply_GetLastBlock);
+  if (maxReplySize < outReplySize) {
+    LOG_ERROR(m_logger, "maxReplySize is too small: replySize=" << outReplySize << ", maxReplySize=" << maxReplySize);
+    return false;
+  }
+
+  auto *reply = (SimpleReply_GetLastBlock *)(outReply);
+  reply->header.type = GET_LAST_BLOCK;
+  reply->latestBlock = m_storage->getLastBlockId();
   ++m_getLastBlockCounter;
   LOG_INFO(m_logger,
            "GetLastBlock message handled; getLastBlockCounter=" << m_getLastBlockCounter
-                                                                << ", latestBlock=" << glb_rep.latest_block);
+                                                                << ", latestBlock=" << reply->latestBlock);
   return true;
 }
 
@@ -532,29 +496,16 @@ bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
                                                      char *outReply,
                                                      uint32_t &outReplySize,
                                                      uint32_t &specificReplicaInfoOutReplySize) {
-  SKVBCRequest deserialized_request;
-  try {
-    static_assert(sizeof(*request) == sizeof(uint8_t),
-                  "Byte pointer type used by bftEngine::IRequestsHandler::ExecutionRequest is incompatible with byte "
-                  "pointer type used by CMF.");
-    const uint8_t *request_buffer_as_uint8 = reinterpret_cast<const uint8_t *>(request);
-    deserialize(request_buffer_as_uint8, request_buffer_as_uint8 + requestSize, deserialized_request);
-  } catch (const runtime_error &e) {
-    outReplySize = 0;
-    LOG_ERROR(m_logger, "Failed to deserialize SKVBCRequest: " << e.what());
-    return false;
-  }
-  if (holds_alternative<SKVBCReadRequest>(deserialized_request.request)) {
-    return executeReadCommand(
-        std::get<SKVBCReadRequest>(deserialized_request.request), maxReplySize, outReply, outReplySize);
-  } else if (holds_alternative<SKVBCGetLastBlockRequest>(deserialized_request.request)) {
-    return executeGetLastBlockCommand(maxReplySize, outReply, outReplySize);
-  } else if (holds_alternative<SKVBCGetBlockDataRequest>(deserialized_request.request)) {
-    return executeGetBlockDataCommand(
-        std::get<SKVBCGetBlockDataRequest>(deserialized_request.request), maxReplySize, outReply, outReplySize);
+  auto *requestHeader = (SimpleRequest *)request;
+  if (requestHeader->type == READ) {
+    return executeReadCommand(requestSize, request, maxReplySize, outReply, outReplySize);
+  } else if (requestHeader->type == GET_LAST_BLOCK) {
+    return executeGetLastBlockCommand(requestSize, maxReplySize, outReply, outReplySize);
+  } else if (requestHeader->type == GET_BLOCK_DATA) {
+    return executeGetBlockDataCommand(requestSize, request, maxReplySize, outReply, outReplySize);
   } else {
     outReplySize = 0;
-    LOG_ERROR(m_logger, "Received read-only request of unrecognized message type.");
+    LOG_ERROR(m_logger, "Illegal message received: requestHeader->type=" << requestHeader->type);
     return false;
   }
 }
