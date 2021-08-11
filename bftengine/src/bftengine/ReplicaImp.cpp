@@ -2463,7 +2463,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
       SeqNumInfo &seqNumInfo = mainLog->get(i);
 
-      if (seqNumInfo.getPrePrepareMsg() != nullptr) {
+      if (seqNumInfo.getPrePrepareMsg() != nullptr && seqNumInfo.isTimeCorrect()) {
         ViewsManager::PrevViewInfo x;
 
         seqNumInfo.getAndReset(x.prePrepare, x.prepareFull);
