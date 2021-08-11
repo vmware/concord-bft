@@ -12,7 +12,11 @@ set(common_source_files
 
 add_library(common OBJECT ${common_source_files})
 
-target_include_directories(common PRIVATE ../include .)
+if(BUILD_THIRDPARTY)
+    add_dependencies(common relic)
+endif()
+
+target_include_directories(common PRIVATE ../include ${RELIC_INCLUDE_DIRS})
 
 add_subdirectory(bls)
 if (BUILD_TESTING)

@@ -49,15 +49,15 @@ ClientRequestMsg create_client_request() {
                           concordUtils::SpanContext{spanContext});
 }
 
-std::string getRandomStingOfLength(size_t len) {
-  std::vector<char> alphabet{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'p',
+std::string getRandomStringOfLength(size_t len) {
+  std::vector<char> alphabet{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
                              'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
                              'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
                              'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ' '};
 
   std::mt19937_64 eng{std::random_device{}()};
-  std::uniform_int_distribution<> dist{0, static_cast<int>(alphabet.size())};
-  std::string res = "";
+  std::uniform_int_distribution<> dist{0, static_cast<int>(alphabet.size() - 1)};
+  std::string res;
   while (len > 0) {
     res += alphabet[dist(eng)];
     len--;
@@ -73,7 +73,7 @@ void create_random_client_requests(std::vector<std::shared_ptr<ClientRequestMsg>
 
   while (numMsgs > 0) {
     uint64_t reqSeqNum = 100u + numMsgs;
-    const std::string request = getRandomStingOfLength(dist(eng));
+    const std::string request = getRandomStringOfLength(dist(eng));
     const uint64_t requestTimeoutMilli = msdist(eng);
     const std::string correlationId = "correlationId";
     const char rawSpanContext[] = {"span_\0context"};

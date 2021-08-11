@@ -33,7 +33,7 @@ constexpr bool dynamicCollectorForPartialProofs = true, dynamicCollectorForExecu
 constexpr int initialView = 0;
 constexpr bftEngine::impl::SeqNum lastStableSeqNum = 150, lastExecutedSeqNum = lastStableSeqNum + 1;
 constexpr EpochNum epochNum = 0u;
-bftEngine::test::ReservedPagesMock<EpochManager>  res_pages_mock_;
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
 std::function<bool(MessageBase*)> mockedMessageValidator() {
   return [](MessageBase* message) { return true; };
@@ -147,11 +147,13 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
   ASSERT_LE(rc.fVal + 1, otherReplicas.size());
 
   for (int complaintNumber = 0; complaintNumber <= rc.fVal; ++complaintNumber) {
-    viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
+    auto ptr = ReplicaAsksToLeaveViewMsg::create(
         *std::next(otherReplicas.begin(), complaintNumber),  // Add F + 1 Different complaints
         viewToComplainAbout,
         epochNum,
-        ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
+        ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout);
+    viewChangeMsg.addComplaint(ptr);
+    delete ptr;
   }
 
   viewsManager->processComplaintsFromViewChangeMessage(&viewChangeMsg, mockedMessageValidator());
@@ -176,11 +178,13 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
   ASSERT_LE(rc.fVal + 1, otherReplicas.size());
 
   for (int complaintNumber = 0; complaintNumber <= rc.fVal; ++complaintNumber) {
-    viewChangeMsg.addComplaint(ReplicaAsksToLeaveViewMsg::create(
+    auto ptr = ReplicaAsksToLeaveViewMsg::create(
         *std::next(otherReplicas.begin(), complaintNumber),  // Add F + 1 Different complaints
         viewToComplainAbout,
         epochNum,
-        ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
+        ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout);
+    viewChangeMsg.addComplaint(ptr);
+    delete ptr;
   }
 
   viewsManager->processComplaintsFromViewChangeMessage(&viewChangeMsg, mockedMessageValidator());

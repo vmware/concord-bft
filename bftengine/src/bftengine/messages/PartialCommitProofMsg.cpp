@@ -14,6 +14,7 @@
 #include "ReplicasInfo.hpp"
 #include "Crypto.hpp"
 #include "EpochManager.hpp"
+#include <threshsign/ThresholdSignaturesSchemes.h>
 
 namespace bftEngine {
 namespace impl {

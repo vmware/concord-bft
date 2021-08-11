@@ -57,13 +57,13 @@ ReplicaLoader::ErrorCode loadConfig(LoadedReplicaData &ld) {
                                    KeyFormat::PemFormat,
                                    *ld.repsInfo);
 
-  Cryptosystem *cryptoSys = new Cryptosystem(ld.repConfig.thresholdSystemType_,
-                                             ld.repConfig.thresholdSystemSubType_,
-                                             ld.repConfig.numReplicas,
-                                             ld.repConfig.numReplicas);
+  std::unique_ptr<Cryptosystem> cryptoSys = std::make_unique<Cryptosystem>(ld.repConfig.thresholdSystemType_,
+                                                                           ld.repConfig.thresholdSystemSubType_,
+                                                                           ld.repConfig.numReplicas,
+                                                                           ld.repConfig.numReplicas);
   cryptoSys->loadKeys(ld.repConfig.thresholdPublicKey_, ld.repConfig.thresholdVerificationKeys_);
   cryptoSys->loadPrivateKey(ld.repConfig.replicaId + 1, ld.repConfig.thresholdPrivateKey_);
-  bftEngine::CryptoManager::instance(cryptoSys);
+  bftEngine::CryptoManager::instance(std::move(cryptoSys));
 
   return Succ;
 }

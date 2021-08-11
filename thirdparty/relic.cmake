@@ -7,7 +7,7 @@ set(FPX_METHD_FLAGS "INTEG;INTEG;LAZYR")
 set(PP_METHD_FLAGS "LAZYR;OATEP")
 
 set(COMP_FLAGS "-O3 -funroll-loops -fomit-frame-pointer -finline-small-functions -march=x86-64 -mtune=generic -fPIC")
-
+set(INSTALL_DIR "install")
 ExternalProject_Add(relic
                     PREFIX relic
                     GIT_REPOSITORY "https://github.com/relic-toolkit/relic"
@@ -32,14 +32,18 @@ ExternalProject_Add(relic
                                 -DFP_QNRES=on 
                                 -DTESTS=0
                                 -DBENCH=0
+                                -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR}
                     CMAKE_CACHE_ARGS    
                                 -DFP_METHD:STRING=${FP_METHD_FLAGS}
                                 -DFPX_METHD:STRING=${FPX_METHD_FLAGS}
                                 -DPP_METHD:STRING=${PP_METHD_FLAGS}
-                    INSTALL_COMMAND ""
+                    BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${NPROC}
+                    INSTALL_COMMAND ${CMAKE_MAKE_PROGRAM} install
                     DEPENDS gmp
 )
 
 ExternalProject_Get_Property(relic BINARY_DIR)
-set(RELIC_STATIC_LIBRARY ${BINARY_DIR}/lib/librelic_s.a PARENT_SCOPE)
-message(STATUS "RELIC_STATIC_LIBRARY ${BINARY_DIR}/lib/librelic_s.a")
+set(RELIC_STATIC_LIBRARY "${BINARY_DIR}/${INSTALL_DIR}/lib/librelic_s.a" PARENT_SCOPE)
+set(RELIC_INCLUDE_DIRS "${BINARY_DIR}/${INSTALL_DIR}/include" PARENT_SCOPE)
+message(STATUS "RELIC_STATIC_LIBRARY ${BINARY_DIR}/${INSTALL_DIR}/lib/librelic_s.a")
+message(STATUS "RELIC_INCLUDE_DIRS ${BINARY_DIR}/${INSTALL_DIR}/include")

@@ -765,6 +765,13 @@ BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
       inStream.str(blockRawData);
       concord::serialize::Serializable::deserialize(inStream, cmdData);
       return cmdData.blockId_;
+    } else {
+      // write a genesis reconfiguration block
+      bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdblockGenesis = {0, 0, 0};
+      std::ostringstream outStream;
+      concord::serialize::Serializable::serialize(outStream, cmdblockGenesis);
+      auto data = outStream.str();
+      m_bcDbAdapter->setLastKnownReconfigurationCmdBlock(data);
     }
   }
   return 0;

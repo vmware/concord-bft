@@ -19,6 +19,7 @@
 
 #include "thin_replica.pb.h"
 #include "update.hpp"
+#include "Logger.hpp"
 
 using opentracing::expected;
 
@@ -33,7 +34,7 @@ class TraceContexts {
   static SpanPtr CreateChildSpanFromBinary(const std::string& trace_context,
                                            const std::string& child_name,
                                            const std::string& correlation_id,
-                                           const log4cplus::Logger& logger);
+                                           const logging::Logger& logger);
 };
 
 }  // namespace client::thin_replica_client

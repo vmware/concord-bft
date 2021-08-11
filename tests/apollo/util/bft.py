@@ -255,6 +255,7 @@ class BftTestNetwork:
         self.with_cre = False
         self.cre_pid = None
         self.cre_fds = None
+        self.cre_id = self.config.n + self.config.num_ro_replicas + BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA
         # Setup transaction signing parameters
         self.setup_txn_signing()
         self._generate_operator_keys()
@@ -361,17 +362,29 @@ class BftTestNetwork:
                 self.cre_fds = (stdout_file, stderr_file)
                 cre_exe = os.path.join(self.builddir, "tests", "simpleKVBC", "TesterCRE", "skvbc_cre")
                 cre_cmd = [cre_exe,
-                           "-i", str(self.config.n + self.config.num_ro_replicas + BFT_CONFIGS_NUM_CLIENTS + RESERVED_CLIENTS_QUOTA),
+                           "-i", str(self.cre_id),
                            "-f", str(self.config.f),
                            "-c", str(self.config.c),
                            "-r", str(self.config.n),
                            "-k", self.certdir,
+                           "-t", os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys", str(self.principals_to_participant_map[self.cre_id]), "transaction_signing_priv.pem"),
                            "-o", "1000"]
                 self.cre_pid = subprocess.Popen(
                     cre_cmd,
                     stdout=stdout_file,
                     stderr=stderr_file,
                     close_fds=True)
+
+    def stop_cre(self):
+        with log.start_action(action_type="stop_cre"):
+            p = self.cre_pid
+            if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                p.terminate()
+            else:
+                p.kill()
+            for fd in self.cre_fds:
+                fd.close()
+            p.wait()
 
     def transfer_db_files(self, source, dests):
         with log.start_action(action_type="transfer db files"):

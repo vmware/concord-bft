@@ -66,7 +66,7 @@ class SigManager {
     metrics_component_.SetAggregator(aggregator);
   }
   void setClientPublicKey(const std::string& key, PrincipalId, KeyFormat);
-
+  bool hasVerifier(PrincipalId pid);
   SigManager(const SigManager&) = delete;
   SigManager& operator=(const SigManager&) = delete;
   SigManager(SigManager&&) = delete;

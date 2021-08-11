@@ -60,11 +60,11 @@ LogCid::LogCid(const std::string& cid) {
   if (!cid_set_.compare_exchange_strong(expected_cid_set_state_, true)) {
     throw logic_error("Attempting to add CID to a logging context that already has a CID.");
   }
-  log4cplus::getMDC().put(cid_key_, cid);
+  MDC_PUT(cid_key_, cid);
 }
 
 LogCid::~LogCid() {
-  log4cplus::getMDC().remove(cid_key_);
+  MDC_REMOVE(cid_key_);
   cid_set_ = false;
 }
 
@@ -117,7 +117,10 @@ unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
     return unique_ptr<EventVariant>(nullptr);
   }
 }
-uint64_t thin_replica_client::BasicUpdateQueue::Size() { return queue_data_.size(); }
+uint64_t thin_replica_client::BasicUpdateQueue::Size() {
+  std::scoped_lock sl(mutex_);
+  return queue_data_.size();
+}
 
 void ThinReplicaClient::recordCollectedHash(size_t update_source,
                                             bool is_event_group,
@@ -153,16 +156,16 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                                                  size_t& maximal_agreeing_subset_size,
                                                  HashRecord& maximally_agreed_on_update) {
   Hash hash;
-  LOG4CPLUS_DEBUG(logger_, "Read hash from " << server_index);
+  LOG_DEBUG(logger_, "Read hash from " << server_index);
 
   TrsConnection::Result read_result = config_->trs_conns[server_index]->readHash(&hash);
   if (read_result == TrsConnection::Result::kTimeout) {
-    LOG4CPLUS_DEBUG(logger_, "Hash stream " << server_index << " timed out.");
+    LOG_DEBUG(logger_, "Hash stream " << server_index << " timed out.");
     metrics_.read_timeouts_per_update++;
     return;
   }
   if (read_result == TrsConnection::Result::kFailure) {
-    LOG4CPLUS_DEBUG(logger_, "Hash stream " << server_index << " read failed.");
+    LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed.");
     metrics_.read_failures_per_update++;
     return;
   }
@@ -175,17 +178,17 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
     ConcordAssert(latest_verified_event_group_id_ <
                   std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     if (hash_id < latest_verified_event_group_id_) {
-      LOG4CPLUS_WARN(
-          logger_, "Hash stream " << server_index << " gave an update with decreasing event group number: " << hash_id);
+      LOG_WARN(logger_,
+               "Hash stream " << server_index << " gave an update with decreasing event group number: " << hash_id);
       metrics_.read_ignored_per_update++;
       return;
     }
     hash_string = hash.event_group().hash();
 
     if (hash.event_group().hash().length() > kThinReplicaHashLength) {
-      LOG4CPLUS_WARN(logger_,
-                     "Hash stream " << server_index << " gave an update (event_group " << hash_id
-                                    << ") with an unexpectedly long hash: " << hash.events().hash().length());
+      LOG_WARN(logger_,
+               "Hash stream " << server_index << " gave an update (event_group " << hash_id
+                              << ") with an unexpectedly long hash: " << hash.events().hash().length());
       metrics_.read_ignored_per_update++;
       return;
     }
@@ -193,23 +196,22 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
     ConcordAssert(hash.has_events());
     hash_id = hash.events().block_id();
     if (hash_id < latest_verified_block_id_) {
-      LOG4CPLUS_WARN(logger_,
-                     "Hash stream " << server_index << " gave an update with decreasing update number: " << hash_id);
+      LOG_WARN(logger_, "Hash stream " << server_index << " gave an update with decreasing update number: " << hash_id);
       metrics_.read_ignored_per_update++;
       return;
     }
     hash_string = hash.events().hash();
 
     if (hash.events().hash().length() > kThinReplicaHashLength) {
-      LOG4CPLUS_WARN(logger_,
-                     "Hash stream " << server_index << " gave an update (block " << hash_id
-                                    << ") with an unexpectedly long hash: " << hash.events().hash().length());
+      LOG_WARN(logger_,
+               "Hash stream " << server_index << " gave an update (block " << hash_id
+                              << ") with an unexpectedly long hash: " << hash.events().hash().length());
       metrics_.read_ignored_per_update++;
       return;
     }
   }
 
-  LOG4CPLUS_DEBUG(logger_, "Record hash for update " << hash_id);
+  LOG_DEBUG(logger_, "Record hash for update " << hash_id);
   ConcordAssert(hash_string.length() <= kThinReplicaHashLength);
   hash_string.resize(kThinReplicaHashLength, '\0');
 
@@ -239,12 +241,12 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
 
   TrsConnection::Result read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
   if (read_result == TrsConnection::Result::kTimeout) {
-    LOG4CPLUS_DEBUG(logger_, "Data stream " << data_conn_index_ << " timed out");
+    LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " timed out");
     metrics_.read_timeouts_per_update++;
     return {false, nullptr};
   }
   if (read_result == TrsConnection::Result::kFailure) {
-    LOG4CPLUS_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed");
+    LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed");
     metrics_.read_failures_per_update++;
     return {false, nullptr};
   }
@@ -261,8 +263,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
                   std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     id = update_in.event_group().id();
     if (id < latest_verified_event_group_id_) {
-      LOG4CPLUS_WARN(logger_,
-                     "Data stream " << data_conn_index_ << " gave an update with decreasing event group id: " << id);
+      LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing event group id: " << id);
       metrics_.read_ignored_per_update++;
       cid.reset(nullptr);
       return {false, nullptr};
@@ -274,8 +275,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
     cid.reset(new LogCid(update_in.events().correlation_id()));
     id = update_in.events().block_id();
     if (id < latest_verified_block_id_) {
-      LOG4CPLUS_WARN(logger_,
-                     "Data stream " << data_conn_index_ << " gave an update with decreasing block number: " << id);
+      LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing block number: " << id);
       metrics_.read_ignored_per_update++;
       cid.reset(nullptr);
       return {false, nullptr};
@@ -336,7 +336,7 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
     }
 
     if (!config_->trs_conns[server_index]->hasHashStream()) {
-      LOG4CPLUS_DEBUG(logger_, "Additionally asking " << server_index);
+      LOG_DEBUG(logger_, "Additionally asking " << server_index);
       TrsConnection::Result stream_open_status = startHashStreamWith(server_index);
 
       // Assert the possible TrsConnection::Result values have not changed
@@ -346,11 +346,11 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
                     stream_open_status == TrsConnection::Result::kFailure);
 
       if (stream_open_status == TrsConnection::Result::kTimeout) {
-        LOG4CPLUS_DEBUG(logger_, "Opening a hash stream to server " << server_index << " timed out.");
+        LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " timed out.");
         metrics_.read_timeouts_per_update++;
       }
       if (stream_open_status == TrsConnection::Result::kFailure) {
-        LOG4CPLUS_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed.");
+        LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed.");
         metrics_.read_failures_per_update++;
       }
       if (stream_open_status != TrsConnection::Result::kSuccess) {
@@ -421,13 +421,12 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
       read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
     }
     if (open_stream_result == TrsConnection::Result::kTimeout || read_result == TrsConnection::Result::kTimeout) {
-      LOG4CPLUS_DEBUG(logger_,
-                      "Read timed out on a data subscription stream (to server index " << server_index << ").");
+      LOG_DEBUG(logger_, "Read timed out on a data subscription stream (to server index " << server_index << ").");
       metrics_.read_timeouts_per_update++;
       continue;
     }
     if (open_stream_result == TrsConnection::Result::kFailure || read_result == TrsConnection::Result::kFailure) {
-      LOG4CPLUS_DEBUG(logger_, "Read failed on a data subscription stream (to server index " << server_index << ").");
+      LOG_DEBUG(logger_, "Read failed on a data subscription stream (to server index " << server_index << ").");
       metrics_.read_failures_per_update++;
       continue;
     }
@@ -447,11 +446,11 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
     cid.reset();
     cid.reset(new LogCid(correlation_id));
     if (update_id != most_agreed_block.id) {
-      LOG4CPLUS_WARN(logger_,
-                     "Data stream " << server_index << " gave an update with id (" << update_id
-                                    << ") in "
-                                       "disagreement with the consensus and "
-                                       "contradicting its own hash update.");
+      LOG_WARN(logger_,
+               "Data stream " << server_index << " gave an update with id (" << update_id
+                              << ") in "
+                                 "disagreement with the consensus and "
+                                 "contradicting its own hash update.");
       metrics_.read_ignored_per_update++;
       cid.reset();
       continue;
@@ -459,14 +458,14 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
 
     string update_data_hash = hashUpdate(update_in);
     if (update_data_hash != most_agreed_block.hash) {
-      LOG4CPLUS_WARN(logger_,
-                     "Data stream " << server_index
-                                    << " gave an update hashing to a value "
-                                       "in disagreement with the consensus on the "
-                                       "hash for this update ("
-                                    << update_id
-                                    << ") and contradicting the "
-                                       "server's own hash update.");
+      LOG_WARN(logger_,
+               "Data stream " << server_index
+                              << " gave an update hashing to a value "
+                                 "in disagreement with the consensus on the "
+                                 "hash for this update ("
+                              << update_id
+                              << ") and contradicting the "
+                                 "server's own hash update.");
       metrics_.read_ignored_per_update++;
       cid.reset();
       continue;
@@ -484,11 +483,11 @@ void ThinReplicaClient::logDataStreamResetResult(const TrsConnection::Result& re
                 result == TrsConnection::Result::kFailure);
 
   if (result == TrsConnection::Result::kTimeout) {
-    LOG4CPLUS_DEBUG(logger_, "Opening a data stream to server " << server_index << " timed out.");
+    LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " timed out.");
     metrics_.read_timeouts_per_update++;
   }
   if (result == TrsConnection::Result::kFailure) {
-    LOG4CPLUS_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed.");
+    LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed.");
     metrics_.read_failures_per_update++;
   }
 }
@@ -497,7 +496,7 @@ void ThinReplicaClient::receiveUpdates() {
   ConcordAssert(config_->trs_conns.size() > 0);
 
   if (stop_subscription_thread_) {
-    LOG4CPLUS_WARN(logger_, "Need to stop receiving updates");
+    LOG_WARN(logger_, "Need to stop receiving updates");
     return;
   }
 
@@ -528,14 +527,14 @@ void ThinReplicaClient::receiveUpdates() {
     // First, we collect updates from all subscription streams we have which
     // are already open, starting with the data stream and followed by any hash
     // streams.
-    LOG4CPLUS_DEBUG(logger_, "Read from data stream " << data_conn_index_);
+    LOG_DEBUG(logger_, "Read from data stream " << data_conn_index_);
     std::tie(has_data, span) =
         readBlock(update_in, agreeing_subset_members, most_agreeing, most_agreed_block, update_cid);
     servers_tried[data_conn_index_] = true;
 
     uint64_t update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
-    LOG4CPLUS_DEBUG(logger_,
-                    "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
+    LOG_DEBUG(logger_,
+              "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
     findBlockHashAgreement(servers_tried, agreeing_subset_members, most_agreeing, most_agreed_block, span);
     if (stop_subscription_thread_) {
       break;
@@ -543,7 +542,7 @@ void ThinReplicaClient::receiveUpdates() {
 
     // At this point we need to have agreeing servers.
     if (most_agreeing < (config_->max_faulty + 1)) {
-      LOG4CPLUS_WARN(logger_, "Couldn't find agreement amongst all servers. Try again.");
+      LOG_WARN(logger_, "Couldn't find agreement amongst all servers. Try again.");
       // We need to force re-subscription on at least one of the f+1 open
       // streams otherwise we might skip an update. By closing all streams here
       // we do exactly what the algorithm would do in the next iteration of this
@@ -566,7 +565,7 @@ void ThinReplicaClient::receiveUpdates() {
       has_verified_data =
           rotateDataStreamAndVerify(update_in, agreeing_subset_members, most_agreed_block, span, update_cid);
       if (!has_verified_data) {
-        LOG4CPLUS_WARN(logger_, "Couldn't get data from agreeing servers. Try again.");
+        LOG_WARN(logger_, "Couldn't get data from agreeing servers. Try again.");
         // We need to force re-subscription on at least one of the f+1 open
         // streams otherwise we might skip an update. By closing all streams
         // here we do exactly what the algorithm would do in the next iteration
@@ -579,7 +578,7 @@ void ThinReplicaClient::receiveUpdates() {
     }
 
     ConcordAssert(has_verified_data);
-    LOG4CPLUS_DEBUG(logger_, "Read and verified data for update " << update_id);
+    LOG_DEBUG(logger_, "Read and verified data for update " << update_id);
 
     ConcordAssertNE(config_->update_queue, nullptr);
 
@@ -608,11 +607,10 @@ void ThinReplicaClient::receiveUpdates() {
 
     if (metrics_.read_timeouts_per_update.Get().Get() > 0 || metrics_.read_failures_per_update.Get().Get() > 0 ||
         metrics_.read_ignored_per_update.Get().Get() > 0) {
-      LOG4CPLUS_WARN(logger_,
-                     metrics_.read_timeouts_per_update.Get().Get()
-                         << " timeouts, " << metrics_.read_failures_per_update.Get().Get() << " failures, and "
-                         << metrics_.read_ignored_per_update.Get().Get() << " ignored while retrieving update "
-                         << update_id);
+      LOG_WARN(logger_,
+               metrics_.read_timeouts_per_update.Get().Get()
+                   << " timeouts, " << metrics_.read_failures_per_update.Get().Get() << " failures, and "
+                   << metrics_.read_ignored_per_update.Get().Get() << " ignored while retrieving update " << update_id);
     }
 
     // Push update to update queue for consumption before receiving next update
@@ -626,7 +624,7 @@ void ThinReplicaClient::receiveUpdates() {
     // the loop's implementation.
     for (size_t trsc = 0; trsc < config_->trs_conns.size(); ++trsc) {
       if (agreeing_subset_members[most_agreed_block].count(trsc) < 1 && config_->trs_conns[trsc]->hasHashStream()) {
-        LOG4CPLUS_DEBUG(logger_, "Close hash stream " << trsc << " after update " << update_id);
+        LOG_DEBUG(logger_, "Close hash stream " << trsc << " after update " << update_id);
         config_->trs_conns[trsc]->cancelHashStream();
       }
     }
@@ -706,23 +704,23 @@ void ThinReplicaClient::Subscribe() {
     list<string> update_hashes;
     bool received_state_invalid = false;
 
-    LOG4CPLUS_DEBUG(logger_, "Read state from " << data_server_index);
+    LOG_DEBUG(logger_, "Read state from " << data_server_index);
     ReadStateRequest request;
     TrsConnection::Result stream_open_result = config_->trs_conns[data_server_index]->openStateStream(request);
     if (stream_open_result == TrsConnection::Result::kTimeout) {
-      LOG4CPLUS_WARN(logger_,
-                     "While trying to fetch initial state for a subscription, "
-                     "ThinReplicaClient timed out an attempt to open a stream "
-                     "to read the initial state from a server (server index "
-                         << data_server_index << ").");
+      LOG_WARN(logger_,
+               "While trying to fetch initial state for a subscription, "
+               "ThinReplicaClient timed out an attempt to open a stream "
+               "to read the initial state from a server (server index "
+                   << data_server_index << ").");
       received_state_invalid = true;
     }
     if (stream_open_result == TrsConnection::Result::kFailure) {
-      LOG4CPLUS_WARN(logger_,
-                     "While trying to fetch initial state for a subscription, "
-                     "ThinReplicaClient failed to open a stream to read the "
-                     "initial state from a server (server index "
-                         << data_server_index << ").");
+      LOG_WARN(logger_,
+               "While trying to fetch initial state for a subscription, "
+               "ThinReplicaClient failed to open a stream to read the "
+               "initial state from a server (server index "
+                   << data_server_index << ").");
       received_state_invalid = true;
     }
     ConcordAssert(stream_open_result == TrsConnection::Result::kSuccess || received_state_invalid);
@@ -734,11 +732,11 @@ void ThinReplicaClient::Subscribe() {
       // ReadState is supported for legacy events only
       ConcordAssert(response.has_events());
       if ((state.size() > 0) && (response.events().block_id() < block_id)) {
-        LOG4CPLUS_WARN(logger_,
-                       "While trying to fetch initial state for a "
-                       "subscription, ThinReplicaClient received an update "
-                       "with a decreasing Block ID from a server (server index "
-                           << data_server_index << ").");
+        LOG_WARN(logger_,
+                 "While trying to fetch initial state for a "
+                 "subscription, ThinReplicaClient received an update "
+                 "with a decreasing Block ID from a server (server index "
+                     << data_server_index << ").");
         received_state_invalid = true;
       } else {
         block_id = response.events().block_id();
@@ -757,34 +755,34 @@ void ThinReplicaClient::Subscribe() {
     ConcordAssert(received_state_invalid || read_result == TrsConnection::Result::kFailure ||
                   read_result == TrsConnection::Result::kTimeout);
     if (read_result == TrsConnection::Result::kTimeout) {
-      LOG4CPLUS_WARN(logger_,
-                     "While trying to fetch initial state for a subscription, "
-                     "ThinReplicaClient timed out an attempt to read an update "
-                     "from a state stream from a server (server index "
-                         << data_server_index << ").");
+      LOG_WARN(logger_,
+               "While trying to fetch initial state for a subscription, "
+               "ThinReplicaClient timed out an attempt to read an update "
+               "from a state stream from a server (server index "
+                   << data_server_index << ").");
       received_state_invalid = true;
     }
 
     TrsConnection::Result stream_close_result = config_->trs_conns[data_server_index]->closeStateStream();
     if (stream_close_result == TrsConnection::Result::kTimeout) {
-      LOG4CPLUS_WARN(logger_,
-                     "While trying to fetch initial state for a subscription, "
-                     "ThinReplicaClient timed out an attempt to properly close "
-                     "a completed state stream from a server (server index: "
-                         << data_server_index << ").");
+      LOG_WARN(logger_,
+               "While trying to fetch initial state for a subscription, "
+               "ThinReplicaClient timed out an attempt to properly close "
+               "a completed state stream from a server (server index: "
+                   << data_server_index << ").");
       received_state_invalid = true;
     }
     if (stream_close_result == TrsConnection::Result::kFailure) {
-      LOG4CPLUS_WARN(logger_,
-                     "While trying to fetch initial state for a subscription, "
-                     "ThinReplicaClient failed to properly close a completed "
-                     "state stream from a server (server index: "
-                         << data_server_index << ").");
+      LOG_WARN(logger_,
+               "While trying to fetch initial state for a subscription, "
+               "ThinReplicaClient failed to properly close a completed "
+               "state stream from a server (server index: "
+                   << data_server_index << ").");
       received_state_invalid = true;
     }
     ConcordAssert(stream_close_result == TrsConnection::Result::kSuccess || received_state_invalid);
 
-    LOG4CPLUS_DEBUG(logger_, "Got initial state from " << data_server_index);
+    LOG_DEBUG(logger_, "Got initial state from " << data_server_index);
 
     // We count the server we got the initial state data from as the first of
     // (max_faulty + 1) servers we need to find agreeing upon this state in
@@ -801,7 +799,7 @@ void ThinReplicaClient::Subscribe() {
         ++hash_server_index;
         continue;
       }
-      LOG4CPLUS_DEBUG(logger_, "Read state hash from " << hash_server_index);
+      LOG_DEBUG(logger_, "Read state hash from " << hash_server_index);
       Hash hash_response;
       ReadStateHashRequest hash_request;
       hash_request.mutable_events()->set_block_id(block_id);
@@ -813,33 +811,33 @@ void ThinReplicaClient::Subscribe() {
       // ID we requested, and matches the hash we computed locally of the data,
       // and only count it as agreeing if we complete all this verification.
       if (read_hash_result == TrsConnection::Result::kTimeout) {
-        LOG4CPLUS_WARN(logger_,
-                       "ThinReplicaClient timed out a call to ReadStateHash to server "
-                           << hash_server_index - 1 << " (requested Block ID: " << block_id << ").");
+        LOG_WARN(logger_,
+                 "ThinReplicaClient timed out a call to ReadStateHash to server "
+                     << hash_server_index - 1 << " (requested Block ID: " << block_id << ").");
         continue;
       }
       if (read_hash_result == TrsConnection::Result::kFailure) {
-        LOG4CPLUS_WARN(logger_,
-                       "Server " << hash_server_index - 1
-                                 << " gave error response to ReadStateHash (requested Block ID: " << block_id << ").");
+        LOG_WARN(logger_,
+                 "Server " << hash_server_index - 1
+                           << " gave error response to ReadStateHash (requested Block ID: " << block_id << ").");
         continue;
       }
       ConcordAssert(read_hash_result == TrsConnection::Result::kSuccess);
       if (hash_response.events().block_id() != block_id) {
-        LOG4CPLUS_WARN(logger_,
-                       "Server " << hash_server_index - 1
-                                 << " gave response to ReadStateHash disagreeing "
-                                    "with requested Block ID (requested Block ID: "
-                                 << block_id << ", response contained Block ID: " << hash_response.events().block_id()
-                                 << ").");
+        LOG_WARN(logger_,
+                 "Server " << hash_server_index - 1
+                           << " gave response to ReadStateHash disagreeing "
+                              "with requested Block ID (requested Block ID: "
+                           << block_id << ", response contained Block ID: " << hash_response.events().block_id()
+                           << ").");
         continue;
       }
       if (hash_response.events().hash() != expected_hash) {
-        LOG4CPLUS_WARN(logger_,
-                       "Server " << hash_server_index - 1
-                                 << " gave response to ReadStateHash in disagreement "
-                                    "with the expected hash value (requested Block ID: "
-                                 << block_id << ").");
+        LOG_WARN(logger_,
+                 "Server " << hash_server_index - 1
+                           << " gave response to ReadStateHash in disagreement "
+                              "with the expected hash value (requested Block ID: "
+                           << block_id << ").");
         continue;
       }
 
@@ -860,7 +858,7 @@ void ThinReplicaClient::Subscribe() {
         "initial state should be.");
   }
 
-  LOG4CPLUS_DEBUG(logger_, "Got verified initial state for block " << block_id);
+  LOG_DEBUG(logger_, "Got verified initial state for block " << block_id);
 
   config_->update_queue->Clear();
   while (state.size() > 0) {
@@ -924,7 +922,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
 //     - Add logic to pick a different server to send the acknowledgement to if
 //       server 0 is known to be down or faulty.
 void ThinReplicaClient::Unsubscribe() {
-  LOG4CPLUS_DEBUG(logger_, "Unsubscribe");
+  LOG_DEBUG(logger_, "Unsubscribe");
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());

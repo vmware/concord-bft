@@ -42,7 +42,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             uint64_t seq_num,
                                             std::string correlation_id,
                                             std::string span_context,
-                                            const std::function<void(SendResult &&)> &callback) {
+                                            const bftEngine::RequestCallBack &callback) {
   externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
   metricsComponent_.UpdateAggregator();
@@ -76,9 +76,9 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                 timeout_ms,
                                 max_reply_size,
                                 seq_num,
-                                callback,
                                 correlation_id,
-                                span_context);
+                                span_context,
+                                callback);
 
       if (correlation_id.length() > SECOND_LEG_CID_LEN) {
         ClientPoolMetrics_.first_leg_counter++;
@@ -148,7 +148,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     ClientPoolMetrics_.rejected_counter++;
     is_overloaded_ = true;
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
-    if (callback) callback(SubmitResult::Overloaded);
+    if (callback) callback(bftEngine::SendResult{SubmitResult::Overloaded});
     return SubmitResult::Overloaded;
   }
 }
@@ -172,7 +172,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
                                           uint64_t seq_num,
                                           const std::string &correlation_id,
                                           const std::string &span_context,
-                                          const std::function<void(SendResult &&)> &callback) {
+                                          const bftEngine::RequestCallBack &callback) {
   if (max_reply_size) client->setReplyBuffer(reply_buffer, max_reply_size);
 
   LOG_INFO(logger_,
@@ -190,7 +190,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &config,
                                             bft::client::Msg &&request,
-                                            const std::function<void(SendResult &&)> &callback) {
+                                            const bftEngine::RequestCallBack &callback) {
   LOG_DEBUG(logger_, "Received write request with cid=" << config.request.correlation_id);
   auto request_flag = ClientMsgFlag::EMPTY_FLAGS_REQ;
   if (config.request.pre_execute) request_flag = ClientMsgFlag::PRE_PROCESS_REQ;
@@ -207,7 +207,7 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::WriteConfig &conf
 
 SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &config,
                                             bft::client::Msg &&request,
-                                            const std::function<void(SendResult &&)> &callback) {
+                                            const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      ClientMsgFlag::READ_ONLY_REQ,
@@ -399,8 +399,8 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.correlation_id = correlation_id_;
     read_config_.request.span_context = span_context_;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
-    if (callback_) callback_(res);
     reply_size = res.matched_data.size();
+    if (callback_) callback_(bftEngine::SendResult{res});
   } else {
     write_config_.request.timeout = timeout_ms_;
     write_config_.request.sequence_number = seq_num_;
@@ -408,8 +408,8 @@ void SingleRequestProcessingJob::execute() {
     write_config_.request.span_context = span_context_;
     write_config_.request.pre_execute = flags_ & PRE_PROCESS_REQ;
     res = processing_client_->SendRequest(write_config_, std::move(request_));
-    if (callback_) callback_(res);
     reply_size = res.matched_data.size();
+    if (callback_) callback_(bftEngine::SendResult{res});
   }
   external_client::ConcordClient::PendingReplies replies;
   replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
@@ -461,7 +461,6 @@ void ConcordClientPool::InsertClientToQueue(
                                   req.timeout_ms,
                                   req.reply_size,
                                   req.seq_num,
-                                  nullptr,
                                   req.correlation_id,
                                   req.span_context);
 

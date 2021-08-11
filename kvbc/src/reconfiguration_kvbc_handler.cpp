@@ -248,6 +248,33 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
   rres.response = stats;
   return true;
 }
+
+bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeStatus&,
+                                    uint64_t,
+                                    uint32_t,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::ClientKeyExchangeStatusResponse stats;
+  for (const auto& gr : txKeysClientGroups_) {
+    for (auto cid : gr) {
+      std::string key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE)} +
+                        std::to_string(cid);
+      auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
+      if (res.has_value()) {
+        auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
+        concord::messages::ClientExchangePublicKey cmd;
+        std::vector<uint8_t> bytesval(strval.begin(), strval.end());
+        concord::messages::deserialize(bytesval, cmd);
+
+        LOG_INFO(getLogger(), "found public key exchange status for client" << KVLOG(cid));
+        stats.clients_keys.push_back(std::make_pair(cid, cmd));
+      }
+    }
+  }
+  rres.response = stats;
+  return true;
+}
+
 bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,

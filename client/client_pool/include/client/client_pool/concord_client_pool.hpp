@@ -47,8 +47,6 @@ enum SubmitResult {
   // request
 };
 
-// Request callback, will return SubmitResult::overloaded when no clients available
-typedef std::variant<SubmitResult, bft::client::Reply> SendResult;
 // An internal error has occurred. Reason is recorded in logs.
 class InternalError : public std::exception {
  public:
@@ -123,19 +121,19 @@ class ConcordClientPool {
                            uint64_t seq_num,
                            std::string correlation_id = {},
                            std::string span_context = std::string(),
-                           const std::function<void(SendResult&&)>& callback = nullptr);
+                           const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get write requests with the new client
   // paramters and parse it to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::WriteConfig& config,
                            bft::client::Msg&& request,
-                           const std::function<void(SendResult&&)>& callback = nullptr);
+                           const bftEngine::RequestCallBack& callback = {});
 
   // This method is responsible to get read requests with the new client
   // paramters and parse it to the old SimpleClient interface.
   SubmitResult SendRequest(const bft::client::ReadConfig& config,
                            bft::client::Msg&& request,
-                           const std::function<void(SendResult&&)>& callback = nullptr);
+                           const bftEngine::RequestCallBack& callback = {});
 
   void InsertClientToQueue(std::shared_ptr<concord::external_client::ConcordClient>& client,
                            std::pair<int8_t, external_client::ConcordClient::PendingReplies>&& replies);
@@ -153,7 +151,7 @@ class ConcordClientPool {
                          uint64_t seq_num,
                          const std::string& correlation_id,
                          const std::string& span_context,
-                         const std::function<void(SendResult&&)>& callback);
+                         const bftEngine::RequestCallBack& callback);
 
   PoolStatus HealthStatus();
 
@@ -241,7 +239,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
                              std::string correlation_id,
                              uint64_t seq_num,
                              std::string span_context,
-                             const std::function<void(SendResult&&)>& callback)
+                             const bftEngine::RequestCallBack& callback)
       : BatchRequestProcessingJob(clients, std::move(client)),
         request_(std::move(request)),
         flags_{flags},
@@ -262,7 +260,7 @@ class SingleRequestProcessingJob : public BatchRequestProcessingJob {
   uint64_t seq_num_;
   bft::client::WriteConfig write_config_;
   bft::client::ReadConfig read_config_;
-  const std::function<void(SendResult&&)> callback_;
+  const bftEngine::RequestCallBack callback_;
 };
 }  // namespace concord_client_pool
 

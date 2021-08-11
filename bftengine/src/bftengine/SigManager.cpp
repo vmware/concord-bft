@@ -252,6 +252,7 @@ void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyF
     LOG_WARN(KEY_EX_LOG, "Illegal id for client " << id);
   }
 }
+bool SigManager::hasVerifier(PrincipalId pid) { return verifiers_.find(pid) != verifiers_.end(); }
 
 }  // namespace impl
 }  // namespace bftEngine

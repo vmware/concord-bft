@@ -22,8 +22,8 @@ from util.skvbc_history_tracker import verify_linearizability
 import util.eliot_logging as log
 
 SKVBC_INIT_GRACE_TIME = 2
-BATCH_SIZE = 4
-NUM_OF_SEQ_WRITES = 25
+BATCH_SIZE = 5
+NUM_OF_SEQ_WRITES = 10
 
 def start_replica_cmd(builddir, replica_id, view_change_timeout_milli="10000"):
     """
@@ -113,7 +113,6 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         except trio.TooSlowError:
             return await self.check_viewchange_noexcept(bft_network, initial_primary, viewchange_timeout_secs)
 
-    @unittest.skip("Disabling temporarily till the fix is done")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: f >= 2)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)

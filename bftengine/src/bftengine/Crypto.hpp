@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <threshsign/ThresholdSignaturesSchemes.h>
 #include "bftengine/IKeyExchanger.hpp"
 
 #pragma GCC diagnostic push

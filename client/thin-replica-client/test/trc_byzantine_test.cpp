@@ -15,7 +15,6 @@
 #include "client/thin-replica-client/trc_hash.hpp"
 #include "client/thin-replica-client/trs_connection.hpp"
 
-#include <log4cplus/configurator.h>
 #include "gtest/gtest.h"
 #include "assertUtils.hpp"
 #include "thin_replica_client_mocks.hpp"
@@ -2028,8 +2027,5 @@ TEST(trc_byzantine_test, test_f_servers_collude_on_streaming_fabricated_update) 
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
-  log4cplus::initialize();
-  log4cplus::BasicConfigurator config;
-  config.configure();
   return RUN_ALL_TESTS();
 }
