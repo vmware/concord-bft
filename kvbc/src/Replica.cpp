@@ -162,7 +162,9 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   requestHandler->setReconfigurationHandler(pruning_handler);
   stReconfigurationSM_->registerHandler(m_cmdHandler->getReconfigurationHandler());
   stReconfigurationSM_->registerHandler(pruning_handler);
-  stReconfigurationSM_->pruneOnStartup();
+  if (bftEngine::ReplicaConfig::instance().pruningEnabled_) {
+    stReconfigurationSM_->pruneOnStartup();
+  }
 }
 uint64_t Replica::getStoredReconfigData(const std::string &kCategory,
                                         const std::string &key,
