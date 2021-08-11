@@ -1709,15 +1709,19 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
     outMsg->totalNumberOfChunksInBlock = numOfChunksInVBlock;
     outMsg->chunkNumber = nextChunk;
     outMsg->dataSize = chunkSize;
+    outMsg->lastInBatch =
+        ((numOfSentChunks + 1) >= config_.maxNumberOfChunksInBatch || (nextChunk == numOfChunksInVBlock));
     memcpy(outMsg->data, pRawChunk, chunkSize);
 
     LOG_DEBUG(logger_,
-              "Sending ItemDataMsg: " << KVLOG(replicaId,
+              "Sending ItemDataMsg: " << std::boolalpha
+                                      << KVLOG(replicaId,
                                                outMsg->requestMsgSeqNum,
                                                outMsg->blockNumber,
                                                outMsg->totalNumberOfChunksInBlock,
                                                outMsg->chunkNumber,
-                                               outMsg->dataSize));
+                                               outMsg->dataSize,
+                                               (bool)outMsg->lastInBatch));
     metrics_.sent_item_data_msg_++;
 
     replicaForStateTransfer_->sendStateTransferMessage(reinterpret_cast<char *>(outMsg), outMsg->size(), replicaId);
@@ -1727,12 +1731,14 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
 
     // if we've already sent enough chunks
     if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
+      LOG_DEBUG(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
       break;
     }
     // if we still have chunks in block
-    if (static_cast<uint16_t>(nextChunk + 1) <= numOfChunksInVBlock) {
+    if (nextChunk < numOfChunksInVBlock) {
       nextChunk++;
     } else {  // we sent all chunks
+      LOG_DEBUG(logger_, "Batch end - sent all relevant chunks");
       break;
     }
   }
