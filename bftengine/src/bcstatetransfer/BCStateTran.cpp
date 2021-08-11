@@ -329,7 +329,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
     if (psd_->initialized()) {
       LOG_INFO(logger_, "Loading existing data from storage");
 
-      checkConsistency(config_.pedanticChecks);
+      checkConsistency(config_.pedanticChecks, true);
 
       FetchingState fs = getFetchingState();
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
@@ -2731,7 +2731,7 @@ void BCStateTran::cycleEndSummary() {
 // Consistency
 //////////////////////////////////////////////////////////////////////////////
 
-void BCStateTran::checkConsistency(bool checkAllBlocks) {
+void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   ConcordAssert(psd_->initialized());
   const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
   const uint64_t lastBlockNum = as_->getLastBlockNum();
@@ -2747,7 +2747,7 @@ void BCStateTran::checkConsistency(bool checkAllBlocks) {
   if (checkAllBlocks) {
     checkReachableBlocks(genesisBlockNum, lastReachableBlockNum);
   }
-  checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum);
+  checkUnreachableBlocks(lastReachableBlockNum, lastBlockNum, duringInit);
   checkBlocksBeingFetchedNow(checkAllBlocks, lastReachableBlockNum, lastBlockNum);
   checkStoredCheckpoints(firstStoredCheckpoint, lastStoredCheckpoint);
 
@@ -2800,7 +2800,7 @@ void BCStateTran::checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastRe
   }
 }
 
-void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum) {
+void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum, bool duringInit) {
   ConcordAssertGE(lastBlockNum, lastReachableBlockNum);
   if (lastBlockNum > lastReachableBlockNum) {
     ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
@@ -2810,8 +2810,27 @@ void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_
     // we should have a hole
     ConcordAssertGT(x, lastReachableBlockNum);
 
-    // we should have a single hole
-    for (uint64_t i = lastReachableBlockNum + 1; i <= x; i++) ConcordAssert(!as_->hasBlock(i));
+    // During init:
+    // We might see more than a single hole due to the fact that putBlock is done concurrently, and block N might have
+    // been written while block M was not (due to a possibly abrupt shotdown/termination),
+    // for any pair of blocks in the range [lastReachableBlockNum + 1, x] where ID(N) < ID(M).
+    // Actions:
+    // 1) In the extream scenario, we expect a single non-existing block (tjis is x) and then up to
+    // ioPool_.maxElements()-1 already-written blocks. 2) From block X = x - ioPool_.maxElements() - 1 ,if X >
+    // lastReachableBlockNum, all blocks should not exist.
+    //
+    // Not during init: we must have a single hole
+    uint64_t maxAlreadyWrittenBlocks = ioPool_.maxElements() - 1;
+    for (uint64_t i = x - 1, n = 0; i >= lastReachableBlockNum + 1; --i, ++n) {
+      auto hasBlock = as_->hasBlock(i);
+      if (duringInit) {
+        if (!hasBlock) continue;
+        ConcordAssert(n < maxAlreadyWrittenBlocks);
+      } else {
+        ConcordAssert(!hasBlock);
+      }
+      LOG_WARN(logger_, "BlockId " << i << " exist!" << KVLOG(n, lastReachableBlockNum, maxAlreadyWrittenBlocks));
+    }
   }
 }
 

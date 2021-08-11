@@ -328,11 +328,11 @@ class BCStateTran : public IStateTransfer {
   // Consistency
   ///////////////////////////////////////////////////////////////////////////
 
-  void checkConsistency(bool checkAllBlocks);
+  void checkConsistency(bool checkAllBlocks, bool duringInit = false);
   void checkConfig();
   void checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
   void checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastReachableBlockNum);
-  void checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
+  void checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum, bool duringInit);
   void checkBlocksBeingFetchedNow(bool checkAllBlocks, uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
   void checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
 
