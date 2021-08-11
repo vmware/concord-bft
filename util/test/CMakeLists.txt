@@ -1,5 +1,8 @@
 find_package(GTest REQUIRED)
-find_package(OpenSSL REQUIRED)
+
+if(NOT BUILD_THIRDPARTY)
+    find_package(OpenSSL REQUIRED)
+endif()
 
 add_executable(metric_tests metric_test.cpp)
 add_test(metric_tests metric_tests)

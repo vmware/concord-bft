@@ -14,7 +14,6 @@
 #ifndef THIN_REPLICA_CLIENT_TRACE_CONTEXTS_HPP_
 #define THIN_REPLICA_CLIENT_TRACE_CONTEXTS_HPP_
 
-#include <log4cplus/logger.h>
 #include <opentracing/span.h>
 
 #include "thin_replica.pb.h"

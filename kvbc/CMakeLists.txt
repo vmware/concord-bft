@@ -50,8 +50,10 @@ target_link_libraries(kvbc PUBLIC concord_block_update concord-kvbc-proto)
 
 target_include_directories(kvbc PUBLIC include util)
 
-find_package(OpenSSL REQUIRED)
-target_link_libraries(kvbc PRIVATE ${OPENSSL_LIBRARIES})
+if(NOT BUILD_THIRDPARTY)
+    find_package(OpenSSL REQUIRED)
+endif()
+target_link_libraries(kvbc PRIVATE OpenSSL::Crypto)
 
 if (BUILD_TESTING)
     add_subdirectory(test)
