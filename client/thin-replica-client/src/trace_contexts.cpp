@@ -13,7 +13,6 @@
 
 #include "client/thin-replica-client/trace_contexts.hpp"
 
-#include <log4cplus/loggingmacros.h>
 #include <opentracing/propagation.h>
 #include <opentracing/span.h>
 #include <opentracing/tracer.h>
