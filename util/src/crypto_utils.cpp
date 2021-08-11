@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -19,15 +19,15 @@
 #include <cryptopp/rsa.h>
 #pragma GCC diagnostic pop
 #include <cryptopp/oids.h>
-#include "Logger.hpp"
+
 using namespace CryptoPP;
 namespace concord::util::crypto {
 class ECDSAVerifier::Impl {
   std::unique_ptr<ECDSA<ECP, SHA256>::Verifier> verifier_;
 
  public:
-  Impl(ECDSA<ECP, SHA256>::PublicKey publicKey) {
-    verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(std::move(publicKey));
+  Impl(const ECDSA<ECP, SHA256>::PublicKey& publicKey) {
+    verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(publicKey);
   }
 
   bool verify(const std::string& data_to_verify, const std::string& signature) {
@@ -56,8 +56,8 @@ class ECDSASigner::Impl {
   AutoSeededRandomPool prng_;
 
  public:
-  Impl(ECDSA<ECP, SHA256>::PrivateKey privateKey) {
-    signer_ = std::make_unique<ECDSA<ECP, SHA256>::Signer>(std::move(privateKey));
+  Impl(const ECDSA<ECP, SHA256>::PrivateKey& privateKey) {
+    signer_ = std::make_unique<ECDSA<ECP, SHA256>::Signer>(privateKey);
   }
 
   std::string sign(const std::string& data_to_sign) {
@@ -86,8 +86,8 @@ ECDSASigner::~ECDSASigner() = default;
 
 class RSAVerifier::Impl {
  public:
-  Impl(RSA::PublicKey public_key) {
-    verifier_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Verifier>(std::move(public_key));
+  Impl(const RSA::PublicKey& public_key) {
+    verifier_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Verifier>(public_key);
   }
   bool verify(const std::string& data_to_verify, const std::string& signature) {
     return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
@@ -102,9 +102,7 @@ class RSAVerifier::Impl {
 
 class RSASigner::Impl {
  public:
-  Impl(RSA::PrivateKey private_key) {
-    signer_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Signer>(std::move(private_key));
-  }
+  Impl(const RSA::PrivateKey& private_key) { signer_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Signer>(private_key); }
   std::string sign(const std::string& data_to_sign) {
     size_t siglen = signer_->MaxSignatureLength();
     std::string signature(siglen, 0x00);
