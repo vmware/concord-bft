@@ -175,7 +175,7 @@ class SubUpdateBuffer {
 
   void waitForEventGroupUntilNonEmpty() {
     std::unique_lock<std::mutex> lock(eg_mutex_);
-    eg_cv_.wait(lock, [this] { return queue_.read_available(); });
+    eg_cv_.wait(lock, [this] { return eg_queue_.read_available(); });
   }
 
   template <typename RepT, typename PeriodT>
