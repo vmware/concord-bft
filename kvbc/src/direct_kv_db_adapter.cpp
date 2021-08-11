@@ -654,18 +654,26 @@ BlockDigest DBAdapter::getParentDigest(const RawBlock &rawBlock) const {
 }
 void DBAdapter::setLastKnownReconfigurationCmdBlock(std::string &blockData) {
   if (mdt_) {
-    static Key lastKnownReconfigCmdBlockIdKey = keyGen_->mdtKey(std::string("last-reconfig-cmd-block-id"));
-    mdtPut(lastKnownReconfigCmdBlockIdKey, std::move(blockData));
+    try {
+      static Key lastKnownReconfigCmdBlockIdKey = keyGen_->mdtKey(std::string("last-reconfig-cmd-block-id"));
+      mdtPut(lastKnownReconfigCmdBlockIdKey, std::move(blockData));
+    } catch (std::exception &e) {
+      LOG_ERROR(logger_, "Error in put reconfig block" << e.what());
+    }
   }
 }
 void DBAdapter::getLastKnownReconfigurationCmdBlock(std::string &outBlockData) const {
   if (mdt_) {
-    static Key lastKnownReconfigCmdBlockIdKey = keyGen_->mdtKey(std::string("last-reconfig-cmd-block-id"));
-    Sliver val;
-    if (Status s = mdtGet(lastKnownReconfigCmdBlockIdKey, val); s.isOK())
-      outBlockData = val.toString();
-    else
-      LOG_ERROR(logger_, "Error in getting Latest known reconfig block ID ");
+    try {
+      static Key lastKnownReconfigCmdBlockIdKey = keyGen_->mdtKey(std::string("last-reconfig-cmd-block-id"));
+      Sliver val;
+      if (Status s = mdtGet(lastKnownReconfigCmdBlockIdKey, val); s.isOK())
+        outBlockData = val.toString();
+      else
+        LOG_ERROR(logger_, "Error in getting Latest known reconfig block ");
+    } catch (std::exception &e) {
+      LOG_ERROR(logger_, "Error in getting Latest known reconfig block" << e.what());
+    }
   }
 }
 
