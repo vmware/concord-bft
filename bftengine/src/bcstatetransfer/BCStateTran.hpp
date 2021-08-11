@@ -298,8 +298,7 @@ class BCStateTran : public IStateTransfer {
                         int16_t& outLastChunkInRequiredBlock,
                         char* outBlock,
                         uint32_t& outBlockSize,
-                        bool isVBLock,
-                        bool& outLastInBatch);
+                        bool isVBLock);
 
   bool checkBlock(uint64_t blockNum, const STDigest& expectedBlockDigest, char* block, uint32_t blockSize) const;
 
@@ -307,7 +306,7 @@ class BCStateTran : public IStateTransfer {
                                    char* vblock,
                                    uint32_t vblockSize) const;
 
-  void processData();
+  void processData(bool lastInBatch = false);
   void cycleEndSummary();
 
   void EnterGettingCheckpointSummariesState();
