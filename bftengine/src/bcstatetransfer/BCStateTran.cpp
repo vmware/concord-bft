@@ -1455,14 +1455,15 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
   uint16_t nextChunk = m->lastKnownChunkInLastRequiredBlock + 1;
   uint16_t numOfSentChunks = 0;
 
-  if (!config_.enableSourceBlocksPreFetch || ioContexts_.empty() || (ioContexts_.front()->blockId != nextBlockId)) {
+  if (!config_.enableSourceBlocksPreFetch || ioContexts_.empty() || (ioContexts_.front()->blockId != nextBlockId) ||
+      !ioContexts_.front()->future.valid()) {
     if (ioContexts_.empty()) {
       LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission): "
-                   << config_.enableSourceBlocksPreFetch);
+               "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission):"
+                   << KVLOG(config_.enableSourceBlocksPreFetch));
     } else {
       LOG_INFO(logger_,
-               "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission): "
+               "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission):"
                    << KVLOG(config_.enableSourceBlocksPreFetch, ioContexts_.front()->blockId, nextBlockId));
       for (auto &ctx : ioContexts_) ioPool_.free(ctx);
       ioContexts_.clear();
@@ -1566,22 +1567,29 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
     ItemDataMsg::free(outMsg);
     numOfSentChunks++;
 
-    // if we've already sent enough chunks
-    if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_DEBUG(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
-      break;
-    } else if (static_cast<uint16_t>(nextChunk + 1) <= numOfChunksInNextBlock) {
-      // we still have chunks in block
-      nextChunk++;
-    } else {
+    auto finalizeContext = [&]() {
       ioPool_.free(ctx);
       ioContexts_.pop_front();
 
-      // this context is usage us done. We can now use it to prefetch future batch block
+      // We are done using this context. We can now use it to prefetch future batch block.
       if (preFetchBlockId > 0) {
         getBlocksConcurrentAsync(preFetchBlockId, m->firstRequiredBlock, 1);
         --preFetchBlockId;
       }
+    };
+
+    // if we've already sent enough chunks
+    if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
+      LOG_DEBUG(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
+      if (nextChunk == numOfChunksInNextBlock) {
+        finalizeContext();
+      }
+      break;
+    } else if (nextChunk < numOfChunksInNextBlock) {
+      // we still have chunks in block
+      nextChunk++;
+    } else {
+      finalizeContext();
 
       if ((nextBlockId - 1) < m->firstRequiredBlock) {
         LOG_DEBUG(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
