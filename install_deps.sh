@@ -37,8 +37,11 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     vim \
     wget
 
-ln -fs /usr/bin/clang-format-9 /usr/bin/clang-format
-ln -fs /usr/bin/clang-format-diff-9 /usr/bin/clang-format-diff
+update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-9 100
+update-alternatives --install /usr/bin/clang clang /usr/bin/clang-9 100
+update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
+update-alternatives --install /usr/bin/clang-format-diff clang-format-diff /usr/bin/clang-format-diff-9 100
+update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10 100
 
 # Install 3rd parties
 apt-get ${APT_GET_FLAGS} install \

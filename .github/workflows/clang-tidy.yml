@@ -8,7 +8,7 @@ jobs:
         fail-fast: false
         matrix:
             compiler:
-                - "CONCORD_BFT_CONTAINER_CC=clang-9 CONCORD_BFT_CONTAINER_CXX=clang++-9"
+                - "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++"
             ci_build_type:
                 - "-DCMAKE_BUILD_TYPE=DEBUG"
             comm_type:
