@@ -54,7 +54,6 @@
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 
-#include <log4cplus/loggingmacros.h>
 #include <opentracing/span.h>
 #include <condition_variable>
 #include <thread>

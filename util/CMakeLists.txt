@@ -11,15 +11,23 @@ set(util_source_files
     src/hex_tools.cpp
     src/OpenTracing.cpp
     src/throughput.cpp
-    src/openssl_crypto.cpp
     src/crypto_utils.cpp)
 
-add_library(util STATIC
-    ${util_source_files}
-    )
 
-add_library(util_shared SHARED
-    ${util_source_files})
+add_library(util        STATIC ${util_source_files})
+add_library(util_shared SHARED ${util_source_files})
+
+if(USE_OPENSSL)
+    if(NOT BUILD_THIRDPARTY)
+        find_package(OpenSSL REQUIRED)
+    endif()
+    target_sources(util        PRIVATE src/openssl_crypto.cpp)
+    target_sources(util_shared PRIVATE src/openssl_crypto.cpp)
+    target_link_libraries(util        PUBLIC OpenSSL::Crypto)
+    target_link_libraries(util_shared PUBLIC OpenSSL::Crypto)
+    target_compile_definitions(util        PUBLIC USE_OPENSSL)
+    target_compile_definitions(util_shared PUBLIC USE_OPENSSL) 
+endif()
 
 if(BUILD_ROCKSDB_STORAGE)
     target_compile_definitions(util PUBLIC "USE_ROCKSDB=1")
@@ -33,11 +41,10 @@ else()
     find_package(cryptopp REQUIRED)
 endif()
 
-find_package(OpenSSL REQUIRED)
-target_link_libraries(util PUBLIC Threads::Threads ${OPENSSL_LIBRARIES} ${CRYPTOPP_LIBRARIES})
+target_link_libraries(util PUBLIC Threads::Threads ${CRYPTOPP_LIBRARIES})
 target_include_directories(util PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
 
-target_link_libraries(util_shared PUBLIC Threads::Threads ${OPENSSL_LIBRARIES} ${CRYPTOPP_LIBRARIES})
+target_link_libraries(util_shared PUBLIC Threads::Threads ${CRYPTOPP_LIBRARIES})
 target_include_directories(util_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
 
 if (USE_OPENTRACING)
