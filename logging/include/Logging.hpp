@@ -111,9 +111,9 @@ class Logger {
 
 }  // namespace logging
 
-#define LOG_COMMON(logger, level, s)                            \
-  if (logger.getLogLevel() <= level) {                          \
-    logger.print(level, __PRETTY_FUNCTION__) << s << std::endl; \
+#define LOG_COMMON(logger, level, s)                              \
+  if ((logger).getLogLevel() <= level) {                          \
+    (logger).print(level, __PRETTY_FUNCTION__) << s << std::endl; \
   }
 
 #define LOG_TRACE(l, s) LOG_COMMON(l, logging::LogLevel::trace, s)
@@ -128,4 +128,8 @@ class Logger {
 #define MDC_CLEAR logging::Logger::getThreadContext().getMDC().clear();
 #define MDC_GET(k) logging::Logger::getThreadContext().getMDC().get(k)
 
-#define LOG_CONFIGURE_AND_WATCH(config_file, millis) logging::initLogger(config_file)
+#define LOG_CONFIGURE_AND_WATCH(config_file, millis) \
+  {                                                  \
+    logging::initLogger(config_file);                \
+    (void)(millis);                                  \
+  }
