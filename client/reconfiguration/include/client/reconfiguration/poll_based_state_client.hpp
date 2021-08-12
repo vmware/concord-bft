@@ -30,15 +30,14 @@ class PollBasedStateClient : public IStateClient {
                        uint64_t interval_timeout_ms,
                        uint64_t last_known_block,
                        const uint16_t id_);
-  State getNextState(uint64_t lastKnownBlockId) const override;
-  State getLatestClientUpdate(uint16_t clientId) const override;
+  State getNextState() const override;
   bool updateState(const WriteState& state) override;
   ~PollBasedStateClient();
-  void start(uint64_t lastKnownBlock) override;
+  void start() override;
   void stop() override;
 
  private:
-  State getStateUpdate(uint64_t lastKnownBlockId) const;
+  std::vector<State> getStateUpdate() const;
   concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest& rreq,
                                                                         const std::string& cid,
                                                                         uint64_t sn,

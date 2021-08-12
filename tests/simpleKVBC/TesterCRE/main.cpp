@@ -133,13 +133,13 @@ class KeyExchangeCommandHandler : public IStateHandler {
     sm_.reset(new concord::secretsmanager::SecretsManagerPlain());
   }
   bool validate(const State& state) const {
-    concord::messages::ClientReconfigurationStateReply crep;
+    concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientKeyExchangeCommand>(crep.response);
   };
   bool execute(const State& state, WriteState& out) {
     LOG_INFO(getLogger(), "execute key exchange request");
-    concord::messages::ClientReconfigurationStateReply crep;
+    concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     concord::messages::ClientKeyExchangeCommand command =
         std::get<concord::messages::ClientKeyExchangeCommand>(crep.response);
@@ -184,13 +184,13 @@ class KeyExchangeCommandHandler : public IStateHandler {
 class ClientsAddRemoveHandler : public IStateHandler {
  public:
   bool validate(const State& state) const override {
-    concord::messages::ClientReconfigurationStateReply crep;
+    concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientsAddRemoveCommand>(crep.response);
   }
   bool execute(const State& state, WriteState& out) override {
     LOG_INFO(getLogger(), "execute clientsAddRemoveCommand");
-    concord::messages::ClientReconfigurationStateReply crep;
+    concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     concord::messages::ClientsAddRemoveCommand command =
         std::get<concord::messages::ClientsAddRemoveCommand>(crep.response);

@@ -51,11 +51,6 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
               uint64_t,
               uint32_t,
               concord::messages::ReconfigurationResponse&) override;
-
-  bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
-              uint64_t,
-              uint32_t,
-              concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::ClientReconfigurationStateRequest&,
               uint64_t,
               uint32_t,
@@ -66,8 +61,8 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
               concord::messages::ReconfigurationResponse&) override;
 
  private:
-  concord::messages::ClientReconfigurationStateReply buildClientStateReply(
-      kvbc::BlockId, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid);
+  concord::messages::ClientStateReply buildClientStateReply(kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type,
+                                                            uint32_t clientid);
 };
 /**
  * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the

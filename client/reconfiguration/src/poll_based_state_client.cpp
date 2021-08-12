@@ -34,20 +34,20 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
       bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
       rep = bftclient_->send(write_config, std::move(msg));
     }
+    concord::messages::deserialize(rep.matched_data, rres);
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), "error while initiating bft request " << e.what());
     rres.success = false;
     return rres;
   }
-  concord::messages::deserialize(rep.matched_data, rres);
   return rres;
 }
-State PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) const {
+State PollBasedStateClient::getNextState() const {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped && updates_.empty()) {
     new_updates_.wait_for(lk, 1s);
   }
-  if (stopped) return {lastKnownBlockId, {}};
+  if (stopped) return {0, {}};
   auto ret = updates_.front();
   updates_.pop();
   return ret;
@@ -63,20 +63,31 @@ PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
       last_known_block_{last_known_block},
       sn_gen_(bft::client::ClientId{id}) {}
 
-State PollBasedStateClient::getStateUpdate(uint64_t lastKnownBlockId) const {
-  concord::messages::ClientReconfigurationStateRequest creq{id_, lastKnownBlockId};
+std::vector<State> PollBasedStateClient::getStateUpdate() const {
+  concord::messages::ClientReconfigurationStateRequest creq{id_};
   concord::messages::ReconfigurationRequest rreq;
   rreq.sender = id_;
   rreq.command = creq;
   auto sn = sn_gen_.unique();
   auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   if (!rres.success) {
-    LOG_WARN(getLogger(), "invalid response from replicas " << KVLOG(lastKnownBlockId));
-    return {0, {}};
+    LOG_WARN(getLogger(), "invalid response from replicas");
+    return {};
   }
-  concord::messages::ClientReconfigurationStateReply crep;
-  concord::messages::deserialize(rres.additional_data, crep);
-  return {crep.block_id, rres.additional_data};
+  if (!std::holds_alternative<concord::messages::ClientReconfigurationStateReply>(rres.response)) {
+    LOG_WARN(getLogger(), "invalid response from replicas");
+    return {};
+  }
+  concord::messages::ClientReconfigurationStateReply crep =
+      std::get<concord::messages::ClientReconfigurationStateReply>(rres.response);
+  std::vector<State> res;
+  for (const auto& s : crep.states) {
+    std::vector<uint8_t> data_buf;
+    concord::messages::serialize(data_buf, s);
+    State new_state = {s.block_id, std::move(data_buf)};
+    res.push_back(new_state);
+  }
+  return res;
 }
 
 PollBasedStateClient::~PollBasedStateClient() {
@@ -93,20 +104,23 @@ PollBasedStateClient::~PollBasedStateClient() {
     }
   }
 }
-void PollBasedStateClient::start(uint64_t lastKnownBlock) {
-  last_known_block_ = lastKnownBlock;
+void PollBasedStateClient::start() {
   stopped = false;
   consumer_ = std::thread([&]() {
     while (!stopped) {
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) return;
-      auto new_state = getStateUpdate(last_known_block_);
-      std::lock_guard<std::mutex> lk(lock_);
-      if (new_state.blockid > last_known_block_) {
-        updates_.push(new_state);
-        last_known_block_ = new_state.blockid;
-        new_updates_.notify_one();
+      auto new_state = getStateUpdate();
+      uint64_t max_update_block{0};
+      for (const auto& s : new_state) {
+        std::lock_guard<std::mutex> lk(lock_);
+        if (s.blockid > last_known_block_) {
+          updates_.push(s);
+          if (s.blockid > max_update_block) max_update_block = s.blockid;
+          new_updates_.notify_one();
+        }
       }
+      if (max_update_block > last_known_block_) last_known_block_ = max_update_block;
     }
   });
 }
@@ -123,21 +137,7 @@ void PollBasedStateClient::stop() {
     LOG_ERROR(getLogger(), e.what());
   }
 }
-State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) const {
-  concord::messages::ClientReconfigurationLastUpdate creq{id_};
-  concord::messages::ReconfigurationRequest rreq;
-  rreq.sender = id_;
-  rreq.command = creq;
-  auto sn = sn_gen_.unique();
-  auto rres = sendReconfigurationRequest(rreq, "getLatestClientUpdate-" + std::to_string(sn), sn, true);
-  if (!rres.success) {
-    LOG_WARN(getLogger(), "invalid response from replicas " << KVLOG(clientId));
-    return {0, {}};
-  }
-  concord::messages::ClientReconfigurationStateReply crep;
-  concord::messages::deserialize(rres.additional_data, crep);
-  return {crep.block_id, rres.additional_data};
-}
+
 bool PollBasedStateClient::updateState(const WriteState& state) {
   concord::messages::ReconfigurationRequest rreq;
   concord::messages::deserialize(state.data, rreq);
