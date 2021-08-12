@@ -129,7 +129,8 @@ ICommunication* createCommunication(const ClientConfig& cc,
 
 class KeyExchangeCommandHandler : public IStateHandler {
  public:
-  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path) : clientId_{clientId}, key_path_{key_path} {
+  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path, IStateClient& state_client)
+      : clientId_{clientId}, key_path_{key_path}, state_client_{state_client} {
     sm_.reset(new concord::secretsmanager::SecretsManagerPlain());
   }
   bool validate(const State& state) const {
@@ -167,6 +168,8 @@ class KeyExchangeCommandHandler : public IStateHandler {
              fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
              fs::remove(old_path);
              LOG_INFO(this->getLogger(), "exchanged keys");
+             // Now we must stop the state client from running, because its keys are not relevant anymore
+             state_client_.stop();
            }};
     return true;
   }
@@ -179,6 +182,7 @@ class KeyExchangeCommandHandler : public IStateHandler {
   uint16_t clientId_;
   fs::path key_path_;
   std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  IStateClient& state_client_;
 };
 
 class ClientsAddRemoveHandler : public IStateHandler {
@@ -221,8 +225,10 @@ int main(int argc, char** argv) {
   IStateClient* pollBasedClient =
       new PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
-  cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(
-      creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value()));
+  cre.registerHandler(
+      std::make_shared<KeyExchangeCommandHandler>(creParams.CreConfig.id_,
+                                                  creParams.bftConfig.transaction_signing_private_key_file_path.value(),
+                                                  *pollBasedClient));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
   cre.start();
   while (true) std::this_thread::sleep_for(1s);

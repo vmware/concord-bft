@@ -75,7 +75,12 @@ State PollBasedStateClient::getStateUpdate(uint64_t lastKnownBlockId) const {
     return {0, {}};
   }
   concord::messages::ClientReconfigurationStateReply crep;
-  concord::messages::deserialize(rres.additional_data, crep);
+  try {
+    concord::messages::deserialize(rres.additional_data, crep);
+  } catch (const std::exception& e) {
+    LOG_ERROR(getLogger(), e.what());
+    return {0, {}};
+  }
   return {crep.block_id, rres.additional_data};
 }
 
@@ -101,11 +106,7 @@ void PollBasedStateClient::start(uint64_t lastKnownBlock) {
     initial_state = getLatestClientUpdate(id_);
   }
   LOG_INFO(getLogger(), "found an update on block " << initial_state.blockid);
-  {
-    std::lock_guard<std::mutex> lk(lock_);
-    updates_.push(initial_state);
-    new_updates_.notify_one();
-  }
+  updates_.push(initial_state);
   last_known_block_ = initial_state.blockid;
   consumer_ = std::thread([&]() {
     while (!stopped) {
@@ -147,7 +148,12 @@ State PollBasedStateClient::getLatestClientUpdate(uint16_t clientId) const {
     return {0, {}};
   }
   concord::messages::ClientReconfigurationStateReply crep;
-  concord::messages::deserialize(rres.additional_data, crep);
+  try {
+    concord::messages::deserialize(rres.additional_data, crep);
+  } catch (const std::exception& e) {
+    LOG_ERROR(getLogger(), e.what());
+    return {0, {}};
+  }
   return {crep.block_id, rres.additional_data};
 }
 bool PollBasedStateClient::updateState(const WriteState& state) {
