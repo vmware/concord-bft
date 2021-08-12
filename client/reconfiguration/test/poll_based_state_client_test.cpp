@@ -280,7 +280,7 @@ TEST_F(ClientApiTestFixture, start_witn_an_update_exchange_command) {
   while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 10) {
   }
   ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 10);
-  ASSERT_EQ(keyExchangeHandler->exchanges_, 0);
+  ASSERT_EQ(keyExchangeHandler->exchanges_, 1);
   ASSERT_EQ(clientPubKeyExchangeHandler->exchanges_, 0);
   cre.stop();
 }

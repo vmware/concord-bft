@@ -34,12 +34,12 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
       bft::client::WriteConfig write_config{request_config, bft::client::LinearizableQuorum{}};
       rep = bftclient_->send(write_config, std::move(msg));
     }
+    concord::messages::deserialize(rep.matched_data, rres);
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), "error while initiating bft request " << e.what());
     rres.success = false;
     return rres;
   }
-  concord::messages::deserialize(rep.matched_data, rres);
   return rres;
 }
 State PollBasedStateClient::getNextState(uint64_t lastKnownBlockId) const {
@@ -96,11 +96,23 @@ PollBasedStateClient::~PollBasedStateClient() {
 void PollBasedStateClient::start(uint64_t lastKnownBlock) {
   last_known_block_ = lastKnownBlock;
   stopped = false;
+  auto initial_state = getLatestClientUpdate(id_);
+  while (initial_state.data.empty()) {
+    initial_state = getLatestClientUpdate(id_);
+  }
+  LOG_INFO(getLogger(), "found an update on block " << initial_state.blockid);
+  {
+    std::lock_guard<std::mutex> lk(lock_);
+    updates_.push(initial_state);
+    new_updates_.notify_one();
+  }
+  last_known_block_ = initial_state.blockid;
   consumer_ = std::thread([&]() {
     while (!stopped) {
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) return;
       auto new_state = getStateUpdate(last_known_block_);
+      if (new_state.data.empty()) continue;
       std::lock_guard<std::mutex> lk(lock_);
       if (new_state.blockid > last_known_block_) {
         updates_.push(new_state);
