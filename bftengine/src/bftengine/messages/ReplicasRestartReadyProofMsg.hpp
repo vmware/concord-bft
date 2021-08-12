@@ -22,14 +22,12 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
  public:
   ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                SeqNum seqNum,
-                               EpochNum epochNum,
                                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicasRestartReadyProofMsg)
 
   static ReplicasRestartReadyProofMsg* create(ReplicaId id,
                                               SeqNum s,
-                                              EpochNum e,
                                               const concordUtils::SpanContext& spanContext = {});
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }

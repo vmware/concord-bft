@@ -26,7 +26,6 @@ namespace impl {
 ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
                              ViewNum newView,
                              SeqNum lastStableSeq,
-                             EpochNum epochNum,
                              const concordUtils::SpanContext& spanContext)
     : MessageBase(srcReplicaId,
                   MsgCode::ViewChange,
@@ -35,7 +34,6 @@ ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
   b()->genReplicaId = srcReplicaId;
   b()->newView = newView;
   b()->lastStable = lastStableSeq;
-  b()->epochNum = epochNum;
   b()->numberOfComplaints = 0;
   b()->sizeOfAllComplaints = 0;
   b()->numberOfElements = 0;

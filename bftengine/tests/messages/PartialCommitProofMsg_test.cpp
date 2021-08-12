@@ -35,7 +35,6 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 0u;
   SeqNum seqNum = 3u;
-  EpochNum epochNum = 0u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
@@ -43,7 +42,6 @@ TEST(PartialCommitProofMsg, create_and_compare) {
   PartialCommitProofMsg msg(senderId,
                             viewNum,
                             seqNum,
-                            epochNum,
                             commitPath,
                             tmpDigest,
                             CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum),
@@ -71,7 +69,6 @@ TEST(PartialCommitProofMsg, base_methods) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
   SeqNum seqNum = 3u;
-  EpochNum epochNum = 0u;
   CommitPath commitPath = CommitPath::OPTIMISTIC_FAST;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
@@ -79,7 +76,6 @@ TEST(PartialCommitProofMsg, base_methods) {
   PartialCommitProofMsg msg(senderId,
                             viewNum,
                             seqNum,
-                            epochNum,
                             commitPath,
                             tmpDigest,
                             CryptoManager::instance().thresholdSignerForOptimisticCommit(seqNum),

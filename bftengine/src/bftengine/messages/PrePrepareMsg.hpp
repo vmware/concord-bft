@@ -61,12 +61,11 @@ class PrePrepareMsg : public MessageBase {
   void validate(const ReplicasInfo&) const override;
 
   // size - total size of all requests that will be added
-  PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, EpochNum e, CommitPath firstPath, size_t size);
+  PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size);
 
   PrePrepareMsg(ReplicaId sender,
                 ViewNum v,
                 SeqNum s,
-                EpochNum e,
                 CommitPath firstPath,
                 const concordUtils::SpanContext& spanContext,
                 size_t size);
@@ -74,7 +73,6 @@ class PrePrepareMsg : public MessageBase {
   PrePrepareMsg(ReplicaId sender,
                 ViewNum v,
                 SeqNum s,
-                EpochNum e,
                 CommitPath firstPath,
                 const concordUtils::SpanContext& spanContext,
                 const std::string& batchCid,

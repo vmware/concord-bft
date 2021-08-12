@@ -24,7 +24,6 @@
 #include "messages/NewViewMsg.hpp"
 #include "messages/SignedShareMsgs.hpp"
 #include "CryptoManager.hpp"
-#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -481,8 +480,7 @@ ViewChangeMsg* ViewsManager::exitFromCurrentView(SeqNum currentLastStable,
   ConcordAssert(myLatestActiveView == 0 || myPreviousVC != nullptr);
   ConcordAssert(myLatestActiveView == 0 || myPreviousVC->newView() == myLatestActiveView);
 
-  ViewChangeMsg* myNewVC =
-      new ViewChangeMsg(myId, myLatestActiveView + 1, currentLastStable, EpochManager::instance().getSelfEpochNumber());
+  ViewChangeMsg* myNewVC = new ViewChangeMsg(myId, myLatestActiveView + 1, currentLastStable);
 
   ViewChangeMsg::ElementsIterator iterPrevVC(myPreviousVC);
 
@@ -729,8 +727,7 @@ bool ViewsManager::tryToEnterView(ViewNum v,
         ConcordAssert(prePrepareMsgsOfRestrictions[idx] == nullptr);
         nbNoopPPs++;
         // TODO(GG): do we want to start from the slow path in these cases?
-        PrePrepareMsg* pp = new PrePrepareMsg(
-            myId, myLatestActiveView, i, EpochManager::instance().getSelfEpochNumber(), CommitPath::SLOW, 0);
+        PrePrepareMsg* pp = new PrePrepareMsg(myId, myLatestActiveView, i, CommitPath::SLOW, 0);
         outPrePrepareMsgsOfView->push_back(pp);
       } else {
         PrePrepareMsg* pp = prePrepareMsgsOfRestrictions[idx];
@@ -803,7 +800,7 @@ bool ViewsManager::tryMoveToPendingViewAsPrimary(ViewNum v) {
   ConcordAssert(relatedVCMsgs.size() == SMAJOR);
 
   // create NewViewMsg
-  NewViewMsg* nv = new NewViewMsg(myId, v, EpochManager::instance().getSelfEpochNumber());
+  NewViewMsg* nv = new NewViewMsg(myId, v);
 
   for (uint16_t i : relatedVCMsgs) {
     ViewChangeMsg* vc = viewChangeMessages[i];

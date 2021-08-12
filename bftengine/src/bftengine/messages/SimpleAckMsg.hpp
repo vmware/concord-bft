@@ -22,7 +22,7 @@ namespace impl {
 
 class SimpleAckMsg : public MessageBase {
  public:
-  SimpleAckMsg(SeqNum s, ViewNum v, EpochNum e, ReplicaId senderId, uint64_t ackData);
+  SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(SimpleAckMsg)
 

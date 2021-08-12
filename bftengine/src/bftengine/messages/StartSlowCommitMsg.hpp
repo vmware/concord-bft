@@ -24,7 +24,6 @@ class StartSlowCommitMsg : public MessageBase {
   StartSlowCommitMsg(ReplicaId senderId,
                      ViewNum v,
                      SeqNum s,
-                     EpochNum e,
                      const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(StartSlowCommitMsg)

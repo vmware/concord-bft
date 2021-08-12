@@ -16,16 +16,13 @@
 namespace bftEngine {
 namespace impl {
 
-NewViewMsg::NewViewMsg(ReplicaId senderId,
-                       ViewNum newView,
-                       EpochNum epochNum,
-                       const concordUtils::SpanContext& spanContext)
+NewViewMsg::NewViewMsg(ReplicaId senderId, ViewNum newView, const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::NewView,
                   spanContext.data().size(),
                   ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->newViewNum = newView;
-  b()->epochNum = epochNum;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->elementsCount = 0;
   memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }

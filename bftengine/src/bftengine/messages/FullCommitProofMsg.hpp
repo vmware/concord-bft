@@ -22,7 +22,6 @@ class FullCommitProofMsg : public MessageBase {
   FullCommitProofMsg(ReplicaId senderId,
                      ViewNum v,
                      SeqNum s,
-                     EpochNum e,
                      const char* commitProofSig,
                      uint16_t commitProofSigLength,
                      const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});

@@ -21,7 +21,6 @@ class ReplicaStatusMsg : public MessageBase {
                    ViewNum viewNumber,
                    SeqNum lastStableSeqNum,
                    SeqNum lastExecutedSeqNum,
-                   EpochNum epochNum,
                    bool viewIsActive,
                    bool hasNewChangeMsg,
                    bool listOfPrePrepareMsgsInActiveWindow,

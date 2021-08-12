@@ -114,22 +114,20 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
   }
 }
 
-PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, EpochNum e, CommitPath firstPath, size_t size)
-    : PrePrepareMsg(sender, v, s, e, firstPath, concordUtils::SpanContext{}, size) {}
+PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
+    : PrePrepareMsg(sender, v, s, firstPath, concordUtils::SpanContext{}, size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
-                             EpochNum e,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              size_t size)
-    : PrePrepareMsg::PrePrepareMsg(sender, v, s, e, firstPath, spanContext, std::to_string(s), size) {}
+    : PrePrepareMsg::PrePrepareMsg(sender, v, s, firstPath, spanContext, std::to_string(s), size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
-                             EpochNum e,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              const std::string& batchCid,
@@ -151,7 +149,7 @@ PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
   b()->flags = computeFlagsForPrePrepareMsg(ready, ready, firstPath);
   b()->numberOfRequests = 0;
   b()->seqNum = s;
-  b()->epochNum = e;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->viewNum = v;
 
   char* position = body() + sizeof(Header);

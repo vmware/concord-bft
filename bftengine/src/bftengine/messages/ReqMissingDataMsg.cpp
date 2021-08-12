@@ -18,12 +18,13 @@
 namespace bftEngine {
 namespace impl {
 
-ReqMissingDataMsg::ReqMissingDataMsg(
-    ReplicaId senderId, ViewNum v, SeqNum s, EpochNum e, const concordUtils::SpanContext& spanContext)
+ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId,
+                                     ViewNum v,
+                                     SeqNum s,
+                                     const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.data().size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
-  b()->epochNum = e;
   resetFlags();
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }

@@ -46,7 +46,6 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
-  EpochNum epochNum = 0u;
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
@@ -54,7 +53,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);
-  ViewChangeMsg msg(senderId, viewNum, seqNum, epochNum, concordUtils::SpanContext{spanContext});
+  ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);
   EXPECT_EQ(msg.lastStable(), seqNum);
@@ -94,7 +93,6 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg_complaint(
           ReplicaAsksToLeaveViewMsg::create(sender,
                                             viewNum,
-                                            epochNum,
                                             ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout,
                                             concordUtils::SpanContext{spanContext}));
       EXPECT_EQ(msg_complaint->idOfGeneratedReplica(), sender);
@@ -191,7 +189,6 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
-  EpochNum epochNum = 0u;
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
@@ -199,7 +196,7 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);
-  ViewChangeMsg msg(senderId, viewNum, seqNum, epochNum, concordUtils::SpanContext{spanContext});
+  ViewChangeMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg.newView(), viewNum);
   auto lastStable = seqNum;
@@ -272,7 +269,6 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::stri
       std::unique_ptr<ReplicaAsksToLeaveViewMsg> msg_complaint(
           ReplicaAsksToLeaveViewMsg::create(sender,
                                             viewNum,
-                                            epochNum,
                                             ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout,
                                             concordUtils::SpanContext{spanContext}));
       EXPECT_EQ(msg_complaint->idOfGeneratedReplica(), sender);

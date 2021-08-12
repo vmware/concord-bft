@@ -56,7 +56,6 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
                                    ViewNum viewNumber,
                                    SeqNum lastStableSeqNum,
                                    SeqNum lastExecutedSeqNum,
-                                   EpochNum epochNum,
                                    bool viewIsActive,
                                    bool hasNewChangeMsg,
                                    bool listOfPPInActiveWindow,
@@ -80,7 +79,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   b()->viewNumber = viewNumber;
   b()->lastStableSeqNum = lastStableSeqNum;
   b()->lastExecutedSeqNum = lastExecutedSeqNum;
-  b()->epochNum = epochNum;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->flags = 0;
   if (viewIsActive) b()->flags |= powersOf2[0];
   if (hasNewChangeMsg) b()->flags |= powersOf2[1];

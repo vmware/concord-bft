@@ -22,17 +22,18 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "Digest.hpp"
 #include "helper.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 TEST(ReplicaStatusMsg, viewActiveNoLists) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
-  EpochNum epochNum = 0u;
   bool viewIsActive = true;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = false;
@@ -41,11 +42,11 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
                        lastExecuted,
-                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
@@ -85,7 +86,6 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
-  EpochNum epochNum = 0u;
   bool viewIsActive = true;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = true;
@@ -94,11 +94,11 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
                        lastExecuted,
-                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
@@ -150,7 +150,6 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
-  EpochNum epochNum = 0;
   bool viewIsActive = false;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = false;
@@ -159,11 +158,11 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
                        lastExecuted,
-                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,
@@ -207,7 +206,6 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   ViewNum viewNum = 2u;
   SeqNum lastStable = 150u;
   SeqNum lastExecuted = 160u;
-  EpochNum epochNum = 0u;
   bool viewIsActive = false;
   bool hasNewChangeMsg = true;
   bool listOfPrePrepareMsgsInActiveWindow = false;
@@ -216,11 +214,11 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
                        lastExecuted,
-                       epochNum,
                        viewIsActive,
                        hasNewChangeMsg,
                        listOfPrePrepareMsgsInActiveWindow,

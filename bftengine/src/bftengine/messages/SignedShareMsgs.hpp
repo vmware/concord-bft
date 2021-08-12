@@ -53,7 +53,6 @@ class SignedShareBase : public MessageBase {
   static SignedShareBase* create(int16_t type,
                                  ViewNum v,
                                  SeqNum s,
-                                 EpochNum e,
                                  ReplicaId senderId,
                                  Digest& digest,
                                  std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -61,7 +60,6 @@ class SignedShareBase : public MessageBase {
   static SignedShareBase* create(int16_t type,
                                  ViewNum v,
                                  SeqNum s,
-                                 EpochNum e,
                                  ReplicaId senderId,
                                  const char* sig,
                                  uint16_t sigLen,
@@ -86,7 +84,6 @@ class PreparePartialMsg : public SignedShareBase {
  public:
   static PreparePartialMsg* create(ViewNum v,
                                    SeqNum s,
-                                   EpochNum e,
                                    ReplicaId senderId,
                                    Digest& ppDigest,
                                    std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -111,7 +108,6 @@ class PrepareFullMsg : public SignedShareBase {
  public:
   static PrepareFullMsg* create(ViewNum v,
                                 SeqNum s,
-                                EpochNum e,
                                 ReplicaId senderId,
                                 const char* sig,
                                 uint16_t sigLen,
@@ -138,7 +134,6 @@ class CommitPartialMsg : public SignedShareBase {
  public:
   static CommitPartialMsg* create(ViewNum v,
                                   SeqNum s,
-                                  EpochNum e,
                                   ReplicaId senderId,
                                   Digest& ppDoubleDigest,
                                   std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -163,7 +158,6 @@ class CommitFullMsg : public SignedShareBase {
  public:
   static CommitFullMsg* create(ViewNum v,
                                SeqNum s,
-                               EpochNum e,
                                ReplicaId senderId,
                                const char* sig,
                                uint16_t sigLen,

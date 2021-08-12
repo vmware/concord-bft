@@ -21,7 +21,6 @@ namespace impl {
 
 ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                                            SeqNum seqNum,
-                                                           EpochNum epochNum,
                                                            const concordUtils::SpanContext& spanContext)
     : MessageBase(senderId,
                   MsgCode::ReplicasRestartReadyProof,
@@ -29,7 +28,7 @@ ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
                   ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->genReplicaId = senderId;
   b()->seqNum = seqNum;
-  b()->epochNum = epochNum;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->elementsCount = 0;
   b()->locationAfterLast = 0;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
@@ -42,9 +41,8 @@ const uint32_t ReplicasRestartReadyProofMsg::getBodySize() const {
 
 ReplicasRestartReadyProofMsg* ReplicasRestartReadyProofMsg::create(ReplicaId id,
                                                                    SeqNum s,
-                                                                   EpochNum e,
                                                                    const concordUtils::SpanContext& spanContext) {
-  ReplicasRestartReadyProofMsg* m = new ReplicasRestartReadyProofMsg(id, s, e, spanContext);
+  ReplicasRestartReadyProofMsg* m = new ReplicasRestartReadyProofMsg(id, s, spanContext);
   return m;
 }
 

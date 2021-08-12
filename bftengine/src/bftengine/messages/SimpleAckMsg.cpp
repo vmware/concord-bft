@@ -17,11 +17,11 @@
 namespace bftEngine {
 namespace impl {
 
-SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, EpochNum e, ReplicaId senderId, uint64_t ackData)
+SimpleAckMsg::SimpleAckMsg(SeqNum s, ViewNum v, ReplicaId senderId, uint64_t ackData)
     : MessageBase(senderId, MsgCode::SimpleAck, sizeof(Header)) {
   b()->seqNum = s;
   b()->viewNum = v;
-  b()->epochNum = e;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->ackData = ackData;
 }
 

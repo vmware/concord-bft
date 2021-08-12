@@ -21,9 +21,11 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 class CheckpointMsgTestsFixture : public ::testing::Test {
  public:
   CheckpointMsgTestsFixture()
@@ -50,14 +52,14 @@ const char CheckpointMsgTestsFixture::rawSpanContext[] = {"span_\0context"};
 const std::string CheckpointMsgTestsFixture::spanContext = {rawSpanContext, sizeof(rawSpanContext)};
 
 void CheckpointMsgTestsFixture::CheckpointMsgBaseTests(const std::string& spanContext) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   NodeIdType senderId = 1u;
   uint64_t reqSeqNum = 150u;
-  EpochNum epochNum = 0u;
   char digestContext[DIGEST_SIZE] = "digest_content";
   Digest digest(digestContext, sizeof(digestContext));
   bool isStable = false;
   const std::string correlationId = "correlationId";
-  CheckpointMsg msg(senderId, reqSeqNum, epochNum, digest, isStable, concordUtils::SpanContext{spanContext});
+  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();

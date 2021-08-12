@@ -27,14 +27,12 @@ TEST(FullCommitProofMsg, base_methods) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
-  EpochNum epochNum = 0u;
   std::string commit_proof_signature{"commit_proof_signature"};
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   FullCommitProofMsg msg{senderId,
                          viewNum,
                          seqNum,
-                         epochNum,
                          commit_proof_signature.data(),
                          static_cast<uint16_t>(commit_proof_signature.size()),
                          concordUtils::SpanContext{spanContext}};

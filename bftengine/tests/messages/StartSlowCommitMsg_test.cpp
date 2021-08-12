@@ -28,10 +28,9 @@ TEST(StartSlowCommitMsg, base_methods) {
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
   SeqNum seqNum = 3u;
-  EpochNum epochNum = 0u;
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
-  StartSlowCommitMsg msg(senderId, viewNum, seqNum, epochNum, concordUtils::SpanContext{spanContext});
+  StartSlowCommitMsg msg(senderId, viewNum, seqNum, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.viewNumber(), viewNum);
   EXPECT_EQ(msg.seqNumber(), seqNum);
   EXPECT_NO_THROW(msg.validate(replicaInfo));

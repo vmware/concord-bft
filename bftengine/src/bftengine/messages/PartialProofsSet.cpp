@@ -265,7 +265,6 @@ class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
       FullCommitProofMsg* fcpMsg = new FullCommitProofMsg(me->getReplicasInfo().myId(),
                                                           view,
                                                           seqNumber,
-                                                          EpochManager::instance().getSelfEpochNumber(),
                                                           bufferForSigComputations.data(),
                                                           (uint16_t)sigLength,
                                                           span_context_);

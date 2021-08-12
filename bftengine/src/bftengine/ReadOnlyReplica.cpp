@@ -121,7 +121,8 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       (pos->second->seqNumber() >= msgSeqNum || msgEpochNum < replicasLastKnownEpochVal))
     return;
   if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-  CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgEpochNum, msgDigest, msgIsStable);
+  CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+  x->setEpochNumber(msgEpochNum);
   tableOfStableCheckpoints[msgGenReplicaId] = x;
   LOG_INFO(GL,
            "Added stable Checkpoint message to tableOfStableCheckpoints (message generated from node "

@@ -22,7 +22,6 @@ class CheckpointMsg : public MessageBase {
  public:
   CheckpointMsg(ReplicaId genReplica,
                 SeqNum seqNum,
-                EpochNum epochNum,
                 const Digest& stateDigest,
                 bool stateIsStable,
                 const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
@@ -40,6 +39,8 @@ class CheckpointMsg : public MessageBase {
   bool isStableState() const { return (b()->flags & 0x1) != 0; }
 
   void setStateAsStable() { b()->flags |= 0x1; }
+
+  void setEpochNumber(const EpochNum& e) { b()->epochNum = e; }
 
   void validate(const ReplicasInfo& repInfo) const override;
 

@@ -20,24 +20,25 @@
 namespace bftEngine {
 namespace impl {
 
-ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(
-    ReplicaId srcReplicaId, SeqNum s, EpochNum e, uint16_t sigLen, const concordUtils::SpanContext& spanContext)
+ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
+                                               SeqNum s,
+                                               uint16_t sigLen,
+                                               const concordUtils::SpanContext& spanContext)
     : MessageBase(srcReplicaId, MsgCode::ReplicaRestartReady, spanContext.data().size(), sizeof(Header) + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->seqNum = s;
-  b()->epochNum = e;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
 ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
                                                        SeqNum s,
-                                                       EpochNum e,
                                                        const concordUtils::SpanContext& spanContext) {
   auto sigManager = SigManager::instance();
   const size_t sigLen = sigManager->getMySigLength();
 
-  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, e, sigLen, spanContext);
+  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, spanContext);
 
   auto position = m->body() + sizeof(Header);
   std::memcpy(position, spanContext.data().data(), spanContext.data().size());

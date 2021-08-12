@@ -26,7 +26,6 @@ class ReplicaRestartReadyMsg : public MessageBase {
  public:
   ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
                          SeqNum seqNum,
-                         EpochNum e,
                          uint16_t sigLen,
                          const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
@@ -42,7 +41,6 @@ class ReplicaRestartReadyMsg : public MessageBase {
 
   static ReplicaRestartReadyMsg* create(ReplicaId senderId,
                                         SeqNum s,
-                                        EpochNum e,
                                         const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;

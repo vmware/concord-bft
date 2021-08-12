@@ -102,15 +102,14 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   const SeqNum checkpointSeqNum0 = 0;
   const SeqNum checkpointSeqNum1 = 150;
   const SeqNum checkpointSeqNum2 = 300;
-  const EpochNum epochNum = 0;
   ReplicaId sender = 3;
   Digest stateDigest;
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, epochNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, epochNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, epochNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
   checkpointInitialMsg2.sign();
 
   const bool completed = true;
@@ -148,24 +147,22 @@ void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
   const SeqNum prePrepareMsgSeqNum = 4;
   ReplicaId sender = 2;
   ViewNum view = 6;
-  EpochNum epoch = 0;
   CommitPath firstPath = CommitPath::FAST_WITH_THRESHOLD;
-  PrePrepareMsg prePrepareNullMsg(sender, view, prePrepareMsgSeqNum, epoch, firstPath, 0);
+  PrePrepareMsg prePrepareNullMsg(sender, view, prePrepareMsgSeqNum, firstPath, 0);
 
   const SeqNum slowStartedSeqNum = 144;
   bool slowStarted = true;
 
   const SeqNum prePrepareFullSeqNum = 101;
-  PrepareFullMsg *prePrepareFullInitialMsg =
-      PrepareFullMsg::create(view, prePrepareFullSeqNum, epoch, sender, nullptr, 0);
+  PrepareFullMsg *prePrepareFullInitialMsg = PrepareFullMsg::create(view, prePrepareFullSeqNum, sender, nullptr, 0);
 
   const SeqNum fullCommitProofSeqNum = 160;
-  FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, epoch, nullptr, 0);
+  FullCommitProofMsg fullCommitProofInitialMsg(sender, view, fullCommitProofSeqNum, nullptr, 0);
 
   const bool forceCompleted = true;
 
   const SeqNum commitFullSeqNum = 240;
-  CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, epoch, sender, nullptr, 0);
+  CommitFullMsg *commitFullInitialMsg = CommitFullMsg::create(view, commitFullSeqNum, sender, nullptr, 0);
 
   if (toSet) {
     persistentStorageImp->beginWriteTran();
@@ -247,32 +244,31 @@ void testSetDescriptors(bool toSet) {
   SeqNum lastExecutionSeqNum = 33;
   Bitmap requests(100);
   DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
-  EpochNum epochNum = 0;
   ViewNum viewNum = 0;
   SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;
   ViewsManager::PrevViewInfo element;
   ReplicaId senderId = 1;
   element.hasAllRequests = true;
-  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, epochNum, CommitPath::OPTIMISTIC_FAST, 0);
-  element.prepareFull = PrepareFullMsg::create(viewNum, lastExitExecNum, epochNum, senderId, nullptr, 0);
+  element.prePrepare = new PrePrepareMsg(senderId, viewNum, lastExitExecNum, CommitPath::OPTIMISTIC_FAST, 0);
+  element.prepareFull = PrepareFullMsg::create(viewNum, lastExitExecNum, senderId, nullptr, 0);
   for (uint32_t i = 0; i < kWorkWindowSize; ++i) {
     elements.push_back(element);
   }
   SeqNum lastExitStableNum = 60;
   SeqNum lastExitStableLowerBound = 50;
   SeqNum lastStable = 48;
-  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum + 1, lastStable, epochNum);
+  auto *viewChangeMsg = new ViewChangeMsg(senderId, viewNum + 1, lastStable);
   DescriptorOfLastExitFromView lastExitFromViewDesc(
       viewNum, lastExitStableNum, lastExitExecNum, elements, viewChangeMsg, lastExitStableLowerBound);
 
   ViewChangeMsgsVector msgs;
   ViewNum newViewNum = 1;
-  for (auto i = 1; i <= msgsNum; i++) msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum, epochNum));
+  for (auto i = 1; i <= msgsNum; i++) msgs.push_back(new ViewChangeMsg(i, newViewNum, lastExitStableNum));
   SeqNum maxSeqNum = 200;
-  auto *newViewMsg = new NewViewMsg(0x01234, newViewNum, epochNum);
+  auto *newViewMsg = new NewViewMsg(0x01234, newViewNum);
   SeqNum lastNewViewStableLowerBound = 51;
-  auto *lastNewViewViewChangeMsg = new ViewChangeMsg(senderId, newViewNum, lastStable + 2, epochNum);
+  auto *lastNewViewViewChangeMsg = new ViewChangeMsg(senderId, newViewNum, lastStable + 2);
   DescriptorOfLastNewView lastNewViewDesc(
       newViewNum, newViewMsg, msgs, lastNewViewViewChangeMsg, lastNewViewStableLowerBound, maxSeqNum);
 
@@ -336,15 +332,14 @@ void testCheckDescriptorOfLastStableCheckpoint(bool init) {
   const SeqNum checkpointSeqNum0 = 0;
   const SeqNum checkpointSeqNum1 = 150;
   const SeqNum checkpointSeqNum2 = 300;
-  const EpochNum epochNum = 0;
   const ReplicaId sender = 3;
   const Digest stateDigest('d');
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, epochNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, epochNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, epochNum, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
   checkpointInitialMsg2.sign();
   std::vector<CheckpointMsg *> msgs;
   msgs.push_back(&checkpointInitialMsg0);

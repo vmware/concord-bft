@@ -26,7 +26,6 @@ class PartialCommitProofMsg : public MessageBase {
   PartialCommitProofMsg(ReplicaId senderId,
                         ViewNum v,
                         SeqNum s,
-                        EpochNum e,
                         CommitPath commitPath,
                         Digest& digest,
                         std::shared_ptr<IThresholdSigner> thresholdSigner,

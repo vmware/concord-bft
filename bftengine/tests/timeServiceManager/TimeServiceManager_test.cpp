@@ -206,7 +206,7 @@ TEST(TimeServiceManager, hasTimeRequest_positive) {
     req_size += client_request.back()->size();
   }
 
-  PrePrepareMsg pp_msg(1u, 1u, 1u, 0u, CommitPath::OPTIMISTIC_FAST, req_size);
+  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
   pp_msg.addRequest(msg->body(), msg->size());
   for (const auto& c : client_request) {
     pp_msg.addRequest(c->body(), c->size());
@@ -233,7 +233,7 @@ TEST(TimeServiceManager, hasTimeRequest_ts_in_the_end) {
     req_size += client_request.back()->size();
   }
 
-  PrePrepareMsg pp_msg(1u, 1u, 1u, 0u, CommitPath::OPTIMISTIC_FAST, req_size);
+  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
   for (const auto& c : client_request) {
     pp_msg.addRequest(c->body(), c->size());
   }
@@ -259,7 +259,7 @@ TEST(TimeServiceManager, hasTimeRequest_no_ts_msg) {
     req_size += client_request.back()->size();
   }
 
-  PrePrepareMsg pp_msg(1u, 1u, 1u, 0u, CommitPath::OPTIMISTIC_FAST, req_size);
+  PrePrepareMsg pp_msg(1u, 1u, 1u, CommitPath::OPTIMISTIC_FAST, req_size);
   for (const auto& c : client_request) {
     pp_msg.addRequest(c->body(), c->size());
   }

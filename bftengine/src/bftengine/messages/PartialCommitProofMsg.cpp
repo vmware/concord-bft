@@ -22,7 +22,6 @@ namespace impl {
 PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
                                              ViewNum v,
                                              SeqNum s,
-                                             EpochNum e,
                                              CommitPath commitPath,
                                              Digest& digest,
                                              std::shared_ptr<IThresholdSigner> thresholdSigner,
@@ -35,7 +34,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
 
   b()->viewNum = v;
   b()->seqNum = s;
-  b()->epochNum = e;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->commitPath = commitPath;
   b()->thresholSignatureLength = thresholSignatureLength;
 
