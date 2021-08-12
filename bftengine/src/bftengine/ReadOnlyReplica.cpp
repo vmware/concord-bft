@@ -118,7 +118,7 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   // previous CheckpointMsg from the same sender
   auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
   if (pos != tableOfStableCheckpoints.end() &&
-      (pos->second->seqNumber() >= msgSeqNum && msgEpochNum >= replicasLastKnownEpochVal))
+      (pos->second->seqNumber() >= msgSeqNum || msgEpochNum < replicasLastKnownEpochVal))
     return;
   if (pos != tableOfStableCheckpoints.end()) delete pos->second;
   CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgEpochNum, msgDigest, msgIsStable);

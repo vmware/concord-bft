@@ -13,6 +13,7 @@
 
 #pragma once
 
+#include "kvbc_key_types.hpp"
 #include "db_editor_common.hpp"
 #include "categorization/kv_blockchain.h"
 #include "execution_data.cmf.hpp"
@@ -720,7 +721,7 @@ struct RemoveMetadata {
            "  Removes metadata and state transfer data from RocksDB.";
   }
 
-  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &) const {
+  std::string execute(KeyValueBlockchain &adapter, const CommandArguments &) const {
     using storage::v2MerkleTree::detail::EDBKeyType;
 
     static_assert(static_cast<uint8_t>(EDBKeyType::BFT) + 1 == static_cast<uint8_t>(EDBKeyType::Key),
@@ -733,7 +734,39 @@ struct RemoveMetadata {
     if (!status.isOK()) {
       throw std::runtime_error{"Failed to delete metadata and state transfer data: " + status.toString()};
     }
-    return toJson(std::string{"result"}, std::string{"true"});
+    // Once we managed to remove the metadata, we must start a new epoch (which means to add an epoch block)
+    uint64_t epoch{0};
+    {
+      auto value =
+          adapter.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_key});
+      if (value) {
+        const auto &data = std::get<categorization::VersionedValue>(*value).data;
+        ConcordAssertEQ(data.size(), sizeof(uint64_t));
+        epoch = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+      }
+    }
+    uint64_t last_executed_sn{0};
+    {
+      auto value = adapter.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key});
+      if (value) {
+        const auto &data = std::get<categorization::VersionedValue>(*value).data;
+        ConcordAssertEQ(data.size(), sizeof(uint64_t));
+        last_executed_sn = concordUtils::fromBigEndianBuffer<uint64_t>(data.data());
+      }
+    }
+    epoch += 1;
+    std::string epoch_str = concordUtils::toBigEndianStringBuffer(epoch);
+    concord::kvbc::categorization::VersionedUpdates ver_updates;
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key}, std::move(epoch_str));
+    std::string sn_str = concordUtils::toBigEndianStringBuffer(last_executed_sn);
+    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, std::move(sn_str));
+    concord::kvbc::categorization::Updates updates;
+    updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+    adapter.addBlock(std::move(updates));
+    std::vector<std::pair<std::string, std::string>> out;
+    out.push_back({std::string{"result"}, std::string{"true"}});
+    out.push_back({std::string{"epoch"}, std::to_string(epoch)});
+    return toJson(out);
   }
 };
 

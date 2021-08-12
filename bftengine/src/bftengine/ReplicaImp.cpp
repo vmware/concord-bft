@@ -2482,7 +2482,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
       SeqNumInfo &seqNumInfo = mainLog->get(i);
 
-      if (seqNumInfo.getPrePrepareMsg() != nullptr) {
+      if (seqNumInfo.getPrePrepareMsg() != nullptr && seqNumInfo.isTimeCorrect()) {
         ViewsManager::PrevViewInfo x;
 
         seqNumInfo.getAndReset(x.prePrepare, x.prepareFull);
@@ -4225,7 +4225,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   size_t reqIdx = 0;
   RequestsIterator reqIter(ppMsg);
   char *requestBody = nullptr;
-  auto timestamp = config_.timeServiceEnabled ? std::optional<Timestamp>{} : std::nullopt;
+  auto timestamp = config_.timeServiceEnabled ? std::make_optional<Timestamp>() : std::nullopt;
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
