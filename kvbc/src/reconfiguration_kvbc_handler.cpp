@@ -140,9 +140,12 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
   concord::messages::ClientReconfigurationStateReply rep;
   for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
        i++) {
-    rep.states.push_back(buildClientStateReply(static_cast<keyTypes::CLIENT_COMMAND_TYPES>(i), sender_id));
+    auto csrep = buildClientStateReply(static_cast<keyTypes::CLIENT_COMMAND_TYPES>(i), sender_id);
+    if (csrep.block_id == 0) continue;
+    rep.states.push_back(csrep);
   }
-  rres.response = rep;
+  LOG_INFO(GL, "b(2)");
+  concord::messages::serialize(rres.additional_data, rep);
   return true;
 }
 

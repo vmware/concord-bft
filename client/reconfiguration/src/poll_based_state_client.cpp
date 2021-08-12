@@ -63,7 +63,7 @@ PollBasedStateClient::PollBasedStateClient(bft::client::Client* client,
       last_known_block_{last_known_block},
       sn_gen_(bft::client::ClientId{id}) {}
 
-std::vector<State> PollBasedStateClient::getStateUpdate() const {
+std::vector<State> PollBasedStateClient::getStateUpdate(bool& succ) const {
   concord::messages::ClientReconfigurationStateRequest creq{id_};
   concord::messages::ReconfigurationRequest rreq;
   rreq.sender = id_;
@@ -72,14 +72,18 @@ std::vector<State> PollBasedStateClient::getStateUpdate() const {
   auto rres = sendReconfigurationRequest(rreq, "getStateUpdate-" + std::to_string(sn), sn, true);
   if (!rres.success) {
     LOG_WARN(getLogger(), "invalid response from replicas");
+    succ = false;
     return {};
   }
-  if (!std::holds_alternative<concord::messages::ClientReconfigurationStateReply>(rres.response)) {
-    LOG_WARN(getLogger(), "invalid response from replicas");
+  concord::messages::ClientReconfigurationStateReply crep;
+  try {
+    concord::messages::deserialize(rres.additional_data, crep);
+  } catch (const std::exception& e) {
+    LOG_ERROR(getLogger(), e.what());
+    succ = false;
     return {};
   }
-  concord::messages::ClientReconfigurationStateReply crep =
-      std::get<concord::messages::ClientReconfigurationStateReply>(rres.response);
+  succ = true;
   std::vector<State> res;
   for (const auto& s : crep.states) {
     std::vector<uint8_t> data_buf;
@@ -110,16 +114,17 @@ void PollBasedStateClient::start() {
     while (!stopped) {
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) return;
-      auto new_state = getStateUpdate();
+      std::lock_guard<std::mutex> lk(lock_);
+      bool succ;
+      auto new_state = getStateUpdate(succ);
       uint64_t max_update_block{0};
       for (const auto& s : new_state) {
-        std::lock_guard<std::mutex> lk(lock_);
         if (s.blockid > last_known_block_) {
           updates_.push(s);
           if (s.blockid > max_update_block) max_update_block = s.blockid;
-          new_updates_.notify_one();
         }
       }
+      new_updates_.notify_one();
       if (max_update_block > last_known_block_) last_known_block_ = max_update_block;
     }
   });

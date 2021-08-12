@@ -118,7 +118,7 @@ class ClientApiTestFixture : public ::testing::Test {
         srep.states.push_back(rep);
         i++;
       }
-      rres.response = srep;
+      concord::messages::serialize(rres.additional_data, srep);
       rres.success = true;
       std::vector<uint8_t> msg_buf;
       concord::messages::serialize(msg_buf, rres);

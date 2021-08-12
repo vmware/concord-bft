@@ -35,9 +35,9 @@ class PollBasedStateClient : public IStateClient {
   ~PollBasedStateClient();
   void start() override;
   void stop() override;
+  std::vector<State> getStateUpdate(bool& succ) const;
 
  private:
-  std::vector<State> getStateUpdate() const;
   concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest& rreq,
                                                                         const std::string& cid,
                                                                         uint64_t sn,

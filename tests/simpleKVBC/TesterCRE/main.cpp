@@ -129,10 +129,13 @@ ICommunication* createCommunication(const ClientConfig& cc,
 
 class KeyExchangeCommandHandler : public IStateHandler {
  public:
-  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path) : clientId_{clientId}, key_path_{key_path} {
+  KeyExchangeCommandHandler(uint16_t clientId, const std::string& key_path, uint64_t init_update_block)
+      : clientId_{clientId}, key_path_{key_path} {
     sm_.reset(new concord::secretsmanager::SecretsManagerPlain());
+    init_last_update_block_ = init_update_block;
   }
   bool validate(const State& state) const {
+    if (state.blockid < init_last_update_block_) return false;
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientKeyExchangeCommand>(crep.response);
@@ -179,11 +182,15 @@ class KeyExchangeCommandHandler : public IStateHandler {
   uint16_t clientId_;
   fs::path key_path_;
   std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
+  uint64_t init_last_update_block_;
 };
 
 class ClientsAddRemoveHandler : public IStateHandler {
  public:
+  ClientsAddRemoveHandler(uint64_t init_update_block) : init_last_update_block_{init_update_block} {}
+
   bool validate(const State& state) const override {
+    if (state.blockid < init_last_update_block_) return false;
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
     return std::holds_alternative<concord::messages::ClientsAddRemoveCommand>(crep.response);
@@ -206,11 +213,14 @@ class ClientsAddRemoveHandler : public IStateHandler {
            }};
     return true;
   }
+
+ private:
   logging::Logger getLogger() {
     static logging::Logger logger_(
         logging::getLogger("concord.client.reconfiguration.testerCre.ClientsAddRemoveHandler"));
     return logger_;
   }
+  uint64_t init_last_update_block_;
 };
 
 int main(int argc, char** argv) {
@@ -218,12 +228,30 @@ int main(int argc, char** argv) {
   std::unique_ptr<ICommunication> comm_ptr(
       createCommunication(creParams.bftConfig, creParams.commConfigFile, creParams.certFolder));
   Client* bft_client = new Client(std::move(comm_ptr), creParams.bftConfig);
-  IStateClient* pollBasedClient =
+  PollBasedStateClient* pollBasedClient =
       new PollBasedStateClient(bft_client, creParams.CreConfig.interval_timeout_ms_, 0, creParams.CreConfig.id_);
+  // First, lets find the latest update per action
+  uint64_t last_pk_status{0};
+  uint64_t last_scaling_status{0};
+  bool succ = false;
+  auto states = pollBasedClient->getStateUpdate(succ);
+  while (!succ) {
+    states = pollBasedClient->getStateUpdate(succ);
+  }
+  for (const auto& s : states) {
+    concord::messages::ClientStateReply csp;
+    concord::messages::deserialize(s.data, csp);
+    if (std::holds_alternative<concord::messages::ClientExchangePublicKey>(csp.response)) {
+      last_pk_status = s.blockid;
+    }
+    if (std::holds_alternative<concord::messages::ClientsAddRemoveUpdateCommand>(csp.response)) {
+      last_scaling_status = s.blockid;
+    }
+  }
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(std::make_shared<KeyExchangeCommandHandler>(
-      creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value()));
-  cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>());
+      creParams.CreConfig.id_, creParams.bftConfig.transaction_signing_private_key_file_path.value(), last_pk_status));
+  cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }
