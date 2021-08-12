@@ -6,10 +6,10 @@ ExternalProject_Add(gmp
                     LOG_DOWNLOAD 1
                     LOG_BUILD 1
                     BUILD_IN_SOURCE 1
-                    CONFIGURE_COMMAND ./configure --with-pic --enable-cxx --disable-fat --build x86_64-linux-gnu
+                    CONFIGURE_COMMAND ./configure --with-pic --enable-cxx --disable-fat
                     BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j${NPROC}
                     INSTALL_COMMAND ""
-                    COMMAND make check
+                    #COMMAND make check
 )
 
 ExternalProject_Get_Property(gmp BINARY_DIR)

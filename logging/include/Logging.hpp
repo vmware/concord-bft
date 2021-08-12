@@ -17,7 +17,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
-
+#include <array>
 namespace logging {
 
 /**
@@ -67,7 +67,7 @@ class LoggerImpl {
 
     // clang-format off
     std::cout << std::put_time(std::localtime(&cur_time.tv_sec), "%FT%T.") << (int)cur_time.tv_usec / 1000
-       << "|" << LoggerImpl::LEVELS_STRINGS[l].c_str()
+       << "|" << LoggerImpl::LEVELS_STRINGS[l]
        << "|" << getThreadContext().getMDC().get(MDC_REPLICA_ID_KEY)
        << "|" << name_
        << "|" << getThreadContext().getMDC().get(MDC_THREAD_KEY)
