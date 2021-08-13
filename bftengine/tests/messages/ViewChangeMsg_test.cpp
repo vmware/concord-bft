@@ -27,8 +27,8 @@
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 static constexpr char rawSpanContext[] = "span_\0context";
+bftEngine::test::ReservedPagesMock<EpochManager> resPagesMock_;
 
 class ViewChangeMsgTestsFixture : public ::testing::Test {
  public:
@@ -42,7 +42,7 @@ class ViewChangeMsgTestsFixture : public ::testing::Test {
 void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
                                                    bool bAddComplaints,
                                                    const std::string& spanContext) {
-  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
+  bftEngine::ReservedPagesClientBase::setReservedPages(&resPagesMock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;
@@ -185,7 +185,8 @@ void ViewChangeMsgTestsFixture::ViewChangeMsgTests(bool bAddElements,
 }
 
 void ViewChangeMsgTestsFixture::ViewChangeMsgAddRemoveComplaints(const std::string& spanContext, int totalElements) {
-  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
+  bftEngine::test::ReservedPagesMock<EpochManager> resPagesMock_;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&resPagesMock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;
   SeqNum seqNum = 3u;

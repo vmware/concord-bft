@@ -1810,7 +1810,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   LOG_INFO(GL,
            "Received checkpoint message from node. "
                << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msgEpochNum, msg->size(), msgIsStable, msgDigest));
-  LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum));
+  LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
   (void)span;
@@ -1845,7 +1845,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (msgIsStable && (msgSeqNum > lastExecutedSeqNum || msgEpochNum >= getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
-        msgEpochNum >= pos->second->epochNumber()) {
+        msgEpochNum >= getSelfEpochNumber()) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;

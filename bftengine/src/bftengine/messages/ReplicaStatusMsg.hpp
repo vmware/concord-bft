@@ -36,6 +36,8 @@ class ReplicaStatusMsg : public MessageBase {
 
   SeqNum getLastExecutedSeqNum() const;
 
+  EpochNum getEpochNum() const;
+
   bool currentViewIsActive() const;
 
   bool currentViewHasNewViewMessage() const;

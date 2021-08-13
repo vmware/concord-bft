@@ -129,6 +129,8 @@ SeqNum ReplicaStatusMsg::getLastStableSeqNum() const { return b()->lastStableSeq
 
 SeqNum ReplicaStatusMsg::getLastExecutedSeqNum() const { return b()->lastExecutedSeqNum; }
 
+EpochNum ReplicaStatusMsg::getEpochNum() const { return b()->epochNum; }
+
 bool ReplicaStatusMsg::currentViewIsActive() const { return ((b()->flags & powersOf2[0]) != 0); }
 
 bool ReplicaStatusMsg::currentViewHasNewViewMessage() const { return ((b()->flags & powersOf2[1]) != 0); }

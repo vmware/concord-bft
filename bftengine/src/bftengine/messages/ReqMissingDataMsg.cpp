@@ -25,6 +25,7 @@ ReqMissingDataMsg::ReqMissingDataMsg(ReplicaId senderId,
     : MessageBase(senderId, MsgCode::ReqMissingData, spanContext.data().size(), sizeof(Header)) {
   b()->viewNum = v;
   b()->seqNum = s;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   resetFlags();
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
