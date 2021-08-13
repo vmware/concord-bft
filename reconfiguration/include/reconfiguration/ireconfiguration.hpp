@@ -145,12 +145,6 @@ class IReconfigurationHandler {
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
-  virtual bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
-                      uint64_t,
-                      uint32_t,
-                      concord::messages::ReconfigurationResponse&) {
-    return true;
-  }
 
   virtual bool handle(const concord::messages::RestartCommand&,
                       uint64_t,

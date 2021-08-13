@@ -43,7 +43,6 @@ class ClientReconfigurationEngine {
   std::unique_ptr<IStateClient> stateClient_;
   Config config_;
   std::atomic_bool stopped_{true};
-  uint64_t lastKnownBlock_{0};
   std::thread mainThread_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
   concordMetrics::Component metrics_;

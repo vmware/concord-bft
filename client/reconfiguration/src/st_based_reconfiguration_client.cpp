@@ -20,12 +20,12 @@ STBasedReconfigurationClient::STBasedReconfigurationClient(
       lastKnownReconfigurationCmdBlockId_(blockId),
       interval_timeout_ms_(interval_timeout_ms) {}
 
-State STBasedReconfigurationClient::getNextState(uint64_t lastKnownBlockId) const {
+State STBasedReconfigurationClient::getNextState() const {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped_ && updates_.empty()) {
     new_updates_.wait(lk, [this]() { return !updates_.empty(); });
   }
-  if (stopped_) return {lastKnownBlockId, {}};
+  if (stopped_) return {0, {}};
   auto ret = std::move(updates_.front());
   updates_.pop();
   return ret;
@@ -45,9 +45,7 @@ void STBasedReconfigurationClient::pushUpdate(std::vector<State>& states) {
   }
   if (notify) new_updates_.notify_one();
 }
-State STBasedReconfigurationClient::getLatestClientUpdate(uint16_t clientId) const {
-  return {lastKnownReconfigurationCmdBlockId_, {}};
-}
+
 bool STBasedReconfigurationClient::updateState(const WriteState& state) {
   if (storeReconfigBlockToMdtCb_) storeReconfigBlockToMdtCb_(state.data);
   if (state.callBack) state.callBack();
