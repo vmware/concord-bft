@@ -94,10 +94,10 @@ Implementation:
 [periodic_action.cpp](src/periodic_action.cpp)
 
 ## Multithreading Considerations
-Concord uses a single main replica thread that executes client requests (ticks included) in a specific order.
+Concord uses a single replica messaging thread that executes client requests (ticks included) in a specific order.
 Therefore, the cron table assumes that it will be called from one thread only and doesn't make any provisions
-for calling it otherwise. Moreover, the user-supplied cron entry functions are also called in the single main
-replica thread.
+for calling it otherwise. Moreover, the user-supplied cron entry functions are also called in the single replica
+messaging thread.
 
 # Ticks Generator
 Every replica has a single ticks generator that generates ticks for all registered components. Users of the class
@@ -119,21 +119,44 @@ ticks there are, there can be a situation with a lot of pending ticks that are g
 unneccessary view change. In order to avoid that, we limit the amount of pending ticks per component in a single
 replica to 1.
 
-However, checking whether there is a pending tick in [ClientsManager](../bftengine/src/bftengine/ClientsManager.hpp)
-from the generator thread is not trivial, because the main replica thread is the only one currently accessing it.
+A tick can be pending in either of the following two places:
+* the external message queue [IncomingMsgsStorageImp](../bftengine/src/bftengine/IncomingMsgsStorageImp.cpp)
+* the [ClientsManager](../bftengine/src/bftengine/ClientsManager.cpp)
+
+However, checking whether there is a pending tick in both of them from the generator thread is not trivial,
+because multiple other threads are accessing the external message queue and the replica messaging thread is the only one accessing the ClientsManager.
 Adding locks can solve that problem, but will make the code more complicated. Instead, we would like to only add/remove/check
-pending ticks from the main replica thread. To achieve that, we introduce the [TickInternalMsg](../bftengine/src/bftengine/messages/TickInternalMsg.hpp)
-that is sent as an internal message to the main replica thread. Then, the main replica thread just dispatches it back to
+pending ticks from the replica messaging thread. To achieve that, we introduce the [TickInternalMsg](../bftengine/src/bftengine/messages/TickInternalMsg.hpp)
+that is sent as an internal message to the replica messaging thread. Then, the replica messaging thread just dispatches it back to
 `TicksGenerator::onInternalTick(const bftEngine::impl::TickInternalMsg&)`. If there is no pending tick for the
 component in question, that method creates a `ClientRequestMsg`, containing a CMF `ClientReqMsgTickPayload` payload
 and pushes it to the back of the replica external queue, as if received from the network. Otherwise, if there is a
 pending tick for the component in question, the tick is ignored.
 
-In terms of checking if there is a pending tick per component, the ticks generator maintains a map of pending tick
-request sequence numbers per component ID. That way, when a tick for a specific component ID is generated, it can be
-checked against the pending requests in [ClientsManager](../bftengine/src/bftengine/ClientsManager.hpp).
+In terms of checking if there is a pending tick per component in the ClientsManager, the ticks generator maintains a
+map of latest pending tick request sequence numbers per component ID. That way, when a tick for a specific component ID is
+generated, it can be checked with its latest request sequence number (from the map) in the ClientsManager.
 
-Throttling ticks should not have an impact on the cron table, because if there is a pending tick, it should be
+Checking if there is a pending tick in the external message queue is achieved by the ticks generator maintaining a set of
+component IDs that have ticks pending in that queue. When a tick is consumed from the external message queue by the replica messaging
+thread, the `TicksGenerator::onTickPoppedFromExtQueue(std::uint32_t component_id)` method is called as a callback and the component
+ID in question is removed from the set.
+
+To illustrate, below we are showing the path of a tick in the system (taken from a comment in
+[TicksGenerator](src/ticks_generator.cpp) for convenience):
+```
+// -----------------------------------------------------------------------------------------------------------
+//                                                         onTickPoppedFromExtQueue()
+//                                                                    |
+//                                                                    v
+//  ticks gen -> internal queue -> onInternalTick() -> external queue -> onMessage() -> consensus -> execute()
+//                                                                            ^
+//                                                                            |
+//                                                             ClientsManager::addPendingRequest()
+// -----------------------------------------------------------------------------------------------------------
+```
+
+Finally, throttling ticks should not have an impact on the cron table, because if there is a pending tick, it should be
 processed at some point. If not, a subsequent tick will eventually be processed. Moreover, what time an action
 is executed at is dependent on data in the tick itself (such as time, BFT sequence number) and, potentially,
 deterministic system state and **not** on the ticks generation frequency.
