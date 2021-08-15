@@ -106,8 +106,7 @@ class FakeStorage : public concord::kvbc::IReader {
     if (category_id == concord::kvbc::categorization::kExecutionEventGroupIdsCategory) {
       // get latest trid event_group_id
       if (latest_trid_eg_id.find(key) == latest_trid_eg_id.end()) {
-        throw std::runtime_error("The key: " + key +
-                                 "for category kExecutionEventGroupIdsCategory doesn't exist in storage!");
+        throw std::runtime_error("The key: " + key + "for category  doesn't exist in storage!");
       }
       return concord::kvbc::categorization::VersionedValue{{block_id, latest_trid_eg_id.at(key)}};
     } else if (category_id == concord::kvbc::categorization::kExecutionTridEventGroupsCategory) {
@@ -148,6 +147,10 @@ class FakeStorage : public concord::kvbc::IReader {
 
   std::optional<concord::kvbc::categorization::TaggedVersion> getLatestVersion(const std::string &category_id,
                                                                                const std::string &key) const override {
+    if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
+      // Event groups not enabled
+      return std::nullopt;
+    }
     ADD_FAILURE() << "getLatestVersion() should not be called by this test";
     return {};
   }

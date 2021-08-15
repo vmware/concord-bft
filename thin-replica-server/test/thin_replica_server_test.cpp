@@ -163,6 +163,10 @@ class FakeStorage : public concord::kvbc::IReader {
 
   std::optional<concord::kvbc::categorization::TaggedVersion> getLatestVersion(const std::string& category_id,
                                                                                const std::string& key) const override {
+    if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
+      // Event groups not enabled
+      return std::nullopt;
+    }
     ADD_FAILURE() << "getLatestVersion() should not be called by this test";
     return {};
   }

@@ -231,21 +231,36 @@ class ThinReplicaImpl {
     auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context));
     if (!subscribe_status.ok()) {
       LOG_WARN(logger_,
-               "SubscribeToUpdates createKvbFilter failed: (" << subscribe_status.error_code() << ") "
-                                                              << subscribe_status.error_message());
+               "SubscribeToUpdates subscribeToLiveUpdates failed: (" << subscribe_status.error_code() << ") "
+                                                                     << subscribe_status.error_message());
       return subscribe_status;
     }
+
     // TRS metrics
     ThinReplicaServerMetrics metrics_(stream_type, getClientId(context));
     metrics_.setAggregator(aggregator_);
     uint16_t update_aggregator_counter = 0;
     metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
 
+    // If legacy event request then mark whether we need to transition into event groups
+    bool is_event_group_transition = false;
+
     kvbc::BlockId start_block_id;
     if (request->has_events()) {
       start_block_id = request->events().block_id();
+      if (auto opt = kvb_filter->getFirstEventGroupBlockId()) {
+        if (start_block_id >= opt.value()) {
+          is_event_group_transition = true;
+        }
+      }
+    }
+
+    if (request->has_events() && !is_event_group_transition) {
       try {
         syncAndSend<ServerContextT, ServerWriterT, DataT>(context, start_block_id, live_updates, stream, kvb_filter);
+      } catch (concord::kvbc::NoLegacyEvents& error) {
+        LOG_WARN(logger_, error.what());
+        is_event_group_transition = true;
       } catch (StreamCancelled& error) {
         config_->subscriber_list.removeBuffer(live_updates);
         live_updates->removeAllUpdates();
@@ -261,13 +276,13 @@ class ThinReplicaImpl {
         metrics_.updateAggregator();
 
         std::stringstream msg;
-        msg << "Couldn't transition from block id " << request->events().block_id() << " to new blocks";
+        msg << "Couldn't transition from block id " << start_block_id << " to new blocks";
         return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
       }
       // Read, filter, and send live updates
       SubUpdate update;
       try {
-        while (!context->IsCancelled()) {
+        while (!context->IsCancelled() && !is_event_group_transition) {
           metrics_.queue_size.Get().Set(live_updates->Size());
           bool is_update_available = false;
           is_update_available = live_updates->TryPop(update, kWaitForUpdateTimeout);
@@ -311,11 +326,25 @@ class ThinReplicaImpl {
       if (context->IsCancelled()) {
         return grpc::Status::CANCELLED;
       }
-      return grpc::Status::OK;
+      if (not is_event_group_transition) {
+        return grpc::Status::OK;
+      }
     }
 
-    // Request is an event group request
-    uint64_t event_group_id = request->event_groups().event_group_id();
+    // A legacy event request might transition into an event group stream
+    uint64_t event_group_id;
+    if (is_event_group_transition) {
+      ConcordAssert(request->has_events());
+      // We assume that the caller wants updates but we cannot determine the event group id the caller is looking for.
+      // Therefore, we start at the beginning.
+      // TODO: Doesn't work with pruning - use "global_event_group_id_oldest" once it is supported
+      event_group_id = 1;
+      LOG_INFO(logger_, "Legacy event request will receive event groups");
+    } else {
+      ConcordAssert(request->has_event_groups());
+      event_group_id = request->event_groups().event_group_id();
+    }
+
     try {
       syncAndSendEventGroups<ServerContextT, ServerWriterT, DataT>(
           context, event_group_id, live_updates, stream, kvb_filter);
@@ -335,8 +364,7 @@ class ThinReplicaImpl {
       metrics_.updateAggregator();
 
       std::stringstream msg;
-      msg << "Couldn't transition from event_group_id " << request->event_groups().event_group_id()
-          << " to new event groups";
+      msg << "Couldn't transition from event_group_id " << event_group_id << " to new event groups";
       return grpc::Status(grpc::StatusCode::UNKNOWN, msg.str());
     }
 
@@ -675,6 +703,11 @@ class ThinReplicaImpl {
       is_update_available = live_updates->waitUntilNonEmpty(kWaitForUpdateTimeout);
       if (context->IsCancelled()) {
         throw StreamCancelled("StreamCancelled while waiting for the first live update");
+      }
+      // If event groups are enabled then all live updates will be event groups but they won't show up in the legacy
+      // event queue. Therefore, let's query storage directly.
+      if (kvb_filter->getFirstEventGroupBlockId()) {
+        throw concord::kvbc::NoLegacyEvents();
       }
     }
 
