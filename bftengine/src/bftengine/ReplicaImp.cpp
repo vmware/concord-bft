@@ -3899,7 +3899,7 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   if (config_.timeServiceEnabled) {
-    time_service_manager_.emplace();
+    time_service_manager_.emplace(aggregator_);
     LOG_INFO(GL, "Time Service enabled");
   }
 
