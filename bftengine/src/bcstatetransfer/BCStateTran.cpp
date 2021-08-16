@@ -387,6 +387,7 @@ void BCStateTran::stopRunning() {
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   if (handoff_) handoff_->stop();
+  if (nextCommittedBlockId_ > 0) finalizePutblockAsync(false, PutBlockWaitPolicy::WAIT_ALL_JOBS);
 
   // TODO(GG): cancel timer
 
