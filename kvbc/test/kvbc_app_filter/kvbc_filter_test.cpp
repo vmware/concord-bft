@@ -41,6 +41,7 @@ using com::vmware::concord::kvbc::ValueWithTrids;
 
 using boost::lockfree::spsc_queue;
 using concord::kvbc::BlockId;
+using concord::kvbc::EgUpdate;
 using concord::kvbc::EventGroupId;
 using concord::kvbc::InvalidBlockRange;
 using concord::kvbc::InvalidEventGroupRange;
@@ -48,7 +49,7 @@ using concord::kvbc::KvbAppFilter;
 using concord::kvbc::KvbFilteredUpdate;
 using concord::kvbc::KvbFilteredEventGroupUpdate;
 using concord::kvbc::KvbUpdate;
-using concord::kvbc::EgUpdate;
+using concord::kvbc::NoLegacyEvents;
 using concord::util::openssl_utils::computeSHA256Hash;
 
 namespace {
@@ -125,7 +126,7 @@ class FakeStorage : public concord::kvbc::IReader {
       concord::kvbc::categorization::serialize(output, event_group_input);
       return concord::kvbc::categorization::ImmutableValue{{block_id, std::string(output.begin(), output.end())}};
     } else {
-      ADD_FAILURE() << "getLatest() should not be called by this test";
+      ADD_FAILURE() << "getLatest() was called with unexpected category id";
       return {};
     }
   }
@@ -148,7 +149,9 @@ class FakeStorage : public concord::kvbc::IReader {
   std::optional<concord::kvbc::categorization::TaggedVersion> getLatestVersion(const std::string &category_id,
                                                                                const std::string &key) const override {
     if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
-      // Event groups not enabled
+      if (first_event_group_block_id_) {
+        return {concord::kvbc::categorization::TaggedVersion{false, first_event_group_block_id_}};
+      }
       return std::nullopt;
     }
     ADD_FAILURE() << "getLatestVersion() should not be called by this test";
@@ -183,7 +186,7 @@ class FakeStorage : public concord::kvbc::IReader {
   }
 
   BlockId getGenesisBlockId() const override {
-    ADD_FAILURE() << "get() should not be called by this test";
+    ADD_FAILURE() << "getGenesisBlockId() should not be called by this test";
     return 0;
   }
 
@@ -192,7 +195,7 @@ class FakeStorage : public concord::kvbc::IReader {
   // Dummy method to fill DB for testing, each client id can watch only the
   // block id that equals to their client id.
   void fillWithData(BlockId num_of_blocks) {
-    blockId_ = num_of_blocks;
+    blockId_ += num_of_blocks;
     std::string key{"Key"};
     for (BlockId i = 0; i <= num_of_blocks; i++) {
       concord::kvbc::categorization::ImmutableValueUpdate data;
@@ -207,7 +210,6 @@ class FakeStorage : public concord::kvbc::IReader {
   // Dummy method to fill DB for testing, each client id can watch only the
   // event group id that corresponds to their client id.
   void fillWithEventGroupData(EventGroupId num_of_egs) {
-    blockId_ = num_of_egs;
     for (EventGroupId i = 1; i <= num_of_egs; i++) {
       concord::kvbc::categorization::Event event;
       // trid ∈ {trid_1, trid_2}
@@ -228,10 +230,13 @@ class FakeStorage : public concord::kvbc::IReader {
       trid_event_group_id[trid + "#" + latest_trid_eg_id[trid]] = concordUtils::toBigEndianStringBuffer(i);
       eg_data_.push_back({i, std::move(event_group)});
     }
+    first_event_group_block_id_ = first_event_group_block_id_ ? first_event_group_block_id_ : blockId_ + 1;
+    blockId_ += num_of_egs;
   }
 
  private:
-  BlockId blockId_{kLastBlockId};
+  BlockId blockId_{0};
+  BlockId first_event_group_block_id_{0};
 };
 
 // Helper function to test cases involving computation of expected hash
@@ -873,6 +878,23 @@ TEST(kvbc_filter_test, event_order_in_event_groups) {
     EXPECT_EQ(event.data, order[i]);
     i++;
   }
+}
+
+TEST(kvbc_filter_test, legacy_event_request_in_event_groups) {
+  FakeStorage storage;
+  std::string client_id("trid_1");
+  auto kvb_filter = KvbAppFilter(&storage, client_id);
+
+  // Half the storage is legacy events, the other half event groups
+  storage.fillWithData(kLastBlockId / 2);
+  storage.fillWithEventGroupData(kLastBlockId / 2);
+
+  std::atomic_bool stop_exec = false;
+  spsc_queue<KvbFilteredUpdate> queue_out{storage.getLastBlockId()};
+
+  EXPECT_THROW(kvb_filter.readBlockHash(kLastBlockId);, NoLegacyEvents);
+  EXPECT_THROW(kvb_filter.readBlockRange(1, kLastBlockId, queue_out, stop_exec);, NoLegacyEvents);
+  EXPECT_THROW(kvb_filter.readBlockRangeHash(1, kLastBlockId);, NoLegacyEvents);
 }
 
 }  // anonymous namespace
