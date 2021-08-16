@@ -161,6 +161,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                       config_.sourceReplicaReplacementTimeoutMs,
                       config_.maxFetchRetransmissions,
                       ST_SRC_LOG},
+      posponedSendFetchBlocksMsg_(false),
       ioPool_(
           config_.maxNumberOfChunksInBatch,
           nullptr,                                     // alloc callback
@@ -1111,12 +1112,20 @@ void BCStateTran::sendAskForCheckpointSummariesMsg() {
   sendToAllOtherReplicas(reinterpret_cast<char *>(&msg), sizeof(AskForCheckpointSummariesMsg));
 }
 
-void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
-                                     uint64_t lastRequiredBlock,
-                                     int16_t lastKnownChunkInLastRequiredBlock) {
+void BCStateTran::trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
+                                        uint64_t lastRequiredBlock,
+                                        int16_t lastKnownChunkInLastRequiredBlock,
+                                        string &&reason) {
   ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
   ConcordAssert(sourceSelector_.hasSource());
-  metrics_.sent_fetch_blocks_msg_++;
+
+  // If the ioPool_ is empty, we don't have any more capacity to call for new jobs. no reason to ask for more data
+  // from source.We need to wait.
+  if (ioPool_.empty()) {
+    LOG_WARN(logger_, "Postpone sending FetchBlocksMsg while ioPool_ is empty!");
+    posponedSendFetchBlocksMsg_ = true;
+    return;
+  }
 
   FetchBlocksMsg msg;
   lastMsgSeqNum_ = uniqueMsgSeqNum();
@@ -1128,17 +1137,20 @@ void BCStateTran::sendFetchBlocksMsg(uint64_t firstRequiredBlock,
   msg.lastKnownChunkInLastRequiredBlock = lastKnownChunkInLastRequiredBlock;
 
   LOG_DEBUG(logger_,
-            KVLOG(sourceSelector_.currentReplica(),
-                  msg.msgSeqNum,
-                  msg.firstRequiredBlock,
-                  msg.lastRequiredBlock,
-                  msg.lastKnownChunkInLastRequiredBlock));
+            "Sending FetchBlocksMsg:" << reason
+                                      << KVLOG(sourceSelector_.currentReplica(),
+                                               msg.msgSeqNum,
+                                               msg.firstRequiredBlock,
+                                               msg.lastRequiredBlock,
+                                               msg.lastKnownChunkInLastRequiredBlock));
 
-  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
-  dst_time_between_sendFetchBlocksMsg_rec_.clear();
-  dst_time_between_sendFetchBlocksMsg_rec_.start();
   replicaForStateTransfer_->sendStateTransferMessage(
       reinterpret_cast<char *>(&msg), sizeof(FetchBlocksMsg), sourceSelector_.currentReplica());
+  sourceSelector_.setFetchingTimeStamp(getMonotonicTimeMilli(), true);
+  metrics_.sent_fetch_blocks_msg_++;
+  dst_time_between_sendFetchBlocksMsg_rec_.end();  // not an issue, if it was never started, this operation does nothing
+  dst_time_between_sendFetchBlocksMsg_rec_.start();
+  posponedSendFetchBlocksMsg_ = false;
 }
 
 void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock) {
@@ -2566,12 +2578,11 @@ void BCStateTran::processData(bool lastInBatch) {
         ConcordAssertGT(nextRequiredBlock_, 0);
         --nextRequiredBlock_;
         LOG_TRACE(logger_, KVLOG(nextRequiredBlock_));
-        if (lastInBatch) {
-          //  last block in batch - send another FetchBlocksMsg since we havn't reach yet to firstRequiredBlock
-          // ConcordAssertEQ(psd_->getLastRequiredBlock(), nextCommittedBlockId_);
-          dst_time_between_sendFetchBlocksMsg_rec_.end();
-          LOG_DEBUG(logger_, "Sending FetchBlocksMsg: lastInBatch is true");
-          sendFetchBlocksMsg(firstRequiredBlock, nextRequiredBlock_, 0);
+        if (lastInBatch || posponedSendFetchBlocksMsg_ || newSourceReplica) {
+          trySendFetchBlocksMsg(firstRequiredBlock,
+                                nextRequiredBlock_,
+                                0,
+                                KVLOG(lastInBatch, posponedSendFetchBlocksMsg_, newSourceReplica));
           break;
         }
       } else {
@@ -2677,12 +2688,14 @@ void BCStateTran::processData(bool lastInBatch) {
       //////////////////////////////////////////////////////////////////////////
       if (isGettingBlocks) finalizePutblockAsync(lastBlock, PutBlockWaitPolicy::NO_WAIT);
       bool retransmissionTimeoutExpired = sourceSelector_.retransmissionTimeoutExpired(currTime);
-      if (newSourceReplica || retransmissionTimeoutExpired || lastInBatch) {
+      if (newSourceReplica || retransmissionTimeoutExpired || posponedSendFetchBlocksMsg_ || lastInBatch) {
         if (isGettingBlocks) {
           ConcordAssertEQ(psd_->getLastRequiredBlock(), nextCommittedBlockId_);
-          LOG_INFO(logger_,
-                   "Sending FetchBlocksMsg: " << KVLOG(newSourceReplica, retransmissionTimeoutExpired, lastInBatch));
-          sendFetchBlocksMsg(psd_->getFirstRequiredBlock(), nextRequiredBlock_, lastChunkInRequiredBlock);
+          trySendFetchBlocksMsg(
+              psd_->getFirstRequiredBlock(),
+              nextRequiredBlock_,
+              lastChunkInRequiredBlock,
+              KVLOG(newSourceReplica, retransmissionTimeoutExpired, posponedSendFetchBlocksMsg_, lastInBatch));
         } else {
           LOG_INFO(logger_,
                    "Sending FetchResPagesMsg: " << KVLOG(newSourceReplica, retransmissionTimeoutExpired, lastInBatch));
