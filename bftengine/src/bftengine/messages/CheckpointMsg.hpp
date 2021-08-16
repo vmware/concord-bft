@@ -42,6 +42,8 @@ class CheckpointMsg : public MessageBase {
 
   void sign();
 
+  void setSenderId(NodeIdType id) { sender_ = id; }
+
  protected:
   template <typename MessageT>
   friend size_t sizeOfHeader();
