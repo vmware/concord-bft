@@ -204,9 +204,10 @@ class BCStateTran : public IStateTransfer {
 
   void sendAskForCheckpointSummariesMsg();
 
-  void sendFetchBlocksMsg(uint64_t firstRequiredBlock,
-                          uint64_t lastRequiredBlock,
-                          int16_t lastKnownChunkInLastRequiredBlock);
+  void trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
+                             uint64_t lastRequiredBlock,
+                             int16_t lastKnownChunkInLastRequiredBlock,
+                             string&& reason);
 
   void sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock);
 
@@ -277,6 +278,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t nextRequiredBlock_ = 0;
   uint64_t nextCommittedBlockId_ = 0;
   STDigest digestOfNextRequiredBlock;
+  bool posponedSendFetchBlocksMsg_;
 
   struct compareItemDataMsg {
     bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {
