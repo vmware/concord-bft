@@ -2679,7 +2679,7 @@ void BCStateTran::processData(bool lastInBatch) {
       bool retransmissionTimeoutExpired = sourceSelector_.retransmissionTimeoutExpired(currTime);
       if (newSourceReplica || retransmissionTimeoutExpired || lastInBatch) {
         if (isGettingBlocks) {
-          ConcordAssertEQ(psd_->getLastRequiredBlock(), nextRequiredBlock_);
+          ConcordAssertEQ(psd_->getLastRequiredBlock(), nextCommittedBlockId_);
           LOG_INFO(logger_,
                    "Sending FetchBlocksMsg: " << KVLOG(newSourceReplica, retransmissionTimeoutExpired, lastInBatch));
           sendFetchBlocksMsg(psd_->getFirstRequiredBlock(), nextRequiredBlock_, lastChunkInRequiredBlock);
