@@ -77,8 +77,8 @@ struct Recorders {
   }
 
   // Used in tree.cpp
-  DEFINE_SHARED_RECORDER(update, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(insert_key, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(update, 1, MAX_US, 3, Unit::MICROSECONDS);
+  DEFINE_SHARED_RECORDER(insert_key, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(remove_key, 1, MAX_NS, 3, Unit::NANOSECONDS);
   DEFINE_SHARED_RECORDER(num_updated_keys, 1, 1000, 3, Unit::COUNT);
   DEFINE_SHARED_RECORDER(num_deleted_keys, 1, 1000, 3, Unit::COUNT);
@@ -111,7 +111,7 @@ struct Recorders {
   DEFINE_SHARED_RECORDER(dba_deserialize_internal, 1, MAX_NS, 3, Unit::NANOSECONDS);
   DEFINE_SHARED_RECORDER(dba_deserialize_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
   DEFINE_SHARED_RECORDER(dba_deserialize_leaf, 1, MAX_NS, 3, Unit::NANOSECONDS);
-  DEFINE_SHARED_RECORDER(dba_link_st_chain, 1, MAX_NS, 3, Unit::NANOSECONDS);
+  DEFINE_SHARED_RECORDER(dba_link_st_chain, 1, MAX_US, 3, Unit::MICROSECONDS);
   DEFINE_SHARED_RECORDER(dba_num_blocks_for_st_link, 1, 1000000, 3, Unit::COUNT);
   DEFINE_SHARED_RECORDER(dba_add_raw_block, 1, MAX_NS * 10, 3, Unit::NANOSECONDS);
   DEFINE_SHARED_RECORDER(dba_delete_block, 1, MAX_NS, 3, Unit::NANOSECONDS);
