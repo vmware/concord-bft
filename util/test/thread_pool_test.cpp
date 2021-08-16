@@ -15,6 +15,7 @@
 
 #include "thread_pool.hpp"
 
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <future>
@@ -124,6 +125,37 @@ TEST(thread_pool, copy_only_arguments) {
   auto pool = ThreadPool{};
   auto future = pool.async(copy, CopyOnly{});
   ASSERT_NO_THROW(future.wait());
+}
+
+TEST(thread_pool, pointer_arguments_are_copied) {
+  auto pool = ThreadPool{};
+  auto i = std::atomic_int{5};
+  auto p = &i;
+  auto future = pool.async(
+      [](auto* v) {
+        *v = 13;
+        v = nullptr;
+      },
+      p);
+  ASSERT_NO_THROW(future.wait());
+  ASSERT_EQ(i, 13);
+  ASSERT_EQ(p, &i);
+}
+
+TEST(thread_pool, non_const_lvalues_are_copied) {
+  auto pool = ThreadPool{};
+  auto i = 5;
+  auto future = pool.async([](auto v) { v = 13; }, i);
+  ASSERT_NO_THROW(future.wait());
+  ASSERT_EQ(i, 5);
+}
+
+TEST(thread_pool, std_ref) {
+  auto pool = ThreadPool{};
+  auto i = std::atomic_int{5};
+  auto future = pool.async([](auto v) { v.get() = 13; }, std::ref(i));
+  ASSERT_NO_THROW(future.wait());
+  ASSERT_EQ(i, 13);
 }
 
 // Multiple arguments of different types.
