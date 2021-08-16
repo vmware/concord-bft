@@ -19,7 +19,6 @@
 #include "reconfiguration/ireconfiguration.hpp"
 #include "SysConsts.hpp"
 #include "block_metadata.hpp"
-#include "TimeService.hpp"
 
 namespace concord::kvbc {
 /*
@@ -53,7 +52,6 @@ class StReconfigurationHandler {
                            uint64_t bid,
                            uint64_t current_cp,
                            uint64_t bft_seq_num,
-                           const std::optional<bftEngine::Timestamp>&,
                            bool bft_support,
                            bool remove_metadata,
                            bool restart,
@@ -61,50 +59,16 @@ class StReconfigurationHandler {
   uint64_t getStoredBftSeqNum(BlockId bid);
   uint64_t getStoredEpochNumber(BlockId bid);
 
-  bool handle(
-      const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t, const std::optional<bftEngine::Timestamp>&);
-  bool handle(const concord::messages::DownloadCommand&,
-              uint64_t,
-              uint64_t,
-              uint64_t,
-              const std::optional<bftEngine::Timestamp>&) {
-    return true;
-  }
+  bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) { return true; }
 
-  bool handle(const concord::messages::InstallCommand&,
-              uint64_t,
-              uint64_t,
-              uint64_t,
-              const std::optional<bftEngine::Timestamp>&) {
-    return true;
-  }
+  bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t) { return true; }
 
-  bool handle(const concord::messages::KeyExchangeCommand&,
-              uint64_t,
-              uint64_t,
-              uint64_t,
-              const std::optional<bftEngine::Timestamp>&) {
-    return true;
-  }
-  bool handle(const concord::messages::AddRemoveCommand&,
-              uint64_t,
-              uint64_t,
-              uint64_t,
-              const std::optional<bftEngine::Timestamp>&) {
-    return true;
-  }
-  bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
-              uint64_t,
-              uint64_t,
-              uint64_t,
-              const std::optional<bftEngine::Timestamp>&);
-  bool handle(const concord::messages::RestartCommand&,
-              uint64_t,
-              uint64_t,
-              uint64_t,
-              const std::optional<bftEngine::Timestamp>&);
-  bool handle(
-      const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t, const std::optional<bftEngine::Timestamp>&);
+  bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::RestartCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
 
   kvbc::IReader& ro_storage_;
   BlockMetadata block_metadata_;

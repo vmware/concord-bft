@@ -16,7 +16,6 @@
 #include "concord.cmf.hpp"
 #include "OpenTracing.hpp"
 #include "Logger.hpp"
-#include "TimeService.hpp"
 
 namespace concord::reconfiguration {
 // The dispatcher forwards all messages to their appropriate handlers.
@@ -35,8 +34,7 @@ class Dispatcher {
   // blockchain and document it as part of the state. This will be under the
   // responsibility of each handler to write its own commands to the blockchain.
   concord::messages::ReconfigurationResponse dispatch(const concord::messages::ReconfigurationRequest&,
-                                                      uint64_t sequence_num,
-                                                      const std::optional<bftEngine::Timestamp>& timestamp);
+                                                      uint64_t sequence_num);
 
   void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h,
                                  ReconfigurationHandlerType type = ReconfigurationHandlerType::REGULAR) {
@@ -64,10 +62,9 @@ class Dispatcher {
   bool handleRequest(const T& msg,
                      uint64_t bft_seq_num,
                      uint32_t sender_id,
-                     const std::optional<bftEngine::Timestamp>& timestamp,
                      concord::messages::ReconfigurationResponse& rres,
                      std::shared_ptr<IReconfigurationHandler> handler) {
-    return handler->handle(msg, bft_seq_num, sender_id, timestamp, rres);
+    return handler->handle(msg, bft_seq_num, sender_id, rres);
   }
   std::vector<std::shared_ptr<IReconfigurationHandler>> pre_reconfig_handlers_;
   std::vector<std::shared_ptr<IReconfigurationHandler>> reconfig_handlers_;
