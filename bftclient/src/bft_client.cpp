@@ -52,7 +52,8 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
       key_plaintext = smp.decryptFile(file_path);
     }
     if (!key_plaintext) throw InvalidPrivateKeyException(file_path, config.secrets_manager_config != std::nullopt);
-    transaction_signer_ = RSASigner(key_plaintext.value().c_str(), KeyFormat::PemFormat);
+    transaction_signer_ = std::make_unique<concord::util::crypto::RSASigner>(
+        key_plaintext.value().c_str(), concord::util::crypto::KeyFormat::PemFormat);
   }
   communication_->setReceiver(config_.id.val, &receiver_);
   communication_->Start();
@@ -108,12 +109,12 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
     size_t actualSigSize = 0;
     position += config.correlation_id.size();
     {
+      std::string sig;
+      std::string data(request.begin(), request.end());
       TimeRecorder scoped_timer(*histograms_->sign_duration);
-      transaction_signer_->sign(reinterpret_cast<const char*>(request.data()),
-                                request.size(),
-                                reinterpret_cast<char*>(position),
-                                expected_sig_len,
-                                actualSigSize);
+      sig = transaction_signer_->sign(data);
+      actualSigSize = sig.size();
+      std::memcpy(position, sig.data(), sig.size());
       ConcordAssert(expected_sig_len == actualSigSize);
       header->reqSignatureLength = actualSigSize;
       histograms_->transaction_size->record(request.size());
@@ -138,7 +139,7 @@ Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool rea
 
 Msg Client::createClientBatchMsg(const std::deque<Msg>& client_requests,
                                  uint32_t batch_buf_size,
-                                 const string& cid,
+                                 const std::string& cid,
                                  uint16_t client_id) {
   auto header_size = sizeof(ClientBatchRequestMsgHeader);
   auto msg_size = sizeof(ClientBatchRequestMsgHeader) + cid.size() + batch_buf_size;
@@ -360,9 +361,7 @@ std::string Client::signMessage(std::vector<uint8_t>& data) {
   if (transaction_signer_) {
     auto expected_sig_len = transaction_signer_->signatureLength();
     signature.resize(expected_sig_len);
-    size_t actualSigSize = 0;
-    transaction_signer_->sign(
-        reinterpret_cast<char*>(data.data()), data.size(), signature.data(), expected_sig_len, actualSigSize);
+    signature = transaction_signer_->sign(std::string(data.begin(), data.end()));
   }
   return signature;
 }
