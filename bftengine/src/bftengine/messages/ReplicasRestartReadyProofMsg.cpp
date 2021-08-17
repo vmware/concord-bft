@@ -13,6 +13,7 @@
 #include "ReplicasRestartReadyProofMsg.hpp"
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
+#include "EpochManager.hpp"
 #include "SigManager.hpp"
 
 namespace bftEngine {
@@ -27,6 +28,7 @@ ReplicasRestartReadyProofMsg::ReplicasRestartReadyProofMsg(ReplicaId senderId,
                   ReplicaConfig::instance().getmaxExternalMessageSize() - spanContext.data().size()) {
   b()->genReplicaId = senderId;
   b()->seqNum = seqNum;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->elementsCount = 0;
   b()->locationAfterLast = 0;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
@@ -74,9 +76,9 @@ void ReplicasRestartReadyProofMsg::finalizeMessage() {
 
 void ReplicasRestartReadyProofMsg::validate(const ReplicasInfo& repInfo) const {
   auto sigManager = SigManager::instance();
-  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()))
+  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(idOfGeneratedReplica()) ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
-
   auto dataLength = getBodySize();
   uint16_t sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 
@@ -96,6 +98,7 @@ bool ReplicasRestartReadyProofMsg::checkElements(const ReplicasInfo& repInfo, ui
     numOfActualElements++;
     ReplicaRestartReadyMsg::Header* hdr = (ReplicaRestartReadyMsg::Header*)currLoc;
     if (seqNum != hdr->seqNum) return false;
+    if (hdr->epochNum != EpochManager::instance().getSelfEpochNumber()) return false;
     if (repInfo.myId() != hdr->genReplicaId) {
       if (!sigManager->verifySig(hdr->genReplicaId,
                                  currLoc,

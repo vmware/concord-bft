@@ -25,10 +25,13 @@
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "helper.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
 
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 static void testSignedShareBaseMethods(const SignedShareBase& msg,
                                        ViewNum v,
                                        SeqNum s,
@@ -45,6 +48,7 @@ TEST(PreparePartialMsg, PreparePartialMsg_test) {
   ViewNum v = 1u;
   SeqNum s = 100u;
   const char rawSpanContext[] = {"span_\0context"};
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit(s)->requiredLengthForSignedData());
@@ -63,6 +67,7 @@ TEST(PrepareFullMsg, PrepareFullMsg_test) {
   ViewNum v = 1u;
   SeqNum s = 100u;
   const char rawSpanContext[] = {"span_\0context"};
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit(s)->requiredLengthForSignedData());
@@ -81,6 +86,7 @@ TEST(CommitPartialMsg, CommitPartialMsg_test) {
   ViewNum v = 1u;
   SeqNum s = 100u;
   const char rawSpanContext[] = {"span_\0context"};
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit(s)->requiredLengthForSignedData());
@@ -98,6 +104,7 @@ TEST(CommitFullMsg, CommitFullMsg_test) {
   ViewNum v = 1u;
   SeqNum s = 100u;
   const char rawSpanContext[] = {"span_\0context"};
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest digest;
   std::vector<char> signature(CryptoManager::instance().thresholdSignerForCommit(s)->requiredLengthForSignedData());

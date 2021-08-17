@@ -14,6 +14,7 @@
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
+#include "EpochManager.hpp"
 #include <threshsign/ThresholdSignaturesSchemes.h>
 
 namespace bftEngine {
@@ -44,6 +45,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 
   m->b()->seqNumber = s;
   m->b()->viewNumber = v;
+  m->b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   m->b()->thresSigLength = (uint16_t)sigLen;
 
   Digest tmpDigest;
@@ -71,6 +73,7 @@ SignedShareBase* SignedShareBase::create(int16_t type,
 
   m->b()->seqNumber = s;
   m->b()->viewNumber = v;
+  m->b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   m->b()->thresSigLength = sigLen;
 
   auto position = m->body() + sizeof(Header);
@@ -86,7 +89,7 @@ void SignedShareBase::_validate(const ReplicasInfo& repInfo, int16_t type_) cons
   if (size() < sizeof(Header) + spanContextSize() ||
       size() < sizeof(Header) + signatureLen() + spanContextSize() ||  // size
       senderId() == repInfo.myId() ||                                  // sent from another replica
-      !repInfo.isIdOfReplica(senderId()))
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber() || !repInfo.isIdOfReplica(senderId()))
     throw std::runtime_error(__PRETTY_FUNCTION__);
 }
 

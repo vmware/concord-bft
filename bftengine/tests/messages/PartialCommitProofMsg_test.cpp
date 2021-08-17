@@ -23,13 +23,15 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "Digest.hpp"
 #include "helper.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 TEST(PartialCommitProofMsg, create_and_compare) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 0u;
   SeqNum seqNum = 3u;
@@ -63,6 +65,7 @@ TEST(PartialCommitProofMsg, create_and_compare) {
 }
 
 TEST(PartialCommitProofMsg, base_methods) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 1u;
   SeqNum seqNum = 3u;

@@ -7,6 +7,8 @@
 #include "Digest.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 
@@ -19,7 +21,7 @@ const uint16_t numOfRequired = 2 * fval + cval + 1;
 const uint16_t selfReplicaId = 0;
 char* reply = new char[10]{};
 int replyLen = strlen(reply);
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 ReplicaId randomReplicaId() { return rand() % numOfReplicas; }
 
 class mockCheckpointMsgCmp : public CheckpointInfo {
@@ -63,10 +65,12 @@ class msgsCertificateTestsFixture : public ::testing::Test {
     replysCertificate.resetAndFree();
   }
   void test_self_msg_added_peer_msg_ignored() {
+    bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
     MsgsCertificate<CheckpointMsg, true, true, true, mockCheckpointMsgCmp> replysCertificate(
         numOfReplicas, fval, numOfRequired, selfReplicaId);
 
     auto selfMsg = new CheckpointMsg(selfReplicaId, 0, Digest(), false);
+    selfMsg->setEpochNumber(0);
     replysCertificate.addMsg(selfMsg, selfReplicaId);
 
     ASSERT_TRUE(replysCertificate.selfMsg() != nullptr);

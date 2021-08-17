@@ -16,6 +16,8 @@
 #include "../simpleStorage/FileStorage.hpp"
 #include "../../src/bftengine/PersistentStorage.hpp"
 #include "../../src/bftengine/PersistentStorageWindows.hpp"
+#include "../mocks/ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 #include "Logger.hpp"
 #include "Serializable.h"
 #include "helper.hpp"
@@ -27,6 +29,8 @@ using namespace std;
 using namespace bftEngine;
 using namespace bftEngine::impl;
 using namespace concord::serialize;
+
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
 void printRawBuf(const UniquePtrToChar &buf, int64_t bufSize) {
   for (int i = 0; i < bufSize; ++i) {
@@ -99,10 +103,10 @@ void testInit() {
 }
 
 void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const SeqNum checkpointSeqNum0 = 0;
   const SeqNum checkpointSeqNum1 = 150;
   const SeqNum checkpointSeqNum2 = 300;
-
   ReplicaId sender = 3;
   Digest stateDigest;
   const bool stateIsStable = true;
@@ -145,6 +149,7 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
 }
 
 void testSeqNumWindowSetUp(const SeqNum shift, bool toSet) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const SeqNum prePrepareMsgSeqNum = 4;
   ReplicaId sender = 2;
   ViewNum view = 6;
@@ -242,10 +247,10 @@ void testWindowsAdvance() {
 }
 
 void testSetDescriptors(bool toSet) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   SeqNum lastExecutionSeqNum = 33;
   Bitmap requests(100);
   DescriptorOfLastExecution lastExecutionDesc(lastExecutionSeqNum, requests);
-
   ViewNum viewNum = 0;
   SeqNum lastExitExecNum = 65;
   PrevViewInfoElements elements;
@@ -331,6 +336,7 @@ void testSetSimpleParams(bool toSet) {
 }
 
 void testCheckDescriptorOfLastStableCheckpoint(bool init) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const SeqNum checkpointSeqNum0 = 0;
   const SeqNum checkpointSeqNum1 = 150;
   const SeqNum checkpointSeqNum2 = 300;

@@ -20,6 +20,8 @@
 
 #include "messages/NewViewMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 namespace {
 
@@ -30,6 +32,7 @@ constexpr int numberOfFaultyReplicas = 2;
 constexpr bool dynamicCollectorForPartialProofs = true, dynamicCollectorForExecutionProofs = false;
 constexpr int initialView = 0;
 constexpr bftEngine::impl::SeqNum lastStableSeqNum = 150, lastExecutedSeqNum = lastStableSeqNum + 1;
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 
 std::function<bool(MessageBase*)> mockedMessageValidator() {
   return [](MessageBase* message) { return true; };
@@ -54,6 +57,7 @@ class ViewsManagerTest : public ::testing::Test {
 };
 
 TEST_F(ViewsManagerTest, moving_to_higher_view) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const auto currentView = viewsManager->getCurrentView();
   LOG_INFO(GL, KVLOG(currentView));
   viewsManager->setHigherView(currentView + 1);
@@ -62,6 +66,7 @@ TEST_F(ViewsManagerTest, moving_to_higher_view) {
 }
 
 TEST_F(ViewsManagerTest, store_complaint) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   std::unique_ptr<ReplicaAsksToLeaveViewMsg> complaint(ReplicaAsksToLeaveViewMsg::create(
       rc.replicaId, initialView, ReplicaAsksToLeaveViewMsg::Reason::ClientRequestTimeout));
 
@@ -73,6 +78,7 @@ TEST_F(ViewsManagerTest, store_complaint) {
 }
 
 TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   for (int replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
     if (replicaId == rc.replicaId) continue;
 
@@ -88,11 +94,11 @@ TEST_F(ViewsManagerTest, form_a_quorum_of_complaints) {
 }
 
 TEST_F(ViewsManagerTest, status_message_with_complaints) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   bftEngine::impl::SeqNum lastExecutedSeqNum = 200;
   const bool viewIsActive = true;
   const bool hasNewChangeMsg = true;
   const bool listOfPPInActiveWindow = false, listOfMissingVCMsg = false, listOfMissingPPMsg = false;
-
   for (int replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
     if (replicaId == rc.replicaId) continue;
 
@@ -122,11 +128,11 @@ TEST_F(ViewsManagerTest, status_message_with_complaints) {
 }
 
 TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_enough_complaints) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   bftEngine::impl::ReplicaId sourceReplicaId = (rc.replicaId + 1) % rc.numReplicas;
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
   const int nextView = initialView + 1;
   const int viewToComplainAbout = initialView;
-
   ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, nextView, lastStableSeqNum);
 
   for (int i = 0; i < rc.numReplicas; ++i) {
@@ -151,11 +157,11 @@ TEST_F(ViewsManagerTest, get_quorum_for_next_view_on_view_change_message_with_en
 }
 
 TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_enough_complaints) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   bftEngine::impl::ReplicaId sourceReplicaId = (rc.replicaId + 1) % rc.numReplicas;
   std::set<bftEngine::impl::ReplicaId> otherReplicas;
   const int higherView = initialView + 2;
   const int viewToComplainAbout = higherView - 1;
-
   ViewChangeMsg viewChangeMsg = ViewChangeMsg(sourceReplicaId, higherView, lastStableSeqNum);
 
   for (int i = 0; i < rc.numReplicas; ++i) {
@@ -180,11 +186,11 @@ TEST_F(ViewsManagerTest, get_quorum_for_higher_view_on_view_change_message_with_
 }
 
 TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   const bftEngine::impl::ReplicaId firstMessageSourceReplicaId = (rc.replicaId + 1) % rc.numReplicas,
                                    secondMessageSourceReplicaId = (rc.replicaId + 2) % rc.numReplicas;
   const int nextView = initialView + 1;
   std::set<bftEngine::impl::ReplicaId> replicasWithNoViewChangeMsgSent;
-
   for (auto replicaId = 0; replicaId < rc.numReplicas; ++replicaId) {
     replicasWithNoViewChangeMsgSent.insert(replicasWithNoViewChangeMsgSent.end(), replicaId);
   }
@@ -222,6 +228,7 @@ TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
 }
 
 TEST_F(ViewsManagerTest, trigger_view_change) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ASSERT_EQ(rc.numReplicas, 3 * numberOfFaultyReplicas + 1);
   ASSERT_EQ(rc.fVal, numberOfFaultyReplicas);
   ASSERT_EQ(rc.cVal, 0);

@@ -24,6 +24,7 @@
 #include "SimpleThreadPool.hpp"
 #include "ReplicaConfig.hpp"
 #include "CryptoManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {

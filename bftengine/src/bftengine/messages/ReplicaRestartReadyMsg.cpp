@@ -15,6 +15,7 @@
 #include "SysConsts.hpp"
 #include "Crypto.hpp"
 #include "SigManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -26,6 +27,7 @@ ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
     : MessageBase(srcReplicaId, MsgCode::ReplicaRestartReady, spanContext.data().size(), sizeof(Header) + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->seqNum = s;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->sigLength = sigLen;
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
@@ -51,7 +53,8 @@ void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
   auto idOfSenderReplica = idOfGeneratedReplica();
   auto sigManager = SigManager::instance();
   auto dataSize = sizeof(Header) + spanContextSize();
-  if (size() < dataSize || !repInfo.isIdOfReplica(idOfSenderReplica))
+  if (size() < dataSize || !repInfo.isIdOfReplica(idOfSenderReplica) ||
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t sigLen = sigManager->getSigLength(idOfSenderReplica);

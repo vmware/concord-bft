@@ -57,10 +57,11 @@ class ReplicaRestartReadyMsg : public MessageBase {
   struct Header : public MessageBase::Header {
     ReplicaId genReplicaId;
     SeqNum seqNum;
-    uint16_t sigLength;  // TODO(NK): add epoch when support is added
+    EpochNum epochNum;
+    uint16_t sigLength;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 2), "Header is 18B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2), "Header is 26B");
 
   Header* b() const { return (Header*)msgBody_; }
 };
