@@ -106,6 +106,7 @@ bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
       bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(GL, "unwedge due to higher epoch number after state transfer");
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
+    bftEngine::IControlHandler::instance()->resetState();
   }
   bftEngine::EpochManager::instance().setSelfEpochNumber(bftEngine::EpochManager::instance().getGlobalEpochNumber());
   return true;
