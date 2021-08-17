@@ -82,7 +82,7 @@ struct externalRequest {
 //  the client
 class ConcordClientPool {
   using ClientPtr = std::shared_ptr<concord::external_client::ConcordClient>;
-  static constexpr uint16_t SECOND_LEG_CID_LEN = 16;
+  static constexpr uint16_t SECOND_LEG_CID_LEN = 36;
 
  public:
   // Return a unique pointer containing a ConcordClientPool. This is useful when
@@ -202,6 +202,7 @@ class ConcordClientPool {
   logging::Logger logger_;
   std::atomic_bool is_overloaded_ = false;
   EXT_DONE_CALLBACK done_callback_ = nullptr;
+  bool with_callback_ = false;
   uint32_t jobs_queue_max_size_ = 0;
   uint32_t span_rate = 0;
   uint32_t transaction_count = 0;

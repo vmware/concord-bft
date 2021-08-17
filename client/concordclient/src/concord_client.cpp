@@ -105,6 +105,7 @@ ConcordClientPoolConfig ConcordClient::createClientPoolStruct(const ConcordClien
   client_pool_config.encrypted_config_enabled = config.topology.encrypted_config_enabled;
   client_pool_config.transaction_signing_enabled = config.topology.transaction_signing_enabled;
   client_pool_config.with_cre = config.topology.with_cre;
+  client_pool_config.with_callback = config.topology.with_callback;
   client_pool_config.client_batching_enabled = config.topology.client_batching_enabled;
   client_pool_config.client_batching_max_messages_nbr = config.topology.client_batching_max_messages_nbr;
   client_pool_config.client_batching_flush_timeout_ms = config.topology.client_batching_flush_timeout_ms;

@@ -148,7 +148,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     ClientPoolMetrics_.rejected_counter++;
     is_overloaded_ = true;
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
-    if (callback) callback(bftEngine::SendResult{SubmitResult::Overloaded});
+    if (with_callback_ && callback) callback(bftEngine::SendResult{SubmitResult::Overloaded});
     return SubmitResult::Overloaded;
   }
 }
@@ -317,6 +317,7 @@ void ConcordClientPool::setUpClientParams(SimpleClientParams &client_params,
 
 void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig &config) {
   auto num_clients = config.clients_per_participant_node - (int)config.with_cre;
+  with_callback_ = config.with_callback;
   LOG_INFO(logger_, "Creating pool" << KVLOG(num_clients));
   auto f_val = config.f_val;
   auto c_val = config.c_val;

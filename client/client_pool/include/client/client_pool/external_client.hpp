@@ -118,6 +118,7 @@ class ConcordClient {
   logging::Logger logger_;
   int client_id_;
   bool enable_mock_comm_ = false;
+  bool with_callback_ = false;
   std::unique_ptr<bftEngine::SeqNumberGeneratorForClientRequests> seqGen_;
   std::chrono::steady_clock::time_point start_job_time_ = std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point waiting_job_time_ = std::chrono::steady_clock::now();

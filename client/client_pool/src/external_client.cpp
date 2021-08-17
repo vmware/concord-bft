@@ -148,7 +148,7 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
           reply.actualReplyLength = rep.second.matched_data.size();
           memcpy(reply.replyBuffer, rep.second.matched_data.data(), rep.second.matched_data.size());
           auto result = bftEngine::SendResult{rep.second};
-          if (reply.cb) reply.cb(std::move(result));
+          if (with_callback_ && reply.cb) reply.cb(std::move(result));
           LOG_DEBUG(logger_, "Request has completed processing" << KVLOG(client_id_, batch_cid, reply.cid));
         }
       }
@@ -213,6 +213,7 @@ void ConcordClient::CreateClient(ConcordClientPoolConfig& config, const SimpleCl
   auto cVal = config.c_val;
   auto clientId = client_conf.principal_id;
   enable_mock_comm_ = config.enable_mock_comm;
+  with_callback_ = config.with_callback;
   BaseCommConfig* comm_config = CreateCommConfig(num_replicas, config);
   client_id_ = clientId;
   std::set<ReplicaId> all_replicas;

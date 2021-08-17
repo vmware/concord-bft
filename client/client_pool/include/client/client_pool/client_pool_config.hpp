@@ -71,6 +71,7 @@ typedef struct ConcordClientPoolConfig {
   bool encrypted_config_enabled = false;
   bool transaction_signing_enabled = false;
   bool with_cre = false;
+  bool with_callback = false;
   std::string secrets_url;
   std::unordered_map<bft::communication::NodeNum, Replica> node;
   std::deque<ParticipantNode> participant_nodes;
