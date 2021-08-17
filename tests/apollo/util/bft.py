@@ -686,6 +686,18 @@ class BftTestNetwork:
 
                 self.open_fds[replica_id] = (stdout_file, stderr_file)
 
+            """
+            If the apollo test's CODECOVERAGE flag is set, all raw profile files will be created
+            in coverage dir; otherwise, ignore it.
+            """
+            if os.environ.get('CODECOVERAGE', "").lower() in ["true", "on"] and os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in ["true", "on"]:
+                self.coverage_dir = f"{self.builddir}/tests/apollo/codecoverage/{test_name}/{self.current_test}/"
+                os.makedirs(self.coverage_dir, exist_ok=True)
+                profraw_file_name = f"coverage_{replica_id}_%9m.profraw"
+                profraw_file_path = os.path.join(
+                    self.coverage_dir, profraw_file_name)
+                os.environ['LLVM_PROFILE_FILE'] = profraw_file_path
+
             if replica_id in self.procs:
                 raise AlreadyRunningError(replica_id)
 
