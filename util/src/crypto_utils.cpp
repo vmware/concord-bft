@@ -26,7 +26,7 @@ class ECDSAVerifier::Impl {
   std::unique_ptr<ECDSA<ECP, SHA256>::Verifier> verifier_;
 
  public:
-  Impl(ECDSA<ECP, SHA256>::PublicKey publicKey) {
+  Impl(ECDSA<ECP, SHA256>::PublicKey& publicKey) {
     verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(std::move(publicKey));
   }
 
@@ -56,7 +56,7 @@ class ECDSASigner::Impl {
   AutoSeededRandomPool prng_;
 
  public:
-  Impl(ECDSA<ECP, SHA256>::PrivateKey privateKey) {
+  Impl(ECDSA<ECP, SHA256>::PrivateKey& privateKey) {
     signer_ = std::make_unique<ECDSA<ECP, SHA256>::Signer>(std::move(privateKey));
   }
 
@@ -86,7 +86,7 @@ ECDSASigner::~ECDSASigner() = default;
 
 class RSAVerifier::Impl {
  public:
-  Impl(RSA::PublicKey public_key) {
+  Impl(RSA::PublicKey& public_key) {
     verifier_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Verifier>(std::move(public_key));
   }
   bool verify(const std::string& data_to_verify, const std::string& signature) {
@@ -102,7 +102,7 @@ class RSAVerifier::Impl {
 
 class RSASigner::Impl {
  public:
-  Impl(RSA::PrivateKey private_key) {
+  Impl(RSA::PrivateKey& private_key) {
     signer_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Signer>(std::move(private_key));
   }
   std::string sign(const std::string& data_to_sign) {
