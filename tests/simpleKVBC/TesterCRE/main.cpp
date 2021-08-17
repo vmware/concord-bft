@@ -148,9 +148,9 @@ class KeyExchangeCommandHandler : public IStateHandler {
         std::get<concord::messages::ClientKeyExchangeCommand>(crep.response);
 
     // Generate new key pair
-    auto hex_keys = concord::util::Crypto::instance().generateRsaKeyPair(
-        2048, concord::util::Crypto::KeyFormat::HexaDecimalStrippedFormat);
-    auto pem_keys = concord::util::Crypto::instance().hexToPem(hex_keys);
+    auto hex_keys = concord::util::crypto::Crypto::instance().generateRsaKeyPair(
+        2048, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat);
+    auto pem_keys = concord::util::crypto::Crypto::instance().RsaHexToPem(hex_keys);
 
     concord::messages::ReconfigurationRequest rreq;
     concord::messages::ClientExchangePublicKey creq;
