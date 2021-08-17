@@ -528,9 +528,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     }
 
     DEFINE_SHARED_RECORDER(send, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(numRequestsInPrePrepareMsg, 1, 2500, 3, Unit::COUNT);
     DEFINE_SHARED_RECORDER(requestsQueueOfPrimarySize,
                            1,
@@ -538,7 +538,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                            701,
                            3,
                            Unit::COUNT);
-    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(onTransferringCompleteImp, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
 
     // Only updated by the primary

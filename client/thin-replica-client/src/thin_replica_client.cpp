@@ -13,7 +13,6 @@
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
 
-#include <log4cplus/mdc.h>
 #include <opentracing/propagation.h>
 #include <opentracing/span.h>
 #include <opentracing/tracer.h>

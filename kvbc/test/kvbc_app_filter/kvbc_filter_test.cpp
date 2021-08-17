@@ -102,26 +102,29 @@ class FakeStorage : public concord::kvbc::IReader {
 
   std::optional<concord::kvbc::categorization::Value> getLatest(const std::string &category_id,
                                                                 const std::string &key) const override {
+    BlockId block_id = 4;
     if (category_id == concord::kvbc::categorization::kExecutionEventGroupIdsCategory) {
       // get latest trid event_group_id
-      EXPECT_FALSE(latest_trid_eg_id.find(key) == latest_trid_eg_id.end());
       if (latest_trid_eg_id.find(key) == latest_trid_eg_id.end()) {
-        throw std::runtime_error("kExecutionEventGroupIdsCategory" + key);
+        throw std::runtime_error("The key: " + key +
+                                 "for category kExecutionEventGroupIdsCategory doesn't exist in storage!");
       }
-      return concord::kvbc::categorization::VersionedValue{{4, latest_trid_eg_id.at(key)}};
+      return concord::kvbc::categorization::VersionedValue{{block_id, latest_trid_eg_id.at(key)}};
     } else if (category_id == concord::kvbc::categorization::kExecutionTridEventGroupsCategory) {
       // get global event_group_id corresponding to trid event_group_id
       if (trid_event_group_id.find(key) == trid_event_group_id.end())
-        throw std::runtime_error("kExecutionTridEventGroupsCategory" + key);
-      return concord::kvbc::categorization::ImmutableValue{{4, trid_event_group_id.at(key)}};
+        throw std::runtime_error("The key: " + key +
+                                 "for category kExecutionTridEventGroupsCategory doesn't exist in storage!");
+      return concord::kvbc::categorization::ImmutableValue{{block_id, trid_event_group_id.at(key)}};
     } else if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
       // get event group
       std::vector<uint8_t> output;
       if (concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1 >= eg_data_.size())
-        throw std::runtime_error("kExecutionTridEventGroupsCategory" + key);
+        throw std::runtime_error("The key: " + key +
+                                 "for category kExecutionGlobalEventGroupsCategory doesn't exist in storage!");
       auto event_group_input = eg_data_.at(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1).event_group;
       concord::kvbc::categorization::serialize(output, event_group_input);
-      return concord::kvbc::categorization::ImmutableValue{{4, std::string(output.begin(), output.end())}};
+      return concord::kvbc::categorization::ImmutableValue{{block_id, std::string(output.begin(), output.end())}};
     } else {
       ADD_FAILURE() << "getLatest() should not be called by this test";
       return {};

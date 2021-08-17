@@ -29,10 +29,9 @@ class STBasedReconfigurationClient : public IStateClient {
   STBasedReconfigurationClient(std::function<void(const std::vector<uint8_t>&)> updateStateCb,
                                const uint64_t& blockId,
                                uint64_t intervalTimeoutMs = 1000);
-  State getNextState(uint64_t lastKnownBlockId) const override;
-  State getLatestClientUpdate(uint16_t clientId) const override;
+  State getNextState() const override;
   bool updateState(const WriteState& state) override;
-  void start(uint64_t lastKnownBlock) override { stopped_ = false; }
+  void start() override { stopped_ = false; }
   void stop() override { stopped_ = true; }
   void pushUpdate(std::vector<State>&) override;
 

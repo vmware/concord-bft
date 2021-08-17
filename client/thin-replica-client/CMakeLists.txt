@@ -12,8 +12,6 @@ string(APPEND CMAKE_CXX_FLAGS " -mtune=generic") # Generate code optimized for t
 # CMake helper modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 
-find_package(OpenSSL REQUIRED)
-
 # Build the Thin Replica Client library
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(thin_replica_client_lib STATIC

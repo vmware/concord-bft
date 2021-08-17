@@ -1,6 +1,6 @@
 find_program(
   CLANG_FORMAT_EXE
-  clang-format-9
+  clang-format
   DOC "Path to clang-format"
 )
 find_program(
