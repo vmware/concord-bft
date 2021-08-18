@@ -97,12 +97,8 @@ class ClientApiTestParametrizedFixture : public ClientApiTestFixture,
       else
         signature_data--;  // corrupt the signature
     }
-    std::string data;
-    data.resize(request_header->requestLength);
-    std::string sig;
-    sig.resize(request_header->reqSignatureLength);
-    std::memcpy(data.data(), reinterpret_cast<const char*>(request_data), request_header->requestLength);
-    std::memcpy(sig.data(), reinterpret_cast<const char*>(signature_data), sig_len);
+    std::string data(reinterpret_cast<const char*>(request_data), request_header->requestLength);
+    std::string sig(reinterpret_cast<const char*>(signature_data), sig_len);
     bool sig_verification_result = transaction_verifier_->verify(data, sig);
     ASSERT_EQ(sig_verification_result, sig_verification_success_expected);
     PrintBehavior(msg, client_receiver);
