@@ -19,34 +19,25 @@
 
 namespace concord::kvbc::pruning {
 
-void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock& block) const {
+void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
   std::ostringstream oss;
   std::string ser;
   oss << block.replica << block.block_id;
   ser = oss.str();
-  auto signature = getSignatureBuffer();
-  size_t actual_sign_len{0};
-  const auto res =
-      signer_.sign(ser.c_str(), ser.length(), signature.data(), signer_.signatureLength(), actual_sign_len);
-  if (!res) {
-    throw std::runtime_error{"RSAPruningSigner failed to sign a LatestPrunableBlock message"};
-  } else if (actual_sign_len < signature.length()) {
-    signature.resize(actual_sign_len);
-  }
-
+  std::string signature = signer_->sign(ser);
   block.signature = std::vector<uint8_t>(signature.begin(), signature.end());
 }
 
-std::string RSAPruningSigner::getSignatureBuffer() const {
-  const auto sign_len = signer_.signatureLength();
-  return std::string(sign_len, '\0');
-}
-RSAPruningSigner::RSAPruningSigner(const string& key) : signer_{key.c_str()} {}
+RSAPruningSigner::RSAPruningSigner(const string& key)
+    : signer_{std::make_unique<concord::util::crypto::RSASigner>(
+          key, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat)} {}
 
 RSAPruningVerifier::RSAPruningVerifier(const std::set<std::pair<uint16_t, const std::string>>& replicasPublicKeys) {
   auto i = 0u;
   for (auto& [idx, pkey] : replicasPublicKeys) {
-    replicas_.push_back(Replica{idx, RSAVerifier(pkey.c_str())});
+    replicas_.push_back(Replica{idx,
+                                std::make_unique<concord::util::crypto::RSAVerifier>(
+                                    pkey, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat)});
     const auto ins_res = replica_ids_.insert(replicas_.back().principal_id);
     if (!ins_res.second) {
       throw std::runtime_error{"RSAPruningVerifier found duplicate replica principal_id: " +
@@ -113,7 +104,7 @@ bool RSAPruningVerifier::verify(std::uint64_t sender, const std::string& ser, co
     return false;
   }
 
-  return getReplica(it->second).verifier.verify(ser.data(), ser.length(), signature.c_str(), signature.length());
+  return getReplica(it->second).verifier->verify(ser, signature);
 }
 
 const RSAPruningVerifier::Replica& RSAPruningVerifier::getReplica(ReplicaVector::size_type idx) const {

@@ -30,7 +30,7 @@ class ECDSAVerifier::Impl {
     verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(std::move(publicKey));
   }
 
-  bool verify(const std::string& data_to_verify, const std::string& signature) {
+  bool verify(const std::string& data_to_verify, const std::string& signature) const {
     return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
                                     data_to_verify.size(),
                                     (const CryptoPP::byte*)&signature[0],
@@ -39,7 +39,7 @@ class ECDSAVerifier::Impl {
 
   uint32_t signatureLength() const { return verifier_->SignatureLength(); }
 };
-bool ECDSAVerifier::verify(const std::string& data, const std::string& sig) { return impl_->verify(data, sig); }
+bool ECDSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
 ECDSAVerifier::ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
   ECDSA<ECP, SHA256>::PublicKey publicKey;
   if (fmt == KeyFormat::PemFormat) {
@@ -94,7 +94,7 @@ class RSAVerifier::Impl {
   Impl(RSA::PublicKey& public_key) {
     verifier_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Verifier>(std::move(public_key));
   }
-  bool verify(const std::string& data_to_verify, const std::string& signature) {
+  bool verify(const std::string& data_to_verify, const std::string& signature) const {
     return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
                                     data_to_verify.size(),
                                     (const CryptoPP::byte*)&signature[0],
