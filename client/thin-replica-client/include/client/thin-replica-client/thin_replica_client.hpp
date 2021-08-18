@@ -401,7 +401,7 @@ class ThinReplicaClient final {
   ThinReplicaClient(std::unique_ptr<ThinReplicaClientConfig> config,
                     const std::shared_ptr<concordMetrics::Aggregator>& aggregator)
       : metrics_(),
-        logger_(logging::getLogger("com.vmware.thin_replica_client")),
+        logger_(logging::getLogger("concord.client.thin_replica")),
         config_(std::move(config)),
         data_conn_index_(0),
         latest_verified_block_id_(0),
