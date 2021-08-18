@@ -154,7 +154,7 @@ RSAVerifier::RSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
   }
   impl_.reset(new RSAVerifier::Impl(public_key));
 }
-bool RSAVerifier::verify(const std::string& data, const std::string& sig) { return impl_->verify(data, sig); }
+bool RSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
 uint32_t RSAVerifier::signatureLength() const { return impl_->signatureLength(); }
 RSAVerifier::~RSAVerifier() = default;
 
