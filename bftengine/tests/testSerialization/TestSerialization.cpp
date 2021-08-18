@@ -382,7 +382,7 @@ int main() {
   ReplicasInfo replicaInfo(config, false, false);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   DescriptorOfLastNewView::setViewChangeMsgsNum(fVal, cVal);

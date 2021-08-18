@@ -33,11 +33,11 @@ std::string SigManager::getClientsPublicKeys() {
 SigManager* SigManager::initImpl(ReplicaId myId,
                                  const Key& mySigPrivateKey,
                                  const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                                 KeyFormat replicasKeysFormat,
+                                 concord::util::crypto::KeyFormat replicasKeysFormat,
                                  const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                                 KeyFormat clientsKeysFormat,
+                                 concord::util::crypto::KeyFormat clientsKeysFormat,
                                  ReplicasInfo& replicasInfo) {
-  vector<pair<Key, KeyFormat>> publickeys;
+  vector<pair<Key, concord::util::crypto::KeyFormat>> publickeys;
   map<PrincipalId, SigManager::KeyIndex> publicKeysMapping;
   size_t lowBound, highBound;
   auto numReplicas = replicasInfo.getNumberOfReplicas();
@@ -92,9 +92,9 @@ SigManager* SigManager::initImpl(ReplicaId myId,
 SigManager* SigManager::init(ReplicaId myId,
                              const Key& mySigPrivateKey,
                              const std::set<std::pair<PrincipalId, const std::string>>& publicKeysOfReplicas,
-                             KeyFormat replicasKeysFormat,
+                             concord::util::crypto::KeyFormat replicasKeysFormat,
                              const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
-                             KeyFormat clientsKeysFormat,
+                             concord::util::crypto::KeyFormat clientsKeysFormat,
                              ReplicasInfo& replicasInfo) {
   SigManager* sm = initImpl(myId,
                             mySigPrivateKey,
@@ -108,8 +108,8 @@ SigManager* SigManager::init(ReplicaId myId,
 
 SigManager::SigManager(PrincipalId myId,
                        uint16_t numReplicas,
-                       const pair<Key, KeyFormat>& mySigPrivateKey,
-                       const vector<pair<Key, KeyFormat>>& publickeys,
+                       const pair<Key, concord::util::crypto::KeyFormat>& mySigPrivateKey,
+                       const vector<pair<Key, concord::util::crypto::KeyFormat>>& publickeys,
                        const map<PrincipalId, KeyIndex>& publicKeysMapping,
                        bool clientTransactionSigningEnabled,
                        ReplicasInfo& replicasInfo)
@@ -126,11 +126,11 @@ SigManager::SigManager(PrincipalId myId,
           metrics_component_.RegisterAtomicCounter("peer_replicas_signature_verification_failed"),
           metrics_component_.RegisterAtomicCounter("peer_replicas_signatures_verified"),
           metrics_component_.RegisterAtomicCounter("signature_verification_failed_on_unrecognized_participant_id")} {
-  map<KeyIndex, std::shared_ptr<RSAVerifier>> publicKeyIndexToVerifier;
+  map<KeyIndex, std::shared_ptr<concord::util::crypto::IVerifier>> publicKeyIndexToVerifier;
   size_t numPublickeys = publickeys.size();
 
   ConcordAssert(publicKeysMapping.size() >= numPublickeys);
-  mySigner_.reset(new RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second));
+  mySigner_.reset(new concord::util::crypto::RSASigner(mySigPrivateKey.first.c_str(), mySigPrivateKey.second));
   for (const auto& p : publicKeysMapping) {
     ConcordAssert(verifiers_.count(p.first) == 0);
     ConcordAssert(p.second < numPublickeys);
@@ -138,7 +138,7 @@ SigManager::SigManager(PrincipalId myId,
     auto iter = publicKeyIndexToVerifier.find(p.second);
     const auto& [key, format] = publickeys[p.second];
     if (iter == publicKeyIndexToVerifier.end()) {
-      verifiers_[p.first] = std::make_shared<RSAVerifier>(key.c_str(), format);
+      verifiers_[p.first] = std::make_shared<concord::util::crypto::RSAVerifier>(key.c_str(), format);
       publicKeyIndexToVerifier[p.second] = verifiers_[p.first];
     } else {
       verifiers_[p.first] = iter->second;
@@ -193,9 +193,11 @@ bool SigManager::verifySig(
     PrincipalId pid, const char* data, size_t dataLength, const char* sig, uint16_t sigLength) const {
   bool result = false;
   {
+    std::string str_data(data, dataLength);
+    std::string str_sig(sig, sigLength);
     std::shared_lock lock(mutex_);
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
-      result = pos->second->verify(data, dataLength, sig, sigLength);
+      result = pos->second->verify(str_data, str_sig);
     } else {
       LOG_ERROR(GL, "Unrecognized pid " << pid);
       metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
@@ -231,18 +233,22 @@ bool SigManager::verifySig(
 
 void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const {
   size_t actualSigSize = 0;
-  mySigner_->sign(data, dataLength, outSig, outSigLength, actualSigSize);
+  std::string str_data(data, dataLength);
+  std::string sig;
+  sig = mySigner_->sign(str_data);
+  actualSigSize = sig.size();
+  std::memcpy(outSig, sig.c_str(), outSigLength);
   ConcordAssert(outSigLength == actualSigSize);
 }
 
 uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
 
-void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, KeyFormat format) {
+void SigManager::setClientPublicKey(const std::string& key, PrincipalId id, concord::util::crypto::KeyFormat format) {
   LOG_INFO(KEY_EX_LOG, "client: " << id << " key: " << key << " format: " << (uint16_t)format);
   if (replicasInfo_.isIdOfExternalClient(id)) {
     try {
       std::unique_lock lock(mutex_);
-      verifiers_.insert_or_assign(id, std::make_shared<RSAVerifier>(key.c_str(), format));
+      verifiers_.insert_or_assign(id, std::make_shared<concord::util::crypto::RSAVerifier>(key.c_str(), format));
     } catch (const std::exception& e) {
       LOG_ERROR(KEY_EX_LOG, "failed to add a key for client: " << id << " reason: " << e.what());
       throw;

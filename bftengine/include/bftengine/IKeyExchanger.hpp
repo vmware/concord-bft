@@ -10,10 +10,9 @@
 // file.
 
 #pragma once
+#include "crypto_utils.hpp"
 #include <string>
 #include <cstdint>
-
-enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
 
 // Interface for objects that need to be notified on key rotation
 class IKeyExchanger {
@@ -32,5 +31,5 @@ class IMultiSigKeyGenerator {
 class IClientPublicKeyStore {
  public:
   virtual ~IClientPublicKeyStore() = default;
-  virtual void setClientPublicKey(uint16_t clientId, const std::string& key, KeyFormat) = 0;
+  virtual void setClientPublicKey(uint16_t clientId, const std::string& key, concord::util::crypto::KeyFormat) = 0;
 };

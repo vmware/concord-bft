@@ -36,7 +36,7 @@ TEST(ReplicaRestartReadyMsg, base_methods) {
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   std::unique_ptr<ReplicaRestartReadyMsg> msg(
