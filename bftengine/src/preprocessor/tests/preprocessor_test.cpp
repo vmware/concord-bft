@@ -682,7 +682,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   }
   auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
-  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
+  usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 5);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 6);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 7);
