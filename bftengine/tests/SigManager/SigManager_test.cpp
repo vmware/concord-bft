@@ -191,7 +191,7 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   unique_ptr<concord::util::crypto::RSAVerifier> verifier;
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
   char data[RANDOM_DATA_SIZE]{0};
-  size_t expectedSignerSigLen, expectedVerifierSigLen;
+  size_t expectedSignerSigLen;
 
   generateKeyPairs(numReplicas);
 
@@ -226,7 +226,6 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   sigManager->sign(data, RANDOM_DATA_SIZE, sig.data(), expectedSignerSigLen);
 
   // Validate with RSAVerifier (mock)
-  expectedVerifierSigLen = verifier->signatureLength();
   std::string str_data(data, RANDOM_DATA_SIZE);
   ASSERT_TRUE(verifier->verify(str_data, sig));
 
