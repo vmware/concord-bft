@@ -92,20 +92,27 @@ EventGroupMap generateEventGroupMap(EventGroupId start, EventGroupId end) {
 class FakeStorage : public concord::kvbc::IReader {
  public:
   FakeStorage(BlockMap&& db) : db_(std::move(db)), block_id_(db_.size()) {}
-  FakeStorage(EventGroupMap&& db) : eg_db_(std::move(db)), eg_id_(eg_db_.size()) {
-    updateEventGroupStorageMaps(eg_db_);
+  FakeStorage(EventGroupMap&& db) {
+    addEventGroups(db);
+    updateEventGroupStorageMaps(db);
+  }
+  FakeStorage(BlockMap&& blocks, EventGroupMap&& event_groups) {
+    addBlocks(blocks);
+    addEventGroups(event_groups);
+    updateEventGroupStorageMaps(event_groups);
   }
 
   void addBlocks(const BlockMap& db) {
     std::scoped_lock sl(mtx_);
     db_.insert(std::cbegin(db), std::cend(db));
-    block_id_ = db_.size();
+    block_id_ += db.size();
   }
 
   void addEventGroups(const EventGroupMap& db) {
     std::scoped_lock sl(mtx_);
     eg_db_.insert(std::cbegin(db), std::cend(db));
-    eg_id_ = eg_db_.size();
+    first_event_group_block_id_ = first_event_group_block_id_ ? first_event_group_block_id_ : block_id_ + 1;
+    block_id_ += db.size();
   }
 
   std::optional<concord::kvbc::categorization::Value> get(const std::string& category_id,
@@ -164,7 +171,9 @@ class FakeStorage : public concord::kvbc::IReader {
   std::optional<concord::kvbc::categorization::TaggedVersion> getLatestVersion(const std::string& category_id,
                                                                                const std::string& key) const override {
     if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
-      // Event groups not enabled
+      if (first_event_group_block_id_) {
+        return {concord::kvbc::categorization::TaggedVersion{false, first_event_group_block_id_}};
+      }
       return std::nullopt;
     }
     ADD_FAILURE() << "getLatestVersion() should not be called by this test";
@@ -205,7 +214,8 @@ class FakeStorage : public concord::kvbc::IReader {
   }
 
   BlockId getLastBlockId() const override { return block_id_; }
-  EventGroupId getLastEventGroupId() const { return eg_id_; }
+  EventGroupId getLastEventGroupId() const { return eg_db_.size(); }
+  BlockId getFirstEventGroupBlockId() const { return first_event_group_block_id_; }
 
   void updateLatestGlobalEgId(uint64_t global_event_group_id) {
     // Let's save the latest global event group id in storage
@@ -248,10 +258,10 @@ class FakeStorage : public concord::kvbc::IReader {
 
  private:
   BlockMap db_;
-  BlockId block_id_;
+  BlockId block_id_{0};
+  BlockId first_event_group_block_id_{0};
   mutable std::mutex mtx_;
   EventGroupMap eg_db_;
-  EventGroupId eg_id_;
   // trid -> latest_trid_event_group_id map
   std::map<std::string, std::string> latest_eg_id;
   // trid_event_group_id -> global_event_group_id map
@@ -318,10 +328,11 @@ class TestStateMachine {
     last_block_to_send_++;
   }
 
-  TestStateMachine(FakeStorage& storage, const EventGroupMap& live_update_event_groups, uint64_t start_event_group_id)
+  TestStateMachine(FakeStorage& storage, const EventGroupMap& live_update_event_groups, uint64_t start_id)
       : storage_(storage),
         live_update_event_groups_(std::cbegin(live_update_event_groups), std::cend(live_update_event_groups)),
-        current_event_group_to_send_(start_event_group_id) {
+        current_block_to_send_(start_id),
+        current_event_group_to_send_(start_id) {
     is_event_group_sm = true;
     last_event_group_to_send_ = storage_.getLastEventGroupId();
     if (live_update_event_groups_.size()) {
@@ -363,46 +374,48 @@ class TestStateMachine {
   void return_false_on_last_block(bool on) { return_false_on_last_block_ = on; }
   void return_false_on_last_event_group(bool on) { return_false_on_last_event_group_ = on; }
 
+  // The server can stream either legacy events or event groups
   bool on_server_write(const DataT& data) {
-    EXPECT_EQ(current_block_to_send_, data.events().block_id());
-    if (current_block_to_send_ == last_block_to_send_) {
-      return !return_false_on_last_block_;
-    }
-
-    if (live_buffer_) {
-      if (current_block_to_send_ == last_block_to_send_ - 1) {
-        on_finished_dropping_blocks();
-      } else if (live_buffer_->Full() || live_buffer_->oldestBlockId() > (storage_.getLastBlockId() + 1)) {
-        // There is a gap that is supposed to be filled with blocks from the
-        // storage
-        on_sync_with_kvb_finished();
+    if (data.has_events()) {
+      EXPECT_EQ(current_block_to_send_, data.events().block_id());
+      if (current_block_to_send_ == last_block_to_send_) {
+        return !return_false_on_last_block_;
       }
-    }
-    ++current_block_to_send_;
-    return true;
-  }
 
-  bool on_server_write_event_group(const DataT& data) {
-    if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-      EXPECT_EQ(current_event_group_to_send_, data.event_group().id());
-    } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
-      EXPECT_EQ(current_event_group_to_send_, data.event_group().event_group_id());
-    }
-    if (current_event_group_to_send_ == last_event_group_to_send_) {
-      return !return_false_on_last_event_group_;
-    }
-
-    if (live_buffer_) {
-      if (current_event_group_to_send_ == last_event_group_to_send_ - 1) {
-        on_finished_dropping_event_groups();
-      } else if (live_buffer_->Full() || live_buffer_->oldestEventGroupId() > (storage_.getLastEventGroupId() + 1)) {
-        // There is a gap that is supposed to be filled with event groups from the
-        // storage
-        on_sync_with_event_groups_finished();
+      if (not is_event_group_sm && live_buffer_) {
+        if (current_block_to_send_ == last_block_to_send_ - 1) {
+          on_finished_dropping_blocks();
+        } else if (live_buffer_->Full() || live_buffer_->oldestBlockId() > (storage_.getLastBlockId() + 1)) {
+          // There is a gap that is supposed to be filled with blocks from the
+          // storage
+          on_sync_with_kvb_finished();
+        }
       }
+      ++current_block_to_send_;
+      return true;
+    } else {
+      EXPECT_TRUE(data.has_event_group());
+      if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
+        EXPECT_EQ(current_event_group_to_send_, data.event_group().id());
+      } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
+        EXPECT_EQ(current_event_group_to_send_, data.event_group().event_group_id());
+      }
+      if (current_event_group_to_send_ == last_event_group_to_send_) {
+        return !return_false_on_last_event_group_;
+      }
+
+      if (live_buffer_) {
+        if (current_event_group_to_send_ == last_event_group_to_send_ - 1) {
+          on_finished_dropping_event_groups();
+        } else if (live_buffer_->Full() || live_buffer_->oldestEventGroupId() > (storage_.getLastEventGroupId() + 1)) {
+          // There is a gap that is supposed to be filled with event groups from the
+          // storage
+          on_sync_with_event_groups_finished();
+        }
+      }
+      ++current_event_group_to_send_;
+      return true;
     }
-    ++current_event_group_to_send_;
-    return true;
   }
 
   void on_sync_with_kvb_finished() {
@@ -428,6 +441,10 @@ class TestStateMachine {
     live_buffer_->PushEventGroup({eg_id, event_group});
   }
 
+  uint64_t numUpdatesReceived() { return current_block_to_send_ + current_event_group_to_send_ - 2; }
+  uint64_t numLegacyBlocksReceived() { return current_block_to_send_ - 1; }
+  uint64_t numEventGroupsReceived() { return current_event_group_to_send_ - 1; }
+
  public:
   bool is_event_group_sm = false;
 
@@ -450,12 +467,7 @@ class TestServerWriter {
 
  public:
   TestServerWriter(TestStateMachine<T>& state_machine) : state_machine_(state_machine) {}
-  bool Write(T& msg) {
-    if (not state_machine_.is_event_group_sm) {
-      return state_machine_.on_server_write(msg);
-    }
-    return state_machine_.on_server_write_event_group(msg);
-  }
+  bool Write(T& msg) { return state_machine_.on_server_write(msg); }
 };
 
 template <typename DataT>
@@ -957,6 +969,85 @@ TEST(thin_replica_server_test, getClientIdFromClientCert) {
   std::string expected_client_id = "daml_ledger_api1";
   std::string client_id = replica.getClientIdFromClientCert<TestServerContext>(&context);
   EXPECT_EQ(expected_client_id, client_id);
+}
+
+// Subscribing to legacy events will eventually return event groups
+TEST(thin_replica_server_test, SubscribeToUpdatesLegacyTransition) {
+  // Storage contains legacy events and event groups
+  FakeStorage storage(generate_kvp(1, kLastBlockId), generateEventGroupMap(1, kLastEventGroupId));
+  EXPECT_EQ(storage.getLastBlockId(), kLastBlockId + kLastEventGroupId);
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
+  EXPECT_EQ(storage.getFirstEventGroupBlockId(), kLastBlockId + 1);
+
+  // Live updates can contain event groups only
+  auto live_update_event_groups = generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 5);
+  TestStateMachine<Hash> state_machine{storage, live_update_event_groups, 1};
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  auto total_legacy_blocks = kLastBlockId;
+  auto total_event_groups = kLastEventGroupId + 5;
+  auto total_updates = total_legacy_blocks + total_event_groups;
+
+  // Setup ThinReplicaServer
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica(std::move(trs_config), std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+
+  // ThinReplica legacy events request
+  SubscriptionRequest request;
+  request.mutable_events()->set_block_id(1);
+
+  auto status =
+      replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  EXPECT_EQ(status.error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numUpdatesReceived(), total_updates);
+  EXPECT_EQ(state_machine.numLegacyBlocksReceived(), total_legacy_blocks);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
+}
+
+// Subscribing to legacy events with storage that contains event groups only returns event groups
+TEST(thin_replica_server_test, SubscribeToUpdatesLegacyRequestEventGroups) {
+  // Storage contains event groups only
+  FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId));
+  EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
+  EXPECT_EQ(storage.getFirstEventGroupBlockId(), 1);
+
+  // Live updates can contain event groups only
+  auto live_update_event_groups = generateEventGroupMap(kLastEventGroupId + 1, kLastEventGroupId + 10);
+  TestStateMachine<Hash> state_machine{storage, live_update_event_groups, 1};
+  TestSubBufferList<Hash> buffer{state_machine};
+  TestServerWriter<Hash> stream{state_machine};
+
+  auto total_event_groups = kLastEventGroupId + 10;
+
+  // Setup ThinReplicaServer
+  bool is_insecure_trs = true;
+  std::string tls_trs_cert_path;
+  std::unordered_set<std::string> client_id_set;
+  uint16_t update_metrics_aggregator_thresh = 100;
+
+  auto trs_config = std::make_unique<concord::thin_replica::ThinReplicaServerConfig>(
+      is_insecure_trs, tls_trs_cert_path, &storage, buffer, client_id_set, update_metrics_aggregator_thresh);
+  concord::thin_replica::ThinReplicaImpl replica_(std::move(trs_config),
+                                                  std::make_shared<concordMetrics::Aggregator>());
+  TestServerContext context;
+
+  // ThinReplica legacy events request
+  SubscriptionRequest request;
+  request.mutable_events()->set_block_id(3);
+
+  auto status =
+      replica_.SubscribeToUpdates<TestServerContext, TestServerWriter<Hash>, Hash>(&context, &request, &stream);
+  EXPECT_EQ(status.error_code(), grpc::StatusCode::OK);
+  EXPECT_EQ(state_machine.numLegacyBlocksReceived(), 0);
+  EXPECT_EQ(state_machine.numEventGroupsReceived(), total_event_groups);
 }
 }  // namespace
 
