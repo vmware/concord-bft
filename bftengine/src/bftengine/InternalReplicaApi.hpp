@@ -18,7 +18,7 @@
 #include "IncomingMsgsStorage.hpp"
 
 class IThresholdVerifier;
-namespace util {
+namespace concord::util {
 class SimpleThreadPool;
 }
 
@@ -50,7 +50,7 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual PrePrepareMsg* buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) { return nullptr; }
 
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
-  virtual util::SimpleThreadPool& getInternalThreadPool() = 0;
+  virtual concord::util::SimpleThreadPool& getInternalThreadPool() = 0;
 
   virtual bool isCollectingState() const = 0;
 

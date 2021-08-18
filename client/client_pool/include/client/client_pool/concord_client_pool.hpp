@@ -178,7 +178,7 @@ class ConcordClientPool {
   // holds jobs that no clients was available to get.
   std::deque<externalRequest> external_requests_queue_;
   // Thread pool, on each thread on client will run
-  ::util::SimpleThreadPool jobs_thread_pool_;
+  concord::util::SimpleThreadPool jobs_thread_pool_;
   // Clients queue mutex
   std::mutex clients_queue_lock_;
   // Metric
@@ -212,7 +212,7 @@ class ConcordClientPool {
   bftEngine::impl::RollingAvgAndVar batch_agg_dur_;
 };
 
-class BatchRequestProcessingJob : public ::util::SimpleThreadPool::Job {
+class BatchRequestProcessingJob : public concord::util::SimpleThreadPool::Job {
  public:
   BatchRequestProcessingJob(concord_client_pool::ConcordClientPool& clients,
                             std::shared_ptr<external_client::ConcordClient> client)
