@@ -232,13 +232,11 @@ bool SigManager::verifySig(
 }
 
 void SigManager::sign(const char* data, size_t dataLength, char* outSig, uint16_t outSigLength) const {
-  size_t actualSigSize = 0;
   std::string str_data(data, dataLength);
   std::string sig;
   sig = mySigner_->sign(str_data);
-  actualSigSize = sig.size();
+  outSigLength = sig.size();
   std::memcpy(outSig, sig.c_str(), outSigLength);
-  ConcordAssert(outSigLength == actualSigSize);
 }
 
 uint16_t SigManager::getMySigLength() const { return (uint16_t)mySigner_->signatureLength(); }
