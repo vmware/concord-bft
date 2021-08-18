@@ -27,7 +27,7 @@ class ReconfigurationBlockTools {
       : blocks_adder_{block_adder}, block_metadata_{ro_storage}, ro_storage_{ro_storage} {}
   kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data,
                                             const uint64_t bft_seq_num,
-                                            string key,
+                                            std::string key,
                                             bool include_wedge);
   kvbc::BlockId persistReconfigurationBlock(concord::kvbc::categorization::VersionedUpdates& ver_updates,
                                             const uint64_t bft_seq_num,

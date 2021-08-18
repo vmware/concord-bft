@@ -18,6 +18,7 @@
 #include "Metrics.hpp"
 #include "secrets_manager_impl.h"
 #include "SysConsts.hpp"
+#include "crypto_utils.hpp"
 
 namespace bftEngine::impl {
 
@@ -56,9 +57,9 @@ class KeyExchangeManager {
   void sendInitialClientsKeys(const std::string&);
   void onPublishClientsKeys(const std::string& keys, std::optional<std::string> bootstrap_keys);
   // called on a new client key
-  void onClientPublicKeyExchange(const std::string& key, KeyFormat, NodeIdType clientId);
+  void onClientPublicKeyExchange(const std::string& key, concord::util::crypto::KeyFormat, NodeIdType clientId);
   // called when client keys are loaded
-  void loadClientPublicKey(const std::string& key, KeyFormat, NodeIdType clientId);
+  void loadClientPublicKey(const std::string& key, concord::util::crypto::KeyFormat, NodeIdType clientId);
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;

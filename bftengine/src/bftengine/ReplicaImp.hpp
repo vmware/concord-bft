@@ -82,7 +82,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool restarted_ = false;
 
   // thread pool of this replica
-  util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
+  concord::util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
 
   // retransmissions manager (can be disabled)
   RetransmissionsManager* retransmissionsManager = nullptr;
@@ -442,7 +442,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override;
 
-  virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
+  virtual concord::util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
 
   const ReplicaConfig& getReplicaConfig() const override { return config_; }
 

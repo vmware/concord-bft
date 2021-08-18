@@ -340,7 +340,8 @@ struct VerifyBlockRequests {
       out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
       std::string verification_result;
       auto verifier = std::make_unique<bftEngine::impl::RSAVerifier>(
-          client_keys.ids_to_keys[req.clientId].key.c_str(), (KeyFormat)client_keys.ids_to_keys[req.clientId].format);
+          client_keys.ids_to_keys[req.clientId].key.c_str(),
+          (bftEngine::impl::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
 
       if (req.requestPersistencyType == concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN) {
         auto result =

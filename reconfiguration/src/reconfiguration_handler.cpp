@@ -176,7 +176,7 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
   // assuming we always send hex DER over the wire
   for (const auto& clientId : affected_clients)
     bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(
-        msg.pub_key, KeyFormat::HexaDecimalStrippedFormat, clientId);
+        msg.pub_key, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat, clientId);
   return true;
 }
 }  // namespace concord::reconfiguration

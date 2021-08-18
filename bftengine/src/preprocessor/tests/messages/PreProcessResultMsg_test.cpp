@@ -36,7 +36,7 @@ bftEngine::ReplicaConfig& createReplicaConfigWithExtClient(uint16_t fVal, uint16
 bftEngine::impl::SigManager* createSigManagerWithSigning(
     size_t myId,
     std::string& myPrivateKey,
-    KeyFormat replicasKeysFormat,
+    concord::util::crypto::KeyFormat replicasKeysFormat,
     std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
     const std::set<std::pair<const std::string, std::set<uint16_t>>>* publicKeysOfClients,
     ReplicasInfo& replicasInfo) {
@@ -45,7 +45,7 @@ bftEngine::impl::SigManager* createSigManagerWithSigning(
                           publicKeysOfReplicas,
                           replicasKeysFormat,
                           publicKeysOfClients,
-                          KeyFormat::HexaDecimalStrippedFormat,
+                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                           replicasInfo);
 }
 
@@ -67,7 +67,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
         replicaInfo{config, false, false},
         sigManager(createSigManagerWithSigning(config.replicaId,
                                                config.replicaPrivateKey,
-                                               KeyFormat::HexaDecimalStrippedFormat,
+                                               concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                config.publicKeysOfReplicas,
                                                &config.publicKeysOfClients,
                                                replicaInfo)) {}
