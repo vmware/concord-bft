@@ -97,10 +97,9 @@ class ClientApiTestParametrizedFixture : public ClientApiTestFixture,
       else
         signature_data--;  // corrupt the signature
     }
-    bool sig_verification_result = transaction_verifier_->verify(reinterpret_cast<const char*>(request_data),
-                                                                 request_header->requestLength,
-                                                                 reinterpret_cast<const char*>(signature_data),
-                                                                 sig_len);
+    std::string data(reinterpret_cast<const char*>(request_data), request_header->requestLength);
+    std::string sig(reinterpret_cast<const char*>(signature_data), sig_len);
+    bool sig_verification_result = transaction_verifier_->verify(data, sig);
     ASSERT_EQ(sig_verification_result, sig_verification_success_expected);
     PrintBehavior(msg, client_receiver);
     if (sig_verification_result)
@@ -147,7 +146,7 @@ class ClientApiTestParametrizedFixture : public ClientApiTestFixture,
     out = GetSecretData();  // return secret data
   }
 
-  unique_ptr<RSAVerifier> transaction_verifier_;
+  unique_ptr<concord::util::crypto::IVerifier> transaction_verifier_;
   bool corrupt_request_ = false;
 };
 
@@ -178,7 +177,12 @@ TEST_P(ClientApiTestParametrizedFixture, print_received_messages_and_timeout) {
 
     // initialize the test's RSAVerifier
     string public_key_full_path({keypair_path + PUB_KEY_NAME});
-    transaction_verifier_ = unique_ptr<RSAVerifier>(new RSAVerifier(public_key_full_path));
+    std::ifstream file(public_key_full_path);
+    std::stringstream stream;
+    stream << file.rdbuf();
+    auto pub_key_str = stream.str();
+    transaction_verifier_.reset(
+        new concord::util::crypto::RSAVerifier(pub_key_str, concord::util::crypto::KeyFormat::PemFormat));
   }
   unique_ptr<FakeCommunication> comm;
   if (sign_transaction) {
