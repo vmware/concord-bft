@@ -152,13 +152,6 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
   for (auto iter = std::begin(kHashesToTest); iter != std::end(kHashesToTest); ++iter) {
     const std::string& hash = *iter;
 
-    size_t signatureLength;
-    try {
-      signatureLength = signer->signatureLength();
-    } catch (std::exception& e) {
-      std::cout << invalidPrivateKey;
-      return false;
-    }
     std::string sig;
     try {
       sig = signer->sign(hash);
