@@ -1,5 +1,8 @@
 find_package(GTest REQUIRED)
-find_package(OpenSSL REQUIRED)
+
+if(NOT BUILD_THIRDPARTY)
+    find_package(OpenSSL REQUIRED)
+endif()
 
 add_executable(metric_tests metric_test.cpp)
 add_test(metric_tests metric_tests)
@@ -67,3 +70,7 @@ target_link_libraries(openssl_crypto_wrapper_test GTest::Main util)
 add_executable(simple_memory_pool_test simple_memory_pool_test.cpp)
 add_test(simple_memory_pool_test simple_memory_pool_test)
 target_link_libraries(simple_memory_pool_test GTest::Main util)
+
+add_executable(crypto_utils_test crypto_utils_test.cpp )
+add_test(crypto_utils_test crypto_utils_test)
+target_link_libraries(crypto_utils_test GTest::Main util)

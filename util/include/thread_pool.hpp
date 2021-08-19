@@ -58,12 +58,14 @@ class ThreadPool {
 
  public:
   // Executes the passed function (or any callable) in a pool thread. Returns a future to the result.
+  // Arguments are always copied or moved. Reference arguments are not supported on purpose. Main reason is safety.
+  // Instead, callers need to be explicit and use std::ref() should they require references.
   // Note: The returned future's destructor doesn't block if the future value hasn't been retrieved. This is in contrast
   // to the futures returned by std::async that block.
   template <class F, class... Args>
   auto async(F&& func, Args&&... args) {
     using ResultType = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
-    auto ptask = std::packaged_task<ResultType(Args...)>{std::forward<F>(func)};
+    auto ptask = std::packaged_task<ResultType(std::decay_t<Args>...)>{std::forward<F>(func)};
     auto future = ptask.get_future();
     // Use an std::tuple to capture arguments and then std::apply() to unpack them:
     // https://stackoverflow.com/questions/37511129/how-to-capture-a-parameter-pack-by-forward-or-move

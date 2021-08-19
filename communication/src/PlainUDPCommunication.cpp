@@ -25,6 +25,7 @@
 #include <mutex>
 #include <thread>
 #include <functional>
+#include <poll.h>
 
 using namespace std;
 
@@ -204,19 +205,6 @@ class PlainUDPCommunication::PlainUdpImpl {
       return -1;
     }
 
-    // since neither WinSock nor Linux sockets manual
-    // doesnt specify explicitly that there is no need to call shutdown on
-    // UDP socket,we call it to be sure that the send/receive is disable when
-    // we call close(). its safe since when shutdown() is called on UDP
-    // socket, it should (in the worst case) to return ENOTCONN that just
-    // should be ignored.
-#ifdef _WIN32
-    shutdown(udpSockFd, SD_BOTH);
-#else
-    shutdown(udpSockFd, SHUT_RDWR);
-#endif
-    close(udpSockFd);
-
     running = false;
 
     /** Stopping the receiving thread happens as the last step because it
@@ -224,7 +212,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     stopRecvThread();
 
     std::free(bufferForIncomingMessages);
-    udpSockFd = 0;
+    bufferForIncomingMessages = nullptr;
 
     return 0;
   }
@@ -320,10 +308,28 @@ class PlainUDPCommunication::PlainUdpImpl {
     socklen_t fromAddressLength = sizeof(fromAddress);
 #endif
     int mLen = 0;
+    int timeout = 5000;  // In milliseconds.
+    int iRes = 0;
+
+    pollfd fds;  // Handle only one file descriptor.
+    fds.fd = udpSockFd;
+    fds.events = POLLIN;  // Register for data read.
+
     do {
-      mLen =
-          recvfrom(udpSockFd, bufferForIncomingMessages, maxMsgSize, 0, (sockaddr *)&fromAddress, &fromAddressLength);
-      if (!running) return;
+      mLen = 0;
+      iRes = poll(&fds, 1, timeout);
+      if (0 < iRes) {  // Event(s) reported.
+        mLen =
+            recvfrom(udpSockFd, bufferForIncomingMessages, maxMsgSize, 0, (sockaddr *)&fromAddress, &fromAddressLength);
+      } else if (0 > iRes) {  // Error.
+        LOG_ERROR(_logger, "Poll failed. " << std::strerror(errno));
+        continue;
+      } else {  // Timeout
+        LOG_DEBUG(_logger, "Poll timeout occurred. timeout = " << timeout << " milli seconds.");
+        continue;
+      }
+
+      if (!running) break;
       LOG_DEBUG(_logger, "Node " << selfId << ": recvfrom returned " << mLen << " bytes");
 
       if (mLen < 0) {
@@ -369,6 +375,21 @@ class PlainUDPCommunication::PlainUdpImpl {
       }
 
     } while (running);
+
+    // since neither WinSock nor Linux sockets manual
+    // doesnt specify explicitly that there is no need to call shutdown on
+    // UDP socket,we call it to be sure that the send/receive is disable when
+    // we call close(). its safe since when shutdown() is called on UDP
+    // socket, it should (in the worst case) to return ENOTCONN that just
+    // should be ignored.
+#ifdef _WIN32
+    shutdown(udpSockFd, SD_BOTH);
+#else
+    shutdown(udpSockFd, SHUT_RDWR);
+#endif
+
+    close(udpSockFd);
+    udpSockFd = 0;
   }
 };
 

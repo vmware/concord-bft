@@ -30,6 +30,8 @@ class CheckpointMsg : public MessageBase {
 
   SeqNum seqNumber() const { return b()->seqNum; }
 
+  EpochNum epochNumber() const { return b()->epochNum; }
+
   Digest& digestOfState() const { return b()->stateDigest; }
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
@@ -38,9 +40,13 @@ class CheckpointMsg : public MessageBase {
 
   void setStateAsStable() { b()->flags |= 0x1; }
 
+  void setEpochNumber(const EpochNum& e) { b()->epochNum = e; }
+
   void validate(const ReplicasInfo& repInfo) const override;
 
   void sign();
+
+  void setSenderId(NodeIdType id) { sender_ = id; }
 
  protected:
   template <typename MessageT>
@@ -50,12 +56,13 @@ class CheckpointMsg : public MessageBase {
   struct Header {
     MessageBase::Header header;
     SeqNum seqNum;
+    EpochNum epochNum;
     Digest stateDigest;
     ReplicaId genReplicaId;  // the replica that originally generated this message
     uint8_t flags;           // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + DIGEST_SIZE + 2 + 1), "Header is 49B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + DIGEST_SIZE + 2 + 1), "Header is 57B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

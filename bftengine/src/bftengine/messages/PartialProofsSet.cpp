@@ -24,6 +24,7 @@
 #include "SimpleThreadPool.hpp"
 #include "ReplicaConfig.hpp"
 #include "CryptoManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -209,7 +210,7 @@ bool PartialProofsSet::hasFullProof() { return (fullCommitProof != nullptr); }
 FullCommitProofMsg* PartialProofsSet::getFullProof() { return fullCommitProof; }
 
 // NB: the following class is part of a patch
-class AsynchProofCreationJob : public util::SimpleThreadPool::Job {
+class AsynchProofCreationJob : public concord::util::SimpleThreadPool::Job {
  public:
   AsynchProofCreationJob(InternalReplicaApi* myReplica,
                          std::shared_ptr<IThresholdVerifier> verifier,

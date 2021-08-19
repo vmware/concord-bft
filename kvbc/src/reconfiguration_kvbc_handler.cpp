@@ -88,17 +88,15 @@ kvbc::BlockId ReconfigurationBlockTools::persistNewEpochBlock(const uint64_t bft
   LOG_INFO(GL, "Starting new epoch " << KVLOG(newEpoch, block_id));
   return block_id;
 }
-concord::messages::ClientReconfigurationStateReply KvbcClientReconfigurationHandler::buildClientStateReply(
-    kvbc::BlockId blockid, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid) {
-  concord::messages::ClientReconfigurationStateReply creply;
+concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClientStateReply(
+    kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid) {
+  concord::messages::ClientStateReply creply;
   creply.block_id = 0;
-  if (blockid > 0) {
-    creply.block_id = blockid;
-    auto res = ro_storage_.get(
-        kvbc::kConcordInternalCategoryId,
-        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
-            std::to_string(clientid),
-        blockid);
+  auto res = ro_storage_.getLatest(
+      kvbc::kConcordInternalCategoryId,
+      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
+          std::to_string(clientid));
+  if (res.has_value()) {
     std::visit(
         [&](auto&& arg) {
           auto strval = arg.data;
@@ -131,6 +129,7 @@ concord::messages::ClientReconfigurationStateReply KvbcClientReconfigurationHand
             default:
               break;
           }
+          creply.block_id = arg.block_id;
         },
         *res);
   }
@@ -141,27 +140,15 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
                                               uint32_t sender_id,
                                               const std::optional<bftEngine::Timestamp>&,
                                               concord::messages::ReconfigurationResponse& rres) {
-  // We want to rotate over the latest updates of this client and find the earliest one which is higher than the client
-  // last known block
-  kvbc::BlockId minKnownUpdate{0};
-  uint8_t command_type = 0;
+  concord::messages::ClientReconfigurationStateReply rep;
   for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
        i++) {
-    auto key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(i)} +
-               std::to_string(sender_id);
-    auto res = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key);
-    if (res.has_value()) {
-      auto blockid = res.value().version;
-      if (blockid > command.last_known_block && (minKnownUpdate == 0 || minKnownUpdate > blockid)) {
-        minKnownUpdate = blockid;
-        command_type = i;
-      }
-      LOG_INFO(getLogger(), "found a client update on chain " << KVLOG(sender_id, i, blockid));
-    }
+    auto csrep = buildClientStateReply(static_cast<keyTypes::CLIENT_COMMAND_TYPES>(i), sender_id);
+    if (csrep.block_id == 0) continue;
+    rep.states.push_back(csrep);
   }
-  auto creply =
-      buildClientStateReply(minKnownUpdate, static_cast<keyTypes::CLIENT_COMMAND_TYPES>(command_type), sender_id);
-  concord::messages::serialize(rres.additional_data, creply);
+  LOG_INFO(GL, "b(2)");
+  concord::messages::serialize(rres.additional_data, rep);
   return true;
 }
 
@@ -183,6 +170,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExc
   LOG_INFO(getLogger(), "block id: " << blockId);
   return true;
 }
+
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationLastUpdate& command,
                                               uint64_t,
                                               uint32_t sender_id,

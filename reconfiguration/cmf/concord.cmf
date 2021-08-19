@@ -158,12 +158,6 @@ Msg ClientExchangePublicKey 38 {
 
 Msg ClientReconfigurationStateUpdate 40 {
     uint64 sender_id
-    uint64 update_version
-    string data
-}
-
-Msg ClientReconfigurationLastUpdate 41 {
-    uint64 sender_id
 }
 
 Msg RestartCommand 42 {
@@ -204,6 +198,7 @@ Msg Timestamp 49 {
 }
 
 Msg ClientReconfigurationStateReply 39 {
+Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
         ClientExchangePublicKey
@@ -211,6 +206,10 @@ Msg ClientReconfigurationStateReply 39 {
         ClientsAddRemoveCommand
         ClientsAddRemoveUpdateCommand
       } response
+}
+
+Msg ClientReconfigurationStateReply 49 {
+    list ClientStateReply states
 }
 
 Msg ReconfigurationRequest 1 {
@@ -237,7 +236,6 @@ Msg ReconfigurationRequest 1 {
     ClientKeyExchangeCommand
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
-    ClientReconfigurationLastUpdate
     RestartCommand
     ClientsAddRemoveCommand
     ClientsAddRemoveStatusCommand
@@ -260,6 +258,7 @@ Msg ReconfigurationResponse 2 {
     AddRemoveStatusResponse
     AddRemoveWithWedgeStatusResponse
     UnwedgeStatusResponse
+    ClientReconfigurationStateReply
     ClientKeyExchangeCommandResponse
     ClientsAddRemoveStatusResponse
     ClientKeyExchangeStatusResponse

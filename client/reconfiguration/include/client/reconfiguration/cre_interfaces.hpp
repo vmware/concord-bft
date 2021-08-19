@@ -28,10 +28,9 @@ struct WriteState {
 
 class IStateClient {
  public:
-  virtual State getNextState(uint64_t lastKnownBlockId) const = 0;
-  virtual State getLatestClientUpdate(uint16_t clientId) const = 0;
+  virtual State getNextState() const = 0;
   virtual bool updateState(const WriteState& state) = 0;
-  virtual void start(uint64_t lastKnownBlock) = 0;
+  virtual void start() = 0;
   virtual void stop() = 0;
   virtual void pushUpdate(std::vector<State>&) {}
   virtual ~IStateClient() = default;

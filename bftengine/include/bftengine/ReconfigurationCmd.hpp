@@ -106,6 +106,21 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     metrics_.UpdateAggregator();
     return true;
   }
+  std::optional<uint64_t> getReconfigurationCommandEpochNumber() {
+    if (!loadReservedPage(0, sizeOfReservedPage(), page_.data())) return std::nullopt;
+    ReconfigurationCmdData cmdData;
+    std::istringstream inStream;
+    inStream.str(page_);
+    concord::serialize::Serializable::deserialize(inStream, cmdData);
+    uint64_t latestCmdEpoch = 0;
+    for (auto& [k, v] : cmdData.reconfigurationCommands_) {
+      (void)k;
+      std::ostringstream outStream;
+      latestCmdEpoch = std::max(latestCmdEpoch, v.epochNum_);
+    }
+    return latestCmdEpoch;
+  }
+
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) { metrics_.SetAggregator(aggregator); }
 
  private:

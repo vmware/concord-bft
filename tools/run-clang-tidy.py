@@ -203,7 +203,7 @@ def main():
                                    'clang-tidy and clang-apply-replacements in '
                                    '$PATH.')
   parser.add_argument('-clang-tidy-binary', metavar='PATH',
-                      default='clang-tidy-10',
+                      default='clang-tidy',
                       help='path to clang-tidy binary')
   parser.add_argument('-clang-apply-replacements-binary', metavar='PATH',
                       default='clang-apply-replacements-10',

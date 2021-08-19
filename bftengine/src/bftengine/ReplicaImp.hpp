@@ -41,6 +41,7 @@
 #include "TimeServiceManager.hpp"
 #include "FakeClock.hpp"
 #include <ccron/ticks_generator.hpp>
+#include "EpochManager.hpp"
 
 namespace preprocessor {
 class PreProcessResultMsg;
@@ -81,7 +82,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool restarted_ = false;
 
   // thread pool of this replica
-  util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
+  concord::util::SimpleThreadPool internalThreadPool;  // TODO(GG): !!!! rename
 
   // retransmissions manager (can be disabled)
   RetransmissionsManager* retransmissionsManager = nullptr;
@@ -441,7 +442,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override;
 
-  virtual util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
+  virtual concord::util::SimpleThreadPool& getInternalThreadPool() override { return internalThreadPool; }
 
   const ReplicaConfig& getReplicaConfig() const override { return config_; }
 
@@ -486,6 +487,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isSeqNumToStopAt(SeqNum seq_num);
 
   bool validatePreProcessedResults(const PrePrepareMsg* msg);
+  EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
@@ -526,9 +528,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     }
 
     DEFINE_SHARED_RECORDER(send, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
-    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(numRequestsInPrePrepareMsg, 1, 2500, 3, Unit::COUNT);
     DEFINE_SHARED_RECORDER(requestsQueueOfPrimarySize,
                            1,
@@ -536,7 +538,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                            701,
                            3,
                            Unit::COUNT);
-    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
+    DEFINE_SHARED_RECORDER(onSeqNumIsStable, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(onTransferringCompleteImp, 1, MAX_VALUE_NANOSECONDS, 3, Unit::NANOSECONDS);
 
     // Only updated by the primary

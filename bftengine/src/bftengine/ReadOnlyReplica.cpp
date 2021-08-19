@@ -23,6 +23,7 @@
 #include "PersistentStorage.hpp"
 #include "MsgsCommunicator.hpp"
 #include "SigManager.hpp"
+#include "ReconfigurationCmd.hpp"
 
 using concordUtil::Timers;
 
@@ -50,9 +51,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   sigManager_.reset(SigManager::init(config_.replicaId,
                                      config_.replicaPrivateKey,
                                      config_.publicKeysOfReplicas,
-                                     KeyFormat::HexaDecimalStrippedFormat,
+                                     concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                     KeyFormat::PemFormat,
+                                     concord::util::crypto::KeyFormat::PemFormat,
                                      *repsInfo));
 }
 
@@ -101,19 +102,27 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
-
+  const EpochNum msgEpochNum = msg->epochNumber();
+  EpochNum replicasLastKnownEpochVal = 0;
   LOG_INFO(GL,
            KVLOG(msg->senderId(), msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable)
                << ", digest: " << msgDigest.toString());
-
+  // Reconfiguration cmd block is synced to RO replica via reserved pages
+  auto epochNumberFromResPages = ReconfigurationCmd::instance().getReconfigurationCommandEpochNumber();
+  if (epochNumberFromResPages.has_value()) {
+    replicasLastKnownEpochVal = epochNumberFromResPages.value();
+  }
   // not relevant
   if (!msgIsStable || msgSeqNum <= lastExecutedSeqNum) return;
 
   // previous CheckpointMsg from the same sender
   auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
-  if (pos != tableOfStableCheckpoints.end() && pos->second->seqNumber() >= msgSeqNum) return;
+  if (pos != tableOfStableCheckpoints.end() &&
+      (pos->second->seqNumber() >= msgSeqNum || msgEpochNum < replicasLastKnownEpochVal))
+    return;
   if (pos != tableOfStableCheckpoints.end()) delete pos->second;
   CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+  x->setEpochNumber(msgEpochNum);
   tableOfStableCheckpoints[msgGenReplicaId] = x;
   LOG_INFO(GL,
            "Added stable Checkpoint message to tableOfStableCheckpoints (message generated from node "
@@ -126,8 +135,13 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   uint16_t numRelevant = 0;
   for (auto tableItrator = tableOfStableCheckpoints.begin(); tableItrator != tableOfStableCheckpoints.end();) {
     if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
-      delete tableItrator->second;
-      tableItrator = tableOfStableCheckpoints.erase(tableItrator);
+      if (msgEpochNum <= replicasLastKnownEpochVal) {
+        delete tableItrator->second;
+        tableItrator = tableOfStableCheckpoints.erase(tableItrator);
+      } else {  // committer replicas have moved to higer epoch
+        numRelevant++;
+        tableItrator++;
+      }
     } else {
       numRelevant++;
       tableItrator++;

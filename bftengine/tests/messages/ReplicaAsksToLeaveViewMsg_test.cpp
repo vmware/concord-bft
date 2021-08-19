@@ -21,11 +21,14 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   auto& config = createReplicaConfig();
   ReplicaId senderId = 3u;
   ViewNum viewNum = 5u;
@@ -34,7 +37,7 @@ TEST(ReplicaAsksToLeaveViewMsg, base_methods) {
   ReplicasInfo replicaInfo(config, true, true);
   std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
                                                           config.replicaPrivateKey,
-                                                          KeyFormat::HexaDecimalStrippedFormat,
+                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
   ViewsManager manager(&replicaInfo);

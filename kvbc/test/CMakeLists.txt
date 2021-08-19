@@ -96,8 +96,9 @@ target_link_libraries(sparse_merkle_base_types_test PUBLIC
     corebft
     kvbc
 )
-
-find_package(OpenSSL REQUIRED)
+if(NOT BUILD_THIRDPARTY)
+    find_package(OpenSSL REQUIRED)
+endif()
 add_executable(sparse_merkle_internal_node_test sparse_merkle/internal_node_test.cpp
     )
 add_test(sparse_merkle_internal_node_test sparse_merkle_internal_node_test)
@@ -106,10 +107,9 @@ target_link_libraries(sparse_merkle_internal_node_test PUBLIC
     GTest::GTest
     corebft
     kvbc
-    ${OPENSSL_LIBRARIES}
+    OpenSSL::Crypto
 )
 
-find_package(OpenSSL REQUIRED)
 add_executable(sparse_merkle_tree_test sparse_merkle/tree_test.cpp
     )
 add_test(sparse_merkle_tree_test sparse_merkle_tree_test)
@@ -118,7 +118,7 @@ target_link_libraries(sparse_merkle_tree_test PUBLIC
     GTest::GTest
     kvbc
     corebft
-    ${OPENSSL_LIBRARIES}
+    OpenSSL::Crypto
 )
 
 if (BUILD_ROCKSDB_STORAGE)

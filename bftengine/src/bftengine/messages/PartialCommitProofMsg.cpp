@@ -13,6 +13,7 @@
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
 #include "Crypto.hpp"
+#include "EpochManager.hpp"
 #include <threshsign/ThresholdSignaturesSchemes.h>
 
 namespace bftEngine {
@@ -33,6 +34,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
 
   b()->viewNum = v;
   b()->seqNum = s;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->commitPath = commitPath;
   b()->thresholSignatureLength = thresholSignatureLength;
 
@@ -44,7 +46,7 @@ PartialCommitProofMsg::PartialCommitProofMsg(ReplicaId senderId,
 }
 
 void PartialCommitProofMsg::validate(const ReplicasInfo& repInfo) const {
-  if (size() < sizeof(Header) + spanContextSize() ||
+  if (size() < sizeof(Header) + spanContextSize() || b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
       senderId() ==
           repInfo.myId() ||  // TODO(GG) - TBD: we should use Assert for this condition (also in other messages)
       !repInfo.isIdOfReplica(senderId()) ||

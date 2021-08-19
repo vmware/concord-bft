@@ -43,11 +43,12 @@ class SignedShareBase : public MessageBase {
     MessageBase::Header header;
     ViewNum viewNumber;
     SeqNum seqNumber;
+    EpochNum epochNum;
     uint16_t thresSigLength;
     // Followed by threshold signature of <viewNumber, seqNumber, and the preprepare digest>
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 62B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 2), "Header is 32B");
 
   static SignedShareBase* create(int16_t type,
                                  ViewNum v,

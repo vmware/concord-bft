@@ -28,10 +28,9 @@ ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
 void ClientReconfigurationEngine::main() {
   while (!stopped_) {
     try {
-      auto update = stateClient_->getNextState(lastKnownBlock_);
+      auto update = stateClient_->getNextState();
+      if (update.data.empty()) continue;
       if (stopped_) return;
-      if (update.blockid <= lastKnownBlock_) continue;
-
       // Execute the reconfiguration command
       for (auto& h : handlers_) {
         if (!h->validate(update)) {
@@ -48,8 +47,7 @@ void ClientReconfigurationEngine::main() {
           stateClient_->updateState(out_state);
         }
       }
-      lastKnownBlock_ = update.blockid;
-      last_known_block_.Get().Set(lastKnownBlock_);
+      if (last_known_block_.Get().Get() < update.blockid) last_known_block_.Get().Set(update.blockid);
     } catch (const std::exception& e) {
       LOG_ERROR(getLogger(), "error while executing the handlers " << e.what());
       errored_handlers_++;
@@ -73,11 +71,7 @@ ClientReconfigurationEngine::~ClientReconfigurationEngine() {
   }
 }
 void ClientReconfigurationEngine::start() {
-  auto initial_state = stateClient_->getLatestClientUpdate(config_.id_);
-  lastKnownBlock_ = initial_state.blockid;
-  last_known_block_.Get().Set(lastKnownBlock_);
-  metrics_.UpdateAggregator();
-  stateClient_->start(lastKnownBlock_);
+  stateClient_->start();
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
 }

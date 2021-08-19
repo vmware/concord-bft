@@ -25,7 +25,7 @@
 #include "exception.h"
 #include "metrics.h"
 #include "diagnostics.h"
-#include "bftengine/Crypto.hpp"
+#include "crypto_utils.hpp"
 #include "seq_num_generator.h"
 
 namespace bft::client {
@@ -86,7 +86,7 @@ class Client {
   // This function creates a ClientBatchRequestMsg.
   Msg createClientBatchMsg(const std::deque<Msg>& client_requests,
                            uint32_t batch_buf_size,
-                           const string& cid,
+                           const std::string& cid,
                            uint16_t client_id);
 
   Msg initBatch(std::deque<WriteRequest>& write_requests,
@@ -117,7 +117,7 @@ class Client {
   Metrics metrics_;
 
   // Transaction RSA signer
-  std::optional<bftEngine::impl::RSASigner> transaction_signer_;
+  std::unique_ptr<concord::util::crypto::ISigner> transaction_signer_;
 
   static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000;  // 1 second
   static constexpr int64_t MAX_TRANSACTION_SIZE = 100 * 1024 * 1024;    // 100MB

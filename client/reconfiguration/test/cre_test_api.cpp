@@ -23,17 +23,17 @@ std::string invalids_counter = "invalid_handlers";
 std::string errors_counter = "errored_handlers";
 class TestStateClient : public IStateClient {
  public:
-  State getNextState(uint64_t lastKnownBlockId) const override {
-    std::string lastKnownBid = std::to_string(lastKnownBlockId + 1);
-    return State{lastKnownBlockId + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
+  State getNextState() const override {
+    std::string lastKnownBid = std::to_string(blocks_size_ + 1);
+    return State{blocks_size_ + 1, std::vector<uint8_t>(lastKnownBid.begin(), lastKnownBid.end())};
   }
-  State getLatestClientUpdate(uint16_t clientId) const override { return {0, {}}; }
+
   bool updateState(const WriteState& state) override {
     blocks_.push_back(blocks_.size() + 1);
     blocks_size_ = blocks_.size();
     return true;
   }
-  void start(uint64_t lastKnownBlock) override {}
+  void start() override {}
   void stop() override {}
   std::vector<uint64_t> blocks_;
   std::atomic_uint64_t blocks_size_{0};

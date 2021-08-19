@@ -204,9 +204,10 @@ class BCStateTran : public IStateTransfer {
 
   void sendAskForCheckpointSummariesMsg();
 
-  void sendFetchBlocksMsg(uint64_t firstRequiredBlock,
-                          uint64_t lastRequiredBlock,
-                          int16_t lastKnownChunkInLastRequiredBlock);
+  void trySendFetchBlocksMsg(uint64_t firstRequiredBlock,
+                             uint64_t lastRequiredBlock,
+                             int16_t lastKnownChunkInLastRequiredBlock,
+                             string&& reason);
 
   void sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock);
 
@@ -277,6 +278,7 @@ class BCStateTran : public IStateTransfer {
   uint64_t nextRequiredBlock_ = 0;
   uint64_t nextCommittedBlockId_ = 0;
   STDigest digestOfNextRequiredBlock;
+  bool posponedSendFetchBlocksMsg_;
 
   struct compareItemDataMsg {
     bool operator()(const ItemDataMsg* l, const ItemDataMsg* r) const {
@@ -298,8 +300,7 @@ class BCStateTran : public IStateTransfer {
                         int16_t& outLastChunkInRequiredBlock,
                         char* outBlock,
                         uint32_t& outBlockSize,
-                        bool isVBLock,
-                        bool& outLastInBatch);
+                        bool isVBLock);
 
   bool checkBlock(uint64_t blockNum, const STDigest& expectedBlockDigest, char* block, uint32_t blockSize) const;
 
@@ -307,7 +308,7 @@ class BCStateTran : public IStateTransfer {
                                    char* vblock,
                                    uint32_t vblockSize) const;
 
-  void processData();
+  void processData(bool lastInBatch = false);
   void cycleEndSummary();
 
   void EnterGettingCheckpointSummariesState();
@@ -329,11 +330,11 @@ class BCStateTran : public IStateTransfer {
   // Consistency
   ///////////////////////////////////////////////////////////////////////////
 
-  void checkConsistency(bool checkAllBlocks);
+  void checkConsistency(bool checkAllBlocks, bool duringInit = false);
   void checkConfig();
   void checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
   void checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastReachableBlockNum);
-  void checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
+  void checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum, bool duringInit);
   void checkBlocksBeingFetchedNow(bool checkAllBlocks, uint64_t lastReachableBlockNum, uint64_t lastBlockNum);
   void checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint);
 

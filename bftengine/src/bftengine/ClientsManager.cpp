@@ -18,6 +18,9 @@
 #include "bftengine/KeyExchangeManager.hpp"
 #include "Serializable.h"
 
+#include <chrono>
+using namespace std::chrono;
+
 namespace bftEngine::impl {
 // Initialize:
 // * map of client id to indices.
@@ -247,7 +250,9 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   return r;
 }
 
-void ClientsManager::setClientPublicKey(NodeIdType clientId, const std::string& key, KeyFormat fmt) {
+void ClientsManager::setClientPublicKey(NodeIdType clientId,
+                                        const std::string& key,
+                                        concord::util::crypto::KeyFormat fmt) {
   LOG_INFO(CL_MNGR, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
   ClientInfo& info = clientsInfo_[clientId];
   info.pubKey = std::make_pair(key, fmt);
@@ -385,6 +390,27 @@ Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   cid = earliestPendingReqInfo.cid;
   if (earliestPendingReqInfo.time != MaxTime) LOG_DEBUG(CL_MNGR, "Earliest pending request: " << KVLOG(cid));
   return earliestPendingReqInfo.time;
+}
+
+// Iterate over all clients and log the ones that have not been committed for more than threshold miliseconds.
+void ClientsManager::logAllPendingRequestsExceedingThreshold(const int64_t threshold, const Time& currTime) const {
+  int numExceeding = 0;
+  for (const auto& info : clientsInfo_) {
+    for (const auto& req : info.second.requestsInfo) {
+      // Don't take into account already committed requests
+      if ((req.second.time != MinTime) && (!req.second.committed)) {
+        const auto delayed = duration_cast<milliseconds>(currTime - req.second.time).count();
+        const auto& CID = req.second.cid;
+        if (delayed > threshold) {
+          LOG_INFO(VC_LOG, "" << KVLOG(CID, delayed));
+          numExceeding++;
+        }
+      }
+    }
+  }
+  if (numExceeding) {
+    LOG_INFO(VC_LOG, "Total Client request with more than " << threshold << "ms delay: " << numExceeding);
+  }
 }
 
 }  // namespace bftEngine::impl

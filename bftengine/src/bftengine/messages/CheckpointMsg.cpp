@@ -13,6 +13,7 @@
 #include "assertUtils.hpp"
 #include "Crypto.hpp"
 #include "SigManager.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -27,6 +28,7 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                   spanContext.data().size(),
                   sizeof(Header) + SigManager::instance()->getMySigLength()) {
   b()->seqNum = seqNum;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->stateDigest = stateDigest;
   b()->flags = 0;
   b()->genReplicaId = genReplica;

@@ -13,12 +13,15 @@
 #include "messages/SignedShareMsgs.hpp"
 #include "threshsign/IThresholdSigner.h"
 #include "gtest/gtest.h"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 #include <chrono>
 #include <thread>
 
 using namespace std;
 using namespace bftEngine;
 
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 // Tests methods - insideActiveWindow, onBecomePrimary.
 // Tests logic, which sets the range of sequence numbers that are valid for current window.
 // The starting index is initialized to the next sequence number:
@@ -324,6 +327,7 @@ TEST(ControllerWithSimpleHistory, upgrade_slow_to_optimistic) {
   ViewNum initialView = 0;
   SeqNum initialSeq = 0;
   ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
 
   ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
 
@@ -374,6 +378,7 @@ TEST(ControllerWithSimpleHistory, upgrade_slow_to_threshold) {
   ViewNum initialView = 0;
   SeqNum initialSeq = 0;
   ControllerWithSimpleHistory cwsh{C, F, replicaId, initialView, initialSeq};
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
 
   ASSERT_EQ(CommitPath::OPTIMISTIC_FAST, cwsh.getCurrentFirstPath());
 

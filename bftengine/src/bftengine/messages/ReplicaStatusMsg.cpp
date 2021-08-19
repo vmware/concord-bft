@@ -12,6 +12,7 @@
 #include <string.h>
 #include "ReplicaStatusMsg.hpp"
 #include "assertUtils.hpp"
+#include "EpochManager.hpp"
 
 namespace bftEngine {
 namespace impl {
@@ -78,6 +79,7 @@ ReplicaStatusMsg::ReplicaStatusMsg(ReplicaId senderId,
   b()->viewNumber = viewNumber;
   b()->lastStableSeqNum = lastStableSeqNum;
   b()->lastExecutedSeqNum = lastExecutedSeqNum;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->flags = 0;
   if (viewIsActive) b()->flags |= powersOf2[0];
   if (hasNewChangeMsg) b()->flags |= powersOf2[1];
@@ -126,6 +128,8 @@ ViewNum ReplicaStatusMsg::getViewNumber() const { return b()->viewNumber; }
 SeqNum ReplicaStatusMsg::getLastStableSeqNum() const { return b()->lastStableSeqNum; }
 
 SeqNum ReplicaStatusMsg::getLastExecutedSeqNum() const { return b()->lastExecutedSeqNum; }
+
+EpochNum ReplicaStatusMsg::getEpochNum() const { return b()->epochNum; }
 
 bool ReplicaStatusMsg::currentViewIsActive() const { return ((b()->flags & powersOf2[0]) != 0); }
 

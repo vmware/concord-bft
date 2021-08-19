@@ -34,14 +34,14 @@ std::string last_known_block_gauge = "last_known_block";
 
 template <typename T>
 bool hasValue(const State& state) {
-  concord::messages::ClientReconfigurationStateReply crep;
+  concord::messages::ClientStateReply crep;
   concord::messages::deserialize(state.data, crep);
   return std::holds_alternative<T>(crep.response);
 }
 
 template <typename T>
 T getData(const State& state) {
-  concord::messages::ClientReconfigurationStateReply crep;
+  concord::messages::ClientStateReply crep;
   concord::messages::deserialize(state.data, crep);
   return std::get<T>(crep.response);
 }
@@ -78,29 +78,11 @@ class KeyExchangeHandler : public IStateHandler {
   std::atomic_uint32_t exchanges_{0};
 };
 
-class PublicKeyExchangeHandler : public IStateHandler {
- public:
-  bool validate(const State& state) const override {
-    return hasValue<concord::messages::ClientExchangePublicKey>(state);
-  }
-  bool execute(const State&, WriteState&) override {
-    LOG_INFO(getLogger(), "restart client components");
-    exchanges_++;
-    return true;
-  }
-  logging::Logger getLogger() {
-    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.test.PublicKeyExchange"));
-    return logger_;
-  }
-  std::atomic_uint32_t exchanges_{0};
-};
-
 class ClientApiTestFixture : public ::testing::Test {
  public:
   void init(uint32_t number_of_ops) {
     for (uint32_t i = 0; i < number_of_ops; i++) {
-      blockchain_.emplace_back(
-          concord::messages::ClientReconfigurationStateReply{i + 1, concord::messages::ClientKeyExchangeCommand{{5}}});
+      blockchain_.emplace_back(concord::messages::ClientKeyExchangeCommand{{5}});
     }
   }
   ClientConfig test_config_ = {ClientId{5},
@@ -127,38 +109,24 @@ class ClientApiTestFixture : public ::testing::Test {
     deserialize(data, rreq);
     if (std::holds_alternative<concord::messages::ClientReconfigurationStateRequest>(rreq.command)) {
       concord::messages::ReconfigurationResponse rres;
-      uint32_t index = number_of_messages_ / 4;
-      if (index < blockchain_.size() - 1) {
-        number_of_messages_++;
+      concord::messages::ClientReconfigurationStateReply srep;
+      uint64_t i{1};
+      for (const auto& s : blockchain_) {
+        concord::messages::ClientStateReply rep;
+        rep.block_id = i;
+        rep.response = s;
+        srep.states.push_back(rep);
+        i++;
       }
-      concord::messages::ClientReconfigurationStateReply update{0, {}};
-      if (!blockchain_.empty()) update = blockchain_[index];
-      concord::messages::serialize(rres.additional_data, update);
+      concord::messages::serialize(rres.additional_data, srep);
       rres.success = true;
       std::vector<uint8_t> msg_buf;
       concord::messages::serialize(msg_buf, rres);
       auto rep = createReply(msg, msg_buf);
       client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(rep.data()), rep.size());
     } else if (std::holds_alternative<concord::messages::ClientExchangePublicKey>(rreq.command)) {
-      auto update = std::get<concord::messages::ClientExchangePublicKey>(rreq.command);
-      if (number_of_updates_ % 4 == 0) {
-        concord::messages::ClientReconfigurationStateReply element{blockchain_.size() + 1, update};
-        blockchain_.push_back(element);
-      }
-      number_of_updates_++;
       concord::messages::ReconfigurationResponse rres;
-      rres.success = true;
-      std::vector<uint8_t> msg_buf;
-      concord::messages::serialize(msg_buf, rres);
-      auto rep = createReply(msg, msg_buf);
-      client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(rep.data()), rep.size());
-    } else if (std::holds_alternative<concord::messages::ClientReconfigurationLastUpdate>(rreq.command)) {
-      concord::messages::ClientReconfigurationStateReply crep = {0, {}};
-      if (updated_state && !blockchain_.empty()) {
-        crep = blockchain_.back();
-      }
-      concord::messages::ReconfigurationResponse rres;
-      concord::messages::serialize(rres.additional_data, crep);
+      pub_keys_.push_back(std::get<concord::messages::ClientExchangePublicKey>(rreq.command));
       rres.success = true;
       std::vector<uint8_t> msg_buf;
       concord::messages::serialize(msg_buf, rres);
@@ -166,10 +134,8 @@ class ClientApiTestFixture : public ::testing::Test {
       client_receiver->onNewMessage(msg.destination.val, reinterpret_cast<const char*>(rep.data()), rep.size());
     }
   }
-  std::vector<concord::messages::ClientReconfigurationStateReply> blockchain_;
-  uint32_t number_of_messages_{0};
-  uint32_t number_of_updates_{0};
-  bool updated_state = false;
+  std::vector<concord::messages::ClientKeyExchangeCommand> blockchain_;
+  std::vector<concord::messages::ClientExchangePublicKey> pub_keys_;
 };
 
 /*
@@ -202,10 +168,10 @@ TEST_F(ClientApiTestFixture, single_key_exchange_command) {
   auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
   cre.registerHandler(keyExchangeHandler);
   cre.start();
-  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 2 ||
-         keyExchangeHandler->exchanges_ < 1) {
+  while (keyExchangeHandler->exchanges_ < 1 ||
+         aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 1) {
   }
-  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
+  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 1);
   ASSERT_GE(keyExchangeHandler->exchanges_, 1);
   cre.stop();
 }
@@ -222,16 +188,14 @@ TEST_F(ClientApiTestFixture, single_key_two_phases_exchange_command) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
   auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
-  auto clientPubKeyExchangeHandler = std::make_shared<PublicKeyExchangeHandler>();
   cre.registerHandler(keyExchangeHandler);
-  cre.registerHandler(clientPubKeyExchangeHandler);
   cre.start();
-  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 2 ||
-         keyExchangeHandler->exchanges_ < 1 || clientPubKeyExchangeHandler->exchanges_ < 1) {
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 1 ||
+         keyExchangeHandler->exchanges_ < 1 || pub_keys_.size() < 1) {
   }
-  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 2);
-  ASSERT_GE(keyExchangeHandler->exchanges_, 1);
-  ASSERT_GE(clientPubKeyExchangeHandler->exchanges_, 1);
+  ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 1);
+  ASSERT_EQ(keyExchangeHandler->exchanges_, 1);
+  ASSERT_GE(pub_keys_.size(), 1);
   cre.stop();
 }
 
@@ -247,44 +211,16 @@ TEST_F(ClientApiTestFixture, multiple_key_two_phases_exchange_command) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
   ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
   auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
-  auto clientPubKeyExchangeHandler = std::make_shared<PublicKeyExchangeHandler>();
   cre.registerHandler(keyExchangeHandler);
-  cre.registerHandler(clientPubKeyExchangeHandler);
   cre.start();
-  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 21 ||
-         keyExchangeHandler->exchanges_ < 10 || clientPubKeyExchangeHandler->exchanges_ < 10) {
-  }
-  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 21);
-  ASSERT_GE(keyExchangeHandler->exchanges_, 10);
-  ASSERT_GE(clientPubKeyExchangeHandler->exchanges_, 10);
-  cre.stop();
-}
-
-/*
- * Test starting with an update
- */
-TEST_F(ClientApiTestFixture, start_witn_an_update_exchange_command) {
-  init(10);
-  updated_state = true;
-  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
-      [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
-  IStateClient* state_client = new PollBasedStateClient(
-      new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
-  std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
-  ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
-  auto keyExchangeHandler = std::make_shared<KeyExchangeHandler>(cre_config.id_);
-  auto clientPubKeyExchangeHandler = std::make_shared<PublicKeyExchangeHandler>();
-  cre.registerHandler(keyExchangeHandler);
-  cre.registerHandler(clientPubKeyExchangeHandler);
-  cre.start();
-  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 10) {
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 10 ||
+         keyExchangeHandler->exchanges_ < 10 || pub_keys_.size() < 10) {
   }
   ASSERT_EQ(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 10);
-  ASSERT_EQ(keyExchangeHandler->exchanges_, 0);
-  ASSERT_EQ(clientPubKeyExchangeHandler->exchanges_, 0);
+  ASSERT_EQ(keyExchangeHandler->exchanges_, 10);
+  ASSERT_GE(pub_keys_.size(), 10);
   cre.stop();
 }
-
 }  // namespace
 
 int main(int argc, char* argv[]) {

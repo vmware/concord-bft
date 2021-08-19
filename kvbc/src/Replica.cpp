@@ -202,10 +202,12 @@ void Replica::handleWedgeEvent() {
 
   LOG_INFO(logger,
            "stored wedge info " << KVLOG(wedgePoint, wedgeBlock, wedgeEpoch, lastExecutedSeqNum, latestKnownEpoch));
-  if (wedgeEpoch == latestKnownEpoch && (wedgePoint == (uint64_t)lastExecutedSeqNum)) {
+  if (wedgeEpoch == latestKnownEpoch) {
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(wedgeBftSeqNum);
-    bftEngine::IControlHandler::instance()->onStableCheckpoint();
-    LOG_INFO(logger, "wedge the system on wedgepoint: " << wedgePoint);
+    if (wedgePoint == (uint64_t)lastExecutedSeqNum) {
+      bftEngine::IControlHandler::instance()->onStableCheckpoint();
+    }
+    LOG_INFO(logger, "wedge the system on sequence number: " << lastExecutedSeqNum);
   }
 }
 void Replica::handleNewEpochEvent() {

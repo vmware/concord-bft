@@ -36,7 +36,12 @@ option(BUILD_SLOWDOWN "Build Slowdown framework" OFF)
 option(USE_FAKE_CLOCK_IN_TIME_SERVICE "BUILD TimeService Using Fake Clock" OFF)
 option(USE_OPENTRACING "Enable OpenTracing" ON)
 option(USE_GRPC "Enable GRPC and Protobuf" ON)
+option(USE_OPENSSL "Enable use of OpenSSL" ON)
 option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
+
+if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
+    set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
+endif()
 
 set(COMM_MODULES 0)
 if(BUILD_COMM_TCP_PLAIN)

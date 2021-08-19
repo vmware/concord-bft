@@ -74,12 +74,14 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   Time infoOfEarliestPendingRequest(std::string& cid) const;
 
+  void logAllPendingRequestsExceedingThreshold(const int64_t threshold, const Time& currTime) const;
+
   void deleteOldestReply(NodeIdType clientId);
 
   bool isInternal(NodeIdType clientId) const { return internalClients_.find(clientId) != internalClients_.end(); }
 
   // set/update and persist a client public key
-  void setClientPublicKey(NodeIdType, const std::string& key, KeyFormat) override;
+  void setClientPublicKey(NodeIdType, const std::string& key, concord::util::crypto::KeyFormat) override;
 
   // General
   static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
@@ -109,7 +111,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   struct ClientInfo {
     std::map<ReqId, RequestInfo> requestsInfo;
     std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
-    std::pair<std::string, KeyFormat> pubKey;
+    std::pair<std::string, concord::util::crypto::KeyFormat> pubKey;
   };
 
   std::set<NodeIdType> proxyClients_;

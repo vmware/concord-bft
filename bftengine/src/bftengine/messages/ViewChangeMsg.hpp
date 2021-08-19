@@ -134,6 +134,7 @@ class ViewChangeMsg : public MessageBase {
     ReplicaId genReplicaId;  // the replica that originally generated this message
     ViewNum newView;         // the new view
     SeqNum lastStable;
+    EpochNum epochNum;
     uint16_t numberOfComplaints;
     uint32_t sizeOfAllComplaints;
     uint16_t numberOfElements;
@@ -143,7 +144,7 @@ class ViewChangeMsg : public MessageBase {
                                  // followed by quorum of complaints from different Replicas
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 4 + 2 + 4), "Header is 36B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 8 + 2 + 4 + 2 + 4), "Header is 44B");
 
   Header* b() const { return ((Header*)msgBody_); }
 

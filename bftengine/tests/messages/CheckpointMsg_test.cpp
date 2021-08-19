@@ -21,9 +21,11 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "helper.hpp"
 #include "SigManager.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 class CheckpointMsgTestsFixture : public ::testing::Test {
  public:
   CheckpointMsgTestsFixture()
@@ -31,7 +33,7 @@ class CheckpointMsgTestsFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo))
 
@@ -50,6 +52,7 @@ const char CheckpointMsgTestsFixture::rawSpanContext[] = {"span_\0context"};
 const std::string CheckpointMsgTestsFixture::spanContext = {rawSpanContext, sizeof(rawSpanContext)};
 
 void CheckpointMsgTestsFixture::CheckpointMsgBaseTests(const std::string& spanContext) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   NodeIdType senderId = 1u;
   uint64_t reqSeqNum = 150u;
   char digestContext[DIGEST_SIZE] = "digest_content";

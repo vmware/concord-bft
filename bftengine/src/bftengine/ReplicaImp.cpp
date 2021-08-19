@@ -1803,13 +1803,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const ReplicaId msgSenderId = msg->senderId();
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
+  const EpochNum msgEpochNum = msg->epochNumber();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL,
            "Received checkpoint message from node. "
-               << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable, msgDigest));
-  LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum));
+               << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msgEpochNum, msg->size(), msgIsStable, msgDigest));
+  LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
   (void)span;
@@ -1841,13 +1842,15 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   bool askForStateTransfer = false;
 
-  if (msgIsStable && msgSeqNum > lastExecutedSeqNum) {
+  if (msgIsStable && (msgSeqNum > lastExecutedSeqNum || msgEpochNum >= getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
-    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum) {
+    if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
+        msgEpochNum >= getSelfEpochNumber()) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
       CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+      x->setEpochNumber(msgEpochNum);
       tableOfStableCheckpoints[msgGenReplicaId] = x;
       LOG_INFO(GL,
                "Added stable Checkpoint message to tableOfStableCheckpoints: " << KVLOG(msgSenderId, msgGenReplicaId));
@@ -1865,12 +1868,15 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
         uint16_t numRelevantAboveWindow = 0;
         auto tableItrator = tableOfStableCheckpoints.begin();
         while (tableItrator != tableOfStableCheckpoints.end()) {
-          if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
+          if (tableItrator->second->seqNumber() <= lastExecutedSeqNum &&
+              tableItrator->second->epochNumber() == getSelfEpochNumber()) {
             delete tableItrator->second;
             tableItrator = tableOfStableCheckpoints.erase(tableItrator);
           } else {
             numRelevant++;
-            if (tableItrator->second->seqNumber() > lastStableSeqNum + kWorkWindowSize) numRelevantAboveWindow++;
+            if (tableItrator->second->seqNumber() > lastStableSeqNum + kWorkWindowSize ||
+                tableItrator->second->epochNumber() > getSelfEpochNumber())
+              numRelevantAboveWindow++;
             tableItrator++;
           }
         }
@@ -2463,7 +2469,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
     for (SeqNum i = lastStableSeqNum + 1; i <= lastStableSeqNum + kWorkWindowSize; i++) {
       SeqNumInfo &seqNumInfo = mainLog->get(i);
 
-      if (seqNumInfo.getPrePrepareMsg() != nullptr) {
+      if (seqNumInfo.getPrePrepareMsg() != nullptr && seqNumInfo.isTimeCorrect()) {
         ViewsManager::PrevViewInfo x;
 
         seqNumInfo.getAndReset(x.prePrepare, x.prepareFull);
@@ -3202,6 +3208,8 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
     const uint64_t diffMilli2 = duration_cast<milliseconds>(currTime - timeOfLastViewEntrance).count();
     const uint64_t diffMilli3 = duration_cast<milliseconds>(currTime - timeOfEarliestPendingRequest).count();
 
+    clientsManager->logAllPendingRequestsExceedingThreshold(viewChangeTimeout / 2, currTime);
+
     if ((diffMilli1 > viewChangeTimeout) && (diffMilli2 > viewChangeTimeout) && (diffMilli3 > viewChangeTimeout)) {
       LOG_INFO(
           VC_LOG,
@@ -3749,9 +3757,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(SigManager::init(config_.replicaId,
                                        config_.replicaPrivateKey,
                                        config_.publicKeysOfReplicas,
-                                       KeyFormat::HexaDecimalStrippedFormat,
+                                       concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                        config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                       KeyFormat::PemFormat,
+                                       concord::util::crypto::KeyFormat::PemFormat,
                                        *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {
@@ -3897,7 +3905,7 @@ void ReplicaImp::start() {
   ReplicaForStateTransfer::start();
 
   if (config_.timeServiceEnabled) {
-    time_service_manager_.emplace();
+    time_service_manager_.emplace(aggregator_);
     LOG_INFO(GL, "Time Service enabled");
   }
 

@@ -27,6 +27,7 @@ using std::string;
 
 namespace bftEngine {
 namespace impl {
+enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
 // TODO(GG): define generic signer/verifier (not sure we want to use RSA)
 
 class ISigner {

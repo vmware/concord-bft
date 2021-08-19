@@ -22,10 +22,12 @@
 #include "bftengine/ReplicaConfig.hpp"
 #include "Digest.hpp"
 #include "helper.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 TEST(ReplicaStatusMsg, viewActiveNoLists) {
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
@@ -40,6 +42,7 @@ TEST(ReplicaStatusMsg, viewActiveNoLists) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
@@ -91,6 +94,7 @@ TEST(ReplicaStatusMsg, haslistOfPrePrepareMsgsInActiveWindow) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
@@ -154,6 +158,7 @@ TEST(ReplicaStatusMsg, listOfMissingViewChangeMsgForViewChange) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,
@@ -209,6 +214,7 @@ TEST(ReplicaStatusMsg, listOfMissingPrePrepareMsgForViewChange) {
   const char rawSpanContext[] = {"span_\0context"};
   const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
   Digest tmpDigest;
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicaStatusMsg msg(senderId,
                        viewNum,
                        lastStable,

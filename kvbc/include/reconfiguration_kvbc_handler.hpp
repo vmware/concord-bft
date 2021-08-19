@@ -29,7 +29,7 @@ class ReconfigurationBlockTools {
   kvbc::BlockId persistReconfigurationBlock(const std::vector<uint8_t>& data,
                                             const uint64_t bft_seq_num,
                                             const std::optional<bftEngine::Timestamp>& timestamp,
-                                            string key,
+                                            std::string key,
                                             bool include_wedge);
   kvbc::BlockId persistReconfigurationBlock(concord::kvbc::categorization::VersionedUpdates& ver_updates,
                                             const uint64_t bft_seq_num,
@@ -55,7 +55,6 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
-
   bool handle(const concord::messages::ClientReconfigurationLastUpdate&,
               uint64_t,
               uint32_t,
@@ -73,8 +72,8 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
               concord::messages::ReconfigurationResponse&) override;
 
  private:
-  concord::messages::ClientReconfigurationStateReply buildClientStateReply(
-      kvbc::BlockId, kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type, uint32_t clientid);
+  concord::messages::ClientStateReply buildClientStateReply(kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type,
+                                                            uint32_t clientid);
 };
 /**
  * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the

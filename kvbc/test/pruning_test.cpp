@@ -526,7 +526,7 @@ concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
     // Send different block IDs.
     latest_block.block_id = min_prunable_block_id + i;
 
-    const auto block_signer = RSAPruningSigner{pkey};
+    auto block_signer = RSAPruningSigner{pkey};
     block_signer.sign(latest_block);
     i++;
   }

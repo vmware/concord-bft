@@ -63,15 +63,19 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                            current_cp_num);
   handleStoredCommand<concord::messages::AddRemoveWithWedgeCommand>(
       std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1}, current_cp_num);
-  handleStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
-                                                       current_cp_num);
+  if (bftEngine::ReplicaConfig::instance().pruningEnabled_) {
+    handleStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
+                                                         current_cp_num);
+  }
   handleStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
                                                        current_cp_num);
 }
 
 void StReconfigurationHandler::pruneOnStartup() {
-  handleStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
-                                                       0);
+  if (bftEngine::ReplicaConfig::instance().pruningEnabled_) {
+    handleStoredCommand<concord::messages::PruneRequest>(std::string{kvbc::keyTypes::reconfiguration_pruning_key, 0x1},
+                                                         0);
+  }
 }
 template <typename T>
 bool StReconfigurationHandler::handleStoredCommand(const std::string &key, uint64_t current_cp_num) {
@@ -120,6 +124,7 @@ bool StReconfigurationHandler::handle(const concord::messages::WedgeCommand &,
       bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(GL, "unwedge due to higher epoch number after state transfer");
     bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(0);
+    bftEngine::IControlHandler::instance()->resetState();
   }
   bftEngine::EpochManager::instance().setSelfEpochNumber(bftEngine::EpochManager::instance().getGlobalEpochNumber());
   return true;

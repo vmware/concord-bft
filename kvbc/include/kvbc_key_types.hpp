@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <cstdint>
 namespace concord::kvbc::keyTypes {
 static const char bft_seq_num_key = 0x21;
 static const char reconfiguration_pruning_key = 0x24;

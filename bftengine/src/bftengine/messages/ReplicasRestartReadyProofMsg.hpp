@@ -55,6 +55,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
     MessageBase::Header header;
     uint16_t genReplicaId;
     SeqNum seqNum;
+    EpochNum epochNum;
     uint16_t elementsCount;
     uint32_t locationAfterLast;  // if(elementsCount > 0) then it holds the location after last element
                                  // followed by the signature
@@ -62,7 +63,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 2 + 4), "Header is 22B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 4), "Header is 30B");
   Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl

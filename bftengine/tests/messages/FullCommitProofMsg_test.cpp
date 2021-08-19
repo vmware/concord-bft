@@ -15,11 +15,14 @@
 #include "messages/MsgCode.hpp"
 #include "messages/FullCommitProofMsg.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
 
 using namespace bftEngine;
 using namespace bftEngine::impl;
-
+bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 TEST(FullCommitProofMsg, base_methods) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
   ReplicaId senderId = 1u;
   ViewNum viewNum = 2u;

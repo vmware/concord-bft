@@ -108,7 +108,7 @@ class DummyReplica : public InternalReplicaApi {
   bool isClientRequestInProcess(NodeIdType, ReqId) const override { return false; }
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override { return *incomingMsgsStorage_; }
-  util::SimpleThreadPool& getInternalThreadPool() override { return pool_; }
+  concord::util::SimpleThreadPool& getInternalThreadPool() override { return pool_; }
   bool isCollectingState() const override { return false; }
 
   const ReplicaConfig& getReplicaConfig() const override { return replicaConfig; }
@@ -121,7 +121,7 @@ class DummyReplica : public InternalReplicaApi {
  private:
   bool primary_ = true;
   IncomingMsgsStorage* incomingMsgsStorage_ = nullptr;
-  util::SimpleThreadPool pool_;
+  concord::util::SimpleThreadPool pool_;
   bftEngine::impl::ReplicasInfo replicasInfo_;
   set<ReplicaId> replicaIds_;
 };
@@ -316,9 +316,9 @@ void setUpConfiguration_4() {
     sigManager[i].reset(SigManager::initInTesting(i,
                                                   privateKeys[i],
                                                   replicaConfig.publicKeysOfReplicas,
-                                                  KeyFormat::HexaDecimalStrippedFormat,
+                                                  concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                   nullptr,
-                                                  KeyFormat::HexaDecimalStrippedFormat,
+                                                  concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                   *replicasInfo[i].get()));
   }
   replicaConfig.replicaId = replica_0;
@@ -682,7 +682,7 @@ TEST(requestPreprocessingState_test, batchMsgTimedOutOnPrimary) {
   }
   auto* clientBatchReqMsg = new ClientBatchRequestMsg(clientId, batch, batchSize, cid);
   msgHandlerCallback(clientBatchReqMsg);
-  usleep(replicaConfig.preExecReqStatusCheckTimerMillisec * 1000);
+  usleep(waitForExecTimerMillisec * 1000);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 0), 5);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 1), 6);
   ConcordAssertEQ(preProcessor.getOngoingReqIdForClient(clientId, 2), 7);

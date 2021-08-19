@@ -88,12 +88,12 @@ class ReqMissingDataMsg : public MessageBase {
   struct Header : public MessageBase::Header {
     ViewNum viewNum;
     SeqNum seqNum;
-
+    EpochNum epochNum;
     Flags flags;
   };
 #pragma pack(pop)
   static_assert(sizeof(Flags) == sizeof(uint16_t));
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 2), "Header is 62B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + 2), "Header is 32B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

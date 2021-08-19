@@ -18,6 +18,7 @@
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "serialize.hpp"
+#include "Metrics.hpp"
 #include <cstdlib>
 #include <limits>
 #include <memory>
@@ -27,7 +28,15 @@ namespace bftEngine::impl {
 template <typename ClockT = std::chrono::system_clock>
 class TimeServiceManager {
  public:
-  TimeServiceManager() = default;
+  TimeServiceManager(const std::shared_ptr<concordMetrics::Aggregator>& aggregator)
+      : metrics_component_{concordMetrics::Component("time_service", aggregator)},
+        soft_limit_reached_counter_{metrics_component_.RegisterCounter("soft_limit_reached_counter")},
+        hard_limit_reached_counter_{metrics_component_.RegisterCounter("hard_limit_reached_counter")},
+        new_time_is_less_or_equal_to_previous_{
+            metrics_component_.RegisterCounter("new_time_is_less_or_equal_to_previous")},
+        ill_formed_preprepare_{metrics_component_.RegisterCounter("ill_formed_preprepare")} {
+    metrics_component_.Register();
+  }
   ~TimeServiceManager() = default;
   TimeServiceManager(const TimeServiceManager&) = delete;
 
@@ -52,6 +61,8 @@ class TimeServiceManager {
              "New time(" << new_time.count() << "ms since epoch) is less or equal to reserved ("
                          << last_timestamp.count() << "), new time will be "
                          << (last_timestamp + config.timeServiceEpsilonMillis).count());
+    new_time_is_less_or_equal_to_previous_++;
+    metrics_component_.UpdateAggregator();
     last_timestamp += config.timeServiceEpsilonMillis;
     client_.setLastTimestamp(last_timestamp);
     return last_timestamp;
@@ -74,6 +85,8 @@ class TimeServiceManager {
   [[nodiscard]] bool hasTimeRequest(const impl::PrePrepareMsg& msg) const {
     if (msg.numberOfRequests() < 2) {
       LOG_ERROR(TS_MNGR, "PrePrepare with Time Service on, cannot have less than 2 messages");
+      ill_formed_preprepare_++;
+      metrics_component_.UpdateAggregator();
       return false;
     }
     auto it = impl::RequestsIterator(&msg);
@@ -83,6 +96,8 @@ class TimeServiceManager {
     ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
     if (req.flags() != MsgFlag::TIME_SERVICE_FLAG) {
       LOG_ERROR(GL, "Time Service is on but first CR in PrePrepare is not TS request");
+      ill_formed_preprepare_++;
+      metrics_component_.UpdateAggregator();
       return false;
     }
     return true;
@@ -109,29 +124,36 @@ class TimeServiceManager {
     auto min = now - config.timeServiceHardLimitMillis;
     auto max = now + config.timeServiceHardLimitMillis;
     if (min > t || t > max) {
-      // TODO(DD): Add metrics
       LOG_ERROR(TS_MNGR,
                 "Current primary's time reached hard limit, requests will be ignored. Please synchronize local clocks! "
                     << "Primary's time: " << t.count() << ", local time: " << now.count()
                     << ", difference: " << (t - now).count() << ", time limits: +/-"
                     << config.timeServiceHardLimitMillis.count() << ". Time is presented as ms since epoch");
+      hard_limit_reached_counter_++;
+      metrics_component_.UpdateAggregator();
       return false;
     }
 
     min = now - config.timeServiceSoftLimitMillis;
     max = now + config.timeServiceSoftLimitMillis;
     if (min > t || t > max) {
-      // TODO(DD): Add metrics
       LOG_WARN(TS_MNGR,
                "Current primary's time reached soft limit, please synchronize local clocks! "
                    << "Primary's time: " << t.count() << ", local time: " << now.count()
                    << ", difference: " << (t - now).count() << ", time limits: +/-"
                    << config.timeServiceSoftLimitMillis.count() << ". Time is presented as ms since epoch");
+      soft_limit_reached_counter_++;
+      metrics_component_.UpdateAggregator();
     }
     return true;
   }
 
  private:
   TimeServiceResPageClient client_;
-};
+  mutable concordMetrics::Component metrics_component_;
+  mutable concordMetrics::CounterHandle soft_limit_reached_counter_;
+  mutable concordMetrics::CounterHandle hard_limit_reached_counter_;
+  mutable concordMetrics::CounterHandle new_time_is_less_or_equal_to_previous_;
+  mutable concordMetrics::CounterHandle ill_formed_preprepare_;
+};  // namespace bftEngine::impl
 }  // namespace bftEngine::impl
