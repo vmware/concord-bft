@@ -83,59 +83,6 @@ void convert(const string& in, Integer& out) {
   out = Integer(strSrc);
 }
 
-size_t DigestUtil::digestLength() { return DigestType::DIGESTSIZE; }
-
-bool DigestUtil::compute(const char* input,
-                         size_t inputLength,
-                         char* outBufferForDigest,
-                         size_t lengthOfBufferForDigest) {
-  DigestType dig;
-
-  size_t size = dig.DigestSize();
-
-  if (lengthOfBufferForDigest < size) return false;
-
-  SecByteBlock digest(size);
-
-  dig.Update((CryptoPP::byte*)input, inputLength);
-  dig.Final(digest);
-  const CryptoPP::byte* h = digest;
-  memcpy(outBufferForDigest, h, size);
-
-  return true;
-}
-
-DigestUtil::Context::Context() {
-  DigestType* p = new DigestType();
-  internalState = p;
-}
-
-void DigestUtil::Context::update(const char* data, size_t len) {
-  VERIFY(internalState != NULL);
-  DigestType* p = (DigestType*)internalState;
-  p->Update((CryptoPP::byte*)data, len);
-}
-
-void DigestUtil::Context::writeDigest(char* outDigest) {
-  VERIFY(internalState != NULL);
-  DigestType* p = (DigestType*)internalState;
-  SecByteBlock digest(digestLength());
-  p->Final(digest);
-  const CryptoPP::byte* h = digest;
-  memcpy(outDigest, h, digestLength());
-
-  delete p;
-  internalState = NULL;
-}
-
-DigestUtil::Context::~Context() {
-  if (internalState != NULL) {
-    DigestType* p = (DigestType*)internalState;
-    delete p;
-    internalState = NULL;
-  }
-}
-
 class ECDSASigner::Impl {
   ECDSA<ECP, SHA256>::PrivateKey privateKey_;
   std::unique_ptr<ECDSA<ECP, SHA256>::Signer> signer_;

@@ -28,7 +28,7 @@ void RSAPruningSigner::sign(concord::messages::LatestPrunableBlock& block) {
   block.signature = std::vector<uint8_t>(signature.begin(), signature.end());
 }
 
-RSAPruningSigner::RSAPruningSigner(const string& key)
+RSAPruningSigner::RSAPruningSigner(const std::string& key)
     : signer_{std::make_unique<concord::util::crypto::RSASigner>(
           key, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat)} {}
 

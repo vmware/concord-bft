@@ -103,22 +103,5 @@ class RSAVerifier {
   std::unique_ptr<Impl> impl_;
 };
 
-class DigestUtil {
- public:
-  static size_t digestLength();
-  static bool compute(const char* input, size_t inputLength, char* outBufferForDigest, size_t lengthOfBufferForDigest);
-
-  class Context {
-   public:
-    Context();
-    void update(const char* data, size_t len);
-    void writeDigest(char* outDigest);  // write digest to outDigest, and invalidate the Context object
-    ~Context();
-
-   private:
-    void* internalState;
-  };
-};
-
 }  // namespace impl
 }  // namespace bftEngine
