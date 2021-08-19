@@ -17,6 +17,7 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "messages/TickInternalMsg.hpp"
+#include "messages/PrePrepareMsg.hpp"
 #include "SignatureInternalMsgs.hpp"
 
 namespace bftEngine::impl {
@@ -42,6 +43,7 @@ struct GetStatus {
 // though, so this latter part is a tradeoff between heap allocation performance and memory usage, as a queue of all
 // internal messages will become larger if the size of the variant grows.
 using InternalMessage = std::variant<FullCommitProofMsg*,
+                                     PrePrepareMsg*,
 
                                      // Prepare signature related
                                      CombinedSigFailedInternalMsg,
