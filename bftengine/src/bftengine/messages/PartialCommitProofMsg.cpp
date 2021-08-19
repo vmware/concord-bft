@@ -12,7 +12,6 @@
 #include "PartialCommitProofMsg.hpp"
 #include "assertUtils.hpp"
 #include "ReplicasInfo.hpp"
-#include "Crypto.hpp"
 #include "EpochManager.hpp"
 #include <threshsign/ThresholdSignaturesSchemes.h>
 

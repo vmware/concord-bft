@@ -22,7 +22,6 @@
 #include "messages/ClientRequestMsg.hpp"
 
 #include "Digest.hpp"
-#include "Crypto.hpp"
 
 namespace concord::kvbc::strategy {
 

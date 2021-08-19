@@ -23,7 +23,6 @@ set(corebft_source_files
     src/bftengine/ViewsManager.cpp
     src/bftengine/CheckpointInfo.cpp
     src/bftengine/ClientsManager.cpp
-    src/bftengine/Crypto.cpp
     src/bftengine/NullStateTransfer.cpp
     src/bftengine/BFTEngine.cpp
     src/bftengine/SimpleClientImp.cpp

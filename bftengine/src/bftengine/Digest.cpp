@@ -13,10 +13,86 @@
 
 #include <string.h>
 #include <stdio.h>
-#include "Crypto.hpp"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <cryptopp/dll.h>
+#include <cryptopp/pem.h>
+#pragma GCC diagnostic pop
+
+#include "DigestType.h"
+#include "assertUtils.hpp"
+#include <cryptopp/cryptlib.h>
+#include <cryptopp/ida.h>
+#include <cryptopp/eccrypto.h>
+
+using namespace CryptoPP;
+using namespace std;
+
+#if defined MD5_DIGEST
+#include <cryptopp/md5.h>
+#define DigestType Weak1::MD5
+#elif defined SHA256_DIGEST
+#define DigestType SHA256
+#elif defined SHA512_DIGEST
+#define DigestType SHA512
+#endif
 
 namespace bftEngine {
 namespace impl {
+
+size_t DigestUtil::digestLength() { return DigestType::DIGESTSIZE; }
+
+bool DigestUtil::compute(const char* input,
+                         size_t inputLength,
+                         char* outBufferForDigest,
+                         size_t lengthOfBufferForDigest) {
+  DigestType dig;
+
+  size_t size = dig.DigestSize();
+
+  if (lengthOfBufferForDigest < size) return false;
+
+  SecByteBlock digest(size);
+
+  dig.Update((CryptoPP::byte*)input, inputLength);
+  dig.Final(digest);
+  const CryptoPP::byte* h = digest;
+  memcpy(outBufferForDigest, h, size);
+
+  return true;
+}
+
+DigestUtil::Context::Context() {
+  DigestType* p = new DigestType();
+  internalState = p;
+}
+
+void DigestUtil::Context::update(const char* data, size_t len) {
+  ConcordAssert(internalState != NULL);
+  DigestType* p = (DigestType*)internalState;
+  p->Update((CryptoPP::byte*)data, len);
+}
+
+void DigestUtil::Context::writeDigest(char* outDigest) {
+  ConcordAssert(internalState != NULL);
+  DigestType* p = (DigestType*)internalState;
+  SecByteBlock digest(digestLength());
+  p->Final(digest);
+  const CryptoPP::byte* h = digest;
+  memcpy(outDigest, h, digestLength());
+
+  delete p;
+  internalState = NULL;
+}
+
+DigestUtil::Context::~Context() {
+  if (internalState != NULL) {
+    DigestType* p = (DigestType*)internalState;
+    delete p;
+    internalState = NULL;
+  }
+}
 
 Digest::Digest(char* buf, size_t len) { DigestUtil::compute(buf, len, (char*)d, sizeof(Digest)); }
 
