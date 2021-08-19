@@ -192,12 +192,6 @@ Msg ClientKeyExchangeStatusResponse 48 {
      list kvpair uint32 ClientExchangePublicKey clients_keys
 }
 
-Msg Timestamp 49 {
-    int64 time_since_epoch
-    uint64 request_position
-}
-
-Msg ClientReconfigurationStateReply 39 {
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {

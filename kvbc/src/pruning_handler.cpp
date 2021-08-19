@@ -131,7 +131,6 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
 bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest& latest_prunable_block_request,
                             uint64_t,
                             uint32_t,
-                            const std::optional<bftEngine::Timestamp>&,
                             concord::messages::ReconfigurationResponse& rres) {
   // If pruning is disabled, return 0. Otherwise, be conservative and prune the
   // smaller block range.
@@ -159,7 +158,6 @@ bool PruningHandler::handle(const concord::messages::LatestPrunableBlockRequest&
 bool PruningHandler::handle(const concord::messages::PruneRequest& request,
                             uint64_t bftSeqNum,
                             uint32_t,
-                            const std::optional<bftEngine::Timestamp>&,
                             concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
 
@@ -243,7 +241,6 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
 bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
                             uint64_t,
                             uint32_t,
-                            const std::optional<bftEngine::Timestamp>&,
                             concord::messages::ReconfigurationResponse& rres) {
   if (!pruning_enabled_) return true;
   concord::messages::PruneStatus prune_status;

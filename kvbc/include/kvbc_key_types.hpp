@@ -23,7 +23,6 @@ static const char reconfiguration_add_remove = 0x29;
 static const char reconfiguration_wedge_key = 0x2a;
 static const char reconfiguration_client_data_prefix = 0x2c;
 static const char reconfiguration_epoch_key = 0x2d;
-static const char timestamp_key = 0x2e;
 
 static const char reconfiguration_restart_key = 0x30;
 enum CLIENT_COMMAND_TYPES : uint8_t {

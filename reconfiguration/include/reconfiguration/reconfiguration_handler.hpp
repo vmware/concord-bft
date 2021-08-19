@@ -35,33 +35,27 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
   bool handle(const concord::messages::WedgeCommand&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::WedgeStatusRequest&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::KeyExchangeCommand&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
   bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool handle(const concord::messages::RestartCommand&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
  private:
@@ -72,7 +66,6 @@ class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigu
   bool handle(const concord::messages::ClientExchangePublicKey&,
               uint64_t,
               uint32_t,
-              const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
 
   bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {

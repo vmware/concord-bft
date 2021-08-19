@@ -701,7 +701,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_correct_num_bocks_to_keep) {
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::ReconfigurationResponse rres;
-  sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+  sm.handle(req, 0, UINT32_MAX, rres);
   resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
   CheckLatestPrunableResp(resp, replica_idx, verifier);
   ASSERT_EQ(resp.block_id, LAST_BLOCK_ID - num_blocks_to_keep);
@@ -722,7 +722,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_big_num_blocks_to_keep) {
   concord::messages::LatestPrunableBlock resp;
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::ReconfigurationResponse rres;
-  sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+  sm.handle(req, 0, UINT32_MAX, rres);
   resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
   CheckLatestPrunableResp(resp, replica_idx, verifier);
   // Verify that the returned block ID is 0 when pruning_num_blocks_to_keep is
@@ -749,7 +749,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_no_pruning_conf) {
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
   concord::messages::ReconfigurationResponse rres;
-  sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+  sm.handle(req, 0, UINT32_MAX, rres);
   resp = std::get<concord::messages::LatestPrunableBlock>(rres.response);
   CheckLatestPrunableResp(resp, 1, verifier);
   // Verify that when pruning is enabled and both pruning_num_blocks_to_keep and
@@ -776,7 +776,7 @@ TEST_F(test_rocksdb, sm_latest_prunable_request_pruning_disabled) {
   concord::messages::LatestPrunableBlockRequest req;
   concord::messages::LatestPrunableBlock resp;
   concord::messages::ReconfigurationResponse rres;
-  sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+  sm.handle(req, 0, UINT32_MAX, rres);
 
   // Verify that when pruning is disabled, there is no answer.
   ASSERT_EQ(std::holds_alternative<concord::messages::LatestPrunableBlock>(rres.response), false);
@@ -796,7 +796,7 @@ TEST_F(test_rocksdb, sm_handle_prune_request_on_pruning_disabled) {
 
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
   concord::messages::ReconfigurationResponse rres;
-  auto res = sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+  auto res = sm.handle(req, 0, UINT32_MAX, rres);
   ASSERT_TRUE(res);
 }
 TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
@@ -818,7 +818,7 @@ TEST_F(test_rocksdb, sm_handle_correct_prune_request) {
   const auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas, latest_prunable_block_id);
   blocks_deleter.deleteBlocksUntil(latest_prunable_block_id + 1);
   concord::messages::ReconfigurationResponse rres;
-  auto res = sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+  auto res = sm.handle(req, 0, UINT32_MAX, rres);
 
   ASSERT_TRUE(res);
 }
@@ -848,7 +848,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     latest_prunnable_block.signature = block.signature;
     req.latest_prunable_block.push_back(std::move(latest_prunnable_block));
     concord::messages::ReconfigurationResponse rres;
-    auto res = sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+    auto res = sm.handle(req, 0, UINT32_MAX, rres);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
@@ -859,7 +859,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     auto req = ConstructPruneRequest(client_idx, private_keys_of_replicas);
     req.latest_prunable_block.pop_back();
     concord::messages::ReconfigurationResponse rres;
-    auto res = sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+    auto res = sm.handle(req, 0, UINT32_MAX, rres);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
@@ -871,7 +871,7 @@ TEST_F(test_rocksdb, sm_handle_incorrect_prune_request) {
     auto &block = req.latest_prunable_block[req.latest_prunable_block.size() - 1];
     block.signature[0] += 1;
     concord::messages::ReconfigurationResponse rres;
-    auto res = sm.handle(req, 0, UINT32_MAX, std::nullopt, rres);
+    auto res = sm.handle(req, 0, UINT32_MAX, rres);
 
     // Expect that the state machine has ignored the message.
     ASSERT_FALSE(res);
