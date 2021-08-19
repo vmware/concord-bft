@@ -17,7 +17,6 @@
 #include "concord.cmf.hpp"
 #include "ireconfiguration.hpp"
 #include "OpenTracing.hpp"
-#include "openssl_crypto.hpp"
 #include "SigManager.hpp"
 #include "crypto_utils.hpp"
 

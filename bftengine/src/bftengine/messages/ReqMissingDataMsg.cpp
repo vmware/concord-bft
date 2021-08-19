@@ -12,7 +12,6 @@
 #include "ReqMissingDataMsg.hpp"
 #include <cstring>
 #include "assertUtils.hpp"
-#include "Crypto.hpp"
 #include "EpochManager.hpp"
 
 namespace bftEngine {

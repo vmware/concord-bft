@@ -12,7 +12,6 @@
 #include "OpenTracing.hpp"
 #include "ReplicasRestartReadyProofMsg.hpp"
 #include "SysConsts.hpp"
-#include "Crypto.hpp"
 #include "EpochManager.hpp"
 #include "SigManager.hpp"
 

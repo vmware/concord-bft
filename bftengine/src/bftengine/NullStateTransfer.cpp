@@ -13,7 +13,6 @@
 #include "assertUtils.hpp"
 #include "Digest.hpp"
 #include "Logger.hpp"
-#include "Crypto.hpp"
 
 namespace bftEngine {
 namespace impl {

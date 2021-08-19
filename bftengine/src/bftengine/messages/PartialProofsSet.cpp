@@ -18,7 +18,6 @@
 #include "OpenTracing.hpp"
 #include "PartialCommitProofMsg.hpp"
 #include "FullCommitProofMsg.hpp"
-#include "Crypto.hpp"
 #include "assertUtils.hpp"
 #include "InternalReplicaApi.hpp"
 #include "SimpleThreadPool.hpp"

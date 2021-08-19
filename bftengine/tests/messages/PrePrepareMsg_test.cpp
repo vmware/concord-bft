@@ -17,7 +17,6 @@
 #include <memory>
 #include "OpenTracing.hpp"
 #include "gtest/gtest.h"
-#include "Crypto.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"

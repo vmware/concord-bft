@@ -19,7 +19,6 @@
 #include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "Digest.hpp"
-#include "Crypto.hpp"
 #include "SimpleThreadPool.hpp"
 #include "InternalReplicaApi.hpp"
 #include "IncomingMsgsStorage.hpp"
