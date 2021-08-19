@@ -35,7 +35,7 @@ bftEngine::OperationResult ConcordClient::clientRequestError_ = SUCCESS;
 ConcordClient::ConcordClient(int client_id,
                              ConcordClientPoolConfig& struct_config,
                              const SimpleClientParams& client_params)
-    : logger_(logging::getLogger("com.vmware.external_client_pool")) {
+    : logger_(logging::getLogger("concord.client.client_pool.external_client")) {
   client_id_ = client_id;
   CreateClient(struct_config, client_params);
 }
