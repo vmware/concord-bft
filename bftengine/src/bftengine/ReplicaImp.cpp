@@ -42,6 +42,7 @@
 #include "messages/ReplicaAsksToLeaveViewMsg.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "messages/ReplicasRestartReadyProofMsg.hpp"
+#include "messages/InstallReadyMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
@@ -119,6 +120,8 @@ void ReplicaImp::registerMsgHandlers() {
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicasRestartReadyProof,
                                    bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::InstallReady, bind(&ReplicaImp::messageHandler<InstallReadyMsg>, this, _1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -2957,7 +2960,23 @@ void ReplicaImp::sendRepilcaRestartReady() {
         (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
     if (restart_ready_msgs_.size() == targetNumOfMsgs) {
       LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
-      sendReplicasRestartReadyProof();
+      sendReplicasRestartReadyProof(static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Scale));
+    }
+  }
+}
+void ReplicaImp::sendInstallReady(const std::string &version) {
+  auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
+  if (seq_num_to_stop_at.has_value()) {
+    LOG_INFO(GL, "sendInstallReady.  for version " << version);
+    unique_ptr<InstallReadyMsg> installreadytMsg(
+        InstallReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value(), version));
+    sendToAllOtherReplicas(installreadytMsg.get());
+    install_ready_msgs_[config_.getreplicaId()] = std::move(installreadytMsg);  // add self message to the list
+    bool bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
+    uint32_t targetNumOfMsgs = (bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
+    if (install_ready_msgs_.size() == targetNumOfMsgs) {
+      LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of install ready msgs are recieved. Send install proof");
+      sendReplicasRestartReadyProof(static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Install));
     }
   }
 }
@@ -3305,7 +3324,32 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
       (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
   if (restart_ready_msgs_.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
-    sendReplicasRestartReadyProof();
+    sendReplicasRestartReadyProof(static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Scale));
+  }
+}
+
+template <>
+void ReplicaImp::onMessage<InstallReadyMsg>(InstallReadyMsg *msg) {
+  if (install_ready_msgs_.find(msg->idOfGeneratedReplica()) == install_ready_msgs_.end()) {
+    install_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<InstallReadyMsg>(msg);
+    metric_received_install_ready_++;
+  } else {
+    LOG_DEBUG(GL,
+              "Recieved multiple InstallReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
+                                                                  << " with seq_num" << std::to_string(msg->seqNum())
+                                                                  << " version:" << msg->getVersion());
+    delete msg;
+  }
+  LOG_INFO(GL,
+           "Recieved InstallReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num"
+                                                      << std::to_string(msg->seqNum())
+                                                      << " version: " << msg->getVersion());
+  bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
+  uint32_t targetNumOfMsgs =
+      (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
+  if (install_ready_msgs_.size() == targetNumOfMsgs) {
+    LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of install ready msgs are recieved. Send install proof");
+    sendReplicasRestartReadyProof(static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Install));
   }
 }
 
@@ -3315,23 +3359,35 @@ void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyPro
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
   metric_received_restart_proof_++;
-  ControlStateManager::instance().onRestartProof(msg->seqNum());
+  ControlStateManager::instance().onRestartProof(msg->seqNum(), static_cast<uint8_t>(msg->getRestartReason()));
   delete msg;
 }
 
-void ReplicaImp::sendReplicasRestartReadyProof() {
+void ReplicaImp::sendReplicasRestartReadyProof(uint8_t reason) {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
-        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
-    for (auto &[_, v] : restart_ready_msgs_) {
-      (void)_;  // unused variable hack
-      restartProofMsg->addElement(v);
+        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(),
+                                             seq_num_to_stop_at.value(),
+                                             static_cast<ReplicasRestartReadyProofMsg::RestartReason>(reason)));
+    if (reason == static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Scale)) {
+      ConcordAssertGE(restart_ready_msgs_.size(), (config_.numReplicas - config_.fVal));
+      for (auto &[_, v] : restart_ready_msgs_) {
+        (void)_;  // unused variable hack
+        restartProofMsg->addElement<ReplicaRestartReadyMsg>(v);
+      }
+    } else if (reason == static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Install)) {
+      ConcordAssertGE(install_ready_msgs_.size(), (config_.numReplicas - config_.fVal));
+      for (auto &[_, v] : install_ready_msgs_) {
+        (void)_;  // unused variable hack
+        restartProofMsg->addElement<InstallReadyMsg>(v);
+      }
     }
     restartProofMsg->finalizeMessage();
     sendToAllOtherReplicas(restartProofMsg.get());
+    metric_received_restart_proof_++;     // for self
     std::this_thread::sleep_for(1000ms);  // Sleep in order to let the os complete the send before shutting down
-    bftEngine::ControlStateManager::instance().onRestartProof(restartProofMsg->seqNum());
+    bftEngine::ControlStateManager::instance().onRestartProof(restartProofMsg->seqNum(), reason);
   }
 }
 
@@ -3382,6 +3438,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   ps_ = persistentStorage;
   bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
   bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
+  bftEngine::ControlStateManager::instance().setInstallReadyFunc(
+      [&](const std::string &version) { sendInstallReady(version); });
   bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   lastAgreedView = ld.viewsManager->latestActiveView();
 
@@ -3628,6 +3686,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
     ps_ = persistentStorage;
     bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
     bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
+    bftEngine::ControlStateManager::instance().setInstallReadyFunc(
+        [&](const std::string &version) { sendInstallReady(version); });
     bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   }
 
@@ -3733,6 +3793,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       metric_total_fastPath_requests_{metrics_.RegisterCounter("totalFastPathRequests")},
       metric_total_preexec_requests_executed_{metrics_.RegisterCounter("totalPreExecRequestsExecuted")},
       metric_received_restart_ready_{metrics_.RegisterCounter("receivedRestartReadyMsg", 0)},
+      metric_received_install_ready_{metrics_.RegisterCounter("receivedInstallReadyMsg", 0)},
       metric_received_restart_proof_{metrics_.RegisterCounter("receivedRestartProofMsg", 0)},
       consensus_times_(histograms_.consensus),
       checkpoint_times_(histograms_.checkpointFromCreationToStable),

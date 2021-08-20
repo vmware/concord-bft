@@ -63,6 +63,7 @@ Msg GetVersionCommand 19 {
 
 Msg InstallCommand 20 {
     string version
+    bool bft_support
 }
 
 Msg InstallStatusCommand 21 {

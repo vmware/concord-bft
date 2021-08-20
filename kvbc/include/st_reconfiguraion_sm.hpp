@@ -62,7 +62,7 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::WedgeCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::DownloadCommand&, uint64_t, uint64_t, uint64_t) { return true; }
 
-  bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t) { return true; }
+  bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t);
 
   bool handle(const concord::messages::KeyExchangeCommand&, uint64_t, uint64_t, uint64_t) { return true; }
   bool handle(const concord::messages::AddRemoveCommand&, uint64_t, uint64_t, uint64_t) { return true; }

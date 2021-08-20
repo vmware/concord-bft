@@ -16,6 +16,8 @@
 #include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "Replica.hpp"
+#include "messages/ReplicasRestartReadyProofMsg.hpp"
+
 namespace bftEngine {
 
 /*
@@ -48,18 +50,32 @@ void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, Re
   }
   onRestartProofCbRegistry_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
 }
-void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
+void ControlStateManager::addOnInstallProofCallBack(std::function<void()> cb, RestartProofHandlerPriorities priority) {
+  if (onInstallProofCbRegistry_.find(priority) == onInstallProofCbRegistry_.end()) {
+    onInstallProofCbRegistry_[static_cast<uint32_t>(priority)];
+  }
+  onInstallProofCbRegistry_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
+}
+void ControlStateManager::onRestartProof(const SeqNum& seq_num, uint8_t reason) {
   // If operator sends add-remove request with bft option then
   // It can happen that some replicas receives a restart proof and yet to reach
   // stable checkpoint. We should not rstart replica in that case since
   // configuration update happens on stable checkpoint.
-  hasRestartProofAtSeqNum_.emplace(seq_num);
+
   if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
       IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
     auto seq_num_to_stop_at = getCheckpointToStopAt();
     if (seq_num_to_stop_at.has_value() && seq_num) {
-      for (const auto& kv : onRestartProofCbRegistry_) {
-        kv.second.invokeAll();
+      if (reason == static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Scale)) {
+        hasRestartProofAtSeqNum_.emplace(seq_num);
+        for (const auto& kv : onRestartProofCbRegistry_) {
+          kv.second.invokeAll();
+        }
+      } else if (reason == static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Install)) {
+        hasInstallProofAtSeqNum_.emplace(seq_num);
+        for (const auto& kv : onInstallProofCbRegistry_) {
+          kv.second.invokeAll();
+        }
       }
     }
   }
@@ -70,6 +86,12 @@ void ControlStateManager::checkForReplicaReconfigurationAction() {
   if (seq_num_to_stop_at.has_value() && hasRestartProofAtSeqNum_.has_value() &&
       (seq_num_to_stop_at.value() == hasRestartProofAtSeqNum_.value())) {
     for (const auto& kv : onRestartProofCbRegistry_) {
+      kv.second.invokeAll();
+    }
+  }
+  if (seq_num_to_stop_at.has_value() && hasInstallProofAtSeqNum_.has_value() &&
+      (seq_num_to_stop_at.value() == hasInstallProofAtSeqNum_.value())) {
+    for (const auto& kv : onInstallProofCbRegistry_) {
       kv.second.invokeAll();
     }
   }

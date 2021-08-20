@@ -1308,6 +1308,38 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         #validate the blockId is same as the 2nd reconfiguration command block
         self.assertEqual(blockIdRor, blockIdreplica)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd_with_key_exchange, selected_configs=lambda n, f, c: n == 7, rotate_keys=True)
+    async def test_install_command(self, bft_network):
+        """
+             Sends a install command and checks that new version is written to blockchain.
+             The test does the following:
+             1. A client sends a install command which will also wedge the system on next next checkpoint
+             2. Validate that all replicas have stopped
+             3. Validate that replicas get restart proof message for the install command
+         """
+        bft_network.start_all_replicas()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(100):
+            await skvbc.send_write_kv_set()
+        key, val = await skvbc.send_write_kv_set()
+        client = bft_network.random_client()
+        client.config._replace(req_timeout_milli=10000)
+        version = 'version1'
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        await op.install_cmd(version, bft=False)
+        await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=True)
+        await self.verify_restart_ready_proof_msg(bft_network, bft=False)
+        await self.try_to_unwedge(bft_network=bft_network, bft=False, restart=True)
+        for i in range(100):
+            await skvbc.send_write_kv_set()
+        initial_prim = 0
+        crashed_replica = bft_network.random_set_of_replicas(1, {initial_prim})
+        bft_network.stop_replicas(crashed_replica)
+        version = 'version2'
+        await op.install_cmd(version, bft=True)
+        await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=False)
+        await self.verify_restart_ready_proof_msg(bft_network, bft=True)      
 
     async def try_to_unwedge(self, bft_network, bft, restart, quorum=None):
         with trio.fail_after(seconds=60):
@@ -1420,14 +1452,19 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     async def verify_restart_ready_proof_msg(self, bft_network, bft=True):
         restartProofCount = 0
         required = bft_network.config.n if bft is False else (bft_network.config.n - bft_network.config.f)
-        for r in bft_network.all_replicas():
-            restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
-            if(restartProofMsg > 0):
-                restartProofCount += 1
-            if(restartProofCount >= required):
-                break
-        self.assertEqual(required, restartProofCount)
-            
+        with log.start_action(action_type="verify_restart_ready_proof_msg", bft=bft):
+            for r in bft_network.all_replicas():
+                with log.start_action(action_type="verify_replica", replica=r):
+                    with trio.move_on_after(seconds=2):
+                        while True:
+                            with trio.move_on_after(seconds=5):
+                                restartProofMsg = await bft_network.get_metric(r, bft_network, "Counters", "receivedRestartProofMsg")
+                                if(restartProofMsg > 0):
+                                    restartProofCount += 1
+                                    break
+                                else:
+                                    await trio.sleep(0.5)
+            self.assertGreaterEqual (restartProofCount, required)
     
     async def verify_add_remove_status(self, bft_network, config_descriptor, restart_flag=True, quorum_all=True ):
         quorum = bft_client.MofNQuorum.All(bft_network.config, [r for r in range(bft_network.config.n)])

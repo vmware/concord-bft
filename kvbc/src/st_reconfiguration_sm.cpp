@@ -63,6 +63,8 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                        current_cp_num);
   handleStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
                                                        current_cp_num);
+  handleStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
+                                                         current_cp_num);
 }
 
 void StReconfigurationHandler::pruneOnStartup() {
@@ -125,6 +127,22 @@ bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &c
                                       uint64_t bid) {
   return handleWedgeCommands(
       command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
+}
+bool StReconfigurationHandler::handle(const concord::messages::InstallCommand &cmd,
+                                      uint64_t bft_seq_num,
+                                      uint64_t current_cp_num,
+                                      uint64_t bid) {
+  LOG_INFO(GL, "Handle install command on ST complete:" << KVLOG(cmd.version, bft_seq_num, current_cp_num));
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(cmd.bft_support);
+  if (cmd.bft_support) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+  }
+  return true;
 }
 template <typename T>
 bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,

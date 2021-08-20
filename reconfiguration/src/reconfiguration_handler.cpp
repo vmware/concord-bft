@@ -123,6 +123,30 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
   handleWedgeCommands(command.bft_support, true, command.restart, true);
   return true;
 }
+bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd,
+                                    uint64_t sequence_num,
+                                    uint32_t,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::ReconfigurationErrorMsg error_msg;
+  if (cmd.version.empty()) {
+    LOG_ERROR(getLogger(), "InstallCommand received with empty version string at seq_num " << sequence_num);
+    return false;
+  }
+  LOG_INFO(getLogger(), "InstallCommand instructs replica to stop at seq_num " << KVLOG(sequence_num, cmd.version));
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(sequence_num);
+  // TODO(NK): set remove_metadata and unwedge flag to True once we support start new epoch with (n-f) nodes
+  // crrently, keyExchange manager requires all n nodes to the start to complete key exchange. So, if we
+  // execute install with (n-f) nodes, post inatall, replicas won't be live
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(cmd.bft_support);
+  if (cmd.bft_support) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+  }
+  return true;
+}
 
 BftReconfigurationHandler::BftReconfigurationHandler() {
   auto operatorPubKeyPath = bftEngine::ReplicaConfig::instance().pathToOperatorPublicKey_;

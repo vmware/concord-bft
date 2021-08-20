@@ -36,13 +36,17 @@ class ControlStateManager {
   bool getPruningProcessStatus() const { return onPruningProcess_; }
   bool getRestartBftFlag() const { return restartBftEnabled_; }
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
-
   void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadataCbRegistry_.add(fn); }
   void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
   void sendRestartReadyToAllReplica() { sendRestartReady_(); }
+  void setInstallReadyFunc(std::function<void(const std::string&)> fn) { sendInstallReady_ = fn; }
+  void sendInstallReadyToAllReplica(const std::string& version) { sendInstallReady_(version); }
   void addOnRestartProofCallBack(std::function<void()> cb,
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
-  void onRestartProof(const SeqNum&);
+  void addOnInstallProofCallBack(std::function<void()> cb,
+                                 RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
+
+  void onRestartProof(const SeqNum&, uint8_t reason);
   void checkForReplicaReconfigurationAction();
   void restart();
 
@@ -54,9 +58,12 @@ class ControlStateManager {
   uint64_t wedgePoint{0};
   std::atomic_bool restartBftEnabled_ = false;
   std::optional<SeqNum> hasRestartProofAtSeqNum_ = std::nullopt;
+  std::optional<SeqNum> hasInstallProofAtSeqNum_ = std::nullopt;
   std::atomic_bool onPruningProcess_ = false;
   concord::util::CallbackRegistry<bool> removeMetadataCbRegistry_;
   std::function<void()> sendRestartReady_;
+  std::function<void(const std::string&)> sendInstallReady_;
   std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistry_;
+  std::map<uint32_t, concord::util::CallbackRegistry<>> onInstallProofCbRegistry_;
 };
 }  // namespace bftEngine

@@ -266,8 +266,12 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& com
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
-  auto blockId = persistReconfigurationBlock(
-      serialized_command, bft_seq_num, std::string{kvbc::keyTypes::reconfiguration_install_key}, false);
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_install_key},
+                        std::string(serialized_command.begin(), serialized_command.end()));
+  auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
+  ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
+  auto blockId = persistReconfigurationBlock(ver_updates, bft_seq_num, false);
   LOG_INFO(getLogger(), "InstallCommand command block is " << blockId);
   return true;
 }

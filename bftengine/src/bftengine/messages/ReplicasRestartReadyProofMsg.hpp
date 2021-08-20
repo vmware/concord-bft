@@ -13,26 +13,41 @@
 
 #include "MessageBase.hpp"
 #include "ReplicaRestartReadyMsg.hpp"
+#include "InstallReadyMsg.hpp"
 #include "ReplicaConfig.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine {
 namespace impl {
-struct NewViewElement;
 class ReplicasRestartReadyProofMsg : public MessageBase {
  public:
+  enum class RestartReason : uint8_t { Scale, Install };
   ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                SeqNum seqNum,
+                               RestartReason reason,
                                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicasRestartReadyProofMsg)
 
   static ReplicasRestartReadyProofMsg* create(ReplicaId id,
                                               SeqNum s,
+                                              RestartReason reason,
                                               const concordUtils::SpanContext& spanContext = {});
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
 
-  void addElement(std::unique_ptr<ReplicaRestartReadyMsg>&);
+  template <typename T>
+  void addElement(std::unique_ptr<T>& msgItem) {
+    if (b()->locationAfterLast == 0) {  // if this is the first element
+      ConcordAssert(b()->elementsCount == 0);
+      b()->locationAfterLast = sizeof(Header) + spanContextSize();
+    }
+    uint32_t requiredSpace = b()->locationAfterLast + msgItem->size();
+    ConcordAssertLE((size_t)(requiredSpace + SigManager::instance()->getMySigLength()), (size_t)internalStorageSize());
+    std::memcpy(body() + b()->locationAfterLast, msgItem->body(), msgItem->size());
+    b()->elementsCount += 1;
+    b()->locationAfterLast = requiredSpace;
+  }
 
   SeqNum seqNum() const { return b()->seqNum; }
 
@@ -40,11 +55,15 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
 
   const uint16_t elementsCount() const { return b()->elementsCount; }
 
+  RestartReason getRestartReason() const { return b()->reason; }
+
   const uint32_t getBodySize() const;
 
   void validate(const ReplicasInfo&) const override;
 
-  bool checkElements(const ReplicasInfo& repInfo, uint16_t sigSize) const;
+  bool checkRestartReadyMsgElements(const ReplicasInfo& repInfo, uint16_t sigSize) const;
+
+  bool checkInstallReadyMsgElements(const ReplicasInfo& repInfo, uint16_t sigSize) const;
 
  protected:
   template <typename MessageT>
@@ -56,6 +75,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
     uint16_t genReplicaId;
     SeqNum seqNum;
     EpochNum epochNum;
+    RestartReason reason;
     uint16_t elementsCount;
     uint32_t locationAfterLast;  // if(elementsCount > 0) then it holds the location after last element
                                  // followed by the signature
@@ -63,7 +83,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 4), "Header is 30B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 1 + 2 + 4), "Header is 31B");
   Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl
