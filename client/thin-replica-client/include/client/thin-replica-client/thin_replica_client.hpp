@@ -302,7 +302,7 @@ class ThinReplicaClient final {
   std::unique_ptr<ThinReplicaClientConfig> config_;
   size_t data_conn_index_;
 
-  bool is_event_group_stream_;
+  bool is_event_group_request_;
   uint64_t latest_verified_block_id_;
   uint64_t latest_verified_event_group_id_;
 
@@ -405,7 +405,7 @@ class ThinReplicaClient final {
         config_(std::move(config)),
         data_conn_index_(0),
         latest_verified_block_id_(0),
-        latest_verified_event_group_id_(std::numeric_limits<uint64_t>::max()),
+        latest_verified_event_group_id_(0),
         subscription_thread_(),
         stop_subscription_thread_(false) {
     metrics_.setAggregator(aggregator);
