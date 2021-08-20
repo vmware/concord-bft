@@ -3371,13 +3371,13 @@ void ReplicaImp::sendReplicasRestartReadyProof(uint8_t reason) {
                                              seq_num_to_stop_at.value(),
                                              static_cast<ReplicasRestartReadyProofMsg::RestartReason>(reason)));
     if (reason == static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Scale)) {
-      ConcordAssertGE(restart_ready_msgs_.size(), (config_.numReplicas - config_.fVal));
+      ConcordAssertGE(restart_ready_msgs_.size(), static_cast<size_t>(config_.numReplicas - config_.fVal));
       for (auto &[_, v] : restart_ready_msgs_) {
         (void)_;  // unused variable hack
         restartProofMsg->addElement<ReplicaRestartReadyMsg>(v);
       }
     } else if (reason == static_cast<uint8_t>(ReplicasRestartReadyProofMsg::RestartReason::Install)) {
-      ConcordAssertGE(install_ready_msgs_.size(), (config_.numReplicas - config_.fVal));
+      ConcordAssertGE(install_ready_msgs_.size(), static_cast<size_t>(config_.numReplicas - config_.fVal));
       for (auto &[_, v] : install_ready_msgs_) {
         (void)_;  // unused variable hack
         restartProofMsg->addElement<InstallReadyMsg>(v);
@@ -3818,9 +3818,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(SigManager::init(config_.replicaId,
                                        config_.replicaPrivateKey,
                                        config_.publicKeysOfReplicas,
-                                       KeyFormat::HexaDecimalStrippedFormat,
+                                       concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                        config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                       KeyFormat::PemFormat,
+                                       concord::util::crypto::KeyFormat::PemFormat,
                                        *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {

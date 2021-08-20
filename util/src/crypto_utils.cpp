@@ -30,14 +30,16 @@ class ECDSAVerifier::Impl {
     verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(std::move(publicKey));
   }
 
-  bool verify(const std::string& data_to_verify, const std::string& signature) {
+  bool verify(const std::string& data_to_verify, const std::string& signature) const {
     return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
                                     data_to_verify.size(),
                                     (const CryptoPP::byte*)&signature[0],
                                     signature.size());
   }
+
+  uint32_t signatureLength() const { return verifier_->SignatureLength(); }
 };
-bool ECDSAVerifier::verify(const std::string& data, const std::string& sig) { return impl_->verify(data, sig); }
+bool ECDSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
 ECDSAVerifier::ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
   ECDSA<ECP, SHA256>::PublicKey publicKey;
   if (fmt == KeyFormat::PemFormat) {
@@ -49,6 +51,7 @@ ECDSAVerifier::ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
   }
   impl_.reset(new Impl(publicKey));
 }
+uint32_t ECDSAVerifier::signatureLength() const { return impl_->signatureLength(); }
 ECDSAVerifier::~ECDSAVerifier() = default;
 
 class ECDSASigner::Impl {
@@ -68,6 +71,7 @@ class ECDSASigner::Impl {
     signature.resize(siglen);
     return signature;
   }
+  uint32_t signatureLength() const { return signer_->SignatureLength(); }
 };
 
 std::string ECDSASigner::sign(const std::string& data) { return impl_->sign(data); }
@@ -82,6 +86,7 @@ ECDSASigner::ECDSASigner(const std::string& str_pub_key, KeyFormat fmt) {
   }
   impl_.reset(new Impl(privateKey));
 }
+uint32_t ECDSASigner::signatureLength() const { return impl_->signatureLength(); }
 ECDSASigner::~ECDSASigner() = default;
 
 class RSAVerifier::Impl {
@@ -89,12 +94,14 @@ class RSAVerifier::Impl {
   Impl(RSA::PublicKey& public_key) {
     verifier_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Verifier>(std::move(public_key));
   }
-  bool verify(const std::string& data_to_verify, const std::string& signature) {
+  bool verify(const std::string& data_to_verify, const std::string& signature) const {
     return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
                                     data_to_verify.size(),
                                     (const CryptoPP::byte*)&signature[0],
                                     signature.size());
   }
+
+  uint32_t signatureLength() const { return verifier_->SignatureLength(); }
 
  private:
   std::unique_ptr<RSASS<PKCS1v15, SHA256>::Verifier> verifier_;
@@ -113,6 +120,7 @@ class RSASigner::Impl {
     signature.resize(siglen);
     return signature;
   }
+  uint32_t signatureLength() const { return signer_->SignatureLength(); }
 
  private:
   std::unique_ptr<RSASS<PKCS1v15, SHA256>::Signer> signer_;
@@ -132,6 +140,7 @@ RSASigner::RSASigner(const std::string& str_priv_key, KeyFormat fmt) {
 }
 
 std::string RSASigner::sign(const std::string& data) { return impl_->sign(data); }
+uint32_t RSASigner::signatureLength() const { return impl_->signatureLength(); }
 RSASigner::~RSASigner() = default;
 
 RSAVerifier::RSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
@@ -145,7 +154,8 @@ RSAVerifier::RSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
   }
   impl_.reset(new RSAVerifier::Impl(public_key));
 }
-bool RSAVerifier::verify(const std::string& data, const std::string& sig) { return impl_->verify(data, sig); }
+bool RSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
+uint32_t RSAVerifier::signatureLength() const { return impl_->signatureLength(); }
 RSAVerifier::~RSAVerifier() = default;
 
 class Crypto::Impl {

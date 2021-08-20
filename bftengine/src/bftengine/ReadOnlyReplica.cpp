@@ -51,9 +51,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
   sigManager_.reset(SigManager::init(config_.replicaId,
                                      config_.replicaPrivateKey,
                                      config_.publicKeysOfReplicas,
-                                     KeyFormat::HexaDecimalStrippedFormat,
+                                     concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                     KeyFormat::PemFormat,
+                                     concord::util::crypto::KeyFormat::PemFormat,
                                      *repsInfo));
 }
 

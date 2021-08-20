@@ -20,6 +20,7 @@
 #include <cassert>
 #include <chrono>
 #include <exception>
+#include <optional>
 #include <sstream>
 #include "Logger.hpp"
 
@@ -31,6 +32,7 @@
 using namespace std::chrono_literals;
 
 using std::map;
+using std::optional;
 using std::string;
 using std::stringstream;
 
@@ -45,6 +47,16 @@ using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 
 namespace concord {
 namespace kvbc {
+
+optional<BlockId> KvbAppFilter::getFirstEventGroupBlockId() {
+  // TODO: Doesn't work with pruning - use "global_event_group_id_oldest" once it is supported
+  const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory,
+                                                concordUtils::toBigEndianStringBuffer(1ul));
+  if (not opt.has_value()) {
+    return std::nullopt;
+  }
+  return {opt->version};
+}
 
 KvbFilteredUpdate::OrderedKVPairs KvbAppFilter::filterKeyValuePairs(const kvbc::categorization::ImmutableInput &kvs) {
   KvbFilteredUpdate::OrderedKVPairs filtered_kvs;
@@ -416,6 +428,11 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start, 
 
 std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents(kvbc::BlockId block_id,
                                                                                  std::string &cid) {
+  if (auto opt = getFirstEventGroupBlockId()) {
+    if (block_id >= opt.value()) {
+      throw NoLegacyEvents();
+    }
+  }
   const auto updates = rostorage_->getBlockUpdates(block_id);
   if (!updates) {
     LOG_ERROR(logger_, "Couldn't get block updates");

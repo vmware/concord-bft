@@ -86,16 +86,24 @@ class InvalidEventGroupRange : public std::exception {
   std::string msg_;
 };
 
+class NoLegacyEvents : public std::exception {
+ public:
+  const char *what() const noexcept override { return msg_.c_str(); }
+
+ private:
+  std::string msg_{"Legacy events requested but event groups found"};
+};
+
 class KvbAppFilter {
  public:
   KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id)
-      : logger_(logging::getLogger("concord.storage.KvbFilter")), rostorage_(rostorage), client_id_(client_id) {}
+      : logger_(logging::getLogger("concord.storage.KvbAppFilter")), rostorage_(rostorage), client_id_(client_id) {}
 
-  // Filter the given update
+  // Filter legacy events
   KvbFilteredUpdate filterUpdate(const KvbUpdate &update);
 
+  // Filter event groups
   KvbFilteredEventGroupUpdate filterEventGroupUpdate(const EgUpdate &update);
-
   KvbFilteredEventGroupUpdate::EventGroup filterEventsInEventGroup(kvbc::EventGroupId event_group_id,
                                                                    const kvbc::categorization::EventGroup &event_group);
 
@@ -138,6 +146,10 @@ class KvbAppFilter {
   KvbFilteredUpdate::OrderedKVPairs filterKeyValuePairs(const kvbc::categorization::ImmutableInput &kvs);
 
   kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
+
+  // Return the block number of the very first global event group.
+  // Optional because during start-up there might be no block/event group written yet.
+  std::optional<BlockId> getFirstEventGroupBlockId();
 
  private:
   logging::Logger logger_;

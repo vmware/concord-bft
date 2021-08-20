@@ -10,7 +10,6 @@
 // file.
 
 #include "SigManager.hpp"
-#include "Crypto.hpp"
 #include "helper.hpp"
 
 #include <cryptopp/dll.h>
@@ -78,43 +77,48 @@ TEST(RsaSignerAndRsaVerifierTest, LoadSignVerifyFromPemfiles) {
   string publicKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PUB_KEY_NAME});
   string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/1/") + PRIV_KEY_NAME});
 
-  string privKey, sig;
+  string privKey, pubkey, sig;
   char data[RANDOM_DATA_SIZE]{0};
 
   generateKeyPairs(1);
   generateRandomData(data, RANDOM_DATA_SIZE);
   readFile(privateKeyFullPath, privKey);
-
-  auto verifier_ = unique_ptr<RSAVerifier>(new RSAVerifier(publicKeyFullPath));
-  auto signer_ = unique_ptr<RSASigner>(new RSASigner(privKey.c_str(), KeyFormat::PemFormat));
+  readFile(publicKeyFullPath, pubkey);
+  auto verifier_ = unique_ptr<concord::util::crypto::RSAVerifier>(
+      new concord::util::crypto::RSAVerifier(pubkey, concord::util::crypto::KeyFormat::PemFormat));
+  auto signer_ = unique_ptr<concord::util::crypto::RSASigner>(
+      new concord::util::crypto::RSASigner(privKey, concord::util::crypto::KeyFormat::PemFormat));
 
   // sign with RSASigner
   size_t expectedSignerSigLen = signer_->signatureLength();
   sig.reserve(expectedSignerSigLen);
   size_t lenRetData;
-  signer_->sign(data, RANDOM_DATA_SIZE, sig.data(), expectedSignerSigLen, lenRetData);
+  std::string str_data(data, RANDOM_DATA_SIZE);
+  sig = signer_->sign(str_data);
+  lenRetData = sig.size();
   ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
   // validate with RSAVerifier
-  size_t expectedVerifierSigLen = verifier_->signatureLength();
-  ASSERT_TRUE(verifier_->verify(data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+  ASSERT_TRUE(verifier_->verify(str_data, sig));
 
   // change data randomally, expect failure
   char data1[RANDOM_DATA_SIZE];
   std::copy(std::begin(data), std::end(data), std::begin(data1));
   corrupt(data1 + 10, 1);
-  ASSERT_FALSE(verifier_->verify(data1, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+  std::string str_data1(data1, RANDOM_DATA_SIZE);
+  ASSERT_FALSE(verifier_->verify(str_data1, sig));
 
   // change signature randomally, expect failure
   corrupt(sig.data(), 1);
-  ASSERT_FALSE(verifier_->verify(data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+  str_data = std::string(data, RANDOM_DATA_SIZE);
+  ASSERT_FALSE(verifier_->verify(str_data, sig));
 }
 
 TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
   constexpr size_t numReplicas{4};
   constexpr PrincipalId myId{0};
   string myPrivKey;
-  unique_ptr<RSASigner> signers[numReplicas];
+  unique_ptr<concord::util::crypto::RSASigner> signers[numReplicas];
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
 
   generateKeyPairs(numReplicas);
@@ -131,15 +135,20 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
       continue;
     }
 
-    signers[pid].reset(new RSASigner(privKey.c_str(), KeyFormat::PemFormat));
+    signers[pid].reset(new concord::util::crypto::RSASigner(privKey, concord::util::crypto::KeyFormat::PemFormat));
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     readFile(pubKeyFullPath, pubKey);
     publicKeysOfReplicas.insert(make_pair(pid, pubKey));
   }
 
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-  unique_ptr<SigManager> sigManager(SigManager::init(
-      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
+  unique_ptr<SigManager> sigManager(SigManager::init(myId,
+                                                     myPrivKey,
+                                                     publicKeysOfReplicas,
+                                                     concord::util::crypto::KeyFormat::PemFormat,
+                                                     nullptr,
+                                                     concord::util::crypto::KeyFormat::PemFormat,
+                                                     replicaInfo));
 
   for (size_t i{0}; i < numReplicas; ++i) {
     const auto& signer = signers[i];
@@ -154,7 +163,9 @@ TEST(SigManagerTest, ReplicasOnlyCheckVerify) {
     expectedSignerSigLen = signer->signatureLength();
     sig.reserve(expectedSignerSigLen);
     generateRandomData(data, RANDOM_DATA_SIZE);
-    signer->sign(data, RANDOM_DATA_SIZE, sig.data(), expectedSignerSigLen, lenRetData);
+    std::string str_data(data, RANDOM_DATA_SIZE);
+    sig = signer->sign(str_data);
+    lenRetData = sig.size();
     ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
     // Validate with SigManager (my replica)
@@ -177,10 +188,10 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   constexpr size_t numReplicas{4};
   constexpr PrincipalId myId{0};
   string myPrivKey, privKey, pubKey, sig;
-  unique_ptr<RSAVerifier> verifier;
+  unique_ptr<concord::util::crypto::RSAVerifier> verifier;
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
   char data[RANDOM_DATA_SIZE]{0};
-  size_t expectedSignerSigLen, expectedVerifierSigLen;
+  size_t expectedSignerSigLen;
 
   generateKeyPairs(numReplicas);
 
@@ -190,7 +201,8 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
 
   // Load single other replica's verifier (mock)
   string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(1) + string("/") + PUB_KEY_NAME});
-  verifier.reset(new RSAVerifier(pubKeyFullPath));
+  readFile(pubKeyFullPath, pubKey);
+  verifier.reset(new concord::util::crypto::RSAVerifier(pubKey, concord::util::crypto::KeyFormat::PemFormat));
 
   // load public key of other replicas, must be done for SigManager ctor
   for (size_t i{2}; i <= numReplicas; ++i) {
@@ -200,27 +212,33 @@ TEST(SigManagerTest, ReplicasOnlyCheckSign) {
   }
 
   ReplicasInfo replicaInfo(createReplicaConfig(), false, false);
-  unique_ptr<SigManager> sigManager(SigManager::init(
-      myId, myPrivKey, publicKeysOfReplicas, KeyFormat::PemFormat, nullptr, KeyFormat::PemFormat, replicaInfo));
+  unique_ptr<SigManager> sigManager(SigManager::init(myId,
+                                                     myPrivKey,
+                                                     publicKeysOfReplicas,
+                                                     concord::util::crypto::KeyFormat::PemFormat,
+                                                     nullptr,
+                                                     concord::util::crypto::KeyFormat::PemFormat,
+                                                     replicaInfo));
   // sign with SigManager
   expectedSignerSigLen = sigManager->getSigLength(myId);
-  sig.reserve(expectedSignerSigLen);
   generateRandomData(data, RANDOM_DATA_SIZE);
+  sig.resize(expectedSignerSigLen);
   sigManager->sign(data, RANDOM_DATA_SIZE, sig.data(), expectedSignerSigLen);
 
   // Validate with RSAVerifier (mock)
-  expectedVerifierSigLen = verifier->signatureLength();
-  ASSERT_TRUE(verifier->verify(data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+  std::string str_data(data, RANDOM_DATA_SIZE);
+  ASSERT_TRUE(verifier->verify(str_data, sig));
 
   // change data randomally, expect failure
   char data1[RANDOM_DATA_SIZE];
   std::copy(std::begin(data), std::end(data), std::begin(data1));
   corrupt(data1 + 10, 1);
-  ASSERT_FALSE(verifier->verify(data1, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+  std::string str_data1(data1, RANDOM_DATA_SIZE);
+  ASSERT_FALSE(verifier->verify(str_data1, sig));
 
   // change signature randomally, expect failure
   corrupt(sig.data(), 1);
-  ASSERT_FALSE(verifier->verify(data, RANDOM_DATA_SIZE, sig.data(), expectedVerifierSigLen));
+  ASSERT_FALSE(verifier->verify(str_data1, sig));
 }
 
 // Check 1 more replica + 1200 clients on 6 additional participants
@@ -235,7 +253,7 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   constexpr PrincipalId myId{0};
   string myPrivKey;
   size_t i, signerIndex{0};
-  unique_ptr<RSASigner>
+  unique_ptr<concord::util::crypto::RSASigner>
       signers[numReplicas + numParticipantNodes];  // only external clients and consensus replicas sign
   set<pair<PrincipalId, const string>> publicKeysOfReplicas;
   set<pair<const string, set<uint16_t>>> publicKeysOfClients;
@@ -254,7 +272,8 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
       myPrivKey = privKey;
       continue;
     }
-    signers[signerIndex].reset(new RSASigner(privKey.c_str(), KeyFormat::PemFormat));
+    signers[signerIndex].reset(
+        new concord::util::crypto::RSASigner(privKey, concord::util::crypto::KeyFormat::PemFormat));
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     readFile(pubKeyFullPath, pubKey);
     publicKeysOfReplicas.insert(make_pair(currPrincipalId, pubKey));
@@ -269,7 +288,8 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
     string privateKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PRIV_KEY_NAME});
     readFile(privateKeyFullPath, privKey);
 
-    signers[signerIndex].reset(new RSASigner(privKey.c_str(), KeyFormat::PemFormat));
+    signers[signerIndex].reset(
+        new concord::util::crypto::RSASigner(privKey, concord::util::crypto::KeyFormat::PemFormat));
 
     string pubKeyFullPath({string(KEYS_BASE_PATH) + string("/") + to_string(i) + string("/") + PUB_KEY_NAME});
     set<PrincipalId> principalIds;
@@ -293,9 +313,9 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
   unique_ptr<SigManager> sigManager(SigManager::init(myId,
                                                      myPrivKey,
                                                      publicKeysOfReplicas,
-                                                     KeyFormat::PemFormat,
+                                                     concord::util::crypto::KeyFormat::PemFormat,
                                                      &publicKeysOfClients,
-                                                     KeyFormat::PemFormat,
+                                                     concord::util::crypto::KeyFormat::PemFormat,
                                                      replicaInfo));
 
   // principalIdToSignerIndex carries all principal ids for replica, read only replicas and bft-clients.
@@ -325,7 +345,9 @@ TEST(SigManagerTest, ReplicasAndClientsCheckVerify) {
     expectedSignerSigLen = signers[signerIndex]->signatureLength();
     sig.reserve(expectedSignerSigLen);
     generateRandomData(data, RANDOM_DATA_SIZE);
-    signers[signerIndex]->sign(data, RANDOM_DATA_SIZE, sig.data(), expectedSignerSigLen, lenRetData);
+    std::string str_date(data, RANDOM_DATA_SIZE);
+    sig = signers[signerIndex]->sign(str_date);
+    lenRetData = sig.size();
     ASSERT_EQ(lenRetData, expectedSignerSigLen);
 
     // Validate with SigManager (my replica)

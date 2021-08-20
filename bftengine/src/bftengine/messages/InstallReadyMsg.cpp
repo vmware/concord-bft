@@ -13,7 +13,6 @@
 #include "OpenTracing.hpp"
 #include "InstallReadyMsg.hpp"
 #include "SysConsts.hpp"
-#include "Crypto.hpp"
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
 

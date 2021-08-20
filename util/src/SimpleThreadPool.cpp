@@ -16,7 +16,7 @@
 #include <mutex>
 
 logging::Logger SP = logging::getLogger("thread-pool");
-namespace util {
+namespace concord::util {
 
 void SimpleThreadPool::start(uint8_t num_of_threads) {
   stopped_ = false;
@@ -95,4 +95,4 @@ void SimpleThreadPool::execute(Job* j) {
   }
 }
 
-}  // namespace util
+}  // namespace concord::util

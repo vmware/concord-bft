@@ -116,7 +116,7 @@ void testMessageBaseMethods(const MessageT &tested, MsgType type, NodeIdType sen
 
 bftEngine::impl::SigManager *createSigManager(size_t myId,
                                               std::string &myPrivateKey,
-                                              KeyFormat replicasKeysFormat,
+                                              concord::util::crypto::KeyFormat replicasKeysFormat,
                                               std::set<std::pair<uint16_t, const std::string>> &publicKeysOfReplicas,
                                               ReplicasInfo &replicasInfo);
 

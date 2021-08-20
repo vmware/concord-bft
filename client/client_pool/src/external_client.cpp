@@ -35,7 +35,7 @@ bftEngine::OperationResult ConcordClient::clientRequestError_ = SUCCESS;
 ConcordClient::ConcordClient(int client_id,
                              ConcordClientPoolConfig& struct_config,
                              const SimpleClientParams& client_params)
-    : logger_(logging::getLogger("com.vmware.external_client_pool")) {
+    : logger_(logging::getLogger("concord.client.client_pool.external_client")) {
   client_id_ = client_id;
   CreateClient(struct_config, client_params);
 }
@@ -126,7 +126,7 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
       std::to_string(client_id_) + "-" + std::to_string(seqGen_->generateUniqueSequenceNumberForRequest());
   OperationResult ret = OperationResult::SUCCESS;
   std::deque<bft::client::WriteRequest> request_queue;
-  std::map<uint64_t, string> seq_num_to_cid;
+  std::map<uint64_t, std::string> seq_num_to_cid;
   for (auto req : pending_requests_) {
     bft::client::WriteConfig single_config;
     single_config.request.timeout = std::chrono::milliseconds(req.timeoutMilli);

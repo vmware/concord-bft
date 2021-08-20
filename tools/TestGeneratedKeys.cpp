@@ -16,10 +16,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "bftengine/Crypto.hpp"
 #include "threshsign/ThresholdSignaturesTypes.h"
 #include <threshsign/ThresholdSignaturesSchemes.h>
 #include "KeyfileIOUtils.hpp"
+#include "crypto_utils.hpp"
 
 // How often to output status when testing cryptosystems, measured as an
 // interval measured in tested signaturs.
@@ -128,20 +128,22 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
   // limiting their scope to those statements; declaring them by value is not
   // possible in this case becuause they lack paramter-less default
   // constructors.
-  std::unique_ptr<bftEngine::impl::RSASigner> signer;
-  std::unique_ptr<bftEngine::impl::RSAVerifier> verifier;
+  std::unique_ptr<concord::util::crypto::RSASigner> signer;
+  std::unique_ptr<concord::util::crypto::RSAVerifier> verifier;
 
   std::string invalidPrivateKey = "FAILURE: Invalid RSA private key for replica " + std::to_string(replicaID) + ".\n";
   std::string invalidPublicKey = "FAILURE: Invalid RSA public key for replica " + std::to_string(replicaID) + ".\n";
 
   try {
-    signer.reset(new bftEngine::impl::RSASigner(privateKey.c_str()));
+    signer.reset(
+        new concord::util::crypto::RSASigner(privateKey, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat));
   } catch (std::exception& e) {
     std::cout << invalidPrivateKey;
     return false;
   }
   try {
-    verifier.reset(new bftEngine::impl::RSAVerifier(publicKey.c_str()));
+    verifier.reset(
+        new concord::util::crypto::RSAVerifier(publicKey, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat));
   } catch (std::exception& e) {
     std::cout << invalidPublicKey;
     return false;
@@ -150,46 +152,32 @@ static bool testRSAKeyPair(const std::string& privateKey, const std::string& pub
   for (auto iter = std::begin(kHashesToTest); iter != std::end(kHashesToTest); ++iter) {
     const std::string& hash = *iter;
 
-    size_t signatureLength;
+    std::string sig;
     try {
-      signatureLength = signer->signatureLength();
-    } catch (std::exception& e) {
-      std::cout << invalidPrivateKey;
-      return false;
-    }
-    size_t returnedSignatureLength;
-    char* signatureBuf = new char[signatureLength];
-
-    try {
-      if (!signer->sign(hash.c_str(), hash.length(), signatureBuf, signatureLength, returnedSignatureLength)) {
+      sig = signer->sign(hash);
+      if (sig.empty()) {
         std::cout << "FAILURE: Failed to sign data with"
                      " replica "
                   << replicaID << "'s RSA private key.\n";
-        delete[] signatureBuf;
         return false;
       }
     } catch (std::exception& e) {
       std::cout << invalidPrivateKey;
-      delete[] signatureBuf;
       return false;
     }
 
     try {
-      if (!verifier->verify(hash.c_str(), hash.length(), signatureBuf, returnedSignatureLength)) {
+      if (!verifier->verify(hash, sig)) {
         std::cout << "FAILURE: A signature with replica " << replicaID
                   << "'s RSA private key could not be verified with"
                      " replica "
                   << replicaID << "'s RSA public key.\n";
-        delete[] signatureBuf;
         return false;
       }
     } catch (std::exception& e) {
       std::cout << invalidPublicKey;
-      delete[] signatureBuf;
       return false;
     }
-
-    delete[] signatureBuf;
   }
 
   return true;

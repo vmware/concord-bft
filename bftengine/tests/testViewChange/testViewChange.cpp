@@ -87,7 +87,7 @@ void setUpConfiguration_4() {
 
   sigManager_.reset(createSigManager(0,
                                      replicaConfig[0].replicaPrivateKey,
-                                     KeyFormat::HexaDecimalStrippedFormat,
+                                     concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                      replicaConfig[0].publicKeysOfReplicas,
                                      *pRepInfo));
 }

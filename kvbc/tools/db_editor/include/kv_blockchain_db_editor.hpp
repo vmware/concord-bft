@@ -19,13 +19,18 @@
 #include "execution_data.cmf.hpp"
 #include "keys_and_signatures.cmf.hpp"
 #include "db_interfaces.h"
-#include "Crypto.hpp"
 #include "kvbc_key_types.h"
 #include "categorization/db_categories.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "bcstatetransfer/DBDataStore.hpp"
 #include "bftengine/PersistentStorageImp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
+#include "crypto_utils.hpp"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <cryptopp/dll.h>
+#pragma GCC diagnostic pop
 
 namespace concord::kvbc::tools::db_editor {
 
@@ -339,12 +344,12 @@ struct VerifyBlockRequests {
       out << "\t\t\"signature_digest\": \"" << hex_digest << "\",\n";
       out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
       std::string verification_result;
-      auto verifier = std::make_unique<bftEngine::impl::RSAVerifier>(
-          client_keys.ids_to_keys[req.clientId].key.c_str(), (KeyFormat)client_keys.ids_to_keys[req.clientId].format);
+      auto verifier = std::make_unique<concord::util::crypto::RSAVerifier>(
+          client_keys.ids_to_keys[req.clientId].key,
+          (concord::util::crypto::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
 
       if (req.requestPersistencyType == concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN) {
-        auto result =
-            verifier->verify(req.request.c_str(), req.request.size(), req.signature.c_str(), req.signature.size());
+        auto result = verifier->verify(req.request, req.signature);
         verification_result = result ? "ok" : "failed";
       } else {
         verification_result = "Raw request is not available for validation";

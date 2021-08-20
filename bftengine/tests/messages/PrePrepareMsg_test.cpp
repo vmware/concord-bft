@@ -17,7 +17,6 @@
 #include <memory>
 #include "OpenTracing.hpp"
 #include "gtest/gtest.h"
-#include "Crypto.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "bftengine/ClientMsgs.hpp"
@@ -97,7 +96,7 @@ class PrePrepareMsgTestFixture : public ::testing::Test {
         replicaInfo(config, false, false),
         sigManager(createSigManager(config.replicaId,
                                     config.replicaPrivateKey,
-                                    KeyFormat::HexaDecimalStrippedFormat,
+                                    concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                     config.publicKeysOfReplicas,
                                     replicaInfo)) {}
 

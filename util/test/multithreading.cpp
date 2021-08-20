@@ -19,7 +19,7 @@
 #include <thread>
 #include <chrono>
 #include <array>
-
+using namespace concord;
 namespace test {
 namespace mt {
 
@@ -28,7 +28,7 @@ namespace mt {
  */
 class SimpleThreadPoolFixture : public testing::Test {
  protected:
-  class TestJob : public util::SimpleThreadPool::Job {
+  class TestJob : public concord::util::SimpleThreadPool::Job {
    public:
     TestJob(SimpleThreadPoolFixture* f, uint32_t sleep_ms = 10) : fixture_(f), sleep_ms_(sleep_ms) {}
     void execute() {
@@ -58,7 +58,7 @@ class SimpleThreadPoolFixture : public testing::Test {
     ASSERT_EQ(pool_.getNumOfJobs(), 0);
   }
 
-  util::SimpleThreadPool pool_;
+  concord::util::SimpleThreadPool pool_;
   std::atomic_int result;
 };
 

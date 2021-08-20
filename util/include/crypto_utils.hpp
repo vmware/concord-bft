@@ -19,20 +19,23 @@ namespace concord::util::crypto {
 enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
 class IVerifier {
  public:
-  virtual bool verify(const std::string& data, const std::string& sig) = 0;
+  virtual bool verify(const std::string& data, const std::string& sig) const = 0;
+  virtual uint32_t signatureLength() const = 0;
   virtual ~IVerifier() = default;
 };
 
 class ISigner {
  public:
   virtual std::string sign(const std::string& data) = 0;
+  virtual uint32_t signatureLength() const = 0;
   virtual ~ISigner() = default;
 };
 
 class ECDSAVerifier : public IVerifier {
  public:
   ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt);
-  bool verify(const std::string& data, const std::string& sig) override;
+  bool verify(const std::string& data, const std::string& sig) const override;
+  uint32_t signatureLength() const override;
   ~ECDSAVerifier();
 
  private:
@@ -44,6 +47,7 @@ class ECDSASigner : public ISigner {
  public:
   ECDSASigner(const std::string& str_pub_key, KeyFormat fmt);
   std::string sign(const std::string& data) override;
+  uint32_t signatureLength() const override;
   ~ECDSASigner();
 
  private:
@@ -53,7 +57,8 @@ class ECDSASigner : public ISigner {
 class RSAVerifier : public IVerifier {
  public:
   RSAVerifier(const std::string& str_pub_key, KeyFormat fmt);
-  bool verify(const std::string& data, const std::string& sig) override;
+  bool verify(const std::string& data, const std::string& sig) const override;
+  uint32_t signatureLength() const override;
   ~RSAVerifier();
 
  private:
@@ -65,6 +70,7 @@ class RSASigner : public ISigner {
  public:
   RSASigner(const std::string& str_priv_key, KeyFormat fmt);
   std::string sign(const std::string& data) override;
+  uint32_t signatureLength() const override;
   ~RSASigner();
 
  private:

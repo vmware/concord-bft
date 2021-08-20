@@ -21,7 +21,7 @@ namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::vector<uint8_t>& data,
                                                                      const uint64_t bft_seq_num,
-                                                                     string key,
+                                                                     std::string key,
                                                                      bool include_wedge) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));

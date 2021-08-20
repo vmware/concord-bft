@@ -5,7 +5,6 @@ add_library(bftclient_new STATIC
   src/msg_receiver.cpp
   src/matcher.cpp
   src/quorums.cpp
-  ${bftengine_SOURCE_DIR}/src/bftengine/Crypto.cpp
 )
 
 target_include_directories(bftclient_new PUBLIC include)
@@ -19,6 +18,7 @@ target_link_libraries(bftclient_new PUBLIC
     bftheaders
     diagnostics
     secretsmanager
+    util
 )
 
 if (BUILD_TESTING)

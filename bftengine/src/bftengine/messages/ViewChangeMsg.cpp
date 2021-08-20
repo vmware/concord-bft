@@ -14,7 +14,6 @@
 
 #include "assertUtils.hpp"
 #include "ViewChangeMsg.hpp"
-#include "Crypto.hpp"
 #include "ViewsManager.hpp"
 #include "Logger.hpp"
 #include "SigManager.hpp"

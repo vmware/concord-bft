@@ -11,7 +11,6 @@
 
 #include "CheckpointMsg.hpp"
 #include "assertUtils.hpp"
-#include "Crypto.hpp"
 #include "SigManager.hpp"
 #include "EpochManager.hpp"
 
