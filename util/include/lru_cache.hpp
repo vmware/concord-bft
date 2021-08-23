@@ -26,21 +26,10 @@ class LruCache {
  public:
   LruCache(size_t capacity) : capacity_(capacity) { map_.reserve(capacity); }
 
-  void put(const Key& key, const Value& value) {
-    stats_.puts++;
-    auto iter = map_.find(key);
-    if (iter != map_.end()) {
-      moveToFront(iter->second.second);
-      iter->second.first = value;
-    } else {
-      if (keys_.size() == capacity_) {
-        map_.erase(keys_.back());
-        keys_.pop_back();
-      }
-      keys_.push_front(key);
-      map_.insert({key, {value, keys_.begin()}});
-    }
-  }
+  void put(const Key& k, const Value& v) { putImp(k, v); }
+  void put(const Key& k, Value&& v) { putImp(k, std::move(v)); }
+  void put(Key&& k, Value&& v) { putImp(std::move(k), std::move(v)); }
+  void put(Key&& k, const Value& v) { putImp(std::move(k), v); }
 
   std::optional<Value> get(const Key& key) {
     auto iter = map_.find(key);
@@ -71,6 +60,23 @@ class LruCache {
 
  private:
   void moveToFront(typename std::list<Key>::iterator it) { keys_.splice(keys_.begin(), keys_, it); }
+
+  template <typename K, typename V>
+  void putImp(K&& key, V&& value) {
+    stats_.puts++;
+    auto iter = map_.find(key);
+    if (iter != map_.end()) {
+      moveToFront(iter->second.second);
+      iter->second.first = std::forward<V>(value);
+    } else {
+      if (keys_.size() == capacity_) {
+        map_.erase(keys_.back());
+        keys_.pop_back();
+      }
+      keys_.push_front(key);
+      map_.insert({std::forward<K>(key), {std::forward<V>(value), keys_.begin()}});
+    }
+  }
 
   const size_t capacity_;
 

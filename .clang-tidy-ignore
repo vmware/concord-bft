@@ -3,3 +3,5 @@
 
 # Ignore all protobuf/gRPC generated source files
 *.pb.cc
+# ignore test as it tests moved obkects
+*lru_cache_test.cpp
