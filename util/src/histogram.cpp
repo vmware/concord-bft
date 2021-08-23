@@ -54,7 +54,7 @@
 // The program expects no arguments. See the `scripts/` directory for
 // information about how to run the client.
 
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include "histogram.hpp"
 

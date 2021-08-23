@@ -20,7 +20,7 @@ namespace bftEngine {
 namespace impl {
 class ReplicasRestartReadyProofMsg : public MessageBase {
  public:
-  enum class RestartReason : uint8_t { Scale, Install };
+  using RestartReason = ReplicaRestartReadyMsg::Reason;
   ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                SeqNum seqNum,
                                RestartReason reason,
@@ -34,20 +34,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
                                               const concordUtils::SpanContext& spanContext = {});
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
-  /*
-    template <typename T>
-    void addElement(std::unique_ptr<T>& msgItem) {
-      if (b()->locationAfterLast == 0) {  // if this is the first element
-        ConcordAssert(b()->elementsCount == 0);
-        b()->locationAfterLast = sizeof(Header) + spanContextSize();
-      }
-      uint32_t requiredSpace = b()->locationAfterLast + msgItem->size();
-      ConcordAssertLE((size_t)(requiredSpace + SigManager::instance()->getMySigLength()),
-    (size_t)internalStorageSize()); std::memcpy(body() + b()->locationAfterLast, msgItem->body(), msgItem->size());
-      b()->elementsCount += 1;
-      b()->locationAfterLast = requiredSpace;
-    }
-    */
+
   void addElement(std::unique_ptr<ReplicaRestartReadyMsg>&);
 
   SeqNum seqNum() const { return b()->seqNum; }

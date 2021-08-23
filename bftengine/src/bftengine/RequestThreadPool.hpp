@@ -25,8 +25,7 @@ namespace impl {
 class RequestThreadPool final {
  public:
   static auto& getThreadPool() {
-    static concord::util::ThreadPool threadBag{
-        ReplicaConfig::instance().get("concord.bft.bftengine.threadbagConcurrency", 16u)};
+    static concord::util::ThreadPool threadBag{ReplicaConfig::instance().threadbagConcurrency};
     return threadBag;
   }
 

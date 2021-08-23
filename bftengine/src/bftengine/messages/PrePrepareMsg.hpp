@@ -93,6 +93,7 @@ class PrePrepareMsg : public MessageBase {
   ViewNum viewNumber() const { return b()->viewNum; }
 
   SeqNum seqNumber() const { return b()->seqNum; }
+  void setSeqNumber(SeqNum s) { b()->seqNum = s; }
 
   std::string getCid() const;
 

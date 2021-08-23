@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <utility>
+
 #include "Metrics.hpp"
 #include "ReplicaConfig.hpp"
 #include "InternalReplicaApi.hpp"
@@ -32,13 +34,13 @@ class RequestsBatchingLogic {
   uint32_t getMaxNumberOfPendingRequestsInRecentHistory() const { return maxNumberOfPendingRequestsInRecentHistory_; }
   uint32_t getBatchingFactor() const { return batchingFactor_; }
 
-  PrePrepareMsg *batchRequests();
+  std::pair<PrePrepareMsg *, bool> batchRequests();
 
  private:
   void onBatchFlushTimer(concordUtil::Timers::Handle timer);
-  PrePrepareMsg *batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
-                                                 uint64_t requestsInQueue,
-                                                 SeqNum lastExecutedSeqNum);
+  std::pair<PrePrepareMsg *, bool> batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
+                                                                   uint64_t requestsInQueue,
+                                                                   SeqNum lastExecutedSeqNum);
 
   void adjustPreprepareSize();
 

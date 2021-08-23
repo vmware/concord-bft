@@ -5,23 +5,21 @@ ExternalProject_Add(openssl
                     GIT_REPOSITORY "https://github.com/openssl/openssl.git"
                     GIT_TAG "OpenSSL_1_1_1-stable"
                     GIT_PROGRESS TRUE
-                    CONFIGURE_COMMAND ./config --prefix=${THIRDPARTY_INSTALL_DIR} 
-                                               --openssldir=${THIRDPARTY_INSTALL_DIR} 
+                    CONFIGURE_COMMAND ./config --prefix=${THIRDPARTY_INSTALL_DIR}
+                                               --openssldir=${THIRDPARTY_INSTALL_DIR}
                                                shared zlib
                     BUILD_COMMAND   ${CMAKE_MAKE_PROGRAM} -j${NPROC}
                     BUILD_IN_SOURCE 1
-                    INSTALL_COMMAND ""
+                    INSTALL_COMMAND ${CMAKE_MAKE_PROGRAM} install_sw
                     LOG_DOWNLOAD 1
                     LOG_BUILD 1
 )
 
-ExternalProject_Get_Property(openssl BINARY_DIR)
-
 # Reslut variables as set by FindOpenSSL.cmake
-set(OPENSSL_CRYPTO_LIBRARY  "${BINARY_DIR}/libcrypto.so")
-set(OPENSSL_SSL_LIBRARY     "${BINARY_DIR}/libssl.so")
+set(OPENSSL_CRYPTO_LIBRARY  ${THIRDPARTY_INSTALL_DIR}/lib/libcrypto${CMAKE_SHARED_LIBRARY_SUFFIX})
+set(OPENSSL_SSL_LIBRARY     ${THIRDPARTY_INSTALL_DIR}/lib/libssl${CMAKE_SHARED_LIBRARY_SUFFIX})
 set(OPENSSL_LIBRARIES       "${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY}")
-set(OPENSSL_INCLUDE_DIR     "${BINARY_DIR}")
+set(OPENSSL_INCLUDE_DIR     ${THIRDPARTY_INSTALL_DIR})
 
 set(OPENSSL_CRYPTO_LIBRARY  ${OPENSSL_CRYPTO_LIBRARY}   PARENT_SCOPE)
 set(OPENSSL_SSL_LIBRARY     ${OPENSSL_SSL_LIBRARY}      PARENT_SCOPE)

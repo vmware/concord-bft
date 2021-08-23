@@ -8,6 +8,7 @@
 #include <ostream>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 namespace concordUtils {
 
