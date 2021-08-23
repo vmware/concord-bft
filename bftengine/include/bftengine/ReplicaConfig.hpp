@@ -179,6 +179,13 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(preExecutionResultAuthEnabled, bool, false, "if PreExecution result authentication is enabled");
 
+  CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, false, "Enabling asynchronous preprepare finishing");
+
+  CONFIG_PARAM(threadbagConcurrency,
+               uint32_t,
+               64u,
+               "Number of threads given to thread pool that is created for any request processing");
+
   // Not predefined configuration parameters
   // Example of usage:
   // repclicaConfig.set(someTimeout, 6000);
@@ -212,6 +219,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, numOfExternalClients);
     serialize(outStream, statusReportTimerMillisec);
     serialize(outStream, concurrencyLevel);
+    serialize(outStream, numWorkerThreadsForBlockIO);
     serialize(outStream, viewChangeProtocolEnabled);
     serialize(outStream, viewChangeTimerMillisec);
     serialize(outStream, autoPrimaryRotationEnabled);
@@ -265,7 +273,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
     serialize(outStream, timeServiceEpsilonMillis);
-    serialize(outStream, numWorkerThreadsForBlockIO);
+    serialize(outStream, ticksGeneratorPollPeriod);
+    serialize(outStream, preExecutionResultAuthEnabled);
+    serialize(outStream, prePrepareFinalizeAsyncEnabled);
+    serialize(outStream, threadbagConcurrency);
 
     serialize(outStream, config_params_);
   }
@@ -280,6 +291,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, numOfExternalClients);
     deserialize(inStream, statusReportTimerMillisec);
     deserialize(inStream, concurrencyLevel);
+    deserialize(inStream, numWorkerThreadsForBlockIO);
     deserialize(inStream, viewChangeProtocolEnabled);
     deserialize(inStream, viewChangeTimerMillisec);
     deserialize(inStream, autoPrimaryRotationEnabled);
@@ -333,7 +345,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);
     deserialize(inStream, timeServiceEpsilonMillis);
-    deserialize(inStream, numWorkerThreadsForBlockIO);
+    deserialize(inStream, ticksGeneratorPollPeriod);
+    deserialize(inStream, preExecutionResultAuthEnabled);
+    deserialize(inStream, prePrepareFinalizeAsyncEnabled);
+    deserialize(inStream, threadbagConcurrency);
 
     deserialize(inStream, config_params_);
   }
@@ -363,14 +378,15 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.numOfExternalClients,
               rc.statusReportTimerMillisec,
               rc.concurrencyLevel,
+              rc.numWorkerThreadsForBlockIO,
               rc.viewChangeProtocolEnabled,
               rc.viewChangeTimerMillisec,
               rc.autoPrimaryRotationEnabled,
               rc.autoPrimaryRotationTimerMillisec,
-              rc.preExecutionFeatureEnabled,
-              rc.preExecReqStatusCheckTimerMillisec);
+              rc.preExecutionFeatureEnabled);
   os << ",";
-  os << KVLOG(rc.preExecConcurrencyLevel,
+  os << KVLOG(rc.preExecReqStatusCheckTimerMillisec,
+              rc.preExecConcurrencyLevel,
               rc.batchingPolicy,
               rc.batchFlushPeriod,
               rc.maxNumOfRequestsInBatch,
@@ -384,10 +400,10 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.sizeOfReservedPage,
               rc.debugStatisticsEnabled,
               rc.metricsDumpIntervalSeconds,
-              rc.keyExchangeOnStart,
-              rc.blockAccumulation);
+              rc.keyExchangeOnStart);
   os << ",";
-  os << KVLOG(rc.clientBatchingEnabled,
+  os << KVLOG(rc.blockAccumulation,
+              rc.clientBatchingEnabled,
               rc.clientBatchingMaxMsgsNbr,
               rc.keyViewFilePath,
               rc.clientTransactionSigningEnabled,
@@ -401,8 +417,12 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.timeServiceSoftLimitMillis.count(),
               rc.timeServiceHardLimitMillis.count(),
               rc.timeServiceEpsilonMillis.count(),
-              rc.numWorkerThreadsForBlockIO,
               rc.batchedPreProcessEnabled);
+  os << ",";
+  os << KVLOG(rc.ticksGeneratorPollPeriod.count(),
+              rc.preExecutionResultAuthEnabled,
+              rc.prePrepareFinalizeAsyncEnabled,
+              rc.threadbagConcurrency);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

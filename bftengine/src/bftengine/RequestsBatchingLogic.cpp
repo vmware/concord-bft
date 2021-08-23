@@ -58,9 +58,9 @@ void RequestsBatchingLogic::onBatchFlushTimer(Timers::Handle) {
   }
 }
 
-PrePrepareMsg *RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
-                                                                      uint64_t requestsInQueue,
-                                                                      SeqNum lastExecutedSeqNum) {
+std::pair<PrePrepareMsg *, bool> RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum primaryLastUsedSeqNum,
+                                                                                        uint64_t requestsInQueue,
+                                                                                        SeqNum lastExecutedSeqNum) {
   if (requestsInQueue > maxNumberOfPendingRequestsInRecentHistory_)
     maxNumberOfPendingRequestsInRecentHistory_ = requestsInQueue;
 
@@ -75,7 +75,7 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequestsSelfAdjustedPolicy(SeqNum pri
   if (requestsInQueue < minBatchSize) {
     LOG_INFO(GL, "Not enough client requests in the queue to fill the batch" << KVLOG(minBatchSize, requestsInQueue));
     metric_not_enough_client_requests_event_++;
-    return nullptr;
+    return std::make_pair(nullptr, false);
   }
 
   // Update batching factor
@@ -112,30 +112,30 @@ void RequestsBatchingLogic::adjustPreprepareSize() {
   LOG_INFO(GL, "increasing maxBatchSize to:" << maxNumOfRequestsInBatch_);
 }
 
-PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
+std::pair<PrePrepareMsg *, bool> RequestsBatchingLogic::batchRequests() {
   const auto requestsInQueue = replica_.getRequestsInQueue();
-  if (requestsInQueue == 0) return nullptr;
+  if (requestsInQueue == 0) return std::make_pair(nullptr, false);
 
-  PrePrepareMsg *prePrepareMsg = nullptr;
+  std::pair<PrePrepareMsg *, bool> prePrepareMsgWithResult{nullptr, false};
   switch (batchingPolicy_) {
     case BATCH_SELF_ADJUSTED:
-      prePrepareMsg = batchRequestsSelfAdjustedPolicy(
+      prePrepareMsgWithResult = batchRequestsSelfAdjustedPolicy(
           replica_.getPrimaryLastUsedSeqNum(), requestsInQueue, replica_.getLastExecutedSeqNum());
       break;
     case BATCH_BY_REQ_NUM: {
       lock_guard<mutex> lock(batchProcessingLock_);
-      prePrepareMsg = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
-      if (prePrepareMsg) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
+      if (prePrepareMsgWithResult.second) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     } break;
     case BATCH_BY_REQ_SIZE: {
       lock_guard<mutex> lock(batchProcessingLock_);
-      prePrepareMsg = replica_.buildPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_);
-      if (prePrepareMsg) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
+      prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByOverallSize(maxBatchSizeInBytes_);
+      if (prePrepareMsgWithResult.second) timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
     } break;
     case BATCH_ADAPTIVE: {
       lock_guard<mutex> lock(batchProcessingLock_);
-      prePrepareMsg = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
-      if (prePrepareMsg) {
+      prePrepareMsgWithResult = replica_.buildPrePrepareMsgBatchByRequestsNum(maxNumOfRequestsInBatch_);
+      if (prePrepareMsgWithResult.second) {
         timers_.reset(batchFlushTimer_, milliseconds(batchFlushPeriodMs_));
         auto period =
             std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_timer_)
@@ -145,7 +145,7 @@ PrePrepareMsg *RequestsBatchingLogic::batchRequests() {
       }
     } break;
   }
-  return prePrepareMsg;
+  return prePrepareMsgWithResult;
 }
 
 }  // namespace bftEngine::batchingLogic
