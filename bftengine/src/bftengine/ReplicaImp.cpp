@@ -4370,9 +4370,16 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());
-    internalBFTClient_->sendRequest(
-        RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
+    auto sn = std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
+                                    RECONFIG_FLAG,
+                                    sn,
+                                    strMsg.size(),
+                                    strMsg.c_str(),
+                                    60000,
+                                    "wedge-noop-command-" + std::to_string(seqNumber));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
+    onMessage(crm);
     tryToSendPrePrepareMsg(false);
   }
 

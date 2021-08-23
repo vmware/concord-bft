@@ -144,7 +144,6 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
     if (csrep.block_id == 0) continue;
     rep.states.push_back(csrep);
   }
-  LOG_INFO(GL, "b(2)");
   concord::messages::serialize(rres.additional_data, rep);
   return true;
 }
