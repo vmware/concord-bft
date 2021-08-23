@@ -42,7 +42,6 @@ class MsgCode {
     ReplicaAsksToLeaveView,
     ReplicaRestartReady,
     ReplicasRestartReadyProof,
-    InstallReady,
 
     ClientPreProcessRequest = 500,
     PreProcessRequest,
@@ -125,9 +124,6 @@ inline std::ostream& operator<<(std::ostream& os, const MsgCode::Type& c) {
       break;
     case MsgCode::ReplicasRestartReadyProof:
       os << "ReplicasRestartReadyProof";
-      break;
-    case MsgCode::InstallReady:
-      os << "InstallReady";
       break;
     case MsgCode::ClientPreProcessRequest:
       os << "ClientPreProcessRequest";

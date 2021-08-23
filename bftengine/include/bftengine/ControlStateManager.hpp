@@ -37,15 +37,13 @@ class ControlStateManager {
   bool getRestartBftFlag() const { return restartBftEnabled_; }
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
   void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadataCbRegistry_.add(fn); }
-  void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
-  void sendRestartReadyToAllReplica() { sendRestartReady_(); }
-  void setInstallReadyFunc(std::function<void(const std::string&)> fn) { sendInstallReady_ = fn; }
-  void sendInstallReadyToAllReplica(const std::string& version) { sendInstallReady_(version); }
+  void setRestartReadyFunc(std::function<void(uint8_t, const std::string&)> fn) { sendRestartReady_ = fn; }
+  void sendRestartReadyToAllReplica(uint8_t reason, const std::string& extraData) {
+    sendRestartReady_(reason, extraData);
+  }
   void addOnRestartProofCallBack(std::function<void()> cb,
+                                 uint8_t reason,
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
-  void addOnInstallProofCallBack(std::function<void()> cb,
-                                 RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
-
   void onRestartProof(const SeqNum&, uint8_t reason);
   void checkForReplicaReconfigurationAction();
   void restart();
@@ -57,13 +55,11 @@ class ControlStateManager {
 
   uint64_t wedgePoint{0};
   std::atomic_bool restartBftEnabled_ = false;
-  std::optional<SeqNum> hasRestartProofAtSeqNum_ = std::nullopt;
-  std::optional<SeqNum> hasInstallProofAtSeqNum_ = std::nullopt;
+  std::unordered_map<uint8_t, SeqNum> hasRestartProofAtSeqNum_;  // reason for restart is the key
   std::atomic_bool onPruningProcess_ = false;
   concord::util::CallbackRegistry<bool> removeMetadataCbRegistry_;
-  std::function<void()> sendRestartReady_;
-  std::function<void(const std::string&)> sendInstallReady_;
-  std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistry_;
-  std::map<uint32_t, concord::util::CallbackRegistry<>> onInstallProofCbRegistry_;
+  std::function<void(uint8_t, const std::string&)> sendRestartReady_;
+  // reason for restart is the key
+  std::unordered_map<uint8_t, std::map<uint32_t, concord::util::CallbackRegistry<>>> onRestartProofCbRegistry_;
 };
 }  // namespace bftEngine

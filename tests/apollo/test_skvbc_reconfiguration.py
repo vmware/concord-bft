@@ -1336,10 +1336,23 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         initial_prim = 0
         crashed_replica = bft_network.random_set_of_replicas(1, {initial_prim})
         bft_network.stop_replicas(crashed_replica)
+        for i in range(151):
+            await skvbc.send_write_kv_set()
         version = 'version2'
         await op.install_cmd(version, bft=True)
         await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=False)
-        await self.verify_restart_ready_proof_msg(bft_network, bft=True)      
+        await self.verify_restart_ready_proof_msg(bft_network, bft=True)  
+        bft_network.start_replicas(crashed_replica)
+        await bft_network.wait_for_state_transfer_to_start()
+        for r in crashed_replica:
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
+        await self.validate_stop_on_wedge_point(bft_network=bft_network, skvbc=skvbc, fullWedge=True)
+        await self.try_to_unwedge(bft_network=bft_network, bft=False, restart=False)
+        for i in range(100):
+            await skvbc.send_write_kv_set()
+    
 
     async def try_to_unwedge(self, bft_network, bft, restart, quorum=None):
         with trio.fail_after(seconds=60):

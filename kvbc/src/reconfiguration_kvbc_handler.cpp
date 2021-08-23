@@ -271,7 +271,7 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& com
                         std::string(serialized_command.begin(), serialized_command.end()));
   auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
-  auto blockId = persistReconfigurationBlock(ver_updates, bft_seq_num, false);
+  auto blockId = persistReconfigurationBlock(ver_updates, bft_seq_num, true);
   LOG_INFO(getLogger(), "InstallCommand command block is " << blockId);
   return true;
 }

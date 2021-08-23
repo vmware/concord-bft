@@ -138,13 +138,3 @@ target_include_directories(ReplicaRestartReadyMsg_test
 target_link_libraries(ReplicaRestartReadyMsg_test GTest::Main)
 target_link_libraries(ReplicaRestartReadyMsg_test corebft )
 target_compile_options(ReplicaRestartReadyMsg_test PUBLIC "-Wno-sign-compare")
-
-add_executable(InstallReadyMsg_test InstallReadyMsg_test.cpp helper.cpp)
-add_test(InstallReadyMsg_test InstallReadyMsg_test)
-find_package(GTest REQUIRED)
-target_include_directories(InstallReadyMsg_test
-      PRIVATE
-      ${bftengine_SOURCE_DIR}/src/bftengine)
-target_link_libraries(InstallReadyMsg_test GTest::Main)
-target_link_libraries(InstallReadyMsg_test corebft )
-target_compile_options(InstallReadyMsg_test PUBLIC "-Wno-sign-compare")

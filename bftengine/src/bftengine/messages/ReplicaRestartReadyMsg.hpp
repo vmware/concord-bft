@@ -24,9 +24,12 @@ class ReplicasRestartReadyProofMsg;
 
 class ReplicaRestartReadyMsg : public MessageBase {
  public:
+  enum class Reason : uint8_t { Scale, Install };
   ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
                          SeqNum seqNum,
                          uint16_t sigLen,
+                         Reason reason,
+                         const std::string& extraData,
                          const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicaRestartReadyMsg)
@@ -37,10 +40,18 @@ class ReplicaRestartReadyMsg : public MessageBase {
 
   SeqNum seqNum() const { return b()->seqNum; }
 
+  std::string getExtraData() const;
+
+  uint16_t getExtraDataLength() const { return b()->extraDataLen; }
+
+  Reason getReason() const { return b()->reason; }
+
   char* signatureBody() const { return body() + sizeof(Header) + spanContextSize(); }
 
   static ReplicaRestartReadyMsg* create(ReplicaId senderId,
                                         SeqNum s,
+                                        Reason r,
+                                        const std::string& extraData,
                                         const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
@@ -59,9 +70,11 @@ class ReplicaRestartReadyMsg : public MessageBase {
     SeqNum seqNum;
     EpochNum epochNum;
     uint16_t sigLength;
+    Reason reason;
+    uint16_t extraDataLen;
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2), "Header is 26B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 1 + 2), "Header is 28B");
 
   Header* b() const { return (Header*)msgBody_; }
 };

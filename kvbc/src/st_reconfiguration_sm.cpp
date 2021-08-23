@@ -15,6 +15,7 @@
 #include "endianness.hpp"
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "messages/ReplicaRestartReadyMsg.hpp"
 
 namespace concord::kvbc {
 
@@ -140,11 +141,15 @@ bool StReconfigurationHandler::handle(const concord::messages::InstallCommand &c
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   bftEngine::ControlStateManager::instance().setRestartBftFlag(cmd.bft_support);
   if (cmd.bft_support) {
-    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
   } else {
-    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
   }
   return true;
 }
@@ -204,8 +209,10 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
         bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
             [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
       if (restart) {
-        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-            [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+          bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+              static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+        });
       }
     } else {
       if (remove_metadata)
@@ -215,8 +222,10 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
         bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
             [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
       if (cmd.restart) {
-        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-            [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+          bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+              static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+        });
       }
     }
   }
@@ -227,9 +236,9 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
                                       uint64_t bft_seq_num,
                                       uint64_t,
                                       uint64_t) {
-  // Actual pruning will be done from the lowest latestPruneableBlock returned by the replicas. It means, that even
-  // on every state transfer there might be at most one relevant pruning command. Hence it is enough to take the latest
-  // saved command and try to execute it
+  // Actual pruning will be done from the lowest latestPruneableBlock returned by the replicas. It means, that
+  // even on every state transfer there might be at most one relevant pruning command. Hence it is enough to take
+  // the latest saved command and try to execute it
   bool succ = true;
   concord::messages::ReconfigurationResponse response;
   for (auto &h : orig_reconf_handlers_) {

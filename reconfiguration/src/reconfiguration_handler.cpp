@@ -14,6 +14,7 @@
 
 #include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
+#include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
@@ -80,8 +81,10 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_m
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
     if (restart)
-      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+        bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+            static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+      });
   } else {
     if (remove_metadata)
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
@@ -90,8 +93,10 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_m
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
     if (restart)
-      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+        bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+            static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+      });
   }
 }
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeStatus& req,
@@ -139,11 +144,19 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd
   // execute install with (n-f) nodes, post inatall, replicas won't be live
   bftEngine::ControlStateManager::instance().setRestartBftFlag(cmd.bft_support);
   if (cmd.bft_support) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
     bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+        [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
   } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
     bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-        [=]() { bftEngine::ControlStateManager::instance().sendInstallReadyToAllReplica(cmd.version); });
+        [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
   }
   return true;
 }

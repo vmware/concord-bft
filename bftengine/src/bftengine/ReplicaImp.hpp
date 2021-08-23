@@ -65,7 +65,6 @@ struct LoadedReplicaData;
 class PersistentStorage;
 class ReplicaRestartReadyMsg;
 class ReplicasRestartReadyProofMsg;
-class InstallReadyMsg;
 
 using bftEngine::ReplicaConfig;
 using std::shared_ptr;
@@ -181,8 +180,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
 
-  std::map<ReplicaId, std::unique_ptr<ReplicaRestartReadyMsg>> restart_ready_msgs_;
-  std::map<ReplicaId, std::unique_ptr<InstallReadyMsg>> install_ready_msgs_;
+  std::unordered_map<uint8_t, std::map<ReplicaId, std::unique_ptr<ReplicaRestartReadyMsg>>> restart_ready_msgs_;
 
   //******** METRICS ************************************
   GaugeHandle metric_view_;
@@ -251,7 +249,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   CounterHandle metric_total_fastPath_requests_;
   CounterHandle metric_total_preexec_requests_executed_;
   CounterHandle metric_received_restart_ready_;
-  CounterHandle metric_received_install_ready_;
   CounterHandle metric_received_restart_proof_;
   //*****************************************************
   RollingAvgAndVar consensus_time_;
@@ -457,8 +454,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
   void onSuperStableCheckpointTimer(concordUtil::Timers::Handle);
-  void sendRepilcaRestartReady();
-  void sendInstallReady(const std::string& version);
+  void sendRepilcaRestartReady(uint8_t, const std::string&);
   void sendReplicasRestartReadyProof(uint8_t reason);
 
   // handlers for internal messages
