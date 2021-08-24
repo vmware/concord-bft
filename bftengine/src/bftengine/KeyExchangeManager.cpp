@@ -175,15 +175,16 @@ void KeyExchangeManager::onClientPublicKeyExchange(const std::string& key,
   // persist a new key
   clientPublicKeyStore_->setClientPublicKey(clientId, key, fmt);
   // load a new key
-  loadClientPublicKey(key, fmt, clientId);
+  loadClientPublicKey(key, fmt, clientId, true);
 }
 
 void KeyExchangeManager::loadClientPublicKey(const std::string& key,
                                              concord::util::crypto::KeyFormat fmt,
-                                             NodeIdType clientId) {
+                                             NodeIdType clientId,
+                                             bool saveToReservedPages) {
   LOG_INFO(KEY_EX_LOG, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
   SigManager::instance()->setClientPublicKey(key, clientId, fmt);
-  saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
+  if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
 void KeyExchangeManager::sendInitialKey() {

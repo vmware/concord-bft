@@ -59,7 +59,10 @@ class KeyExchangeManager {
   // called on a new client key
   void onClientPublicKeyExchange(const std::string& key, concord::util::crypto::KeyFormat, NodeIdType clientId);
   // called when client keys are loaded
-  void loadClientPublicKey(const std::string& key, concord::util::crypto::KeyFormat, NodeIdType clientId);
+  void loadClientPublicKey(const std::string& key,
+                           concord::util::crypto::KeyFormat,
+                           NodeIdType clientId,
+                           bool saveToReservedPages);
   ///////// end - Clients public keys interface///////////////
 
   std::string getStatus() const;
