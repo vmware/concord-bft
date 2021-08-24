@@ -11,7 +11,6 @@
 
 #include <chrono>
 #include <iostream>
-#include <google/protobuf/util/time_util.h>
 #include <opentracing/tracer.h>
 #include <thread>
 
@@ -21,8 +20,6 @@
 using grpc::Status;
 using grpc::ServerContext;
 using grpc::ServerWriter;
-
-using google::protobuf::util::TimeUtil;
 
 using vmware::concord::client::event::v1::SubscribeRequest;
 using vmware::concord::client::event::v1::SubscribeResponse;
@@ -82,7 +79,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       for (const auto& event : event_group_in.events) {
         *proto_event_group.add_events() = std::string(event.begin(), event.end());
       }
-      *proto_event_group.mutable_record_time() = TimeUtil::MicrosecondsToTimestamp(event_group_in.record_time.count());
+      *proto_event_group.mutable_record_time() = event_group_in.record_time;
       *proto_event_group.mutable_trace_context() = {event_group_in.trace_context.begin(),
                                                     event_group_in.trace_context.end()};
 
