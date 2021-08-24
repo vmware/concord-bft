@@ -168,6 +168,35 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             for i in range(100):
                 await skvbc.send_write_kv_set()
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_key_exchange_command_with_st(self, bft_network):
+        """
+            Operator sends client key exchange command for all the clients
+        """
+        with log.start_action(action_type="test_client_key_exchange_command_with_st"):
+            crashed_replicas = {6}
+            live_replicas = bft_network.all_replicas(without=crashed_replicas)
+            bft_network.start_replicas(live_replicas)
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+
+            await self.run_client_key_exchange_cycle(bft_network)
+            pub_key_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
+            assert pub_key_a != ""
+
+            for i in range(350):
+                await skvbc.send_write_kv_set()
+
+            bft_network.start_replicas(crashed_replicas)
+            await bft_network.wait_for_state_transfer_to_start()
+            for r in crashed_replicas:
+                await bft_network.wait_for_state_transfer_to_stop(0,
+            r,
+            stop_on_stable_seq_num=False)
+
     async def run_client_key_exchange_cycle(self, bft_network, prev_pub_key=""):
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)

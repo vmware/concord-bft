@@ -77,7 +77,7 @@ void ClientsManager::loadInfoFromReservedPages() {
       std::istringstream iss(scratchPage_);
       concord::serialize::Serializable::deserialize(iss, info.pubKey);
       ConcordAssertGT(info.pubKey.first.length(), 0);
-      KeyExchangeManager::instance().loadClientPublicKey(info.pubKey.first, info.pubKey.second, clientId);
+      KeyExchangeManager::instance().loadClientPublicKey(info.pubKey.first, info.pubKey.second, clientId, false);
     }
 
     if (!loadReservedPage(getReplyFirstPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) continue;
