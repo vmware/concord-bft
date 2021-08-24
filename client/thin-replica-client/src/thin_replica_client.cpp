@@ -588,6 +588,7 @@ void ThinReplicaClient::receiveUpdates() {
       for (auto& event : update_in.event_group().events()) {
         event_group.events.push_back(event);
       }
+      event_group.record_time = update_in.event_group().record_time();
       // TODO: Set trace context
       latest_verified_event_group_id_ = event_group.id;
       update->emplace<EventGroup>(std::move(event_group));
