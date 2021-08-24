@@ -889,6 +889,7 @@ struct ResetMetadata {
       cpm->setSenderId(repId);
       p->beginWriteTran();
       p->setCheckpointMsgInCheckWindow(stableSeqNum, cpm);
+      p->setPrimaryLastUsedSeqNum(p->getPrimaryLastUsedSeqNum());
       p->endWriteTran();
       result["stable seq num"] = std::to_string(stableSeqNum);
     }
