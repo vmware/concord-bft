@@ -22,6 +22,7 @@
 #include <chrono>
 #include <ctime>
 #include <iomanip>
+#include <sstream>
 
 namespace bftEngine {
 namespace impl {
@@ -40,8 +41,9 @@ const Time MinTime = std::chrono::steady_clock::time_point();
 
 // Make a steady clock printable in UTC
 inline std::string utcstr(const std::chrono::steady_clock::time_point &time_point) {
-  time_t systime = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now() +
-                                                        (time_point - std::chrono::steady_clock::now()));
+  using namespace std::chrono;
+  time_t systime = system_clock::to_time_t(system_clock::now() +
+                                           duration_cast<system_clock::duration>(time_point - steady_clock::now()));
   std::ostringstream os;
   os << std::put_time(std::gmtime(&systime), "%c %Z");
   return os.str();
