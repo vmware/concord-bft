@@ -129,6 +129,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Pruning parameters
   CONFIG_PARAM(pruningEnabled_, bool, false, "Enable pruning");
   CONFIG_PARAM(numBlocksToKeep_, uint64_t, 0, "how much blocks to keep while pruning");
+  CONFIG_PARAM(manualCompaction_,
+               bool,
+               false,
+               "Enable manual rocksb compaction after pruning (to reclaim the disc space immediately)");
 
   CONFIG_PARAM(debugPersistentStorageEnabled, bool, false, "whether persistent storage debugging is enabled");
   CONFIG_PARAM(deleteMetricsDumpInterval, uint64_t, 300, "delete metrics dump interval (s)");
@@ -231,6 +235,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, pathToOperatorPublicKey_);
     serialize(outStream, pruningEnabled_);
     serialize(outStream, numBlocksToKeep_);
+    serialize(outStream, manualCompaction_);
 
     serialize(outStream, debugPersistentStorageEnabled);
     serialize(outStream, deleteMetricsDumpInterval);
@@ -297,6 +302,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, pathToOperatorPublicKey_);
     deserialize(inStream, pruningEnabled_);
     deserialize(inStream, numBlocksToKeep_);
+    deserialize(inStream, manualCompaction_);
 
     deserialize(inStream, debugPersistentStorageEnabled);
     deserialize(inStream, deleteMetricsDumpInterval);

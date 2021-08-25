@@ -180,6 +180,7 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   BlockMetadata block_metadata_;
 
   bool pruning_enabled_{false};
+  bool manual_compaction{false};
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
   bool run_async_{false};

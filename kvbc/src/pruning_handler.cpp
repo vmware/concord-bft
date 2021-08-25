@@ -130,6 +130,7 @@ PruningHandler::PruningHandler(kvbc::IReader& ro_storage,
       replica_id_{bftEngine::ReplicaConfig::instance().replicaId},
       run_async_{run_async} {
   pruning_enabled_ = bftEngine::ReplicaConfig::instance().pruningEnabled_;
+  manual_compaction = bftEngine::ReplicaConfig::instance().manualCompaction_;
   num_blocks_to_keep_ = bftEngine::ReplicaConfig::instance().numBlocksToKeep_;
   // Make sure that blocks from old genesis through the last agreed block are
   // pruned. That might be violated if there was a crash during pruning itself.
@@ -265,6 +266,14 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
       } catch (...) {
         LOG_FATAL(logger_, "Error while running pruning");
         std::terminate();
+      }
+      // Now that we done with pruning, lets run a manual compaction
+      if (manual_compaction) {
+        LOG_INFO(logger_, "start compaction process");
+        auto status = blocks_deleter_.reclaimDiskSpace();
+        if (!status.isOK()) {
+          LOG_ERROR(logger_, "unable to run compaction " << status.toString());
+        }
       }
       // We grab a mutex to handle the case in which we ask for pruning status
       // concurrently

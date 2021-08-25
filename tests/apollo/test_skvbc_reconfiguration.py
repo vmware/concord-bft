@@ -522,7 +522,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             latest_pruneable_blocks += [lpab.response]
 
         await op.prune(latest_pruneable_blocks)
-
+        await self.wait_for_pruning(op, client)
         # Verify the system is able to get new write requests (which means that pruning has done)
         with trio.fail_after(30):
             await skvbc.write_known_kv()
@@ -568,6 +568,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
         await op.prune(latest_pruneable_blocks)
 
+        await self.wait_for_pruning(op, client)
         # Verify the system is able to get new write requests (which means that pruning has done)
         with trio.fail_after(30):
             await skvbc.write_known_kv()
@@ -1125,6 +1126,19 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         if lastExecutedSeqNum >= seqnum_threshold:
                             log.log_message(message_type="Replica" + str(ro_replica_id) + " : lastExecutedSeqNum:" + str(lastExecutedSeqNum))
                             break
+    async def wait_for_pruning(self, op, client):
+        with trio.fail_after(60):
+            await trio.sleep(1)
+            done = False
+            while done is False:
+                done = True
+                await op.prune_status()
+                rsi_rep = client.get_rsi_replies()
+                for r in rsi_rep.values():
+                    status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                    if status.response.in_progress is True:
+                        done = False
+                        break
 
 if __name__ == '__main__':
     unittest.main()
