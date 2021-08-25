@@ -361,6 +361,7 @@ void ClientsManager::removeRequestsOutOfBatchBounds(NodeIdType clientId, ReqId r
   }
 }
 void ClientsManager::removePendingForExecutionRequest(NodeIdType clientId, ReqId reqSeqNum) {
+  if (!isValidClient(clientId)) return;
   auto& requestsInfo = clientsInfo_[clientId].requestsInfo;
   const auto& reqIt = requestsInfo.find(reqSeqNum);
   if (reqIt != requestsInfo.end()) {
@@ -392,7 +393,7 @@ Time ClientsManager::infoOfEarliestPendingRequest(std::string& cid) const {
   return earliestPendingReqInfo.time;
 }
 
-// Iterate over all clients and log the ones that have not been committed for more than threshold miliseconds.
+// Iterate over all clients and log the ones that have not been committed for more than threshold milliseconds.
 void ClientsManager::logAllPendingRequestsExceedingThreshold(const int64_t threshold, const Time& currTime) const {
   int numExceeding = 0;
   for (const auto& info : clientsInfo_) {
