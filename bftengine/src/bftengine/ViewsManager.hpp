@@ -32,6 +32,12 @@ class ViewChangeSafetyLogic;
 
 using std::vector;
 
+// The ViewsManager is one of the major classes responsible for the view change protocol.
+// It is responsible for moving to different views, which provides the liveness property of the system.
+// The ViewsManager stores the current view of the replica and the complaints for it.
+// It also stores the complaints for higher view and it is responsible for their processing.
+// Furthermore it is capable of reporting various details (such as missing pre-prepare and view change messages) via the
+// status exchange mechanism.
 class ViewsManager {
   friend class ViewChangeMsg;
   friend class ReplicaAsksToLeaveViewMsg;
@@ -170,7 +176,7 @@ class ViewsManager {
 
   void resetDataOfLatestPendingAndKeepMyViewChange();
 
-  bool hasMissingMsgs(SeqNum currentLastStable);
+  bool hasMissingPrePrepareMsgs(SeqNum currentLastStable);
 
   void storeComplaintForHigherView(std::unique_ptr<ReplicaAsksToLeaveViewMsg> &&complaintMessage);
   bool hasQuorumToJumpToHigherView() const { return complainedReplicasForHigherView.hasQuorumToLeaveView(); }
