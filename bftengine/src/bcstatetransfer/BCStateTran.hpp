@@ -171,7 +171,7 @@ class BCStateTran : public IStateTransfer {
   std::unique_ptr<concord::util::Handoff> handoff_;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 
-  std::unique_ptr<char[]> buffer_;  // temporary buffer
+  std::unique_ptr<char[]> buffer_;  // general use buffer
 
   // random generator
   std::random_device randomDevice_;

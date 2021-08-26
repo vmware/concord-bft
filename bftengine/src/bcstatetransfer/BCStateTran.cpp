@@ -335,6 +335,7 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
       LOG_INFO(logger_, "Starting state is " << stateName(fs));
 
       if (fs != FetchingState::NotFetching) {
+        LOG_INFO(logger_, "State Transfer cycle continues");
         startCollectingStats();
         if (fs == FetchingState::GettingMissingBlocks || fs == FetchingState::GettingMissingResPages)
           SetAllReplicasAsPreferred();
@@ -692,7 +693,7 @@ void BCStateTran::onTimerImp() {
   oneShotTimerFlag_ = true;
   if (!running_) return;
   time_in_handoff_queue_rec_.end();
-  histograms_.handoff_queue_size->record(handoff_->size());
+  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
   TimeRecorder scoped_timer(*histograms_.on_timer);
 
   metrics_.on_timer_++;
@@ -797,7 +798,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
                                                 LocalTimePoint msgArrivalTime) {
   if (!running_) return;
   time_in_handoff_queue_rec_.end();
-  histograms_.handoff_queue_size->record(handoff_->size());
+  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
   bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas));
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
@@ -889,8 +890,7 @@ BCStateTran::ElementOfVirtualBlock *BCStateTran::getVirtualElement(uint32_t inde
 
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
   char *p = virtualBlock + sizeof(HeaderOfVirtualBlock) + (index * elementSize);
-  ElementOfVirtualBlock *retVal = reinterpret_cast<ElementOfVirtualBlock *>(p);
-  return retVal;
+  return reinterpret_cast<ElementOfVirtualBlock *>(p);
 }
 
 bool BCStateTran::checkStructureOfVirtualBlock(char *virtualBlock,
@@ -905,21 +905,36 @@ bool BCStateTran::checkStructureOfVirtualBlock(char *virtualBlock,
   const uint32_t arrayBlockSize = virtualBlockSize - sizeof(HeaderOfVirtualBlock);
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
 
-  if (arrayBlockSize % elementSize != 0) return false;
+  if (arrayBlockSize % elementSize != 0) {
+    LOG_ERROR(logger, KVLOG(arrayBlockSize, elementSize));
+    return false;
+  }
 
   uint32_t numOfElements = (arrayBlockSize / elementSize);
   HeaderOfVirtualBlock *h = reinterpret_cast<HeaderOfVirtualBlock *>(virtualBlock);
 
-  if (numOfElements != h->numberOfUpdatedPages) return false;
+  if (numOfElements != h->numberOfUpdatedPages) {
+    LOG_ERROR(logger, KVLOG(numOfElements, h->numberOfUpdatedPages));
+    return false;
+  }
 
   uint32_t lastPageId = UINT32_MAX;
   for (uint32_t i = 0; i < numOfElements; i++) {
     char *p = virtualBlock + sizeof(HeaderOfVirtualBlock) + (i * elementSize);
     ElementOfVirtualBlock *e = reinterpret_cast<ElementOfVirtualBlock *>(p);
 
-    if (e->checkpointNumber <= h->lastCheckpointKnownToRequester) return false;
-    if (e->pageDigest.isZero()) return false;
-    if (i > 0 && e->pageId <= lastPageId) return false;
+    if (e->checkpointNumber <= h->lastCheckpointKnownToRequester) {
+      LOG_ERROR(logger, KVLOG(e->checkpointNumber, h->lastCheckpointKnownToRequester, i, e->pageId));
+      return false;
+    }
+    if (e->pageDigest.isZero()) {
+      LOG_ERROR(logger, "pageDigest is zero!" << KVLOG(i, e->pageId));
+      return false;
+    }
+    if (i > 0 && e->pageId <= lastPageId) {
+      LOG_ERROR(logger, KVLOG(i, e->pageId, lastPageId));
+      return false;
+    }
     lastPageId = e->pageId;
   }
   return true;
@@ -1252,7 +1267,12 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
   LOG_DEBUG(logger_, KVLOG(replicaId, m->checkpointNum, m->lastBlock, m->requestMsgSeqNum));
 
   FetchingState fs = getFetchingState();
-  ConcordAssertEQ(fs, FetchingState::GettingCheckpointSummaries);
+  if (fs != FetchingState::GettingCheckpointSummaries) {
+    auto fetchingState = stateName(getFetchingState());
+    LOG_WARN(logger_, "Msg is irrelevant: " << KVLOG(fetchingState));
+    metrics_.irrelevant_checkpoint_summary_msg_++;
+    return false;
+  }
   metrics_.received_checkpoint_summary_msg_++;
 
   // if msg is invalid
@@ -1688,7 +1708,7 @@ bool BCStateTran::onMessage(const FetchResPagesMsg *m, uint32_t msgLen, uint16_t
   uint32_t vblockSize = getSizeOfVirtualBlock(vblock, config_.sizeOfReservedPage);
 
   ConcordAssertGE(vblockSize, sizeof(HeaderOfVirtualBlock));
-  ConcordAssert(checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage));
+  ConcordAssert(checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage, logger_));
 
   // compute information about next chunk
   uint32_t sizeOfLastChunk = config_.maxChunkSize;
@@ -1991,7 +2011,7 @@ char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
   header->numberOfUpdatedPages = numberOfUpdatedPages;
 
   if (numberOfUpdatedPages == 0) {
-    ConcordAssert(checkStructureOfVirtualBlock(rawVBlock, size, config_.sizeOfReservedPage));
+    ConcordAssert(checkStructureOfVirtualBlock(rawVBlock, size, config_.sizeOfReservedPage, logger_));
     LOG_DEBUG(logger_, "New vblock contains 0 updated pages: " << KVLOG(desc.checkpointNum, size));
     return rawVBlock;
   }
@@ -2023,7 +2043,8 @@ char *BCStateTran::createVBlock(const DescOfVBlockForResPages &desc) {
   }
 
   ConcordAssertEQ(idx, numberOfUpdatedPages);
-  ConcordAssertOR(!config_.pedanticChecks, checkStructureOfVirtualBlock(rawVBlock, size, config_.sizeOfReservedPage));
+  ConcordAssertOR(!config_.pedanticChecks,
+                  checkStructureOfVirtualBlock(rawVBlock, size, config_.sizeOfReservedPage, logger_));
 
   LOG_DEBUG(logger_,
             "New vblock contains " << numberOfUpdatedPages << " updated pages: " << KVLOG(desc.checkpointNum, size));
@@ -2115,9 +2136,7 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     // the conditions of these asserts are checked when receiving the message
     ConcordAssertGT(msg->totalNumberOfChunksInBlock, 0);
     ConcordAssertGE(msg->chunkNumber, 1);
-
     if (totalNumberOfChunks == 0) totalNumberOfChunks = msg->totalNumberOfChunksInBlock;
-
     blockSize += msg->dataSize;
     if (totalNumberOfChunks != msg->totalNumberOfChunksInBlock || msg->chunkNumber > totalNumberOfChunks ||
         blockSize > maxSize) {
@@ -2126,13 +2145,9 @@ bool BCStateTran::getNextFullBlock(uint64_t requiredBlock,
     }
 
     if (maxAvailableChunk + 1 < msg->chunkNumber) break;  // we have a hole
-
     ConcordAssertEQ(maxAvailableChunk + 1, msg->chunkNumber);
-
     maxAvailableChunk = msg->chunkNumber;
-
     ConcordAssertLE(maxAvailableChunk, totalNumberOfChunks);
-
     if (maxAvailableChunk == totalNumberOfChunks) {
       fullBlock = true;
       break;
@@ -2202,7 +2217,7 @@ bool BCStateTran::checkBlock(uint64_t blockNum,
 bool BCStateTran::checkVirtualBlockOfResPages(const STDigest &expectedDigestOfResPagesDescriptor,
                                               char *vblock,
                                               uint32_t vblockSize) const {
-  if (!checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage)) {
+  if (!checkStructureOfVirtualBlock(vblock, vblockSize, config_.sizeOfReservedPage, logger_)) {
     LOG_WARN(logger_, "vblock has illegal structure");
     return false;
   }
@@ -2373,6 +2388,7 @@ bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitP
     return doneProcesssing;
   }
   ConcordAssertGT(nextCommittedBlockId_, 0);
+  auto initialNextCommittedBlockId_ = nextCommittedBlockId_;
 
   DataStoreTransaction::Guard g(psd_->beginTransaction());
   while (!ioContexts_.empty()) {
@@ -2406,7 +2422,7 @@ bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitP
     --nextCommittedBlockId_;
     if (waitPolicy == PutBlockWaitPolicy::WAIT_SINGLE_JOB) waitPolicy = PutBlockWaitPolicy::NO_WAIT;
   }
-  g.txn()->setLastRequiredBlock(nextCommittedBlockId_);
+  if (initialNextCommittedBlockId_ != nextCommittedBlockId_) g.txn()->setLastRequiredBlock(nextCommittedBlockId_);
   return doneProcesssing;
 }
 
@@ -2546,13 +2562,13 @@ void BCStateTran::processData(bool lastInBatch) {
       reportCollectingStatus(firstRequiredBlock, actualBlockSize, lastBlock);
 
       // Put the block. We distinguishe between last block non-last block
-      LOG_DEBUG(
-          logger_,
-          "Before putBlock id " << nextRequiredBlock_ << ":" << std::boolalpha << KVLOG(lastBlock, actualBlockSize));
+      std::stringstream ss;
+      ss << "Before putBlock id " << nextRequiredBlock_ << ":" << std::boolalpha << KVLOG(lastBlock, actualBlockSize);
       if (!lastBlock) {
         //////////////////////////////////////////////////////////////////////////
         // Not the last block
         //////////////////////////////////////////////////////////////////////////
+        LOG_DEBUG(logger_, ss.str());
         if (ioPool_.empty()) {
           // We have a block ready in buffer_, but no free context. let's wait for one job to finish.
           finalizePutblockAsync(lastBlock, PutBlockWaitPolicy::WAIT_SINGLE_JOB);
@@ -2583,6 +2599,7 @@ void BCStateTran::processData(bool lastInBatch) {
         //////////////////////////////////////////////////////////////////////////
         // This is the last block we need
         //////////////////////////////////////////////////////////////////////////
+        LOG_INFO(logger_, ss.str());
         commitToChainDT_.start();
         blocks_collected_.pause();
         bytes_collected_.pause();
@@ -2615,7 +2632,6 @@ void BCStateTran::processData(bool lastInBatch) {
         } else
           LOG_INFO(logger_, "skip logging snapshots, cycle is very short (not enough statistics)" << KVLOG(duration));
         cycleDT_.start();
-        LOG_DEBUG(logger_, "Moved to GettingMissingResPages");
         sendFetchResPagesMsg(0);
         break;
       }
@@ -2893,7 +2909,13 @@ void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_
           uint32_t blockSize = 0;
           as_->getBlock(desc.lastBlock, buffer_.get(), config_.maxBlockSize, &blockSize);
           concordUtils::HexPrintBuffer blockData{buffer_.get(), blockSize};
-          LOG_FATAL(logger_, "Invalid stored checkpoint: " << KVLOG(desc.checkpointNum, desc.lastBlock, blockData));
+          LOG_FATAL(logger_,
+                    "Invalid stored checkpoint: " << KVLOG(desc.checkpointNum,
+                                                           blockSize,
+                                                           desc.lastBlock,
+                                                           computedBlockDigest,
+                                                           desc.digestOfLastBlock,
+                                                           blockData));
           ConcordAssertEQ(computedBlockDigest, desc.digestOfLastBlock);
         }
       }
