@@ -97,6 +97,16 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status multiPut(const SetOfKeyValuePairs& _keyValueMap) override;
   concordUtils::Status multiDel(const KeysVector& _keysVec) override;
   concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override;
+
+  Status reclaimDiskSpace() override {
+    ::rocksdb::CompactRangeOptions opt;
+    opt.allow_write_stall = true;
+    opt.change_level = true;
+    auto s = dbInstance_->CompactRange(opt, nullptr, nullptr);
+    if (!s.ok()) return Status::GeneralError(s.ToString());
+    return Status::OK();
+  }
+
   ::rocksdb::Iterator* getNewRocksDbIterator() const;
   bool isNew() override;
   ITransaction* beginTransaction() override;

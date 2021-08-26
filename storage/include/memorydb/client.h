@@ -84,6 +84,7 @@ class Client : public IDBClient {
   concordUtils::Status multiDel(const KeysVector &_keysVec) override;
   concordUtils::Status rangeDel(const Sliver &_beginKey, const Sliver &_endKey) override;
   bool isNew() override { return true; }
+  Status reclaimDiskSpace() override { return Status::IllegalOperation("not supported with an in-memory storage"); }
   ITransaction *beginTransaction() override;
   TKVStore &getMap() { return map_; }
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {

@@ -368,6 +368,8 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
     return bc_.get(category_id, key, block_id);
   }
 
+  concordUtils::Status reclaimDiskSpace() override { return bc_.db()->asIDBClient()->reclaimDiskSpace(); }
+
   std::optional<categorization::Value> getLatest(const std::string &category_id,
                                                  const std::string &key) const override {
     return bc_.getLatest(category_id, key);

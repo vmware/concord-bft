@@ -98,6 +98,8 @@ class IBlocksDeleter {
   // Throws on errors or if until <= genesis .
   virtual BlockId deleteBlocksUntil(BlockId until) = 0;
 
+  virtual concordUtils::Status reclaimDiskSpace() = 0;
+
   virtual ~IBlocksDeleter() = default;
 };
 
