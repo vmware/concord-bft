@@ -337,6 +337,11 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
+  if (isCollectingState()) {
+    LOG_WARN(GL, "Called during state transfer; won't send PrePrepareMsgs!");
+    return false;
+  }
+
   if (!currentViewIsActive()) {
     LOG_INFO(GL, "View " << getCurrentView() << " is not active yet. Won't send PrePrepareMsg-s.");
     return false;
@@ -425,9 +430,11 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *pp = nullptr;
+  bool isSent = false;
   if (batchingLogic) {
     auto batchedReq = reqBatchingLogic_.batchRequests();
-    if (batchedReq.second) {
+    isSent = batchedReq.second;
+    if (isSent) {
       pp = batchedReq.first;
       batch_closed_on_logic_on_++;
       accumulating_batch_time_.add(
@@ -440,13 +447,14 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
     }
   } else {
     auto builtReq = buildPrePrepareMessage();
-    if (builtReq.second) {
+    isSent = builtReq.second;
+    if (isSent) {
       pp = builtReq.first;
       batch_closed_on_logic_off_++;
       time_to_collect_batch_ = MinTime;
     }
   }
-  if (!pp) return false;
+  if (!pp) return isSent;
   startConsensusProcess(pp);
   return true;
 }
