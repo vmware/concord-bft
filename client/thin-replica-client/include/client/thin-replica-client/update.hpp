@@ -14,6 +14,7 @@
 #ifndef THIN_REPLICA_CLIENT_UPDATE_HPP_
 #define THIN_REPLICA_CLIENT_UPDATE_HPP_
 
+#include <google/protobuf/timestamp.pb.h>
 #include <chrono>
 #include <map>
 #include <string>
