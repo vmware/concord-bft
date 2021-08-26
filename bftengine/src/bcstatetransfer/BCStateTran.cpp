@@ -96,7 +96,7 @@ namespace impl {
 // Time
 //////////////////////////////////////////////////////////////////////////////
 
-static uint64_t getMonotonicTimeMilli() {
+uint64_t BCStateTran::getMonotonicTimeMilli() {
   steady_clock::time_point curTimePoint = steady_clock::now();
   auto timeSinceEpoch = curTimePoint.time_since_epoch();
   uint64_t milli = duration_cast<milliseconds>(timeSinceEpoch).count();
@@ -106,9 +106,8 @@ static uint64_t getMonotonicTimeMilli() {
 //////////////////////////////////////////////////////////////////////////////
 // Ctor & Dtor
 //////////////////////////////////////////////////////////////////////////////
-static uint32_t calcMaxVBlockSize(uint32_t maxNumberOfPages, uint32_t pageSize);
 
-static uint32_t calcMaxItemSize(uint32_t maxBlockSize, uint32_t maxNumberOfPages, uint32_t pageSize) {
+uint32_t BCStateTran::calcMaxItemSize(uint32_t maxBlockSize, uint32_t maxNumberOfPages, uint32_t pageSize) {
   const uint32_t maxVBlockSize = calcMaxVBlockSize(maxNumberOfPages, pageSize);
 
   const uint32_t retVal = std::max(maxBlockSize, maxVBlockSize);
@@ -116,10 +115,10 @@ static uint32_t calcMaxItemSize(uint32_t maxBlockSize, uint32_t maxNumberOfPages
   return retVal;
 }
 
-static uint32_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
-                                          uint32_t maxBlockSize,
-                                          uint32_t maxChunkSize,
-                                          bool isVBlock) {
+uint32_t BCStateTran::calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
+                                                uint32_t maxBlockSize,
+                                                uint32_t maxChunkSize,
+                                                bool isVBlock) {
   if (!isVBlock) {
     uint32_t retVal =
         (maxBlockSize % maxChunkSize == 0) ? (maxBlockSize / maxChunkSize) : (maxBlockSize / maxChunkSize + 1);
@@ -133,7 +132,7 @@ static uint32_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
 
 // Here we assume that the set of replicas is 0,1,2,...,numberOfReplicas
 // TODO(GG): change to support full dynamic reconfiguration
-static set<uint16_t> generateSetOfReplicas(const int16_t numberOfReplicas) {
+set<uint16_t> BCStateTran::generateSetOfReplicas(const int16_t numberOfReplicas) {
   std::set<uint16_t> retVal;
   for (int16_t i = 0; i < numberOfReplicas; i++) retVal.insert(i);
   return retVal;
@@ -863,32 +862,18 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
 // (private to the file)
 //////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 1)
-struct HeaderOfVirtualBlock {
-  uint32_t numberOfUpdatedPages;
-  uint64_t lastCheckpointKnownToRequester;
-};
-
-struct ElementOfVirtualBlock {
-  uint32_t pageId;
-  uint64_t checkpointNumber;
-  STDigest pageDigest;
-  char page[1];  // the actual size is sizeOfReservedPage_ bytes
-};
-#pragma pack(pop)
-
-static uint32_t calcMaxVBlockSize(uint32_t maxNumberOfPages, uint32_t pageSize) {
+uint32_t BCStateTran::calcMaxVBlockSize(uint32_t maxNumberOfPages, uint32_t pageSize) {
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
 
   return sizeof(HeaderOfVirtualBlock) + (elementSize * maxNumberOfPages);
 }
 
-static uint32_t getNumberOfElements(char *virtualBlock) {
+uint32_t BCStateTran::getNumberOfElements(char *virtualBlock) {
   HeaderOfVirtualBlock *h = reinterpret_cast<HeaderOfVirtualBlock *>(virtualBlock);
   return h->numberOfUpdatedPages;
 }
 
-static uint32_t getSizeOfVirtualBlock(char *virtualBlock, uint32_t pageSize) {
+uint32_t BCStateTran::getSizeOfVirtualBlock(char *virtualBlock, uint32_t pageSize) {
   HeaderOfVirtualBlock *h = reinterpret_cast<HeaderOfVirtualBlock *>(virtualBlock);
 
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
@@ -896,7 +881,9 @@ static uint32_t getSizeOfVirtualBlock(char *virtualBlock, uint32_t pageSize) {
   return size;
 }
 
-static ElementOfVirtualBlock *getVirtualElement(uint32_t index, uint32_t pageSize, char *virtualBlock) {
+BCStateTran::ElementOfVirtualBlock *BCStateTran::getVirtualElement(uint32_t index,
+                                                                   uint32_t pageSize,
+                                                                   char *virtualBlock) {
   HeaderOfVirtualBlock *h = reinterpret_cast<HeaderOfVirtualBlock *>(virtualBlock);
   ConcordAssertLT(index, h->numberOfUpdatedPages);
 
@@ -906,8 +893,14 @@ static ElementOfVirtualBlock *getVirtualElement(uint32_t index, uint32_t pageSiz
   return retVal;
 }
 
-static bool checkStructureOfVirtualBlock(char *virtualBlock, uint32_t virtualBlockSize, uint32_t pageSize) {
-  if (virtualBlockSize < sizeof(HeaderOfVirtualBlock)) return false;
+bool BCStateTran::checkStructureOfVirtualBlock(char *virtualBlock,
+                                               uint32_t virtualBlockSize,
+                                               uint32_t pageSize,
+                                               logging::Logger &logger) {
+  if (virtualBlockSize < sizeof(HeaderOfVirtualBlock)) {
+    LOG_ERROR(logger, KVLOG(virtualBlockSize, sizeof(HeaderOfVirtualBlock)));
+    return false;
+  }
 
   const uint32_t arrayBlockSize = virtualBlockSize - sizeof(HeaderOfVirtualBlock);
   const uint32_t elementSize = sizeof(ElementOfVirtualBlock) + pageSize - 1;
@@ -2954,10 +2947,10 @@ void BCStateTran::computeDigestOfPagesDescriptor(const DataStore::ResPagesDescri
   c.writeDigest(reinterpret_cast<char *>(&outDigest));
 }
 
-static void computeDigestOfBlockImpl(const uint64_t blockNum,
-                                     const char *block,
-                                     const uint32_t blockSize,
-                                     char *outDigest) {
+void BCStateTran::computeDigestOfBlockImpl(const uint64_t blockNum,
+                                           const char *block,
+                                           const uint32_t blockSize,
+                                           char *outDigest) {
   ConcordAssertGT(blockNum, 0);
   ConcordAssertGT(blockSize, 0);
   DigestContext c;
@@ -2992,7 +2985,7 @@ STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
   // which can occur while this replica is a source replica.
   // In order to make it thread safe, instead of using buffer_, a local buffer is allocated .
   static std::unique_ptr<char[]> buffer(new char[maxItemSize_]);
-  STDigest currDigest;
+  impl::STDigest currDigest;
   uint32_t blockSize = 0;
   as_->getBlock(currBlock, buffer.get(), config_.maxBlockSize, &blockSize);
   computeDigestOfBlock(currBlock, buffer.get(), blockSize, &currDigest);
