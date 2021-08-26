@@ -15,7 +15,7 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <vector>
+#include <deque>
 #include <memory>
 #include "IStateTransfer.hpp"
 #include "messages/MessageBase.hpp"
@@ -25,29 +25,30 @@ namespace bftEngine {
 namespace bcst {
 
 // A state transfer message
-struct Msg {
-  std::unique_ptr<char[]> msg_;
+class Msg {
+ public:
+  Msg(char* data, uint32_t size, uint16_t destReplicaId) : data_{new char[size]}, len_(size), to_(destReplicaId) {
+    memcpy(data_.get(), data, size);
+  }
+  Msg() = delete;
+
+  std::unique_ptr<char[]> data_;
   uint32_t len_;
   uint16_t to_;
 };
 
 class TestReplica : public IReplicaForStateTransfer {
  public:
+  TestReplica() : onTransferringCompleteCalled_(false){};
   ///////////////////////////////////////////////////////////////////////////
   // IReplicaForStateTransfer methods
   ///////////////////////////////////////////////////////////////////////////
-  void onTransferringComplete(uint64_t checkpointNumberOfNewState) override{};
+  void onTransferringComplete(uint64_t checkpointNumberOfNewState) override { onTransferringCompleteCalled_ = true; };
 
-  void freeStateTransferMsg(char* m) override {
-    char* p = (m - sizeof(bftEngine::impl::MessageBase::Header));
-    std::free(p);
-  }
+  void freeStateTransferMsg(char* m) override { delete m; }
 
   void sendStateTransferMessage(char* m, uint32_t size, uint16_t replicaId) override {
-    std::unique_ptr<char[]> msg{new char[size]};
-    memcpy(msg.get(), m, size);
-
-    sent_messages_.push_back(Msg{std::move(msg), size, replicaId});
+    sent_messages_.emplace_back(Msg(m, size, replicaId));
   }
 
   void changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) override{};
@@ -58,7 +59,8 @@ class TestReplica : public IReplicaForStateTransfer {
   ///////////////////////////////////////////////////////////////////////////
 
   // All messages sent by the state transfer module
-  std::vector<Msg> sent_messages_;
+  std::deque<Msg> sent_messages_;
+  bool onTransferringCompleteCalled_;
 };
 
 }  // namespace bcst
