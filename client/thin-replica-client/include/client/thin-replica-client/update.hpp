@@ -26,7 +26,7 @@ namespace client::thin_replica_client {
 struct EventGroup {
   uint64_t id;
   std::vector<std::string> events;
-  std::chrono::microseconds record_time;
+  google::protobuf::Timestamp record_time;
   // This map follows the W3C specification for trace context.
   // https://www.w3.org/TR/trace-context/#trace-context-http-headers-format
   std::map<std::string, std::string> trace_context;

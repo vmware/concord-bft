@@ -14,6 +14,7 @@
 #ifndef THIN_REPLICA_IMPL_HPP_
 #define THIN_REPLICA_IMPL_HPP_
 
+#include <google/protobuf/util/time_util.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/impl/codegen/status.h>
 #include <openssl/bio.h>
@@ -36,6 +37,8 @@
 #include "thin_replica.grpc.pb.h"
 #include "subscription_buffer.hpp"
 #include "trs_metrics.hpp"
+
+using google::protobuf::util::TimeUtil;
 
 namespace concord {
 namespace thin_replica {
@@ -849,7 +852,9 @@ class ThinReplicaImpl {
       // TODO: Move don't copy.
       data.mutable_event_group()->add_events(event.data);
     }
-    // TODO (Shruti) Add record time
+    google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
+    TimeUtil::FromString(eg_update.event_group.record_time, timestamp);
+    data.mutable_event_group()->set_allocated_record_time(timestamp);
     // TODO (Shruti) Add trace context
     if (!stream->Write(data)) {
       throw StreamClosed("Data event group stream closed");

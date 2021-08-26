@@ -7,4 +7,5 @@ Msg Event 1 {
 # Represents an event-group
 Msg EventGroup 2 {
   list Event events
+  string record_time
 }
