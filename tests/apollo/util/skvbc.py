@@ -20,6 +20,7 @@ from util.skvbc_exceptions import BadReplyError
 from util import eliot_logging as log
 from util import bft
 from enum import Enum
+from util import bft_network_partitioning as net
 
 import os.path
 import sys
@@ -185,16 +186,8 @@ class SimpleKVBCProtocol:
             checkpoints_num=2,
             persistency_enabled=True):
         with log.start_action(action_type="prime_for_state_transfer"):
-            initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
-            self.bft_network.start_all_replicas()
-            self.bft_network.stop_replicas(stale_nodes)
-            client = self.bft_network.random_client()
-            # Write a KV pair with a known value
-            known_key = self.unique_random_key()
-            known_val = self.random_value()
-            known_kv = [(known_key, known_val)]
-            reply = await self.send_write_kv_set(client, known_kv)
-            assert reply.success
+            initial_nodes, client, known_key, known_val = \
+                await self.start_replicas_and_write_known_kv(stale_nodes)
             # Fill up the initial nodes with data, checkpoint them and stop
             # them. Then bring them back up and ensure the checkpoint data is
             # there.
@@ -204,12 +197,29 @@ class SimpleKVBCProtocol:
                 verify_checkpoint_persistency=persistency_enabled)
 
             return client, known_key, known_val
-    
-    async def write_with_multiple_clients_for_state_transfer(
+
+    async def start_replicas_and_write_with_multiple_clients(
             self, stale_nodes,
             write_run_duration=10,
             persistency_enabled=True):
         with log.start_action(action_type="write_with_multiple_clients_for_state_transfer"):
+            initial_nodes, _, _, _ = \
+                await self.start_replicas_and_write_known_kv(stale_nodes)
+            max_concurrency = len(self.bft_network.clients)
+            max_size = len(self.keys) // 2
+            write_weight=.70
+            # Fill up the initial nodes with data, checkpoint them and stop
+            # them. Then bring them back up and ensure the checkpoint data is
+            # there.
+            await self.send_concurrent_ops(write_run_duration,max_concurrency,max_size,write_weight,
+                False, ExitPolicy.TIME)
+            await self.network_wait_for_checkpoint(
+                initial_nodes,
+                expected_checkpoint_num=None,
+                verify_checkpoint_persistency=persistency_enabled,
+                assert_state_transfer_not_started=True)
+
+    async def start_replicas_and_write_known_kv(self, stale_nodes):
             initial_nodes = self.bft_network.all_replicas(without=stale_nodes)
             self.bft_network.start_all_replicas()
             self.bft_network.stop_replicas(stale_nodes)
@@ -220,22 +230,7 @@ class SimpleKVBCProtocol:
             known_kv = [(known_key, known_val)]
             reply = await self.send_write_kv_set(client, known_kv)
             assert reply.success
-            max_concurrency = len(self.bft_network.clients) #10
-            max_size = len(self.keys) // 2
-            write_weight=.70
-            # Fill up the initial nodes with data, checkpoint them and stop
-            # them. Then bring them back up and ensure the checkpoint data is
-            # there.
-            await self.send_concurrent_ops(write_run_duration,max_concurrency,max_size,write_weight,
-                False, ExitPolicy.TIME)
-            await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes)
-            await self.network_wait_for_checkpoint(
-                initial_nodes,
-                expected_checkpoint_num=None,
-                verify_checkpoint_persistency=persistency_enabled,
-                assert_state_transfer_not_started=True)
-
-            return client, known_key, known_val
+            return initial_nodes, client, known_key, known_val
 
     async def fill_and_wait_for_checkpoint(
             self, initial_nodes,
@@ -495,6 +490,30 @@ class SimpleKVBCProtocol:
         max_size = len(self.keys) // 2
         return await self.send_concurrent_ops(num_ops, max_concurrency, max_size, write_weight, create_conflicts=True)
 
+    async def send_concurrent_ops_with_isolated_replica(
+            self,
+            isolated_replica,
+            run_duration):
+        """
+        Sending concurrent operation while isolated replic is kept blocked
+        """
+        clients = self.bft_network.get_all_clients()
+        max_read_set_size = len(self.keys)
+        read_version = 0
+        readset = self.readset(0, max_read_set_size)
+        writeset = self.writeset(0, readset)
+        total_run_time = time.time()+run_duration
+        initial_nodes = self.bft_network.all_replicas(without=isolated_replica)
+        with log.start_action(action_type="send_concurrent_ops_with_isolated_replica"):
+            with trio.move_on_after(run_duration+30):
+                    with net.ReplicaSubsetIsolatingAdversary(self.bft_network, isolated_replica) as adversary:
+                        adversary.interfere()
+                        while(time.time() < total_run_time):
+                                async with trio.open_nursery() as nursery:
+                                    for client in clients:
+                                        nursery.start_soon(self.send_kv_set, client, readset, writeset, read_version, False, False, False)
+                        await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes)
+                        
     async def send_concurrent_ops(
             self, 
             exit_factor, 
