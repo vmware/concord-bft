@@ -50,7 +50,7 @@ namespace kvbc {
 
 optional<BlockId> KvbAppFilter::getFirstEventGroupBlockId() {
   // TODO: Doesn't work with pruning - use "global_event_group_id_oldest" once it is supported
-  const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory,
+  const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                                 concordUtils::toBigEndianStringBuffer(1ul));
   if (not opt.has_value()) {
     return std::nullopt;
@@ -275,7 +275,7 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
                                        EventGroupId event_group_id_end,
                                        spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                                        const std::atomic_bool &stop_execution) {
-  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
+  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, client_id_);
   if (not opt) {
     std::stringstream msg;
     msg << "An event group for trid \"" << client_id_ << "\" cannot be found";
@@ -335,7 +335,7 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
 }
 
 string KvbAppFilter::readEventGroupHash(EventGroupId event_group_id) {
-  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
+  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, client_id_);
   if (not opt) {
     std::stringstream msg;
     msg << "An event group for the given trid cannot be found";
@@ -388,7 +388,7 @@ string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id
 }
 
 string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start, EventGroupId event_group_id_end) {
-  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id_);
+  auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, client_id_);
   if (not opt) {
     std::stringstream msg;
     msg << "An event group for trid \"" << client_id_ << "\" cannot be found";
@@ -450,14 +450,14 @@ kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId 
   LOG_DEBUG(logger_, "getEventGroup " << event_group_id << " for " << client_id_);
   // get global_event_group_id corresponding to trid_event_group_id
   // trid + # + latest_trid_event_group_id concatenation is used as key for kv-updates of type
-  // kExecutionTridEventGroupsCategory We add a separator character between the tag and latest_trid_event_group_id_str
+  // kExecutionEventGroupTagCategory We add a separator character between the tag and latest_trid_event_group_id_str
   // to avoid key collisions like below -
   // tag1 + 120 --> "tag1120"
   // tag11 + 20 --> "tag1120"
   // this is a temporary solution, and needs to be fixed in a proper manner
   const auto key = client_id_ + "#" + concordUtils::toBigEndianStringBuffer(event_group_id);
   const auto global_eg_id_val =
-      rostorage_->getLatest(concord::kvbc::categorization::kExecutionTridEventGroupsCategory, key);
+      rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupTagCategory, key);
   if (not global_eg_id_val) {
     stringstream msg;
     msg << "Failed to get global event group for trid " << client_id_;
@@ -474,7 +474,7 @@ kvbc::categorization::EventGroup KvbAppFilter::getEventGroup(kvbc::EventGroupId 
   auto global_event_group_id = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 
   // get event group
-  const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory,
+  const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                          concordUtils::toBigEndianStringBuffer(global_event_group_id));
   if (not opt) {
     stringstream msg;

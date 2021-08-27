@@ -104,24 +104,24 @@ class FakeStorage : public concord::kvbc::IReader {
   std::optional<concord::kvbc::categorization::Value> getLatest(const std::string &category_id,
                                                                 const std::string &key) const override {
     BlockId block_id = 4;
-    if (category_id == concord::kvbc::categorization::kExecutionEventGroupIdsCategory) {
+    if (category_id == concord::kvbc::categorization::kExecutionEventGroupLatestCategory) {
       // get latest trid event_group_id
       if (latest_trid_eg_id.find(key) == latest_trid_eg_id.end()) {
         throw std::runtime_error("The key: " + key + "for category  doesn't exist in storage!");
       }
       return concord::kvbc::categorization::VersionedValue{{block_id, latest_trid_eg_id.at(key)}};
-    } else if (category_id == concord::kvbc::categorization::kExecutionTridEventGroupsCategory) {
+    } else if (category_id == concord::kvbc::categorization::kExecutionEventGroupTagCategory) {
       // get global event_group_id corresponding to trid event_group_id
       if (trid_event_group_id.find(key) == trid_event_group_id.end())
         throw std::runtime_error("The key: " + key +
-                                 "for category kExecutionTridEventGroupsCategory doesn't exist in storage!");
+                                 "for category kExecutionEventGroupTagCategory doesn't exist in storage!");
       return concord::kvbc::categorization::ImmutableValue{{block_id, trid_event_group_id.at(key)}};
-    } else if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
+    } else if (category_id == concord::kvbc::categorization::kExecutionEventGroupDataCategory) {
       // get event group
       std::vector<uint8_t> output;
       if (concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1 >= eg_data_.size())
         throw std::runtime_error("The key: " + key +
-                                 "for category kExecutionGlobalEventGroupsCategory doesn't exist in storage!");
+                                 "for category kExecutionEventGroupDataCategory doesn't exist in storage!");
       auto event_group_input = eg_data_.at(concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1).event_group;
       concord::kvbc::categorization::serialize(output, event_group_input);
       return concord::kvbc::categorization::ImmutableValue{{block_id, std::string(output.begin(), output.end())}};
@@ -148,7 +148,7 @@ class FakeStorage : public concord::kvbc::IReader {
 
   std::optional<concord::kvbc::categorization::TaggedVersion> getLatestVersion(const std::string &category_id,
                                                                                const std::string &key) const override {
-    if (category_id == concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory) {
+    if (category_id == concord::kvbc::categorization::kExecutionEventGroupDataCategory) {
       if (first_event_group_block_id_) {
         return {concord::kvbc::categorization::TaggedVersion{false, first_event_group_block_id_}};
       }
@@ -860,8 +860,8 @@ TEST(kvbc_filter_test, event_order_in_event_groups) {
   concord::kvbc::categorization::VersionedUpdates internal;
   event_group_immutables.calculateRootHash(true);
   if (event_group_immutables.getData().kv.size() > 0)
-    updates.add(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory, std::move(event_group_immutables));
-  auto imm_var_updates = updates.categoryUpdates(concord::kvbc::categorization::kExecutionGlobalEventGroupsCategory);
+    updates.add(concord::kvbc::categorization::kExecutionEventGroupDataCategory, std::move(event_group_immutables));
+  auto imm_var_updates = updates.categoryUpdates(concord::kvbc::categorization::kExecutionEventGroupDataCategory);
   EXPECT_TRUE(imm_var_updates != std::nullopt);
 
   auto &imm_updates = std::get<concord::kvbc::categorization::ImmutableInput>((*imm_var_updates).get());

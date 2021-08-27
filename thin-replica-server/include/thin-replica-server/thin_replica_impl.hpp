@@ -761,7 +761,7 @@ class ThinReplicaImpl {
                               ServerWriterT* stream,
                               std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
     auto opt =
-        config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, getClientId(context));
+        config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, getClientId(context));
     if (not opt) {
       std::stringstream msg;
       msg << "An event group for trid \"" << getClientId(context) << "\" doesn't exist yet";
@@ -964,7 +964,7 @@ class ThinReplicaImpl {
       }
     } else {
       LOG_DEBUG(logger_, "subscribeToLiveUpdates event groups (client id " << client_id << ")");
-      auto opt = config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id);
+      auto opt = config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, client_id);
       if (not opt) {
         std::stringstream msg;
         msg << "An event group for trid \"" << client_id << "\" doesn't exist yet";
