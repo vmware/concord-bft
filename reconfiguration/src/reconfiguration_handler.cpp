@@ -17,6 +17,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
+#include "TimeService.hpp"
 
 using namespace concord::messages;
 namespace concord::reconfiguration {
@@ -24,6 +25,7 @@ namespace concord::reconfiguration {
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
@@ -33,6 +35,7 @@ bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
 bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
                                     uint64_t,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::WedgeStatusResponse response;
   if (req.fullWedge) {
@@ -47,6 +50,7 @@ bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
 bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
@@ -64,6 +68,7 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
@@ -97,6 +102,7 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_m
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeStatus& req,
                                     uint64_t sequence_number,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::AddRemoveWithWedgeStatusResponse response;
   if (std::holds_alternative<concord::messages::AddRemoveWithWedgeStatusResponse>(rres.response)) {
@@ -117,6 +123,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
 bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
@@ -155,6 +162,7 @@ bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,
 bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& msg,
                                           uint64_t,
                                           uint32_t sender_id,
+                                          const std::optional<bftEngine::Timestamp>&,
                                           concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "public key: " << msg.pub_key << " sender: " << sender_id);
   std::vector<uint32_t> affected_clients;
