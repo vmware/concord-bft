@@ -36,7 +36,7 @@ using std::vector;
 // It is responsible for moving to different views, which provides the liveness property of the system.
 // The ViewsManager stores the current view of the replica and the complaints for it.
 // It also stores the complaints for higher view and it is responsible for their processing.
-// Furthermore it is capable of reporting various details (such as missing pre-prepare and view change messages) via the
+// Furthermore it is capable of reporting various details (such as missing pre-prepare and view change messages) for the
 // status exchange mechanism.
 class ViewsManager {
   friend class ViewChangeMsg;

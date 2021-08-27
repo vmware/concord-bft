@@ -258,15 +258,16 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   prePrepareMsg->addRequest(clientRequest->body(), clientRequest->size());
   prePrepareMsg->finishAddingRequests();
 
-  auto primary = replicasInfo.primaryOfView(initialView);
+  const auto primary = replicasInfo.primaryOfView(initialView);
   char buff[32]{};
 
-  // Create a Pre-Prepare certificate.
+  // Create a PrepareFullMessage. When this message is added as an element to a view change message,
+  // it will be used to create a PreparedCertificate.
   PrepareFullMsg* prepareFullMsg = PrepareFullMsg::create(initialView, lastExecutedSeqNum, primary, buff, sizeof(buff));
 
   const int N = rc.numReplicas;
   ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
-  auto nextView = initialView + 1;
+  const auto nextView = initialView + 1;
   uint16_t numberOfNeededMessages = 2 * rc.fVal + 1;
 
   // Create view change messages and add them to the views manager.
@@ -275,7 +276,7 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
     viewsManager->add(viewChangeMsgs[i]);
   }
 
-  // Add the Pre-Prepare message's digest and the Pre-Prepare certificate to one of the view change messages.
+  // Add the Pre-Prepare message's digest and the PrepareFullMessage to one of the view change messages.
   viewChangeMsgs[0]->addElement(lastExecutedSeqNum,
                                 prePrepareMsg->digestOfRequests(),
                                 prePrepareMsg->viewNumber(),
@@ -288,7 +289,6 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
     viewChangeMsgs[i] = nullptr;
   }
 
-  // Create a new view message.
   NewViewMsg* newViewMsg = new NewViewMsg(1, nextView);
   Digest digest;
 
@@ -308,10 +308,9 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
 
   vector<PrePrepareMsg*> outPrePrepareMsgs;
-  // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS.
+  // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS by attempting to enter the next view.
   // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
   // added to the views manager.
-
   // This attempt to enter the next view should fail due to the missing Pre-Prepare message.
   ASSERT_FALSE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
 
@@ -320,7 +319,8 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   // messages in the status request message.
   viewsManager->setHigherView(nextView);
 
-  // Fill the first status message's bitmask so that it designates that the is a missing Pre-Prepare message.
+  // Fill the necessary information in the first status message so that it designates that there is a missing
+  // Pre-Prepare message.
   viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage, &replicasInfo, lastStableSeqNum);
   // Observe that there is a missing Pre-Prepare message indeed.
   ASSERT_TRUE(replicaStatusMessage.isMissingPrePrepareMsgForViewChange(lastExecutedSeqNum));
@@ -332,8 +332,8 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   // the next view.
   ASSERT_TRUE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
 
-  // Fill the second status message's bitmask so that it deignates that there are no longer missing Pre-Prepare
-  // messages.
+  // Fill the necessary information in the second status message so that it designates that there are no longer missing
+  // Pre-Prepare messages.
   viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage2, &replicasInfo, lastStableSeqNum);
   // Observe that there are no missing Pre-Prepare messages.
   ASSERT_FALSE(replicaStatusMessage2.isMissingPrePrepareMsgForViewChange(lastExecutedSeqNum));
