@@ -846,7 +846,7 @@ TEST(kvbc_filter_test, event_order_in_event_groups) {
     addEventToEventGroup(std::move(event), event_group);
   }
 
-  concord::kvbc::categorization::ImmutableUpdates event_group_immutables;
+  concord::kvbc::categorization::ImmutableUpdates event_group_data_table;
   // serialize event group
   std::vector<uint8_t> output;
   concord::kvbc::categorization::serialize(output, event_group);
@@ -854,13 +854,13 @@ TEST(kvbc_filter_test, event_order_in_event_groups) {
   concord::kvbc::categorization::ImmutableUpdates::ImmutableValue imm_value{std::move(serialized_event_group),
                                                                             std::set<std::string>{}};
   event_group_id++;
-  event_group_immutables.addUpdate(concordUtils::toBigEndianStringBuffer(event_group_id), std::move(imm_value));
+  event_group_data_table.addUpdate(concordUtils::toBigEndianStringBuffer(event_group_id), std::move(imm_value));
 
   concord::kvbc::categorization::Updates updates;
   concord::kvbc::categorization::VersionedUpdates internal;
-  event_group_immutables.calculateRootHash(true);
-  if (event_group_immutables.getData().kv.size() > 0)
-    updates.add(concord::kvbc::categorization::kExecutionEventGroupDataCategory, std::move(event_group_immutables));
+  event_group_data_table.calculateRootHash(true);
+  if (event_group_data_table.getData().kv.size() > 0)
+    updates.add(concord::kvbc::categorization::kExecutionEventGroupDataCategory, std::move(event_group_data_table));
   auto imm_var_updates = updates.categoryUpdates(concord::kvbc::categorization::kExecutionEventGroupDataCategory);
   EXPECT_TRUE(imm_var_updates != std::nullopt);
 
