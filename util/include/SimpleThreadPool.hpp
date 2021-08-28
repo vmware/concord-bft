@@ -18,7 +18,7 @@
 #include <atomic>
 #include <condition_variable>
 
-namespace util {
+namespace concord::util {
 
 class SimpleThreadPool {
   typedef std::lock_guard<std::mutex> guard;
@@ -79,4 +79,4 @@ class SimpleThreadPool {
   std::vector<std::thread> threads_;
 };
 
-}  // namespace util
+}  // namespace concord::util

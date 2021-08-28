@@ -337,6 +337,11 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
+  if (isCollectingState()) {
+    LOG_WARN(GL, "Called during state transfer; won't send PrePrepareMsgs!");
+    return false;
+  }
+
   if (!currentViewIsActive()) {
     LOG_INFO(GL, "View " << getCurrentView() << " is not active yet. Won't send PrePrepareMsg-s.");
     return false;
@@ -387,20 +392,24 @@ void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
+// So the second value of the pair provides the real indication of success of failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
   if (primaryCombinedReqSize < requiredBatchSizeInBytes) {
     LOG_DEBUG(GL,
               "Not sufficient messages size in the primary replica queue to fill a batch"
                   << KVLOG(primaryCombinedReqSize, requiredBatchSizeInBytes));
-    return nullptr;
+    return std::make_pair(nullptr, false);
   }
-  if (!checkSendPrePrepareMsgPrerequisites()) return nullptr;
+  if (!checkSendPrePrepareMsgPrerequisites()) return std::make_pair(nullptr, false);
 
   removeDuplicatedRequestsFromRequestsQueue();
   return buildPrePrepareMessageByBatchSize(requiredBatchSizeInBytes);
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
+// So the second value of the pair provides the real indication of success of failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
   ConcordAssertGT(requiredRequestsNum, 0);
   // DD: To make sure that time service does not affect sending messages
   uint32_t timeServiceBatchSizeAdjustment = config_.timeServiceEnabled ? 1 : 0;
@@ -408,9 +417,9 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMsgBatchByRequestsNum(uint32_t require
     LOG_DEBUG(GL,
               "Not enough messages in the primary replica queue to fill a batch"
                   << KVLOG(requestsQueueOfPrimary.size(), requiredRequestsNum));
-    return nullptr;
+    return std::make_pair(nullptr, false);
   }
-  if (!checkSendPrePrepareMsgPrerequisites()) return nullptr;
+  if (!checkSendPrePrepareMsgPrerequisites()) return std::make_pair(nullptr, false);
 
   removeDuplicatedRequestsFromRequestsQueue();
   return buildPrePrepareMessageByRequestsNum(requiredRequestsNum);
@@ -421,22 +430,31 @@ bool ReplicaImp::tryToSendPrePrepareMsg(bool batchingLogic) {
 
   removeDuplicatedRequestsFromRequestsQueue();
   PrePrepareMsg *pp = nullptr;
-  if (batchingLogic)
-    pp = reqBatchingLogic_.batchRequests();
-  else
-    pp = buildPrePrepareMessage();
-  if (!pp) return false;
+  bool isSent = false;
   if (batchingLogic) {
-    batch_closed_on_logic_on_++;
-    accumulating_batch_time_.add(
-        std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime() - time_to_collect_batch_).count());
-    accumulating_batch_avg_time_.Get().Set((uint64_t)accumulating_batch_time_.avg());
-    if (accumulating_batch_time_.numOfElements() == 1000)
-      accumulating_batch_time_.reset();  // We reset the average on every 1000 samples
+    auto batchedReq = reqBatchingLogic_.batchRequests();
+    isSent = batchedReq.second;
+    if (isSent) {
+      pp = batchedReq.first;
+      batch_closed_on_logic_on_++;
+      accumulating_batch_time_.add(
+          std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime() - time_to_collect_batch_).count());
+      accumulating_batch_avg_time_.Get().Set((uint64_t)accumulating_batch_time_.avg());
+      if (accumulating_batch_time_.numOfElements() == 1000) {
+        accumulating_batch_time_.reset();  // We reset the average on every 1000 samples
+      }
+      time_to_collect_batch_ = MinTime;
+    }
   } else {
-    batch_closed_on_logic_off_++;
+    auto builtReq = buildPrePrepareMessage();
+    isSent = builtReq.second;
+    if (isSent) {
+      pp = builtReq.first;
+      batch_closed_on_logic_off_++;
+      time_to_collect_batch_ = MinTime;
+    }
   }
-  time_to_collect_batch_ = MinTime;
+  if (!pp) return isSent;
   startConsensusProcess(pp);
   return true;
 }
@@ -492,34 +510,68 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
   return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 }
 
-PrePrepareMsg *ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
-                                                               uint16_t maxSpaceForReqs,
-                                                               uint32_t requiredRequestsSize,
-                                                               uint32_t requiredRequestsNum) {
+// Finalize the preprepare message by adding digest at a point when no more changes will happen.
+// The digest calculation can happen in separate thread or in the same thread depending on the
+// configuration.
+// This function will return failure if there are no client request messages, which is marked by the
+// second value in the returned pair.
+// The first value of the pair can be nullptr depending on the availability of the result. So the
+// first value cannot represent failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
+                                                                                 uint16_t maxSpaceForReqs,
+                                                                                 uint32_t requiredRequestsSize,
+                                                                                 uint32_t requiredRequestsNum) {
   if (prePrepareMsg->numberOfRequests() == 0) {
     LOG_INFO(GL, "No client requests added to the PrePrepare batch, delete the message");
     delete prePrepareMsg;
-    return nullptr;
+    return std::make_pair(nullptr, false);
   }
   {
-    TimeRecorder scoped_timer(*histograms_.finishAddingRequestsToPrePrepareMsg);
-    prePrepareMsg->finishAddingRequests();
+    if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+      RequestThreadPool::getThreadPool().async(
+          [](auto *ppm, auto *iq, auto *hist) {
+            {
+              TimeRecorder scoped_timer(*(hist->finishAddingRequestsToPrePrepareMsg));
+              ppm->finishAddingRequests();
+            }
+            iq->pushInternalMsg(std::move(ppm));
+          },
+          prePrepareMsg,
+          &(getIncomingMsgsStorage()),
+          &histograms_);
+      LOG_DEBUG(GL,
+                "Finishing in the thread : " << KVLOG(prePrepareMsg->seqNumber(),
+                                                      prePrepareMsg->getCid(),
+                                                      maxSpaceForReqs,
+                                                      requiredRequestsSize,
+                                                      prePrepareMsg->requestsSize(),
+                                                      requiredRequestsNum,
+                                                      prePrepareMsg->numberOfRequests()));
+      return std::make_pair(nullptr, true);
+    } else {
+      {
+        TimeRecorder scoped_timer(*histograms_.finishAddingRequestsToPrePrepareMsg);
+        prePrepareMsg->finishAddingRequests();
+      }
+      LOG_DEBUG(GL,
+                "Finishing without thread : " << KVLOG(prePrepareMsg->seqNumber(),
+                                                       prePrepareMsg->getCid(),
+                                                       maxSpaceForReqs,
+                                                       requiredRequestsSize,
+                                                       prePrepareMsg->requestsSize(),
+                                                       requiredRequestsNum,
+                                                       prePrepareMsg->numberOfRequests()));
+      return std::make_pair(prePrepareMsg, true);
+    }
   }
-  LOG_DEBUG(GL,
-            KVLOG(prePrepareMsg->seqNumber(),
-                  prePrepareMsg->getCid(),
-                  maxSpaceForReqs,
-                  requiredRequestsSize,
-                  prePrepareMsg->requestsSize(),
-                  requiredRequestsNum,
-                  prePrepareMsg->numberOfRequests()));
-  return prePrepareMsg;
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
+// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
+// So the second value of the pair provides the real indication of success of failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
   TimeRecorder scoped_timer(*histograms_.buildPrePrepareMessage);
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
-  if (!prePrepareMsg) return nullptr;
+  if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
@@ -533,9 +585,11 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessage() {
   return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
+// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
+// So the second value of the pair provides the real indication of success of failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
-  if (!prePrepareMsg) return nullptr;
+  if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
@@ -546,9 +600,11 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t required
   return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, requiredRequestsNum);
 }
 
-PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
+// The preprepare message can be nullptr if the finalisation is happening in a separate thread.
+// So the second value of the pair provides the real indication of success of failure.
+std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
-  if (!prePrepareMsg) return nullptr;
+  if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
@@ -561,11 +617,11 @@ PrePrepareMsg *ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBa
 }
 
 void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp) {
-  static constexpr bool isInternalNoop = false;
-  startConsensusProcess(pp, isInternalNoop);
+  static constexpr bool createdEarlier = false;
+  startConsensusProcess(pp, createdEarlier);
 }
 
-void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
+void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier) {
   if (!isCurrentPrimary()) return;
   TimeRecorder scoped_timer(*histograms_.startConsensusProcess);
   auto firstPath = pp->firstPath();
@@ -574,19 +630,18 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isInternalNoop) {
   }
   metric_bft_batch_size_.Get().Set(pp->numberOfRequests());
   primaryLastUsedSeqNum++;
+  if (isCreatedEarlier) {
+    pp->setSeqNumber(primaryLastUsedSeqNum);
+  }
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
 
-  if (isInternalNoop) {
-    LOG_INFO(CNSUS, "Sending PrePrepare message containing internal NOOP, commit path: " << CommitPathToStr(firstPath));
-  } else {
-    LOG_INFO(CNSUS,
-             "Sending PrePrepare message" << KVLOG(pp->numberOfRequests())
-                                          << " correlation ids: " << pp->getBatchCorrelationIdAsString()
-                                          << " commit path: " << CommitPathToStr(firstPath));
-    consensus_times_.start(primaryLastUsedSeqNum);
-  }
+  LOG_INFO(CNSUS,
+           "Sending PrePrepare message" << KVLOG(pp->numberOfRequests())
+                                        << " correlation ids: " << pp->getBatchCorrelationIdAsString()
+                                        << " commit path: " << CommitPathToStr(firstPath));
+  consensus_times_.start(primaryLastUsedSeqNum);
 
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
   {
@@ -1215,7 +1270,10 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
     return onInternalMsg(*fcp);
   }
-
+  // Handle a pre prepare sent by self
+  if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
+    return startConsensusProcess(*ppm, true);
+  }
   // Handle prepare related internal messages
   if (auto *csf = std::get_if<CombinedSigFailedInternalMsg>(&msg)) {
     return onPrepareCombinedSigFailed(csf->seqNumber, csf->view, csf->replicasWithBadSigs);
@@ -3757,9 +3815,9 @@ ReplicaImp::ReplicaImp(bool firstTime,
     sigManager_.reset(SigManager::init(config_.replicaId,
                                        config_.replicaPrivateKey,
                                        config_.publicKeysOfReplicas,
-                                       KeyFormat::HexaDecimalStrippedFormat,
+                                       concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                        config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                       KeyFormat::PemFormat,
+                                       concord::util::crypto::KeyFormat::PemFormat,
                                        *repsInfo));
     viewsManager = new ViewsManager(repsInfo);
   } else {
@@ -4370,9 +4428,16 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     data_vec.clear();
     concord::messages::serialize(data_vec, req);
     std::string strMsg(data_vec.begin(), data_vec.end());
-    internalBFTClient_->sendRequest(
-        RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), "wedge-noop-command-" + std::to_string(seqNumber));
+    auto sn = std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
+                                    RECONFIG_FLAG,
+                                    sn,
+                                    strMsg.size(),
+                                    strMsg.c_str(),
+                                    60000,
+                                    "wedge-noop-command-" + std::to_string(seqNumber));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
+    onMessage(crm);
     tryToSendPrePrepareMsg(false);
   }
 

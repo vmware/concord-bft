@@ -31,7 +31,12 @@
 #include "PerformanceManager.hpp"
 #include <RollingAvgAndVar.hpp>
 
+// TODO[TK] till boost upgrade
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include <boost/lockfree/spsc_queue.hpp>
+#pragma GCC diagnostic pop
+
 #include <mutex>
 #include <condition_variable>
 #include <functional>
@@ -295,7 +300,7 @@ class PreProcessor {
   const uint16_t numOfInternalClients_;
   const bool clientBatchingEnabled_;
   inline static uint16_t clientMaxBatchSize_ = 0;
-  util::SimpleThreadPool threadPool_;
+  concord::util::SimpleThreadPool threadPool_;
   // One-time allocated buffers (one per client) for the pre-execution results storage
   PreProcessResultBuffers preProcessResultBuffers_;
   OngoingReqBatchesMap ongoingReqBatches_;  // clientId -> RequestsBatch
@@ -335,7 +340,7 @@ class PreProcessor {
 
 // This class is used to send messages to other replicas in parallel
 
-class AsyncPreProcessJob : public util::SimpleThreadPool::Job {
+class AsyncPreProcessJob : public concord::util::SimpleThreadPool::Job {
  public:
   AsyncPreProcessJob(PreProcessor &preProcessor,
                      const PreProcessRequestMsgSharedPtr &preProcessReqMsg,

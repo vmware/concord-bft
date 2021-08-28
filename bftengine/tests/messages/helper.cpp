@@ -80,10 +80,9 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
   config.maxReplyMessageSize = 1024;
   config.sizeOfReservedPage = 2048;
   config.debugStatisticsEnabled = true;
+  config.threadbagConcurrency = 8;
 
   loadPrivateAndPublicKeys(config.replicaPrivateKey, config.publicKeysOfReplicas, config.replicaId, config.numReplicas);
-
-  config.set("concord.bft.message.preprepareDigestCalculationConcurrency", 8);
 
   bftEngine::CryptoManager::instance(std::make_unique<TestCryptoSystem>());
 
@@ -92,9 +91,14 @@ bftEngine::ReplicaConfig& createReplicaConfig(uint16_t fVal, uint16_t cVal) {
 
 bftEngine::impl::SigManager* createSigManager(size_t myId,
                                               std::string& myPrivateKey,
-                                              KeyFormat replicasKeysFormat,
+                                              concord::util::crypto::KeyFormat replicasKeysFormat,
                                               std::set<std::pair<uint16_t, const std::string>>& publicKeysOfReplicas,
                                               ReplicasInfo& replicasInfo) {
-  return SigManager::init(
-      myId, myPrivateKey, publicKeysOfReplicas, replicasKeysFormat, nullptr, KeyFormat::PemFormat, replicasInfo);
+  return SigManager::init(myId,
+                          myPrivateKey,
+                          publicKeysOfReplicas,
+                          replicasKeysFormat,
+                          nullptr,
+                          concord::util::crypto::KeyFormat::PemFormat,
+                          replicasInfo);
 }

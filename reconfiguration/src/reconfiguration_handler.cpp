@@ -17,6 +17,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
+#include "TimeService.hpp"
 
 using namespace concord::messages;
 namespace concord::reconfiguration {
@@ -24,6 +25,7 @@ namespace concord::reconfiguration {
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "Wedge command instructs replica to stop at sequence number " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
@@ -33,6 +35,7 @@ bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
 bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
                                     uint64_t,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::WedgeStatusResponse response;
   if (req.fullWedge) {
@@ -47,6 +50,7 @@ bool ReconfigurationHandler::handle(const WedgeStatusRequest& req,
 bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
@@ -64,6 +68,7 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
@@ -97,6 +102,7 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_m
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeStatus& req,
                                     uint64_t sequence_number,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::AddRemoveWithWedgeStatusResponse response;
   if (std::holds_alternative<concord::messages::AddRemoveWithWedgeStatusResponse>(rres.response)) {
@@ -117,6 +123,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
 bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
+                                    const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
@@ -131,33 +138,31 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
              "The operator public key is missing, the reconfiguration handler won't be able to execute the requests");
     return;
   }
-  try {
-    pub_key_ = concord::util::openssl_utils::deserializePublicKeyFromPem(operatorPubKeyPath, "secp256r1");
-  } catch (const std::exception& e) {
-    LOG_ERROR(
-        getLogger(),
-        "(1) Unable to read operator key, the replica won't be able to perform reconfiguration actions " << e.what());
-    pub_key_ = nullptr;
+  std::ifstream key_content;
+  key_content.open(operatorPubKeyPath);
+  if (!key_content) {
+    LOG_ERROR(getLogger(), "unable to read the operator public key file");
+    return;
   }
-  try {
-    verifier_ = std::make_unique<bftEngine::impl::ECDSAVerifier>(operatorPubKeyPath);
-  } catch (const std::exception& e) {
-    LOG_ERROR(
-        getLogger(),
-        "(2) Unable to read operator key, the replica won't be able to perform reconfiguration actions " << e.what());
-    verifier_ = nullptr;
+  auto key_str = std::string{};
+  auto buf = std::string(4096, '\0');
+  while (key_content.read(&buf[0], 4096)) {
+    key_str.append(buf, 0, key_content.gcount());
   }
+  key_str.append(buf, 0, key_content.gcount());
+  verifier_.reset(new concord::util::crypto::ECDSAVerifier(key_str, concord::util::crypto::KeyFormat::PemFormat));
 }
 bool BftReconfigurationHandler::verifySignature(uint32_t sender_id,
                                                 const std::string& data,
                                                 const std::string& signature) const {
-  if (pub_key_ == nullptr && verifier_ == nullptr) return false;
-  return pub_key_->verify(data, signature) || verifier_->verify(data, signature);
+  if (verifier_ == nullptr) return false;
+  return verifier_->verify(data, signature);
 }
 
 bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& msg,
                                           uint64_t,
                                           uint32_t sender_id,
+                                          const std::optional<bftEngine::Timestamp>&,
                                           concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "public key: " << msg.pub_key << " sender: " << sender_id);
   std::vector<uint32_t> affected_clients;
@@ -179,7 +184,7 @@ bool ClientReconfigurationHandler::handle(const concord::messages::ClientExchang
   // assuming we always send hex DER over the wire
   for (const auto& clientId : affected_clients)
     bftEngine::impl::KeyExchangeManager::instance().onClientPublicKeyExchange(
-        msg.pub_key, KeyFormat::HexaDecimalStrippedFormat, clientId);
+        msg.pub_key, concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat, clientId);
   return true;
 }
 }  // namespace concord::reconfiguration

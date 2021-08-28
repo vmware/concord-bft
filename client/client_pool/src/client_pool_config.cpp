@@ -15,6 +15,6 @@
 
 namespace concord::config_pool {
 
-ClientPoolConfig::ClientPoolConfig() : logger_{logging::getLogger("com.vmware.external_client_pool")} {}
+ClientPoolConfig::ClientPoolConfig() : logger_{logging::getLogger("concord.client.client_pool.config")} {}
 
 }  // namespace concord::config_pool

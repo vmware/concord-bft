@@ -16,7 +16,7 @@
 #include "PrimitiveTypes.hpp"
 #include "TimeUtils.hpp"
 
-namespace util {
+namespace concord::util {
 class SimpleThreadPool;
 }
 namespace bftEngine {
@@ -53,7 +53,7 @@ class RetransmissionsManager {
  public:
   RetransmissionsManager();  // retransmissions logic is disabled
 
-  RetransmissionsManager(util::SimpleThreadPool* threadPool,
+  RetransmissionsManager(concord::util::SimpleThreadPool* threadPool,
                          IncomingMsgsStorage* const incomingMsgsStorage,
                          uint16_t maxOutNumOfSeqNumbers,
                          SeqNum lastStableSeqNum);
@@ -85,7 +85,7 @@ class RetransmissionsManager {
 
   void add(const Event& e);
 
-  util::SimpleThreadPool* const pool;
+  concord::util::SimpleThreadPool* const pool;
   IncomingMsgsStorage* const incomingMsgs;
   const uint16_t maxOutSeqNumbers;
   void* const internalLogicInfo;

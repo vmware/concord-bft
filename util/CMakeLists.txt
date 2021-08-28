@@ -29,11 +29,6 @@ if(USE_OPENSSL)
     target_compile_definitions(util_shared PUBLIC USE_OPENSSL) 
 endif()
 
-if(BUILD_ROCKSDB_STORAGE)
-    target_compile_definitions(util PUBLIC "USE_ROCKSDB=1")
-    target_compile_definitions(util_shared PUBLIC "USE_ROCKSDB=1")
-endif()
-
 if(BUILD_THIRDPARTY)
     add_dependencies(util cryptopp)
     add_dependencies(util_shared cryptopp)

@@ -302,7 +302,7 @@ class RetransmissionsLogic {
 // RetransmissionsManager
 ///////////////////////////////////////////////////////////////////////////////
 
-RetransmissionsManager::RetransmissionsManager(util::SimpleThreadPool* threadPool,
+RetransmissionsManager::RetransmissionsManager(concord::util::SimpleThreadPool* threadPool,
                                                IncomingMsgsStorage* const incomingMsgsStorage,
                                                uint16_t maxOutNumOfSeqNumbers,
                                                SeqNum lastStableSeqNum)
@@ -402,7 +402,7 @@ void RetransmissionsManager::setLastView(ViewNum newView) {
 
 bool RetransmissionsManager::tryToStartProcessing() {
   // this class is local to this method
-  class RetransmissionsProcessingJob : public util::SimpleThreadPool::Job {
+  class RetransmissionsProcessingJob : public concord::util::SimpleThreadPool::Job {
    private:
     IncomingMsgsStorage* const incomingMsgs;
     std::vector<RetransmissionsManager::Event>* const setOfEvents;

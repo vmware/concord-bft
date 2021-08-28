@@ -19,7 +19,6 @@
 #include "OpenTracing.hpp"
 #include "PrimitiveTypes.hpp"
 #include "Digest.hpp"
-#include "Crypto.hpp"
 #include "SimpleThreadPool.hpp"
 #include "InternalReplicaApi.hpp"
 #include "IncomingMsgsStorage.hpp"
@@ -289,7 +288,7 @@ class CollectorOfThresholdSignatures {
     }
   }
 
-  class SignaturesProcessingJob : public util::SimpleThreadPool::Job {
+  class SignaturesProcessingJob : public concord::util::SimpleThreadPool::Job {
    private:
     struct SigData {
       ReplicaId srcRepId;
@@ -407,7 +406,7 @@ class CollectorOfThresholdSignatures {
     }
   };
 
-  class CombinedSigVerificationJob : public util::SimpleThreadPool::Job {
+  class CombinedSigVerificationJob : public concord::util::SimpleThreadPool::Job {
    private:
     std::shared_ptr<IThresholdVerifier> verifier;
     IncomingMsgsStorage* const repMsgsStorage;

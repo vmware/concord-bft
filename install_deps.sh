@@ -35,6 +35,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     python3-setuptools \
     sudo \
     vim \
+    iproute2 \
     wget
 
 update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-9 100

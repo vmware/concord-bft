@@ -77,7 +77,7 @@ void ClientsManager::loadInfoFromReservedPages() {
       std::istringstream iss(scratchPage_);
       concord::serialize::Serializable::deserialize(iss, info.pubKey);
       ConcordAssertGT(info.pubKey.first.length(), 0);
-      KeyExchangeManager::instance().loadClientPublicKey(info.pubKey.first, info.pubKey.second, clientId);
+      KeyExchangeManager::instance().loadClientPublicKey(info.pubKey.first, info.pubKey.second, clientId, false);
     }
 
     if (!loadReservedPage(getReplyFirstPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) continue;
@@ -250,7 +250,9 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
   return r;
 }
 
-void ClientsManager::setClientPublicKey(NodeIdType clientId, const std::string& key, KeyFormat fmt) {
+void ClientsManager::setClientPublicKey(NodeIdType clientId,
+                                        const std::string& key,
+                                        concord::util::crypto::KeyFormat fmt) {
   LOG_INFO(CL_MNGR, "key: " << key << " fmt: " << (uint16_t)fmt << " client: " << clientId);
   ClientInfo& info = clientsInfo_[clientId];
   info.pubKey = std::make_pair(key, fmt);

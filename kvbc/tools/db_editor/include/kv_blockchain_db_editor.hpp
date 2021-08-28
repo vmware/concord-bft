@@ -19,11 +19,18 @@
 #include "execution_data.cmf.hpp"
 #include "keys_and_signatures.cmf.hpp"
 #include "db_interfaces.h"
-#include "Crypto.hpp"
 #include "kvbc_key_types.h"
 #include "categorization/db_categories.h"
 #include "storage/merkle_tree_key_manipulator.h"
 #include "bcstatetransfer/DBDataStore.hpp"
+#include "bftengine/PersistentStorageImp.hpp"
+#include "bftengine/DbMetadataStorage.hpp"
+#include "crypto_utils.hpp"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <cryptopp/dll.h>
+#pragma GCC diagnostic pop
 
 namespace concord::kvbc::tools::db_editor {
 
@@ -337,12 +344,12 @@ struct VerifyBlockRequests {
       out << "\t\t\"signature_digest\": \"" << hex_digest << "\",\n";
       out << "\t\t\"persistency_type\": \"" << persistencyType(req.requestPersistencyType) << "\",\n";
       std::string verification_result;
-      auto verifier = std::make_unique<bftEngine::impl::RSAVerifier>(
-          client_keys.ids_to_keys[req.clientId].key.c_str(), (KeyFormat)client_keys.ids_to_keys[req.clientId].format);
+      auto verifier = std::make_unique<concord::util::crypto::RSAVerifier>(
+          client_keys.ids_to_keys[req.clientId].key,
+          (concord::util::crypto::KeyFormat)client_keys.ids_to_keys[req.clientId].format);
 
       if (req.requestPersistencyType == concord::messages::execution_data::EPersistecyType::RAW_ON_CHAIN) {
-        auto result =
-            verifier->verify(req.request.c_str(), req.request.size(), req.signature.c_str(), req.signature.size());
+        auto result = verifier->verify(req.request, req.signature);
         verification_result = result ? "ok" : "failed";
       } else {
         verification_result = "Raw request is not available for validation";
@@ -832,6 +839,64 @@ struct GetSTMetadata {
   }
 };
 
+struct ResetMetadata {
+  const bool read_only = false;
+  std::string description() const {
+    return "resetMetadata REPLICA_ID\n"
+           "  resets BFT and State Transfer metadata for live replica restore"
+           "  REPLICA_ID - of the target replica";
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    if (args.values.empty()) throw std::invalid_argument{"Missing REPLICA_ID argument"};
+    std::uint16_t repId = concord::util::to<std::uint16_t>(args.values.front());
+
+    std::map<std::string, std::string> result;
+    // Update/reset ST metadata
+    using namespace concord::storage;
+    using namespace bftEngine::bcst::impl;
+    using storage::v2MerkleTree::STKeyManipulator;
+    using storage::v2MerkleTree::MetadataKeyManipulator;
+    using bftEngine::MetadataStorage;
+    std::unique_ptr<DataStore> ds = std::make_unique<DBDataStore>(
+        adapter.db()->asIDBClient(), 1024 * 4, std::make_shared<STKeyManipulator>(), true);
+
+    if (ds->initialized()) {
+      DataStoreTransaction::Guard g(ds->beginTransaction());
+      g.txn()->setMyReplicaId(repId);
+      g.txn()->setFirstRequiredBlock(0);
+      g.txn()->setLastRequiredBlock(0);
+      g.txn()->setIsFetchingState(false);
+      g.txn()->deleteAllPendingPages();
+      result["st"] = "replicaId " + std::to_string(repId);
+    } else {
+      result["st"] = "ST metadata is not initialized - nothing to do.";
+    }
+    // Update BFT metadata
+    // Update sender id to the one of a destination replica in the CheckpointMsg for the last stable sequence number
+    std::unique_ptr<MetadataStorage> mdtStorage(
+        new DBMetadataStorage(adapter.db()->asIDBClient().get(), std::make_unique<MetadataKeyManipulator>()));
+    // in this case n, f and c have no use
+    shared_ptr<bftEngine::impl::PersistentStorage> p(new bftEngine::impl::PersistentStorageImp(4, 1, 0));
+    uint16_t numOfObjects = 0;
+    auto objectDescriptors = ((PersistentStorageImp *)p.get())->getDefaultMetadataObjectDescriptors(numOfObjects);
+    bool isNewStorage = mdtStorage->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
+    ((PersistentStorageImp *)p.get())->init(move(mdtStorage));
+    SeqNum stableSeqNum = p->getLastStableSeqNum();
+    CheckpointMsg *cpm = p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum);
+    result["new bft mdt"] = std::to_string(isNewStorage);
+    if (cpm && cpm->senderId() != repId) {
+      cpm->setSenderId(repId);
+      p->beginWriteTran();
+      p->setCheckpointMsgInCheckWindow(stableSeqNum, cpm);
+      p->setPrimaryLastUsedSeqNum(p->getLastExecutedSeqNum());
+      p->endWriteTran();
+      result["stable seq num"] = std::to_string(stableSeqNum);
+    }
+    return toJson(result);
+  }
+};
+
 using Command = std::variant<GetGenesisBlockID,
                              GetLastReachableBlockID,
                              GetLastStateTransferBlockID,
@@ -848,6 +913,7 @@ using Command = std::variant<GetGenesisBlockID,
                              CompareTo,
                              RemoveMetadata,
                              GetSTMetadata,
+                             ResetMetadata,
                              GetBlockRequests,
                              VerifyBlockRequests>;
 
@@ -868,6 +934,7 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("compareTo", CompareTo{}),
     std::make_pair("removeMetadata", RemoveMetadata{}),
     std::make_pair("getSTMetadata", GetSTMetadata{}),
+    std::make_pair("resetMetadata", ResetMetadata{}),
     std::make_pair("getBlockRequests", GetBlockRequests{}),
     std::make_pair("verifyBlockRequests", VerifyBlockRequests{}),
 };

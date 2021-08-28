@@ -17,6 +17,27 @@
 
 using namespace concord::util;
 
+struct moveable {
+  bool moved{false};
+  std::string member{"member"};
+  moveable(moveable&& o) : member(std::move(o.member)) { o.moved = true; }
+  moveable(const moveable& o) : member(o.member) {}
+  moveable() {}
+  moveable& operator=(const moveable& m) { return *this; }
+  moveable& operator=(moveable&& m) {
+    moved = true;
+    return *this;
+  }
+};
+
+bool operator==(const moveable& m, const moveable& o) { return o.member == m.member; }
+
+template <>
+class std::hash<moveable> {
+ public:
+  size_t operator()(const moveable& m) const { return std::hash<std::string>{}(m.member); }
+};
+
 TEST(LruTest, basic) {
   auto cache = LruCache<int, int>(3);
 
@@ -80,4 +101,50 @@ TEST(LruTest, lots_of_puts) {
   ASSERT_EQ(2, *cache.get(2));
   ASSERT_EQ(5, *cache.get(5));
   ASSERT_EQ(100, *cache.get(1));
+}
+
+TEST(LruTest, moves) {
+  moveable key;
+  moveable value;
+  std::string skey = key.member;
+  std::string svalue = value.member;
+  auto cache = LruCache<moveable, moveable>(1);
+  cache.put(std::move(key), std::move(value));
+  ASSERT_TRUE(key.moved);
+  ASSERT_TRUE(value.moved);
+
+  ASSERT_EQ(svalue, (*cache.get(moveable{})).member);
+}
+
+TEST(LruTest, const_ref_not_moved) {
+  moveable key;
+  moveable value;
+  auto cache = LruCache<moveable, moveable>(1);
+  cache.put(key, value);
+  ASSERT_FALSE(key.moved);
+  ASSERT_FALSE(value.moved);
+
+  ASSERT_EQ(value.member, (*cache.get(key)).member);
+}
+
+TEST(LruTest, move_only_key) {
+  moveable key;
+  moveable value;
+  auto cache = LruCache<moveable, moveable>(1);
+  cache.put(std::move(key), value);
+  ASSERT_TRUE(key.moved);
+  ASSERT_FALSE(value.moved);
+
+  ASSERT_EQ(value.member, (*cache.get(moveable{})).member);
+}
+
+TEST(LruTest, move_only_value) {
+  moveable key;
+  moveable value;
+  auto cache = LruCache<moveable, moveable>(1);
+  cache.put(key, std::move(value));
+  ASSERT_FALSE(key.moved);
+  ASSERT_TRUE(value.moved);
+
+  ASSERT_EQ(moveable{}.member, (*cache.get(key)).member);
 }

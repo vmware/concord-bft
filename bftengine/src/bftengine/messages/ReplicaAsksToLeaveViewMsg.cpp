@@ -15,7 +15,6 @@
 #include "OpenTracing.hpp"
 #include "ReplicaAsksToLeaveViewMsg.hpp"
 #include "SysConsts.hpp"
-#include "Crypto.hpp"
 #include "ViewsManager.hpp"
 #include "SigManager.hpp"
 #include "EpochManager.hpp"

@@ -17,7 +17,7 @@
 #include "concord.cmf.hpp"
 #include "db_interfaces.h"
 #include "reconfiguration/ireconfiguration.hpp"
-#include "Crypto.hpp"
+#include "crypto_utils.hpp"
 #include "block_metadata.hpp"
 #include "kvbc_key_types.hpp"
 #include <future>
@@ -40,13 +40,10 @@ class RSAPruningSigner {
   // behalf of the operator, as the operator's signature is a dedicated-purpose
   // application-level signature rather than a Concord-BFT Principal's RSA
   // signature.
-  void sign(concord::messages::LatestPrunableBlock &) const;
+  void sign(concord::messages::LatestPrunableBlock &);
 
  private:
-  std::string getSignatureBuffer() const;
-
- private:
-  bftEngine::impl::RSASigner signer_;
+  std::unique_ptr<concord::util::crypto::ISigner> signer_;
 };
 
 // This class verifies pruning messages that were signed by serializing message
@@ -75,7 +72,7 @@ class RSAPruningVerifier {
  private:
   struct Replica {
     std::uint64_t principal_id{0};
-    bftEngine::impl::RSAVerifier verifier;
+    std::unique_ptr<concord::util::crypto::IVerifier> verifier;
   };
 
   bool verify(std::uint64_t sender, const std::string &ser, const std::string &signature) const;
@@ -148,14 +145,17 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
   bool handle(const concord::messages::PruneRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override;
 
  protected:
@@ -197,6 +197,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   bool handle(const concord::messages::LatestPrunableBlockRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &rres) override {
     if (!pruning_enabled_) return true;
     concord::messages::LatestPrunableBlock latest_prunable_block;
@@ -216,6 +217,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   bool handle(const concord::messages::PruneRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override {
     return true;
   }
@@ -223,6 +225,7 @@ class ReadOnlyReplicaPruningHandler : public concord::reconfiguration::BftReconf
   bool handle(const concord::messages::PruneStatusRequest &,
               uint64_t,
               uint32_t,
+              const std::optional<bftEngine::Timestamp> &,
               concord::messages::ReconfigurationResponse &) override {
     return true;
   }

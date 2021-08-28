@@ -297,7 +297,7 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
   config_->trs_conns[server_index]->cancelHashStream();
 
   SubscriptionRequest request;
-  if (is_event_group_stream_) {
+  if (is_event_group_request_) {
     request.mutable_event_groups()->set_event_group_id(latest_verified_event_group_id_ + 1);
   } else {
     request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
@@ -376,7 +376,7 @@ TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) 
 
   SubscriptionRequest request;
 
-  if (is_event_group_stream_) {
+  if (is_event_group_request_) {
     request.mutable_event_groups()->set_event_group_id(latest_verified_event_group_id_ + 1);
   } else {
     request.mutable_events()->set_block_id(latest_verified_block_id_ + 1);
@@ -588,6 +588,7 @@ void ThinReplicaClient::receiveUpdates() {
       for (auto& event : update_in.event_group().events()) {
         event_group.events.push_back(event);
       }
+      event_group.record_time = update_in.event_group().record_time();
       // TODO: Set trace context
       latest_verified_event_group_id_ = event_group.id;
       update->emplace<EventGroup>(std::move(event_group));
@@ -690,7 +691,7 @@ void ThinReplicaClient::Subscribe() {
     subscription_thread_->join();
     subscription_thread_.reset();
   }
-  is_event_group_stream_ = false;
+  is_event_group_request_ = false;
 
   bool has_verified_state = false;
   size_t data_server_index = 0;
@@ -882,7 +883,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
 
   config_->update_queue->Clear();
   latest_verified_block_id_ = block_id;
-  is_event_group_stream_ = false;
+  is_event_group_request_ = false;
 
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
@@ -902,7 +903,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   config_->update_queue->Clear();
   // We assume that the latest known event group for the caller is the event group prior to the requested one.
   latest_verified_event_group_id_ = req.event_group_id > 0 ? req.event_group_id - 1 : req.event_group_id;
-  is_event_group_stream_ = true;
+  is_event_group_request_ = true;
 
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.

@@ -341,7 +341,7 @@ std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForPrepareCollector::thres
   return CryptoManager::instance().thresholdVerifierForSlowPathCommit(seqNumber);
 }
 
-util::SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* context) {
+concord::util::SimpleThreadPool& SeqNumInfo::ExFuncForPrepareCollector::threadPool(void* context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
   return r->getInternalThreadPool();
 }
@@ -397,7 +397,7 @@ std::shared_ptr<IThresholdVerifier> SeqNumInfo::ExFuncForCommitCollector::thresh
   return CryptoManager::instance().thresholdVerifierForSlowPathCommit(seqNumber);
 }
 
-util::SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* context) {
+concord::util::SimpleThreadPool& SeqNumInfo::ExFuncForCommitCollector::threadPool(void* context) {
   InternalReplicaApi* r = (InternalReplicaApi*)context;
   return r->getInternalThreadPool();
 }

@@ -10,7 +10,6 @@
 // file.
 
 #include "SignedShareMsgs.hpp"
-#include "Crypto.hpp"
 #include "assertUtils.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"

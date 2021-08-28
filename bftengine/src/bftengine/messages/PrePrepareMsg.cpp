@@ -14,7 +14,6 @@
 #include "OpenTracing.hpp"
 #include "PrePrepareMsg.hpp"
 #include "SysConsts.hpp"
-#include "Crypto.hpp"
 #include "ClientRequestMsg.hpp"
 #include "SigManager.hpp"
 #include "RequestThreadPool.hpp"

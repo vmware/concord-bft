@@ -18,7 +18,7 @@
 #include "IncomingMsgsStorage.hpp"
 
 class IThresholdVerifier;
-namespace util {
+namespace concord::util {
 class SimpleThreadPool;
 }
 
@@ -44,13 +44,17 @@ class InternalReplicaApi  // TODO(GG): rename + clean + split to several classes
   virtual SeqNum getPrimaryLastUsedSeqNum() const = 0;
   virtual uint64_t getRequestsInQueue() const = 0;
   virtual SeqNum getLastExecutedSeqNum() const = 0;
-  virtual PrePrepareMsg* buildPrePrepareMessage() { return nullptr; }
+  virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMessage() { return std::make_pair(nullptr, false); }
   virtual bool tryToSendPrePrepareMsg(bool batchingLogic) { return false; }
-  virtual PrePrepareMsg* buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) { return nullptr; }
-  virtual PrePrepareMsg* buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) { return nullptr; }
+  virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) {
+    return std::make_pair(nullptr, false);
+  }
+  virtual std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) {
+    return std::make_pair(nullptr, false);
+  }
 
   virtual IncomingMsgsStorage& getIncomingMsgsStorage() = 0;
-  virtual util::SimpleThreadPool& getInternalThreadPool() = 0;
+  virtual concord::util::SimpleThreadPool& getInternalThreadPool() = 0;
 
   virtual bool isCollectingState() const = 0;
 
