@@ -20,7 +20,9 @@
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#ifdef USE_OPENTRACING
 #include <opentracing/tracer.h>
+#endif
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -301,12 +303,15 @@ class ThinReplicaImpl {
             if (update.parent_span) {
               sendData(stream, filtered_update, {*update.parent_span});
             } else {
+              std::string propagated_span_context;
+#ifdef USE_OPENTRACING
               auto span = opentracing::Tracer::Global()->StartSpan(
                   "trs_stream_update", {opentracing::SetTag{kCorrelationIdTag, correlation_id}});
               std::ostringstream context;
               const opentracing::Span& span_to_serialize = *span;
               span_to_serialize.tracer().Inject(span_to_serialize.context(), context);
-              auto propagated_span_context = context.str();
+              propagated_span_context = context.str();
+#endif
               sendData(stream, filtered_update, {propagated_span_context});
             }
           } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {

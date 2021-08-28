@@ -576,12 +576,11 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
 
   uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   {
-    TimeRecorder scoped_timer(*histograms_.addAllRequestsToPrePrepare);
+    TimeRecorder scoped_timer1(*histograms_.addAllRequestsToPrePrepare);
     ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
     while (nextRequest != nullptr)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
   }
-
   return finishAddingRequestsToPrePrepareMsg(prePrepareMsg, maxSpaceForReqs, 0, 0);
 }
 
@@ -645,12 +644,12 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
 
   SeqNumInfo &seqNumInfo = mainLog->get(primaryLastUsedSeqNum);
   {
-    TimeRecorder scoped_timer(*histograms_.addSelfMsgPrePrepare);
+    TimeRecorder scoped_timer1(*histograms_.addSelfMsgPrePrepare);
     seqNumInfo.addSelfMsg(pp);
   }
 
   if (ps_) {
-    TimeRecorder scoped_timer(*histograms_.prePrepareWriteTransaction);
+    TimeRecorder scoped_timer1(*histograms_.prePrepareWriteTransaction);
     ps_->beginWriteTran();
     ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
     ps_->setPrePrepareMsgInSeqNumWindow(primaryLastUsedSeqNum, pp);
@@ -659,7 +658,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   }
 
   {
-    TimeRecorder scoped_timer(*histograms_.broadcastPrePrepare);
+    TimeRecorder scoped_timer1(*histograms_.broadcastPrePrepare);
     if (!retransmissionsLogicEnabled) {
       sendToAllOtherReplicas(pp);
     } else {
@@ -672,10 +671,10 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   if (firstPath == CommitPath::SLOW) {
     seqNumInfo.startSlowPath();
     metric_slow_path_count_++;
-    TimeRecorder scoped_timer(*histograms_.sendPreparePartialToSelf);
+    TimeRecorder scoped_timer1(*histograms_.sendPreparePartialToSelf);
     sendPreparePartial(seqNumInfo);
   } else {
-    TimeRecorder scoped_timer(*histograms_.sendPartialProofToSelf);
+    TimeRecorder scoped_timer1(*histograms_.sendPreparePartialToSelf);
     sendPartialProof(seqNumInfo);
   }
 }
@@ -688,6 +687,7 @@ bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
   }
   return false;
 }
+
 template <typename T>
 bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   const SeqNum msgSeqNum = msg->seqNumber();
@@ -2901,7 +2901,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
   TimeRecorder scoped_timer(*histograms_.onSeqNumIsStable);
 
   LOG_INFO(GL,
-           "New stable sequence number. " << KVLOG(lastStableSeqNum, newStableSeqNum, hasStateInformation, oldSeqNum));
+           "New stable sequence number" << KVLOG(lastStableSeqNum, newStableSeqNum, hasStateInformation, oldSeqNum));
 
   if (ps_) ps_->beginWriteTran();
 
@@ -2920,9 +2920,12 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
     if (ps_) ps_->setPrimaryLastUsedSeqNum(primaryLastUsedSeqNum);
   }
-  mainLog->advanceActiveWindow(lastStableSeqNum + 1);
+  {
+    TimeRecorder scoped_timer1(*histograms_.advanceActiveWindowMainLog);
+    mainLog->advanceActiveWindow(lastStableSeqNum + 1);
+  }
   // Basically, once a checkpoint become stable, we advance the checkpoints log window to it.
-  // Alas, by doing so, we does not leave time for a checkpoint to try and become super stable.
+  // Alas, by doing so, we do not leave time for a checkpoint to try and become super stable.
   // For that we added another cell to the checkpoints log such that the "oldest" cell contains the checkpoint is
   // candidate for becoming super stable. So, once a checkpoint becomes stable we check if the previous checkpoint is
   // in the log, and if so we advance the log to that previous checkpoint.
@@ -2994,7 +2997,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
 
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
 
-  // Once a replica is has got the the wedge point, it mark itself as wedged. Then, once it restarts, it cleans the
+  // Once a replica is has got the the wedge point, it mark itself as wedged. Then, once it restarts, it cleans
   // the wedge point.
   if (seq_num_to_stop_at.has_value() && seq_num_to_stop_at.value() == newStableSeqNum) {
     LOG_INFO(GL,
@@ -4258,6 +4261,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
                                                  Bitmap &requestSet,
                                                  concordUtils::SpanWrapper &span) {
+  TimeRecorder scoped_timer(*histograms_.executeRequestsAndSendResponses);
   SCOPED_MDC("pp_msg_cid", ppMsg->getCid());
   IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
   size_t reqIdx = 0;
@@ -4278,8 +4282,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       }
     }
     if (!requestSet.get(tmp) || req.requestLength() == 0) {
-      if (clientsManager->isValidClient(req.clientProxyId()))
-        clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
+      clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
       continue;
     }
     SCOPED_MDC_CID(req.getCid());
@@ -4301,7 +4304,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     LOG_DEBUG(GL,
               "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " with accumulation");
     {
-      TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+      TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
       bftRequestsHandler_->execute(accumulatedRequests, timestamp, ppMsg->getCid(), span);
     }
   } else {
@@ -4312,7 +4315,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     for (auto &req : accumulatedRequests) {
       singleRequest.push_back(req);
       {
-        TimeRecorder scoped_timer(*histograms_.executeWriteRequest);
+        TimeRecorder scoped_timer1(*histograms_.executeWriteRequest);
         bftRequestsHandler_->execute(singleRequest, timestamp, ppMsg->getCid(), span);
         if (config_.timeServiceEnabled) {
           timestamp->request_position++;
@@ -4322,9 +4325,13 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       singleRequest.clear();
     }
   }
+  sendResponses(ppMsg, accumulatedRequests);
+}
+
+void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &accumulatedRequests) {
+  TimeRecorder scoped_timer(*histograms_.prepareAndSendResponses);
   for (auto &req : accumulatedRequests) {
-    ConcordAssertGT(req.outActualReplySize,
-                    0);  // TODO(GG): TBD - how do we want to support empty replies? (actualReplyLength==0)
+    ConcordAssertGT(req.outActualReplySize, 0);
     auto status = req.outExecutionStatus;
     if (status != 0) {
       const auto requestSeqNum = req.requestSequenceNum;
@@ -4337,8 +4344,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       free(req.outReply);
       send(replyMsg.get(), req.clientId);
     }
-    if (clientsManager->isValidClient(req.clientId))
-      clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
+    clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
   }
 }
 

@@ -26,7 +26,8 @@ namespace concord::kvbc::v2MerkleTree {
 #ifdef USE_ROCKSDB
 class RocksDBStorageFactory : public IStorageFactory {
  public:
-  static const std::size_t DEFAULT_ROCKSDB_LRU_CACHE_BYTES = 1024 * 1024 * 1024 * 4ul;  // 4 GB
+  static const std::size_t DEFAULT_ROCKSDB_BLOCK_CACHE_BYTES = 1024 * 1024 * 1024 * 8ul;  // 8 GB
+  static const std::size_t DEFAULT_ROCKSDB_ROW_CACHE_BYTES = 1024 * 1024 * 1024 * 8ul;    // 8 GB
 
   RocksDBStorageFactory(
       const std::string& dbPath,
@@ -36,7 +37,8 @@ class RocksDBStorageFactory : public IStorageFactory {
 
   RocksDBStorageFactory(const std::string& dbPath,
                         const std::string& dbConfPath,
-                        std::size_t rocksdbLruCacheBytes = DEFAULT_ROCKSDB_LRU_CACHE_BYTES,
+                        std::size_t rocksdbBlockCacheBytes = DEFAULT_ROCKSDB_BLOCK_CACHE_BYTES,
+                        std::size_t rocksdbRowCacheBytes = DEFAULT_ROCKSDB_ROW_CACHE_BYTES,
                         const std::shared_ptr<concord::performance::PerformanceManager>& pm =
                             std::make_shared<concord::performance::PerformanceManager>());
 
@@ -48,7 +50,8 @@ class RocksDBStorageFactory : public IStorageFactory {
  private:
   const std::string dbPath_;
   const std::optional<std::string> dbConfPath_;
-  std::size_t rocksdbLruCacheBytes_{DEFAULT_ROCKSDB_LRU_CACHE_BYTES};
+  std::size_t rocksdbBlockCacheBytes_{DEFAULT_ROCKSDB_BLOCK_CACHE_BYTES};
+  std::size_t rocksdbRowCacheBytes_{DEFAULT_ROCKSDB_ROW_CACHE_BYTES};
   const std::unordered_set<concord::kvbc::Key> nonProvableKeySet_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
 };
