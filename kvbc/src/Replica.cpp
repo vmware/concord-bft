@@ -141,12 +141,8 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   categorization::KeyValueBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
-  std::set<std::set<uint16_t>> txSigningClientGroups;
-  for (const auto &val : bftEngine::ReplicaConfig::instance().publicKeysOfClients) {
-    txSigningClientGroups.insert(val.second);
-  }
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, txSigningClientGroups),
+      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
