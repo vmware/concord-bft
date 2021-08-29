@@ -165,7 +165,7 @@ class ConcordClientPool {
                          const concord::config_pool::ConcordClientPoolConfig&);
   void CreatePool(concord::config_pool::ConcordClientPoolConfig&);
 
-  void OnBatchingTimeout(const ClientPtr& client);
+  void OnBatchingTimeout(ClientPtr client);
   bool clusterHasKeys(ClientPtr& cl);
   std::string SampleSpan(const std::string& span_blob);
   std::atomic_bool hasKeys_{false};
