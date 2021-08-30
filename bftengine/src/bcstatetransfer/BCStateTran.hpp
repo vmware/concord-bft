@@ -556,7 +556,6 @@ class BCStateTran : public IStateTransfer {
   Throughput bytes_collected_;
   std::optional<uint64_t> firstCollectedBlockId_;
   std::optional<uint64_t> lastCollectedBlockId_;
-  std::vector<uint16_t> sources_;
 
   // Duration Trackers
   DurationTracker<std::chrono::milliseconds> cycleDT_;

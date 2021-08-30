@@ -31,6 +31,16 @@ void SourceSelector::setFetchingTimeStamp(uint64_t currTimeMilli, bool retransmi
 void SourceSelector::removeCurrentReplica() {
   preferredReplicas_.erase(currentReplica_);
   currentReplica_ = NO_REPLICA;
+  receivedValidBlockFromSrc_ = false;
+}
+
+void SourceSelector::onReceivedValidBlockFromSource() {
+  ConcordAssertNE(currentReplica_, NO_REPLICA);
+  if (!receivedValidBlockFromSrc_) {
+    receivedValidBlockFromSrc_ = true;
+    LOG_INFO(logger_, "Insert source " << currentReplica_ << " into actualSources_");
+    actualSources_.push_back(currentReplica_);
+  }
 }
 
 void SourceSelector::setAllReplicasAsPreferred() { preferredReplicas_ = allOtherReplicas_; }
@@ -42,20 +52,34 @@ void SourceSelector::reset() {
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
   fetchRetransmissionOngoing_ = false;
+  receivedValidBlockFromSrc_ = false;
+  actualSources_.clear();
 }
 
 bool SourceSelector::isReset() const {
   return preferredReplicas_.empty() && (currentReplica_ == NO_REPLICA) && (sourceSelectionTimeMilli_ == 0) &&
-         (fetchingTimeStamp_ == 0) && (fetchRetransmissionCounter_ == 0) && !fetchRetransmissionOngoing_;
+         (fetchingTimeStamp_ == 0) && (fetchRetransmissionCounter_ == 0) && !fetchRetransmissionOngoing_ &&
+         actualSources_.empty() && !receivedValidBlockFromSrc_;
 }
 
 bool SourceSelector::retransmissionTimeoutExpired(uint64_t currTimeMilli) const {
   // TODO(GG): TBD - compute dynamically
   // if fetchingTimeStamp_ or fetchingTimeStamp_ are not set - no need to retransmit since destination has never yet
   // transmitted to this source
-  if (currentReplica_ == NO_REPLICA) return false;
-  if (fetchingTimeStamp_ == 0) return false;
-  return ((currTimeMilli - fetchingTimeStamp_) > retransmissionTimeoutMilli_);
+  if (currentReplica_ == NO_REPLICA) {
+    LOG_DEBUG(logger_, "Retransmit - no replica");
+    return false;
+  }
+  if (fetchingTimeStamp_ == 0) {
+    LOG_DEBUG(logger_, "Retransmit" << KVLOG(fetchingTimeStamp_));
+    return false;
+  }
+  auto diff = (currTimeMilli - fetchingTimeStamp_);
+  if (diff > retransmissionTimeoutMilli_) {
+    LOG_DEBUG(logger_, "Retransmit" << KVLOG(diff, currTimeMilli, fetchingTimeStamp_, retransmissionTimeoutMilli_));
+    return true;
+  }
+  return false;
 }
 
 uint64_t SourceSelector::timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const {
@@ -146,6 +170,7 @@ void SourceSelector::selectSource(uint64_t currTimeMilli) {
   fetchRetransmissionOngoing_ = false;
   fetchingTimeStamp_ = 0;
   fetchRetransmissionCounter_ = 0;
+  receivedValidBlockFromSrc_ = false;
 }
 }  // namespace impl
 }  // namespace bcst

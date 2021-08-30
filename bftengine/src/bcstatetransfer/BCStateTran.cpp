@@ -652,7 +652,6 @@ void BCStateTran::startCollectingStats() {
   gettingCheckpointSummariesDT_.reset();
   gettingMissingResPagesDT_.reset();
   cycleDT_.reset();
-  sources_.clear();
 
   metrics_.overall_blocks_collected_.Get().Set(0ull);
   metrics_.overall_blocks_throughput_.Get().Set(0ull);
@@ -2464,7 +2463,6 @@ void BCStateTran::processData(bool lastInBatch) {
       sourceSelector_.updateSource(currTime);
       auto currentSource = sourceSelector_.currentReplica();
       LOG_DEBUG(logger_, "Selected new source replica: " << currentSource);
-      sources_.push_back(currentSource);
       metrics_.current_source_replica_.Get().Set(currentSource);
       metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
@@ -2558,6 +2556,7 @@ void BCStateTran::processData(bool lastInBatch) {
       // if we have a new block
       //////////////////////////////////////////////////////////////////////////
       sourceSelector_.setSourceSelectionTime(currTime);
+      sourceSelector_.onReceivedValidBlockFromSource();
 
       ConcordAssertAND(lastChunkInRequiredBlock >= 1, actualBlockSize > 0);
 
@@ -2647,6 +2646,7 @@ void BCStateTran::processData(bool lastInBatch) {
       //////////////////////////////////////////////////////////////////////////
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       sourceSelector_.setSourceSelectionTime(currTime);
+      sourceSelector_.onReceivedValidBlockFromSource();
 
       if (config_.enableReservedPages) {
         // set the updated pages
@@ -2671,7 +2671,6 @@ void BCStateTran::processData(bool lastInBatch) {
       g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
       g.txn()->deleteCheckpointBeingFetched();
       deleteOldCheckpoints(cp.checkpointNum, g.txn());
-      sourceSelector_.reset();
       metrics_.preferred_replicas_.Get().Set("");
       metrics_.current_source_replica_.Get().Set(NO_REPLICA);
       nextRequiredBlock_ = 0;
@@ -2687,16 +2686,17 @@ void BCStateTran::processData(bool lastInBatch) {
 
       checkConsistency(config_.pedanticChecks);
 
+      cycleEndSummary();
+      sourceSelector_.reset();
+
       // Completion
       LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_++;
-      std::set<uint64_t> cb_keys;
       for (const auto &kv : on_transferring_complete_cb_registry_) {
         kv.second.invokeAll(cp.checkpointNum);
       }
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
-      cycleEndSummary();
       break;
     } else if (!badDataFromCurrentSourceReplica) {
       //////////////////////////////////////////////////////////////////////////
@@ -2728,10 +2728,13 @@ void BCStateTran::cycleEndSummary() {
   Throughput::Results bytesCollectedResults;
   std::ostringstream sources_str;
   std::string firstCollectedBlockIdstr;
+  const auto &sources_ = sourceSelector_.getActualSources();
 
-  if (gettingMissingBlocksDT_.totalDuration() == 0)
-    // we print summary only if we were collecting blocks
+  if (gettingMissingBlocksDT_.totalDuration() == 0) {
+    // we print full summary only if we were collecting blocks
+    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_);
     return;
+  }
 
   blocksCollectedResults = blocks_collected_.getOverallResults();
   bytesCollectedResults = bytes_collected_.getOverallResults();
@@ -2744,7 +2747,6 @@ void BCStateTran::cycleEndSummary() {
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
   auto commitToChainDuration = commitToChainDT_.totalDuration(true);
   auto gettingMissingResPagesDuration = gettingMissingResPagesDT_.totalDuration(true);
-
   LOG_INFO(logger_,
            "State Transfer cycle ended (#"
                << cycleCounter_ << "), Total Duration: " << cycleDuration << "ms, "
