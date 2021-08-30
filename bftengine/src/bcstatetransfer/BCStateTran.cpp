@@ -2686,15 +2686,16 @@ void BCStateTran::processData(bool lastInBatch) {
 
       checkConsistency(config_.pedanticChecks);
 
-      cycleEndSummary();
-      sourceSelector_.reset();
-
       // Completion
       LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_++;
       for (const auto &kv : on_transferring_complete_cb_registry_) {
         kv.second.invokeAll(cp.checkpointNum);
       }
+
+      cycleEndSummary();
+      sourceSelector_.reset();
+
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
       break;
