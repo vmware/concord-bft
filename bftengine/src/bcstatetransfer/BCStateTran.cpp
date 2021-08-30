@@ -423,8 +423,7 @@ void BCStateTran::stopRunning() {
     replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(i));
   }
   pendingItemDataMsgs.clear();
-  for (auto &ctx : ioContexts_) ioPool_.free(ctx);
-  ioContexts_.clear();
+  clearIoContexts();
   ConcordAssert(ioPool_.full());
   totalSizeOfPendingItemDataMsgs = 0;
   replicaForStateTransfer_ = nullptr;
@@ -674,6 +673,7 @@ void BCStateTran::startCollectingState() {
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
   auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  if (!ioContexts_.empty() | sourceFlag_) finalizeSource(sourceFlag_);
   registrar.perf.snapshot("state_transfer");
   registrar.perf.snapshot("state_transfer_dest");
   metrics_.start_collecting_state_++;
@@ -712,13 +712,7 @@ void BCStateTran::onTimerImp() {
   // sourceSnapshotCounter_ is zeroed every time fetch message is received
   if (sourceFlag_ &&
       (((++sourceSnapshotCounter_) * config_.refreshTimerMs) >= (2 * config_.fetchRetransmissionTimeoutMs))) {
-    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    registrar.perf.snapshot("state_transfer");
-    registrar.perf.snapshot("state_transfer_src");
-    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
-    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_src")));
-    sourceFlag_ = false;
-    sourceSnapshotCounter_ = 0;
+    finalizeSource(true);
   }
 
   // Retransmit AskForCheckpointSummariesMsg if needed
@@ -1491,8 +1485,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       LOG_INFO(logger_,
                "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission):"
                    << KVLOG(config_.enableSourceBlocksPreFetch, ioContexts_.front()->blockId, nextBlockId));
-      for (auto &ctx : ioContexts_) ioPool_.free(ctx);
-      ioContexts_.clear();
+      clearIoContexts();
     }
 
     getBlocksConcurrentAsync(nextBlockId, m->firstRequiredBlock, config_.maxNumberOfChunksInBatch);
@@ -1606,7 +1599,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
     // if we've already sent enough chunks
     if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_DEBUG(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
+      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
       if (nextChunk == numOfChunksInNextBlock) {
         finalizeContext();
       }
@@ -1618,7 +1611,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       finalizeContext();
 
       if ((nextBlockId - 1) < m->firstRequiredBlock) {
-        LOG_DEBUG(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
+        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
         break;
       } else {
         // no more chunks in the block, continue to next block
@@ -2375,6 +2368,19 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
 
   oss << concordUtils::kContainerToJson(result);
   return oss.str().c_str();
+}
+
+void BCStateTran::finalizeSource(bool logSrcHistograms) {
+  if (logSrcHistograms) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("state_transfer");
+    registrar.perf.snapshot("state_transfer_src");
+    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
+    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_src")));
+    sourceFlag_ = false;
+    sourceSnapshotCounter_ = 0;
+  }
+  clearIoContexts();
 }
 
 bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitPolicy) {

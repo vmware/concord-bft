@@ -410,6 +410,11 @@ class BCStateTran : public IStateTransfer {
   // returns number of jobs pushed to queue
   uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
 
+  void clearIoContexts() {
+    for (auto& ctx : ioContexts_) ioPool_.free(ctx);
+    ioContexts_.clear();
+  }
+
   // lastBlock: is true if we put the oldest block (firstRequiredBlock)
   //
   // waitPolicy:
@@ -564,6 +569,9 @@ class BCStateTran : public IStateTransfer {
   logging::Logger& logger_;
 
   void onFetchingStateChange(FetchingState newFetchingState);
+
+  // When true: log historgrams, zero source flag and counter, and then unconditionally clear the iOcontexts
+  void finalizeSource(bool logSrcHistograms);
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
   std::string logsForCollectingStatus(const uint64_t firstRequiredBlock);
