@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2019-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -27,9 +27,9 @@ class BasicRandomTestsRunner {
 
  private:
   static void sleep(int ops);
-  bool isReplyCorrect(RequestType requestType,
-                      const SimpleReply *expectedReply,
-                      const char *reply,
+  bool isReplyCorrect(const skvbc::messages::SKVBCRequest &request,
+                      const skvbc::messages::SKVBCReply &expectedReply,
+                      const vector<uint8_t> &serialized_reply,
                       size_t expectedReplySize,
                       uint32_t actualReplySize);
 

@@ -11,6 +11,7 @@
 
 #include <bftengine/Replica.hpp>
 #include <optional>
+#include <functional>
 #include "ReadOnlyReplica.hpp"
 #include "MsgHandlersRegistrator.hpp"
 #include "messages/CheckpointMsg.hpp"
@@ -42,10 +43,11 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                   metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
   LOG_INFO(GL, "");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
-  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
-                                   bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
   msgHandlers_->registerMsgHandler(
-      MsgCode::ClientRequest, bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
+      MsgCode::Checkpoint, std::bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::ClientRequest,
+      std::bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
   metrics_.Register();
 
   sigManager_.reset(SigManager::init(config_.replicaId,

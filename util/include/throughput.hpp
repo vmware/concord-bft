@@ -47,14 +47,16 @@ class DurationTracker {
     running_ = false;
   }
   uint64_t totalDuration(bool doReset = false) {
+    uint64_t ret = total_duration_;
     if (running_) {
       total_duration_ = pause();
-      if (doReset)
+      ret = total_duration_;
+      if (doReset) {
         reset();
-      else
+      } else
         start();
     }
-    return total_duration_;
+    return ret;
   };
 
  private:

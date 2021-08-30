@@ -416,6 +416,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                       bool recoverFromErrorInRequestsExecution = false);
 
   void executeRequestsAndSendResponses(PrePrepareMsg* pp, Bitmap& requestSet, concordUtils::SpanWrapper& span);
+  void sendResponses(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& accumulatedRequests);
 
   void onSeqNumIsStable(
       SeqNum newStableSeqNum,
@@ -508,6 +509,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                         executeReadOnlyRequest,
                                         executeWriteRequest,
                                         executeRequestsInPrePrepareMsg,
+                                        executeRequestsAndSendResponses,
+                                        prepareAndSendResponses,
+                                        advanceActiveWindowMainLog,
                                         numRequestsInPrePrepareMsg,
                                         requestsQueueOfPrimarySize,
                                         onSeqNumIsStable,
@@ -532,10 +536,13 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
     DEFINE_SHARED_RECORDER(executeReadOnlyRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(executeWriteRequest, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(executeRequestsInPrePrepareMsg, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(executeRequestsAndSendResponses, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(prepareAndSendResponses, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(advanceActiveWindowMainLog, 1, MAX_VALUE_MICROSECONDS, 3, Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(numRequestsInPrePrepareMsg, 1, 2500, 3, Unit::COUNT);
     DEFINE_SHARED_RECORDER(requestsQueueOfPrimarySize,
                            1,
-                           // Currently hardcoded to 700 in ReplicaImp.cpp
+                           // Currently, hardcoded to 700 in ReplicaImp.cpp
                            701,
                            3,
                            Unit::COUNT);

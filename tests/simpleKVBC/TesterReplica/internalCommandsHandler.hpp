@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2018-2019 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2018-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -63,22 +63,25 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                               uint32_t &specificReplicaInfoOutReplySize);
 
   bool verifyWriteCommand(uint32_t requestSize,
-                          const BasicRandomTests::SimpleCondWriteRequest &request,
+                          const uint8_t *request,
                           size_t maxReplySize,
                           uint32_t &outReplySize) const;
 
-  bool executeReadCommand(
-      uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bool executeReadCommand(const skvbc::messages::SKVBCReadRequest &request,
+                          size_t maxReplySize,
+                          char *outReply,
+                          uint32_t &outReplySize);
 
-  bool executeGetBlockDataCommand(
-      uint32_t requestSize, const char *request, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bool executeGetBlockDataCommand(const skvbc::messages::SKVBCGetBlockDataRequest &request,
+                                  size_t maxReplySize,
+                                  char *outReply,
+                                  uint32_t &outReplySize);
 
-  bool executeGetLastBlockCommand(uint32_t requestSize, size_t maxReplySize, char *outReply, uint32_t &outReplySize);
+  bool executeGetLastBlockCommand(size_t maxReplySize, char *outReply, uint32_t &outReplySize);
 
   void addMetadataKeyValue(concord::kvbc::categorization::VersionedUpdates &updates, uint64_t sequenceNum) const;
 
  private:
-  static concordUtils::Sliver buildSliverFromStaticBuf(char *buf);
   std::optional<std::string> get(const std::string &key, concord::kvbc::BlockId blockId) const;
   std::string getAtMost(const std::string &key, concord::kvbc::BlockId blockId) const;
   std::string getLatest(const std::string &key) const;
@@ -89,7 +92,7 @@ class InternalCommandsHandler : public concord::kvbc::ICommandsHandler {
                              concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
   void addBlock(concord::kvbc::categorization::VersionedUpdates &verUpdates,
                 concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);
-  void addKeys(BasicRandomTests::SimpleCondWriteRequest *writeReq,
+  void addKeys(const skvbc::messages::SKVBCWriteRequest &writeReq,
                uint64_t sequenceNum,
                concord::kvbc::categorization::VersionedUpdates &verUpdates,
                concord::kvbc::categorization::BlockMerkleUpdates &merkleUpdates);

@@ -1,5 +1,7 @@
 name: Debug build (gcc)
-on: [push, pull_request]
+on:
+  schedule:
+    - cron: "0 12 * * 6" # Every Saturday at 12PM UTC
 
 jobs:
   build:

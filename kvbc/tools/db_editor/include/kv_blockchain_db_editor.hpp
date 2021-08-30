@@ -885,13 +885,14 @@ struct ResetMetadata {
     SeqNum stableSeqNum = p->getLastStableSeqNum();
     CheckpointMsg *cpm = p->getAndAllocateCheckpointMsgInCheckWindow(stableSeqNum);
     result["new bft mdt"] = std::to_string(isNewStorage);
+    p->beginWriteTran();
     if (cpm && cpm->senderId() != repId) {
       cpm->setSenderId(repId);
-      p->beginWriteTran();
       p->setCheckpointMsgInCheckWindow(stableSeqNum, cpm);
-      p->endWriteTran();
       result["stable seq num"] = std::to_string(stableSeqNum);
     }
+    p->setPrimaryLastUsedSeqNum(p->getLastExecutedSeqNum());
+    p->endWriteTran();
     return toJson(result);
   }
 };

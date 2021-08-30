@@ -336,7 +336,8 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   } else {
     LOG_INFO(logger_, "Batching for client pool is disabled");
   }
-  batch_timer_ = std::make_unique<Timer_t>(timeout, [this](ClientPtr &&client) -> void { OnBatchingTimeout(client); });
+  batch_timer_ =
+      std::make_unique<Timer_t>(timeout, [this](ClientPtr client) -> void { OnBatchingTimeout(std::move(client)); });
   external_client::ConcordClient::setStatics(required_num_of_replicas, num_replicas, max_buf_size, batch_size_);
   bftEngine::SimpleClientParams clientParams;
   setUpClientParams(clientParams, config);
@@ -348,7 +349,7 @@ void ConcordClientPool::CreatePool(concord::config_pool::ConcordClientPoolConfig
   jobs_queue_max_size_ = config.external_requests_queue_size;
 }
 
-void ConcordClientPool::OnBatchingTimeout(const ClientPtr &client) {
+void ConcordClientPool::OnBatchingTimeout(std::shared_ptr<concord::external_client::ConcordClient> client) {
   {
     std::unique_lock<std::mutex> lock(clients_queue_lock_);
     const auto client_id = client->getClientId();

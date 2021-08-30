@@ -207,6 +207,11 @@ Msg ClientReconfigurationStateReply 49 {
     list ClientStateReply states
 }
 
+Msg Timestamp 50 {
+    int64 time_since_epoch
+    uint64 request_position
+}
+
 Msg ReconfigurationRequest 1 {
   uint64 sender
   bytes signature

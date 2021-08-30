@@ -58,10 +58,21 @@ using concord::util::DurationTracker;
 namespace bftEngine::bcst::impl {
 
 class BCStateTran : public IStateTransfer {
- public:
-  BCStateTran(const Config& config, IAppState* const stateApi, DataStore* ds = nullptr);
+  // This class is used strictly for testing
+  friend class BcStTest;
 
+ public:
+  //////////////////////////////////////////////////////////////////////////////
+  // Ctor & Dtor (Initialization)
+  //////////////////////////////////////////////////////////////////////////////
+  BCStateTran(const Config& config, IAppState* const stateApi, DataStore* ds = nullptr);
   ~BCStateTran() override;
+  static uint32_t calcMaxItemSize(uint32_t maxBlockSize, uint32_t maxNumberOfPages, uint32_t pageSize);
+  static uint32_t calcMaxNumOfChunksInBlock(uint32_t maxItemSize,
+                                            uint32_t maxBlockSize,
+                                            uint32_t maxChunkSize,
+                                            bool isVBlock);
+  static set<uint16_t> generateSetOfReplicas(const int16_t numberOfReplicas);
 
   ///////////////////////////////////////////////////////////////////////////
   // IStateTransfer methods
@@ -79,7 +90,10 @@ class BCStateTran : public IStateTransfer {
   void markCheckpointAsStable(uint64_t checkpointNumber) override;
 
   void getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char* outDigestBuffer) override;
-
+  static void computeDigestOfBlockImpl(const uint64_t blockNum,
+                                       const char* block,
+                                       const uint32_t blockSize,
+                                       char* outDigest);
   void startCollectingState() override;
 
   bool isCollectingState() const override;
@@ -157,7 +171,7 @@ class BCStateTran : public IStateTransfer {
   std::unique_ptr<concord::util::Handoff> handoff_;
   IReplicaForStateTransfer* replicaForStateTransfer_ = nullptr;
 
-  std::unique_ptr<char[]> buffer_;  // temporary buffer
+  std::unique_ptr<char[]> buffer_;  // general use buffer
 
   // random generator
   std::random_device randomDevice_;
@@ -195,6 +209,11 @@ class BCStateTran : public IStateTransfer {
   bool isFetching() const;
 
   inline std::string getSequenceNumber(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Time
+  ///////////////////////////////////////////////////////////////////////////
+  static uint64_t getMonotonicTimeMilli();
 
   ///////////////////////////////////////////////////////////////////////////
   // Send messages
@@ -391,6 +410,11 @@ class BCStateTran : public IStateTransfer {
   // returns number of jobs pushed to queue
   uint16_t getBlocksConcurrentAsync(uint64_t nextBlockId, uint64_t firstRequiredBlock, uint16_t numBlocks);
 
+  void clearIoContexts() {
+    for (auto& ctx : ioContexts_) ioPool_.free(ctx);
+    ioContexts_.clear();
+  }
+
   // lastBlock: is true if we put the oldest block (firstRequiredBlock)
   //
   // waitPolicy:
@@ -495,6 +519,35 @@ class BCStateTran : public IStateTransfer {
 
   std::map<uint64_t, concord::util::CallbackRegistry<uint64_t>> on_transferring_complete_cb_registry_;
 
+ protected:
+  //////////////////////////////////////////////////////////////////////////////
+  // Virtual Blocks that are used to pass the reserved pages
+  // (private to the file)
+  //////////////////////////////////////////////////////////////////////////////
+
+#pragma pack(push, 1)
+  struct HeaderOfVirtualBlock {
+    uint32_t numberOfUpdatedPages;
+    uint64_t lastCheckpointKnownToRequester;
+  };
+
+  struct ElementOfVirtualBlock {
+    uint32_t pageId;
+    uint64_t checkpointNumber;
+    STDigest pageDigest;
+    char page[1];  // the actual size is sizeOfReservedPage_ bytes
+  };
+#pragma pack(pop)
+
+  static uint32_t calcMaxVBlockSize(uint32_t maxNumberOfPages, uint32_t pageSize);
+  static uint32_t getNumberOfElements(char* virtualBlock);
+  static uint32_t getSizeOfVirtualBlock(char* virtualBlock, uint32_t pageSize);
+  static ElementOfVirtualBlock* getVirtualElement(uint32_t index, uint32_t pageSize, char* virtualBlock);
+  static bool checkStructureOfVirtualBlock(char* virtualBlock,
+                                           uint32_t virtualBlockSize,
+                                           uint32_t pageSize,
+                                           logging::Logger& logger);
+
   ///////////////////////////////////////////////////////////////////////////
   // Internal Statistics (debuging, logging)
   ///////////////////////////////////////////////////////////////////////////
@@ -516,6 +569,9 @@ class BCStateTran : public IStateTransfer {
   logging::Logger& logger_;
 
   void onFetchingStateChange(FetchingState newFetchingState);
+
+  // When true: log historgrams, zero source flag and counter, and then unconditionally clear the iOcontexts
+  void finalizeSource(bool logSrcHistograms);
 
   // used to print periodic summary of recent checkpoints, and collected date while in state GettingMissingBlocks
   std::string logsForCollectingStatus(const uint64_t firstRequiredBlock);
@@ -559,6 +615,12 @@ class BCStateTran : public IStateTransfer {
                                         src_send_batch_duration,
                                         src_send_batch_size_bytes,
                                         src_send_batch_size_chunks});
+    }
+    ~Recorders() {
+      auto& registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      registrar.perf.unRegisterComponent("state_transfer");
+      registrar.perf.unRegisterComponent("state_transfer_dest");
+      registrar.perf.unRegisterComponent("state_transfer_src");
     }
     //////////////////////////////////////////////////////////
     // Shared Recorders - match the above registered recorders
