@@ -112,12 +112,6 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               creply.response = cmd;
               break;
             }
-            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND: {
-              concord::messages::ClientsAddRemoveCommand cmd;
-              concord::messages::deserialize(data_buf, cmd);
-              creply.response = cmd;
-              break;
-            }
             case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND: {
               concord::messages::ClientsAddRemoveExecuteCommand cmd;
               concord::messages::deserialize(data_buf, cmd);

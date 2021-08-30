@@ -90,7 +90,6 @@ class ClientScaleHandler : public IStateHandler {
     LOG_INFO(getLogger(), "executing scale command for client");
     concord::messages::ReconfigurationRequest rreq;
     concord::messages::ClientsAddRemoveUpdateCommand creq;
-    creq.sender_id = clientId_;
     creq.config_descriptor = command.config_descriptor;
     rreq.command = creq;
     std::vector<uint8_t> req_buf;

@@ -181,7 +181,6 @@ Msg ClientsAddRemoveStatusResponse 45 {
 }
 
 Msg ClientsAddRemoveUpdateCommand 46 {
-    uint64 sender_id
     string config_descriptor
 }
 
@@ -204,7 +203,6 @@ Msg ClientStateReply 39 {
     oneof {
         ClientExchangePublicKey
         ClientKeyExchangeCommand
-        ClientsAddRemoveCommand
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
       } response
