@@ -78,12 +78,44 @@ class KeyExchangeHandler : public IStateHandler {
   std::atomic_uint32_t exchanges_{0};
 };
 
+class ClientScaleHandler : public IStateHandler {
+ public:
+  ClientScaleHandler(uint16_t id) : clientId_{id} {}
+  bool validate(const State& state) const override {
+    return hasValue<concord::messages::ClientsAddRemoveExecuteCommand>(state);
+  }
+  bool execute(const State& state, WriteState& out) override {
+    concord::messages::ClientsAddRemoveExecuteCommand command =
+        getData<concord::messages::ClientsAddRemoveExecuteCommand>(state);
+    LOG_INFO(getLogger(), "executing scale command for client");
+    concord::messages::ReconfigurationRequest rreq;
+    concord::messages::ClientsAddRemoveUpdateCommand creq;
+    creq.sender_id = clientId_;
+    creq.config_descriptor = command.config_descriptor;
+    rreq.command = creq;
+    std::vector<uint8_t> req_buf;
+    concord::messages::serialize(req_buf, rreq);
+    out = {req_buf, [&]() { LOG_INFO(getLogger(), "successful write!"); }};
+    return true;
+  }
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("concord.client.reconfiguration.test.ScaleHandler"));
+    return logger_;
+  }
+  uint16_t clientId_;
+};
+
 class ClientApiTestFixture : public ::testing::Test {
  public:
   void init(uint32_t number_of_ops) {
     for (uint32_t i = 0; i < number_of_ops; i++) {
       blockchain_.emplace_back(concord::messages::ClientKeyExchangeCommand{{5}});
     }
+  }
+  void initScaleCmd() {
+    addRemoveExecuteCmd_.config_descriptor = "TestConfig";
+    addRemoveExecuteCmd_.token = "TestToken";
+    addRemoveExecuteCmd_.restart = true;
   }
   ClientConfig test_config_ = {ClientId{5},
                                {ReplicaId_t{0}, ReplicaId_t{1}, ReplicaId_t{2}, ReplicaId_t{3}},
@@ -118,6 +150,12 @@ class ClientApiTestFixture : public ::testing::Test {
         srep.states.push_back(rep);
         i++;
       }
+      if (!addRemoveExecuteCmd_.config_descriptor.empty()) {
+        concord::messages::ClientStateReply rep;
+        rep.block_id = 1;
+        rep.response = addRemoveExecuteCmd_;
+        srep.states.push_back(rep);
+      }
       concord::messages::serialize(rres.additional_data, srep);
       rres.success = true;
       std::vector<uint8_t> msg_buf;
@@ -136,6 +174,7 @@ class ClientApiTestFixture : public ::testing::Test {
   }
   std::vector<concord::messages::ClientKeyExchangeCommand> blockchain_;
   std::vector<concord::messages::ClientExchangePublicKey> pub_keys_;
+  concord::messages::ClientsAddRemoveExecuteCommand addRemoveExecuteCmd_;
 };
 
 /*
@@ -221,6 +260,26 @@ TEST_F(ClientApiTestFixture, multiple_key_two_phases_exchange_command) {
   ASSERT_GE(pub_keys_.size(), 10);
   cre.stop();
 }
+/*
+ * Test a client scale command.
+ */
+TEST_F(ClientApiTestFixture, client_scale_command) {
+  initScaleCmd();
+  std::unique_ptr<FakeCommunication> comm(new FakeCommunication(
+      [&](const MsgFromClient& msg, IReceiver* client_receiver) { HandleClientStateRequests(msg, client_receiver); }));
+  IStateClient* state_client = new PollBasedStateClient(
+      new bft::client::Client(std::move(comm), test_config_), cre_config.interval_timeout_ms_, 0, cre_config.id_);
+  std::shared_ptr<concordMetrics::Aggregator> aggregator = std::make_shared<concordMetrics::Aggregator>();
+  ClientReconfigurationEngine cre(cre_config, state_client, aggregator);
+  auto scaleHandler = std::make_shared<ClientScaleHandler>(cre_config.id_);
+  cre.registerHandler(scaleHandler);
+  cre.start();
+  while (aggregator->GetGauge(metrics_component, last_known_block_gauge).Get() < 1) {
+  }
+  ASSERT_GE(aggregator->GetGauge(metrics_component, last_known_block_gauge).Get(), 1);
+  cre.stop();
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
