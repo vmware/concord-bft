@@ -41,6 +41,7 @@ class SourceSelector {
         maxFetchRetransmissions_(maxFetchRetransmissions),
         retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
         fetchRetransmissionOngoing_(false),
+        receivedValidBlockFromSrc_(false),
         logger_(logger) {}
 
   bool hasSource() const;
@@ -78,6 +79,10 @@ class SourceSelector {
 
   uint16_t currentReplica() const { return currentReplica_; }
 
+  void onReceivedValidBlockFromSource();
+
+  const std::vector<uint16_t> &getActualSources() { return actualSources_; }
+
  private:
   uint64_t timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const;
   void selectSource(uint64_t currTimeMilli);
@@ -95,6 +100,11 @@ class SourceSelector {
   uint64_t fetchingTimeStamp_ = 0;
   mutable uint32_t fetchRetransmissionCounter_ = 0;
   mutable bool fetchRetransmissionOngoing_ = false;
+
+  // Actual Sources
+  // An actual source is one which at least one block has been received from
+  std::vector<uint16_t> actualSources_;
+  bool receivedValidBlockFromSrc_;
 
   logging::Logger &logger_;
 };
