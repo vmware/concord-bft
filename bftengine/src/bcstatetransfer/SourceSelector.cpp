@@ -124,18 +124,22 @@ bool SourceSelector::shouldReplaceSource(uint64_t currTimeMilli, bool badDataFro
       ++fetchRetransmissionCounter_;
       fetchRetransmissionOngoing_ = false;
       LOG_WARN(logger_,
-               "Retransmission timeout expired:" << KVLOG(
-                   currTimeMilli, fetchingTimeStamp_, retransmissionTimeoutMilli_, fetchRetransmissionCounter_));
+               "Retransmission timeout expired:" << KVLOG(currentReplica_,
+                                                          currTimeMilli,
+                                                          fetchingTimeStamp_,
+                                                          retransmissionTimeoutMilli_,
+                                                          fetchRetransmissionCounter_));
     }
   }
 
-  if (fetchRetransmissionCounter_ > maxFetchRetransmissions_) {
+  if (fetchRetransmissionCounter_ >= maxFetchRetransmissions_) {
     LOG_INFO(logger_,
-             "Should replace source: retransmission timeoute expired: " << KVLOG(currTimeMilli,
-                                                                                 fetchingTimeStamp_,
-                                                                                 retransmissionTimeoutMilli_,
-                                                                                 fetchRetransmissionCounter_,
-                                                                                 maxFetchRetransmissions_));
+             "Should replace source: retransmission timeout expired: " << KVLOG(currentReplica_,
+                                                                                currTimeMilli,
+                                                                                fetchingTimeStamp_,
+                                                                                retransmissionTimeoutMilli_,
+                                                                                fetchRetransmissionCounter_,
+                                                                                maxFetchRetransmissions_));
     return true;
   }
 
