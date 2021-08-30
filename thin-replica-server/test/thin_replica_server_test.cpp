@@ -124,6 +124,7 @@ class FakeStorage : public concord::kvbc::IReader {
 
   std::optional<concord::kvbc::categorization::Value> getLatest(const std::string& category_id,
                                                                 const std::string& key) const override {
+    std::scoped_lock sl(mtx_);
     BlockId block_id = 4;
     if (category_id == concord::kvbc::categorization::kExecutionEventGroupIdsCategory) {
       // get latest trid event_group_id
@@ -424,6 +425,7 @@ class TestStateMachine {
   }
 
   void on_sync_with_event_groups_finished() {
+    std::scoped_lock sl(mtx_);
     auto eg_id = storage_.getLastEventGroupId() + 1;
     auto gap_event_groups = generateEventGroupMap(eg_id, live_buffer_->newestEventGroupId());
     storage_.updateEventGroupStorageMaps(gap_event_groups);
@@ -436,6 +438,7 @@ class TestStateMachine {
   }
 
   void on_finished_dropping_event_groups() {
+    std::scoped_lock sl(mtx_);
     auto eg_id = storage_.getLastEventGroupId() + 1;
     auto event_group = generateEventGroup(eg_id);
     live_buffer_->PushEventGroup({eg_id, event_group});
@@ -459,6 +462,7 @@ class TestStateMachine {
   size_t last_event_group_to_send_{0};
   bool return_false_on_last_block_{true};
   bool return_false_on_last_event_group_{true};
+  std::mutex mtx_;
 };
 
 template <typename T>
