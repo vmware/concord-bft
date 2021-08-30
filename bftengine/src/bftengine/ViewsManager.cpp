@@ -681,7 +681,7 @@ bool ViewsManager::tryToEnterView(ViewNum v,
     return false;
   }
   // return if some messages are missing
-  if (hasMissingMsgs(currentLastStable)) {
+  if (hasMissingPrePrepareMsgs(currentLastStable)) {
     LOG_INFO(VC_LOG, "Waiting for missing messages before entering view=" << v << " ...");
     return false;
   }
@@ -917,7 +917,7 @@ void ViewsManager::computeRestrictionsOfNewView(ViewNum v) {
 }
 
 // TODO(GG): consider to optimize
-bool ViewsManager::hasMissingMsgs(SeqNum currentLastStable) {
+bool ViewsManager::hasMissingPrePrepareMsgs(SeqNum currentLastStable) {
   ConcordAssert(stat == Stat::PENDING_WITH_RESTRICTIONS);
 
   if (minRestrictionOfPendingView == 0) return false;

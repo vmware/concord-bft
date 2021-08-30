@@ -11,17 +11,20 @@
 // terms and conditions of the subcomponent's license, as noted in the
 // LICENSE file.
 
+#include "EpochManager.hpp"
 #include "gtest/gtest.h"
 #include "helper.hpp"
 #include "Logger.hpp"
 #include "ReplicaConfig.hpp"
+#include "ReservedPagesMock.hpp"
 #include "SigManager.hpp"
+#include "SimpleClient.hpp"
 #include "ViewsManager.hpp"
 
+#include "messages/ClientRequestMsg.hpp"
 #include "messages/NewViewMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
-#include "ReservedPagesMock.hpp"
-#include "EpochManager.hpp"
+#include "messages/SignedShareMsgs.hpp"
 
 namespace {
 
@@ -227,6 +230,115 @@ TEST_F(ViewsManagerTest, adding_view_change_messages_to_status_message) {
   }
 }
 
+TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
+  // Two separate status messages are needed to validate the state of the views manager.
+  // The first status message verifies that there is a missing Pre-Prepare message.
+  bftEngine::impl::ReplicaStatusMsg replicaStatusMessage(
+      rc.getreplicaId(), initialView, lastStableSeqNum, lastExecutedSeqNum, false, false, false, false, true);
+  // The second status message verifies that there is no longer a missing Pre-Prepare message after it has been added.
+  bftEngine::impl::ReplicaStatusMsg replicaStatusMessage2(
+      rc.getreplicaId(), initialView, lastStableSeqNum, lastExecutedSeqNum, false, false, false, false, true);
+
+  // Create a sample client request.
+  const uint32_t kRequestLength = 2;
+  uint64_t expectedLastValue = 12345;
+  const uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
+
+  auto* clientRequest = new ClientRequestMsg((uint16_t)1,
+                                             bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                             (uint64_t)1234567,
+                                             kRequestLength,
+                                             (const char*)requestBuffer,
+                                             (uint64_t)1000000);
+
+  // Create a Pre-Prepare message and add the client request to it.
+  PrePrepareMsg* prePrepareMsg =
+      new PrePrepareMsg(rc.getreplicaId(), initialView, lastExecutedSeqNum, CommitPath::SLOW, clientRequest->size());
+
+  prePrepareMsg->addRequest(clientRequest->body(), clientRequest->size());
+  prePrepareMsg->finishAddingRequests();
+
+  const auto primary = replicasInfo.primaryOfView(initialView);
+  char buff[32]{};
+
+  // Create a PrepareFullMessage. When this message is added as an element to a view change message,
+  // it will be used to create a PreparedCertificate.
+  PrepareFullMsg* prepareFullMsg = PrepareFullMsg::create(initialView, lastExecutedSeqNum, primary, buff, sizeof(buff));
+
+  const int N = rc.numReplicas;
+  ViewChangeMsg** viewChangeMsgs = new ViewChangeMsg*[N];
+  const auto nextView = initialView + 1;
+  uint16_t numberOfNeededMessages = 2 * rc.fVal + 1;
+
+  // Create view change messages and add them to the views manager.
+  for (int i = 0; i < numberOfNeededMessages; ++i) {
+    viewChangeMsgs[i] = new ViewChangeMsg(i + 1, nextView, lastStableSeqNum);
+    viewsManager->add(viewChangeMsgs[i]);
+  }
+
+  // Add the Pre-Prepare message's digest and the PrepareFullMessage to one of the view change messages.
+  viewChangeMsgs[0]->addElement(lastExecutedSeqNum,
+                                prePrepareMsg->digestOfRequests(),
+                                prePrepareMsg->viewNumber(),
+                                true,
+                                prePrepareMsg->viewNumber(),
+                                prepareFullMsg->signatureLen(),
+                                prepareFullMsg->signatureBody());
+
+  for (int i = numberOfNeededMessages; i < N; ++i) {
+    viewChangeMsgs[i] = nullptr;
+  }
+
+  NewViewMsg* newViewMsg = new NewViewMsg(1, nextView);
+  Digest digest;
+
+  // Add the view messages' digests to the new view message.
+  for (size_t i = 0; i < numberOfNeededMessages; ++i) {
+    viewChangeMsgs[i]->getMsgDigest(digest);
+    ConcordAssert(!digest.isZero());
+    newViewMsg->addElement(i + 1, digest);
+  }
+
+  // Add the new view message to the views manager.
+  viewsManager->add(newViewMsg);
+
+  std::vector<bftEngine::impl::ViewsManager::PrevViewInfo> prevView;
+  // In order to change the view manager's status from Stat::IN_VIEW, exit should be called beforehand.
+  // This permits calls of the "tryToEnterView" function to be made.
+  viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
+
+  vector<PrePrepareMsg*> outPrePrepareMsgs;
+  // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS by attempting to enter the next view.
+  // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
+  // added to the views manager.
+  // This attempt to enter the next view should fail due to the missing Pre-Prepare message.
+  ASSERT_FALSE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+
+  // Change the view so that the current view becomes pending.
+  // While the current view is pending, the function "fillPropertiesOfStatusMessage" reflects missing Pre-Prepare
+  // messages in the status request message.
+  viewsManager->setHigherView(nextView);
+
+  // Fill the necessary information in the first status message so that it designates that there is a missing
+  // Pre-Prepare message.
+  viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage, &replicasInfo, lastStableSeqNum);
+  // Observe that there is a missing Pre-Prepare message indeed.
+  ASSERT_TRUE(replicaStatusMessage.isMissingPrePrepareMsgForViewChange(lastExecutedSeqNum));
+
+  // Add the missing Pre-Prepare message.
+  viewsManager->addPotentiallyMissingPP(prePrepareMsg, lastStableSeqNum);
+
+  // After the missing Pre-Prepare message has been added there is no longer any obstacle that prevents from entering
+  // the next view.
+  ASSERT_TRUE(viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+
+  // Fill the necessary information in the second status message so that it designates that there are no longer missing
+  // Pre-Prepare messages.
+  viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage2, &replicasInfo, lastStableSeqNum);
+  // Observe that there are no missing Pre-Prepare messages.
+  ASSERT_FALSE(replicaStatusMessage2.isMissingPrePrepareMsgForViewChange(lastExecutedSeqNum));
+}
+
 TEST_F(ViewsManagerTest, trigger_view_change) {
   bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   ASSERT_EQ(rc.numReplicas, 3 * numberOfFaultyReplicas + 1);
@@ -277,7 +389,7 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
   viewsManager->add(newViewMsg);
 
   std::vector<bftEngine::impl::ViewsManager::PrevViewInfo> prevView;
-  // In order to change the status from Stat::IN_VIEW, exit should be called beforehand.
+  // In order to change the view manager's status from Stat::IN_VIEW, exit should be called beforehand.
   viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
 
   vector<PrePrepareMsg*> outPrePrepareMsgs;
