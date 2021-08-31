@@ -40,6 +40,7 @@ using std::list;
 using std::lock_guard;
 using std::make_unique;
 using std::mutex;
+using std::atomic_bool;
 using std::pair;
 using std::shared_ptr;
 using std::string;
@@ -241,7 +242,7 @@ ClientReaderInterface<Data>* RepeatedMockDataStreamPreparer::SubscribeToUpdatesR
 DelayedMockDataStreamPreparer::DataDelayer::DataDelayer(ClientReaderInterface<Data>* data,
                                                         const shared_ptr<condition_variable>& delay_condition,
                                                         const shared_ptr<mutex>& delay_mutex,
-                                                        const shared_ptr<bool>& spurious_wakeup)
+                                                        const shared_ptr<atomic_bool>& spurious_wakeup)
     : undelayed_data_(data),
       waiting_condition_(delay_condition),
       spurious_wakeup_(spurious_wakeup),
@@ -270,7 +271,7 @@ bool DelayedMockDataStreamPreparer::DataDelayer::Read(Data* msg) {
 
 DelayedMockDataStreamPreparer::DelayedMockDataStreamPreparer(shared_ptr<MockDataStreamPreparer>& data,
                                                              shared_ptr<condition_variable> condition,
-                                                             shared_ptr<bool> spurious_wakeup_indicator,
+                                                             shared_ptr<atomic_bool> spurious_wakeup_indicator,
                                                              shared_ptr<mutex> condition_mutex)
     : undelayed_data_preparer_(data),
       delay_condition_(condition),

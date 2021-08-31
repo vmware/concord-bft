@@ -23,6 +23,7 @@ using std::condition_variable;
 using std::make_shared;
 using std::make_unique;
 using std::mutex;
+using std::atomic_bool;
 using std::shared_ptr;
 using std::string;
 using std::thread;
@@ -246,7 +247,7 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
 
   shared_ptr<MockDataStreamPreparer> base_stream_preparer(new RepeatedMockDataStreamPreparer(update, 1));
   auto delay_condition = make_shared<condition_variable>();
-  auto spurious_wakeup_indicator = make_shared<bool>(true);
+  auto spurious_wakeup_indicator = make_shared<atomic_bool>(true);
   auto delay_condition_mutex = make_shared<mutex>();
   shared_ptr<MockDataStreamPreparer> stream_preparer(new DelayedMockDataStreamPreparer(
       base_stream_preparer, delay_condition, spurious_wakeup_indicator, delay_condition_mutex));
@@ -340,7 +341,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   shared_ptr<MockDataStreamPreparer> base_stream_preparer(
       new VectorMockDataStreamPreparer(update_data, num_initial_updates));
   auto delay_condition = make_shared<condition_variable>();
-  auto spurious_wakeup_indicator = make_shared<bool>(true);
+  auto spurious_wakeup_indicator = make_shared<atomic_bool>(true);
   auto delay_condition_mutex = make_shared<mutex>();
   shared_ptr<MockDataStreamPreparer> stream_preparer(new DelayedMockDataStreamPreparer(
       base_stream_preparer, delay_condition, spurious_wakeup_indicator, delay_condition_mutex));
