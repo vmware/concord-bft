@@ -46,7 +46,7 @@ class PreProcessRequestMsg : public MessageBase {
   const uint16_t reqOffsetInBatch() const { return msgBody()->reqOffsetInBatch; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
-  const uint64_t primaryblockID() const { return msgBody()->primaryBlockId; }
+  const uint64_t primaryBlockId() const { return msgBody()->primaryBlockId; }
   const uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
   std::string getCid() const;
   inline char* requestSignature() const {
@@ -98,6 +98,5 @@ class PreProcessRequestMsg : public MessageBase {
 };
 
 typedef std::shared_ptr<PreProcessRequestMsg> PreProcessRequestMsgSharedPtr;
-typedef std::unique_ptr<PreProcessRequestMsg> PreProcessRequestMsgUniquePtr;
 
 }  // namespace preprocessor
