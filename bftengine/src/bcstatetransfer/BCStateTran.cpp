@@ -423,8 +423,7 @@ void BCStateTran::stopRunning() {
     replicaForStateTransfer_->freeStateTransferMsg(reinterpret_cast<char *>(i));
   }
   pendingItemDataMsgs.clear();
-  for (auto &ctx : ioContexts_) ioPool_.free(ctx);
-  ioContexts_.clear();
+  clearIoContexts();
   ConcordAssert(ioPool_.full());
   totalSizeOfPendingItemDataMsgs = 0;
   replicaForStateTransfer_ = nullptr;
@@ -653,7 +652,6 @@ void BCStateTran::startCollectingStats() {
   gettingCheckpointSummariesDT_.reset();
   gettingMissingResPagesDT_.reset();
   cycleDT_.reset();
-  sources_.clear();
 
   metrics_.overall_blocks_collected_.Get().Set(0ull);
   metrics_.overall_blocks_throughput_.Get().Set(0ull);
@@ -674,6 +672,7 @@ void BCStateTran::startCollectingState() {
   ConcordAssert(running_);
   ConcordAssert(!isFetching());
   auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+  if (!ioContexts_.empty() | sourceFlag_) finalizeSource(sourceFlag_);
   registrar.perf.snapshot("state_transfer");
   registrar.perf.snapshot("state_transfer_dest");
   metrics_.start_collecting_state_++;
@@ -712,13 +711,7 @@ void BCStateTran::onTimerImp() {
   // sourceSnapshotCounter_ is zeroed every time fetch message is received
   if (sourceFlag_ &&
       (((++sourceSnapshotCounter_) * config_.refreshTimerMs) >= (2 * config_.fetchRetransmissionTimeoutMs))) {
-    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-    registrar.perf.snapshot("state_transfer");
-    registrar.perf.snapshot("state_transfer_src");
-    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
-    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_src")));
-    sourceFlag_ = false;
-    sourceSnapshotCounter_ = 0;
+    finalizeSource(true);
   }
 
   // Retransmit AskForCheckpointSummariesMsg if needed
@@ -1491,8 +1484,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       LOG_INFO(logger_,
                "Call getBlocksConcurrentAsync: source blocks prefetch disabled (first batch or retransmission):"
                    << KVLOG(config_.enableSourceBlocksPreFetch, ioContexts_.front()->blockId, nextBlockId));
-      for (auto &ctx : ioContexts_) ioPool_.free(ctx);
-      ioContexts_.clear();
+      clearIoContexts();
     }
 
     getBlocksConcurrentAsync(nextBlockId, m->firstRequiredBlock, config_.maxNumberOfChunksInBatch);
@@ -1606,7 +1598,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
 
     // if we've already sent enough chunks
     if (numOfSentChunks >= config_.maxNumberOfChunksInBatch) {
-      LOG_DEBUG(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
+      LOG_INFO(logger_, "Batch end - sent enough chunks: " << KVLOG(numOfSentChunks));
       if (nextChunk == numOfChunksInNextBlock) {
         finalizeContext();
       }
@@ -1618,7 +1610,7 @@ bool BCStateTran::onMessage(const FetchBlocksMsg *m, uint32_t msgLen, uint16_t r
       finalizeContext();
 
       if ((nextBlockId - 1) < m->firstRequiredBlock) {
-        LOG_DEBUG(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
+        LOG_INFO(logger_, "Batch end - sent all relevant blocks: " << KVLOG(m->firstRequiredBlock));
         break;
       } else {
         // no more chunks in the block, continue to next block
@@ -2377,6 +2369,19 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
   return oss.str().c_str();
 }
 
+void BCStateTran::finalizeSource(bool logSrcHistograms) {
+  if (logSrcHistograms) {
+    auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+    registrar.perf.snapshot("state_transfer");
+    registrar.perf.snapshot("state_transfer_src");
+    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer")));
+    LOG_INFO(logger_, registrar.perf.toString(registrar.perf.get("state_transfer_src")));
+    sourceFlag_ = false;
+    sourceSnapshotCounter_ = 0;
+  }
+  clearIoContexts();
+}
+
 bool BCStateTran::finalizePutblockAsync(bool lastBlock, PutBlockWaitPolicy waitPolicy) {
   // Comment on committing asynchronously:
   // In the very rare case of a core dump or temination, we will just fetch the committed blocks again.
@@ -2458,7 +2463,6 @@ void BCStateTran::processData(bool lastInBatch) {
       sourceSelector_.updateSource(currTime);
       auto currentSource = sourceSelector_.currentReplica();
       LOG_DEBUG(logger_, "Selected new source replica: " << currentSource);
-      sources_.push_back(currentSource);
       metrics_.current_source_replica_.Get().Set(currentSource);
       metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
@@ -2552,6 +2556,7 @@ void BCStateTran::processData(bool lastInBatch) {
       // if we have a new block
       //////////////////////////////////////////////////////////////////////////
       sourceSelector_.setSourceSelectionTime(currTime);
+      sourceSelector_.onReceivedValidBlockFromSource();
 
       ConcordAssertAND(lastChunkInRequiredBlock >= 1, actualBlockSize > 0);
 
@@ -2641,6 +2646,7 @@ void BCStateTran::processData(bool lastInBatch) {
       //////////////////////////////////////////////////////////////////////////
       DataStoreTransaction::Guard g(psd_->beginTransaction());
       sourceSelector_.setSourceSelectionTime(currTime);
+      sourceSelector_.onReceivedValidBlockFromSource();
 
       if (config_.enableReservedPages) {
         // set the updated pages
@@ -2665,7 +2671,6 @@ void BCStateTran::processData(bool lastInBatch) {
       g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
       g.txn()->deleteCheckpointBeingFetched();
       deleteOldCheckpoints(cp.checkpointNum, g.txn());
-      sourceSelector_.reset();
       metrics_.preferred_replicas_.Get().Set("");
       metrics_.current_source_replica_.Get().Set(NO_REPLICA);
       nextRequiredBlock_ = 0;
@@ -2684,13 +2689,15 @@ void BCStateTran::processData(bool lastInBatch) {
       // Completion
       LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_++;
-      std::set<uint64_t> cb_keys;
       for (const auto &kv : on_transferring_complete_cb_registry_) {
         kv.second.invokeAll(cp.checkpointNum);
       }
+
+      cycleEndSummary();
+      sourceSelector_.reset();
+
       g.txn()->setIsFetchingState(false);
       ConcordAssertEQ(getFetchingState(), FetchingState::NotFetching);
-      cycleEndSummary();
       break;
     } else if (!badDataFromCurrentSourceReplica) {
       //////////////////////////////////////////////////////////////////////////
@@ -2722,10 +2729,13 @@ void BCStateTran::cycleEndSummary() {
   Throughput::Results bytesCollectedResults;
   std::ostringstream sources_str;
   std::string firstCollectedBlockIdstr;
+  const auto &sources_ = sourceSelector_.getActualSources();
 
-  if (gettingMissingBlocksDT_.totalDuration() == 0)
-    // we print summary only if we were collecting blocks
+  if (gettingMissingBlocksDT_.totalDuration() == 0) {
+    // we print full summary only if we were collecting blocks
+    LOG_INFO(logger_, "State Transfer cycle ended (#" << cycleCounter_);
     return;
+  }
 
   blocksCollectedResults = blocks_collected_.getOverallResults();
   bytesCollectedResults = bytes_collected_.getOverallResults();
@@ -2738,7 +2748,6 @@ void BCStateTran::cycleEndSummary() {
   auto gettingMissingBlocksDuration = gettingMissingBlocksDT_.totalDuration(true);
   auto commitToChainDuration = commitToChainDT_.totalDuration(true);
   auto gettingMissingResPagesDuration = gettingMissingResPagesDT_.totalDuration(true);
-
   LOG_INFO(logger_,
            "State Transfer cycle ended (#"
                << cycleCounter_ << "), Total Duration: " << cycleDuration << "ms, "
