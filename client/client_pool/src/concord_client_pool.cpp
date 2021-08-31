@@ -80,7 +80,7 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                 span_context,
                                 callback);
 
-      if (correlation_id.length() > SECOND_LEG_CID_LEN) {
+      if (correlation_id.find('-') != std::string::npos) {
         ClientPoolMetrics_.first_leg_counter++;
       } else {
         ClientPoolMetrics_.second_leg_counter++;
@@ -159,7 +159,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client) {
   auto *job = new BatchRequestProcessingJob(*this, client);
   ClientPoolMetrics_.requests_counter += client->PendingRequestsCount();
   ClientPoolMetrics_.size_of_batch_gauge.Get().Set(client->PendingRequestsCount());
-  ClientPoolMetrics_.clients_gauge--;
+  ClientPoolMetrics_.clients_gauge.Get().Set(clients_.size());
   jobs_thread_pool_.add(job);
 }
 
@@ -184,7 +184,7 @@ void ConcordClientPool::assignJobToClient(const ClientPtr &client,
   auto *job = new SingleRequestProcessingJob(
       *this, client, std::move(request), flags, timeout_ms, correlation_id, seq_num, span_context, callback);
   ClientPoolMetrics_.requests_counter++;
-  ClientPoolMetrics_.clients_gauge--;
+  ClientPoolMetrics_.clients_gauge.Get().Set(clients_.size());
   jobs_thread_pool_.add(job);
 }
 
@@ -432,7 +432,6 @@ void ConcordClientPool::InsertClientToQueue(
   average_req_dur_.add(duration);
   ClientPoolMetrics_.average_req_dur_gauge.Get().Set((uint64_t)average_req_dur_.avg());
   if (average_req_dur_.numOfElements() == 1000) average_req_dur_.reset();  // reset the average every 1000 samples
-  ClientPoolMetrics_.clients_gauge++;
   ClientPoolMetrics_.executed_requests_counter++;
   client->unsetReplyBuffer();
   {
@@ -510,6 +509,7 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
+  ClientPoolMetrics_.clients_gauge.Get().Set(clients_.size());
   Done(std::move(replies));
 }
 

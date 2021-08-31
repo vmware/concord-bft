@@ -42,10 +42,10 @@ typedef struct Replica {
 
 typedef struct ConcordClientPoolConfig {
   std::uint16_t c_val = 0;
-  std::uint16_t client_min_retry_timeout_milli = 500;
+  std::uint16_t client_min_retry_timeout_milli = 5000;
   std::uint16_t client_periodic_reset_thresh = 30;
-  std::uint16_t client_initial_retry_timeout_milli = 500;
-  std::uint16_t client_max_retry_timeout_milli = 3000;
+  std::uint16_t client_initial_retry_timeout_milli = 5000;
+  std::uint16_t client_max_retry_timeout_milli = 10000;
   std::uint16_t client_sends_request_to_all_replicas_first_thresh = 2;
   std::uint16_t client_sends_request_to_all_replicas_period_thresh = 2;
   std::uint16_t client_number_of_standard_deviations_to_tolerate = 2;
