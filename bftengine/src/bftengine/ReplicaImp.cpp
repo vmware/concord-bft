@@ -1901,7 +1901,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   bool askForStateTransfer = false;
 
-  if (msgIsStable && (msgSeqNum > lastExecutedSeqNum || msgEpochNum >= getSelfEpochNumber())) {
+  if (msgIsStable &&
+      ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum) || msgEpochNum > getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
         msgEpochNum >= pos->second->epochNumber()) {
