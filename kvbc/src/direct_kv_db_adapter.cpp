@@ -32,6 +32,7 @@
 #include <utility>
 #include <sstream>
 #include <iomanip>
+#include <mutex>
 
 using logging::Logger;
 using concordUtils::Status;
@@ -412,9 +413,11 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
   // when ST runs, blocks arrive in batches in reverse order. we need to keep
   // track on the "Gap" and to close it. Only when it is closed, the last
   // reachable block becomes the same as the last block
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (blockId > getLatestBlockId()) setLatestBlock(blockId);
+  }
   BlockId lastReachableBlock = getLastReachableBlockId();
-  if (blockId > getLatestBlockId()) setLatestBlock(blockId);
-
   if (blockId == lastReachableBlock + 1) setLastReachableBlockNum(getLatestBlockId());
 }
 

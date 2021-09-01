@@ -191,6 +191,7 @@ class DBAdapter : public IDbAdapter {
   BlockId lastKnownReconfigurationCmdBlock_ = 0;
   bool saveKvPairsSeparately_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
+  std::mutex mutex_;
 };
 
 }  // namespace concord::kvbc::v1DirectKeyValue
