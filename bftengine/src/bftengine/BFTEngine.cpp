@@ -30,6 +30,16 @@
 #include <cstdio>
 #include <utility>
 
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
+
 #include <ccron/ticks_generator.hpp>
 
 bftEngine::IReservedPages *bftEngine::ReservedPagesClientBase::res_pages_ = nullptr;
@@ -171,11 +181,14 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
       ConcordAssert(startNewEpoch == true);
       metadataStoragePtr->eraseData();
       isNewStorage = metadataStoragePtr->initMaxSizeOfObjects(objectDescriptors.get(), numOfObjects);
-      auto secFile = ReplicaConfig::instance().getkeyViewFilePath() + std::string("/" + secFilePrefix + ".") +
-                     std::to_string(ReplicaConfig::instance().getreplicaId());
-      LOG_INFO(GL, "removing " << secFile << " if exist");
+      auto secFileDir = ReplicaConfig::instance().getkeyViewFilePath();
+      LOG_INFO(GL, "removing " << secFileDir << " files if exist");
       try {
-        std::remove(secFile.c_str());
+        for (auto &it : fs::directory_iterator{secFileDir}) {
+          if (it.path().string().find(secFilePrefix) != std::string::npos) {
+            fs::remove(it.path());
+          }
+        }
       } catch (std::exception &e) {
         LOG_FATAL(GL, "unable to remove the secret file, as we erased the metadata we won't be able to restart");
       }
