@@ -6,6 +6,7 @@ set(util_source_files
     src/MetricsServer.cpp
     src/SimpleThreadPool.cpp
     src/histogram.cpp
+    src/UtilCalc.cpp
     src/status.cpp
     src/sliver.cpp
     src/hex_tools.cpp
@@ -64,6 +65,7 @@ endif()
 
 set(util_header_files
     include/histogram.hpp
+    include/UtilCalc.hpp
     include/Metrics.hpp
     include/OpenTracing.hpp
     include/SimpleThreadPool.hpp
