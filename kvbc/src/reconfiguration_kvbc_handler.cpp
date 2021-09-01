@@ -17,6 +17,7 @@
 #include "endianness.hpp"
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
+#include "secrets_manager_plain.h"
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
@@ -193,8 +194,8 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
                                     const std::optional<bftEngine::Timestamp>& timestamp,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientsAddRemoveStatusResponse stats;
-  for (const auto& gr : txKeysClientGroups_) {
-    for (auto cid : gr) {
+  for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (auto cid : gr.second) {
       std::string key =
           std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                       static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)} +
@@ -221,8 +222,8 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
                                     const std::optional<bftEngine::Timestamp>& timestamp,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientKeyExchangeStatusResponse stats;
-  for (const auto& gr : txKeysClientGroups_) {
-    for (auto cid : gr) {
+  for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (auto cid : gr.second) {
       std::string key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                                     static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE)} +
                         std::to_string(cid);
@@ -435,8 +436,8 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
     LOG_INFO(getLogger(), "exchange client keys for all clients");
     // We don't want to assume anything about the CRE client id. Hence, we write the update to all clients.
     // However, only the CRE client will be able to execute the requests.
-    for (const auto& cg : txKeysClientGroups_) {
-      for (auto cid : cg) {
+    for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+      for (auto cid : cg.second) {
         target_clients.push_back(cid);
       }
     }
@@ -467,8 +468,8 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
   std::vector<uint32_t> target_clients;
   // We don't want to assume anything about the CRE client id. Hence, we write the update to all clients.
   // However, only the CRE client will be able to execute the requests.
-  for (const auto& cg : txKeysClientGroups_) {
-    for (auto cid : cg) {
+  for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (auto cid : cg.second) {
       target_clients.push_back(cid);
     }
   }
@@ -587,7 +588,7 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeComm
 
 bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                                   uint64_t sequence_number,
-                                                  uint32_t,
+                                                  uint32_t sender_id,
                                                   const std::optional<bftEngine::Timestamp>& timestamp,
                                                   concord::messages::ReconfigurationResponse& response) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
@@ -598,6 +599,21 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   LOG_INFO(getLogger(),
            "Writing client keys to block [" << id << "] after key exchange, keys "
                                             << std::hash<std::string>{}(updated_client_keys));
+  if (!bftEngine::ReplicaConfig::instance().saveClinetKeyFile) return true;
+  // Now that keys have exchanged, lets persist the new key in the file system
+  uint32_t group_id = 0;
+  for (const auto& [id, cgr] : bftEngine::ReplicaConfig::instance().clientGroups) {
+    if (std::find(cgr.begin(), cgr.end(), sender_id) != cgr.end()) {
+      group_id = id;
+      break;
+    }
+  }
+  std::string path = bftEngine::ReplicaConfig::instance().clientsKeysPrefix + "/" + std::to_string(group_id) +
+                     "/transaction_signing_pub.pem";
+  auto pem_key = concord::util::crypto::Crypto::instance().RsaHexToPem(std::make_pair("", command.pub_key));
+  concord::secretsmanager::SecretsManagerPlain sm;
+  sm.encryptFile(path, pem_key.second);
+  LOG_INFO(getLogger(), KVLOG(path, pem_key.second, sender_id));
   return true;
 }
 
