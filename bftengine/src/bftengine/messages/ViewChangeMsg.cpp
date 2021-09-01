@@ -37,6 +37,7 @@ ViewChangeMsg::ViewChangeMsg(ReplicaId srcReplicaId,
   b()->sizeOfAllComplaints = 0;
   b()->numberOfElements = 0;
   b()->locationAfterLast = 0;
+  b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
 }
 
