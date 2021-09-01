@@ -401,10 +401,12 @@ void TestSetup::setPublicKeysOfClients(
       }
       const std::string key = keyPlaintext.value();
       publicKeysOfClients.insert(std::pair<const std::string, std::set<uint16_t>>(key, clientIdsSet));
+      bftEngine::ReplicaConfig::instance().clientGroups.emplace(i + 1, clientIdsSet);
     } else {
       throw std::runtime_error("Key public_key.pem not found in directory " + keysDirectories.at(i));
     }
   }
+  bftEngine::ReplicaConfig::instance().clientsKeysPrefix = keysRootPath;
 }
 
 }  // namespace concord::kvbc

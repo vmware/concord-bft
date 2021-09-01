@@ -82,7 +82,7 @@ struct externalRequest {
 //  the client
 class ConcordClientPool {
   using ClientPtr = std::shared_ptr<concord::external_client::ConcordClient>;
-  static constexpr uint16_t SECOND_LEG_CID_LEN = 16;
+  static constexpr uint16_t SECOND_LEG_CID_LEN = 36;
 
  public:
   // Return a unique pointer containing a ConcordClientPool. This is useful when
