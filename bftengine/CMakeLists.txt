@@ -112,6 +112,7 @@ target_link_libraries(corebft PUBLIC
   secretsmanager
   keys_and_signatures_cmf
   cre
+  stdc++fs
   )
 
 
