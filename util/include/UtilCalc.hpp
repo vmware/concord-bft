@@ -16,10 +16,13 @@
 #include <string>
 #include <chrono>
 #include "Logger.hpp"
+#include "RollingAvgAndVar.hpp"
+#include "Metrics.hpp"
+#include "../../diagnostics/include/diagnostics.h"
 
 namespace concordUtils {
 using namespace std::chrono;
-uint32_t MAX_GAP = 10;
+
 class UtilCalc {
  public:
   UtilCalc();
@@ -40,11 +43,26 @@ class UtilCalc {
   uint64_t aggMilliSeconds_;
   uint64_t secondCount_;
   logging::Logger logger_ = logging::getLogger("util");
+  concordMetrics::Component metricsComponent_;
+  concordMetrics::GaugeHandle average_util_gauge_;
+  bftEngine::impl::RollingAvgAndVar average_util_;
 
-  /*double Median() const;
-  double Percentile(double p) const;
-  double Average() const;
-  double StandardDeviation() const;*/
+  // 1 Minutes
+  static constexpr int64_t MAX_VALUE_MILLISECONDS = 1000 * 60;
+
+  struct Recorders {
+    Recorders() {
+      auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
+      const auto component = "UtilCalc";
+      if (!registrar.perf.isRegisteredComponent(component)) {
+        registrar.perf.registerComponent(component, {mainThread});
+      }
+    }
+
+    DEFINE_SHARED_RECORDER(mainThread, 1, 100000, 3, concord::diagnostics::Unit::COUNT);
+  };
+
+  Recorders histograms_;
 };
 
 }  // namespace concordUtils

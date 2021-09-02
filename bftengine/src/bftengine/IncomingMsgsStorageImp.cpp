@@ -179,6 +179,7 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
           LOG_TRACE(GL, "Invalid message - ignore");
           break;
         case IncomingMsg::EXTERNAL: {
+          mainThreadUtil.Start();
           MsgCode::Type type = static_cast<MsgCode::Type>(msg.external->type());
           LOG_TRACE(MSGS, type);
           // TODO: (AJS) Don't turn this back into a raw pointer.
@@ -187,15 +188,19 @@ void IncomingMsgsStorageImp::dispatchMessages(std::promise<void>& signalStarted)
           msgHandlerCallback = msgHandlers_->getCallback(message->type());
           if (msgHandlerCallback) {
             msgHandlerCallback(message);
+            mainThreadUtil.End();
           } else {
             LOG_WARN(
                 GL,
                 "Received unknown external Message: " << KVLOG(message->type(), message->senderId(), message->size()));
             delete message;
+            mainThreadUtil.End();
           }
         } break;
         case IncomingMsg::INTERNAL:
+          mainThreadUtil.Start();
           msgHandlers_->handleInternalMsg(std::move(msg.internal));
+          mainThreadUtil.End();
       };
     }
   } catch (const std::exception& e) {

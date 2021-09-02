@@ -17,12 +17,15 @@
 
 namespace concordUtils {
 
-UtilCalc::UtilCalc() {
+UtilCalc::UtilCalc()
+    : metricsComponent_{concordMetrics::Component("util_calculator", std::make_shared<concordMetrics::Aggregator>())},
+      average_util_gauge_{metricsComponent_.RegisterGauge("avrage_util_gauge", 0)} {
   activeMilliSeconds_ = 0;
   lastSecond_ = 0;
   startMilli_ = 0;
   aggMilliSeconds_ = 0;
   secondCount_ = 0;
+  metricsComponent_.Register();
 }
 
 void UtilCalc::Start() {
@@ -46,19 +49,23 @@ void UtilCalc::End() {
   } else if (nowSecond > lastSecond_) {
     activeMilliSeconds_ += (1000 - (startMilli_ % 1000));
     Add(activeMilliSeconds_);
-    if (nowSecond - lastSecond_ > MAX_GAP) {
-      LOG_WARN(logger_, "Measured a gap of=" << MAX_GAP << " seconds");
-      lastSecond_ = nowSecond - MAX_GAP;
+    if (nowSecond - lastSecond_ > 10) {
+      LOG_WARN(logger_, "Measured a gap of=10 seconds");
+      lastSecond_ = nowSecond - 10;
     }
     for (uint64_t i = lastSecond_ + 1; i <= nowSecond - 1; i++) Add(1000);
-    activeMilliSeconds_ += (nowMilli % 1000);
+    activeMilliSeconds_ = (nowMilli % 1000);
     lastSecond_ = nowSecond;
   }
 }
 
 void UtilCalc::Add(uint64_t ms) {
+  histograms_.mainThread->record(ms);
   aggMilliSeconds_ += ms;
   secondCount_++;
+  average_util_.add(ms);
+  average_util_gauge_.Get().Set((uint64_t)average_util_.avg());
+  if (average_util_.numOfElements() == 1000) average_util_.reset();  // reset the average every 1000 samples
 }
 
 std::string UtilCalc::ToString() const {
