@@ -193,14 +193,14 @@ class ClientsAddRemoveHandler : public IStateHandler {
     if (state.blockid < init_last_update_block_) return false;
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
-    return std::holds_alternative<concord::messages::ClientsAddRemoveCommand>(crep.response);
+    return std::holds_alternative<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
   }
   bool execute(const State& state, WriteState& out) override {
     LOG_INFO(getLogger(), "execute clientsAddRemoveCommand");
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
-    concord::messages::ClientsAddRemoveCommand command =
-        std::get<concord::messages::ClientsAddRemoveCommand>(crep.response);
+    concord::messages::ClientsAddRemoveExecuteCommand command =
+        std::get<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
 
     concord::messages::ReconfigurationRequest rreq;
     concord::messages::ClientsAddRemoveUpdateCommand creq;

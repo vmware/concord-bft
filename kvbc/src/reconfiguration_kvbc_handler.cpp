@@ -113,8 +113,8 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               creply.response = cmd;
               break;
             }
-            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND: {
-              concord::messages::ClientsAddRemoveCommand cmd;
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND: {
+              concord::messages::ClientsAddRemoveExecuteCommand cmd;
               concord::messages::deserialize(data_buf, cmd);
               creply.response = cmd;
               break;
@@ -466,8 +466,11 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
                                     const std::optional<bftEngine::Timestamp>& timestamp,
                                     concord::messages::ReconfigurationResponse& response) {
   std::vector<uint32_t> target_clients;
-  // We don't want to assume anything about the CRE client id. Hence, we write the update to all clients.
-  // However, only the CRE client will be able to execute the requests.
+  // ClientsAddRemoveCommand has optional list of <clientId, token>, we write update config descriptor and
+  // and token Id relevant to the client id
+  std::map<uint64_t, std::string> token;
+  for (const auto& t : command.token) token.insert(t);
+
   for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
     for (auto cid : cg.second) {
       target_clients.push_back(cid);
@@ -477,10 +480,21 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
   concord::messages::serialize(serialized_command, command);
   auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                                 static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND)};
+  auto execute_key_prefix =
+      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                  static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
   concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::move(key_prefix), std::string(serialized_command.begin(), serialized_command.end()));
   for (auto clientid : target_clients) {
-    ver_updates.addUpdate(key_prefix + std::to_string(clientid),
-                          std::string(serialized_command.begin(), serialized_command.end()));
+    concord::messages::ClientsAddRemoveExecuteCommand cmd;
+    cmd.config_descriptor = command.config_descriptor;
+    if (token.find(clientid) != token.end()) cmd.token = token[clientid];
+    cmd.restart = command.restart;
+    std::vector<uint8_t> serialized_cmd_data;
+    concord::messages::serialize(serialized_cmd_data, cmd);
+    // CRE will get this command and execute it
+    ver_updates.addUpdate(execute_key_prefix + std::to_string(clientid),
+                          std::string(serialized_cmd_data.begin(), serialized_cmd_data.end()));
   }
   auto block_id = persistReconfigurationBlock(ver_updates, sequence_number, timestamp, false);
   LOG_INFO(getLogger(), "ClientsAddRemoveCommand block_id is: " << block_id);

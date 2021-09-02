@@ -102,7 +102,7 @@ Msg AddRemoveStatusResponse 28 {
 
 Msg AddRemoveWithWedgeCommand 29 {
     string config_descriptor
-    string token
+    list kvpair uint64 string token
     bool bft_support
     bool restart
 }
@@ -168,7 +168,7 @@ Msg RestartCommand 42 {
 
 Msg ClientsAddRemoveCommand 43 {
     string config_descriptor
-    string token
+    list kvpair uint64 string token
     bool restart
 }
 
@@ -192,12 +192,18 @@ Msg ClientKeyExchangeStatusResponse 48 {
      list kvpair uint32 ClientExchangePublicKey clients_keys
 }
 
+Msg ClientsAddRemoveExecuteCommand 51 {
+    string config_descriptor
+    string token
+    bool restart
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
         ClientExchangePublicKey
         ClientKeyExchangeCommand
-        ClientsAddRemoveCommand
+        ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
       } response
 }
