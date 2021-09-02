@@ -51,6 +51,8 @@ constexpr uint64_t kLastBlockId{5u};
 constexpr uint64_t kLastEventGroupId{5u};
 
 static inline const std::string kGlobalEgIdKey{"_global_eg_id"};
+static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
+static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
 
 Block generate_block(BlockId block_id) {
   concord::kvbc::categorization::ImmutableValueUpdate data;
@@ -74,17 +76,19 @@ EventGroup generateEventGroup(EventGroupId eg_id) {
   EventGroup event_group;
   // we are adding just one event per event group
   event.data = "val eg_id#" + std::to_string(eg_id);
-  event.tags = {"TEST ID"};
+  event.tags = {"TEST_ID"};
   event_group.events.emplace_back(event);
   return event_group;
 }
 
 EventGroupMap generateEventGroupMap(EventGroupId start, EventGroupId end) {
   EventGroupMap event_group_map;
+  auto logger = logging::getLogger("thin_replica_server_test");
   for (EventGroupId eg_id = start; eg_id <= end; ++eg_id) {
     auto event_group = generateEventGroup(eg_id);
     auto key = concordUtils::toBigEndianStringBuffer(eg_id);
     event_group_map[key] = event_group;
+    LOG_DEBUG(logger, "generateEventGroupMap: key: " << eg_id);
   }
   return event_group_map;
 }
@@ -126,27 +130,44 @@ class FakeStorage : public concord::kvbc::IReader {
                                                                 const std::string& key) const override {
     std::scoped_lock sl(mtx_);
     BlockId block_id = 4;
+    auto logger = logging::getLogger("thin_replica_server_test");
     if (category_id == concord::kvbc::categorization::kExecutionEventGroupLatestCategory) {
       // get latest trid event_group_id
-      if (latest_eg_id.find(key) == latest_eg_id.end()) {
-        throw std::runtime_error(" The key: " + key +
-                                 "for category kExecutionEventGroupLatestCategory doesn't exist in storage!");
+      if (latest_table.find(key) == latest_table.end()) {
+        // In case there are no public or private event groups for a client, return 0.
+        // Note: `0` is an invalid event group id
+        uint64_t eg_id = 0;
+        LOG_DEBUG(logger, "getLatest: key: " << key.data() << " ,category_id:  LATEST table, val: " << eg_id);
+        return concord::kvbc::categorization::VersionedValue{{block_id, concordUtils::toBigEndianStringBuffer(eg_id)}};
       }
-      return concord::kvbc::categorization::VersionedValue{{block_id, latest_eg_id.at(key)}};
+      LOG_DEBUG(logger,
+                "getLatest: key: " << key.data() << " ,category_id:  LATEST table, val: "
+                                   << concordUtils::fromBigEndianBuffer<uint64_t>(latest_table.at(key).data()));
+      return concord::kvbc::categorization::VersionedValue{{block_id, latest_table.at(key)}};
     } else if (category_id == concord::kvbc::categorization::kExecutionEventGroupTagCategory) {
       // get global event_group_id corresponding to trid event_group_id
-      if (trid_event_group_id.find(key) == trid_event_group_id.end())
-        throw std::runtime_error(" The key: " + key +
-                                 "for category kExecutionEventGroupTagCategory doesn't exist in storage!");
-      return concord::kvbc::categorization::ImmutableValue{{block_id, trid_event_group_id.at(key)}};
+      if (tag_table.find(key) == tag_table.end()) {
+        std::stringstream msg;
+        msg << "The kExecutionEventGroupTagCategory category key: " << key << " doesn't exist in storage!";
+        throw std::runtime_error(msg.str());
+      }
+      LOG_DEBUG(logger,
+                "getLatest: key: " << key.data() << " ,category_id: TAG table"
+                                   << " val: " << tag_table.at(key));
+      return concord::kvbc::categorization::ImmutableValue{{block_id, tag_table.at(key)}};
     } else if (category_id == concord::kvbc::categorization::kExecutionEventGroupDataCategory) {
       // get event group
       std::vector<uint8_t> output;
-      if (concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1 >= eg_db_.size())
-        throw std::runtime_error(" The key: " + key +
-                                 "for category kExecutionEventGroupDataCategory doesn't exist in storage!");
+      if (concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) - 1 >= eg_db_.size()) {
+        std::stringstream msg;
+        msg << "The kExecutionEventGroupDataCategory category key: " << key << " doesn't exist in storage!";
+        throw std::runtime_error(msg.str());
+      }
       auto event_group_input = eg_db_.at(key);
       concord::kvbc::categorization::serialize(output, event_group_input);
+      LOG_DEBUG(
+          logger,
+          "getLatest: key: " << concordUtils::fromBigEndianBuffer<uint64_t>(key.data()) << " ,category_id: DATA table");
       return concord::kvbc::categorization::ImmutableValue{{block_id, std::string(output.begin(), output.end())}};
     } else {
       ADD_FAILURE() << "getLatest() should not be called by this test";
@@ -218,42 +239,49 @@ class FakeStorage : public concord::kvbc::IReader {
   EventGroupId getLastEventGroupId() const { return eg_db_.size(); }
   BlockId getFirstEventGroupBlockId() const { return first_event_group_block_id_; }
 
-  void updateLatestGlobalEgId(uint64_t global_event_group_id) {
-    // Let's save the latest global event group id in storage
-    latest_eg_id[kGlobalEgIdKey] = concordUtils::toBigEndianStringBuffer(global_event_group_id);
-  }
-
-  void updateLatestTridEgId(const std::string& trid) {
+  void updateLatestTable(const std::string& key, uint64_t id = 1) {
     // Let's save the latest private/trid specific event group id
-    if (latest_eg_id[trid].empty()) {
-      uint64_t trid_eg_id_start = 1;
-      latest_eg_id[trid] = concordUtils::toBigEndianStringBuffer(trid_eg_id_start);
+    auto logger = logging::getLogger("thin_replica_server_test");
+    if (latest_table[key + "_oldest"].empty()) {
+      latest_table[key + "_newest"] = concordUtils::toBigEndianStringBuffer(id);
+      latest_table[key + "_oldest"] = concordUtils::toBigEndianStringBuffer(id);
+      LOG_DEBUG(logger, "key: " << key << "_oldest: " << id << ", _newest: " << id);
     } else {
-      auto latest_id = concordUtils::fromBigEndianBuffer<uint64_t>(latest_eg_id[trid].data());
-      latest_eg_id[trid] = concordUtils::toBigEndianStringBuffer(++latest_id);
+      auto latest_id = concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[key + "_newest"].data());
+      latest_table[key + "_newest"] = concordUtils::toBigEndianStringBuffer(++latest_id);
+      LOG_DEBUG(logger,
+                "key: " << key << "_oldest: "
+                        << concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[key + "_oldest"].data())
+                        << ", _newest: " << latest_id);
     }
   }
 
-  void updateTridToGlobalEgIdMapping(uint64_t global_event_group_id, const std::string& trid) {
+  void updateTagTable(const uint64_t global_event_group_id, const std::string& trid) {
     // We need to be able to map the global event_group_id to the trid specific event_group_id
-    trid_event_group_id[trid + "#" + latest_eg_id[trid]] = concordUtils::toBigEndianStringBuffer(global_event_group_id);
+    auto logger = logging::getLogger("thin_replica_server_test");
+    tag_table[trid + "#" + latest_table[trid + "_newest"]] =
+        concordUtils::toBigEndianStringBuffer(global_event_group_id);
+    LOG_DEBUG(logger,
+              "key: " << trid + "#"
+                      << concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data())
+                      << ", global_event_group_id: " << global_event_group_id);
   }
 
   // Update the following category maps in storage
-  // 1. latest_eg_id (trid -> latest_trid_event_group_id)
-  // 2. trid_event_group_id (trid_event_group_id -> global_event_group_id)
+  // 1. latest_table (trid -> latest_tag_table)
+  // 2. tag_table (tag_table -> global_event_group_id)
   void updateEventGroupStorageMaps(const EventGroupMap& event_group_map) {
     for (const auto& [eg_id_str, event_group] : event_group_map) {
       EventGroupId eg_id(concordUtils::fromBigEndianBuffer<uint64_t>(eg_id_str.data()));
       for (const auto& event : event_group.events) {
         if (not event.tags.empty()) {
           for (const auto& tag : event.tags) {
-            updateLatestTridEgId(tag);
-            updateTridToGlobalEgIdMapping(eg_id, tag);
+            updateLatestTable(tag);
+            updateTagTable(eg_id, tag);
           }
         }
-        updateLatestGlobalEgId(eg_id);
       }
+      updateLatestTable(kGlobalEgIdKey, eg_id);
     }
   }
 
@@ -263,14 +291,14 @@ class FakeStorage : public concord::kvbc::IReader {
   BlockId first_event_group_block_id_{0};
   mutable std::mutex mtx_;
   EventGroupMap eg_db_;
-  // trid -> latest_trid_event_group_id map
-  std::map<std::string, std::string> latest_eg_id;
-  // trid_event_group_id -> global_event_group_id map
-  std::map<std::string, std::string> trid_event_group_id;
+  // given trid as key, the map returns the latest event_group_id
+  std::map<std::string, std::string> latest_table;
+  // given trid#<event_group_id> as key, the map returns the global_event_group_id
+  std::map<std::string, std::string> tag_table;
 };
 
 class TestServerContext {
-  std::multimap<std::string, std::string> metadata_ = {{"client_id", "TEST ID"}};
+  std::multimap<std::string, std::string> metadata_ = {{"client_id", "TEST_ID"}};
 
   class AuthContext {
    public:
@@ -428,8 +456,8 @@ class TestStateMachine {
     std::scoped_lock sl(mtx_);
     auto eg_id = storage_.getLastEventGroupId() + 1;
     auto gap_event_groups = generateEventGroupMap(eg_id, live_buffer_->newestEventGroupId());
-    storage_.updateEventGroupStorageMaps(gap_event_groups);
     storage_.addEventGroups(gap_event_groups);
+    storage_.updateEventGroupStorageMaps(gap_event_groups);
   }
 
   void on_finished_dropping_blocks() {
