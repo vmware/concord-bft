@@ -27,7 +27,7 @@ class IDbAdapter {
 
   // Adds a block from its raw representation and a block ID.
   // Typically called by state transfer when a block is received and needs to be added.
-  virtual void addRawBlock(const RawBlock& rawBlock, const BlockId& blockId) = 0;
+  virtual void addRawBlock(const RawBlock& rawBlock, const BlockId& blockId, bool lastBlock) = 0;
 
   // Get block in its raw form
   virtual RawBlock getRawBlock(const BlockId& blockId) const = 0;
