@@ -64,8 +64,12 @@ Status Replica::initInternals() {
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
-      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages)) {
-        creClient_->pushUpdate(stateFromReservedPages);
+      uint64_t wedgePt{0};
+      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages, wedgePt)) {
+        LOG_INFO(GL,
+                 "reconfiguration command in res pages" << KVLOG(wedgePt, m_replicaPtr->getLastExecutedSequenceNum()));
+        if (wedgePt == static_cast<uint64_t>(m_replicaPtr->getLastExecutedSequenceNum()))
+          creClient_->pushUpdate(stateFromReservedPages);
       }
     });
   } else {
@@ -93,7 +97,7 @@ Status Replica::start() {
   }
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
-  startRoReplicaCreEngine();
+  if (replicaConfig_.isReadOnly) startRoReplicaCreEngine();
   /// TODO(IG, GG)
   /// add return value to start/stop
 

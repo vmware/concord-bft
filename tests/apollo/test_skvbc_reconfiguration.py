@@ -1310,6 +1310,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         blockIdreplica = await bft_network.get_metric(0, bft_network, "Gauges",
                                             "reconfiguration_cmd_blockid", component="reconfiguration_cmd_blockid")
         bft_network.stop_all_replicas()
+    '''
         conf = TestConfig(n=7,
                           f=2,
                           c=0,
@@ -1336,7 +1337,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                             "last_known_block", component="client_reconfiguration_engine")
         #validate the blockId is same as the 2nd reconfiguration command block
         self.assertEqual(blockIdRor, blockIdreplica)
-
+    '''
 
     async def try_to_unwedge(self, bft_network, bft, restart, quorum=None):
         with trio.fail_after(seconds=60):

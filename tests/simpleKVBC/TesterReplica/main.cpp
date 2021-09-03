@@ -19,6 +19,8 @@
 #include "SimpleBCStateTransfer.hpp"
 #include "secrets_manager_plain.h"
 #include "bftengine/ControlStateManager.hpp"
+#include "bftengine/ReconfigurationCmd.hpp"
+#include "client/reconfiguration/cre_interfaces.hpp"
 #include "assertUtils.hpp"
 #include "Metrics.hpp"
 #include <csignal>
@@ -35,6 +37,38 @@ namespace concord::kvbc::test {
 std::shared_ptr<concord::kvbc::Replica> replica;
 
 std::atomic_bool timeToExit = false;
+
+class STAddRemoveHandlerTest : public concord::client::reconfiguration::IStateHandler {
+  bool validate(const concord::client::reconfiguration::State& s) const override {
+    bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
+    std::istringstream inStream;
+    std::string page(s.data.begin(), s.data.end());
+    inStream.str(page);
+    concord::serialize::Serializable::deserialize(inStream, cmdData);
+    concord::messages::ReconfigurationRequest rreq;
+    concord::messages::deserialize(cmdData.data_, rreq);
+    LOG_INFO(GL, "STAddRemoveHandlerTest::validate");
+    return std::holds_alternative<concord::messages::AddRemoveWithWedgeCommand>(rreq.command);
+  }
+  bool execute(const concord::client::reconfiguration::State& s,
+               concord::client::reconfiguration::WriteState& outState) override {
+    bftEngine::ReconfigurationCmd::ReconfigurationCmdData::cmdBlock cmdData;
+    std::istringstream inStream;
+    std::string page(s.data.begin(), s.data.end());
+    inStream.str(page);
+    concord::serialize::Serializable::deserialize(inStream, cmdData);
+    concord::messages::ReconfigurationRequest rreq;
+    concord::messages::deserialize(cmdData.data_, rreq);
+    concord::messages::AddRemoveWithWedgeCommand cmd =
+        std::get<concord::messages::AddRemoveWithWedgeCommand>(rreq.command);
+    LOG_INFO(GL,
+             "AddRemove command for RO replica:" << KVLOG(
+                 cmdData.blockId_, cmdData.wedgePoint_, cmdData.epochNum_, cmd.config_descriptor));
+    outState.data = std::move(s.data);
+    outState.callBack = []() { LOG_INFO(GL, "AddRemove command execute Successful"); };
+    return true;
+  }
+};
 
 void cronSetup(TestSetup& setup, const Replica& replica) {
   if (!setup.GetCronEntryNumberOfExecutes()) {
@@ -102,6 +136,8 @@ void run_replica(int argc, char** argv) {
   auto cmdHandler = std::make_shared<InternalCommandsHandler>(replica.get(), replica.get(), blockMetadata, logger);
   replica->set_command_handler(cmdHandler);
   replica->start();
+  if (setup->GetReplicaConfig().isReadOnly)
+    replica->registerStBasedReconfigurationHandler(std::make_shared<STAddRemoveHandlerTest>());
 
   // Setup a test cron table, if requested in configuration.
   cronSetup(*setup, *replica);
