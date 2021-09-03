@@ -64,7 +64,7 @@ class STAddRemoveHandlerTest : public concord::client::reconfiguration::IStateHa
     LOG_INFO(GL,
              "AddRemove command for RO replica:" << KVLOG(
                  cmdData.blockId_, cmdData.wedgePoint_, cmdData.epochNum_, cmd.config_descriptor));
-    outState.data = std::move(s.data);
+    outState.data = s.data;
     outState.callBack = []() { LOG_INFO(GL, "AddRemove command execute Successful"); };
     return true;
   }

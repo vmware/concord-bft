@@ -86,7 +86,9 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     saveReservedPage(0, data.size(), data.data());
   }
 
-  bool getStateFromResPages(std::vector<concord::client::reconfiguration::State>& states, uint64_t& wedgePoint) {
+  bool getStateFromResPages(std::vector<concord::client::reconfiguration::State>& states,
+                            uint64_t& wedgePoint,
+                            uint64_t& cmdEpochNum) {
     if (!loadReservedPage(0, sizeOfReservedPage(), page_.data())) return false;
     ReconfigurationCmdData cmdData;
     std::istringstream inStream;
@@ -96,8 +98,11 @@ class ReconfigurationCmd : public bftEngine::ResPagesClient<ReconfigurationCmd, 
     for (auto& [k, v] : cmdData.reconfigurationCommands_) {
       (void)k;
       std::ostringstream outStream;
-      latestKnownBlockId = std::max(latestKnownBlockId, v.blockId_);
-      wedgePoint = std::max(wedgePoint, v.wedgePoint_);
+      if (v.blockId_ > latestKnownBlockId) {
+        latestKnownBlockId = v.blockId_;
+        wedgePoint = v.wedgePoint_;
+        cmdEpochNum = v.epochNum_;
+      }
       concord::serialize::Serializable::serialize(outStream, v);
       auto data = outStream.str();
       concord::client::reconfiguration::State s = {v.blockId_, {data.begin(), data.end()}};

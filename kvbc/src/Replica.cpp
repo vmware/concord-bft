@@ -65,11 +65,20 @@ Status Replica::initInternals() {
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
-      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages, wedgePt)) {
+      uint64_t cmdEpochNum{0};
+      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(
+              stateFromReservedPages, wedgePt, cmdEpochNum)) {
+        // get replicas latest global epoch from res pages
+        auto replicasGlobalEpochNum = bftEngine::EpochManager::instance().getGlobalEpochNumber();
         LOG_INFO(GL,
-                 "reconfiguration command in res pages" << KVLOG(wedgePt, m_replicaPtr->getLastExecutedSequenceNum()));
-        if (wedgePt == static_cast<uint64_t>(m_replicaPtr->getLastExecutedSequenceNum()))
+                 "reconfiguration command in res pages" << KVLOG(
+                     wedgePt, cmdEpochNum, replicasGlobalEpochNum, m_replicaPtr->getLastExecutedSequenceNum()));
+        // OnTransferringComplete callback is called for every 150 seqNum/checkpt, but we want to push reconfiguration
+        // command only when wedge pt is reached
+        if (static_cast<uint64_t>(m_replicaPtr->getLastExecutedSequenceNum()) >= wedgePt ||
+            replicasGlobalEpochNum > cmdEpochNum) {
           creClient_->pushUpdate(stateFromReservedPages);
+        }
       }
     });
   } else {
@@ -517,7 +526,7 @@ Replica::~Replica() {
  */
 bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize, bool lastBlock) {
   if (replicaConfig_.isReadOnly) {
-    return putBlockToObjectStore(blockId, blockData, blockSize);
+    return putBlockToObjectStore(blockId, blockData, blockSize, lastBlock);
   }
 
   auto view = std::string_view{blockData, blockSize};
@@ -575,7 +584,10 @@ std::future<bool> Replica::putBlockAsync(uint64_t blockId,
   return future;
 }
 
-bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlockToObjectStore(const uint64_t blockId,
+                                    const char *blockData,
+                                    const uint32_t blockSize,
+                                    bool lastBlock) {
   Sliver block = Sliver::copy(blockData, blockSize);
 
   if (m_bcDbAdapter->hasBlock(blockId)) {
@@ -594,7 +606,7 @@ bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockDat
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string("data corrupted blockId: ") + std::to_string(blockId));
     }
   } else {
-    m_bcDbAdapter->addRawBlock(block, blockId);
+    m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
   }
 
   return true;
@@ -757,7 +769,7 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
 void Replica::registerStBasedReconfigurationHandler(
     std::shared_ptr<concord::client::reconfiguration::IStateHandler> handler) {
   // api for higher level application to register the handler
-  if (handler) creEngine_->registerHandler(handler);
+  if (handler && creEngine_) creEngine_->registerHandler(handler);
 }
 BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   std::string blockRawData;
