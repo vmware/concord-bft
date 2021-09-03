@@ -513,7 +513,7 @@ Replica::~Replica() {
  */
 bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize, bool lastBlock) {
   if (replicaConfig_.isReadOnly) {
-    return putBlockToObjectStore(blockId, blockData, blockSize);
+    return putBlockToObjectStore(blockId, blockData, blockSize, lastBlock);
   }
 
   auto view = std::string_view{blockData, blockSize};
@@ -571,7 +571,10 @@ std::future<bool> Replica::putBlockAsync(uint64_t blockId,
   return future;
 }
 
-bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlockToObjectStore(const uint64_t blockId,
+                                    const char *blockData,
+                                    const uint32_t blockSize,
+                                    bool lastBlock) {
   Sliver block = Sliver::copy(blockData, blockSize);
 
   if (m_bcDbAdapter->hasBlock(blockId)) {
@@ -590,7 +593,7 @@ bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockDat
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string("data corrupted blockId: ") + std::to_string(blockId));
     }
   } else {
-    m_bcDbAdapter->addRawBlock(block, blockId);
+    m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
   }
 
   return true;

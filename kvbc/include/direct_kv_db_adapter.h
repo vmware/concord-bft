@@ -140,7 +140,7 @@ class DBAdapter : public IDbAdapter {
   // - adding the key/value pairs in separate keys
   // - adding the whole block (raw block) in its own key.
   // Typically called by state transfer when a block is received and needs to be added.
-  void addRawBlock(const RawBlock &, const BlockId &) override;
+  void addRawBlock(const RawBlock &, const BlockId &, bool lastBlock = false) override;
 
   std::pair<Value, BlockId> getValue(const Key &, const BlockId &blockVersion) const override;
 
@@ -191,6 +191,7 @@ class DBAdapter : public IDbAdapter {
   BlockId lastKnownReconfigurationCmdBlock_ = 0;
   bool saveKvPairsSeparately_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
+  std::mutex mutex_;
 };
 
 }  // namespace concord::kvbc::v1DirectKeyValue

@@ -123,7 +123,10 @@ class Replica : public IReplica,
 
   bool getBlockFromObjectStore(uint64_t blockId, char *outBlock, uint32_t outblockMaxSize, uint32_t *outBlockSize);
   bool getPrevDigestFromObjectStoreBlock(uint64_t blockId, bftEngine::bcst::StateTransferDigest *);
-  bool putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize);
+  bool putBlockToObjectStore(const uint64_t blockId,
+                             const char *blockData,
+                             const uint32_t blockSize,
+                             bool lastBlock = false);
 
   Replica(bft::communication::ICommunication *comm,
           const bftEngine::ReplicaConfig &config,
