@@ -45,7 +45,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     } else if (req.flags & MsgFlag::RECONFIG_FLAG) {
       ReconfigurationRequest rreq;
       deserialize(std::vector<std::uint8_t>(req.request, req.request + req.requestSize), rreq);
-      ReconfigurationResponse rsi_res = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum, timestamp);
+      ReconfigurationResponse rsi_res = reconfig_dispatcher_.dispatch(rreq, req.executionSequenceNum);
       // in case of read request return only a success part of and replica specific info in the response
       // and the rest as additional data, since it may differ between replicas
       if (req.flags & MsgFlag::READ_ONLY_FLAG) {
