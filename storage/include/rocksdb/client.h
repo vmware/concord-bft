@@ -100,10 +100,8 @@ class Client : public concord::storage::IDBClient {
 
   Status reclaimDiskSpace() override {
     ::rocksdb::CompactRangeOptions opt;
-    opt.allow_write_stall = true;
-    opt.change_level = true;
     for (auto& [_, cf] : cf_handles_) {
-      (void)_;
+      LOG_INFO(logger(), "run compaction for " << _);
       auto s = dbInstance_->CompactRange(opt, cf.get(), nullptr, nullptr);
       if (!s.ok()) return Status::GeneralError(s.ToString());
     }
