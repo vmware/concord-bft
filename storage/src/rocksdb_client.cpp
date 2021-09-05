@@ -13,6 +13,7 @@
 
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
+#incluse <rocksdb/advanced_options.h>
 #include <stdexcept>
 #ifdef USE_ROCKSDB
 
@@ -212,6 +213,7 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
   }
 
   Options options;
+  options.compaction_pri = ::rocksdb::CompactionPri::kByCompensatedSize;
   std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
 
   auto cf_names = std::vector<std::string>{};
