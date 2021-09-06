@@ -23,7 +23,7 @@ STBasedReconfigurationClient::STBasedReconfigurationClient(
 State STBasedReconfigurationClient::getNextState() const {
   std::unique_lock<std::mutex> lk(lock_);
   while (!stopped_ && updates_.empty()) {
-    new_updates_.wait(lk, [this]() { return !updates_.empty(); });
+    new_updates_.wait_for(lk, 1s, [this]() { return !updates_.empty(); });
   }
   if (stopped_) return {0, {}};
   auto ret = std::move(updates_.front());
