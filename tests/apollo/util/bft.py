@@ -762,7 +762,7 @@ class BftTestNetwork:
 
             return self.replicas[replica_id]
 
-    def stop_replica(self, replica_id):
+    def stop_replica(self, replica_id, force_kill=False):
         """
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
@@ -775,10 +775,13 @@ class BftTestNetwork:
                 self._stop_external_replica(replica_id)
             else:
                 p = self.procs[replica_id]
-                if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
-                    p.terminate()
-                else:
+                if force_kill:
                     p.kill()
+                else:
+                    if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                        p.terminate()
+                    else:
+                        p.kill()
                 for fd in self.open_fds.get(replica_id, ()):
                     fd.close()
                 p.wait()

@@ -1042,7 +1042,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         await bft_network.change_configuration(conf)
         await op.add_remove_with_wedge(test_config, bft=True, restart=True)
         await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
-        bft_network.stop_replica(4) # to have clean logs
+        bft_network.stop_replica(4, force_kill=True) # to have clean logs
         bft_network.restart_clients()
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         for i in range(100):
