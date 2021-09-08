@@ -18,7 +18,7 @@ import trio
 from util import bft_network_partitioning as net
 
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX, skip_for_tls
 
 
 def start_replica_cmd(builddir, replica_id):
@@ -205,8 +205,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
             bft_network.all_replicas(),
             expected_checkpoint_num=lambda ecn: ecn >= checkpoint_init_primary_after)
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_f_non_primaries_isolated(self, bft_network):
@@ -249,8 +248,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
             isolated_replicas,
             expected_checkpoint_num=lambda ecn: ecn == checkpoint_before + 1)
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_primary_isolation(self, bft_network):
@@ -306,8 +304,7 @@ class SkvbcCheckpointTest(unittest.TestCase):
                 verify_checkpoint_persistency=False
             )
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_checkpoint_propagation_after_f_nodes_including_primary_isolated(self, bft_network):
