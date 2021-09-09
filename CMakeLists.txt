@@ -38,6 +38,7 @@ option(USE_OPENTRACING "Enable OpenTracing" ON)
 option(USE_GRPC "Enable GRPC and Protobuf" ON)
 option(USE_OPENSSL "Enable use of OpenSSL" ON)
 option(BUILD_THIRDPARTY "Wheter to build third party librarie or use preinstalled ones" OFF)
+option(CODECOVERAGE "Enable Code Coverage Metrics in Clang" OFF)
 
 if(USE_OPENSSL AND NOT BUILD_THIRDPARTY)
     set(OPENSSL_ROOT_DIR /usr/local/ssl) # not to confuse with system ssl libs
@@ -83,6 +84,11 @@ endif()
 if(THREADCHECK)
     string(APPEND CMAKE_CXX_FLAGS " -fsanitize=thread")
     message("-- Thread Sanitizer Enabled")
+endif()
+if(CODECOVERAGE)
+    string(APPEND CMAKE_CXX_FLAGS " -fprofile-instr-generate -fcoverage-mapping")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS " -fprofile-instr-generate")
+    message( "-- Building with llvm Code Coverage Tools")
 endif()
 
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
