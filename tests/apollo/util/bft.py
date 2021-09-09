@@ -106,6 +106,17 @@ def with_trio(async_fn):
 
     return trio_wrapper
 
+def skip_for_tls(async_fn):
+    """ Decorator for skipping the test for TCP/TLS. """
+    @wraps(async_fn)
+    def wrapper(*args, **kwargs):
+        if os.environ.get('BUILD_COMM_TCP_TLS', "").lower() != "true":
+            return async_fn(*args, **kwargs)
+        else:
+            pass
+
+    return wrapper
+
 def with_constant_load(async_fn):
     """
     Runs the decorated async function in parallel with constant load,

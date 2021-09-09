@@ -18,7 +18,7 @@ from os import environ
 
 import trio
 
-from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, with_constant_load, KEY_FILE_PREFIX, skip_for_tls
 from util import bft_network_partitioning as net
 from util import eliot_logging as log
 
@@ -138,7 +138,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                     await write_req()
                     await trio.sleep(seconds=3)
 
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_inactive_window(self, bft_network):
@@ -193,7 +193,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
                     await trio.sleep(seconds=3)
 
     @unittest.skip("Edge case scenario - not part of CI until intermittent failures are analysed")
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_view_change_with_f_replicas_collected_stable_checkpoint(self, bft_network):
@@ -624,8 +624,7 @@ class SkvbcChaoticStartupTest(unittest.TestCase):
 
         await self._wait_for_replicas_to_generate_checkpoint(bft_network, skvbc, expected_next_primary, bft_network.all_replicas(without={initial_primary}))
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd_with_vc_timeout("20000"),
                       selected_configs=lambda n, f, c: n == 7)

@@ -19,7 +19,7 @@ import trio
 
 from util import bft_network_partitioning as net
 from util import skvbc as kvbc
-from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX
+from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
 from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
 
@@ -393,7 +393,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             num_consecutive_failing_primaries = 2
         )
 
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_replica_asks_to_leave_view(self, bft_network):

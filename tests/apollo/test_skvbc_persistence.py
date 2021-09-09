@@ -21,7 +21,7 @@ from util.skvbc import SimpleKVBCProtocol
 from util.skvbc_history_tracker import verify_linearizability
 from math import inf
 
-from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network
+from util.bft import KEY_FILE_PREFIX, with_trio, with_bft_network, skip_for_tls
 from util import eliot_logging as log
 
 
@@ -244,8 +244,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
                log.log_message(message_type=f'Stopping replica {stale_node}')
                bft_network.stop_replica(stale_node)
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @unittest.skip("Fails because of BC-7264")
     @with_trio
     @with_bft_network(start_replica_cmd,
@@ -334,8 +333,7 @@ class SkvbcPersistenceTest(unittest.TestCase):
             log.log_message(message_type="State transfer completed before we had a chance "
                   "to stop the source replica.")
 
-    from os import environ
-    @unittest.skipIf(environ.get('BUILD_COMM_TCP_TLS', "").lower() == "true", "Unstable on CI (TCP/TLS only)")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: f >= 2)
