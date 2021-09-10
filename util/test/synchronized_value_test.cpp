@@ -23,7 +23,7 @@ using namespace concord::util;
 
 TEST(synchronized_value, ctor_built_in_type_default_init) {
   auto v = SynchronizedValue<int>{};
-  ASSERT_EQ(0, *v.access());
+  ASSERT_EQ(0, *v.constAccess());
 }
 
 TEST(synchronized_value, ctor_user_type_default_init) {
@@ -35,18 +35,18 @@ TEST(synchronized_value, ctor_user_type_default_init) {
   };
 
   auto v = SynchronizedValue<UserType>{};
-  ASSERT_EQ(42, v.access()->data_);
+  ASSERT_EQ(42, v.constAccess()->data_);
 }
 
 TEST(synchronized_value, ctor_with_arguments) {
   auto v = SynchronizedValue<int>{42};
-  ASSERT_EQ(42, *v.access());
+  ASSERT_EQ(42, *v.constAccess());
 }
 
 TEST(synchronized_value, replace_built_in_type_default_init) {
   auto v = SynchronizedValue<int>{42};
   v.replace();
-  ASSERT_EQ(0, *v.access());
+  ASSERT_EQ(0, *v.constAccess());
 }
 
 TEST(synchronized_value, replace_user_type_default_init) {
@@ -59,14 +59,14 @@ TEST(synchronized_value, replace_user_type_default_init) {
 
   auto v = SynchronizedValue<UserType>{7};
   v.replace();
-  ASSERT_EQ(42, v.access()->data_);
+  ASSERT_EQ(42, v.constAccess()->data_);
 }
 
 TEST(synchronized_value, replace_with_arguments) {
   auto v = SynchronizedValue<int>{41};
-  ASSERT_EQ(41, *v.access());
+  ASSERT_EQ(41, *v.constAccess());
   v.replace(42);
-  ASSERT_EQ(42, *v.access());
+  ASSERT_EQ(42, *v.constAccess());
 }
 
 TEST(synchronized_value, accessor_changes_value) {
@@ -90,7 +90,7 @@ TEST(synchronized_value, ctor_creates_in_place) {
   };
 
   auto v = SynchronizedValue<NonCopyableAndNonMovable>{42};
-  ASSERT_EQ(42, v.access()->data_);
+  ASSERT_EQ(42, v.constAccess()->data_);
 }
 
 TEST(synchronized_value, multi_member_ctor) {
@@ -101,7 +101,7 @@ TEST(synchronized_value, multi_member_ctor) {
   };
 
   auto v = SynchronizedValue<MultiMember>{42, 43};
-  auto a = v.access();
+  auto a = v.constAccess();
   ASSERT_EQ(42, a->data1_);
   ASSERT_EQ(43, a->data2_);
 }
@@ -143,7 +143,7 @@ TEST(synchronized_value, two_threads_with_const_accessors) {
   t2.join();
 }
 
-TEST(synchronized_value, one_thread_with_accessor_and_one_calls_replace) {
+TEST(synchronized_value, one_thread_with_accessor_and_one_calling_replace) {
   auto v = SynchronizedValue<int>{7};
 
   auto t1 = std::thread{[&]() {
@@ -160,7 +160,7 @@ TEST(synchronized_value, one_thread_with_accessor_and_one_calls_replace) {
   ASSERT_TRUE((42 == *a || 43 == *a));
 }
 
-TEST(synchronized_value, two_threads_call_replace) {
+TEST(synchronized_value, two_threads_calling_replace) {
   auto v = SynchronizedValue<int>{7};
 
   auto t1 = std::thread{[&]() { v.replace(42); }};
@@ -173,7 +173,7 @@ TEST(synchronized_value, two_threads_call_replace) {
   ASSERT_TRUE((42 == *a || 43 == *a));
 }
 
-TEST(synchronized_value, two_threads_with_const_accessors_and_one_with_non_const) {
+TEST(synchronized_value, two_threads_with_accessors_and_one_with_const_accessor) {
   auto v = SynchronizedValue<int>{7};
 
   auto t1 = std::thread{[&]() {
