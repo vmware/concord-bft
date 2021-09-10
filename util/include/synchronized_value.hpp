@@ -25,7 +25,7 @@ template <typename T>
 class SynchronizedValue {
  private:
   using MutexType = std::shared_mutex;
-  using ExclusiveLock = std::scoped_lock<MutexType>;
+  using ExclusiveLock = std::unique_lock<MutexType>;
   using SharedLock = std::shared_lock<MutexType>;
 
  public:
@@ -50,7 +50,7 @@ class SynchronizedValue {
   // Locks the mutex in the constructor and unlocks it in the dtor.
   class Accessor {
    public:
-    Accessor(T& val, MutexType& mtx) : val_{val}, lock_{mtx} {}
+    Accessor(T& val, ExclusiveLock&& lock) : val_{val}, lock_{std::move(lock)} {}
 
     T& operator*() const noexcept { return val_; }
     T* operator->() const noexcept { return &val_; }
@@ -64,7 +64,7 @@ class SynchronizedValue {
   // Locks the mutex in the constructor and unlocks it in the dtor.
   class ConstAccessor {
    public:
-    ConstAccessor(const T& val, MutexType& mtx) : val_{val}, lock_{mtx} {}
+    ConstAccessor(const T& val, SharedLock&& lock) : val_{val}, lock_{std::move(lock)} {}
 
     const T& operator*() const noexcept { return val_; }
     const T* operator->() const noexcept { return &val_; }
@@ -81,8 +81,14 @@ class SynchronizedValue {
   //
   // A single thread can create one accessor only at a time. Other threads will wait until it is destroyed before they
   // can do any operations on the synchronized value.
-  Accessor access() { return Accessor{*val_, mtx_}; }
-  ConstAccessor constAccess() const { return ConstAccessor{*val_, mtx_}; }
+  Accessor access() {
+    auto lock = ExclusiveLock{mtx_};
+    return Accessor{*val_, std::move(lock)};
+  }
+  ConstAccessor constAccess() const {
+    auto lock = SharedLock{mtx_};
+    return ConstAccessor{*val_, std::move(lock)};
+  }
 
  private:
   std::unique_ptr<T> val_;

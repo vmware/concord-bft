@@ -160,6 +160,19 @@ TEST(synchronized_value, one_thread_with_accessor_and_one_calls_replace) {
   ASSERT_TRUE((42 == *a || 43 == *a));
 }
 
+TEST(synchronized_value, two_threads_call_replace) {
+  auto v = SynchronizedValue<int>{7};
+
+  auto t1 = std::thread{[&]() { v.replace(42); }};
+  auto t2 = std::thread{[&]() { v.replace(43); }};
+
+  t1.join();
+  t2.join();
+
+  auto a = v.constAccess();
+  ASSERT_TRUE((42 == *a || 43 == *a));
+}
+
 TEST(synchronized_value, two_threads_with_const_accessors_and_one_with_non_const) {
   auto v = SynchronizedValue<int>{7};
 
