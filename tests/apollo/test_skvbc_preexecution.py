@@ -110,7 +110,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         for i in range(NUM_OF_SEQ_WRITES):
             client = bft_network.random_client()
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
             await skvbc.send_write_kv_set(client, max_set_size=2)
         await bft_network.assert_successful_pre_executions_count(0, NUM_OF_SEQ_WRITES)
 
@@ -127,7 +127,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         clients = bft_network.random_clients(MAX_CONCURRENCY)
         num_of_requests = NUM_OF_PARALLEL_WRITES
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         rw = await skvbc.run_concurrent_ops(num_of_requests, write_weight=0.9)
         self.assertTrue(rw[0] + rw[1] >= num_of_requests)
 
@@ -150,7 +150,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             req_timeout_milli=LONG_REQ_TIMEOUT_MILLI,
             retry_timeout_milli=1000
         )
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_write_kv_set(client, max_set_size=2, long_exec=True)
 
         last_block = await tracker.get_last_block_id(client)
@@ -295,7 +295,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
 
         clients = bft_network.clients.values()
         client = random.choice(list(clients))
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         await skvbc.send_write_kv_set(client, max_set_size=2)
 
         await bft_network.assert_successful_pre_executions_count(0, 1)
@@ -339,7 +339,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         nonprimaries = bft_network.all_replicas(without={0}) # primary index is 0
         crash_targets = random.sample(nonprimaries, bft_network.config.f) # pick random f to crash
         bft_network.stop_replicas(crash_targets) # crash chosen nonprimary replicas
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         rw = await skvbc.run_concurrent_ops(num_of_requests, write_weight=1)
         final_block_count = await tracker.get_last_block_id(read_client)
 
