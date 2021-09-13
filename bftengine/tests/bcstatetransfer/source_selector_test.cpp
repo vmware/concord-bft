@@ -242,35 +242,28 @@ TEST_F(SourceSelectorTestFixture, change_source_after_too_many_retransmissions) 
   // should return false - fetch time never set
   ASSERT_FALSE(source_selector.retransmissionTimeoutExpired(curTimeMs));
 
-  // opration: send fetch msg and than advance 10ms
+  // operation: send fetch msg and than advance 10ms
   // validate: source should not yet be replaced and retransmission not expired
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += 10;
   ASSERT_FALSE(source_selector.retransmissionTimeoutExpired(curTimeMs));
   ASSERT_FALSE(source_selector.shouldReplaceSource(curTimeMs, false));
 
-  // opration: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
+  // operation: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
   // validate: source should not yet be replaced and retransmission expired (counter = 1)
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += kRetransmissionTimeoutMs + 10;
   ASSERT_TRUE(source_selector.retransmissionTimeoutExpired(curTimeMs));
   ASSERT_FALSE(source_selector.shouldReplaceSource(curTimeMs, false));
 
-  // opration: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
-  // validate: source should not yet be replaced and retransmission expired (counter = 2)
-  source_selector.setFetchingTimeStamp(curTimeMs, true);
-  curTimeMs += kRetransmissionTimeoutMs + 10;
-  ASSERT_TRUE(source_selector.retransmissionTimeoutExpired(curTimeMs));
-  ASSERT_FALSE(source_selector.shouldReplaceSource(curTimeMs, false));
-
-  // opration: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
-  // validate: source should be replaced and retransmission expired (counter = 3 > maxFetchRetransmissions)
+  // operation: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
+  // validate: source should be replaced and retransmission expired (counter = 2 and >= maxFetchRetransmissions)
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += kRetransmissionTimeoutMs + 10;
   ASSERT_TRUE(source_selector.retransmissionTimeoutExpired(curTimeMs));
   ASSERT_TRUE(source_selector.shouldReplaceSource(curTimeMs, false));
 
-  // opration: update source, send fetch msg and than advance 10ms
+  // operation: update source, send fetch msg and than advance 10ms
   // validate: source should not yet be replaced and retransmission not expired
   source_selector.updateSource(curTimeMs);
   source_selector.setFetchingTimeStamp(curTimeMs, true);

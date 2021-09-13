@@ -36,6 +36,13 @@ if(THREADCHECK)
   ")
 endif()
 
+if(CODECOVERAGE)
+    #[[ We need to gracefully shut down processes in order to
+        generate raw profile data for Code Coverage for Apollo tests.]]
+    set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} GRACEFUL_SHUTDOWN=true")
+    set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} CODECOVERAGE=true")
+endif()
+
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} KEEP_APOLLO_LOGS=${KEEP_APOLLO_LOGS}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TXN_SIGNING_ENABLED=${TXN_SIGNING_ENABLED}")
 set(APOLLO_TEST_ENV "${APOLLO_TEST_ENV} TIME_SERVICE_ENABLED=TRUE")

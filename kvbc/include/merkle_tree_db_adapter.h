@@ -93,7 +93,7 @@ class DBAdapter : public IDbAdapter {
   // Typically called by state transfer when a block is received.
   // If adding the next block (i.e. getLastReachableBlockId() + 1), it is done so through the merkle tree. If it is not
   // the next block, a temporary state transfer block is added instead.
-  void addRawBlock(const RawBlock &rawBlock, const BlockId &blockId) override;
+  void addRawBlock(const RawBlock &rawBlock, const BlockId &blockId, bool lastBlock = false) override;
 
   // Gets a raw block by its ID.
   // An exception is thrown if an error occurs.

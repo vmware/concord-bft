@@ -11,8 +11,7 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef THIN_REPLICA_CLIENT_MOCKS_HPP
-#define THIN_REPLICA_CLIENT_MOCKS_HPP
+#pragma once
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -156,14 +155,14 @@ class DelayedMockDataStreamPreparer : public MockDataStreamPreparer {
     std::unique_ptr<grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>> undelayed_data_;
 
     std::shared_ptr<std::condition_variable> waiting_condition_;
-    std::shared_ptr<bool> spurious_wakeup_;
+    std::shared_ptr<std::atomic_bool> spurious_wakeup_;
     std::shared_ptr<std::mutex> condition_mutex_;
 
    public:
     DataDelayer(grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* data,
                 const std::shared_ptr<std::condition_variable>& delay_condition,
                 const std::shared_ptr<std::mutex>& delay_mutex,
-                const std::shared_ptr<bool>& spurious_wakeup);
+                const std::shared_ptr<std::atomic_bool>& spurious_wakeup);
     ~DataDelayer() override;
     grpc::Status Finish();
     bool Read(com::vmware::concord::thin_replica::Data* msg);
@@ -171,13 +170,13 @@ class DelayedMockDataStreamPreparer : public MockDataStreamPreparer {
 
   std::shared_ptr<MockDataStreamPreparer> undelayed_data_preparer_;
   std::shared_ptr<std::condition_variable> delay_condition_;
-  std::shared_ptr<bool> spurious_wakeup_;
+  std::shared_ptr<std::atomic_bool> spurious_wakeup_;
   std::shared_ptr<std::mutex> condition_mutex_;
 
  public:
   DelayedMockDataStreamPreparer(std::shared_ptr<MockDataStreamPreparer>& data,
                                 std::shared_ptr<std::condition_variable> condition,
-                                std::shared_ptr<bool> spurious_wakeup_indicator,
+                                std::shared_ptr<std::atomic_bool> spurious_wakeup_indicator,
                                 std::shared_ptr<std::mutex> condition_mutex);
   virtual ~DelayedMockDataStreamPreparer();
   grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Data>* ReadStateRaw(
@@ -976,5 +975,3 @@ class ComprehensiveDataFabricator : public ByzantineMockThinReplicaServerPrepare
       const com::vmware::concord::thin_replica::SubscriptionRequest& request,
       grpc::ClientReaderInterface<com::vmware::concord::thin_replica::Hash>* correct_hashes) override;
 };
-
-#endif  // THIN_REPLICA_CLIENT_MOCKS_HPP

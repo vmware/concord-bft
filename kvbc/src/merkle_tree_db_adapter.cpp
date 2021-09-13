@@ -557,7 +557,7 @@ void DBAdapter::writeSTLinkTransaction(const Key &sTBlockKey, const Sliver &bloc
   lastReachableBlockId_ = blockId;
 }
 
-void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId) {
+void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool lastBlock) {
   TimeRecorder scoped_timer(*histograms.dba_add_raw_block);
   const auto lastReachableBlock = getLastReachableBlockId();
   if (blockId <= lastReachableBlock) {

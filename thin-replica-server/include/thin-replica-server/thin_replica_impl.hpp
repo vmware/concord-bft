@@ -913,7 +913,6 @@ class ThinReplicaImpl {
       std::string client_id = getClientIdFromClientCert(context);
       if (!client_id.empty()) {
         if (config_->client_id_set.find(client_id) != config_->client_id_set.end()) {
-          LOG_INFO(logger_, "Client " << client_id << " is authorized");
           return client_id;
         } else {
           LOG_FATAL(logger_,

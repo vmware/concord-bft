@@ -114,7 +114,6 @@ class SkvbcPyclientTest(unittest.TestCase):
                 "having made any retries even after attempting a write to a " \
                 "non-running cluster.")
 
-    @unittest.skip("Skip due to instability. Tracked in BC-9404")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_primary_write(self, bft_network):
@@ -125,6 +124,10 @@ class SkvbcPyclientTest(unittest.TestCase):
 
         bft_network.start_all_replicas()
         client = bft_network.random_client()
+        client.config = client.config._replace(
+            retry_timeout_milli = 1000
+        )
+
         protocol = skvbc.SimpleKVBCProtocol(bft_network)
 
         key = protocol.random_key()

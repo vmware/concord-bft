@@ -123,7 +123,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // RSA public keys of all clients. Each public key holds set of distinct client (principal) ids which are expected to
   // sign with the matching private key
   std::set<std::pair<const std::string, std::set<uint16_t>>> publicKeysOfClients;
-
+  std::unordered_map<uint16_t, std::set<uint16_t>> clientGroups;
+  CONFIG_PARAM(clientsKeysPrefix, std::string, "", "the path to the client keys directory");
+  CONFIG_PARAM(saveClinetKeyFile,
+               bool,
+               false,
+               "if true, the replica will also updates the client key file on key exchange");
   CONFIG_PARAM(replicaPrivateKey, std::string, "", "RSA private key of the current replica");
 
   // Threshold crypto system
@@ -246,6 +251,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
     serialize(outStream, publicKeysOfReplicas);
     serialize(outStream, publicKeysOfClients);
+    serialize(outStream, clientGroups);
+    serialize(outStream, clientsKeysPrefix);
+    serialize(outStream, saveClinetKeyFile);
     serialize(outStream, replicaPrivateKey);
     serialize(outStream, thresholdSystemType_);
     serialize(outStream, thresholdSystemSubType_);
@@ -318,6 +326,9 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
     deserialize(inStream, publicKeysOfReplicas);
     deserialize(inStream, publicKeysOfClients);
+    deserialize(inStream, clientGroups);
+    deserialize(inStream, clientsKeysPrefix);
+    deserialize(inStream, saveClinetKeyFile);
     deserialize(inStream, replicaPrivateKey);
     deserialize(inStream, thresholdSystemType_);
     deserialize(inStream, thresholdSystemSubType_);

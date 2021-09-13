@@ -107,10 +107,10 @@ class Operator:
         command.bft_support = bft
         return self._construct_basic_reconfiguration_request(command)
     
-    def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, bft=True, restart=True):
+    def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, token, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
         addRemove_command.config_descriptor = new_config
-        addRemove_command.token = "dummy"
+        addRemove_command.token = token
         addRemove_command.bft_support = bft
         addRemove_command.restart = restart
         return self._construct_basic_reconfiguration_request(addRemove_command)
@@ -130,10 +130,10 @@ class Operator:
         cke_command.target_clients = target_clients
         return self._construct_basic_reconfiguration_request(cke_command)
 
-    def _construct_reconfiguration_clientsAddRemove_command(self, config_desc):
+    def _construct_reconfiguration_clientsAddRemove_command(self, config_desc, tokens):
         car_command = cmf_msgs.ClientsAddRemoveCommand()
         car_command.config_descriptor = config_desc
-        car_command.token = ""
+        car_command.token = tokens
         car_command.restart = False
         return self._construct_basic_reconfiguration_request(car_command)
 
@@ -213,7 +213,10 @@ class Operator:
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def clients_addRemove_command(self, config_desc):
-        reconf_msg = self._construct_reconfiguration_clientsAddRemove_command(config_desc)
+        token = []
+        for cl in range(self.config.num_clients):
+            token.append((cl, 'Token' + str(cl)))
+        reconf_msg = self._construct_reconfiguration_clientsAddRemove_command(config_desc, token)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def clients_addRemoveStatus_command(self):
@@ -233,7 +236,10 @@ class Operator:
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
     async def add_remove_with_wedge(self, new_config, bft=True, restart=True):
-        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_command(new_config, bft, restart)
+        token = []
+        for r in range(self.config.n):
+            token.append((r, 'Token' + str(r)))   
+        reconf_msg = self._construct_reconfiguration_addRemoveWithWedge_command(new_config, token, bft, restart)
 
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 

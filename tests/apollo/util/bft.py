@@ -106,6 +106,17 @@ def with_trio(async_fn):
 
     return trio_wrapper
 
+def skip_for_tls(async_fn):
+    """ Decorator for skipping the test for TCP/TLS. """
+    @wraps(async_fn)
+    def wrapper(*args, **kwargs):
+        if os.environ.get('BUILD_COMM_TCP_TLS', "").lower() != "true":
+            return async_fn(*args, **kwargs)
+        else:
+            pass
+
+    return wrapper
+
 def with_constant_load(async_fn):
     """
     Runs the decorated async function in parallel with constant load,
@@ -686,6 +697,18 @@ class BftTestNetwork:
 
                 self.open_fds[replica_id] = (stdout_file, stderr_file)
 
+            """
+            If the apollo test's CODECOVERAGE flag is set, all raw profile files will be created
+            in coverage dir; otherwise, ignore it.
+            """
+            if os.environ.get('CODECOVERAGE', "").lower() in ["true", "on"] and os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in ["true", "on"]:
+                self.coverage_dir = f"{self.builddir}/tests/apollo/codecoverage/{test_name}/{self.current_test}/"
+                os.makedirs(self.coverage_dir, exist_ok=True)
+                profraw_file_name = f"coverage_{replica_id}_%9m.profraw"
+                profraw_file_path = os.path.join(
+                    self.coverage_dir, profraw_file_name)
+                os.environ['LLVM_PROFILE_FILE'] = profraw_file_path
+
             if replica_id in self.procs:
                 raise AlreadyRunningError(replica_id)
 
@@ -762,7 +785,7 @@ class BftTestNetwork:
 
             return self.replicas[replica_id]
 
-    def stop_replica(self, replica_id):
+    def stop_replica(self, replica_id, force_kill=False):
         """
         Stop a replica if it is running.
         Otherwise raise an AlreadyStoppedError.
@@ -775,10 +798,13 @@ class BftTestNetwork:
                 self._stop_external_replica(replica_id)
             else:
                 p = self.procs[replica_id]
-                if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
-                    p.terminate()
-                else:
+                if force_kill:
                     p.kill()
+                else:
+                    if os.environ.get('GRACEFUL_SHUTDOWN', "").lower() in set(["true", "on"]):
+                        p.terminate()
+                    else:
+                        p.kill()
                 for fd in self.open_fds.get(replica_id, ()):
                     fd.close()
                 p.wait()

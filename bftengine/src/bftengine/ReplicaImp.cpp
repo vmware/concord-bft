@@ -1873,7 +1873,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
                                                       "bft_handle_checkpoint_msg");
   (void)span;
 
-  if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize)) {
+  if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize) &&
+      (msgEpochNum >= getSelfEpochNumber())) {
     ConcordAssert(mainLog->insideActiveWindow(msgSeqNum));
     CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
     bool msgAdded = checkInfo.addCheckpointMsg(msg, msgGenReplicaId);
@@ -1900,10 +1901,11 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   bool askForStateTransfer = false;
 
-  if (msgIsStable && (msgSeqNum > lastExecutedSeqNum || msgEpochNum >= getSelfEpochNumber())) {
+  if (msgIsStable &&
+      ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum) || msgEpochNum > getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
-        msgEpochNum >= getSelfEpochNumber()) {
+        msgEpochNum >= pos->second->epochNumber()) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;

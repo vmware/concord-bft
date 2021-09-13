@@ -64,8 +64,21 @@ Status Replica::initInternals() {
     m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
-      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(stateFromReservedPages)) {
-        creClient_->pushUpdate(stateFromReservedPages);
+      uint64_t wedgePt{0};
+      uint64_t cmdEpochNum{0};
+      if (bftEngine::ReconfigurationCmd::instance().getStateFromResPages(
+              stateFromReservedPages, wedgePt, cmdEpochNum)) {
+        // get replicas latest global epoch from res pages
+        auto replicasGlobalEpochNum = bftEngine::EpochManager::instance().getGlobalEpochNumber();
+        LOG_INFO(GL,
+                 "reconfiguration command in res pages" << KVLOG(
+                     wedgePt, cmdEpochNum, replicasGlobalEpochNum, m_replicaPtr->getLastExecutedSequenceNum()));
+        // OnTransferringComplete callback is called for every 150 seqNum/checkpt, but we want to push reconfiguration
+        // command only when wedge pt is reached
+        if (static_cast<uint64_t>(m_replicaPtr->getLastExecutedSequenceNum()) >= wedgePt ||
+            replicasGlobalEpochNum > cmdEpochNum) {
+          creClient_->pushUpdate(stateFromReservedPages);
+        }
       }
     });
   } else {
@@ -93,7 +106,7 @@ Status Replica::start() {
   }
   m_replicaPtr->start();
   m_currentRepStatus = RepStatus::Running;
-  startRoReplicaCreEngine();
+  if (replicaConfig_.isReadOnly) startRoReplicaCreEngine();
   /// TODO(IG, GG)
   /// add return value to start/stop
 
@@ -141,12 +154,8 @@ class KvbcRequestHandler : public bftEngine::RequestHandler {
   categorization::KeyValueBlockchain &blockchain_;
 };
 void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IRequestsHandler> requestHandler) {
-  std::set<std::set<uint16_t>> txSigningClientGroups;
-  for (const auto &val : bftEngine::ReplicaConfig::instance().publicKeysOfClients) {
-    txSigningClientGroups.insert(val.second);
-  }
   requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this, txSigningClientGroups),
+      std::make_shared<kvbc::reconfiguration::ReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::InternalKvReconfigurationHandler>(*this, *this),
@@ -517,7 +526,7 @@ Replica::~Replica() {
  */
 bool Replica::putBlock(const uint64_t blockId, const char *blockData, const uint32_t blockSize, bool lastBlock) {
   if (replicaConfig_.isReadOnly) {
-    return putBlockToObjectStore(blockId, blockData, blockSize);
+    return putBlockToObjectStore(blockId, blockData, blockSize, lastBlock);
   }
 
   auto view = std::string_view{blockData, blockSize};
@@ -575,7 +584,10 @@ std::future<bool> Replica::putBlockAsync(uint64_t blockId,
   return future;
 }
 
-bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockData, const uint32_t blockSize) {
+bool Replica::putBlockToObjectStore(const uint64_t blockId,
+                                    const char *blockData,
+                                    const uint32_t blockSize,
+                                    bool lastBlock) {
   Sliver block = Sliver::copy(blockData, blockSize);
 
   if (m_bcDbAdapter->hasBlock(blockId)) {
@@ -594,7 +606,7 @@ bool Replica::putBlockToObjectStore(const uint64_t blockId, const char *blockDat
       throw std::runtime_error(__PRETTY_FUNCTION__ + std::string("data corrupted blockId: ") + std::to_string(blockId));
     }
   } else {
-    m_bcDbAdapter->addRawBlock(block, blockId);
+    m_bcDbAdapter->addRawBlock(block, blockId, lastBlock);
   }
 
   return true;
@@ -757,7 +769,7 @@ bool Replica::getPrevDigestFromObjectStoreBlock(uint64_t blockId,
 void Replica::registerStBasedReconfigurationHandler(
     std::shared_ptr<concord::client::reconfiguration::IStateHandler> handler) {
   // api for higher level application to register the handler
-  if (handler) creEngine_->registerHandler(handler);
+  if (handler && creEngine_) creEngine_->registerHandler(handler);
 }
 BlockId Replica::getLastKnownReconfigCmdBlockNum() const {
   std::string blockRawData;

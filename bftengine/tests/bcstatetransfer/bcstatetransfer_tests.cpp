@@ -629,6 +629,66 @@ TEST_F(BcStTest, dstFullStateTransfer) {
   ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
+
+// Check that only actual resources are inserted into source selector actualSources_
+// This is done by triggering multiple retransmissions and then  source replacments, and checking that only the sources
+// which replied are in the list, and in the expected order.
+// The check is done only for FetchingMissingblocks state sources.
+TEST_F(BcStTest, dstValidateRealSourceListReported) {
+  uint16_t currentSrc;
+  // Add callback to ST to be executed when transferring is completed.
+  // Here we valiate that only one actual source is in the sources list, although we had multiple
+  // retransmissions and few sources were selected.
+  stateTransfer_->addOnTransferringCompleteCallback([this, &currentSrc](std::uint64_t) {
+    const auto& sources_ = GetSourceSelector().getActualSources();
+    ASSERT_EQ(sources_.size(), 1);
+    ASSERT_EQ(sources_[0], currentSrc);
+  });
+
+  ASSERT_NO_FATAL_FAILURE(SendCheckpointSummaries());
+  mockedSrc_->ReplyAskForCheckpointSummariesMsg();
+
+  // Trigger multiple retransmissions to 2 sources. none will be answered, then we expect the replica to move into the
+  // 3rd source
+  auto& sourceSelector = GetSourceSelector();
+  set<uint16_t> sources;
+  for (uint32_t i{0}; i < 2; ++i) {
+    for (uint32_t j{0}; j < config_.maxFetchRetransmissions; ++j) {
+      if (j == 0) {
+        currentSrc = sourceSelector.currentReplica();
+        auto result = sources.insert(currentSrc);
+        ASSERT_TRUE(result.second);
+      } else {
+        ASSERT_EQ(currentSrc, sourceSelector.currentReplica());
+      }
+      ASSERT_EQ(replica_.sent_messages_.size(), 1);
+      ASSERT_EQ(replica_.sent_messages_.front().to_, currentSrc);
+      replica_.sent_messages_.clear();
+      this_thread::sleep_for(chrono::milliseconds(config_.fetchRetransmissionTimeoutMs + 10));
+      onTimerImp();
+    }
+  }
+  ASSERT_EQ(replica_.sent_messages_.size(), 1);
+  currentSrc = sourceSelector.currentReplica();
+  while (true) {
+    ASSERT_NO_FATAL_FAILURE(
+        AssertFetchBlocksMsgSent(testParams_.expectedFirstRequiredBlockNum, testParams_.expectedLastRequiredBlockNum));
+    mockedSrc_->ReplyFetchBlocksMsg();
+    if (testParams_.expectedLastRequiredBlockNum <= config_.maxNumberOfChunksInBatch) break;
+    testParams_.expectedLastRequiredBlockNum -= config_.maxNumberOfChunksInBatch;
+    // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
+    // onTimerImp()
+    this_thread::sleep_for(chrono::milliseconds(20));
+    onTimerImp();
+  }
+  ASSERT_NO_FATAL_FAILURE(AssertFetchResPagesMsgSent());
+  bool doneSending = false;
+  while (!doneSending) mockedSrc_->ReplyResPagesMsg(doneSending);
+  // now validate completion
+  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
 }  // namespace bftEngine::bcst::impl
 
 int main(int argc, char** argv) {
