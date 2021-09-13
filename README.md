@@ -9,9 +9,6 @@
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
-[![asan](https://github.com/vmware/concord-bft/actions/workflows/asan.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/asan.yml)
-[![tsan](https://github.com/vmware/concord-bft/actions/workflows/tsan.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/tsan.yml)
-
 
 
 <!-- ![Concored-bft Logo](TBD) -->
