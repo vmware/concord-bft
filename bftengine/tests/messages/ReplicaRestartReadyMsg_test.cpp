@@ -39,10 +39,35 @@ TEST(ReplicaRestartReadyMsg, base_methods) {
                                                           concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
                                                           config.publicKeysOfReplicas,
                                                           replicaInfo));
-  std::unique_ptr<ReplicaRestartReadyMsg> msg(
-      ReplicaRestartReadyMsg::create(senderId, seqNum, concordUtils::SpanContext{spanContext}));
+  std::unique_ptr<ReplicaRestartReadyMsg> msg(ReplicaRestartReadyMsg::create(
+      senderId, seqNum, ReplicaRestartReadyMsg::Reason::Scale, std::string{}, concordUtils::SpanContext{spanContext}));
   EXPECT_EQ(msg->idOfGeneratedReplica(), senderId);
   EXPECT_EQ(msg->seqNum(), seqNum);
+
+  testMessageBaseMethods(*msg.get(), MsgCode::ReplicaRestartReady, senderId, spanContext);
+
+  EXPECT_NO_THROW(msg->validate(replicaInfo));
+}
+
+TEST(ReplicaRestartReadyMsg, with_extraData) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
+  auto& config = createReplicaConfig();
+  ReplicaId senderId = 3u;
+  ViewNum seqNum = 5u;
+  const char rawSpanContext[] = {"span_\0context"};
+  const std::string spanContext{rawSpanContext, sizeof(rawSpanContext)};
+  ReplicasInfo replicaInfo(config, true, true);
+  auto version = "latest";
+  std::unique_ptr<SigManager> sigManager(createSigManager(config.replicaId,
+                                                          config.replicaPrivateKey,
+                                                          concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                                                          config.publicKeysOfReplicas,
+                                                          replicaInfo));
+  std::unique_ptr<ReplicaRestartReadyMsg> msg(ReplicaRestartReadyMsg::create(
+      senderId, seqNum, ReplicaRestartReadyMsg::Reason::Install, version, concordUtils::SpanContext{spanContext}));
+  EXPECT_EQ(msg->idOfGeneratedReplica(), senderId);
+  EXPECT_EQ(msg->seqNum(), seqNum);
+  EXPECT_EQ(msg->getExtraData(), version);
 
   testMessageBaseMethods(*msg.get(), MsgCode::ReplicaRestartReady, senderId, spanContext);
 

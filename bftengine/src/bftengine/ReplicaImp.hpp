@@ -181,7 +181,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::shared_ptr<concord::cron::TicksGenerator> ticks_gen_;
 
-  std::map<ReplicaId, std::unique_ptr<ReplicaRestartReadyMsg>> restart_ready_msgs_;
+  std::unordered_map<uint8_t, std::map<ReplicaId, std::unique_ptr<ReplicaRestartReadyMsg>>> restart_ready_msgs_;
 
   //******** METRICS ************************************
   GaugeHandle metric_view_;
@@ -456,8 +456,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onSlowPathTimer(concordUtil::Timers::Handle);
   void onInfoRequestTimer(concordUtil::Timers::Handle);
   void onSuperStableCheckpointTimer(concordUtil::Timers::Handle);
-  void sendRepilcaRestartReady();
-  void sendReplicasRestartReadyProof();
+  void sendRepilcaRestartReady(uint8_t, const std::string&);
+  void sendReplicasRestartReadyProof(uint8_t reason);
 
   // handlers for internal messages
 

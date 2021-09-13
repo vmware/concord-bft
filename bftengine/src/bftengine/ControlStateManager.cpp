@@ -16,6 +16,8 @@
 #include "Logger.hpp"
 #include "ReplicaConfig.hpp"
 #include "Replica.hpp"
+#include "messages/ReplicasRestartReadyProofMsg.hpp"
+
 namespace bftEngine {
 
 /*
@@ -42,23 +44,27 @@ std::optional<int64_t> ControlStateManager::getCheckpointToStopAt() {
   return wedgePoint;
 }
 
-void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb, RestartProofHandlerPriorities priority) {
-  if (onRestartProofCbRegistry_.find(priority) == onRestartProofCbRegistry_.end()) {
-    onRestartProofCbRegistry_[static_cast<uint32_t>(priority)];
+void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb,
+                                                    uint8_t reason,
+                                                    RestartProofHandlerPriorities priority) {
+  auto& cbRegistry = onRestartProofCbRegistry_[reason];
+  if (cbRegistry.find(priority) == cbRegistry.end()) {
+    cbRegistry[static_cast<uint32_t>(priority)];
   }
-  onRestartProofCbRegistry_.at(static_cast<uint32_t>(priority)).add(std::move(cb));
+  cbRegistry.at(static_cast<uint32_t>(priority)).add(std::move(cb));
 }
-void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
+void ControlStateManager::onRestartProof(const SeqNum& seq_num, uint8_t reason) {
   // If operator sends add-remove request with bft option then
   // It can happen that some replicas receives a restart proof and yet to reach
   // stable checkpoint. We should not rstart replica in that case since
   // configuration update happens on stable checkpoint.
-  hasRestartProofAtSeqNum_.emplace(seq_num);
+
   if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
       IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
     auto seq_num_to_stop_at = getCheckpointToStopAt();
     if (seq_num_to_stop_at.has_value() && seq_num) {
-      for (const auto& kv : onRestartProofCbRegistry_) {
+      hasRestartProofAtSeqNum_[reason] = seq_num;
+      for (const auto& kv : onRestartProofCbRegistry_[reason]) {
         kv.second.invokeAll();
       }
     }
@@ -67,16 +73,19 @@ void ControlStateManager::onRestartProof(const SeqNum& seq_num) {
 void ControlStateManager::checkForReplicaReconfigurationAction() {
   // restart replica is there is proof
   auto seq_num_to_stop_at = getCheckpointToStopAt();
-  if (seq_num_to_stop_at.has_value() && hasRestartProofAtSeqNum_.has_value() &&
-      (seq_num_to_stop_at.value() == hasRestartProofAtSeqNum_.value())) {
-    for (const auto& kv : onRestartProofCbRegistry_) {
-      kv.second.invokeAll();
+  if (seq_num_to_stop_at.has_value()) {
+    for (auto& [k, v] : hasRestartProofAtSeqNum_) {
+      if (v == seq_num_to_stop_at.value()) {
+        for (const auto& kv : onRestartProofCbRegistry_[k]) {
+          kv.second.invokeAll();
+        }
+      }
     }
   }
 }
 
 void ControlStateManager::restart() {
-  for (const auto& kv : onRestartProofCbRegistry_) {
+  for (const auto& kv : onRestartProofCbRegistry_[static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale)]) {
     kv.second.invokeAll();
   }
 }

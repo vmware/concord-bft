@@ -36,13 +36,15 @@ class ControlStateManager {
   bool getPruningProcessStatus() const { return onPruningProcess_; }
   bool getRestartBftFlag() const { return restartBftEnabled_; }
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
-
   void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadataCbRegistry_.add(fn); }
-  void setRestartReadyFunc(std::function<void()> fn) { sendRestartReady_ = fn; }
-  void sendRestartReadyToAllReplica() { sendRestartReady_(); }
+  void setRestartReadyFunc(std::function<void(uint8_t, const std::string&)> fn) { sendRestartReady_ = fn; }
+  void sendRestartReadyToAllReplica(uint8_t reason, const std::string& extraData) {
+    sendRestartReady_(reason, extraData);
+  }
   void addOnRestartProofCallBack(std::function<void()> cb,
+                                 uint8_t reason,
                                  RestartProofHandlerPriorities priority = ControlStateManager::DEFAULT);
-  void onRestartProof(const SeqNum&);
+  void onRestartProof(const SeqNum&, uint8_t reason);
   void checkForReplicaReconfigurationAction();
   void restart();
 
@@ -53,10 +55,11 @@ class ControlStateManager {
 
   uint64_t wedgePoint{0};
   std::atomic_bool restartBftEnabled_ = false;
-  std::optional<SeqNum> hasRestartProofAtSeqNum_ = std::nullopt;
+  std::unordered_map<uint8_t, SeqNum> hasRestartProofAtSeqNum_;  // reason for restart is the key
   std::atomic_bool onPruningProcess_ = false;
   concord::util::CallbackRegistry<bool> removeMetadataCbRegistry_;
-  std::function<void()> sendRestartReady_;
-  std::map<uint32_t, concord::util::CallbackRegistry<>> onRestartProofCbRegistry_;
+  std::function<void(uint8_t, const std::string&)> sendRestartReady_;
+  // reason for restart is the key
+  std::unordered_map<uint8_t, std::map<uint32_t, concord::util::CallbackRegistry<>>> onRestartProofCbRegistry_;
 };
 }  // namespace bftEngine

@@ -100,6 +100,12 @@ class Operator:
         addRemove_command = cmf_msgs.AddRemoveCommand()
         addRemove_command.reconfiguration = new_config
         return self._construct_basic_reconfiguration_request(addRemove_command)
+
+    def _construct_install_command(self, version, bft=True):
+        command = cmf_msgs.InstallCommand()
+        command.version = version
+        command.bft_support = bft
+        return self._construct_basic_reconfiguration_request(command)
     
     def _construct_reconfiguration_addRemoveWithWedge_command(self, new_config, token, bft=True, restart=True):
         addRemove_command = cmf_msgs.AddRemoveWithWedgeCommand()
@@ -220,7 +226,11 @@ class Operator:
     async def clients_clientKeyExchangeStatus_command(self):
         reconf_msg = self._construct_reconfiguration_clientsKeyExchangeStatus_command()
         return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
-        
+    
+    async def install_cmd(self, version, bft=True):
+        install_msg = self._construct_install_command(version, bft)
+        return await self.client.write(install_msg.serialize(), reconfiguration=True)
+
     async def add_remove(self, new_config):
         reconf_msg = self._construct_reconfiguration_addRemove_command(new_config)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)

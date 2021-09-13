@@ -22,44 +22,60 @@ namespace impl {
 ReplicaRestartReadyMsg::ReplicaRestartReadyMsg(ReplicaId srcReplicaId,
                                                SeqNum s,
                                                uint16_t sigLen,
+                                               Reason r,
+                                               const std::string& extraData,
                                                const concordUtils::SpanContext& spanContext)
-    : MessageBase(srcReplicaId, MsgCode::ReplicaRestartReady, spanContext.data().size(), sizeof(Header) + sigLen) {
+    : MessageBase(srcReplicaId,
+                  MsgCode::ReplicaRestartReady,
+                  spanContext.data().size(),
+                  sizeof(Header) + extraData.size() + sigLen) {
   b()->genReplicaId = srcReplicaId;
   b()->seqNum = s;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->sigLength = sigLen;
-  std::memcpy(body() + sizeof(Header), spanContext.data().data(), spanContext.data().size());
+  b()->reason = r;
+  b()->extraDataLen = extraData.size();
+  auto position = body() + sizeof(Header);
+  std::memcpy(position, spanContext.data().data(), spanContext.data().size());
+  position += spanContext.data().size();
+  std::memcpy(position, extraData.data(), extraData.size());
 }
 
 ReplicaRestartReadyMsg* ReplicaRestartReadyMsg::create(ReplicaId senderId,
                                                        SeqNum s,
+                                                       Reason r,
+                                                       const std::string& extraData,
                                                        const concordUtils::SpanContext& spanContext) {
   auto sigManager = SigManager::instance();
   const size_t sigLen = sigManager->getMySigLength();
 
-  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, spanContext);
-
-  auto position = m->body() + sizeof(Header);
-  std::memcpy(position, spanContext.data().data(), spanContext.data().size());
-  position += spanContext.data().size();
-
-  sigManager->sign(m->body(), sizeof(Header), position, sigLen);
-
+  ReplicaRestartReadyMsg* m = new ReplicaRestartReadyMsg(senderId, s, sigLen, r, extraData, spanContext);
+  auto dataSize = sizeof(Header) + m->getExtraDataLength() + spanContext.data().size();
+  auto position = m->body() + dataSize;
+  sigManager->sign(m->body(), dataSize, position, sigLen);
+  //+-----------+-----------+----------+
+  //| Header    | extraData | Signature|
+  //+-----------+-----------+----------+
   return m;
+}
+std::string ReplicaRestartReadyMsg::getExtraData() const {
+  if (getReason() == Reason::Scale) return std::string{};
+  return std::string(body() + sizeof(Header) + spanContextSize(), getExtraDataLength());
 }
 
 void ReplicaRestartReadyMsg::validate(const ReplicasInfo& repInfo) const {
   auto idOfSenderReplica = idOfGeneratedReplica();
   auto sigManager = SigManager::instance();
-  auto dataSize = sizeof(Header) + spanContextSize();
+  auto dataSize = sizeof(Header) + spanContextSize() + b()->extraDataLen;
   if (size() < dataSize || !repInfo.isIdOfReplica(idOfSenderReplica) ||
-      b()->epochNum != EpochManager::instance().getSelfEpochNumber())
+      b()->epochNum != EpochManager::instance().getSelfEpochNumber() ||
+      (b()->reason != Reason::Scale && b()->reason != Reason::Install))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
 
   uint16_t sigLen = sigManager->getSigLength(idOfSenderReplica);
   if (size() < dataSize + sigLen) throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": size"));
 
-  if (!sigManager->verifySig(idOfSenderReplica, body(), sizeof(Header), body() + dataSize, sigLen))
+  if (!sigManager->verifySig(idOfSenderReplica, body(), dataSize, body() + dataSize, sigLen))
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": verifySig"));
 }
 

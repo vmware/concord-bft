@@ -14,20 +14,23 @@
 #include "MessageBase.hpp"
 #include "ReplicaRestartReadyMsg.hpp"
 #include "ReplicaConfig.hpp"
+#include "SigManager.hpp"
 
 namespace bftEngine {
 namespace impl {
-struct NewViewElement;
 class ReplicasRestartReadyProofMsg : public MessageBase {
  public:
+  using RestartReason = ReplicaRestartReadyMsg::Reason;
   ReplicasRestartReadyProofMsg(ReplicaId senderId,
                                SeqNum seqNum,
+                               RestartReason reason,
                                const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(ReplicasRestartReadyProofMsg)
 
   static ReplicasRestartReadyProofMsg* create(ReplicaId id,
                                               SeqNum s,
+                                              RestartReason reason,
                                               const concordUtils::SpanContext& spanContext = {});
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
@@ -39,6 +42,8 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
   void finalizeMessage();
 
   const uint16_t elementsCount() const { return b()->elementsCount; }
+
+  RestartReason getRestartReason() const { return b()->reason; }
 
   const uint32_t getBodySize() const;
 
@@ -56,6 +61,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
     uint16_t genReplicaId;
     SeqNum seqNum;
     EpochNum epochNum;
+    RestartReason reason;
     uint16_t elementsCount;
     uint32_t locationAfterLast;  // if(elementsCount > 0) then it holds the location after last element
                                  // followed by the signature
@@ -63,7 +69,7 @@ class ReplicasRestartReadyProofMsg : public MessageBase {
   };
 #pragma pack(pop)
 
-  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 2 + 4), "Header is 30B");
+  static_assert(sizeof(Header) == (6 + 2 + 8 + 8 + 1 + 2 + 4), "Header is 31B");
   Header* b() const { return (Header*)msgBody_; }
 };
 }  // namespace impl

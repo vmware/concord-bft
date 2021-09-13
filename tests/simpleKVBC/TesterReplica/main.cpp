@@ -19,6 +19,7 @@
 #include "SimpleBCStateTransfer.hpp"
 #include "secrets_manager_plain.h"
 #include "bftengine/ControlStateManager.hpp"
+#include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/ReconfigurationCmd.hpp"
 #include "client/reconfiguration/cre_interfaces.hpp"
 #include "assertUtils.hpp"
@@ -123,11 +124,13 @@ void run_replica(int argc, char** argv) {
                                           {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
                                           {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
                                       std::make_shared<concord::secretsmanager::SecretsManagerPlain>());
-  bftEngine::ControlStateManager::instance().addOnRestartProofCallBack([argv, &setup]() {
-    setup->GetCommunication()->Stop();
-    setup->GetMetricsServer().Stop();
-    execv(argv[0], argv);
-  });
+  bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
+      [argv, &setup]() {
+        setup->GetCommunication()->Stop();
+        setup->GetMetricsServer().Stop();
+        execv(argv[0], argv);
+      },
+      static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale));
 
   auto* blockMetadata = new BlockMetadata(*replica);
 

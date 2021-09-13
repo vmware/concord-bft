@@ -15,6 +15,7 @@
 #include "endianness.hpp"
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "messages/ReplicaRestartReadyMsg.hpp"
 
 namespace concord::kvbc {
 
@@ -65,6 +66,8 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
   }
   handleStoredCommand<concord::messages::WedgeCommand>(std::string{kvbc::keyTypes::reconfiguration_wedge_key},
                                                        current_cp_num);
+  handleStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
+                                                         current_cp_num);
 }
 
 void StReconfigurationHandler::pruneOnStartup() {
@@ -130,6 +133,26 @@ bool StReconfigurationHandler::handle(const concord::messages::RestartCommand &c
   return handleWedgeCommands(
       command, bid, current_cp_num, bft_seq_num, command.bft_support, true, command.restart, command.restart);
 }
+bool StReconfigurationHandler::handle(const concord::messages::InstallCommand &cmd,
+                                      uint64_t bft_seq_num,
+                                      uint64_t current_cp_num,
+                                      uint64_t bid) {
+  LOG_INFO(GL, "Handle install command on ST complete:" << KVLOG(cmd.version, bft_seq_num, current_cp_num));
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(cmd.bft_support);
+  if (cmd.bft_support) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
+  }
+  return true;
+}
 template <typename T>
 bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
                                                    uint64_t bid,
@@ -186,8 +209,10 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
         bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
             [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
       if (restart) {
-        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-            [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+        bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+          bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+              static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+        });
       }
     } else {
       if (remove_metadata)
@@ -197,8 +222,10 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
         bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
             [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
       if (cmd.restart) {
-        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-            [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+        bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+          bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+              static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+        });
       }
     }
   }

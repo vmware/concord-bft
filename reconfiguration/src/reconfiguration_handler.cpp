@@ -14,6 +14,7 @@
 
 #include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
+#include "messages/ReplicaRestartReadyMsg.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
@@ -82,8 +83,10 @@ void ReconfigurationHandler::handleWedgeCommands(
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
     if (restart)
-      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+        bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+            static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+      });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
@@ -96,8 +99,10 @@ void ReconfigurationHandler::handleWedgeCommands(
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
     if (restart)
-      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-          [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+        bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+            static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale), std::string{});
+      });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
@@ -131,6 +136,38 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
   LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   handleWedgeCommands(command.bft_support, true, command.restart, true, false);
+  return true;
+}
+bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd,
+                                    uint64_t sequence_num,
+                                    uint32_t,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::ReconfigurationErrorMsg error_msg;
+  if (cmd.version.empty()) {
+    LOG_ERROR(getLogger(), "InstallCommand received with empty version string at seq_num " << sequence_num);
+    return false;
+  }
+  LOG_INFO(getLogger(), "InstallCommand instructs replica to stop at seq_num " << KVLOG(sequence_num, cmd.version));
+  bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(sequence_num);
+  // TODO(NK): set remove_metadata and unwedge flag to True once we support start new epoch with (n-f) nodes
+  // crrently, keyExchange manager requires all n nodes to the start to complete key exchange. So, if we
+  // execute install with (n-f) nodes, post inatall, replicas won't be live
+  bftEngine::ControlStateManager::instance().setRestartBftFlag(cmd.bft_support);
+  if (cmd.bft_support) {
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+        [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
+  } else {
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack([=]() {
+      bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(
+          static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Install), cmd.version);
+    });
+    bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+        [=]() { bftEngine::EpochManager::instance().setNewEpochFlag(true); });
+  }
   return true;
 }
 

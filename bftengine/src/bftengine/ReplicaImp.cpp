@@ -3008,23 +3008,26 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
     IControlHandler::instance()->onStableCheckpoint();
   }
 }
-void ReplicaImp::sendRepilcaRestartReady() {
+void ReplicaImp::sendRepilcaRestartReady(uint8_t reason, const std::string &extraData) {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicaRestartReadyMsg> readytToRestartMsg(
-        ReplicaRestartReadyMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
+        ReplicaRestartReadyMsg::create(config_.getreplicaId(),
+                                       seq_num_to_stop_at.value(),
+                                       static_cast<ReplicaRestartReadyMsg::Reason>(reason),
+                                       extraData));
     sendToAllOtherReplicas(readytToRestartMsg.get());
-    restart_ready_msgs_[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
+    auto &restart_ready_msgs = restart_ready_msgs_[reason];
+    restart_ready_msgs[config_.getreplicaId()] = std::move(readytToRestartMsg);  // add self message to the list
     bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
     uint32_t targetNumOfMsgs =
         (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
-    if (restart_ready_msgs_.size() == targetNumOfMsgs) {
+    if (restart_ready_msgs.size() == targetNumOfMsgs) {
       LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
-      sendReplicasRestartReadyProof();
+      sendReplicasRestartReadyProof(reason);
     }
   }
 }
-
 void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly, uint16_t destReplicaId) {
   if ((!currentViewIsActive()) || (seqNumber <= strictLowerBoundOfSeqNums) ||
       (!mainLog->insideActiveWindow(seqNumber)) || (!mainLog->insideActiveWindow(seqNumber))) {
@@ -3351,8 +3354,9 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) {
-  if (restart_ready_msgs_.find(msg->idOfGeneratedReplica()) == restart_ready_msgs_.end()) {
-    restart_ready_msgs_[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
+  auto &restart_msgs = restart_ready_msgs_[static_cast<uint8_t>(msg->getReason())];
+  if (restart_msgs.find(msg->idOfGeneratedReplica()) == restart_msgs.end()) {
+    restart_msgs[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
     metric_received_restart_ready_++;
   } else {
     LOG_DEBUG(GL,
@@ -3366,9 +3370,9 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
   bool restart_bft_flag = bftEngine::ControlStateManager::instance().getRestartBftFlag();
   uint32_t targetNumOfMsgs =
       (restart_bft_flag ? (config_.getnumReplicas() - config_.getfVal()) : config_.getnumReplicas());
-  if (restart_ready_msgs_.size() == targetNumOfMsgs) {
+  if (restart_msgs.size() == targetNumOfMsgs) {
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
-    sendReplicasRestartReadyProof();
+    sendReplicasRestartReadyProof(static_cast<uint8_t>(msg->getReason()));
   }
 }
 
@@ -3378,23 +3382,27 @@ void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyPro
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
   metric_received_restart_proof_++;
-  ControlStateManager::instance().onRestartProof(msg->seqNum());
+  ControlStateManager::instance().onRestartProof(msg->seqNum(), static_cast<uint8_t>(msg->getRestartReason()));
   delete msg;
 }
 
-void ReplicaImp::sendReplicasRestartReadyProof() {
+void ReplicaImp::sendReplicasRestartReadyProof(uint8_t reason) {
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     unique_ptr<ReplicasRestartReadyProofMsg> restartProofMsg(
-        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(), seq_num_to_stop_at.value()));
-    for (auto &[_, v] : restart_ready_msgs_) {
+        ReplicasRestartReadyProofMsg::create(config_.getreplicaId(),
+                                             seq_num_to_stop_at.value(),
+                                             static_cast<ReplicasRestartReadyProofMsg::RestartReason>(reason)));
+    ConcordAssertGE(restart_ready_msgs_[reason].size(), static_cast<size_t>(config_.numReplicas - config_.fVal));
+    for (auto &[_, v] : restart_ready_msgs_[reason]) {
       (void)_;  // unused variable hack
       restartProofMsg->addElement(v);
     }
     restartProofMsg->finalizeMessage();
     sendToAllOtherReplicas(restartProofMsg.get());
+    metric_received_restart_proof_++;     // for self
     std::this_thread::sleep_for(1000ms);  // Sleep in order to let the os complete the send before shutting down
-    bftEngine::ControlStateManager::instance().onRestartProof(restartProofMsg->seqNum());
+    bftEngine::ControlStateManager::instance().onRestartProof(restartProofMsg->seqNum(), reason);
   }
 }
 
@@ -3444,7 +3452,8 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
   ps_ = persistentStorage;
   bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
-  bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
+  bftEngine::ControlStateManager::instance().setRestartReadyFunc(
+      [&](uint8_t reason, const std::string &extraData) { sendRepilcaRestartReady(reason, extraData); });
   bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   lastAgreedView = ld.viewsManager->latestActiveView();
 
@@ -3690,7 +3699,8 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
   if (persistentStorage != nullptr) {
     ps_ = persistentStorage;
     bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool) { ps_->setEraseMetadataStorageFlag(); });
-    bftEngine::ControlStateManager::instance().setRestartReadyFunc([&]() { sendRepilcaRestartReady(); });
+    bftEngine::ControlStateManager::instance().setRestartReadyFunc(
+        [&](uint8_t reason, const std::string &extraData) { sendRepilcaRestartReady(reason, extraData); });
     bftEngine::EpochManager::instance().setNewEpochFlagHandler(std::bind(&PersistentStorage::setNewEpochFlag, ps_, _1));
   }
 
