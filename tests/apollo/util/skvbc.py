@@ -293,6 +293,32 @@ class SimpleKVBCProtocol:
                 # checkpoint data.
                 [ self.bft_network.start_replica(i) for i in initial_nodes ]
                 await self.bft_network.wait_for_replicas_to_checkpoint(initial_nodes, expected_checkpoint_num)
+    
+    async def _fetch_or_finish_state_transfer_while_crashing(self,
+                                                             bft_network,
+                                                             up_to_date_node,
+                                                             stale_node,
+                                                             nb_crashes=20):
+       for _ in range(nb_crashes):
+           log.log_message(message_type=f'Restarting replica {stale_node}')
+           bft_network.start_replica(stale_node)
+           try:
+               await bft_network.wait_for_fetching_state(stale_node)
+               # Sleep a bit to give some time for the fetch to make progress
+               await trio.sleep(random.uniform(0, 1))
+
+           except trio.TooSlowError:
+               # We never made it to fetching state. Are we done?
+               try:
+                    await bft_network.wait_for_state_transfer_to_stop(
+                       up_to_date_node, stale_node)
+                    break
+               except trio.TooSlowError:
+                   self.fail("State transfer did not complete, " +
+                             "but we are not fetching either!")
+           finally:
+               log.log_message(message_type=f'Stopping replica {stale_node}')
+               bft_network.stop_replica(stale_node)
 
     async def assert_successful_put_get(self):
         """ Assert that we can get a valid put """

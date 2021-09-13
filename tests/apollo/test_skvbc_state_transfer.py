@@ -18,6 +18,7 @@ import trio
 
 from util import skvbc as kvbc
 from util.bft import with_trio, with_bft_network, KEY_FILE_PREFIX, skip_for_tls
+from util.skvbc_history_tracker import verify_linearizability
 from util import eliot_logging as log
 
 def start_replica_cmd(builddir, replica_id):
@@ -138,3 +139,53 @@ class SkvbcStateTransferTest(unittest.TestCase):
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    @verify_linearizability()
+    async def test_st_when_fetcher_crashes(self, bft_network,tracker):
+        """
+        Start N-1 nodes out of a N node cluster (hence 1 stale node). Write a specific key,
+        then enough data to the cluster to trigger a checkpoint. Then stop all the nodes,
+        restart the N-1 nodes that should have checkpoints as well as the stale node.
+
+        Kill and restart the stale node multiple times during fetching and
+        make sure that it catches up.
+
+        Then force a quorum including the stale node, and try to read the specific
+        key.
+
+        After that ensure that a newly put value can be retrieved.
+        """
+        stale_node = random.choice(bft_network.all_replicas(without={0}))
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+
+        client, known_key, known_val = \
+            await skvbc.prime_for_state_transfer(stale_nodes={stale_node})
+
+        # Start the empty replica, wait for it to start fetching, then stop
+        # it.
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_fetching_state(stale_node)
+        bft_network.stop_replica(stale_node)
+
+        # Loop repeatedly starting and killing the destination replica after
+        # state transfer has started. On each restart, ensure the node is
+        # still fetching or that it has received all the data.
+        await skvbc._fetch_or_finish_state_transfer_while_crashing(bft_network, 0, stale_node)
+
+        # Restart the replica and wait for state transfer to stop
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
+
+        await bft_network.force_quorum_including_replica(stale_node)
+
+        # Retrieve the value we put first to ensure state transfer worked
+        # when the log went away
+        kvpairs = await skvbc.send_read_kv_set(client, known_key)
+        self.assertDictEqual(dict([(known_key, known_val)]), kvpairs)
+
+        # Perform a put/get transaction pair to ensure we can read newly
+        # written data after state transfer.
+
+        await skvbc.read_your_writes()
