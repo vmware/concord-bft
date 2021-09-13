@@ -29,23 +29,6 @@ class SynchronizedValue {
   using SharedLock = std::shared_lock<MutexType>;
 
  public:
-  // Construct the value in-place with the given arguments.
-  template <typename... Args>
-  SynchronizedValue(Args&&... args) {
-    replace(std::forward<Args>(args)...);
-  }
-
-  // Replace the value by constructing a new one in-place with the given arguments.
-  //
-  // Precondition: the calling thread doesn't have any accessors at the time of the call. If it does, the behaviour is
-  // undefined.
-  template <typename... Args>
-  void replace(Args&&... args) {
-    auto new_val = std::make_unique<T>(std::forward<Args>(args)...);
-    auto lock = ExclusiveLock{mtx_};
-    val_ = std::move(new_val);
-  }
-
   // Provides read-write access to the value.
   // Locks the mutex in the constructor and unlocks it in the dtor.
   class Accessor {
@@ -73,6 +56,23 @@ class SynchronizedValue {
     const T& val_;
     SharedLock lock_;
   };
+
+ public:
+  // Construct the value in-place with the given arguments.
+  template <typename... Args>
+  SynchronizedValue(Args&&... args) : val_{std::make_unique<T>(std::forward<Args>(args)...)} {}
+
+  // Replace the value by constructing a new one in-place with the given arguments.
+  //
+  // Precondition: the calling thread doesn't have any accessors at the time of the call. If it does, the behaviour is
+  // undefined.
+  template <typename... Args>
+  Accessor replace(Args&&... args) {
+    auto new_val = std::make_unique<T>(std::forward<Args>(args)...);
+    auto lock = ExclusiveLock{mtx_};
+    val_ = std::move(new_val);
+    return Accessor{*val_, std::move(lock)};
+  }
 
   // Create an accessor to the value.
   //
