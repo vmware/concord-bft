@@ -69,12 +69,29 @@ TEST(synchronized_value, replace_with_arguments) {
   ASSERT_EQ(42, *v.constAccess());
 }
 
+TEST(synchronized_value, replace_accessor_changes_value) {
+  auto v = SynchronizedValue<int>{41};
+
+  {
+    auto a = v.replace(42);
+    ASSERT_EQ(42, *a);
+    *a = 43;
+  }
+
+  auto a = v.constAccess();
+  ASSERT_EQ(43, *a);
+}
+
 TEST(synchronized_value, accessor_changes_value) {
   auto v = SynchronizedValue<int>{42};
-  auto a = v.access();
-  ASSERT_EQ(42, *a);
 
-  *a = 43;
+  {
+    auto a = v.access();
+    ASSERT_EQ(42, *a);
+    *a = 43;
+  }
+
+  auto a = v.constAccess();
   ASSERT_EQ(43, *a);
 }
 
