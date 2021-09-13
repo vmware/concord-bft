@@ -11,6 +11,7 @@
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
 [![asan](https://github.com/vmware/concord-bft/actions/workflows/asan.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/asan.yml)
 [![tsan](https://github.com/vmware/concord-bft/actions/workflows/tsan.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/tsan.yml)
+[![codecoverage](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml)
 
 
 
