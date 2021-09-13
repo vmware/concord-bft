@@ -341,124 +341,124 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupIdBatch(const uint64_t &p
   // we cannot read event group ids from storage if they don't exist
   ConcordAssert(eg_state->public_offset <= public_end + 1 && eg_state->private_offset <= private_end + 1);
 
-  // read global event group IDs from storage into memory
-  if (eg_state->it == eg_state->event_group_id_batch.end()) {
-    // no public event groups in storage and all private event group ids have already been read
-    if (public_end == 0 && eg_state->private_offset > private_end) return std::nullopt;
-    // no private event groups in storage and all public event group ids have already been read
-    if (private_end == 0 && eg_state->public_offset > public_end) return std::nullopt;
-    // no public and private event groups in storage
-    if (public_end == 0 && private_end == 0) return std::nullopt;
-    // all public and private event group ids have already been read
-    if (eg_state->private_offset > private_end && eg_state->public_offset > public_end) return std::nullopt;
-
-    // reset the vectors to read the new batch from storage
-    eg_state->event_group_id_batch.clear();
-    // holds a maximum of kBatchSize ordered public event group ids at a time
-    std::vector<uint64_t> public_event_group_ids{};
-    // holds a maximum of kBatchSize ordered private event group ids at a time
-    std::vector<uint64_t> private_event_group_ids{};
-
-    // populate public_event_group_ids
-    if (eg_state->public_offset != 0) {
-      // start reading from the offset until a complete batch is read or no more event groups exist for the tag
-      for (uint64_t i = eg_state->public_offset; i < std::min(eg_state->public_offset + kBatchSize, public_end + 1);
-           ++i) {
-        // get global_event_group_id corresponding to tag_event_group_id
-        // tag + # + latest_tag_event_group_id concatenation is used as key for kv-updates of type
-        // kExecutionEventGroupTagCategory
-        uint64_t global_eg_id =
-            getLatestFromTagTableInStorage(kPublicEgId + "#" + concordUtils::toBigEndianStringBuffer(i));
-        public_event_group_ids.emplace_back(global_eg_id);
-      }
-    }
-    // populate private_event_group_ids
-    if (eg_state->private_offset != 0) {
-      for (uint64_t i = eg_state->private_offset; i < std::min(eg_state->private_offset + kBatchSize, private_end + 1);
-           ++i) {
-        uint64_t global_eg_id =
-            getLatestFromTagTableInStorage(client_id + "#" + concordUtils::toBigEndianStringBuffer(i));
-        private_event_group_ids.emplace_back(global_eg_id);
-      }
-    }
-    // populate event_group_id_batch with only public event group ids iff one of the following occurs -\
-    // 1. No private event groups exist in storage \
-    // 2. The first global event group id in private_event_group_ids is greater than the last global event group id public_event_group_ids\
-    // Vice versa is true for populate event_group_id_batch with only private event group ids \
-    // Note: each private_event_group_ids and public_event_group_ids hold a sorted list of global event group ids at all times
-    if (!public_event_group_ids.empty() &&
-        (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front()))) {
-      for (auto public_event_group_id : public_event_group_ids) {
-        eg_state->event_group_id_batch.emplace_back(public_event_group_id);
-      }
-      ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
-      // increment the offset
-      eg_state->public_offset += eg_state->event_group_id_batch.size();
-      LOG_DEBUG(logger_,
-                "Updated public_offset: " << eg_state->public_offset
-                                          << " public_event_group_ids size: " << public_event_group_ids.size());
-    } else if (!private_event_group_ids.empty() &&
-               (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front()))) {
-      for (auto private_event_group_id : private_event_group_ids) {
-        eg_state->event_group_id_batch.emplace_back(private_event_group_id);
-      }
-      ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
-      // increment the offset
-      eg_state->private_offset += eg_state->event_group_id_batch.size();
-      LOG_DEBUG(logger_,
-                "Updated private_offset: " << eg_state->private_offset
-                                           << " private_event_group_ids size: " << private_event_group_ids.size());
-    } else if (!public_event_group_ids.empty() && !private_event_group_ids.empty()) {
-      LOG_DEBUG(logger_, "Both public and private event groups found in the batch");
-      std::merge(public_event_group_ids.begin(),
-                 public_event_group_ids.end(),
-                 private_event_group_ids.begin(),
-                 private_event_group_ids.end(),
-                 std::back_inserter(eg_state->event_group_id_batch));
-      // We cannot return the full merge
-      // E.g.: a=[1,2,3,4,5] b=[6,7,8,9]
-      if (eg_state->event_group_id_batch.size() > kBatchSize) {
-        eg_state->event_group_id_batch.erase(eg_state->event_group_id_batch.begin() + kBatchSize,
-                                             eg_state->event_group_id_batch.end());
-      }
-      // find and update the offsets \
-      // We iterate over event_group_id_batch in the reverse order, and update the private/public offset if the event group id
-      // in event_group_id_batch is found in private_event_group_ids/public_event_group_ids respectively.\
-      // In the worst case, we need to read the entire event_group_id_batch (of size kBatchSize) to find the offset
-      bool has_pub_offset_updated = false;
-      bool has_pvt_offset_updated = false;
-      for (auto r_it = eg_state->event_group_id_batch.rbegin(); r_it != eg_state->event_group_id_batch.rend(); r_it++) {
-        if (has_pub_offset_updated && has_pvt_offset_updated) break;
-        if (!has_pub_offset_updated && std::find(public_event_group_ids.begin(), public_event_group_ids.end(), *r_it) !=
-                                           public_event_group_ids.end()) {
-          auto pub_it = std::find(public_event_group_ids.begin(), public_event_group_ids.end(), *r_it);
-          eg_state->public_offset = ++pub_it - public_event_group_ids.begin();
-          has_pub_offset_updated = true;
-          LOG_DEBUG(logger_,
-                    "Updated public_offset: " << eg_state->public_offset
-                                              << " public_event_group_ids size: " << public_event_group_ids.size());
-        }
-        if (!has_pvt_offset_updated &&
-            std::find(private_event_group_ids.begin(), private_event_group_ids.end(), *r_it) !=
-                private_event_group_ids.end()) {
-          auto pvt_it = std::find(private_event_group_ids.begin(), private_event_group_ids.end(), *r_it);
-          eg_state->private_offset = ++pvt_it - private_event_group_ids.begin();
-          has_pvt_offset_updated = true;
-          LOG_DEBUG(logger_,
-                    "Updated private_offset: " << eg_state->private_offset
-                                               << " private_event_group_ids size: " << private_event_group_ids.size());
-        }
-      }
-    }
-    // let's not return an invalid event group id
-    if (eg_state->event_group_id_batch.empty()) return std::nullopt;
-
-    // Reset the iterator so that we read from event_group_id_batch from the beginning
-    eg_state->it = eg_state->event_group_id_batch.begin();
-
-    ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
-    LOG_DEBUG(logger_, "Updated event group id list batch size: " << eg_state->event_group_id_batch.size());
+  if (eg_state->it != eg_state->event_group_id_batch.end()) {
+    return *eg_state->it++;
   }
+  // read global event group IDs from storage into memory
+  // no public event groups in storage and all private event group ids have already been read
+  if (public_end == 0 && eg_state->private_offset > private_end) return std::nullopt;
+  // no private event groups in storage and all public event group ids have already been read
+  if (private_end == 0 && eg_state->public_offset > public_end) return std::nullopt;
+  // no public and private event groups in storage
+  if (public_end == 0 && private_end == 0) return std::nullopt;
+  // all public and private event group ids have already been read
+  if (eg_state->private_offset > private_end && eg_state->public_offset > public_end) return std::nullopt;
+
+  // reset the vectors to read the new batch from storage
+  eg_state->event_group_id_batch.clear();
+  // holds a maximum of kBatchSize ordered public event group ids at a time
+  std::vector<uint64_t> public_event_group_ids{};
+  // holds a maximum of kBatchSize ordered private event group ids at a time
+  std::vector<uint64_t> private_event_group_ids{};
+
+  // populate public_event_group_ids
+  if (eg_state->public_offset != 0) {
+    // start reading from the offset until a complete batch is read or no more event groups exist for the tag
+    for (uint64_t i = eg_state->public_offset; i < std::min(eg_state->public_offset + kBatchSize, public_end + 1);
+         ++i) {
+      // get global_event_group_id corresponding to tag_event_group_id
+      // tag + # + latest_tag_event_group_id concatenation is used as key for kv-updates of type
+      // kExecutionEventGroupTagCategory
+      uint64_t global_eg_id =
+          getLatestFromTagTableInStorage(kPublicEgId + "#" + concordUtils::toBigEndianStringBuffer(i));
+      public_event_group_ids.emplace_back(global_eg_id);
+    }
+  }
+  // populate private_event_group_ids
+  if (eg_state->private_offset != 0) {
+    for (uint64_t i = eg_state->private_offset; i < std::min(eg_state->private_offset + kBatchSize, private_end + 1);
+         ++i) {
+      uint64_t global_eg_id =
+          getLatestFromTagTableInStorage(client_id + "#" + concordUtils::toBigEndianStringBuffer(i));
+      private_event_group_ids.emplace_back(global_eg_id);
+    }
+  }
+  // populate event_group_id_batch with only public event group ids iff one of the following occurs -\
+  // 1. No private event groups exist in storage \
+  // 2. The first global event group id in private_event_group_ids is greater than the last global event group id public_event_group_ids\
+  // Vice versa is true for populate event_group_id_batch with only private event group ids \
+  // Note: each private_event_group_ids and public_event_group_ids hold a sorted list of global event group ids at all times
+  if (!public_event_group_ids.empty() &&
+      (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front()))) {
+    for (auto public_event_group_id : public_event_group_ids) {
+      eg_state->event_group_id_batch.emplace_back(public_event_group_id);
+    }
+    ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
+    // increment the offset
+    eg_state->public_offset += eg_state->event_group_id_batch.size();
+    LOG_DEBUG(logger_,
+              "Updated public_offset: " << eg_state->public_offset
+                                        << " public_event_group_ids size: " << public_event_group_ids.size());
+  } else if (!private_event_group_ids.empty() &&
+             (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front()))) {
+    for (auto private_event_group_id : private_event_group_ids) {
+      eg_state->event_group_id_batch.emplace_back(private_event_group_id);
+    }
+    ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
+    // increment the offset
+    eg_state->private_offset += eg_state->event_group_id_batch.size();
+    LOG_DEBUG(logger_,
+              "Updated private_offset: " << eg_state->private_offset
+                                         << " private_event_group_ids size: " << private_event_group_ids.size());
+  } else if (!public_event_group_ids.empty() && !private_event_group_ids.empty()) {
+    LOG_DEBUG(logger_, "Both public and private event groups found in the batch");
+    std::merge(public_event_group_ids.begin(),
+               public_event_group_ids.end(),
+               private_event_group_ids.begin(),
+               private_event_group_ids.end(),
+               std::back_inserter(eg_state->event_group_id_batch));
+    // We cannot return the full merge
+    // E.g.: a=[1,2,3,4,5] b=[6,7,8,9]
+    if (eg_state->event_group_id_batch.size() > kBatchSize) {
+      eg_state->event_group_id_batch.erase(eg_state->event_group_id_batch.begin() + kBatchSize,
+                                           eg_state->event_group_id_batch.end());
+    }
+    // find and update the offsets \
+    // We iterate over event_group_id_batch in the reverse order, and update the private/public offset if the event group id
+    // in event_group_id_batch is found in private_event_group_ids/public_event_group_ids respectively.\
+    // In the worst case, we need to read the entire event_group_id_batch (of size kBatchSize) to find the offset
+    bool has_pub_offset_updated = false;
+    bool has_pvt_offset_updated = false;
+    for (auto r_it = eg_state->event_group_id_batch.rbegin(); r_it != eg_state->event_group_id_batch.rend(); r_it++) {
+      if (has_pub_offset_updated && has_pvt_offset_updated) break;
+      if (!has_pub_offset_updated && std::find(public_event_group_ids.begin(), public_event_group_ids.end(), *r_it) !=
+                                         public_event_group_ids.end()) {
+        auto pub_it = std::find(public_event_group_ids.begin(), public_event_group_ids.end(), *r_it);
+        eg_state->public_offset = ++pub_it - public_event_group_ids.begin();
+        has_pub_offset_updated = true;
+        LOG_DEBUG(logger_,
+                  "Updated public_offset: " << eg_state->public_offset
+                                            << " public_event_group_ids size: " << public_event_group_ids.size());
+      }
+      if (!has_pvt_offset_updated && std::find(private_event_group_ids.begin(), private_event_group_ids.end(), *r_it) !=
+                                         private_event_group_ids.end()) {
+        auto pvt_it = std::find(private_event_group_ids.begin(), private_event_group_ids.end(), *r_it);
+        eg_state->private_offset = ++pvt_it - private_event_group_ids.begin();
+        has_pvt_offset_updated = true;
+        LOG_DEBUG(logger_,
+                  "Updated private_offset: " << eg_state->private_offset
+                                             << " private_event_group_ids size: " << private_event_group_ids.size());
+      }
+    }
+  }
+  // let's not return an invalid event group id
+  if (eg_state->event_group_id_batch.empty()) return std::nullopt;
+
+  // Reset the iterator so that we read from event_group_id_batch from the beginning
+  eg_state->it = eg_state->event_group_id_batch.begin();
+
+  ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
+  LOG_DEBUG(logger_, "Updated event group id list batch size: " << eg_state->event_group_id_batch.size());
   return *eg_state->it++;
 }
 
