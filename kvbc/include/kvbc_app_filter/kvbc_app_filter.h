@@ -53,7 +53,7 @@ struct KvbFilteredEventGroupUpdate {
   EventGroup event_group;
 };
 
-// We need to preserve state per client across calls to getNextEventGroupIdBatch method
+// We need to preserve state per client across calls to getNextEventGroupId method
 struct EventGroupClientState {
   EventGroupClientState(const uint64_t pub_offset, const uint64_t pvt_offset)
       : public_offset(pub_offset), private_offset(pvt_offset) {}
@@ -190,10 +190,10 @@ class KvbAppFilter {
 
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window
-  std::optional<uint64_t> getNextEventGroupIdBatch(const uint64_t &public_end,
-                                                   const uint64_t &private_end,
-                                                   const std::string &client_id,
-                                                   std::shared_ptr<EventGroupClientState> &eg_state);
+  std::optional<uint64_t> getNextEventGroupId(const uint64_t &public_end,
+                                              const uint64_t &private_end,
+                                              const std::string &client_id,
+                                              std::shared_ptr<EventGroupClientState> &eg_state);
 
   kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
 
@@ -210,7 +210,7 @@ class KvbAppFilter {
   static inline const std::string kPublicEgId{"_public_eg_id"};
 
   // event groups are read in batches from storage, to avoid saving large number of event groups in memory
-  // see method definition for getNextEventGroupIdBatch()
+  // see method definition for getNextEventGroupId()
   static inline const size_t kBatchSize{10};
 
   // event group hash state for that client

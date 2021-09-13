@@ -324,10 +324,10 @@ uint64_t KvbAppFilter::lastTagSpecificPublicEventGroupId(const std::string &clie
   return public_newest + private_newest;
 }
 
-std::optional<uint64_t> KvbAppFilter::getNextEventGroupIdBatch(const uint64_t &public_end,
-                                                               const uint64_t &private_end,
-                                                               const std::string &client_id,
-                                                               std::shared_ptr<EventGroupClientState> &eg_state) {
+std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public_end,
+                                                          const uint64_t &private_end,
+                                                          const std::string &client_id,
+                                                          std::shared_ptr<EventGroupClientState> &eg_state) {
   LOG_DEBUG(logger_,
             "Public_offset: " << eg_state->public_offset << ", private_offset: " << eg_state->private_offset
                               << ", public_end: " << public_end << ", private_end: " << private_end);
@@ -502,7 +502,7 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
     LOG_DEBUG(logger_,
               "Current tag_event_group_id: " << eg_data_state_->curr_trid_event_group_id
                                              << ", event_group_id_end: " << event_group_id_end);
-    auto opt = getNextEventGroupIdBatch(public_end, private_end, client_id_, eg_data_state_);
+    auto opt = getNextEventGroupId(public_end, private_end, client_id_, eg_data_state_);
     uint64_t global_event_group_id;
     if (opt.has_value()) {
       global_event_group_id = opt.value();
@@ -593,7 +593,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
     LOG_DEBUG(logger_,
               "Requested_event_group_id: " << requested_event_group_id
                                            << ", trid_event_group_id: " << eg_hash_state_->curr_trid_event_group_id);
-    opt = getNextEventGroupIdBatch(public_end, private_end, client_id_, eg_hash_state_);
+    opt = getNextEventGroupId(public_end, private_end, client_id_, eg_hash_state_);
     eg_hash_state_->curr_trid_event_group_id++;
     if (eg_hash_state_->curr_trid_event_group_id == requested_event_group_id) {
       if (opt.has_value()) {
@@ -679,7 +679,7 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) 
   // populate and read global event group ids from eg_data_state_->event_group_id_batch in batches of size kBatchSize.\
   // For every global event group id received, lookup the data table to fetch the event group, filter and calculate the concatenate hash from the filtered event group
   while (eg_hash_state_->curr_trid_event_group_id < event_group_id_end) {
-    auto opt = getNextEventGroupIdBatch(public_end, private_end, client_id_, eg_hash_state_);
+    auto opt = getNextEventGroupId(public_end, private_end, client_id_, eg_hash_state_);
     uint64_t global_event_group_id;
     if (opt.has_value()) {
       global_event_group_id = opt.value();
