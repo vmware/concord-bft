@@ -58,7 +58,8 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
               concord::messages::ReconfigurationResponse&) override;
 
  private:
-  void handleWedgeCommands(bool bft_support, bool remove_metadata, bool restart, bool unwedge);
+  void handleWedgeCommands(
+      bool bft_support, bool remove_metadata, bool restart, bool unwedge, bool blockNewConnections);
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {

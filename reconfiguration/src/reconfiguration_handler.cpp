@@ -17,6 +17,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
+#include "communication/CommStateControl.hpp"
 
 using namespace concord::messages;
 namespace concord::reconfiguration {
@@ -67,10 +68,11 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
-  handleWedgeCommands(command.bft_support, true, command.restart, true);
+  handleWedgeCommands(command.bft_support, true, command.restart, true, true);
   return true;
 }
-void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_metadata, bool restart, bool unwedge) {
+void ReconfigurationHandler::handleWedgeCommands(
+    bool bft_support, bool remove_metadata, bool restart, bool unwedge, bool blockNewConnections) {
   if (restart) bftEngine::ControlStateManager::instance().setRestartBftFlag(bft_support);
   if (bft_support) {
     if (remove_metadata)
@@ -82,6 +84,10 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_m
     if (restart)
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    if (blockNewConnections) {
+      bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
+          [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
+    }
   } else {
     if (remove_metadata)
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
@@ -92,6 +98,10 @@ void ReconfigurationHandler::handleWedgeCommands(bool bft_support, bool remove_m
     if (restart)
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
           [=]() { bftEngine::ControlStateManager::instance().sendRestartReadyToAllReplica(); });
+    if (blockNewConnections) {
+      bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
+          [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
+    }
   }
 }
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeStatus& req,
@@ -120,7 +130,7 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
                                     concord::messages::ReconfigurationResponse&) {
   LOG_INFO(getLogger(), "RestartCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
-  handleWedgeCommands(command.bft_support, true, command.restart, true);
+  handleWedgeCommands(command.bft_support, true, command.restart, true, false);
   return true;
 }
 

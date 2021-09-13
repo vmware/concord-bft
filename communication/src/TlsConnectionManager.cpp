@@ -18,6 +18,7 @@
 #include "assertUtils.hpp"
 #include "TlsConnectionManager.h"
 #include "AsyncTlsConnection.h"
+#include "communication/CommStateControl.hpp"
 
 namespace bft::communication::tls {
 
@@ -257,7 +258,10 @@ void ConnectionManager::startClientSSLHandshake(asio::ip::tcp::socket&& socket, 
 
 void ConnectionManager::accept() {
   acceptor_.async_accept(asio::bind_executor(strand_, [this](asio::error_code ec, asio::ip::tcp::socket sock) {
-    if (ec) {
+    if (bft::communication::CommStateControl::instance().getBlockNewConnectionsFlag()) {
+      LOG_WARN(logger_, "replica is blocked from creating new connections");
+      return;
+    } else if (ec) {
       LOG_WARN(logger_, "async_accept failed: " << ec.message());
       // When io_service is stopped, the handlers are destroyed and when the
       // io_service dtor runs they will be invoked with operation_aborted error.
