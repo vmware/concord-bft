@@ -17,17 +17,25 @@
 #include <cryptopp/dll.h>
 #include <cryptopp/pem.h>
 #include <cryptopp/rsa.h>
-#pragma GCC diagnostic pop
+#include <cryptopp/cryptlib.h>
 #include <cryptopp/oids.h>
+#pragma GCC diagnostic pop
+
+#include <openssl/bio.h>
+#include <openssl/ec.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/evp.h>
+
 #include "Logger.hpp"
 using namespace CryptoPP;
 namespace concord::util::crypto {
 class ECDSAVerifier::Impl {
-  std::unique_ptr<ECDSA<ECP, SHA256>::Verifier> verifier_;
+  std::unique_ptr<ECDSA<ECP, CryptoPP::SHA256>::Verifier> verifier_;
 
  public:
-  Impl(ECDSA<ECP, SHA256>::PublicKey& publicKey) {
-    verifier_ = std::make_unique<ECDSA<ECP, SHA256>::Verifier>(std::move(publicKey));
+  Impl(ECDSA<ECP, CryptoPP::SHA256>::PublicKey& publicKey) {
+    verifier_ = std::make_unique<ECDSA<ECP, CryptoPP::SHA256>::Verifier>(std::move(publicKey));
   }
 
   bool verify(const std::string& data_to_verify, const std::string& signature) const {
@@ -41,7 +49,7 @@ class ECDSAVerifier::Impl {
 };
 bool ECDSAVerifier::verify(const std::string& data, const std::string& sig) const { return impl_->verify(data, sig); }
 ECDSAVerifier::ECDSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
-  ECDSA<ECP, SHA256>::PublicKey publicKey;
+  ECDSA<ECP, CryptoPP::SHA256>::PublicKey publicKey;
   if (fmt == KeyFormat::PemFormat) {
     StringSource s(str_pub_key, true);
     PEM_Load(s, publicKey);
@@ -55,12 +63,12 @@ uint32_t ECDSAVerifier::signatureLength() const { return impl_->signatureLength(
 ECDSAVerifier::~ECDSAVerifier() = default;
 
 class ECDSASigner::Impl {
-  std::unique_ptr<ECDSA<ECP, SHA256>::Signer> signer_;
+  std::unique_ptr<ECDSA<ECP, CryptoPP::SHA256>::Signer> signer_;
   AutoSeededRandomPool prng_;
 
  public:
-  Impl(ECDSA<ECP, SHA256>::PrivateKey& privateKey) {
-    signer_ = std::make_unique<ECDSA<ECP, SHA256>::Signer>(std::move(privateKey));
+  Impl(ECDSA<ECP, CryptoPP::SHA256>::PrivateKey& privateKey) {
+    signer_ = std::make_unique<ECDSA<ECP, CryptoPP::SHA256>::Signer>(std::move(privateKey));
   }
 
   std::string sign(const std::string& data_to_sign) {
@@ -76,7 +84,7 @@ class ECDSASigner::Impl {
 
 std::string ECDSASigner::sign(const std::string& data) { return impl_->sign(data); }
 ECDSASigner::ECDSASigner(const std::string& str_pub_key, KeyFormat fmt) {
-  ECDSA<ECP, SHA256>::PrivateKey privateKey;
+  ECDSA<ECP, CryptoPP::SHA256>::PrivateKey privateKey;
   if (fmt == KeyFormat::PemFormat) {
     StringSource s(str_pub_key, true);
     PEM_Load(s, privateKey);
@@ -91,8 +99,8 @@ ECDSASigner::~ECDSASigner() = default;
 
 class RSAVerifier::Impl {
  public:
-  Impl(RSA::PublicKey& public_key) {
-    verifier_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Verifier>(std::move(public_key));
+  Impl(CryptoPP::RSA::PublicKey& public_key) {
+    verifier_ = std::make_unique<RSASS<PKCS1v15, CryptoPP::SHA256>::Verifier>(std::move(public_key));
   }
   bool verify(const std::string& data_to_verify, const std::string& signature) const {
     return verifier_->VerifyMessage((const CryptoPP::byte*)&data_to_verify[0],
@@ -104,13 +112,13 @@ class RSAVerifier::Impl {
   uint32_t signatureLength() const { return verifier_->SignatureLength(); }
 
  private:
-  std::unique_ptr<RSASS<PKCS1v15, SHA256>::Verifier> verifier_;
+  std::unique_ptr<RSASS<PKCS1v15, CryptoPP::SHA256>::Verifier> verifier_;
 };
 
 class RSASigner::Impl {
  public:
-  Impl(RSA::PrivateKey& private_key) {
-    signer_ = std::make_unique<RSASS<PKCS1v15, SHA256>::Signer>(std::move(private_key));
+  Impl(CryptoPP::RSA::PrivateKey& private_key) {
+    signer_ = std::make_unique<RSASS<PKCS1v15, CryptoPP::SHA256>::Signer>(std::move(private_key));
   }
   std::string sign(const std::string& data_to_sign) {
     size_t siglen = signer_->MaxSignatureLength();
@@ -123,12 +131,12 @@ class RSASigner::Impl {
   uint32_t signatureLength() const { return signer_->SignatureLength(); }
 
  private:
-  std::unique_ptr<RSASS<PKCS1v15, SHA256>::Signer> signer_;
+  std::unique_ptr<RSASS<PKCS1v15, CryptoPP::SHA256>::Signer> signer_;
   AutoSeededRandomPool prng_;
 };
 
 RSASigner::RSASigner(const std::string& str_priv_key, KeyFormat fmt) {
-  RSA::PrivateKey private_key;
+  CryptoPP::RSA::PrivateKey private_key;
   if (fmt == KeyFormat::PemFormat) {
     StringSource s(str_priv_key, true);
     PEM_Load(s, private_key);
@@ -144,7 +152,7 @@ uint32_t RSASigner::signatureLength() const { return impl_->signatureLength(); }
 RSASigner::~RSASigner() = default;
 
 RSAVerifier::RSAVerifier(const std::string& str_pub_key, KeyFormat fmt) {
-  RSA::PublicKey public_key;
+  CryptoPP::RSA::PublicKey public_key;
   if (fmt == KeyFormat::PemFormat) {
     StringSource s(str_pub_key, true);
     PEM_Load(s, public_key);
@@ -164,7 +172,7 @@ class Crypto::Impl {
     std::pair<std::string, std::string> out;
     if (!key_pair.first.empty()) {
       StringSource priv_str(key_pair.first, true, new HexDecoder());
-      RSA::PrivateKey priv;
+      CryptoPP::RSA::PrivateKey priv;
       priv.Load(priv_str);
       StringSink priv_string_sink(out.first);
       PEM_Save(priv_string_sink, priv);
@@ -173,7 +181,7 @@ class Crypto::Impl {
 
     if (!key_pair.second.empty()) {
       StringSource pub_str(key_pair.second, true, new HexDecoder());
-      RSA::PublicKey pub;
+      CryptoPP::RSA::PublicKey pub;
       pub.Load(pub_str);
       StringSink pub_string_sink(out.second);
       PEM_Save(pub_string_sink, pub);
@@ -186,14 +194,14 @@ class Crypto::Impl {
     std::pair<std::string, std::string> out;
     if (!key_pair.first.empty()) {
       StringSource priv_str(key_pair.first, true, new HexDecoder());
-      ECDSA<ECP, SHA256>::PrivateKey priv;
+      ECDSA<ECP, CryptoPP::SHA256>::PrivateKey priv;
       priv.Load(priv_str);
       StringSink priv_string_sink(out.first);
       PEM_Save(priv_string_sink, priv);
     }
     if (!key_pair.second.empty()) {
       StringSource pub_str(key_pair.second, true, new HexDecoder());
-      ECDSA<ECP, SHA256>::PublicKey pub;
+      ECDSA<ECP, CryptoPP::SHA256>::PublicKey pub;
       pub.Load(pub_str);
       StringSink pub_string_sink(out.second);
       PEM_Save(pub_string_sink, pub);
@@ -205,8 +213,8 @@ class Crypto::Impl {
     AutoSeededRandomPool rng;
     std::pair<std::string, std::string> keyPair;
 
-    RSAES<OAEP<SHA256>>::Decryptor priv(rng, sig_length);
-    RSAES<OAEP<SHA256>>::Encryptor pub(priv);
+    RSAES<OAEP<CryptoPP::SHA256>>::Decryptor priv(rng, sig_length);
+    RSAES<OAEP<CryptoPP::SHA256>>::Encryptor pub(priv);
     HexEncoder privEncoder(new StringSink(keyPair.first));
     priv.AccessMaterial().Save(privEncoder);
     privEncoder.MessageEnd();
@@ -221,8 +229,8 @@ class Crypto::Impl {
   }
   std::pair<std::string, std::string> generateECDSAKeyPair(const KeyFormat fmt) {
     AutoSeededRandomPool prng;
-    ECDSA<ECP, SHA256>::PrivateKey privateKey;
-    ECDSA<ECP, SHA256>::PublicKey publicKey;
+    ECDSA<ECP, CryptoPP::SHA256>::PrivateKey privateKey;
+    ECDSA<ECP, CryptoPP::SHA256>::PublicKey publicKey;
     privateKey.Initialize(prng, ASN1::secp256k1());
     privateKey.MakePublicKey(publicKey);
     std::pair<std::string, std::string> keyPair;
@@ -236,6 +244,82 @@ class Crypto::Impl {
     return keyPair;
   }
 
+  std::string generateSelfSignedCert(const std::pair<std::string, std::string>& keyPair_pem,
+                                     const std::string& host,
+                                     uint32_t node_id) {
+    EVP_PKEY* priv_key = EVP_PKEY_new();
+    BIO* priv_bio = BIO_new(BIO_s_mem());
+    std::string priv_key_pem = keyPair_pem.first;
+    int priv_bio_write_ret = BIO_write(priv_bio, static_cast<const char*>(priv_key_pem.c_str()), priv_key_pem.size());
+    if (priv_bio_write_ret <= 0) {
+      EVP_PKEY_free(priv_key);
+      BIO_free(priv_bio);
+      return std::string();
+    }
+    if (!PEM_read_bio_PrivateKey(priv_bio, &priv_key, NULL, NULL)) {
+      EVP_PKEY_free(priv_key);
+      BIO_free(priv_bio);
+      return std::string();
+    }
+
+    std::string pub_key_pem = keyPair_pem.second;
+    EVP_PKEY* pub_key = EVP_PKEY_new();
+    BIO* pub_bio = BIO_new(BIO_s_mem());
+    int pub_bio_write_ret = BIO_write(pub_bio, static_cast<const char*>(pub_key_pem.c_str()), pub_key_pem.size());
+    if (pub_bio_write_ret <= 0) {
+      EVP_PKEY_free(pub_key);
+      BIO_free(pub_bio);
+      return std::string();
+    }
+    if (!PEM_read_bio_PUBKEY(pub_bio, &pub_key, NULL, NULL)) {
+      EVP_PKEY_free(pub_key);
+      BIO_free(pub_bio);
+      return std::string();
+    }
+    X509* x509;
+    x509 = X509_new();
+
+    ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
+    X509_gmtime_adj(X509_get_notBefore(x509), 0);
+    X509_gmtime_adj(X509_get_notAfter(x509), 31536000L);
+
+    X509_set_pubkey(x509, pub_key);
+
+    X509_NAME* name;
+    name = X509_get_subject_name(x509);
+
+    X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "ST", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "L", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "OU", MBSTRING_ASC, (unsigned char*)std::to_string(node_id).c_str(), -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)host.c_str(), -1, -1, 0);
+    X509_set_issuer_name(x509, name);
+    X509_sign(x509, priv_key, EVP_sha1());
+
+    BIO* outbio = BIO_new(BIO_s_mem());
+    if (!PEM_write_bio_X509(outbio, x509)) {
+      BIO_free(outbio);
+      EVP_PKEY_free(pub_key);
+      BIO_free(pub_bio);
+      EVP_PKEY_free(pub_key);
+      BIO_free(pub_bio);
+      return std::string();
+    }
+    std::string certStr;
+    int certLen = BIO_pending(outbio);
+    certStr.resize(certLen);
+    BIO_read(outbio, (void*)&(certStr.front()), certLen);
+
+    // free all pointers
+    BIO_free(outbio);
+    EVP_PKEY_free(pub_key);
+    BIO_free(pub_bio);
+    EVP_PKEY_free(pub_key);
+    BIO_free(pub_bio);
+
+    return certStr;
+  }
   ~Impl() = default;
 };
 
@@ -253,6 +337,12 @@ std::pair<std::string, std::string> Crypto::generateECDSAKeyPair(KeyFormat fmt) 
 
 std::pair<std::string, std::string> Crypto::ECDSAHexToPem(const std::pair<std::string, std::string>& key_pair) const {
   return impl_->ECDSAHexToPem(key_pair);
+}
+
+std::string Crypto::generateSelfSignedCertificate(const std::pair<std::string, std::string>& keyPair_pem,
+                                                  const std::string& host,
+                                                  uint32_t node_id) {
+  return impl_->generateSelfSignedCert(keyPair_pem, host, node_id);
 }
 
 Crypto::Crypto() : impl_{new Impl()} {}
