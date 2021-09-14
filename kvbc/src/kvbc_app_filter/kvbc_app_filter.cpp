@@ -49,10 +49,10 @@ using concord::util::openssl_utils::kExpectedSHA256HashLengthInBytes;
 namespace concord {
 namespace kvbc {
 
-optional<BlockId> KvbAppFilter::getFirstEventGroupBlockId() {
-  // TODO: Doesn't work with pruning - use "global_event_group_id_oldest" once it is supported
+optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
+  uint64_t global_eg_id_oldest = getLatestFromLatestTableInStorage(kGlobalEgIdKeyOldest);
   const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
-                                                concordUtils::toBigEndianStringBuffer(1ul));
+                                                concordUtils::toBigEndianStringBuffer(global_eg_id_oldest));
   if (not opt.has_value()) {
     return std::nullopt;
   }
@@ -713,7 +713,7 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) 
 
 std::optional<kvbc::categorization::ImmutableInput> KvbAppFilter::getBlockEvents(kvbc::BlockId block_id,
                                                                                  std::string &cid) {
-  if (auto opt = getFirstEventGroupBlockId()) {
+  if (auto opt = getOldestEventGroupBlockId()) {
     if (block_id >= opt.value()) {
       throw NoLegacyEvents();
     }

@@ -255,7 +255,7 @@ class FakeStorage : public concord::kvbc::IReader {
 
   BlockId getLastBlockId() const override { return block_id_; }
   EventGroupId getLastEventGroupId() const { return eg_db_.size(); }
-  BlockId getFirstEventGroupBlockId() const { return first_event_group_block_id_; }
+  BlockId getOldestEventGroupBlockId() const { return first_event_group_block_id_; }
 
   void updateLatestTable(const std::string& key, uint64_t id = 1) {
     // Let's save the latest private/trid specific event group id
@@ -1289,7 +1289,7 @@ TEST(thin_replica_server_test, SubscribeToUpdatesLegacyTransition) {
                       generateEventGroupMap(1, kLastEventGroupId, EventGroupType::PrivateEventGroupsOnly));
   EXPECT_EQ(storage.getLastBlockId(), kLastBlockId + kLastEventGroupId);
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
-  EXPECT_EQ(storage.getFirstEventGroupBlockId(), kLastBlockId + 1);
+  EXPECT_EQ(storage.getOldestEventGroupBlockId(), kLastBlockId + 1);
 
   // Live updates can contain event groups only
   auto live_update_event_groups =
@@ -1330,7 +1330,7 @@ TEST(thin_replica_server_test, SubscribeToUpdatesLegacyRequestEventGroups) {
   // Storage contains event groups only
   FakeStorage storage(generateEventGroupMap(1, kLastEventGroupId, EventGroupType::PrivateEventGroupsOnly));
   EXPECT_EQ(storage.getLastEventGroupId(), kLastEventGroupId);
-  EXPECT_EQ(storage.getFirstEventGroupBlockId(), 1);
+  EXPECT_EQ(storage.getOldestEventGroupBlockId(), 1);
 
   // Live updates can contain event groups only
   auto live_update_event_groups =

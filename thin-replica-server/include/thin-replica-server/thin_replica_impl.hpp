@@ -253,7 +253,7 @@ class ThinReplicaImpl {
     kvbc::BlockId start_block_id;
     if (request->has_events()) {
       start_block_id = request->events().block_id();
-      if (auto opt = kvb_filter->getFirstEventGroupBlockId()) {
+      if (auto opt = kvb_filter->getOldestEventGroupBlockId()) {
         if (start_block_id >= opt.value()) {
           is_event_group_transition = true;
         }
@@ -712,7 +712,7 @@ class ThinReplicaImpl {
       }
       // If event groups are enabled then all live updates will be event groups but they won't show up in the legacy
       // event queue. Therefore, let's query storage directly.
-      if (kvb_filter->getFirstEventGroupBlockId()) {
+      if (kvb_filter->getOldestEventGroupBlockId()) {
         throw concord::kvbc::NoLegacyEvents();
       }
     }

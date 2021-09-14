@@ -199,12 +199,13 @@ class KvbAppFilter {
 
   // Return the block number of the very first global event group.
   // Optional because during start-up there might be no block/event group written yet.
-  std::optional<BlockId> getFirstEventGroupBlockId();
+  std::optional<BlockId> getOldestEventGroupBlockId();
 
  private:
   logging::Logger logger_;
   const concord::kvbc::IReader *rostorage_;
   const std::string client_id_;
+  static inline const std::string kGlobalEgIdKeyOldest{"_global_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
   static inline const std::string kPublicEgId{"_public_eg_id"};
