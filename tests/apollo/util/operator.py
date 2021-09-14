@@ -128,6 +128,7 @@ class Operator:
     def _construct_reconfiguration_clientKe_command(self, target_clients = []):
         cke_command = cmf_msgs.ClientKeyExchangeCommand()
         cke_command.target_clients = target_clients
+        cke_command.tls = False
         return self._construct_basic_reconfiguration_request(cke_command)
 
     def _construct_reconfiguration_clientsAddRemove_command(self, config_desc, tokens):
@@ -145,6 +146,7 @@ class Operator:
     def _construct_reconfiguration_clientsKeyExchangeStatus_command(self):
         ckes_command = cmf_msgs.ClientKeyExchangeStatus()
         ckes_command.sender_id = 1000
+        ckes_command.tls = False
         return self._construct_basic_reconfiguration_request(ckes_command)
 
     def _construct_reconfiguration_restart_command(self, bft, restart, data):
