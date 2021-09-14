@@ -758,7 +758,7 @@ class ThinReplicaImpl {
                               std::shared_ptr<SubUpdateBuffer>& live_updates,
                               ServerWriterT* stream,
                               std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
-    uint64_t current_oldest_start = kvb_filter->oldestTagSpecificPublicEventGroupId(getClientId(context));
+    uint64_t current_oldest_start = kvb_filter->oldestTagSpecificPublicEventGroupId();
     if (start < current_oldest_start) {
       std::stringstream msg;
       msg << "Request event group ID: " << start
@@ -766,7 +766,7 @@ class ThinReplicaImpl {
       LOG_ERROR(logger_, msg.str());
       throw std::runtime_error(msg.str());
     }
-    auto end = kvb_filter->newestTagSpecificPublicEventGroupId(getClientId(context));
+    auto end = kvb_filter->newestTagSpecificPublicEventGroupId();
     if (!end) {
       std::stringstream msg;
       msg << "No event group exists in KVB yet for client: " << getClientId(context);
@@ -964,7 +964,7 @@ class ThinReplicaImpl {
     } else {
       LOG_DEBUG(logger_, "subscribeToLiveUpdates event groups (client id " << client_id << ")");
 
-      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId(client_id);
+      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
       LOG_INFO(
           logger_,
           "subscribeToLiveUpdates (eg vs last) " << request->event_groups().event_group_id() << " > " << last_eg_id);

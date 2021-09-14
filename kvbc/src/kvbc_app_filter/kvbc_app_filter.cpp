@@ -311,28 +311,23 @@ uint64_t KvbAppFilter::getValueFromTagTable(const std::string &key) {
 
 // This function returns the oldest tag-specific public event group id that the user can request.
 // Due to pruning, it depends on the oldest public event group and the oldest tag-specific event group available.
-uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId(const std::string &client_id) {
+uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() {
   uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
-  uint64_t private_oldest = getValueFromLatestTable(client_id + "_oldest");
+  uint64_t private_oldest = getValueFromLatestTable(client_id_ + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
   return public_oldest + private_oldest - 1;
 }
 
 // This function returns the newest tag-specific public event group id that the user can request.
 // Note that newest tag-specific event group ids will not be updated by pruning
-uint64_t KvbAppFilter::newestTagSpecificPublicEventGroupId(const std::string &client_id) {
+uint64_t KvbAppFilter::newestTagSpecificPublicEventGroupId() {
   uint64_t public_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
-  uint64_t private_newest = getValueFromLatestTable(client_id + "_newest");
+  uint64_t private_newest = getValueFromLatestTable(client_id_ + "_newest");
   return public_newest + private_newest;
 }
 
-std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(uint64_t public_end,
-                                                          uint64_t private_end,
-                                                          const std::string &client_id,
-                                                          std::shared_ptr<EventGroupClientState> &eg_state) {
-  LOG_DEBUG(logger_,
-            "Public_offset: " << eg_state->public_offset << ", private_offset: " << eg_state->private_offset
-                              << ", public_end: " << public_end << ", private_end: " << private_end);
+std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventGroupClientState> &eg_state) {
+  LOG_DEBUG(logger_, "Public_offset: " << eg_state->public_offset << ", private_offset: " << eg_state->private_offset);
   LOG_DEBUG(logger_, "Event group id list batch size: " << eg_state->event_group_id_batch.size());
 
   // there should be at least one event group to read from storage
@@ -340,12 +335,14 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(uint64_t public_end,
   // that tag
   ConcordAssert(eg_state->public_offset != 0 || eg_state->private_offset != 0);
 
-  // we cannot read event group ids from storage if they don't exist
-  ConcordAssert(eg_state->public_offset <= public_end + 1 && eg_state->private_offset <= private_end + 1);
-
   if (eg_state->it != eg_state->event_group_id_batch.end()) {
     return *eg_state->it++;
   }
+  uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
+  uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
+  LOG_DEBUG(logger_, ", public_end: " << public_end << ", private_end: " << private_end);
+  // we cannot read event group ids from storage if they don't exist
+  ConcordAssert(eg_state->public_offset <= public_end + 1 && eg_state->private_offset <= private_end + 1);
   // read global event group IDs from storage into memory
   // no public event groups in storage and all private event group ids have already been read
   if (public_end == 0 && eg_state->private_offset > private_end) return std::nullopt;
@@ -381,7 +378,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(uint64_t public_end,
     for (uint64_t i = eg_state->private_offset; i < std::min(eg_state->private_offset + kBatchSize, private_end + 1);
          ++i) {
       uint64_t global_eg_id =
-          getValueFromTagTable(client_id + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(i));
+          getValueFromTagTable(client_id_ + kTagTableKeySeparator + concordUtils::toBigEndianStringBuffer(i));
       private_event_group_ids.emplace_back(global_eg_id);
     }
   }
@@ -507,7 +504,7 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
     LOG_DEBUG(logger_,
               "Current tag_event_group_id: " << eg_data_state_->curr_trid_event_group_id
                                              << ", event_group_id_end: " << event_group_id_end);
-    auto opt = getNextEventGroupId(public_end, private_end, client_id_, eg_data_state_);
+    auto opt = getNextEventGroupId(eg_data_state_);
     uint64_t global_event_group_id;
     if (opt.has_value()) {
       global_event_group_id = opt.value();
@@ -596,7 +593,7 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
     LOG_DEBUG(logger_,
               "Requested_event_group_id: " << requested_event_group_id
                                            << ", trid_event_group_id: " << eg_hash_state_->curr_trid_event_group_id);
-    opt = getNextEventGroupId(public_end, private_end, client_id_, eg_hash_state_);
+    opt = getNextEventGroupId(eg_hash_state_);
     eg_hash_state_->curr_trid_event_group_id++;
     if (eg_hash_state_->curr_trid_event_group_id == requested_event_group_id) {
       if (opt.has_value()) {
@@ -679,7 +676,7 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) 
   // For every global event group id received, lookup the data table to fetch the event group, filter and calculate the
   // concatenate hash from the filtered event group
   while (eg_hash_state_->curr_trid_event_group_id < event_group_id_end) {
-    auto opt = getNextEventGroupId(public_end, private_end, client_id_, eg_hash_state_);
+    auto opt = getNextEventGroupId(eg_hash_state_);
     uint64_t global_event_group_id;
     if (opt.has_value()) {
       global_event_group_id = opt.value();

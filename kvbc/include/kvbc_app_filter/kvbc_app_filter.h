@@ -184,16 +184,13 @@ class KvbAppFilter {
 
   uint64_t getValueFromTagTable(const std::string &key);
 
-  uint64_t oldestTagSpecificPublicEventGroupId(const std::string &client_id);
+  uint64_t oldestTagSpecificPublicEventGroupId();
 
-  uint64_t newestTagSpecificPublicEventGroupId(const std::string &client_id);
+  uint64_t newestTagSpecificPublicEventGroupId();
 
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window
-  std::optional<uint64_t> getNextEventGroupId(uint64_t public_end,
-                                              uint64_t private_end,
-                                              const std::string &client_id,
-                                              std::shared_ptr<EventGroupClientState> &eg_state);
+  std::optional<uint64_t> getNextEventGroupId(std::shared_ptr<EventGroupClientState> &eg_state);
 
   kvbc::categorization::EventGroup getEventGroup(kvbc::EventGroupId event_group_id, std::string &cid);
 
