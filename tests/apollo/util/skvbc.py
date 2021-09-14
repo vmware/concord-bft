@@ -49,10 +49,35 @@ class SimpleKVBCProtocol:
     requests.
     """
 
-    def __init__(self, bft_network, tracker = None, pre_process=False):
+    def __init__(self, bft_network, tracker = None, pre_exec_all = None):
+        """
+        Initializer for SimpleKVBCProtocol, given a BftTestNetwork to connect to
+        as bft_network, and optionally an SkvbcTracker to use as tracker and a
+        Boolean value specifying whether to enable pre execution on all requests
+        as pre_exec_all.
+        
+        Note pre_exec_all defaults to False if no tracker is given and to the
+        tracker's value for pre_exec_all if a tracker is given, so passing an
+        explicit value for pre_exec_all is unnecessary if a tracker is in use.
+        """
+
         self.bft_network = bft_network
         self.tracker = tracker
-        self.pre_exec_all = pre_process
+
+        if (self.tracker is not None):
+            if (pre_exec_all is not None):
+                assert (self.tracker.pre_exec_all == pre_exec_all), \
+                    "SimpleKVBCProtocol constructor was given a value for " \
+                    "pre_exec_all conflicting with the value configured in " \
+                    "the SkvbcTracker it was given."
+
+            self.pre_exec_all = self.tracker.pre_exec_all
+        else:
+            if (pre_exec_all is None):
+                self.pre_exec_all = False
+            else:
+                self.pre_exec_all = pre_exec_all
+
         self.alpha = [i for i in range(65, 91)]
         self.alphanum = [i for i in range(48, 58)]
         self.alphanum.extend(self.alpha)

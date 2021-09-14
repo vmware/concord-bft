@@ -123,7 +123,7 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         be triggered.
         Check the view change and then get the new primary and test the counts.
         """
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
         await bft_network.init_preexec_count()
@@ -149,7 +149,7 @@ class SkvbcPrimaryByzantinePreExecutionTest(unittest.TestCase):
         to different replica, view change will be triggered to elect a new primary.
         Check the view change and then get the new primary and test the counts.
         """
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker, tracker.pre_exec_all)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
         bft_network.start_all_replicas()
         await trio.sleep(SKVBC_INIT_GRACE_TIME)
         await bft_network.init_preexec_count()
