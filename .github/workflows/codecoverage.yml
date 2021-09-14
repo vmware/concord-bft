@@ -32,7 +32,7 @@ jobs:
 
       - name: Generate code coverage report for apollo tests
         id: gccreport
-        if: steps.build_test.outcome == 'success'
+        if: always()
         run: |
           script -q -e -c "make codecoverage"
 
