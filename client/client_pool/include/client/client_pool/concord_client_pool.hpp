@@ -45,6 +45,9 @@ enum SubmitResult {
   Acknowledged,  // The request has been queued for submission
   Overloaded,    // There is no available client to the moment to process the
   // request
+  Invalid_Argument,
+  Timed_Out,
+  Client_Unavailable,
 };
 
 // An internal error has occurred. Reason is recorded in logs.

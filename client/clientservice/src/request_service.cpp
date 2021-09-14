@@ -45,8 +45,23 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
   auto callback = [&](cc::SendResult&& send_result) {
     if (not std::holds_alternative<bft::client::Reply>(send_result)) {
       LOG_INFO(logger_, "Send returned error");
-      if (std::get<int>(send_result) == concord_client_pool::Overloaded)
-        status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "Overloaded"));
+      switch (std::get<int>(send_result)) {
+        case (concord_client_pool::Overloaded):
+          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "ALL CLIENTS OCCUPIED"));
+          break;
+        case (concord_client_pool::Invalid_Argument):
+          status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "INVALID ARGUMENT SENT"));
+          break;
+        case (concord_client_pool::Timed_Out):
+          status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "TIME OUT REACHED FOR REQUEST"));
+          break;
+        case (concord_client_pool::Client_Unavailable):
+          status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "NO CLIENT CONNECTED TO REPLICAS"));
+          break;
+        default:
+          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "INTERNAL ERROR"));
+          break;
+      }
       return;
     }
     auto reply = std::get<bft::client::Reply>(send_result);
