@@ -9,7 +9,7 @@
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(gcc)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28gcc%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Release%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Release+build+%28clang%29")
 [![Build Status](https://github.com/vmware/concord-bft/workflows/Debug%20build%20(clang)/badge.svg)](https://github.com/vmware/concord-bft/actions?query=workflow%3A"Debug+build+%28clang%29")
-
+[![codecoverage](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml/badge.svg)](https://github.com/vmware/concord-bft/actions/workflows/codecoverage.yml)
 
 <!-- ![Concored-bft Logo](TBD) -->
 
