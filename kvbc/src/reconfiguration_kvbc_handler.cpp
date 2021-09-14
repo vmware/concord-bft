@@ -189,9 +189,9 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientTls
   std::string bft_clients_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath;
   secretsmanager::SecretsManagerPlain sm;
   for (const auto& [cid, cert] : command.clients_certificates) {
-    std::string cert_path = bft_clients_cert_path + "/" + std::to_string(cid) + "/client";
+    std::string cert_path = bft_clients_cert_path + "/" + std::to_string(cid) + "/client/client.cert";
     sm.encryptFile(cert_path, cert);
-    LOG_INFO(getLogger(), cert_path + "was updated on the disk");
+    LOG_INFO(getLogger(), cert_path + " is updated on the disk");
   }
   return true;
 }

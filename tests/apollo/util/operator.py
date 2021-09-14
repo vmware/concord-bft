@@ -125,10 +125,10 @@ class Operator:
         addRemoveStatus_command.sender_id = 1000
         return self._construct_basic_reconfiguration_request(addRemoveStatus_command)
 
-    def _construct_reconfiguration_clientKe_command(self, target_clients = []):
+    def _construct_reconfiguration_clientKe_command(self, target_clients = [], tls = False):
         cke_command = cmf_msgs.ClientKeyExchangeCommand()
         cke_command.target_clients = target_clients
-        cke_command.tls = False
+        cke_command.tls = tls
         return self._construct_basic_reconfiguration_request(cke_command)
 
     def _construct_reconfiguration_clientsAddRemove_command(self, config_desc, tokens):
@@ -210,8 +210,8 @@ class Operator:
         reconf_msg = self._construct_reconfiguration_keMsg_command(target_replicas)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
-    async def client_key_exchange_command(self, target_clients):
-        reconf_msg = self._construct_reconfiguration_clientKe_command(target_clients)
+    async def client_key_exchange_command(self, target_clients, tls=False):
+        reconf_msg = self._construct_reconfiguration_clientKe_command(target_clients, tls)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
 
     async def clients_addRemove_command(self, config_desc):

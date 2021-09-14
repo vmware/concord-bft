@@ -17,6 +17,7 @@
 #include <memory>
 namespace concord::util::crypto {
 enum class KeyFormat : std::uint16_t { HexaDecimalStrippedFormat, PemFormat };
+enum class CurveType : std::uint16_t { secp256k1, secp384r1 };
 class IVerifier {
  public:
   virtual bool verify(const std::string& data, const std::string& sig) const = 0;
@@ -88,7 +89,8 @@ class Crypto {
   Crypto();
   ~Crypto();
   std::pair<std::string, std::string> generateRsaKeyPair(const uint32_t sig_length, const KeyFormat fmt) const;
-  std::pair<std::string, std::string> generateECDSAKeyPair(const KeyFormat fmt) const;
+  std::pair<std::string, std::string> generateECDSAKeyPair(const KeyFormat fmt,
+                                                           CurveType curve_type = CurveType::secp256k1) const;
   std::pair<std::string, std::string> RsaHexToPem(const std::pair<std::string, std::string>& key_pair) const;
   std::pair<std::string, std::string> ECDSAHexToPem(const std::pair<std::string, std::string>& key_pair) const;
   std::string generateSelfSignedCertificate(const std::pair<std::string, std::string>& keyPair_pem,
