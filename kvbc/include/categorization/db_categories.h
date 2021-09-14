@@ -21,9 +21,9 @@ inline const auto kExecutionProvableCategory = "execution_provable";
 inline const auto kExecutionPrivateCategory = "execution_private";
 inline const auto kExecutionEventsCategory = "execution_events";
 inline const auto kRequestsRecord = "requests_record";
-inline const auto kExecutionEventGroupDataCategory = "execution_global_event_groups";
-inline const auto kExecutionEventGroupTagCategory = "execution_trid_event_groups";
-inline const auto kExecutionEventGroupLatestCategory = "execution_event_group_ids";
+inline const auto kExecutionEventGroupDataCategory = "execution_event_group_data";
+inline const auto kExecutionEventGroupTagCategory = "execution_event_group_tag";
+inline const auto kExecutionEventGroupLatestCategory = "execution_event_group_latest";
 
 // Concord and Concord-BFT internal category that is used for various kinds of metadata.
 // The type of the internal category is VersionedKeyValueCategory.
