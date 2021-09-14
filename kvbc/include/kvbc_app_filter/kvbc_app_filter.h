@@ -66,7 +66,7 @@ struct EventGroupClientState {
   // be read from the tag table
   uint64_t public_offset;
   uint64_t private_offset;
-  //
+  // current tag-specific event_group_id
   uint64_t curr_trid_event_group_id = 0;
 };
 
@@ -190,8 +190,8 @@ class KvbAppFilter {
 
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window
-  std::optional<uint64_t> getNextEventGroupId(const uint64_t &public_end,
-                                              const uint64_t &private_end,
+  std::optional<uint64_t> getNextEventGroupId(uint64_t public_end,
+                                              uint64_t private_end,
                                               const std::string &client_id,
                                               std::shared_ptr<EventGroupClientState> &eg_state);
 
@@ -209,6 +209,10 @@ class KvbAppFilter {
   static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
   static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
   static inline const std::string kPublicEgId{"_public_eg_id"};
+
+  // tag + kTagTableKeySeparator + latest_tag_event_group_id concatenation is used as key for kv-updates of type
+  // kExecutionEventGroupTagCategory
+  static inline const std::string kTagTableKeySeparator{"#"};
 
   // event groups are read in batches from storage, to avoid saving large number of event groups in memory
   // see method definition for getNextEventGroupId()

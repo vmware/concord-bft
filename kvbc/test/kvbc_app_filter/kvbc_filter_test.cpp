@@ -58,6 +58,7 @@ constexpr auto kLastBlockId = BlockId{150};
 static inline const std::string kGlobalEgIdKey{"_global_eg_id"};
 static inline const std::string kPublicEgIdKeyOldest{"_public_eg_id_oldest"};
 static inline const std::string kPublicEgIdKeyNewest{"_public_eg_id_newest"};
+static inline const std::string kTagTableKeySeparator{"#"};
 
 std::string CreateTridKvbValue(const std::string &value, const std::vector<std::string> &trid_list) {
   ValueWithTrids proto;
@@ -236,7 +237,8 @@ class FakeStorage : public concord::kvbc::IReader {
       }
       latest_table[kGlobalEgIdKey + "_newest"] = concordUtils::toBigEndianStringBuffer(i);
 
-      tag_table[trid + "#" + latest_table[trid + "_newest"]] = concordUtils::toBigEndianStringBuffer(i);
+      tag_table[trid + kTagTableKeySeparator + latest_table[trid + "_newest"]] =
+          concordUtils::toBigEndianStringBuffer(i);
       eg_data_.push_back({i, std::move(event_group)});
     }
     first_event_group_block_id_ = first_event_group_block_id_ ? first_event_group_block_id_ : blockId_ + 1;

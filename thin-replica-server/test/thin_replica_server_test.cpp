@@ -52,6 +52,7 @@ constexpr uint64_t kLastEventGroupId{5u};
 
 static inline const std::string kGlobalEgIdKey{"_global_eg_id"};
 static inline const std::string kPublicEgIdKey{"_public_eg_id"};
+static inline const std::string kTagTableKeySeparator{"#"};
 
 Block generate_block(BlockId block_id) {
   concord::kvbc::categorization::ImmutableValueUpdate data;
@@ -277,10 +278,10 @@ class FakeStorage : public concord::kvbc::IReader {
   void updateTagTable(const std::string& trid, const uint64_t global_event_group_id) {
     // We need to be able to map the global event_group_id to the trid specific event_group_id
     auto logger = logging::getLogger("thin_replica_server_test");
-    tag_table[trid + "#" + latest_table[trid + "_newest"]] =
+    tag_table[trid + kTagTableKeySeparator + latest_table[trid + "_newest"]] =
         concordUtils::toBigEndianStringBuffer(global_event_group_id);
     LOG_DEBUG(logger,
-              "key: " << trid + "#"
+              "key: " << trid + kTagTableKeySeparator
                       << concordUtils::fromBigEndianBuffer<uint64_t>(latest_table[trid + "_newest"].data())
                       << ", global_event_group_id: " << global_event_group_id);
   }
