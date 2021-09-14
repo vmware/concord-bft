@@ -125,6 +125,12 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               creply.response = cmd;
               break;
             }
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_TLS_KEY_EXCHANGE_COMMAND: {
+              concord::messages::ClientTlsExchangeKey cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
+            }
             default:
               break;
           }
@@ -163,6 +169,30 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExc
           std::to_string(sender_id),
       false);
   LOG_INFO(getLogger(), "block id: " << blockId);
+  return true;
+}
+
+bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientTlsExchangeKey& command,
+                                              uint64_t bft_seq_num,
+                                              uint32_t sender_id,
+                                              concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                  static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_TLS_KEY_EXCHANGE_COMMAND)} +
+          std::to_string(sender_id),
+      false);
+  LOG_INFO(getLogger(), "block id: " << blockId);
+  std::string bft_clients_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath;
+  secretsmanager::SecretsManagerPlain sm;
+  for (const auto& [cid, cert] : command.clients_certificates) {
+    std::string cert_path = bft_clients_cert_path + "/" + std::to_string(cid) + "/client";
+    sm.encryptFile(cert_path, cert);
+    LOG_INFO(getLogger(), cert_path + "was updated on the disk");
+  }
   return true;
 }
 

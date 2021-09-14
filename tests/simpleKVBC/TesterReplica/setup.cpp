@@ -257,7 +257,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     bft::communication::PlainUdpConfig conf =
         testCommConfig.GetUDPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #endif
-
+    replicaConfig.certificatesRootPath = certRootPath;
     std::unique_ptr<bft::communication::ICommunication> comm(bft::communication::CommFactory::create(conf));
 
     if (!byzantineStrategies.empty()) {

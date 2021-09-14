@@ -214,6 +214,7 @@ Msg ClientStateReply 39 {
         ClientKeyExchangeCommand
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
+        ClientTlsExchangeKey
       } response
 }
 
