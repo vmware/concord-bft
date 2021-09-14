@@ -168,7 +168,7 @@ string KvbAppFilter::hashUpdate(const KvbFilteredUpdate &update) {
 
   for (const auto &[key, value] : updates) {
     string key_hash = computeSHA256Hash(key.data(), key.length());
-    ConcordAssert(entry_hashes.count(key_hash) < 1);
+    ConcordAssertLT(entry_hashes.count(key_hash), 1);
     entry_hashes[key_hash] = computeSHA256Hash(value.data(), value.length());
   }
 
@@ -210,7 +210,7 @@ string KvbAppFilter::hashEventGroupUpdate(const KvbFilteredEventGroupUpdate &upd
 
   for (const auto &event : event_group.events) {
     string event_hash = computeSHA256Hash(event.data);
-    ConcordAssert(entry_hashes.count(event_hash) < 1);
+    ConcordAssertLT(entry_hashes.count(event_hash), 1);
     entry_hashes.emplace(event_hash);
   }
 
@@ -393,7 +393,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public
     for (auto public_event_group_id : public_event_group_ids) {
       eg_state->event_group_id_batch.emplace_back(public_event_group_id);
     }
-    ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
+    ConcordAssertLE(eg_state->event_group_id_batch.size(), kBatchSize);
     // increment the offset
     eg_state->public_offset += eg_state->event_group_id_batch.size();
     LOG_DEBUG(logger_,
@@ -404,7 +404,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public
     for (auto private_event_group_id : private_event_group_ids) {
       eg_state->event_group_id_batch.emplace_back(private_event_group_id);
     }
-    ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
+    ConcordAssertLE(eg_state->event_group_id_batch.size(), kBatchSize);
     // increment the offset
     eg_state->private_offset += eg_state->event_group_id_batch.size();
     LOG_DEBUG(logger_,
@@ -457,7 +457,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public
   // Reset the iterator so that we read from event_group_id_batch from the beginning
   eg_state->it = eg_state->event_group_id_batch.begin();
 
-  ConcordAssert(eg_state->event_group_id_batch.size() <= kBatchSize);
+  ConcordAssertLE(eg_state->event_group_id_batch.size(), kBatchSize);
   LOG_DEBUG(logger_, "Updated event group id list batch size: " << eg_state->event_group_id_batch.size());
   return *eg_state->it++;
 }
@@ -479,9 +479,9 @@ void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
     LOG_ERROR(logger_, msg.str());
     throw std::runtime_error(msg.str());
   } else if (!public_start) {
-    ConcordAssert(public_start == public_end);
+    ConcordAssertEQ(public_start, public_end);
   } else if (!private_start) {
-    ConcordAssert(private_start == private_end);
+    ConcordAssertEQ(private_start, private_end);
   }
   // update the offsets if we now have corresponding public/private event groups in storage
   if (eg_data_state_->public_offset == 0) eg_data_state_->public_offset = public_start;
@@ -569,9 +569,9 @@ string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
     LOG_ERROR(logger_, msg.str());
     throw std::runtime_error(msg.str());
   } else if (!public_start) {
-    ConcordAssert(public_start == public_end);
+    ConcordAssertEQ(public_start, public_end);
   } else if (!private_start) {
-    ConcordAssert(private_start == private_end);
+    ConcordAssertEQ(private_start, private_end);
   }
   uint64_t global_event_group_id;
   uint64_t event_group_id_end = private_end + public_end;
@@ -655,9 +655,9 @@ string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) 
     LOG_ERROR(logger_, msg.str());
     throw std::runtime_error(msg.str());
   } else if (!public_start) {
-    ConcordAssert(public_start == public_end);
+    ConcordAssertEQ(public_start, public_end);
   } else if (!private_start) {
-    ConcordAssert(private_start == private_end);
+    ConcordAssertEQ(private_start, private_end);
   }
   uint64_t event_group_id_end = private_end + public_end;
   if (event_group_id_start == 0) {
