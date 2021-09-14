@@ -50,7 +50,7 @@ namespace concord {
 namespace kvbc {
 
 optional<BlockId> KvbAppFilter::getOldestEventGroupBlockId() {
-  uint64_t global_eg_id_oldest = getLatestFromLatestTableInStorage(kGlobalEgIdKeyOldest);
+  uint64_t global_eg_id_oldest = getValueFromLatestTable(kGlobalEgIdKeyOldest);
   const auto opt = rostorage_->getLatestVersion(concord::kvbc::categorization::kExecutionEventGroupDataCategory,
                                                 concordUtils::toBigEndianStringBuffer(global_eg_id_oldest));
   if (not opt.has_value()) {
@@ -272,10 +272,10 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
   }
 }
 
-uint64_t KvbAppFilter::getLatestFromLatestTableInStorage(const std::string &key) {
+uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) {
   const auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, key);
   if (not opt) {
-    LOG_ERROR(logger_, "An event group ID for key \"" << key << "\" doesn't exist yet");
+    LOG_ERROR(logger_, "Tag-specific event group ID for key \"" << key << "\" doesn't exist yet");
     // In case there are no public or private event groups for a client, return 0.
     // Note: `0` is an invalid event group id
     return 0;
@@ -283,13 +283,13 @@ uint64_t KvbAppFilter::getLatestFromLatestTableInStorage(const std::string &key)
   auto val = std::get_if<concord::kvbc::categorization::VersionedValue>(&(opt.value()));
   if (not val) {
     std::stringstream msg;
-    msg << "Failed to convert stored event group id for key \"" << key << "\" to versioned value";
+    msg << "Failed to convert stored tag-specific event group id for key \"" << key << "\" to versioned value";
     throw std::runtime_error(msg.str());
   }
   return concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 }
 
-uint64_t KvbAppFilter::getLatestFromTagTableInStorage(const std::string &key) {
+uint64_t KvbAppFilter::getValueFromTagTable(const std::string &key) {
   const auto opt = rostorage_->getLatest(concord::kvbc::categorization::kExecutionEventGroupTagCategory, key);
   if (not opt) {
     std::stringstream msg;
@@ -307,20 +307,22 @@ uint64_t KvbAppFilter::getLatestFromTagTableInStorage(const std::string &key) {
   return concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 }
 
-uint64_t KvbAppFilter::firstTagSpecificPublicEventGroupId(const std::string &client_id) {
-  uint64_t public_oldest = getLatestFromLatestTableInStorage(kPublicEgIdKeyOldest);
-  uint64_t private_oldest = getLatestFromLatestTableInStorage(client_id + "_oldest");
-  if (!public_oldest) public_oldest = 0;
-  if (!private_oldest) private_oldest = 0;
+// We don't store tag-specific public event group ids and need to compute them at runtime.
+
+// This function returns the oldest tag-specific public event group id that the user can request.
+// Due to pruning, it depends on the oldest public event group and the oldest tag-specific event group available.
+uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId(const std::string &client_id) {
+  uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
+  uint64_t private_oldest = getValueFromLatestTable(client_id + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
   return public_oldest + private_oldest - 1;
 }
 
-uint64_t KvbAppFilter::lastTagSpecificPublicEventGroupId(const std::string &client_id) {
-  uint64_t public_newest = getLatestFromLatestTableInStorage(kPublicEgIdKeyNewest);
-  uint64_t private_newest = getLatestFromLatestTableInStorage(client_id + "_newest");
-  if (!public_newest) public_newest = 0;
-  if (!private_newest) private_newest = 0;
+// This function returns the newest tag-specific public event group id that the user can request.
+// Note that newest tag-specific event group ids will not be updated by pruning
+uint64_t KvbAppFilter::newestTagSpecificPublicEventGroupId(const std::string &client_id) {
+  uint64_t public_newest = getValueFromLatestTable(kPublicEgIdKeyNewest);
+  uint64_t private_newest = getValueFromLatestTable(client_id + "_newest");
   return public_newest + private_newest;
 }
 
@@ -369,8 +371,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public
       // get global_event_group_id corresponding to tag_event_group_id
       // tag + # + latest_tag_event_group_id concatenation is used as key for kv-updates of type
       // kExecutionEventGroupTagCategory
-      uint64_t global_eg_id =
-          getLatestFromTagTableInStorage(kPublicEgId + "#" + concordUtils::toBigEndianStringBuffer(i));
+      uint64_t global_eg_id = getValueFromTagTable(kPublicEgId + "#" + concordUtils::toBigEndianStringBuffer(i));
       public_event_group_ids.emplace_back(global_eg_id);
     }
   }
@@ -378,8 +379,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public
   if (eg_state->private_offset != 0) {
     for (uint64_t i = eg_state->private_offset; i < std::min(eg_state->private_offset + kBatchSize, private_end + 1);
          ++i) {
-      uint64_t global_eg_id =
-          getLatestFromTagTableInStorage(client_id + "#" + concordUtils::toBigEndianStringBuffer(i));
+      uint64_t global_eg_id = getValueFromTagTable(client_id + "#" + concordUtils::toBigEndianStringBuffer(i));
       private_event_group_ids.emplace_back(global_eg_id);
     }
   }
@@ -465,10 +465,10 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(const uint64_t &public
 void KvbAppFilter::readEventGroupRange(EventGroupId event_group_id_start,
                                        spsc_queue<KvbFilteredEventGroupUpdate> &queue_out,
                                        const std::atomic_bool &stop_execution) {
-  uint64_t public_start = getLatestFromLatestTableInStorage(kPublicEgIdKeyOldest);
-  uint64_t private_start = getLatestFromLatestTableInStorage(client_id_ + "_oldest");
-  uint64_t public_end = getLatestFromLatestTableInStorage(kPublicEgIdKeyNewest);
-  uint64_t private_end = getLatestFromLatestTableInStorage(client_id_ + "_newest");
+  uint64_t public_start = getValueFromLatestTable(kPublicEgIdKeyOldest);
+  uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
+  uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
+  uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
   LOG_DEBUG(logger_,
             "Reading event group range, public_start: " << public_start << " private_start: " << private_start
                                                         << " public_end: " << public_end
@@ -559,10 +559,10 @@ string KvbAppFilter::readBlockHash(BlockId block_id) {
 }
 
 string KvbAppFilter::readEventGroupHash(EventGroupId requested_event_group_id) {
-  uint64_t public_start = getLatestFromLatestTableInStorage(kPublicEgIdKeyOldest);
-  uint64_t private_start = getLatestFromLatestTableInStorage(client_id_ + "_oldest");
-  uint64_t public_end = getLatestFromLatestTableInStorage(kPublicEgIdKeyNewest);
-  uint64_t private_end = getLatestFromLatestTableInStorage(client_id_ + "_newest");
+  uint64_t public_start = getValueFromLatestTable(kPublicEgIdKeyOldest);
+  uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
+  uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
+  uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
   if (!public_start && !private_start) {
     std::stringstream msg;
     msg << "Event groups do not exist for client: " << client_id_ << " yet.";
@@ -645,10 +645,10 @@ string KvbAppFilter::readBlockRangeHash(BlockId block_id_start, BlockId block_id
 }
 
 string KvbAppFilter::readEventGroupRangeHash(EventGroupId event_group_id_start) {
-  uint64_t public_start = getLatestFromLatestTableInStorage(kPublicEgIdKeyOldest);
-  uint64_t public_end = getLatestFromLatestTableInStorage(kPublicEgIdKeyNewest);
-  uint64_t private_start = getLatestFromLatestTableInStorage(client_id_ + "_oldest");
-  uint64_t private_end = getLatestFromLatestTableInStorage(client_id_ + "_newest");
+  uint64_t public_start = getValueFromLatestTable(kPublicEgIdKeyOldest);
+  uint64_t public_end = getValueFromLatestTable(kPublicEgIdKeyNewest);
+  uint64_t private_start = getValueFromLatestTable(client_id_ + "_oldest");
+  uint64_t private_end = getValueFromLatestTable(client_id_ + "_newest");
   if (!public_start && !private_start) {
     std::stringstream msg;
     msg << "Event groups do not exist for client: " << client_id_ << " yet.";

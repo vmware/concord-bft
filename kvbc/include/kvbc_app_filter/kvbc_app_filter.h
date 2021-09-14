@@ -127,8 +127,8 @@ class KvbAppFilter {
   KvbAppFilter(const concord::kvbc::IReader *rostorage, const std::string &client_id)
       : logger_(logging::getLogger("concord.storage.KvbAppFilter")), rostorage_(rostorage), client_id_(client_id) {
     if (rostorage_) {
-      auto eg_id_pub_oldest = getLatestFromLatestTableInStorage(kPublicEgIdKeyOldest);
-      auto eg_id_pvt_oldest = getLatestFromLatestTableInStorage(client_id + "_oldest");
+      auto eg_id_pub_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
+      auto eg_id_pvt_oldest = getValueFromLatestTable(client_id + "_oldest");
       eg_hash_state_ = std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pvt_oldest);
       eg_data_state_ = std::make_shared<EventGroupClientState>(eg_id_pub_oldest, eg_id_pvt_oldest);
     }
@@ -180,13 +180,13 @@ class KvbAppFilter {
   // Filter the given set of key-value pairs and return the result.
   KvbFilteredUpdate::OrderedKVPairs filterKeyValuePairs(const kvbc::categorization::ImmutableInput &kvs);
 
-  uint64_t getLatestFromLatestTableInStorage(const std::string &key);
+  uint64_t getValueFromLatestTable(const std::string &key);
 
-  uint64_t getLatestFromTagTableInStorage(const std::string &key);
+  uint64_t getValueFromTagTable(const std::string &key);
 
-  uint64_t firstTagSpecificPublicEventGroupId(const std::string &client_id);
+  uint64_t oldestTagSpecificPublicEventGroupId(const std::string &client_id);
 
-  uint64_t lastTagSpecificPublicEventGroupId(const std::string &client_id);
+  uint64_t newestTagSpecificPublicEventGroupId(const std::string &client_id);
 
   // Generate event group ids in batches from storage
   // We do not want to process in memory, all the event group ids generated in a pruning window
