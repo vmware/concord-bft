@@ -85,7 +85,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   //   oldest one is deleted.
   // - The size of the allocated reply message exceeds the maximum reply size that was configured at the time of this
   //   ClientsManager's construction.
-  std::unique_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
+  std::shared_ptr<ClientReplyMsg> allocateNewReplyMsgAndWriteToStorage(
       NodeIdType clientId, ReqId requestSeqNum, uint16_t currentPrimaryId, char* reply, uint32_t replyLength);
 
   // Loads a client reply message from the reserved pages, and allocates and returns a ClientReplyMsg containing the
@@ -98,7 +98,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   // - The configuration recorded at the time of this ClientsManager's construction did not enable client batching or
   //   enabled it with a maximum batch size of 1, but the sequence number of the reply loaded from the reserved pages
   //   does not match requestSeqNum.
-  std::unique_ptr<ClientReplyMsg> allocateReplyFromSavedOne(NodeIdType clientId,
+  std::shared_ptr<ClientReplyMsg> allocateReplyFromSavedOne(NodeIdType clientId,
                                                             ReqId requestSeqNum,
                                                             uint16_t currentPrimaryId);
 
@@ -174,7 +174,9 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   void setClientPublicKey(NodeIdType, const std::string& key, concord::util::crypto::KeyFormat) override;
 
   // General
-  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
+  static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage,
+                                         const uint32_t& maxReplySize,
+                                         const uint16_t& maxNumOfReqsPerClient);
 
  protected:
   uint32_t getReplyFirstPageId(NodeIdType clientId) const { return getKeyPageId(clientId) + 1; }
@@ -200,7 +202,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
 
   struct ClientInfo {
     std::map<ReqId, RequestInfo> requestsInfo;
-    std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
+    std::map<ReqId, std::shared_ptr<ClientReplyMsg>> repliesInfo;  // replyId to replymsg
     std::pair<std::string, concord::util::crypto::KeyFormat> pubKey;
   };
 
@@ -211,6 +213,7 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   std::unordered_map<NodeIdType, ClientInfo> clientsInfo_;
   const uint32_t maxReplySize_;
   const uint16_t maxNumOfReqsPerClient_;
+  uint16_t singleReplyMaxNumOfPages_;
   concordMetrics::Component& metrics_;
   concordMetrics::CounterHandle metric_reply_inconsistency_detected_;
   concordMetrics::CounterHandle metric_removed_due_to_out_of_boundaries_;

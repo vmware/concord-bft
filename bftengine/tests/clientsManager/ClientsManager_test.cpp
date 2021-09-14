@@ -21,14 +21,22 @@ bftEngine::test::ReservedPagesMock<bftEngine::impl::ClientsManager> res_pages_mo
 TEST(ClientsManager, reservedPagesPerClient) {
   uint32_t sizeOfReservedPage = 1024;
   uint32_t maxReplysize = 1000;
-  auto numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  uint16_t maxNumOfReqsPerClient = 1;
+  auto numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumOfReqsPerClient);
   ASSERT_EQ(numPagesPerCl, 2);
   maxReplysize = 3000;
-  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumOfReqsPerClient);
   ASSERT_EQ(numPagesPerCl, 4);
   maxReplysize = 1024;
-  numPagesPerCl = bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize);
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumOfReqsPerClient);
   ASSERT_EQ(numPagesPerCl, 2);
+  maxNumOfReqsPerClient = 10;
+  numPagesPerCl =
+      bftEngine::impl::ClientsManager::reservedPagesPerClient(sizeOfReservedPage, maxReplysize, maxNumOfReqsPerClient);
+  ASSERT_EQ(numPagesPerCl, 11);
 }
 
 TEST(ClientsManager, constructor) {

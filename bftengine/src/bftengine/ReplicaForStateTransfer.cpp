@@ -49,6 +49,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 
   // Reserved Pages and State Transfer initialization
+  const auto maxNumOfReqsPerClient =
+      config.clientBatchingEnabled ? ReplicaConfig::instance().clientBatchingMaxMsgsNbr : 1;
   ClientsManager::setNumResPages(
       (config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients +
        config.numReplicas) *
