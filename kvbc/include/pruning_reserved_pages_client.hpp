@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <chrono>
-#include <mutex>
 
 namespace concord::kvbc::pruning {
 
@@ -96,16 +95,10 @@ class ReservedPagesClient {
   std::optional<BlockId> latestBatchBlockIdTo() const { return latest_batch_block_id_to_; }
 
  private:
-  void saveAgreementWithoutLock(const Agreement& agreement);
-
- private:
   static constexpr std::uint32_t kLatestAgreementPageId{0};
   static constexpr std::uint32_t kLatestBatchBlockIdToPageId{1};
 
  private:
-  // Use a mutex to ensure visibility between threads calling client methods - namely the main, messaging and state
-  // transfer threads.
-  std::mutex mtx_;
   std::optional<Agreement> latest_agreement_;
   std::optional<BlockId> latest_batch_block_id_to_;
   ClientType client_;
