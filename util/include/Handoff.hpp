@@ -34,6 +34,7 @@ class Handoff {
   Handoff(std::uint16_t replicaId) {
     thread_ = std::thread([this, replicaId] {
       try {
+        (void)replicaId;
         MDC_PUT(MDC_REPLICA_ID_KEY, std::to_string(replicaId));
         MDC_PUT(MDC_THREAD_KEY, "handoff");
         for (;;) pop()();
