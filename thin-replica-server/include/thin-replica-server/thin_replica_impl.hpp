@@ -192,7 +192,7 @@ class ThinReplicaImpl {
 
     std::string kvb_eg_hash;
     try {
-      kvb_eg_hash = kvb_filter->readEventGroupRangeHash(event_group_id_start, event_group_id_end);
+      kvb_eg_hash = kvb_filter->readEventGroupRangeHash(event_group_id_start);
     } catch (std::exception& error) {
       LOG_ERROR(logger_, error.what());
       std::stringstream msg;
@@ -233,7 +233,7 @@ class ThinReplicaImpl {
       return kvb_status;
     }
 
-    auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context));
+    auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context), kvb_filter);
     if (!subscribe_status.ok()) {
       LOG_WARN(logger_,
                "SubscribeToUpdates subscribeToLiveUpdates failed: (" << subscribe_status.error_code() << ") "
@@ -253,7 +253,7 @@ class ThinReplicaImpl {
     kvbc::BlockId start_block_id;
     if (request->has_events()) {
       start_block_id = request->events().block_id();
-      if (auto opt = kvb_filter->getFirstEventGroupBlockId()) {
+      if (auto opt = kvb_filter->getOldestEventGroupBlockId()) {
         if (start_block_id >= opt.value()) {
           is_event_group_transition = true;
         }
@@ -573,7 +573,6 @@ class ThinReplicaImpl {
                                          ServerContextT* context,
                                          ServerWriterT* stream,
                                          kvbc::EventGroupId start,
-                                         kvbc::EventGroupId end,
                                          std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
     using namespace std::chrono_literals;
     boost::lockfree::spsc_queue<kvbc::KvbFilteredEventGroupUpdate> queue{10};
@@ -583,7 +582,6 @@ class ThinReplicaImpl {
                                  &kvbc::KvbAppFilter::readEventGroupRange,
                                  kvb_filter,
                                  start,
-                                 end,
                                  std::ref(queue),
                                  std::ref(close_stream));
 
@@ -679,7 +677,7 @@ class ThinReplicaImpl {
                       std::is_same<DataT, com::vmware::concord::thin_replica::Hash>(),
                   "We expect either a Data or Hash type");
     if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
-      readEventGroupsFromKvbAndSendData(logger, context, stream, start, end, kvb_filter);
+      readEventGroupsFromKvbAndSendData(logger, context, stream, start, kvb_filter);
     } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
       readEventGroupsFromKvbAndSendHashes(logger, context, stream, start, end, kvb_filter);
     }
@@ -714,7 +712,7 @@ class ThinReplicaImpl {
       }
       // If event groups are enabled then all live updates will be event groups but they won't show up in the legacy
       // event queue. Therefore, let's query storage directly.
-      if (kvb_filter->getFirstEventGroupBlockId()) {
+      if (kvb_filter->getOldestEventGroupBlockId()) {
         throw concord::kvbc::NoLegacyEvents();
       }
     }
@@ -760,20 +758,21 @@ class ThinReplicaImpl {
                               std::shared_ptr<SubUpdateBuffer>& live_updates,
                               ServerWriterT* stream,
                               std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
-    auto opt =
-        config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, getClientId(context));
-    if (not opt) {
+    uint64_t current_oldest_start = kvb_filter->oldestTagSpecificPublicEventGroupId();
+    if (start < current_oldest_start) {
       std::stringstream msg;
-      msg << "An event group for trid \"" << getClientId(context) << "\" doesn't exist yet";
+      msg << "Request event group ID: " << start
+          << " has been pruned, the current oldest event group ID is: " << current_oldest_start;
+      LOG_ERROR(logger_, msg.str());
       throw std::runtime_error(msg.str());
     }
-    auto val = std::get_if<concord::kvbc::categorization::VersionedValue>(&(opt.value()));
-    if (not val) {
+    auto end = kvb_filter->newestTagSpecificPublicEventGroupId();
+    if (!end) {
       std::stringstream msg;
-      msg << "Failed to convert stored event group id to versioned value";
-      throw std::runtime_error(msg.str());
+      msg << "No event group exists in KVB yet for client: " << getClientId(context);
+      LOG_ERROR(logger_, msg.str());
     }
-    auto end = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
+    ConcordAssert(current_oldest_start <= end);
     ConcordAssert(start <= end);
 
     // Let's not wait for a live update yet due to there might be lots of
@@ -940,8 +939,8 @@ class ThinReplicaImpl {
   }
 
   template <typename RequestT>
-  std::tuple<grpc::Status, std::shared_ptr<SubUpdateBuffer>> subscribeToLiveUpdates(RequestT* request,
-                                                                                    const std::string& client_id) {
+  std::tuple<grpc::Status, std::shared_ptr<SubUpdateBuffer>> subscribeToLiveUpdates(
+      RequestT* request, const std::string& client_id, std::shared_ptr<kvbc::KvbAppFilter>& kvb_filter) {
     auto live_updates = std::make_shared<SubUpdateBuffer>(kSubUpdateBufferSize);
     bool success = config_->subscriber_list.addBuffer(live_updates);
     if (!success) {
@@ -964,22 +963,8 @@ class ThinReplicaImpl {
       }
     } else {
       LOG_DEBUG(logger_, "subscribeToLiveUpdates event groups (client id " << client_id << ")");
-      auto opt = config_->rostorage->getLatest(kvbc::categorization::kExecutionEventGroupIdsCategory, client_id);
-      if (not opt) {
-        std::stringstream msg;
-        msg << "An event group for trid \"" << client_id << "\" doesn't exist yet";
-        LOG_ERROR(logger_, msg.str());
-        return {grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, msg.str()), live_updates};
-      }
-      auto val = std::get_if<concord::kvbc::categorization::VersionedValue>(&(opt.value()));
-      if (not val) {
-        std::stringstream msg;
-        msg << "Failed to convert stored event group id to versioned value";
-        LOG_ERROR(logger_, msg.str());
-        return {grpc::Status(grpc::StatusCode::INTERNAL, msg.str()), live_updates};
-      }
-      auto last_eg_id = concordUtils::fromBigEndianBuffer<uint64_t>(val->data.data());
 
+      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
       LOG_INFO(
           logger_,
           "subscribeToLiveUpdates (eg vs last) " << request->event_groups().event_group_id() << " > " << last_eg_id);
