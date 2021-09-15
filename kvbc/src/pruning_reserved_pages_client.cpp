@@ -52,7 +52,7 @@ ReservedPagesClient::ReservedPagesClient() {
   }
 }
 
-void ReservedPagesClient::saveAgreementWithoutLock(const Agreement& agreement) {
+void ReservedPagesClient::saveAgreement(const Agreement& agreement) {
   auto out = std::vector<std::uint8_t>{};
   serialize(out, agreement);
   client_.saveReservedPage(kLatestAgreementPageId, out.size(), cdata(out));
@@ -62,37 +62,27 @@ void ReservedPagesClient::saveAgreementWithoutLock(const Agreement& agreement) {
   latest_agreement_ = agreement;
 }
 
-void ReservedPagesClient::saveAgreement(const Agreement& agreement) {
-  auto lock = std::scoped_lock{mtx_};
-  saveAgreementWithoutLock(agreement);
-}
-
 void ReservedPagesClient::updateExistingAgreement(const std::chrono::seconds& tick_period,
                                                   std::uint64_t batch_blocks_num) {
-  auto lock = std::scoped_lock{mtx_};
   ConcordAssert(latest_agreement_.has_value());
-  saveAgreementWithoutLock(
-      createAgreement(tick_period, batch_blocks_num, latest_agreement_->last_agreed_prunable_block_id));
+  saveAgreement(createAgreement(tick_period, batch_blocks_num, latest_agreement_->last_agreed_prunable_block_id));
 }
 
 void ReservedPagesClient::updateExistingAgreement(const std::chrono::seconds& tick_period) {
-  auto lock = std::scoped_lock{mtx_};
   ConcordAssert(latest_agreement_.has_value());
-  saveAgreementWithoutLock(createAgreement(
+  saveAgreement(createAgreement(
       tick_period, latest_agreement_->batch_blocks_num, latest_agreement_->last_agreed_prunable_block_id));
 }
 
 void ReservedPagesClient::updateExistingAgreement(std::uint64_t batch_blocks_num) {
-  auto lock = std::scoped_lock{mtx_};
   ConcordAssert(latest_agreement_.has_value());
-  saveAgreementWithoutLock(createAgreement(std::chrono::seconds{latest_agreement_->tick_period_seconds},
-                                           batch_blocks_num,
-                                           latest_agreement_->last_agreed_prunable_block_id));
+  saveAgreement(createAgreement(std::chrono::seconds{latest_agreement_->tick_period_seconds},
+                                batch_blocks_num,
+                                latest_agreement_->last_agreed_prunable_block_id));
 }
 
 void ReservedPagesClient::saveLatestBatch(BlockId to) {
   auto out = std::vector<std::uint8_t>{};
-  auto lock = std::scoped_lock{mtx_};
   serialize(out, Batch{to});
   client_.saveReservedPage(kLatestBatchBlockIdToPageId, out.size(), cdata(out));
   latest_batch_block_id_to_ = to;
