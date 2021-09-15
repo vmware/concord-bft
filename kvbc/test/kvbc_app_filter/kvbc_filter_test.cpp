@@ -215,12 +215,11 @@ class FakeStorage : public concord::kvbc::IReader {
 
   // Dummy method to fill DB for testing, each client id can watch only the
   // event group id that corresponds to their client id.
-  void fillWithEventGroupData(EventGroupId num_of_egs) {
+  void fillWithEventGroupData(EventGroupId num_of_egs, const std::string &trid) {
     for (EventGroupId i = 1; i <= num_of_egs; i++) {
       concord::kvbc::categorization::Event event;
-      // trid ∈ {trid_1, trid_2}
-      const std::string trid = "trid_" + std::to_string(i % 2 + 1);
-      event.data = trid + "_val" + std::to_string(i);
+      const std::string data = trid + "_val" + std::to_string(i);
+      event.data = CreateTridKvbValue(data, {trid});
       event.tags.push_back(trid);
       concord::kvbc::categorization::EventGroup event_group;
       event_group.events.emplace_back(event);
@@ -383,27 +382,6 @@ TEST(kvbc_filter_test, kvbfilter_update_client_has_no_trids) {
   EXPECT_EQ(filtered.kv_pairs.size(), 0);
 }
 
-TEST(kvbc_filter_test, kvbfilter_update_client_has_no_trids_eg) {
-  FakeStorage storage;
-  int client_id = 1;
-  const auto eg_id = EventGroupId{1};
-  auto kvb_filter = KvbAppFilter(&storage, std::to_string(client_id));
-
-  concord::kvbc::categorization::EventGroup event_group{};
-  concord::kvbc::categorization::Event event1;
-  event1.data = "TridVal";
-  event1.tags = {"0"};
-  concord::kvbc::categorization::Event event2;
-  event2.data = event1.data;
-  event_group.events.emplace_back(event1);
-  event_group.events.emplace_back(event2);
-
-  const auto &filtered = kvb_filter.filterEventGroupUpdate({eg_id, event_group});
-
-  EXPECT_EQ(filtered.event_group_id, eg_id);
-  EXPECT_EQ(filtered.event_group.events.size(), 0);
-}
-
 TEST(kvbc_filter_test, kvbfilter_hash_update_success) {
   FakeStorage storage;
   int client_id = 1;
@@ -497,8 +475,8 @@ TEST(kvbc_filter_test, kvbfilter_success_get_blocks_in_range_eg) {
   FakeStorage storage;
   std::string client_id("trid_1");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
-  size_t num_event_groups_to_fill = 20;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
+  size_t num_event_groups_to_fill = 10;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
 
   EventGroupId eg_id_start = 1;
   EventGroupId eg_id_end = 10;
@@ -556,7 +534,7 @@ TEST(kvbc_filter_test, kvbfilter_stop_exec_in_the_middle_eg) {
   std::string client_id("trid_2");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 1000;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now() + std::chrono::seconds(30);
   KvbFilteredEventGroupUpdate temporary;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{num_event_groups_to_fill};
@@ -598,7 +576,7 @@ TEST(kvbc_filter_test, kvbfilter_event_group_out_of_range_eg) {
   std::string client_id("trid_1");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 5;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   EventGroupId eg_id = 10;
   KvbFilteredEventGroupUpdate temporary;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{10};
@@ -624,8 +602,8 @@ TEST(kvbc_filter_test, kvbfilter_start_eg_greater_then_end_eg) {
   std::string client_id("trid_1");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 10;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
-  EventGroupId eg_id_start = 10;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
+  EventGroupId eg_id_start = 11;
   KvbFilteredEventGroupUpdate temporary;
   spsc_queue<KvbFilteredEventGroupUpdate> queue_out{num_event_groups_to_fill};
   std::atomic_bool stop_exec = false;
@@ -672,8 +650,8 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_event_groups_in_range_eg) {
   FakeStorage storage;
   std::string client_id("trid_1");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
-  size_t num_event_groups_to_fill = 100;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
+  size_t num_event_groups_to_fill = 50;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
 
   EventGroupId eg_id_start = 1;
   EventGroupId eg_id_end = 50;
@@ -725,7 +703,7 @@ TEST(kvbc_filter_test, kvbfilter_success_hash_of_event_group) {
   std::string client_id("trid_1");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
   size_t num_event_groups_to_fill = 100;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   EventGroupId eg_id_start = 1;
 
   auto hash_value = kvb_filter.readEventGroupHash(eg_id_start);
@@ -760,8 +738,8 @@ TEST(kvbc_filter_test, kvbfilter_hash_filter_event_group_out_of_range) {
   FakeStorage storage;
   std::string client_id("trid_1");
   auto kvb_filter = KvbAppFilter(&storage, client_id);
-  size_t num_event_groups_to_fill = 100;
-  storage.fillWithEventGroupData(num_event_groups_to_fill);
+  size_t num_event_groups_to_fill = 50;
+  storage.fillWithEventGroupData(num_event_groups_to_fill, client_id);
   EventGroupId eg_id_start = 51;
 
   EXPECT_THROW(kvb_filter.readEventGroupRangeHash(eg_id_start);, InvalidEventGroupRange);
@@ -779,20 +757,6 @@ TEST(kvbc_filter_test, kvbfilter_update_empty_kv_pair) {
 
   EXPECT_EQ(bid, block_id);
   EXPECT_EQ(filtered.size(), 0);
-}
-
-TEST(kvbc_filter_test, kvbfilter_update_empty_event_group) {
-  FakeStorage storage;
-  std::string client_id("trid_1");
-  auto kvb_filter = KvbAppFilter(&storage, client_id);
-
-  concord::kvbc::categorization::EventGroup event_group{};
-  EventGroupId eg_id = 1;
-
-  const auto &[egid, filtered] = kvb_filter.filterEventGroupUpdate({eg_id, event_group});
-
-  EXPECT_EQ(egid, eg_id);
-  EXPECT_EQ(filtered.events.size(), 0);
 }
 
 TEST(kvbc_filter_test, updates_order) {
@@ -894,7 +858,7 @@ TEST(kvbc_filter_test, legacy_event_request_in_event_groups) {
 
   // Half the storage is legacy events, the other half event groups
   storage.fillWithData(kLastBlockId / 2);
-  storage.fillWithEventGroupData(kLastBlockId / 2);
+  storage.fillWithEventGroupData(kLastBlockId / 2, client_id);
 
   std::atomic_bool stop_exec = false;
   spsc_queue<KvbFilteredUpdate> queue_out{storage.getLastBlockId()};

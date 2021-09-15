@@ -19,6 +19,7 @@
 #include <string>
 #include "thin-replica-server/grpc_services.hpp"
 #include "Logger.hpp"
+#include "concord_kvbc.pb.h"
 
 #include "kv_types.hpp"
 #include "thin-replica-server/subscription_buffer.hpp"
@@ -34,7 +35,7 @@ using concord::kvbc::EventGroupId;
 using concord::kvbc::categorization::ImmutableInput;
 using concord::kvbc::categorization::Event;
 using concord::kvbc::categorization::EventGroup;
-
+using com::vmware::concord::kvbc::ValueWithTrids;
 using com::vmware::concord::thin_replica::Data;
 using com::vmware::concord::thin_replica::Hash;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
@@ -78,12 +79,29 @@ enum EventGroupType {
   PublicAndPrivateEventGroups  // both private and public event groups are generated
 };
 
+std::string CreateTridKvbValue(const std::string& value, const std::vector<std::string>& trid_list) {
+  ValueWithTrids proto;
+  proto.set_value(value);
+  for (const auto& trid : trid_list) {
+    proto.add_trid(trid);
+  }
+
+  size_t size = proto.ByteSizeLong();
+  std::string ret(size, '\0');
+  proto.SerializeToArray(ret.data(), ret.size());
+
+  return ret;
+}
+
 EventGroup generateEventGroup(EventGroupId eg_id, bool is_public) {
   concord::kvbc::categorization::Event event;
   EventGroup event_group;
   // we are adding just one event per event group
-  event.data = "val eg_id#" + std::to_string(eg_id);
-  if (!is_public) event.tags = {"TEST_ID"};
+  const std::string data = "val eg_id#" + std::to_string(eg_id);
+  std::vector<std::string> trid_list = {};
+  if (!is_public) trid_list.emplace_back("TEST_ID");
+  event.data = CreateTridKvbValue(data, trid_list);
+  event.tags = trid_list;
   event_group.events.emplace_back(event);
   return event_group;
 }
