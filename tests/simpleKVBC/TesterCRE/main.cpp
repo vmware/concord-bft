@@ -192,15 +192,21 @@ class KeyExchangeCommandHandler : public IStateHandler {
       sm_->encryptFile(enc_file_path.string(), pem_keys.first);
     }
     fs::path new_key_path = key_path_;
-    new_key_path += ".new";
-    plain_sm_.encryptFile(new_key_path.string(), pem_keys.first);
+    bool non_enc = false;
+    std::fstream f2(new_key_path);
+    if (f2.good()) {
+      new_key_path += ".new";
+      plain_sm_.encryptFile(new_key_path.string(), pem_keys.first);
+      non_enc = true;
+    }
+
     std::string new_pub_key = hex_keys.second;
     creq.sender_id = clientId_;
     creq.pub_key = new_pub_key;
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {req_buf, [this, new_key_path, enc, enc_file_path]() {
+    out = {req_buf, [this, non_enc, new_key_path, enc, enc_file_path]() {
              if (enc) {
                fs::path enc_path = this->key_path_;
                enc_path += ".enc";
@@ -211,12 +217,14 @@ class KeyExchangeCommandHandler : public IStateHandler {
                fs::remove(old_path);
                LOG_INFO(this->getLogger(), "exchanged transaction signing keys (encrypted)");
              }
-             fs::path old_path = this->key_path_;
-             old_path += ".old";
-             fs::copy(this->key_path_, old_path, fs::copy_options::update_existing);
-             fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
-             fs::remove(old_path);
-             LOG_INFO(this->getLogger(), "exchanged transaction signing keys (non encrypted)");
+             if (non_enc) {
+               fs::path old_path = this->key_path_;
+               old_path += ".old";
+               fs::copy(this->key_path_, old_path, fs::copy_options::update_existing);
+               fs::copy(new_key_path, this->key_path_, fs::copy_options::update_existing);
+               fs::remove(old_path);
+               LOG_INFO(this->getLogger(), "exchanged transaction signing keys (non encrypted)");
+             }
            }};
     return true;
   }
@@ -241,16 +249,21 @@ class KeyExchangeCommandHandler : public IStateHandler {
       enc = true;
       sm_->encryptFile(enc_file_path.string(), keys.first);
     }
+    bool non_encrypted = false;
+    std::fstream f2(orig_pk_path.string());
     fs::path new_key_path = orig_pk_path;
-    new_key_path += ".new";
-    plain_sm_.encryptFile(new_key_path.string(), keys.first);
+    if (f2.good()) {
+      new_key_path += ".new";
+      plain_sm_.encryptFile(new_key_path.string(), keys.first);
+      non_encrypted = true;
+    }
 
     creq.sender_id = clientId_;
     creq.clients_certificates.emplace_back(std::make_pair(clientId_, cert));
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {req_buf, [this, new_key_path, orig_pk_path, enc, enc_file_path]() {
+    out = {req_buf, [this, non_encrypted, new_key_path, orig_pk_path, enc, enc_file_path]() {
              if (enc) {
                fs::path orig_enc_key_path = orig_pk_path;
                orig_enc_key_path += ".enc";
@@ -261,12 +274,14 @@ class KeyExchangeCommandHandler : public IStateHandler {
                fs::remove(old_pk_path);
                LOG_INFO(this->getLogger(), "exchanged tls keys (encrypted)");
              }
-             fs::path old_pk_path = orig_pk_path;
-             old_pk_path += ".old";
-             fs::copy(orig_pk_path, old_pk_path, fs::copy_options::update_existing);
-             fs::copy(new_key_path, orig_pk_path, fs::copy_options::update_existing);
-             fs::remove(old_pk_path);
-             LOG_INFO(this->getLogger(), "exchanged tls keys (non encrypted)");
+             if (non_encrypted) {
+               fs::path old_pk_path = orig_pk_path;
+               old_pk_path += ".old";
+               fs::copy(orig_pk_path, old_pk_path, fs::copy_options::update_existing);
+               fs::copy(new_key_path, orig_pk_path, fs::copy_options::update_existing);
+               fs::remove(old_pk_path);
+               LOG_INFO(this->getLogger(), "exchanged tls keys (non encrypted)");
+             }
            }};
     return true;
   }

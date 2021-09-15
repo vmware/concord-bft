@@ -284,16 +284,36 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 succ = True
                 priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id),"client", "pk.pem")
                 new_priv_path = priv_key_path + ".new"
-                if not os.path.isfile(new_priv_path):
-                    succ = False
+
+                enc_priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id),"client", "pk.pem.enc")
+                enc_new_priv_path = enc_priv_key_path + ".new"
+                if os.path.isfile(priv_key_path):
+                    if not os.path.isfile(new_priv_path):
+                        succ = False
                     continue
-                with open(priv_key_path) as orig_key:
-                    orig_key_text = orig_key.readlines()
-                with open(new_priv_path) as new_key:
-                    new_key_text = new_key.readlines()
-                diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
-                for line in diff:
-                    succ = False
+                    with open(priv_key_path) as orig_key:
+                        orig_key_text = orig_key.readlines()
+                    with open(new_priv_path) as new_key:
+                        new_key_text = new_key.readlines()
+                    diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
+                    for line in diff:
+                        succ = False
+                    if not succ:
+                        continue
+
+                if os.path.isfile(enc_priv_key_path):
+                    if not os.path.isfile(enc_new_priv_path):
+                        succ = False
+                    continue
+                    with open(enc_priv_key_path) as orig_key:
+                        orig_key_text = orig_key.readlines()
+                    with open(enc_new_priv_path) as new_key:
+                        new_key_text = new_key.readlines()
+                    diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=enc_priv_key_path, tofile=enc_new_priv_path, lineterm='')
+                    for line in diff:
+                        succ = False
+                    if not succ:
+                        continue
         bft_network.stop_cre()
         bft_network.start_cre()
 
