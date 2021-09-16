@@ -592,6 +592,8 @@ void ThinReplicaClient::receiveUpdates() {
       // TODO: Set trace context
       latest_verified_event_group_id_ = event_group.id;
       update->emplace<EventGroup>(std::move(event_group));
+      // If we started with a legacy request then the transition has happened now
+      is_event_group_request_ = true;
     } else {
       ConcordAssert(update_in.has_events());
       Update legacy_event;
