@@ -27,53 +27,53 @@ std::string get(const std::string& key);
 
 }  // namespace logging
 
-#define LOG_TRACE(l, s)                        \
+#define LOG_TRACE(l, s)                          \
+  {                                              \
+    if ((l)->should_log(spdlog::level::trace)) { \
+      std::ostringstream ss;                     \
+      ss << s;                                   \
+      (l)->trace(ss.str());                      \
+    }                                            \
+  }
+#define LOG_DEBUG(l, s)                          \
+  {                                              \
+    if ((l)->should_log(spdlog::level::debug)) { \
+      std::ostringstream ss;                     \
+      ss << s;                                   \
+      (l)->debug(ss.str());                      \
+    }                                            \
+  }
+#define LOG_INFO(l, s)                          \
+  {                                             \
+    if ((l)->should_log(spdlog::level::info)) { \
+      std::ostringstream ss;                    \
+      ss << s;                                  \
+      (l)->info(ss.str());                      \
+    }                                           \
+  }
+#define LOG_WARN(l, s)                          \
+  {                                             \
+    if ((l)->should_log(spdlog::level::warn)) { \
+      std::ostringstream ss;                    \
+      ss << s;                                  \
+      (l)->warn(ss.str());                      \
+    }                                           \
+  }
+#define LOG_ERROR(l, s)                        \
   {                                            \
-    if (l->should_log(spdlog::level::trace)) { \
+    if ((l)->should_log(spdlog::level::err)) { \
       std::ostringstream ss;                   \
       ss << s;                                 \
-      l->trace(ss.str());                      \
+      (l)->error(ss.str());                    \
     }                                          \
   }
-#define LOG_DEBUG(l, s)                        \
-  {                                            \
-    if (l->should_log(spdlog::level::debug)) { \
-      std::ostringstream ss;                   \
-      ss << s;                                 \
-      l->debug(ss.str());                      \
-    }                                          \
-  }
-#define LOG_INFO(l, s)                        \
-  {                                           \
-    if (l->should_log(spdlog::level::info)) { \
-      std::ostringstream ss;                  \
-      ss << s;                                \
-      l->info(ss.str());                      \
-    }                                         \
-  }
-#define LOG_WARN(l, s)                        \
-  {                                           \
-    if (l->should_log(spdlog::level::warn)) { \
-      std::ostringstream ss;                  \
-      ss << s;                                \
-      l->warn(ss.str());                      \
-    }                                         \
-  }
-#define LOG_ERROR(l, s)                      \
-  {                                          \
-    if (l->should_log(spdlog::level::err)) { \
-      std::ostringstream ss;                 \
-      ss << s;                               \
-      l->error(ss.str());                    \
-    }                                        \
-  }
-#define LOG_FATAL(l, s)                           \
-  {                                               \
-    if (l->should_log(spdlog::level::critical)) { \
-      std::ostringstream ss;                      \
-      ss << s;                                    \
-      l->critical(ss.str());                      \
-    }                                             \
+#define LOG_FATAL(l, s)                             \
+  {                                                 \
+    if ((l)->should_log(spdlog::level::critical)) { \
+      std::ostringstream ss;                        \
+      ss << s;                                      \
+      (l)->critical(ss.str());                      \
+    }                                               \
   }
 
 #define MDC_PUT(k, v) \
