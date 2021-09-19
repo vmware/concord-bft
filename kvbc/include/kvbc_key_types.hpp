@@ -25,6 +25,8 @@ static const char reconfiguration_client_data_prefix = 0x2c;
 static const char reconfiguration_epoch_key = 0x2d;
 
 static const char reconfiguration_restart_key = 0x30;
+static const char reconfiguration_ts_key = 0x31;
+
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,
   PUBLIC_KEY_EXCHANGE = 0x1,              // identifier of public key exchange request by client

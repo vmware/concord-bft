@@ -16,6 +16,7 @@
 #include "OpenTracing.hpp"
 #include "kv_types.hpp"
 #include "Replica.hpp"
+#include "bftengine/TimeService.hpp"
 
 namespace concord::reconfiguration {
 enum ReconfigurationHandlerType : unsigned int { PRE, REGULAR, POST };
@@ -28,120 +29,140 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::WedgeCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::WedgeStatusRequest&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::GetVersionCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::DownloadCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::DownloadStatusCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::InstallCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::InstallStatusCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::KeyExchangeCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveStatus&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::LatestPrunableBlockRequest&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::PruneStatusRequest&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::PruneRequest&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::UnwedgeCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::UnwedgeStatusRequest&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientReconfigurationStateRequest&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientExchangePublicKey&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
   virtual bool handle(const concord::messages::ClientKeyExchangeCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
@@ -149,6 +170,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::RestartCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
@@ -156,6 +178,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::ClientsAddRemoveCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
@@ -163,6 +186,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::ClientsAddRemoveStatusCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
@@ -170,6 +194,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::ClientsAddRemoveUpdateCommand&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
@@ -177,6 +202,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::ClientKeyExchangeStatus&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
@@ -184,6 +210,7 @@ class IReconfigurationHandler {
   virtual bool handle(const concord::messages::ClientTlsExchangeKey&,
                       uint64_t,
                       uint32_t,
+                      std::optional<bftEngine::Timestamp>,
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
