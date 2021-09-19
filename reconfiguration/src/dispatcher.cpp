@@ -26,7 +26,7 @@ namespace concord::reconfiguration {
 
 ReconfigurationResponse Dispatcher::dispatch(const ReconfigurationRequest& request,
                                              uint64_t sequence_num,
-                                             std::optional<bftEngine::Timestamp> timestamp) {
+                                             const std::optional<bftEngine::Timestamp>& timestamp) {
   ReconfigurationResponse rresp;
   concord::messages::ReconfigurationErrorMsg error_msg;
   bool valid = false;

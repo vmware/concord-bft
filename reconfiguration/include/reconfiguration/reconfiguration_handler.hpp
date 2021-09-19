@@ -24,50 +24,50 @@ namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
  public:
   BftReconfigurationHandler();
-  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override;
+  bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override;
 
   std::unique_ptr<concord::util::crypto::IVerifier> verifier_;
 };
 class ReconfigurationHandler : public BftReconfigurationHandler {
  public:
   ReconfigurationHandler() {}
-  bool handle(const concord::messages::WedgeCommand&,
+  bool handle(const concord::messages::WedgeCommand &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
-  bool handle(const concord::messages::WedgeStatusRequest&,
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
+  bool handle(const concord::messages::WedgeStatusRequest &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
-  bool handle(const concord::messages::KeyExchangeCommand&,
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
+  bool handle(const concord::messages::KeyExchangeCommand &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
-  bool handle(const concord::messages::AddRemoveWithWedgeCommand&,
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
+  bool handle(const concord::messages::AddRemoveWithWedgeCommand &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
-  bool handle(const concord::messages::AddRemoveWithWedgeStatus&,
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
+  bool handle(const concord::messages::AddRemoveWithWedgeStatus &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
 
-  bool handle(const concord::messages::RestartCommand&,
+  bool handle(const concord::messages::RestartCommand &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
 
-  bool handle(const concord::messages::InstallCommand&,
+  bool handle(const concord::messages::InstallCommand &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
 
  private:
   void handleWedgeCommands(
@@ -75,13 +75,13 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {
-  bool handle(const concord::messages::ClientExchangePublicKey&,
+  bool handle(const concord::messages::ClientExchangePublicKey &,
               uint64_t,
               uint32_t,
-              std::optional<bftEngine::Timestamp>,
-              concord::messages::ReconfigurationResponse&) override;
+              const std::optional<bftEngine::Timestamp> &,
+              concord::messages::ReconfigurationResponse &) override;
 
-  bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const override {
+  bool verifySignature(uint32_t sender_id, const std::string &data, const std::string &signature) const override {
     if (!bftEngine::impl::SigManager::instance()->hasVerifier(sender_id)) return false;
     return bftEngine::impl::SigManager::instance()->verifySig(
         sender_id, data.data(), data.size(), signature.data(), signature.size());

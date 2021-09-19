@@ -35,7 +35,7 @@ class Dispatcher {
   // responsibility of each handler to write its own commands to the blockchain.
   concord::messages::ReconfigurationResponse dispatch(const concord::messages::ReconfigurationRequest&,
                                                       uint64_t sequence_num,
-                                                      std::optional<bftEngine::Timestamp> timestamp);
+                                                      const std::optional<bftEngine::Timestamp>& timestamp);
 
   void addReconfigurationHandler(std::shared_ptr<IReconfigurationHandler> h,
                                  ReconfigurationHandlerType type = ReconfigurationHandlerType::REGULAR) {
@@ -63,7 +63,7 @@ class Dispatcher {
   bool handleRequest(const T& msg,
                      uint64_t bft_seq_num,
                      uint32_t sender_id,
-                     std::optional<bftEngine::Timestamp> timestamp,
+                     const std::optional<bftEngine::Timestamp>& timestamp,
                      concord::messages::ReconfigurationResponse& rres,
                      std::shared_ptr<IReconfigurationHandler> handler) {
     return handler->handle(msg, bft_seq_num, sender_id, timestamp, rres);

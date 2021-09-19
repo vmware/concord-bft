@@ -20,11 +20,12 @@
 #include "secrets_manager_plain.h"
 namespace concord::kvbc::reconfiguration {
 
-kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::vector<uint8_t>& data,
-                                                                     const uint64_t bft_seq_num,
-                                                                     std::string key,
-                                                                     std::optional<bftEngine::Timestamp> timestamp,
-                                                                     bool include_wedge) {
+kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
+    const std::vector<uint8_t>& data,
+    const uint64_t bft_seq_num,
+    std::string key,
+    const std::optional<bftEngine::Timestamp>& timestamp,
+    bool include_wedge) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
 
@@ -48,7 +49,7 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     concord::kvbc::categorization::VersionedUpdates& ver_updates,
     const uint64_t bft_seq_num,
-    std::optional<bftEngine::Timestamp> timestamp,
+    const std::optional<bftEngine::Timestamp>& timestamp,
     bool include_wedge) {
   // All blocks are expected to have the BFT sequence number as a key.
   ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
@@ -140,7 +141,7 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationStateRequest& command,
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
-                                              std::optional<bftEngine::Timestamp> ts,
+                                              const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
   for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
@@ -156,7 +157,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
-                                              std::optional<bftEngine::Timestamp> ts,
+                                              const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -175,7 +176,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientExc
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientTlsExchangeKey& command,
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
-                                              std::optional<bftEngine::Timestamp> ts,
+                                              const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -201,7 +202,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientTls
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveUpdateCommand& command,
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
-                                              std::optional<bftEngine::Timestamp> ts,
+                                              const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -220,7 +221,7 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientsAd
 bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveStatusCommand&,
                                     uint64_t,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientsAddRemoveStatusResponse stats;
   for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
@@ -248,7 +249,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeStatus& command,
                                     uint64_t,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientKeyExchangeStatusResponse stats;
   for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
@@ -305,7 +306,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
 bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -318,7 +319,7 @@ bool ReconfigurationHandler::handle(const concord::messages::WedgeCommand& comma
 bool ReconfigurationHandler::handle(const concord::messages::DownloadCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -331,7 +332,7 @@ bool ReconfigurationHandler::handle(const concord::messages::DownloadCommand& co
 bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -344,7 +345,7 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& com
 bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -357,7 +358,7 @@ bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand&
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -370,7 +371,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveCommand& c
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -399,7 +400,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
 bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& command,
                                     uint64_t bft_seq_num,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -412,7 +413,7 @@ bool ReconfigurationHandler::handle(const concord::messages::RestartCommand& com
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& response) {
   auto res =
       ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove});
@@ -438,7 +439,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& co
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeStatus& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& response) {
   auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
                                    std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
@@ -469,7 +470,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
 bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -482,7 +483,7 @@ bool ReconfigurationHandler::handle(const concord::messages::PruneRequest& comma
 bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& response) {
   std::vector<uint32_t> target_clients;
   for (auto& cid : command.target_clients) {
@@ -519,7 +520,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeCo
 bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t sender_id,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& response) {
   std::vector<uint32_t> target_clients;
   // ClientsAddRemoveCommand has optional list of <clientId, token>, we write update config descriptor and
@@ -560,7 +561,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
 bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
                                     uint64_t bft_seq_num,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse&) {
   if (!bftEngine::ControlStateManager::instance().getCheckpointToStopAt().has_value()) {
     LOG_INFO(getLogger(), "replica is already unwedge");
@@ -600,7 +601,7 @@ bool ReconfigurationHandler::handle(const messages::UnwedgeCommand& cmd,
 bool ReconfigurationHandler::handle(const messages::UnwedgeStatusRequest& req,
                                     uint64_t,
                                     uint32_t,
-                                    std::optional<bftEngine::Timestamp> ts,
+                                    const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::UnwedgeStatusResponse response;
   response.replica_id = bftEngine::ReplicaConfig::instance().replicaId;
@@ -638,7 +639,7 @@ bool InternalKvReconfigurationHandler::verifySignature(uint32_t sender_id,
 bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeCommand& command,
                                               uint64_t bft_seq_num,
                                               uint32_t,
-                                              std::optional<bftEngine::Timestamp> ts,
+                                              const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse&) {
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
@@ -659,7 +660,7 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeComm
 bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                                   uint64_t sequence_number,
                                                   uint32_t sender_id,
-                                                  std::optional<bftEngine::Timestamp> ts,
+                                                  const std::optional<bftEngine::Timestamp>& ts,
                                                   concord::messages::ReconfigurationResponse& response) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   auto updated_client_keys = SigManager::instance()->getClientsPublicKeys();
