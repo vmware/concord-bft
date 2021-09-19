@@ -155,14 +155,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await skvbc.send_write_kv_set()
 
             await self.run_client_key_exchange_cycle(bft_network)
-            pub_key_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-            assert pub_key_a != ""
+            pub_key_a, ts_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
+            assert pub_key_a is not None
+            assert ts_a is not None
 
-            await self.run_client_key_exchange_cycle(bft_network, pub_key_a)
-            pub_key_b = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-            assert pub_key_b != ""
+            await self.run_client_key_exchange_cycle(bft_network, pub_key_a, ts_a)
+            pub_key_b, ts_b = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
+            assert pub_key_b is not None
+            assert ts_b is not None
 
             assert pub_key_a != pub_key_b
+            assert ts_a < ts_b
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             for i in range(100):
@@ -184,8 +187,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await skvbc.send_write_kv_set()
 
             await self.run_client_key_exchange_cycle(bft_network)
-            pub_key_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-            assert pub_key_a != ""
+            pub_key_a, ts_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
+            assert pub_key_a is not None
+            assert ts_a is not None
 
             for i in range(350):
                 await skvbc.send_write_kv_set()
@@ -197,7 +201,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             r,
             stop_on_stable_seq_num=False)
 
-    async def run_client_key_exchange_cycle(self, bft_network, prev_pub_key=""):
+    async def run_client_key_exchange_cycle(self, bft_network, prev_pub_key="", prev_ts=0):
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
         rep = await op.client_key_exchange_command([])
@@ -208,8 +212,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             succ = False
             while succ is False:
                 succ = True
-                pub_key = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-                if pub_key == "" or pub_key == prev_pub_key:
+                pub_key, ts = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
+                if pub_key is None or ts is None or pub_key == prev_pub_key or ts <= prev_ts:
                     succ = False
         with trio.fail_after(30):
             succ = False
@@ -239,19 +243,28 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         rsi_rep = client.get_rsi_replies()
         data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         if not data.success:
-            return ""
+            return None, None
         pub_key = None
+        ts = None
         for r in rsi_rep.values():
             res = cmf_msgs.ReconfigurationResponse.deserialize(r)
-            if len(res[0].response.clients_keys) == 0:
-                succ = False
-            for k,v in res[0].response.clients_keys:
-                assert(k == client_id)
+            if len(res[0].response.clients_data) == 0:
+                return None, None
+            for k,v in res[0].response.clients_data:
+                if k != client_id:
+                    continue
                 if pub_key is None:
-                    pub_key = v.pub_key
-                if pub_key != v.pub_key:
-                    return "" # Not all live replicas have managed to complete the procedure yet
-        return pub_key
+                    pub_key = v
+                if pub_key != v:
+                    return None, None # Not all live replicas have managed to complete the procedure yet
+            for k,v in res[0].response.timestamps:
+                if k != client_id:
+                    continue
+                if ts is None:
+                    ts = v
+                if ts != v:
+                    return None, None # Not all live replicas have managed to complete the procedure yet
+        return pub_key, ts
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
