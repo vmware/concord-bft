@@ -227,11 +227,12 @@ class Crypto::Impl {
     }
     return keyPair;
   }
-  std::pair<std::string, std::string> generateECDSAKeyPair(const KeyFormat fmt) {
+  std::pair<std::string, std::string> generateECDSAKeyPair(const KeyFormat fmt, CurveType curve_types) {
     AutoSeededRandomPool prng;
     ECDSA<ECP, CryptoPP::SHA256>::PrivateKey privateKey;
     ECDSA<ECP, CryptoPP::SHA256>::PublicKey publicKey;
-    privateKey.Initialize(prng, ASN1::secp256k1());
+
+    privateKey.Initialize(prng, curve_types == CurveType::secp256k1 ? ASN1::secp256k1() : ASN1::secp384r1());
     privateKey.MakePublicKey(publicKey);
     std::pair<std::string, std::string> keyPair;
     HexEncoder privEncoder(new StringSink(keyPair.first));
@@ -261,7 +262,6 @@ class Crypto::Impl {
       BIO_free(priv_bio);
       return std::string();
     }
-
     std::string pub_key_pem = keyPair_pem.second;
     EVP_PKEY* pub_key = EVP_PKEY_new();
     BIO* pub_bio = BIO_new(BIO_s_mem());
@@ -295,7 +295,7 @@ class Crypto::Impl {
     X509_NAME_add_entry_by_txt(name, "OU", MBSTRING_ASC, (unsigned char*)std::to_string(node_id).c_str(), -1, -1, 0);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)host.c_str(), -1, -1, 0);
     X509_set_issuer_name(x509, name);
-    X509_sign(x509, priv_key, EVP_sha1());
+    X509_sign(x509, priv_key, EVP_sha256());
 
     BIO* outbio = BIO_new(BIO_s_mem());
     if (!PEM_write_bio_X509(outbio, x509)) {
@@ -310,14 +310,12 @@ class Crypto::Impl {
     int certLen = BIO_pending(outbio);
     certStr.resize(certLen);
     BIO_read(outbio, (void*)&(certStr.front()), certLen);
-
     // free all pointers
     BIO_free(outbio);
+    EVP_PKEY_free(priv_key);
+    BIO_free(priv_bio);
     EVP_PKEY_free(pub_key);
     BIO_free(pub_bio);
-    EVP_PKEY_free(pub_key);
-    BIO_free(pub_bio);
-
     return certStr;
   }
   ~Impl() = default;
@@ -331,8 +329,8 @@ std::pair<std::string, std::string> Crypto::RsaHexToPem(const std::pair<std::str
   return impl_->RsaHexToPem(key_pair);
 }
 
-std::pair<std::string, std::string> Crypto::generateECDSAKeyPair(KeyFormat fmt) const {
-  return impl_->generateECDSAKeyPair(fmt);
+std::pair<std::string, std::string> Crypto::generateECDSAKeyPair(KeyFormat fmt, CurveType curve_types) const {
+  return impl_->generateECDSAKeyPair(fmt, curve_types);
 }
 
 std::pair<std::string, std::string> Crypto::ECDSAHexToPem(const std::pair<std::string, std::string>& key_pair) const {

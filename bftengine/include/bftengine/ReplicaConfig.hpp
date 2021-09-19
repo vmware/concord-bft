@@ -131,6 +131,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                "if true, the replica will also updates the client key file on key exchange");
   CONFIG_PARAM(replicaPrivateKey, std::string, "", "RSA private key of the current replica");
 
+  CONFIG_PARAM(certificatesRootPath, std::string, "", "the path to the certificates root directory");
+
   // Threshold crypto system
   CONFIG_PARAM(thresholdSystemType_, std::string, "", "type of threshold crypto system, [multisig-bls|threshold-bls]");
   CONFIG_PARAM(thresholdSystemSubType_, std::string, "", "sub-type of threshold crypto system [BN-254]");
@@ -255,6 +257,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, clientsKeysPrefix);
     serialize(outStream, saveClinetKeyFile);
     serialize(outStream, replicaPrivateKey);
+    serialize(outStream, certificatesRootPath);
     serialize(outStream, thresholdSystemType_);
     serialize(outStream, thresholdSystemSubType_);
     serialize(outStream, thresholdPrivateKey_);
@@ -330,6 +333,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, clientsKeysPrefix);
     deserialize(inStream, saveClinetKeyFile);
     deserialize(inStream, replicaPrivateKey);
+    deserialize(inStream, certificatesRootPath);
     deserialize(inStream, thresholdSystemType_);
     deserialize(inStream, thresholdSystemSubType_);
     deserialize(inStream, thresholdPrivateKey_);

@@ -140,6 +140,7 @@ Msg UnwedgeCommand 34{
 }
 Msg ClientKeyExchangeCommand 35 {
     list uint64 target_clients
+    bool tls
 }
 
 Msg ClientKeyExchangeCommandResponse 36 {
@@ -187,16 +188,23 @@ Msg ClientsAddRemoveUpdateCommand 46 {
 
 Msg ClientKeyExchangeStatus 47 {
     uint64 sender_id
+    bool tls
 }
 
 Msg ClientKeyExchangeStatusResponse 48 {
      list kvpair uint32 ClientExchangePublicKey clients_keys
+     bool tls
 }
 
 Msg ClientsAddRemoveExecuteCommand 51 {
     string config_descriptor
     string token
     bool restart
+}
+
+Msg ClientTlsExchangeKey 52 {
+    uint64 sender_id
+    list kvpair uint32 string clients_certificates
 }
 
 Msg ClientStateReply 39 {
@@ -206,6 +214,7 @@ Msg ClientStateReply 39 {
         ClientKeyExchangeCommand
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
+        ClientTlsExchangeKey
       } response
 }
 
@@ -237,6 +246,7 @@ Msg ReconfigurationRequest 1 {
     ClientKeyExchangeCommand
     ClientReconfigurationStateRequest
     ClientExchangePublicKey
+    ClientTlsExchangeKey
     RestartCommand
     ClientsAddRemoveCommand
     ClientsAddRemoveStatusCommand

@@ -27,11 +27,12 @@ static const char reconfiguration_epoch_key = 0x2d;
 static const char reconfiguration_restart_key = 0x30;
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,
-  PUBLIC_KEY_EXCHANGE = 0x1,             // identifier of public key exchange request by client
-  CLIENT_KEY_EXCHANGE_COMMAND = 0x2,     // identifier of client key exchange request by operator
-  CLIENT_SCALING_COMMAND = 0x3,          // identifier of client scaling request by operator
-  CLIENT_SCALING_COMMAND_STATUS = 0X4,   // identifier of client update request after successful scaling
-  CLIENT_SCALING_EXECUTE_COMMAND = 0x5,  // identifier of client scaling execute request by operator
+  PUBLIC_KEY_EXCHANGE = 0x1,              // identifier of public key exchange request by client
+  CLIENT_KEY_EXCHANGE_COMMAND = 0x2,      // identifier of client key exchange request by operator
+  CLIENT_SCALING_COMMAND = 0x3,           // identifier of client scaling request by operator
+  CLIENT_SCALING_COMMAND_STATUS = 0X4,    // identifier of client update request after successful scaling
+  CLIENT_SCALING_EXECUTE_COMMAND = 0x5,   // identifier of client scaling execute request by operator
+  CLIENT_TLS_KEY_EXCHANGE_COMMAND = 0x6,  // identifier of tls key exchange request by client
   end_
 };
 }  // namespace concord::kvbc::keyTypes

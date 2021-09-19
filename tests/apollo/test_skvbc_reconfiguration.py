@@ -254,6 +254,70 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         return pub_key
 
     @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_tls_key_exchange_command(self, bft_network):
+        """
+            Operator sends client key exchange command for cre client
+        """
+        with log.start_action(action_type="test_client_key_exchange_command"):
+            bft_network.start_all_replicas()
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+            await self.run_client_tls_key_exchange_cycle(bft_network)
+            await self.run_client_tls_key_exchange_cycle(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+
+    async def run_client_tls_key_exchange_cycle(self, bft_network):
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.client_key_exchange_command([bft_network.cre_id], tls=True)
+        rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        assert rep.success is True
+        log.log_message(message_type=f"block_id {rep.response.block_id}")
+        with trio.fail_after(30):
+            succ = False
+            while not succ:
+                await trio.sleep(1)
+                succ = True
+                priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id),"client", "pk.pem")
+                new_priv_path = priv_key_path + ".new"
+
+                enc_priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id),"client", "pk.pem.enc")
+                enc_new_priv_path = enc_priv_key_path + ".new"
+                if os.path.isfile(priv_key_path):
+                    if not os.path.isfile(new_priv_path):
+                        succ = False
+                    continue
+                    with open(priv_key_path) as orig_key:
+                        orig_key_text = orig_key.readlines()
+                    with open(new_priv_path) as new_key:
+                        new_key_text = new_key.readlines()
+                    diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=priv_key_path, tofile=new_priv_path, lineterm='')
+                    for line in diff:
+                        succ = False
+                    if not succ:
+                        continue
+
+                if os.path.isfile(enc_priv_key_path):
+                    if not os.path.isfile(enc_new_priv_path):
+                        succ = False
+                    continue
+                    with open(enc_priv_key_path) as orig_key:
+                        orig_key_text = orig_key.readlines()
+                    with open(enc_new_priv_path) as new_key:
+                        new_key_text = new_key.readlines()
+                    diff = difflib.unified_diff(orig_key_text, new_key_text, fromfile=enc_priv_key_path, tofile=enc_new_priv_path, lineterm='')
+                    for line in diff:
+                        succ = False
+                    if not succ:
+                        continue
+        bft_network.stop_cre()
+        bft_network.start_cre()
+
+    @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_key_exchange(self, bft_network):
         """

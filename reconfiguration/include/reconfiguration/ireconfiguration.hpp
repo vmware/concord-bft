@@ -181,6 +181,13 @@ class IReconfigurationHandler {
     return true;
   }
 
+  virtual bool handle(const concord::messages::ClientTlsExchangeKey&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
+
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.
   virtual bool verifySignature(uint32_t sender_id, const std::string& data, const std::string& signature) const = 0;
