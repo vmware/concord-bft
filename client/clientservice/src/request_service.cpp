@@ -47,19 +47,19 @@ Status RequestServiceImpl::Send(ServerContext* context, const Request* proto_req
       LOG_INFO(logger_, "Send returned error");
       switch (std::get<int>(send_result)) {
         case (concord_client_pool::Overloaded):
-          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "ALL CLIENTS OCCUPIED"));
+          status.set_value(grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "All clients occupied"));
           break;
-        case (concord_client_pool::Invalid_Argument):
-          status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "INVALID ARGUMENT SENT"));
+        case (concord_client_pool::InvalidArgument):
+          status.set_value(grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument"));
           break;
-        case (concord_client_pool::Timed_Out):
-          status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "TIME OUT REACHED FOR REQUEST"));
+        case (concord_client_pool::TimedOut):
+          status.set_value(grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Timeout"));
           break;
-        case (concord_client_pool::Client_Unavailable):
-          status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "NO CLIENT CONNECTED TO REPLICAS"));
+        case (concord_client_pool::ClientUnavailable):
+          status.set_value(grpc::Status(grpc::StatusCode::UNAVAILABLE, "No clients connected to the replicas"));
           break;
         default:
-          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "INTERNAL ERROR"));
+          status.set_value(grpc::Status(grpc::StatusCode::INTERNAL, "Internal error"));
           break;
       }
       return;
