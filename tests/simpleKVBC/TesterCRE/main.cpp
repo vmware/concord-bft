@@ -211,7 +211,7 @@ class KeyExchangeCommandHandler : public IStateHandler {
                fs::path enc_path = this->key_path_;
                enc_path += ".enc";
                fs::path old_path = enc_path;
-               old_path += "old";
+               old_path += ".old";
                fs::copy(enc_path, old_path, fs::copy_options::update_existing);
                fs::copy(enc_file_path, enc_path, fs::copy_options::update_existing);
                fs::remove(old_path);
