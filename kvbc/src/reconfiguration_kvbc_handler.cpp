@@ -265,10 +265,12 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
       if (bid.has_value()) {
         auto saved_ts = ro_storage_.get(
             kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_ts_key}, bid.value().version);
+        uint64_t numeric_ts{0};
         if (saved_ts.has_value()) {
           auto strval = std::visit([](auto&& arg) { return arg.data; }, *saved_ts);
+          numeric_ts = concordUtils::fromBigEndianBuffer<uint64_t>(strval.data());
           if (!command.tls) {
-            stats.timestamps.push_back(std::make_pair(cid, concordUtils::fromBigEndianBuffer<uint64_t>(strval.data())));
+            stats.timestamps.push_back(std::make_pair(cid, numeric_ts));
           }
         }
         auto res = ro_storage_.get(kvbc::kConcordInternalCategoryId, key, bid.value().version);
@@ -289,8 +291,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
             LOG_INFO(getLogger(), "found tls certificate exchange status for client" << KVLOG(cid));
             for (const auto& [icid, cert] : cmd.clients_certificates) {
               stats.clients_data.push_back(std::make_pair(icid, cert));
-              stats.timestamps.push_back(
-                  std::make_pair(icid, concordUtils::fromBigEndianBuffer<uint64_t>(strval.data())));
+              stats.timestamps.push_back(std::make_pair(icid, numeric_ts));
             }
           }
         }
