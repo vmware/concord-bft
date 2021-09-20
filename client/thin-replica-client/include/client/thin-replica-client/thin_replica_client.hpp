@@ -224,15 +224,23 @@ struct ThinReplicaClientConfig {
   // trs_conns is a vector of connection objects. Each representing a direct
   // connection from this TRC to a specific Thin Replica Server.
   std::vector<std::unique_ptr<TrsConnection>> trs_conns;
+  // the time duration the TRC waits before printing warning logs when
+  // responsive agreeing servers are less than config_->max_faulty + 1
+  std::chrono::seconds no_agreement_warn_duration;
 
   ThinReplicaClientConfig(std::string client_id_,
                           std::shared_ptr<UpdateQueue> update_queue_,
                           std::size_t max_faulty_,
-                          std::vector<std::unique_ptr<TrsConnection>> trs_conns_)
+                          std::vector<std::unique_ptr<TrsConnection>> trs_conns_,
+                          std::chrono::seconds no_agreement_warn_duration_ = kNoAgreementWarnDuration)
       : client_id(std::move(client_id_)),
         update_queue(update_queue_),
         max_faulty(max_faulty_),
-        trs_conns(std::move(trs_conns_)) {}
+        trs_conns(std::move(trs_conns_)),
+        no_agreement_warn_duration(no_agreement_warn_duration_) {}
+
+ private:
+  static constexpr std::chrono::seconds kNoAgreementWarnDuration = 60s;
 };
 
 // TRC metrics
