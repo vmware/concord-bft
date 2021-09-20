@@ -223,6 +223,7 @@ void RequestsBatch::sendCancelBatchedPreProcessingMsgToNonPrimaries(const Client
                                           clientMsg->getCid(),
                                           nullptr,
                                           0,
+                                          0,
                                           clientMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
     reqsBatch.push_back(preProcessReqMsg);
     overallPreProcessReqMsgsSize += preProcessReqMsg->size();
@@ -522,6 +523,7 @@ void PreProcessor::cancelPreProcessingOnNonPrimary(const ClientPreProcessReqMsgU
                                         nullptr,
                                         clientReqMsg->getCid(),
                                         nullptr,
+                                        0,
                                         0,
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   SCOPED_MDC_CID(preProcessReqMsg->getCid());
@@ -1354,6 +1356,7 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         clientReqMsg->getCid(),
                                         clientReqMsg->requestSignature(),
                                         clientReqMsg->requestSignatureLength(),
+                                        GlobalData::current_block_id,
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   const auto registerSucceeded =
       registerRequest(batchCid, batchSize, move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
@@ -1470,15 +1473,13 @@ void PreProcessor::launchAsyncReqPreProcessingJob(const PreProcessRequestMsgShar
   threadPool_.add(preProcessJob);
 }
 
-uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
-                                              uint16_t reqOffsetInBatch,
-                                              const string &cid,
-                                              ReqId reqSeqNum,
-                                              uint32_t reqLength,
-                                              char *reqBuf,
-                                              std::string signature,
-                                              const concordUtils::SpanContext &span_context) {
+uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg) {
   concord::diagnostics::TimeRecorder scoped_timer(*histograms_.launchReqPreProcessing);
+  const string &cid = preProcessReqMsg->getCid();
+  uint16_t clientId = preProcessReqMsg->clientId();
+  uint16_t reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
+  ReqId reqSeqNum = preProcessReqMsg->reqSeqNum();
+  const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
   // Unused for now. Replica Specific Info not currently supported in pre-execution.
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
@@ -1488,11 +1489,12 @@ uint32_t PreProcessor::launchReqPreProcessing(uint16_t clientId,
       reqSeqNum,
       cid,
       PRE_PROCESS_FLAG,
-      reqLength,
-      reqBuf,
-      std::move(signature),
+      preProcessReqMsg->requestLength(),
+      preProcessReqMsg->requestBuf(),
+      std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
       maxPreExecResultSize_,
       (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch)});
+  accumulatedRequests.back().blockId = preProcessReqMsg->primaryblockID();
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
@@ -1594,20 +1596,11 @@ void PreProcessor::handleReqPreProcessedByNonPrimary(uint16_t clientId,
 void PreProcessor::handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                              bool isPrimary,
                                              bool isRetry) {
-  const string cid = preProcessReqMsg->getCid();
+  const string &cid = preProcessReqMsg->getCid();
   const uint16_t &clientId = preProcessReqMsg->clientId();
   const uint16_t &reqOffsetInBatch = preProcessReqMsg->reqOffsetInBatch();
   const SeqNum &reqSeqNum = preProcessReqMsg->reqSeqNum();
-  const auto &span_context = preProcessReqMsg->spanContext<PreProcessRequestMsgSharedPtr::element_type>();
-  uint32_t actualResultBufLen = launchReqPreProcessing(
-      clientId,
-      preProcessReqMsg->reqOffsetInBatch(),
-      cid,
-      reqSeqNum,
-      preProcessReqMsg->requestLength(),
-      preProcessReqMsg->requestBuf(),
-      std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
-      span_context);
+  uint32_t actualResultBufLen = launchReqPreProcessing(preProcessReqMsg);
   if (isPrimary && isRetry) {
     handlePreProcessedReqPrimaryRetry(clientId, reqOffsetInBatch, actualResultBufLen);
     return;

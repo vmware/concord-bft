@@ -33,6 +33,7 @@ class PreProcessRequestMsg : public MessageBase {
                        const std::string& cid,
                        const char* requestSignature,
                        uint16_t requestSignatureLength,
+                       uint64_t blockid,
                        const concordUtils::SpanContext& span_context = concordUtils::SpanContext{});
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessRequestMsg)
@@ -45,6 +46,7 @@ class PreProcessRequestMsg : public MessageBase {
   const uint16_t reqOffsetInBatch() const { return msgBody()->reqOffsetInBatch; }
   const SeqNum reqSeqNum() const { return msgBody()->reqSeqNum; }
   const uint64_t reqRetryId() const { return msgBody()->reqRetryId; }
+  const uint64_t primaryblockID() const { return msgBody()->primaryBlockId; }
   const uint32_t requestSignatureLength() const { return msgBody()->reqSignatureLength; }
   std::string getCid() const;
   inline char* requestSignature() const {
@@ -68,6 +70,7 @@ class PreProcessRequestMsg : public MessageBase {
     uint32_t spanContextSize;
     uint64_t reqRetryId;
     uint16_t reqSignatureLength;
+    uint64_t primaryBlockId;
   };
 #pragma pack(pop)
 
@@ -89,7 +92,8 @@ class PreProcessRequestMsg : public MessageBase {
                  uint32_t spanContextSize,
                  uint64_t reqRetryId,
                  uint32_t reqLength,
-                 uint16_t reqSignatureLength);
+                 uint16_t reqSignatureLength,
+                 uint64_t blockId);
   Header* msgBody() const { return ((Header*)msgBody_); }
 };
 
