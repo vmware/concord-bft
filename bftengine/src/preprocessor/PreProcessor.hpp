@@ -30,6 +30,7 @@
 #include "diagnostics.h"
 #include "PerformanceManager.hpp"
 #include <RollingAvgAndVar.hpp>
+#include "GlobalData.hpp"
 
 // TODO[TK] till boost upgrade
 #pragma GCC diagnostic push
@@ -209,14 +210,7 @@ class PreProcessor {
                                       bool isPrimary,
                                       bool isRetry,
                                       TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
-  uint32_t launchReqPreProcessing(uint16_t clientId,
-                                  uint16_t reqOffsetInBatch,
-                                  const std::string &cid,
-                                  ReqId reqSeqNum,
-                                  uint32_t reqLength,
-                                  char *reqBuf,
-                                  std::string signature,
-                                  const concordUtils::SpanContext &span_context);
+  uint32_t launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
   void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
   void handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                          uint16_t reqOffsetInBatch,

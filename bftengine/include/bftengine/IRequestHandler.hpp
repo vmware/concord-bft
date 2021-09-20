@@ -49,6 +49,7 @@ class IRequestsHandler {
     uint32_t outActualReplySize = 0;
     uint32_t outReplicaSpecificInfoSize = 0;
     int outExecutionStatus = 1;
+    uint64_t blockId = 0;
   };
 
   static std::shared_ptr<IRequestsHandler> createRequestsHandler(

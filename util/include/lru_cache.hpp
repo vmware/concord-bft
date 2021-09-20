@@ -58,7 +58,7 @@ class LruCache {
 
   Stats getStats() const { return stats_; }
 
- private:
+ protected:
   void moveToFront(typename std::list<Key>::iterator it) { keys_.splice(keys_.begin(), keys_, it); }
 
   template <typename K, typename V>
@@ -70,6 +70,7 @@ class LruCache {
       iter->second.first = std::forward<V>(value);
     } else {
       if (keys_.size() == capacity_) {
+        beforeErase();
         map_.erase(keys_.back());
         keys_.pop_back();
       }
@@ -77,6 +78,9 @@ class LruCache {
       map_.insert({std::forward<K>(key), {std::forward<V>(value), keys_.begin()}});
     }
   }
+
+  // A call back method, if a derived class needs to do something before it erases the element.
+  virtual void beforeErase() {}
 
   const size_t capacity_;
 

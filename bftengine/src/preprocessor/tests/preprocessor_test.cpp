@@ -482,8 +482,18 @@ TEST(requestPreprocessingState_test, validatePreProcessBatchRequestMsg) {
   const auto numOfMsgs = 3;
   const auto senderId = 2;
   for (uint i = 0; i < numOfMsgs; i++) {
-    auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(
-        REQ_TYPE_PRE_PROCESS, senderId, clientId, i, reqSeqNum + i, i, bufLen, buf, cid + to_string(i + 1), nullptr, 0);
+    auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
+                                                              senderId,
+                                                              clientId,
+                                                              i,
+                                                              reqSeqNum + i,
+                                                              i,
+                                                              bufLen,
+                                                              buf,
+                                                              cid + to_string(i + 1),
+                                                              nullptr,
+                                                              0,
+                                                              GlobalData::current_block_id);
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
@@ -613,6 +623,7 @@ TEST(requestPreprocessingState_test, primaryCrashNotDetected) {
                                                     cid,
                                                     nullptr,
                                                     0,
+                                                    GlobalData::current_block_id,
                                                     span);
   msgHandlerCallback = msgHandlersRegPtr->getCallback(bftEngine::impl::MsgCode::PreProcessRequest);
   msgHandlerCallback(preProcessReqMsg);
@@ -716,7 +727,7 @@ TEST(requestPreprocessingState_test, handlePreProcessBatchRequestMsg) {
   const auto numOfMsgs = 4;
   for (uint i = 0; i < numOfMsgs; i++) {
     auto preProcessReqMsg = make_shared<PreProcessRequestMsg>(
-        REQ_TYPE_PRE_PROCESS, 1, clientId, i, i + 5, i, bufLen, buf, to_string(i + 1), nullptr, 0);
+        REQ_TYPE_PRE_PROCESS, 1, clientId, i, i + 5, i, bufLen, buf, to_string(i + 1), nullptr, 0, 0);
     batch.push_back(preProcessReqMsg);
     overallReqSize += preProcessReqMsg->size();
   }
