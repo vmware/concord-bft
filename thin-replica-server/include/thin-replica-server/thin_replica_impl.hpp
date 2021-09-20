@@ -958,7 +958,7 @@ class ThinReplicaImpl {
         std::stringstream msg;
         msg << "Block " << request->events().block_id() << " doesn't exist yet "
             << " latest block is " << last_block_id;
-        LOG_ERROR(logger_, msg.str());
+        LOG_DEBUG(logger_, msg.str());
         return {grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, msg.str()), live_updates};
       }
     } else {
@@ -974,7 +974,7 @@ class ThinReplicaImpl {
         std::stringstream msg;
         msg << "Event group ID " << request->event_groups().event_group_id() << " doesn't exist yet "
             << " latest event_group_id is " << last_eg_id;
-        LOG_ERROR(logger_, msg.str());
+        LOG_DEBUG(logger_, msg.str());
         return {grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, msg.str()), live_updates};
       }
     }
