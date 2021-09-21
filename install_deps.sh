@@ -20,6 +20,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     clang-9 \
     clang-format-9 \
     clang-tidy-10 \
+    curl \
     gdb \
     gdbserver \
     git \
@@ -266,14 +267,14 @@ git clone -b v1.37.1 --depth 1 --recurse-submodules https://github.com/grpc/grpc
 
 # libcurl needed for Prometheus-cpp
 cd ${HOME}
-wget ${WGET_FLAGS} --no-check-certificate https://curl.se/download/curl-7.66.0.tar.xz && \
-    tar xf curl-7.66.0.tar.xz && \
+curl --ssl-reqd --output curl.tar.xz https://curl.se/download/curl-7.66.0.tar.xz && \
+    tar xf curl.tar.xz && \
     cd curl-7.66.0 && \
     ./configure --with-ssl --prefix=/usr/local && \
     make -j$(nproc) && \
     make install && \
     cd ${HOME} && \
-    rm -r curl-7.66.0.tar.xz curl-7.66.0
+    rm -r curl.tar.xz curl-7.66.0
 
 # Prometheus-cpp
 cd ${HOME}
