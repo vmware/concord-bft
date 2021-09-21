@@ -34,7 +34,7 @@ jobs:
           run: |
               script -q -e -c "make pull"
               sudo df -h
-              script -q -e -c "CONCORD_BFT_CMAKE_TSAN=TRUE CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE make build" \
+              script -q -e -c "CONCORD_BFT_CMAKE_OMIT_TEST_OUTPUT=TRUE CONCORD_BFT_CMAKE_KEEP_APOLLO_LOGS=FALSE CONCORD_BFT_CMAKE_TSAN=TRUE CONCORD_BFT_CMAKE_USE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE make build" \
               && script -q -e -c "make test"
         - name: Check if TSAN passed
           if: always()
@@ -42,16 +42,16 @@ jobs:
               chmod +x "./.github/fail_action_if_sanitizer_reports_exist.sh"
               ./.github/fail_action_if_sanitizer_reports_exist.sh ./build/tsan_logs
         - name: Prepare artifacts
-          if: failure()
+          if: always()
           run: |
             sudo chown -R ${USER}:${GROUP} ${PWD}/build
-            tar -czvf ${{ github.workspace }}/artifact/logs.tar.gz ./build/tests/apollo/logs
+            #tar -czvf ${{ github.workspace }}/artifact/logs.tar.gz ./build/tests/apollo/logs # Do not attempt to archive because CONCORD_BFT_CMAKE_KEEP_APOLLO_LOGS=FALSE
             tar -czvf ${{ github.workspace }}/artifact/tsan.logs.tar.gz ./build/tsan_logs
             du -h ${{ github.workspace }}/artifact
             sudo df -h
         - name: Upload artifacts
           uses: actions/upload-artifact@v2
-          if: failure()
+          if: always()
           with:
             name: artifacts-${{ github.sha }}
             path: ${{ github.workspace }}/artifact/
