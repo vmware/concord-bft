@@ -86,6 +86,13 @@ if(THREADCHECK)
     message("-- Thread Sanitizer Enabled")
 endif()
 
+if(OMIT_TEST_OUTPUT)
+    message("-- OMIT_TEST_OUTPUT Enabled")
+endif()
+if(KEEP_APOLLO_LOGS)
+    message("-- KEEP_APOLLO_LOGS Enabled")
+endif()
+
 if(CODECOVERAGE AND THREADCHECK)
     message(FATAL_ERROR "Cannot have both Thread and Code Coverage Enabled")
 endif()
