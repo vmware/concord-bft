@@ -27,8 +27,8 @@ using ::client::thin_replica_client::TrsConnectionConfig;
 
 namespace concord::client::concordclient {
 
-ConcordClient::ConcordClient(const ConcordClientConfig& config)
-    : logger_(logging::getLogger("concord.client.concordclient")), config_(config) {
+ConcordClient::ConcordClient(const ConcordClientConfig& config, std::shared_ptr<concordMetrics::Aggregator> aggregator)
+    : logger_(logging::getLogger("concord.client.concordclient")), config_(config), metrics_(aggregator) {
   ConcordClientPoolConfig client_pool_config = createClientPoolStruct(config);
   client_pool_ = std::make_unique<concord::concord_client_pool::ConcordClientPool>(client_pool_config, metrics_);
   while (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) {

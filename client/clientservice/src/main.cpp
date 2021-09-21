@@ -9,6 +9,7 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
+#include <concord_prometheus_metrics.hpp>
 #include <memory>
 #include <string>
 #include <grpcpp/grpcpp.h>
@@ -49,6 +50,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
+    ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
   ;
   // clang-format on
   po::variables_map opts;
@@ -56,6 +58,16 @@ po::variables_map parseCmdLine(int argc, char** argv) {
   po::notify(opts);
 
   return opts;
+}
+
+std::tuple<std::shared_ptr<concord::utils::PrometheusRegistry>,
+           std::shared_ptr<concord::utils::ConcordBftPrometheusCollector>>
+initPrometheus(int port) {
+  std::string bind_address = "0.0.0.0:" + std::to_string(port);
+  auto registry = std::make_shared<concord::utils::PrometheusRegistry>(bind_address);
+  auto collector = std::make_shared<concord::utils::ConcordBftPrometheusCollector>();
+  registry->scrapeRegistry(collector);
+  return std::make_tuple(registry, collector);
 }
 
 int main(int argc, char** argv) {
@@ -75,9 +87,11 @@ int main(int argc, char** argv) {
   }
   LOG_INFO(logger, "ConcordClient configured");
 
-  auto concord_client = std::make_unique<ConcordClient>(config);
-  auto metrics = std::make_shared<concordMetrics::Aggregator>();
-  concord_client->setMetricsAggregator(metrics);
+  auto port = opts["metrics-port"].as<int>();
+  auto [registry, metrics_collector] = initPrometheus(port);
+  LOG_INFO(logger, "Prometheus metrics available on port " << port);
+
+  auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
   ClientService service(std::move(concord_client));
 
   auto server_addr = opts["host"].as<std::string>() + ":" + std::to_string(opts["port"].as<int>());
