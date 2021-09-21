@@ -28,6 +28,7 @@ using namespace std::placeholders;
 using namespace concordUtil;
 
 uint8_t RequestState::reqProcessingHistoryHeight = 10;
+std::unordered_map<std::string, uint64_t> PreProcessor::to_block_id;
 
 //**************** Class RequestsBatch ****************//
 
@@ -640,6 +641,9 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   LOG_DEBUG(logger(), KVLOG(batchCid, reqSeqNum, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
+  if (to_block_id.count(batchCid) == 0) {
+    to_block_id[batchCid] = GlobalData::current_block_id;
+  }
   bool registerSucceeded = false;
   {
     const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
@@ -1348,6 +1352,8 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
   const auto clientId = clientReqMsg->clientProxyId();
   const auto senderId = clientReqMsg->senderId();
   const auto requestTimeoutMilli = clientReqMsg->requestTimeoutMilli();
+  uint64_t blockid = to_block_id[batchCid];
+
   preProcessRequestMsg =
       make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
                                         myReplicaId_,
@@ -1360,7 +1366,7 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         clientReqMsg->getCid(),
                                         clientReqMsg->requestSignature(),
                                         clientReqMsg->requestSignatureLength(),
-                                        GlobalData::current_block_id,
+                                        blockid,
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   const auto registerSucceeded =
       registerRequest(batchCid, batchSize, move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);

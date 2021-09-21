@@ -135,6 +135,8 @@ class PreProcessor {
 
   ReqId getOngoingReqIdForClient(uint16_t clientId, uint16_t reqOffsetInBatch);
 
+  static std::unordered_map<std::string, uint64_t> to_block_id;
+
  private:
   friend class AsyncPreProcessJob;
   friend class RequestsBatch;
