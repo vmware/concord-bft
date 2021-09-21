@@ -502,6 +502,9 @@ void ThinReplicaClient::receiveUpdates() {
   // Set initial data stream
   logDataStreamResetResult(resetDataStreamTo(0), 0);
 
+  // last timestamp when responsive agreeing servers were less than config_->max_faulty + 1
+  std::optional<std::chrono::steady_clock::time_point> last_non_agreement_time;
+
   // Main subscription-driving loop; one iteration of this outer loop
   // corresponds to receiving, validating, and returning one update.
   // We break out of this loop only if the application sets the flag.
@@ -541,7 +544,19 @@ void ThinReplicaClient::receiveUpdates() {
 
     // At this point we need to have agreeing servers.
     if (most_agreeing < (config_->max_faulty + 1)) {
-      LOG_WARN(logger_, "Couldn't find agreement amongst all servers. Try again.");
+      // print the warning every minute to avoid flooding with logs
+      std::string msg = "Couldn't find agreement amongst all servers. Try again.";
+      if (!last_non_agreement_time.has_value()) {
+        LOG_WARN(logger_, msg);
+        last_non_agreement_time = std::chrono::steady_clock::now();
+      } else {
+        auto current_time = std::chrono::steady_clock::now();
+        auto time_since_last_log =
+            std::chrono::duration_cast<std::chrono::seconds>(current_time - last_non_agreement_time.value());
+        if (time_since_last_log.count() >= config_->no_agreement_warn_duration.count()) {
+          LOG_WARN(logger_, msg);
+        }
+      }
       // We need to force re-subscription on at least one of the f+1 open
       // streams otherwise we might skip an update. By closing all streams here
       // we do exactly what the algorithm would do in the next iteration of this
