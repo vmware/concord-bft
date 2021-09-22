@@ -72,7 +72,7 @@ class RequestsBatch {
   void increaseNumOfCompletedReqs() { numOfCompletedReqs_++; }
   RequestStateSharedPtr &getRequestState(uint16_t reqOffsetInBatch);
   const std::string getCid() const;
-  void cancelBatchAndReleaseReqs();
+  void cancelBatchAndReleaseRequests(const std::string &batchCid, PreProcessingResult status);
   void releaseReqsAndSendBatchedReplyIfCompleted();
   void finalizeBatchIfCompleted();
   void handlePossiblyExpiredRequests();
@@ -91,7 +91,7 @@ class RequestsBatch {
   std::atomic_bool batchRegistered_ = false;
   std::atomic_bool batchInProcess_ = false;
   std::atomic_uint32_t numOfCompletedReqs_ = 0;
-  // pre-allocated map; request offset in batch -> request state
+  // Pre-allocated map: request offset in batch -> request state
   std::map<uint16_t, RequestStateSharedPtr> requestsMap_;
   mutable std::mutex batchMutex_;
   PreProcessReplyMsgsList repliesList_;
@@ -180,7 +180,9 @@ class PreProcessor {
                                        const std::string &batchCid,
                                        uint16_t reqOffsetInBatch);
   bool checkPreProcessBatchReqMsgCorrectness(const PreProcessBatchReqMsgSharedPtr &batchReq);
-  void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg, bool arrivedInBatch);
+  void handleClientPreProcessRequestByPrimary(PreProcessRequestMsgSharedPtr preProcessRequestMsg,
+                                              const std::string &batchCid,
+                                              bool arrivedInBatch);
   void registerAndHandleClientPreProcessReqOnNonPrimary(const std::string &batchCid,
                                                         uint32_t batchSize,
                                                         ClientPreProcessReqMsgUniquePtr clientReqMsg,
@@ -207,11 +209,15 @@ class PreProcessor {
                                        const std::string &batchCid = "");
   const char *getPreProcessResultBuffer(uint16_t clientId, ReqId reqSeqNum, uint16_t reqOffsetInBatch);
   void launchAsyncReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                      const std::string &batchCid,
                                       bool isPrimary,
                                       bool isRetry,
                                       TimeRecorder &&totalPreExecDurationRecorder = TimeRecorder());
   uint32_t launchReqPreProcessing(const PreProcessRequestMsgSharedPtr &preProcessReqMsg);
-  void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg, bool isPrimary, bool isRetry);
+  void handleReqPreProcessingJob(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                 const std::string &batchCid,
+                                 bool isPrimary,
+                                 bool isRetry);
   void handleReqPreProcessedByNonPrimary(uint16_t clientId,
                                          uint16_t reqOffsetInBatch,
                                          ReqId reqSeqNum,
@@ -219,11 +225,15 @@ class PreProcessor {
                                          uint32_t resBufLen,
                                          const std::string &cid);
   void handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                                      const std::string &batchCid,
                                       uint16_t clientId,
                                       uint32_t resultBufLen);
-  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId, uint16_t reqOffsetInBatch, uint32_t resultBufLen);
+  void handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
+                                         uint16_t reqOffsetInBatch,
+                                         uint32_t resultBufLen,
+                                         const std::string &batchCid);
   void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid = "");
-  void cancelPreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch);
+  void cancelPreProcessing(NodeIdType clientId, const std::string &batchCid, uint16_t reqOffsetInBatch);
   void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
   PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
                                                                           uint16_t reqOffsetInBatch,
@@ -263,6 +273,7 @@ class PreProcessor {
       SeqNum reqSeqNum, NodeIdType senderId, NodeIdType clientId, const std::string &batchCid, const std::string &cid);
   void releaseReqAndSendReplyMsg(PreProcessReplyMsgSharedPtr replyMsg);
   bool handlePossiblyExpiredRequest(const RequestStateSharedPtr &reqStateEntry);
+  bool allClientRequestsReleased(uint16_t clientId, const std::string &batchCid);
 
   static logging::Logger &logger() {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
@@ -338,6 +349,7 @@ class AsyncPreProcessJob : public concord::util::SimpleThreadPool::Job {
  public:
   AsyncPreProcessJob(PreProcessor &preProcessor,
                      const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
+                     const std::string &batchCid,
                      bool isPrimary,
                      bool isRetry,
                      TimeRecorder &&totalPreExecDurationRecorder,
@@ -351,6 +363,7 @@ class AsyncPreProcessJob : public concord::util::SimpleThreadPool::Job {
   const int32_t resetFrequency_ = 5000;
   PreProcessor &preProcessor_;
   PreProcessRequestMsgSharedPtr preProcessReqMsg_;
+  const std::string batchCid_;
   bool isPrimary_ = false;
   bool isRetry_ = false;
   TimeRecorder totalJobDurationRecorder_;
