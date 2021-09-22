@@ -28,7 +28,6 @@ using namespace std::placeholders;
 using namespace concordUtil;
 
 uint8_t RequestState::reqProcessingHistoryHeight = 10;
-std::unordered_map<std::string, uint64_t> PreProcessor::to_block_id;
 
 //**************** Class RequestsBatch ****************//
 
@@ -48,6 +47,15 @@ void RequestsBatch::addReply(PreProcessReplyMsgSharedPtr replyMsg) {
 void RequestsBatch::setBatchParameters(const std::string &cid, uint32_t batchSize) {
   cid_ = cid;
   batchSize_ = batchSize;
+  // We want to preserve blockid between retries, therefore cidToBlockid_ is not being part of the reset,
+  // And is being set only if cid is new.
+  if (cidToBlockid_.first != cid_) {
+    LOG_DEBUG(preProcessor_.logger(),
+              "resetting batch block id, old cid: " << cidToBlockid_.first << " to: " << cid_ << ", old block id: "
+                                                    << cidToBlockid_.second << " to: " << GlobalData::current_block_id);
+    cidToBlockid_.first = cid_;
+    cidToBlockid_.second = GlobalData::current_block_id;
+  }
 }
 
 // Should be called under batchMutex_
@@ -641,9 +649,7 @@ bool PreProcessor::handleSingleClientRequestMessage(ClientPreProcessReqMsgUnique
   const NodeIdType &clientId = clientMsg->clientProxyId();
   const ReqId &reqSeqNum = clientMsg->requestSeqNum();
   LOG_DEBUG(logger(), KVLOG(batchCid, reqSeqNum, clientId, senderId, arrivedInBatch, reqOffsetInBatch));
-  if (to_block_id.count(batchCid) == 0) {
-    to_block_id[batchCid] = GlobalData::current_block_id;
-  }
+
   bool registerSucceeded = false;
   {
     const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
@@ -1217,6 +1223,7 @@ bool PreProcessor::registerRequest(const string &batchCid,
   }
   SCOPED_MDC_CID(cid);
   const auto &reqEntry = ongoingReqBatches_[clientId]->getRequestState(reqOffsetInBatch);
+
   if (batchedPreProcessEnabled_ && !batchCid.empty()) {
     if (preProcessRequestMsg)
       ongoingReqBatches_[clientId]->startBatch(batchCid, batchSize);
@@ -1352,7 +1359,9 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
   const auto clientId = clientReqMsg->clientProxyId();
   const auto senderId = clientReqMsg->senderId();
   const auto requestTimeoutMilli = clientReqMsg->requestTimeoutMilli();
-  uint64_t blockid = to_block_id[batchCid];
+
+  ongoingReqBatches_[clientId]->registerBatch(batchCid, batchSize);
+  const auto blockId = ongoingReqBatches_[clientId]->getBlockId();
 
   preProcessRequestMsg =
       make_shared<PreProcessRequestMsg>(REQ_TYPE_PRE_PROCESS,
@@ -1366,15 +1375,20 @@ bool PreProcessor::registerRequestOnPrimaryReplica(const string &batchCid,
                                         clientReqMsg->getCid(),
                                         clientReqMsg->requestSignature(),
                                         clientReqMsg->requestSignatureLength(),
-                                        blockid,
+                                        blockId,
                                         clientReqMsg->spanContext<ClientPreProcessReqMsgUniquePtr::element_type>());
   const auto registerSucceeded =
       registerRequest(batchCid, batchSize, move(clientReqMsg), preProcessRequestMsg, reqOffsetInBatch);
   if (registerSucceeded)
-    LOG_INFO(
-        logger(),
-        "Start request processing by a primary replica" << KVLOG(
-            reqSeqNum, batchCid, batchSize, preProcessRequestMsg->getCid(), clientId, senderId, requestTimeoutMilli));
+    LOG_INFO(logger(),
+             "Start request processing by a primary replica" << KVLOG(reqSeqNum,
+                                                                      batchCid,
+                                                                      batchSize,
+                                                                      preProcessRequestMsg->getCid(),
+                                                                      clientId,
+                                                                      senderId,
+                                                                      requestTimeoutMilli,
+                                                                      blockId));
   return registerSucceeded;
 }
 
