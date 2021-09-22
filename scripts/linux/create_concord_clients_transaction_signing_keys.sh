@@ -98,8 +98,8 @@ parser() {
     fi
     output_path=${output_path}/${output_folder}
     if [ -d "${output_path}" ]; then
-        echo "error: --output_base_path ${output_path} already exists! Please delete it or supply a different path..."  >&2
-        exit 1
+        echo "warning: --output_base_path ${output_path} already exists! Deleting it..."  >&2
+        rm -rf ${output_path}
     fi
 }
 
