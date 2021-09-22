@@ -37,6 +37,7 @@
 #include "client/reconfiguration/st_based_reconfiguration_client.hpp"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+#include "communication/CommStateControl.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -439,6 +440,10 @@ Replica::Replica(ICommunication *comm,
       secretsManager_{secretsManager},
       blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
                                                                           : std::thread::hardware_concurrency()) {
+  bft::communication::CommStateControl::instance().setCommRestartCallBack([this]() {
+    this->m_ptrComm->Stop();
+    this->m_ptrComm->Start();
+  });
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
