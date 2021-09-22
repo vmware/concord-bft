@@ -17,10 +17,12 @@
 #include "Metrics.hpp"
 #include "IPendingRequest.hpp"
 #include "bftengine/IKeyExchanger.hpp"
+#include "messages/ClientReplyMsg.hpp"
 #include <map>
 #include <set>
 #include <unordered_map>
 #include <memory>
+#include <shared_mutex>
 
 namespace bftEngine {
 class IStateTransfer;
@@ -87,17 +89,14 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   static uint32_t reservedPagesPerClient(const uint32_t& sizeOfReservedPage, const uint32_t& maxReplySize);
 
  protected:
+  bool loadReservedPageSafe(uint32_t reservedPageId, uint32_t copyLength, char* outReservedPage) const;
+  void saveReservedPageSafe(uint32_t reservedPageId, uint32_t copyLength, const char* inReservedPage);
+  ClientReplyMsgHeader* setUpReplyHeader();
   uint32_t getReplyFirstPageId(NodeIdType clientId) const { return getKeyPageId(clientId) + 1; }
 
   uint32_t getKeyPageId(NodeIdType clientId) const {
     return (clientId - *clientIds_.cbegin()) * reservedPagesPerClient_;
   }
-
-  const ReplicaId myId_;
-
-  std::string scratchPage_;
-
-  uint32_t reservedPagesPerClient_;
 
   struct RequestInfo {
     RequestInfo() : time(MinTime) {}
@@ -109,11 +108,18 @@ class ClientsManager : public ResPagesClient<ClientsManager>, public IPendingReq
   };
 
   struct ClientInfo {
+    mutable std::shared_mutex requestsInfoMutex;
     std::map<ReqId, RequestInfo> requestsInfo;
+    mutable std::shared_mutex repliesInfoMutex;
     std::map<ReqId, Time> repliesInfo;  // replyId to replyTime
     std::pair<std::string, concord::util::crypto::KeyFormat> pubKey;
   };
 
+  mutable std::shared_mutex reservedPagesMutex_;
+  const ReplicaId myId_;
+  mutable std::shared_mutex scratchPageMutex_;
+  std::string scratchPage_;
+  uint32_t reservedPagesPerClient_;
   std::set<NodeIdType> proxyClients_;
   std::set<NodeIdType> externalClients_;
   std::set<NodeIdType> internalClients_;

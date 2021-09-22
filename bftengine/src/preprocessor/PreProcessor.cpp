@@ -1305,7 +1305,7 @@ void PreProcessor::releaseClientPreProcessRequest(const RequestStateSharedPtr &r
       SCOPED_MDC_CID(givenReq->getReqCid());
       switch (result) {
         case CANCEL:
-          LOG_INFO(logger(),
+          LOG_WARN(logger(),
                    "Release request - no consensus reached" << KVLOG(reqSeqNum, batchCid, clientId, reqOffsetInBatch));
           break;
         case EXPIRED:

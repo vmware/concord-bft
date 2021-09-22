@@ -4347,7 +4347,7 @@ void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::Execution
     auto status = req.outExecutionStatus;
     if (status != 0) {
       const auto requestSeqNum = req.requestSequenceNum;
-      LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
+      LOG_WARN(GL, "Request execution failed:" << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
       auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
