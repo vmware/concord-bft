@@ -206,6 +206,10 @@ Msg ClientTlsExchangeKey 52 {
     uint64 sender_id
     list kvpair uint32 string clients_certificates
 }
+Msg ClientsRestartCommand 53 {
+    uint64 sender_id
+    string data
+}
 
 Msg ClientStateReply 39 {
     uint64 block_id
@@ -215,6 +219,7 @@ Msg ClientStateReply 39 {
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
         ClientTlsExchangeKey
+        ClientsRestartCommand
       } response
 }
 
@@ -252,6 +257,7 @@ Msg ReconfigurationRequest 1 {
     ClientsAddRemoveStatusCommand
     ClientsAddRemoveUpdateCommand
     ClientKeyExchangeStatus
+    ClientsRestartCommand
   } command
   bytes additional_data
 }

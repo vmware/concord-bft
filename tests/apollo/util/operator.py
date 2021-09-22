@@ -155,6 +155,11 @@ class Operator:
         restart_command.restart = restart
         restart_command.data = data
         return self._construct_basic_reconfiguration_request(restart_command)
+    def _construct_reconfiguration_clientsRestart_command(self, data=""):
+        client_restart_command = cmf_msgs.ClientsRestartCommand()
+        client_restart_command.sender_id = 1000
+        client_restart_command.data = data
+        return self._construct_basic_reconfiguration_request(client_restart_command)
     
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
@@ -228,6 +233,10 @@ class Operator:
     async def clients_clientKeyExchangeStatus_command(self):
         reconf_msg = self._construct_reconfiguration_clientsKeyExchangeStatus_command()
         return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
+
+    async def clients_clientRestart_command(self):
+        reconf_msg = self._construct_reconfiguration_clientsRestart_command('ClientRestart')
+        return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
     async def install_cmd(self, version, bft=True):
         install_msg = self._construct_install_command(version, bft)

@@ -33,6 +33,7 @@ enum CLIENT_COMMAND_TYPES : uint8_t {
   CLIENT_SCALING_COMMAND_STATUS = 0X4,    // identifier of client update request after successful scaling
   CLIENT_SCALING_EXECUTE_COMMAND = 0x5,   // identifier of client scaling execute request by operator
   CLIENT_TLS_KEY_EXCHANGE_COMMAND = 0x6,  // identifier of tls key exchange request by client
+  CLIENT_RESTART_COMMAND = 0x7,           // identifier of client restart command
   end_
 };
 }  // namespace concord::kvbc::keyTypes

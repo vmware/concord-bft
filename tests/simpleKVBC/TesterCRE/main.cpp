@@ -332,6 +332,36 @@ class ClientsAddRemoveHandler : public IStateHandler {
   uint64_t init_last_update_block_;
 };
 
+class ClientsRestartHandler : public IStateHandler {
+ public:
+  ClientsRestartHandler(uint64_t init_update_block) : init_last_update_block_{init_update_block} {}
+
+  bool validate(const State& state) const override {
+    LOG_INFO(this->getLogger(), "validate restart command ");
+    if (state.blockid < init_last_update_block_) return false;
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    return std::holds_alternative<concord::messages::ClientsRestartCommand>(crep.response);
+  }
+  bool execute(const State& state, WriteState& out) override {
+    LOG_INFO(getLogger(), "execute clientsRestartCommand");
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    concord::messages::ClientsRestartCommand command =
+        std::get<concord::messages::ClientsRestartCommand>(crep.response);
+    LOG_INFO(this->getLogger(), "completed cleint restart command ");
+    return true;
+  }
+
+ private:
+  logging::Logger getLogger() const {
+    static logging::Logger logger_(
+        logging::getLogger("concord.client.reconfiguration.testerCre.ClientsRestartHandler"));
+    return logger_;
+  }
+  uint64_t init_last_update_block_;
+};
+
 int main(int argc, char** argv) {
   auto creParams = setupCreParams(argc, argv);
   std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
@@ -344,6 +374,7 @@ int main(int argc, char** argv) {
   uint64_t last_pk_status{0};
   uint64_t last_scaling_status{0};
   uint64_t last_tls_status{0};
+  uint64_t last_resatrt_status{0};
   bool succ = false;
   auto states = pollBasedClient->getStateUpdate(succ);
   while (!succ) {
@@ -361,6 +392,9 @@ int main(int argc, char** argv) {
     if (std::holds_alternative<concord::messages::ClientTlsExchangeKey>(csp.response)) {
       last_tls_status = s.blockid;
     }
+    if (std::holds_alternative<concord::messages::ClientsRestartCommand>(csp.response)) {
+      last_resatrt_status = s.blockid;
+    }
   }
   ClientReconfigurationEngine cre(creParams.CreConfig, pollBasedClient, std::make_shared<concordMetrics::Aggregator>());
   cre.registerHandler(
@@ -371,6 +405,7 @@ int main(int argc, char** argv) {
                                                   last_tls_status,
                                                   sm_));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
+  cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status));
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }

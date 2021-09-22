@@ -187,6 +187,12 @@ class IReconfigurationHandler {
                       concord::messages::ReconfigurationResponse&) {
     return true;
   }
+  virtual bool handle(const concord::messages::ClientsRestartCommand&,
+                      uint64_t,
+                      uint32_t,
+                      concord::messages::ReconfigurationResponse&) {
+    return true;
+  }
 
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.

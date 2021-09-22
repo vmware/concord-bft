@@ -197,6 +197,22 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             r,
             stop_on_stable_seq_num=False)
 
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_restart_command(self, bft_network):
+        """
+            Operator sends client restart command for all the clients
+        """
+        with log.start_action(action_type="test_client_restart_command"):
+            bft_network.start_all_replicas()
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+            client = bft_network.random_client()   
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+            await op.clients_clientRestart_command()
+
     async def run_client_key_exchange_cycle(self, bft_network, prev_pub_key=""):
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)

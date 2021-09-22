@@ -131,6 +131,12 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               creply.response = cmd;
               break;
             }
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_COMMAND: {
+              concord::messages::ClientsRestartCommand cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
+            }
             default:
               break;
           }
@@ -506,6 +512,32 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
   }
   auto block_id = persistReconfigurationBlock(ver_updates, sequence_number, false);
   LOG_INFO(getLogger(), "ClientsAddRemoveCommand block_id is: " << block_id);
+  return true;
+}
+bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartCommand& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  std::vector<uint32_t> target_clients;
+  for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (auto cid : cg.second) {
+      target_clients.push_back(cid);
+    }
+  }
+  auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                                static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_COMMAND)};
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::string(key_prefix), std::string(serialized_command.begin(), serialized_command.end()));
+
+  for (auto clientid : target_clients) {
+    ver_updates.addUpdate(key_prefix + std::to_string(clientid),
+                          std::string(serialized_command.begin(), serialized_command.end()));
+  }
+  auto block_id = persistReconfigurationBlock(ver_updates, bft_seq_num, false);
+
+  LOG_INFO(getLogger(), "Client RestartCommand block is " << block_id);
   return true;
 }
 
