@@ -53,6 +53,7 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
+  if (command.tls) return true;
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
 

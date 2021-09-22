@@ -87,6 +87,7 @@ Msg ReconfigurationErrorMsg 24 {
 Msg KeyExchangeCommand 25 {
     uint64 sender_id
     list uint64 target_replicas
+    bool tls
 }
 
 Msg AddRemoveCommand 26 {
