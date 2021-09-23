@@ -20,6 +20,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     clang-9 \
     clang-format-9 \
     clang-tidy-10 \
+    curl \
     gdb \
     gdbserver \
     git \
@@ -133,12 +134,12 @@ wget ${WGET_FLAGS} https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz && \
     tar --lzip -xf gmp-6.1.2.tar.lz && \
     cd gmp-6.1.2/ && \
     ./configure --with-pic --enable-cxx --disable-fat --build x86_64-linux-gnu && \
-    make && \
+    make -j$(nproc) && \
     make check && \
     make install && \
     ldconfig && \
-    cd ../ && \
-    rm -rf gmp-6.1.2/
+    cd ${HOME} && \
+    rm -r gmp-6.1.2.tar.lz gmp-6.1.2
 
 
 cd ${HOME}
@@ -212,8 +213,11 @@ wget ${WGET_FLAGS} \
  https://sourceforge.net/projects/asio/files/asio/1.18.1%20%28Stable%29/asio-1.18.1.tar.bz2 && \
     tar -xf asio-1.18.1.tar.bz2 && \
     cd asio-1.18.1 && \
-    ./configure && make && make install && \
-    cd .. && rm -rf asio*
+    ./configure && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${HOME} && \
+    rm -rf asio*
 
 # Get the newest openSSL installation (as of 9/2020)
 OPENSSL_VER='1.1.1g'
@@ -223,10 +227,9 @@ wget ${WGET_FLAGS} https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz 
     rm openssl-${OPENSSL_VER}.tar.gz && \
     cd openssl-${OPENSSL_VER} && \
     ./config --prefix=/usr/local/ssl --openssldir=/usr/local/ssl shared zlib && \
-    make && \
+    make -j$(nproc) && \
     make install && \
     echo "/usr/local/ssl/lib" > /etc/ld.so.conf.d/openssl-${OPENSSL_VER}.conf && \
-    ldconfig -v && \
     rm -rf /usr/local/src/openssl-${OPENSSL_VER}
 
 # gRPC
@@ -262,5 +265,30 @@ git clone -b v1.37.1 --depth 1 --recurse-submodules https://github.com/grpc/grpc
     cd ${HOME} && \
     rm -r ${HOME}/grpc
 
-# After installing all libraries, let's make sure that they will be found at runtime
-ldconfig
+# libcurl needed for Prometheus-cpp
+cd ${HOME}
+curl --ssl-reqd --output curl.tar.xz https://curl.se/download/curl-7.66.0.tar.xz && \
+    tar xf curl.tar.xz && \
+    cd curl-7.66.0 && \
+    ./configure --with-ssl --prefix=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${HOME} && \
+    rm -r curl.tar.xz curl-7.66.0
+
+# Prometheus-cpp
+cd ${HOME}
+git clone -b v0.8.0 --depth 1 --recurse-submodules https://github.com/jupp0r/prometheus-cpp.git && \
+    cd prometheus-cpp && \
+    mkdir _build && \
+    cd _build && \
+    cmake -DBUILD_SHARED_LIBS=OFF \
+          -DCMAKE_INSTALL_PREFIX=/usr/local \
+          .. && \
+    cmake --build . --parallel $(nproc) && \
+    cmake --install . && \
+    cd ${HOME} && \
+    rm -r prometheus-cpp
+
+# After installing all libraries, let's make sure that they will be found at compile time
+ldconfig -v
