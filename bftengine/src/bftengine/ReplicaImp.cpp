@@ -43,6 +43,8 @@
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "messages/ReplicasRestartReadyProofMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
+#include "messages/ViewChangeIndicatorInternalMsg.hpp"
+#include "messages/PrePrepareCarrierInternalMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
@@ -134,14 +136,18 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
       return;
     }
   }
-  if (validateMessage(trueTypeObj) && !isCollectingState())
+  if constexpr (std::is_same_v<T, PrePrepareMsg>) {
+    if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+      validatePrePrepareMsg(trueTypeObj);
+      return;
+    }
+  }
+  if (validateMessage(trueTypeObj) && !isCollectingState()) {
     onMessage<T>(trueTypeObj);
-  else
+  } else {
     delete trueTypeObj;
+  }
 }
-
-template <class T>
-void onMessage(T *);
 
 bool ReplicaImp::validateMessage(MessageBase *msg) {
   if (config_.debugStatisticsEnabled) {
@@ -154,6 +160,39 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
     onReportAboutInvalidMessage(msg, e.what());
     return false;
   }
+}
+
+/**
+ * validatePrePrepareMsg initiates the validation and waits for completion of validation.
+ * After validation, it routes the preprepare message as an internal message.
+ *
+ * @param msg : This is the PrePrepare message received by the replica, which is about
+ * to get handled.
+ * @return : returns nothing
+ */
+void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
+  RequestThreadPool::getThreadPool().async(
+      [this](auto *prePrepareMsg, auto *replicaInfo, auto *incomingMessageQueue) {
+        try {
+          prePrepareMsg->validate(*replicaInfo);
+          if (!validatePreProcessedResults(prePrepareMsg)) {
+            InternalMessage viewChangeIndicatorIm =
+                ViewChangeIndicatorInternalMsg(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+            incomingMessageQueue->pushInternalMsg(std::move(viewChangeIndicatorIm));
+            delete prePrepareMsg;
+            return;
+          }
+          InternalMessage prePrepareCarrierIm = PrePrepareCarrierInternalMsg(prePrepareMsg);
+          incomingMessageQueue->pushInternalMsg(std::move(prePrepareCarrierIm));
+        } catch (std::exception &e) {
+          onReportAboutInvalidMessage(prePrepareMsg, e.what());
+          delete prePrepareMsg;
+          return;
+        }
+      },
+      ppm,
+      repsInfo,
+      &(getIncomingMsgsStorage()));
 }
 
 std::function<bool(MessageBase *)> ReplicaImp::getMessageValidator() {
@@ -741,7 +780,7 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   }
 }
 
-bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) {
+bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) const {
   RequestsIterator reqIter(msg);
   char *requestBody = nullptr;
   std::vector<std::future<void>> tasks;
@@ -767,11 +806,8 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) {
   errors.resize(error_id);
   for (auto err : errors) {
     if (err) {
-      // trigger view change
-      LOG_ERROR(VC_LOG,
-                "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
-                    << *err << ". Ask to leave view " << getCurrentView());
-      askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+      // Indicate a view change
+      LOG_WARN(VC_LOG, "Replica will ask to leave view" << KVLOG(*err, getCurrentView()));
       return false;
     }
   }
@@ -787,8 +823,10 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     return;
   }
 
-  if (!validatePreProcessedResults(msg)) {
-    // validatePreProcessedResults() logs the error
+  if ((!getReplicaConfig().prePrepareFinalizeAsyncEnabled) && (!validatePreProcessedResults(msg))) {
+    // trigger view change
+    LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+    askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
     return;
   }
 
@@ -1273,6 +1311,31 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   // Handle a pre prepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
     return startConsensusProcess(*ppm, true);
+  }
+
+  // Handle a the PrePrepare Carrier
+  if (auto *ppcim = std::get_if<PrePrepareCarrierInternalMsg>(&msg)) {
+    if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+      LOG_INFO(GL, "Received PrePrepareCarrierInternalMsg while pruning, so ignoring the message");
+      delete ppcim->ppm_;
+      ppcim->ppm_ = nullptr;
+      return;
+    } else {
+      return onMessage(ppcim->ppm_);
+    }
+  }
+
+  // Handle a view change indicator and trigger view change
+  if (auto *vciim = std::get_if<ViewChangeIndicatorInternalMsg>(&msg)) {
+    if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+      LOG_INFO(GL, "Received ViewChangeIndicatorInternalMsg while pruning, so ignoring the message");
+      return;
+    } else {
+      // trigger view change
+      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      askToLeaveView(vciim->reasonToLeave_);
+      return;
+    }
   }
   // Handle prepare related internal messages
   if (auto *csf = std::get_if<CombinedSigFailedInternalMsg>(&msg)) {
