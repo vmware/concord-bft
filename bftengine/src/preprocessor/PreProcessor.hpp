@@ -78,6 +78,7 @@ class RequestsBatch {
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
   void updateRegisteredBatchIfNeeded(const std::string &batchCid, const PreProcessReqMsgsList &preProcessReqs);
+  uint64_t getBlockId() const { return cidToBlockid_.second; }
 
  private:
   void setBatchParameters(const std::string &cid, uint32_t batchSize);
@@ -87,6 +88,7 @@ class RequestsBatch {
   PreProcessor &preProcessor_;
   const uint16_t clientId_;
   std::string cid_;
+  std::pair<std::string, uint64_t> cidToBlockid_;
   std::atomic_uint32_t batchSize_ = 0;
   std::atomic_bool batchRegistered_ = false;
   std::atomic_bool batchInProcess_ = false;
