@@ -77,12 +77,11 @@ class Operator:
         unwedge_cmd.unwedges = unwedges
         return self._construct_basic_reconfiguration_request(unwedge_cmd)
 
-    def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks, tick_period_seconds=1, batch_blocks_num=600):
+    def _construct_reconfiguration_prune_request(self, latest_pruneble_blocks, blocks_per_second=40):
         prune_cmd = cmf_msgs.PruneRequest()
         prune_cmd.sender = 1000
         prune_cmd.latest_prunable_block = latest_pruneble_blocks
-        prune_cmd.tick_period_seconds = tick_period_seconds
-        prune_cmd.batch_blocks_num = batch_blocks_num
+        prune_cmd.blocks_per_second = blocks_per_second
         return self._construct_basic_reconfiguration_request(prune_cmd)
 
     def _construct_reconfiguration_prune_status_request(self):

@@ -358,8 +358,7 @@ const auto GENESIS_BLOCK_ID = BlockId{1};
 const auto LAST_BLOCK_ID = BlockId{150};
 const auto REPLICA_PRINCIPAL_ID_START = 0;
 const auto CLIENT_PRINCIPAL_ID_START = 20000;
-const std::uint32_t TICK_PERIOD_SECONDS = 1;
-const std::uint64_t BATCH_BLOCKS_NUM = 60;
+const std::uint32_t BLOCKS_PER_SECOND = 40;
 
 class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
  public:
@@ -515,8 +514,7 @@ void InitBlockchainStorage(std::size_t replica_count,
 concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
                                                       const std::map<uint64_t, std::string> &private_keys,
                                                       BlockId min_prunable_block_id = LAST_BLOCK_ID,
-                                                      std::uint32_t tick_period_seconds = TICK_PERIOD_SECONDS,
-                                                      std::uint64_t batch_blocks_num = BATCH_BLOCKS_NUM) {
+                                                      std::uint32_t blocks_per_second = BLOCKS_PER_SECOND) {
   concord::messages::PruneRequest prune_req;
   prune_req.sender = client_idx;
   uint64_t i = 0u;
@@ -530,8 +528,7 @@ concord::messages::PruneRequest ConstructPruneRequest(std::size_t client_idx,
     block_signer.sign(latest_block);
     i++;
   }
-  prune_req.tick_period_seconds = tick_period_seconds;
-  prune_req.batch_blocks_num = batch_blocks_num;
+  prune_req.blocks_per_second = blocks_per_second;
   return prune_req;
 }
 
@@ -560,8 +557,7 @@ TEST_F(test_rocksdb, sign_verify_correct) {
   {
     concord::messages::PruneRequest request;
     request.sender = CLIENT_PRINCIPAL_ID_START + client_proxy_count * sending_id;
-    request.tick_period_seconds = TICK_PERIOD_SECONDS;
-    request.batch_blocks_num = BATCH_BLOCKS_NUM;
+    request.blocks_per_second = BLOCKS_PER_SECOND;
     for (auto i = 0; i < replica_count; ++i) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
@@ -615,8 +611,7 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   {
     concord::messages::PruneRequest request;
     request.sender = CLIENT_PRINCIPAL_ID_START + client_proxy_count * sending_id;
-    request.tick_period_seconds = TICK_PERIOD_SECONDS;
-    request.batch_blocks_num = BATCH_BLOCKS_NUM;
+    request.blocks_per_second = BLOCKS_PER_SECOND;
     for (auto i = 0; i < replica_count; ++i) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
@@ -633,8 +628,8 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   {
     concord::messages::PruneRequest request;
     request.sender = CLIENT_PRINCIPAL_ID_START + client_proxy_count * sending_id;
-    request.tick_period_seconds = TICK_PERIOD_SECONDS;
-    request.batch_blocks_num = BATCH_BLOCKS_NUM;
+    request.blocks_per_second = BLOCKS_PER_SECOND;
+
     for (auto i = 0; i < replica_count - 1; ++i) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
@@ -649,8 +644,8 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   {
     concord::messages::PruneRequest request;
     request.sender = CLIENT_PRINCIPAL_ID_START + client_proxy_count * sending_id;
-    request.tick_period_seconds = TICK_PERIOD_SECONDS;
-    request.batch_blocks_num = BATCH_BLOCKS_NUM;
+    request.blocks_per_second = BLOCKS_PER_SECOND;
+
     for (auto i = 0; i < replica_count; ++i) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
@@ -666,17 +661,14 @@ TEST_F(test_rocksdb, verify_malformed_messages) {
   {
     concord::messages::PruneRequest request;
     request.sender = CLIENT_PRINCIPAL_ID_START + client_proxy_count * sending_id;
-    request.tick_period_seconds = 0;
-    request.batch_blocks_num = BATCH_BLOCKS_NUM;
+    request.blocks_per_second = 0;
+
     for (auto i = 0; i < replica_count; ++i) {
       auto &block = request.latest_prunable_block.emplace_back(concord::messages::LatestPrunableBlock());
       block.replica = REPLICA_PRINCIPAL_ID_START + i;
       block.block_id = LAST_BLOCK_ID;
       signers[i].sign(block);
     }
-    ASSERT_FALSE(verifier.verify(request));
-    request.tick_period_seconds = TICK_PERIOD_SECONDS;
-    request.batch_blocks_num = 0;
     ASSERT_FALSE(verifier.verify(request));
   }
 }

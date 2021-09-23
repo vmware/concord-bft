@@ -74,7 +74,7 @@ bool RSAPruningVerifier::verify(const concord::messages::PruneRequest& request) 
   }
 
   // Make sure pruning parameters are in range.
-  if (request.tick_period_seconds <= 0 || request.batch_blocks_num <= 0) {
+  if (request.blocks_per_second <= 0) {
     return false;
   }
 

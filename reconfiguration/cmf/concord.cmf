@@ -40,11 +40,8 @@ Msg PruneRequest 15 {
   uint64 sender
   list LatestPrunableBlock latest_prunable_block
 
-  # TicksGenerator period in seconds.
-  uint32 tick_period_seconds
-
-  # The number of blocks in a pruning batch.
-  uint64 batch_blocks_num
+  # speed with which to prune
+  uint32 blocks_per_second
 }
 
 Msg PruneStatusRequest 17 {
