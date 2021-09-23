@@ -1193,8 +1193,6 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(logger_, KVLOG(replicaId, m->msgSeqNum));
 
-  ConcordAssert(!psd_->getIsFetchingState());
-
   metrics_.received_ask_for_checkpoint_summaries_msg_++;
 
   // if msg is invalid
@@ -1205,10 +1203,13 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   }
 
   // if msg is not relevant
+  bool isFetching = psd_->getIsFetchingState();
   auto lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) ||
+  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) || isFetching ||
                            (m->minRelevantCheckpointNum > lastStoredCheckpoint)) {
-    LOG_WARN(logger_, "Msg is irrelevant: " << KVLOG(seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
+    LOG_WARN(
+        logger_,
+        "Msg is irrelevant: " << KVLOG(isFetching, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
     metrics_.irrelevant_ask_for_checkpoint_summaries_msg_++;
     return false;
   }
