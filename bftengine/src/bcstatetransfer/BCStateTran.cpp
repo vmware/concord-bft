@@ -1193,8 +1193,6 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   SCOPED_MDC_SEQ_NUM(getSequenceNumber(replicaId, m->msgSeqNum));
   LOG_DEBUG(logger_, KVLOG(replicaId, m->msgSeqNum));
 
-  ConcordAssert(!psd_->getIsFetchingState());
-
   metrics_.received_ask_for_checkpoint_summaries_msg_++;
 
   // if msg is invalid
@@ -1205,10 +1203,13 @@ bool BCStateTran::onMessage(const AskForCheckpointSummariesMsg *m, uint32_t msgL
   }
 
   // if msg is not relevant
+  bool isFetching = psd_->getIsFetchingState();
   auto lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) ||
+  if (auto seqNumInvalid = !checkValidityAndSaveMsgSeqNum(replicaId, m->msgSeqNum) || isFetching ||
                            (m->minRelevantCheckpointNum > lastStoredCheckpoint)) {
-    LOG_WARN(logger_, "Msg is irrelevant: " << KVLOG(seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
+    LOG_WARN(
+        logger_,
+        "Msg is irrelevant: " << KVLOG(isFetching, seqNumInvalid, m->minRelevantCheckpointNum, lastStoredCheckpoint));
     metrics_.irrelevant_ask_for_checkpoint_summaries_msg_++;
     return false;
   }
@@ -2776,11 +2777,10 @@ void BCStateTran::checkConsistency(bool checkAllBlocks, bool duringInit) {
   const uint64_t lastReachableBlockNum = as_->getLastReachableBlockNum();
   const uint64_t lastBlockNum = as_->getLastBlockNum();
   const uint64_t genesisBlockNum = as_->getGenesisBlockNum();
-  LOG_INFO(logger_, KVLOG(lastBlockNum, lastReachableBlockNum));
-
   const uint64_t firstStoredCheckpoint = psd_->getFirstStoredCheckpoint();
   const uint64_t lastStoredCheckpoint = psd_->getLastStoredCheckpoint();
-  LOG_INFO(logger_, KVLOG(firstStoredCheckpoint, lastStoredCheckpoint));
+  LOG_INFO(logger_,
+           KVLOG(firstStoredCheckpoint, lastStoredCheckpoint, checkAllBlocks, lastBlockNum, lastReachableBlockNum));
 
   checkConfig();
   checkFirstAndLastCheckpoint(firstStoredCheckpoint, lastStoredCheckpoint);
@@ -2816,6 +2816,7 @@ void BCStateTran::checkConfig() {
 }
 
 void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
+  LOG_INFO(logger_, KVLOG(firstStoredCheckpoint, lastStoredCheckpoint));
   ConcordAssertGE(lastStoredCheckpoint, firstStoredCheckpoint);
   ConcordAssertLE(lastStoredCheckpoint - firstStoredCheckpoint + 1, maxNumOfStoredCheckpoints_);
   ConcordAssertOR((lastStoredCheckpoint == 0), psd_->hasCheckpointDesc(lastStoredCheckpoint));
@@ -2829,6 +2830,7 @@ void BCStateTran::checkFirstAndLastCheckpoint(uint64_t firstStoredCheckpoint, ui
 
 void BCStateTran::checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastReachableBlockNum) {
   if (lastReachableBlockNum > 0) {
+    LOG_INFO(logger_, KVLOG(genesisBlockNum, lastReachableBlockNum));
     for (uint64_t currBlock = lastReachableBlockNum - 1; currBlock >= genesisBlockNum; currBlock--) {
       auto currDigest = getBlockAndComputeDigest(currBlock);
       ConcordAssert(!currDigest.isZero());
@@ -2843,6 +2845,7 @@ void BCStateTran::checkReachableBlocks(uint64_t genesisBlockNum, uint64_t lastRe
 void BCStateTran::checkUnreachableBlocks(uint64_t lastReachableBlockNum, uint64_t lastBlockNum, bool duringInit) {
   ConcordAssertGE(lastBlockNum, lastReachableBlockNum);
   if (lastBlockNum > lastReachableBlockNum) {
+    LOG_INFO(logger_, std::boolalpha << KVLOG(lastReachableBlockNum, lastBlockNum, duringInit));
     ConcordAssertEQ(getFetchingState(), FetchingState::GettingMissingBlocks);
     uint64_t x = lastBlockNum - 1;
     while (as_->hasBlock(x)) x--;
@@ -2878,6 +2881,7 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
                                              uint64_t lastReachableBlockNum,
                                              uint64_t lastBlockNum) {
   if (lastBlockNum > lastReachableBlockNum) {
+    LOG_INFO(logger_, KVLOG(checkAllBlocks, lastReachableBlockNum, lastBlockNum));
     ConcordAssertAND(psd_->getIsFetchingState(), psd_->hasCheckpointBeingFetched());
     ConcordAssertEQ(psd_->getFirstRequiredBlock() - 1, as_->getLastReachableBlockNum());
     ConcordAssertGE(psd_->getLastRequiredBlock(), psd_->getFirstRequiredBlock());
@@ -2901,6 +2905,7 @@ void BCStateTran::checkBlocksBeingFetchedNow(bool checkAllBlocks,
 void BCStateTran::checkStoredCheckpoints(uint64_t firstStoredCheckpoint, uint64_t lastStoredCheckpoint) {
   // check stored checkpoints
   if (lastStoredCheckpoint > 0) {
+    LOG_INFO(logger_, KVLOG(firstStoredCheckpoint, lastStoredCheckpoint));
     uint64_t prevLastBlockNum = 0;
     for (uint64_t chkp = firstStoredCheckpoint; chkp <= lastStoredCheckpoint; chkp++) {
       if (!psd_->hasCheckpointDesc(chkp)) continue;
