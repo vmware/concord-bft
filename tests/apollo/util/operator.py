@@ -143,10 +143,10 @@ class Operator:
         cars_command.sender_id = 1000
         return self._construct_basic_reconfiguration_request(cars_command)
 
-    def _construct_reconfiguration_clientsKeyExchangeStatus_command(self):
+    def _construct_reconfiguration_clientsKeyExchangeStatus_command(self, tls=False):
         ckes_command = cmf_msgs.ClientKeyExchangeStatus()
         ckes_command.sender_id = 1000
-        ckes_command.tls = False
+        ckes_command.tls = tls
         return self._construct_basic_reconfiguration_request(ckes_command)
 
     def _construct_reconfiguration_restart_command(self, bft, restart, data):
@@ -160,6 +160,11 @@ class Operator:
         client_restart_command.sender_id = 1000
         client_restart_command.data = data
         return self._construct_basic_reconfiguration_request(client_restart_command)
+
+    def _construct_clients_clientRestart_status_command(self):
+        client_restart_status = cmf_msgs.ClientsRestartStatus()
+        client_restart_status.sender_id = 1000
+        return self._construct_basic_reconfiguration_request(client_restart_status)
     
     def get_rsi_replies(self):
         return self.client.get_rsi_replies()
@@ -230,13 +235,17 @@ class Operator:
         reconf_msg = self._construct_reconfiguration_clientsAddRemoveStatus_command()
         return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
 
-    async def clients_clientKeyExchangeStatus_command(self):
-        reconf_msg = self._construct_reconfiguration_clientsKeyExchangeStatus_command()
+    async def clients_clientKeyExchangeStatus_command(self, tls=False):
+        reconf_msg = self._construct_reconfiguration_clientsKeyExchangeStatus_command(tls)
         return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
 
     async def clients_clientRestart_command(self):
         reconf_msg = self._construct_reconfiguration_clientsRestart_command('ClientRestart')
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
+    
+    async def clients_clientRestart_status(self):
+        reconf_msg = self._construct_clients_clientRestart_status_command()
+        return await self.client.read(reconf_msg.serialize(), reconfiguration=True)
     
     async def install_cmd(self, version, bft=True):
         install_msg = self._construct_install_command(version, bft)

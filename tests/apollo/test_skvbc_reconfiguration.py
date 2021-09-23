@@ -11,6 +11,7 @@
 # file.
 import os.path
 import unittest
+import time
 from shutil import copy2
 import trio
 import difflib
@@ -155,14 +156,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await skvbc.send_write_kv_set()
 
             await self.run_client_key_exchange_cycle(bft_network)
-            pub_key_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-            assert pub_key_a != ""
+            pub_key_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=False)
+            assert pub_key_a is not None
+            assert ts_a is not None
 
-            await self.run_client_key_exchange_cycle(bft_network, pub_key_a)
-            pub_key_b = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-            assert pub_key_b != ""
+            await self.run_client_key_exchange_cycle(bft_network, pub_key_a, ts_a)
+            pub_key_b, ts_b = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=False)
+            assert pub_key_b is not None
+            assert ts_b is not None
 
             assert pub_key_a != pub_key_b
+            assert ts_a < ts_b
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
 
             for i in range(100):
@@ -184,8 +188,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await skvbc.send_write_kv_set()
 
             await self.run_client_key_exchange_cycle(bft_network)
-            pub_key_a = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-            assert pub_key_a != ""
+            pub_key_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=False)
+            assert pub_key_a is not None
+            assert ts_a is not None
 
             for i in range(350):
                 await skvbc.send_write_kv_set()
@@ -197,36 +202,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             r,
             stop_on_stable_seq_num=False)
 
-    @with_trio
-    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
-    async def test_client_restart_command(self, bft_network):
-        """
-            Operator sends client restart command for all the clients
-        """
-        with log.start_action(action_type="test_client_restart_command"):
-            bft_network.start_all_replicas()
-            bft_network.start_cre()
-            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            for i in range(100):
-                await skvbc.send_write_kv_set()
-            client = bft_network.random_client()   
-            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-            await op.clients_clientRestart_command()
-
-    async def run_client_key_exchange_cycle(self, bft_network, prev_pub_key=""):
-        client = bft_network.random_client()
-        op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.client_key_exchange_command([])
-        rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-        assert rep.success is True
-        log.log_message(message_type=f"block_id {rep.response.block_id}")
-        with trio.fail_after(60):
-            succ = False
-            while succ is False:
-                succ = True
-                pub_key = await self.get_last_client_public_key(bft_network, bft_network.cre_id)
-                if pub_key == "" or pub_key == prev_pub_key:
-                    succ = False
+    async def run_client_key_exchange_cycle(self, bft_network, prev_data="", prev_ts=0):
+        await self.run_client_ke_command(bft_network, False, prev_data, prev_ts)
         with trio.fail_after(30):
             succ = False
             while not succ:
@@ -248,27 +225,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         bft_network.start_cre()
         bft_network.restart_clients(generate_tx_signing_keys=False, restart_replicas=False)
 
-    async def get_last_client_public_key(self, bft_network, client_id):
-        client = bft_network.random_client()
-        op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.clients_clientKeyExchangeStatus_command()
-        rsi_rep = client.get_rsi_replies()
-        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-        if not data.success:
-            return ""
-        pub_key = None
-        for r in rsi_rep.values():
-            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
-            if len(res[0].response.clients_keys) == 0:
-                succ = False
-            for k,v in res[0].response.clients_keys:
-                assert(k == client_id)
-                if pub_key is None:
-                    pub_key = v.pub_key
-                if pub_key != v.pub_key:
-                    return "" # Not all live replicas have managed to complete the procedure yet
-        return pub_key
-
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
     async def test_client_tls_key_exchange_command(self, bft_network):
@@ -282,17 +238,60 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             for i in range(100):
                 await skvbc.send_write_kv_set()
             await self.run_client_tls_key_exchange_cycle(bft_network)
-            await self.run_client_tls_key_exchange_cycle(bft_network)
+            cert_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
+            assert cert_a is not None
+            assert ts_a is not None
+            await self.run_client_tls_key_exchange_cycle(bft_network, cert_a, ts_a)
+            cert_b, ts_b = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
+            assert cert_b is not None
+            assert ts_b is not None
+
+            assert cert_a != cert_b
+            assert ts_a < ts_b
+
             for i in range(100):
                 await skvbc.send_write_kv_set()
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_restart_command(self, bft_network):
+        """
+            Operator sends client restart command for all the clients
+        """
+        with log.start_action(action_type="test_client_restart_command"):
+            bft_network.start_all_replicas()
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+            ts = await self.get_last_client_restart_status(bft_network, bft_network.cre_id)
+            assert ts == None
+            client = bft_network.random_client()   
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+            await op.clients_clientRestart_command()
+            with trio.fail_after(30):
+                while ts is None:
+                    await trio.sleep(1)
+                    ts = await self.get_last_client_restart_status(bft_network, bft_network.cre_id)
+            assert ts != None
+            
 
-    async def run_client_tls_key_exchange_cycle(self, bft_network):
+    async def run_client_ke_command(self, bft_network, tls, prev_data="", prev_ts=0):
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.client_key_exchange_command([bft_network.cre_id], tls=True)
+        rep = await op.client_key_exchange_command([bft_network.cre_id], tls=tls)
         rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
         assert rep.success is True
         log.log_message(message_type=f"block_id {rep.response.block_id}")
+        with trio.fail_after(60):
+            succ = False
+            while succ is False:
+                succ = True
+                data, ts = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=tls)
+                if data is None or ts is None or data == prev_data or ts <= prev_ts:
+                    succ = False
+
+    async def run_client_tls_key_exchange_cycle(self, bft_network, prev_cert="", prev_ts=0):
+        await self.run_client_ke_command(bft_network, True, prev_cert, prev_ts)
         with trio.fail_after(30):
             succ = False
             while not succ:
@@ -332,6 +331,56 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         continue
         bft_network.stop_cre()
         bft_network.start_cre()
+
+    async def get_last_client_keys_data(self, bft_network, client_id, tls):
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.clients_clientKeyExchangeStatus_command(tls=tls)
+        rsi_rep = client.get_rsi_replies()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        if not data.success:
+            return None, None
+        keys = None
+        ts = None
+        for r in rsi_rep.values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            if len(res[0].response.clients_data) == 0:
+                return None, None
+            for k,v in res[0].response.clients_data:
+                if k != client_id:
+                    continue
+                if keys is None:
+                    keys = v
+                if keys != v:
+                    return None, None # Not all live replicas have managed to complete the procedure yet
+            for k,v in res[0].response.timestamps:
+                if k != client_id:
+                    continue
+                if ts is None:
+                    ts = v
+                if ts != v:
+                    return None, None # Not all live replicas have managed to complete the procedure yet
+        return keys, ts
+
+    async def get_last_client_restart_status(self, bft_network, client_id):
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client, bft_network.builddir)
+        rep = await op.clients_clientRestart_status()
+        rsi_rep = client.get_rsi_replies()
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        if not data.success:
+            return None, None
+        ts = None
+        for r in rsi_rep.values():
+            res = cmf_msgs.ReconfigurationResponse.deserialize(r)
+            for k,v in res[0].response.timestamps:
+                if k != client_id:
+                    continue
+                if ts is None:
+                    ts = v
+                if ts != v:
+                    return None
+        return ts
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

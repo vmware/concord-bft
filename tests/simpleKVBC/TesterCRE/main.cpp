@@ -334,7 +334,8 @@ class ClientsAddRemoveHandler : public IStateHandler {
 
 class ClientsRestartHandler : public IStateHandler {
  public:
-  ClientsRestartHandler(uint64_t init_update_block) : init_last_update_block_{init_update_block} {}
+  ClientsRestartHandler(uint64_t init_update_block, uint16_t clientId)
+      : init_last_update_block_{init_update_block}, clientId_{clientId} {}
 
   bool validate(const State& state) const override {
     LOG_INFO(this->getLogger(), "validate restart command ");
@@ -349,7 +350,15 @@ class ClientsRestartHandler : public IStateHandler {
     concord::messages::deserialize(state.data, crep);
     concord::messages::ClientsRestartCommand command =
         std::get<concord::messages::ClientsRestartCommand>(crep.response);
-    LOG_INFO(this->getLogger(), "completed cleint restart command ");
+
+    concord::messages::ReconfigurationRequest rreq;
+    concord::messages::ClientsRestartUpdate creq;
+    creq.sender_id = clientId_;
+    rreq.command = creq;
+    std::vector<uint8_t> req_buf;
+    concord::messages::serialize(req_buf, rreq);
+    out = {req_buf,
+           [this, command]() { LOG_INFO(this->getLogger(), "completed cleint restart command " << KVLOG(clientId_)); }};
     return true;
   }
 
@@ -360,6 +369,7 @@ class ClientsRestartHandler : public IStateHandler {
     return logger_;
   }
   uint64_t init_last_update_block_;
+  uint16_t clientId_;
 };
 
 int main(int argc, char** argv) {
@@ -405,7 +415,7 @@ int main(int argc, char** argv) {
                                                   last_tls_status,
                                                   sm_));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
-  cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status));
+  cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status, creParams.CreConfig.id_));
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }
