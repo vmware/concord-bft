@@ -94,6 +94,7 @@ PreProcessReqMsgsList& PreProcessBatchRequestMsg::getPreProcessRequestMsgs() {
                                                                             cid,
                                                                             requestSignaturePosition,
                                                                             singleMsgHeader.reqSignatureLength,
+                                                                            singleMsgHeader.primaryBlockId,
                                                                             spanContext);
     preProcessReqMsgsList_.push_back(move(preProcessReqMsg));
     dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
