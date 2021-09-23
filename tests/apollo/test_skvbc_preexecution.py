@@ -159,7 +159,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
         await bft_network.assert_successful_pre_executions_count(0, 1)
 
         with trio.move_on_after(seconds=1):
-            await skvbc.send_indefinite_ops(write_weight=1) 
+            await skvbc.send_indefinite_ops(write_weight=1)
 
         initial_primary = 0
         with trio.move_on_after(seconds=15):
@@ -411,7 +411,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
 
-    @unittest.skip("Unstable due to BC-4947")
+    @skip_for_tls
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability(pre_exec_enabled=True, no_conflicts=True)
@@ -428,7 +428,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             start_block = await tracker.get_last_block_id(read_client)
 
             adversary.interfere()
-            await self.issue_tracked_ops_to_the_system(tracker)
+            await self.issue_tracked_ops_to_the_system(bft_network, tracker)
 
             last_block = await tracker.get_last_block_id(read_client)
             assert last_block > start_block
