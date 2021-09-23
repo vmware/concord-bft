@@ -20,6 +20,7 @@
 #include "assertUtils.hpp"
 
 using com::vmware::concord::thin_replica::Data;
+using concord::util::openssl_utils::computeSHA256Hash;
 using std::invalid_argument;
 using std::list;
 using std::map;
@@ -46,7 +47,7 @@ static_assert(CHAR_BIT == 8);
 // in different orders are considered equivalent so their hashes need to match.
 static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, string>& entry_hashes) {
   string concatenated_entry_hashes;
-  concatenated_entry_hashes.reserve(sizeof(block_id) + 2 * entry_hashes.size() * kExpectedSHA256HashLengthInBytes);
+  concatenated_entry_hashes.reserve(sizeof(block_id) + 2 * entry_hashes.size() * kThinReplicaHashLength);
 
 #ifdef BOOST_LITTLE_ENDIAN
   concatenated_entry_hashes.append(reinterpret_cast<const char*>(&block_id), sizeof(block_id));
@@ -67,12 +68,12 @@ static string hashUpdateFromEntryHashes(uint64_t block_id, const map<string, str
     concatenated_entry_hashes.append(kvp_hashes.second);
   }
 
-  return ComputeSHA256Hash(concatenated_entry_hashes);
+  return computeSHA256Hash(concatenated_entry_hashes);
 }
 
 static string hashUpdateFromEntryHashes(uint64_t id, const set<string>& entry_hashes) {
   string concatenated_entry_hashes;
-  concatenated_entry_hashes.reserve(sizeof(id) + entry_hashes.size() * kExpectedSHA256HashLengthInBytes);
+  concatenated_entry_hashes.reserve(sizeof(id) + entry_hashes.size() * kThinReplicaHashLength);
 
 #ifdef BOOST_LITTLE_ENDIAN
   concatenated_entry_hashes.append(reinterpret_cast<const char*>(&(id)), sizeof(id));
@@ -92,7 +93,7 @@ static string hashUpdateFromEntryHashes(uint64_t id, const set<string>& entry_ha
     concatenated_entry_hashes.append(hash);
   }
 
-  return ComputeSHA256Hash(concatenated_entry_hashes);
+  return computeSHA256Hash(concatenated_entry_hashes);
 }
 
 string hashUpdate(const EventVariant& ev) {
@@ -100,11 +101,11 @@ string hashUpdate(const EventVariant& ev) {
     auto& legacy_event = std::get<Update>(ev);
     map<string, string> entry_hashes;
     for (const auto& kvp : legacy_event.kv_pairs) {
-      string key_hash = ComputeSHA256Hash(kvp.first);
+      string key_hash = computeSHA256Hash(kvp.first);
       if (entry_hashes.count(key_hash) > 0) {
         throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
       }
-      entry_hashes[key_hash] = ComputeSHA256Hash(kvp.second);
+      entry_hashes[key_hash] = computeSHA256Hash(kvp.second);
     }
 
     return hashUpdateFromEntryHashes(legacy_event.block_id, entry_hashes);
@@ -114,7 +115,7 @@ string hashUpdate(const EventVariant& ev) {
   auto& event_group = std::get<EventGroup>(ev);
   set<string> entry_hashes;
   for (const auto& event : event_group.events) {
-    string event_hash = ComputeSHA256Hash(event);
+    string event_hash = computeSHA256Hash(event);
     ConcordAssert(entry_hashes.count(event_hash) < 1);
     entry_hashes.emplace(event_hash);
   }
@@ -126,11 +127,11 @@ string hashUpdate(const Data& update) {
   if (update.has_events()) {
     map<string, string> entry_hashes;
     for (const auto& kvp : update.events().data()) {
-      string key_hash = ComputeSHA256Hash(kvp.key());
+      string key_hash = computeSHA256Hash(kvp.key());
       if (entry_hashes.count(key_hash) > 0) {
         throw invalid_argument("hashUpdate called for an update that contains duplicate keys.");
       }
-      entry_hashes[key_hash] = ComputeSHA256Hash(kvp.value());
+      entry_hashes[key_hash] = computeSHA256Hash(kvp.value());
     }
 
     return hashUpdateFromEntryHashes(update.events().block_id(), entry_hashes);
@@ -138,7 +139,7 @@ string hashUpdate(const Data& update) {
   ConcordAssert(update.has_event_group());
   set<string> entry_hashes;
   for (const auto& event : update.event_group().events()) {
-    string event_hash = ComputeSHA256Hash(event);
+    string event_hash = computeSHA256Hash(event);
     ConcordAssert(entry_hashes.count(event_hash) < 1);
     entry_hashes.emplace(event_hash);
   }
@@ -158,7 +159,7 @@ string hashState(const list<string>& state) {
     concatenated_update_hashes.append(update_hash);
   }
 
-  return ComputeSHA256Hash(concatenated_update_hashes);
+  return computeSHA256Hash(concatenated_update_hashes);
 }
 
 }  // namespace client::thin_replica_client

@@ -18,7 +18,6 @@ add_library(thin_replica_client_lib STATIC
   "src/thin_replica_client.cpp"
   "src/trace_contexts.cpp"
   "src/trs_connection.cpp"
-  "src/crypto_utils.cpp"
   "src/trc_hash.cpp")
 target_include_directories(thin_replica_client_lib PUBLIC include)
 target_include_directories(thin_replica_client_lib PRIVATE
