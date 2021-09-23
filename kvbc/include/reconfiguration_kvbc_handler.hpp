@@ -69,6 +69,11 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::ClientsRestartUpdate&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 
  private:
   concord::messages::ClientStateReply buildClientStateReply(kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type,
@@ -175,9 +180,21 @@ class ReconfigurationHandler : public concord::reconfiguration::BftReconfigurati
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse&) override;
+  bool handle(const concord::messages::ClientsRestartCommand&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
+
+  bool handle(const concord::messages::ClientsRestartStatus& command,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 };
 /**
- * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop commands)
+ * This component is reposnsible for logging internal reconfiguration requests to the blockchain (such as noop
+ * commands)
  */
 class InternalKvReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler,
                                          public ReconfigurationBlockTools {

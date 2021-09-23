@@ -208,6 +208,21 @@ Msg ClientTlsExchangeKey 52 {
     list kvpair uint32 string clients_certificates
 }
 
+Msg ClientsRestartCommand 53 {
+    uint64 sender_id
+    string data
+}
+Msg ClientsRestartStatus 54 {
+    uint64 sender_id
+}
+
+Msg ClientsRestartStatusResponse 55 {
+    list kvpair uint32 uint64 timestamps
+}
+Msg ClientsRestartUpdate 56 {
+    uint64 sender_id
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
@@ -216,6 +231,7 @@ Msg ClientStateReply 39 {
         ClientsAddRemoveExecuteCommand
         ClientsAddRemoveUpdateCommand
         ClientTlsExchangeKey
+        ClientsRestartCommand
       } response
 }
 
@@ -253,6 +269,9 @@ Msg ReconfigurationRequest 1 {
     ClientsAddRemoveStatusCommand
     ClientsAddRemoveUpdateCommand
     ClientKeyExchangeStatus
+    ClientsRestartCommand
+    ClientsRestartStatus
+    ClientsRestartUpdate
   } command
   bytes additional_data
 }
@@ -274,6 +293,7 @@ Msg ReconfigurationResponse 2 {
     ClientKeyExchangeCommandResponse
     ClientsAddRemoveStatusResponse
     ClientKeyExchangeStatusResponse
+    ClientsRestartStatusResponse
   } response
   bytes additional_data
 }

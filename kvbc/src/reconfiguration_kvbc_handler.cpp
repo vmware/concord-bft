@@ -129,6 +129,12 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
               creply.response = cmd;
               break;
             }
+            case kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_COMMAND: {
+              concord::messages::ClientsRestartCommand cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
+            }
             default:
               break;
           }
@@ -555,6 +561,79 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveCom
   }
   auto block_id = persistReconfigurationBlock(ver_updates, sequence_number, ts, false);
   LOG_INFO(getLogger(), "ClientsAddRemoveCommand block_id is: " << block_id);
+  return true;
+}
+bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartCommand& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  std::vector<uint32_t> target_clients;
+  for (const auto& cg : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (auto cid : cg.second) {
+      target_clients.push_back(cid);
+    }
+  }
+  auto key_prefix = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                                static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_COMMAND)};
+  concord::kvbc::categorization::VersionedUpdates ver_updates;
+  ver_updates.addUpdate(std::string(key_prefix), std::string(serialized_command.begin(), serialized_command.end()));
+
+  for (auto clientid : target_clients) {
+    ver_updates.addUpdate(key_prefix + std::to_string(clientid),
+                          std::string(serialized_command.begin(), serialized_command.end()));
+  }
+  auto block_id = persistReconfigurationBlock(ver_updates, bft_seq_num, ts, false);
+
+  LOG_INFO(getLogger(), "Client RestartCommand block is " << block_id);
+  return true;
+}
+
+bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartStatus& command,
+                                    uint64_t bft_seq_num,
+                                    uint32_t sender_id,
+                                    const std::optional<bftEngine::Timestamp>& ts,
+                                    concord::messages::ReconfigurationResponse& rres) {
+  concord::messages::ClientsRestartStatusResponse stats;
+  for (const auto& gr : bftEngine::ReplicaConfig::instance().clientGroups) {
+    for (auto cid : gr.second) {
+      std::string key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_STATUS)} +
+                        std::to_string(cid);
+      auto bid = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key);
+      if (bid.has_value()) {
+        auto saved_ts = ro_storage_.get(
+            kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_ts_key}, bid.value().version);
+        uint64_t numeric_ts{0};
+        if (saved_ts.has_value()) {
+          auto strval = std::visit([](auto&& arg) { return arg.data; }, *saved_ts);
+          numeric_ts = concordUtils::fromBigEndianBuffer<uint64_t>(strval.data());
+          stats.timestamps.push_back(std::make_pair(cid, numeric_ts));
+        }
+      }
+    }
+  }
+  rres.response = stats;
+  return true;
+}
+bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientsRestartUpdate& command,
+                                              uint64_t bft_seq_num,
+                                              uint32_t sender_id,
+                                              const std::optional<bftEngine::Timestamp>& ts,
+                                              concord::messages::ReconfigurationResponse&) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      bft_seq_num,
+      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                  static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_STATUS)} +
+          std::to_string(sender_id),
+      ts,
+      false);
+  LOG_INFO(getLogger(), "block id: " << KVLOG(blockId, sender_id));
   return true;
 }
 

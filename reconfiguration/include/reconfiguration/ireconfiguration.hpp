@@ -214,6 +214,27 @@ class IReconfigurationHandler {
                       concord::messages::ReconfigurationResponse &) {
     return true;
   }
+  virtual bool handle(const concord::messages::ClientsRestartCommand &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientsRestartStatus &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
+  virtual bool handle(const concord::messages::ClientsRestartUpdate &,
+                      uint64_t,
+                      uint32_t,
+                      const std::optional<bftEngine::Timestamp> &,
+                      concord::messages::ReconfigurationResponse &) {
+    return true;
+  }
 
   // The verification method is pure virtual as all subclasses has to define how they verify the reconfiguration
   // requests.
