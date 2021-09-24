@@ -393,6 +393,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
 
+  void validatePrePrepareMsg(PrePrepareMsg*& ppm);
+
   void removeDuplicatedRequestsFromRequestsQueue();
 
   void tryToStartSlowPaths();
@@ -488,7 +490,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool isSeqNumToStopAt(SeqNum seq_num);
 
-  bool validatePreProcessedResults(const PrePrepareMsg* msg);
+  bool validatePreProcessedResults(const PrePrepareMsg* msg, const ViewNum registeredView) const;
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
   // 5 years
