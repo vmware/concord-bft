@@ -19,8 +19,6 @@
 #include "messages/TickInternalMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "SignatureInternalMsgs.hpp"
-#include "ViewChangeIndicatorInternalMsg.hpp"
-#include "PrePrepareCarrierInternalMsg.hpp"
 
 namespace bftEngine::impl {
 
@@ -56,12 +54,6 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      CombinedCommitSigSucceededInternalMsg,
                                      CombinedCommitSigFailedInternalMsg,
                                      VerifyCombinedCommitSigResultInternalMsg,
-
-                                     // Move to next view due to some valid reason
-                                     ViewChangeIndicatorInternalMsg,
-
-                                     // Carries PrePrepare message after validation.
-                                     PrePrepareCarrierInternalMsg,
 
                                      // Retransmission manager related
                                      RetranProcResultInternalMsg,

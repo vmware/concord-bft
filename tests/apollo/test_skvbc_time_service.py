@@ -60,7 +60,6 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         # the system should return to the fast path.
         self.evaluation_period_seq_num = 64
 
-    @unittest.skip("Disabled till Timeservice V2 is not enabled")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
@@ -106,9 +105,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
-    @unittest.skip("Disabled till Timeservice V2 is not enabled")
     @with_trio
     @with_bft_network(start_replica_cmd,
                       selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
@@ -147,9 +145,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
-    @unittest.skip("Disabled till Timeservice V2 is not enabled")
     @with_trio
     @with_bft_network(start_replica_cmd_without_time_service('0'),
                       selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
@@ -188,9 +185,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         await self.manipulate_time_file_write(path, CLOCK_NO_DRIFT)
 
         await bft_network.wait_for_fast_path_to_be_prevalent(
-            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
+            run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
-    @unittest.skip("Disabled till Timeservice V2 is not enabled")
     @with_trio
     @with_bft_network(start_replica_cmd_without_time_service('0'),
                       selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
