@@ -93,7 +93,7 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
                                   "ThinReplicaClient after ending its subscription.";
 }
 
-TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
+TEST(thin_replica_client_test, test_no_parameter_subscribe_success_cases) {
   Data update;
   update.mutable_events()->set_block_id(0);
   KVPair* events_data = update.mutable_events()->add_data();
@@ -113,16 +113,16 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
-  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed.";
+  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload failed.";
 
   trc->Unsubscribe();
-  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
+  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload failed when "
                                        "subscribing after closing a subscription.";
-  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
+  EXPECT_NO_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload failed when "
                                        "subscribing while there is an ongoing subscription.";
 }
 
-TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
+TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   Data update;
   update.mutable_events()->set_block_id(0);
   KVPair* events_data = update.mutable_events()->add_data();
@@ -160,12 +160,12 @@ TEST(thin_replica_client_test, test_2_parameter_subscribe_success_cases) {
     trc->Unsubscribe();
     update_queue->Clear();
     uint64_t previous_block_id = block_id;
-    EXPECT_NO_THROW(trc->Subscribe(block_id)) << "ThinReplicaClient::Subscribe's 2-parameter overload failed when "
-                                                 "subscribing with a Block ID from a previously received block.";
+    EXPECT_NO_THROW(trc->Subscribe(block_id + 1)) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
+                                                     "subscribing with a Block ID from a previously received block.";
     update_received = update_queue->Pop();
     EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
     block_id = std::get<Update>(*update_received).block_id;
-    EXPECT_GT(block_id, previous_block_id) << "ThinReplicaClient::Subscribe's 2-parameter overload appears to be "
+    EXPECT_GT(block_id, previous_block_id) << "ThinReplicaClient::Subscribe's 1-parameter overload appears to be "
                                               "repeating already received blocks even when specifying where to "
                                               "start the subscription to avoid them.";
   }
@@ -192,7 +192,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
-  EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
+  EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload doesn't throw an "
                                         "exception when trying to subscribe to a cluster with only max_faulty "
                                         "servers responsive.";
   trc_config.reset();
@@ -202,7 +202,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_to_unresponsive_server
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
-  EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's 1-parameter overload doesn't throw an "
+  EXPECT_ANY_THROW(trc->Subscribe()) << "ThinReplicaClient::Subscribe's no-parameter overload doesn't throw an "
                                         "exception when trying to subscribe to a cluster with no responsive "
                                         "servers.";
 }
@@ -394,7 +394,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
                                                   "unsubscribing.";
   *spurious_wakeup_indicator = true;
 
-  trc->Subscribe(num_initial_updates - 1);
+  trc->Subscribe(num_initial_updates);
   for (size_t i = num_initial_updates; i < update_data.size(); ++i) {
     *spurious_wakeup_indicator = false;
     delay_condition->notify_one();

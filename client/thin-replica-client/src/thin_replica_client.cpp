@@ -899,7 +899,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
   }
 
   config_->update_queue->Clear();
-  latest_verified_block_id_ = block_id;
+  latest_verified_block_id_ = block_id > 0 ? block_id - 1 : block_id;
   latest_verified_event_group_id_ = 0;
   is_event_group_request_ = false;
 

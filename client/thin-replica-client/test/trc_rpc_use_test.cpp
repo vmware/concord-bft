@@ -168,27 +168,27 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   update_queue->Pop();
   servers_used = vector<bool>(num_replicas, false);
   ASSERT_EQ(record->GetSubscribeToUpdatesCalls().size(), 1)
-      << "ThinReplicaClient::Subscribe's 2-parameter overload generated an "
+      << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "
          "unexpected number of Subscribe calls.";
   servers_used[record->GetSubscribeToUpdatesCalls().front().first] = true;
-  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.events().block_id(), 2)
-      << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
+  EXPECT_EQ(record->GetSubscribeToUpdatesCalls().front().second.events().block_id(), 1)
+      << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
          "SubscribeToUpdates call with a Block ID inconsistent with the one "
          "given as a parameter to Subscribe.";
   EXPECT_EQ(record->GetSubscribeToUpdateHashesCalls().size(), max_faulty)
-      << "ThinReplicaClient::Subscribe's 2-parameter overloade generated an "
+      << "ThinReplicaClient::Subscribe's 1-parameter overloade generated an "
          "unexpected number of SubscribeToUpdateHashes calls.";
   for (const auto& call : record->GetSubscribeToUpdateHashesCalls()) {
-    EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 2-parameter overload re-used a "
+    EXPECT_FALSE(servers_used[call.first]) << "ThinReplicaClient::Subscribe's 1-parameter overload re-used a "
                                               "server when opening subscription streams.";
     servers_used[call.first] = true;
-    EXPECT_EQ(call.second.events().block_id(), 2)
-        << "ThinReplicaClient::Subscribe's 2-parameter overload made a "
+    EXPECT_EQ(call.second.events().block_id(), 1)
+        << "ThinReplicaClient::Subscribe's 1-parameter overload made a "
            "SubscribeToUpdateHashes call with a Block ID inconsistent with the "
            "one given as a parameter to Subscribe.";
   }
   EXPECT_LE(record->GetTotalCallCount(), (1 + max_faulty))
-      << "ThinReplicaClient::Subscribe's 2-parameter overload generated "
+      << "ThinReplicaClient::Subscribe's 1-parameter overload generated "
          "unexpected RPC calls.";
 }
 
