@@ -26,7 +26,7 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     git \
     iptables \
     less \
-    llvm \
+    llvm-9 \
     lzip \
     net-tools \
     parallel \
@@ -39,11 +39,12 @@ apt-get update && apt-get ${APT_GET_FLAGS} install \
     iproute2 \
     wget
 
-update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-9 100
-update-alternatives --install /usr/bin/clang clang /usr/bin/clang-9 100
+update-alternatives --install /usr/bin/clang clang /usr/lib/llvm-9/bin/clang 100
+update-alternatives --install /usr/bin/clang++ clang++ /usr/lib/llvm-9/bin/clang++ 100
 update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
 update-alternatives --install /usr/bin/clang-format-diff clang-format-diff /usr/bin/clang-format-diff-9 100
 update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-10 100
+update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/lib/llvm-9/bin/llvm-symbolizer 100
 
 # Install 3rd parties
 apt-get ${APT_GET_FLAGS} install \
