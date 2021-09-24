@@ -352,7 +352,7 @@ BlockId Replica::deleteBlocksUntil(BlockId until) {
 
   const auto lastReachableBlock = m_kvBlockchain->getLastReachableBlockId();
   const auto lastDeletedBlock = std::min(lastReachableBlock, until - 1);
-  auto start = std::chrono::steady_clock::now();
+  const auto start = std::chrono::steady_clock::now();
   for (auto i = genesisBlock; i <= lastDeletedBlock; ++i) {
     ConcordAssert(m_kvBlockchain->deleteBlock(i));
   }
