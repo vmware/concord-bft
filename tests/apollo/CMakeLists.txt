@@ -119,6 +119,12 @@ add_test(NAME skvbc_backup_restore COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_backup_restore python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+if (USE_S3_OBJECT_STORE)
+     add_test(NAME skvbc_reconfiguration COMMAND sh -c
+             "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_reconfiguration python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 add_test(NAME skvbc_consensus_batching COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_consensus_batching python3 -m unittest test_skvbc_consensus_batching ${TEST_OUTPUT}"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -143,11 +149,6 @@ if (TXN_SIGNING_ENABLED)
     add_test(NAME skvbc_client_transaction_signing COMMAND sh -c
             "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_client_transaction_signing python3 -m unittest test_skvbc_client_transaction_signing ${TEST_OUTPUT}"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    if (USE_S3_OBJECT_STORE)
-        add_test(NAME skvbc_reconfiguration COMMAND sh -c
-                "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_reconfiguration python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    endif()
 endif()
 
 add_test(NAME skvbc_pyclient_tests COMMAND sh -c

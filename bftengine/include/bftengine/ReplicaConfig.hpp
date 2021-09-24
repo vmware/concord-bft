@@ -186,7 +186,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(preExecutionResultAuthEnabled, bool, false, "if PreExecution result authentication is enabled");
 
-  CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, true, "Enabling asynchronous preprepare finishing");
+  CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, false, "Enabling asynchronous preprepare finishing");
 
   CONFIG_PARAM(threadbagConcurrency,
                uint32_t,
