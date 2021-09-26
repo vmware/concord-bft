@@ -19,6 +19,7 @@
 #include "Replica.hpp"
 #include "kvstream.h"
 #include "communication/CommStateControl.hpp"
+#include "secrets_manager_plain.h"
 
 using namespace concord::messages;
 namespace concord::reconfiguration {
@@ -53,18 +54,19 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse&) {
-  if (command.tls) return true;
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
 
   LOG_INFO(GL, KVLOG(command.id, command.sender_id, sequence_number) << " target replicas: [" << oss.str() << "]");
   if (std::find(command.target_replicas.begin(),
                 command.target_replicas.end(),
-                bftEngine::ReplicaConfig::instance().getreplicaId()) != command.target_replicas.end())
+                bftEngine::ReplicaConfig::instance().getreplicaId()) == command.target_replicas.end())
+    return true;
+  if (command.tls) {
+    bftEngine::impl::KeyExchangeManager::instance().exchangeTlsKeys(sequence_number);
+  } else {
     bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
-  else
-    LOG_INFO(GL, "not among target replicas, ignoring...");
-
+  }
   return true;
 }
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,

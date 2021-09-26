@@ -15,6 +15,8 @@
 #include "kvstream.h"
 #include "json_output.hpp"
 #include "SigManager.hpp"
+#include "secrets_manager_plain.h"
+#include "concord.cmf.hpp"
 #include <thread>
 
 namespace bftEngine::impl {
@@ -28,7 +30,8 @@ KeyExchangeManager::KeyExchangeManager(InitData* id)
       client_(id->cl),
       multiSigKeyHdlr_(id->kg),
       clientPublicKeyStore_{id->cpks},
-      timers_(*(id->timers)) {
+      timers_(*(id->timers)),
+      secretsMgr_(id->secretsMgr) {
   registerForNotification(id->ke);
   notifyRegistry();
   if (!ReplicaConfig::instance().getkeyExchangeOnStart()) initial_exchange_ = true;
@@ -113,6 +116,42 @@ void KeyExchangeManager::loadPublicKeys() {
   notifyRegistry();
 }
 
+void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
+  auto repId = bftEngine::ReplicaConfig::instance().replicaId;
+  auto keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
+      concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
+  auto cert = concord::util::crypto::Crypto::instance().generateSelfSignedCertificate(
+      keys, "node" + std::to_string(repId) + "ser", repId);
+  std::string pk_path =
+      bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repId) + "/server/pk.pem";
+  concord::secretsmanager::SecretsManagerPlain psm_;
+  std::fstream nec_f(pk_path);
+  if (nec_f.good()) {
+    psm_.encryptFile(pk_path, keys.first);
+  }
+  std::fstream ec_f(pk_path + ".enc");
+  if (ec_f.good()) {
+    secretsMgr_->encryptFile(pk_path + ".enc", keys.first);
+  }
+
+  concord::messages::ReconfigurationRequest req;
+  req.sender = repId;
+  req.command = concord::messages::ReplicaTlsExchangeKey{cert};
+  // Mark this request as an internal one
+  std::vector<uint8_t> data_vec;
+  concord::messages::serialize(data_vec, req);
+  std::string sig(SigManager::instance()->getMySigLength(), '\0');
+  uint16_t sig_length{0};
+  SigManager::instance()->sign(reinterpret_cast<char*>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+  req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+  data_vec.clear();
+  concord::messages::serialize(data_vec, req);
+  std::string strMsg(data_vec.begin(), data_vec.end());
+  std::string cid = "replicaTlsKeyExchange_" + std::to_string(bft_sn) + "_" + std::to_string(repId);
+  client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), cid);
+  metrics_->tls_key_exchange_requests_++;
+  LOG_INFO(KEY_EX_LOG, "Replica have generated a new tls keys");
+}
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   // first check whether we've already generated keys lately
   if (private_keys_.lastGeneratedSeqnum() &&  // if not init  ial

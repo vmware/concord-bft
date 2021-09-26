@@ -28,6 +28,7 @@ typedef int64_t SeqNum;  // TODO [TK] redefinition
 
 class KeyExchangeManager {
  public:
+  void exchangeTlsKeys(const SeqNum&);
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
   // Generates and publish the first replica's key,
@@ -212,6 +213,7 @@ class KeyExchangeManager {
     concordMetrics::CounterHandle sent_key_exchange_counter;
     concordMetrics::CounterHandle self_key_exchange_counter;
     concordMetrics::CounterHandle public_key_exchange_for_peer_counter;
+    concordMetrics::CounterHandle tls_key_exchange_requests_;
 
     void setAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
       aggregator = a;
@@ -226,13 +228,14 @@ class KeyExchangeManager {
           clients_keys_published_status{component.RegisterStatus("clients_keys_published", "False")},
           sent_key_exchange_counter{component.RegisterCounter("sent_key_exchange")},
           self_key_exchange_counter{component.RegisterCounter("self_key_exchange")},
-          public_key_exchange_for_peer_counter{component.RegisterCounter("public_key_exchange_for_peer")} {}
+          public_key_exchange_for_peer_counter{component.RegisterCounter("public_key_exchange_for_peer")},
+          tls_key_exchange_requests_{component.RegisterCounter("tls_key_exchange_requests")} {}
   };
 
   std::unique_ptr<Metrics> metrics_;
   concordUtil::Timers::Handle metricsTimer_;
   concordUtil::Timers& timers_;
-
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsMgr_;
   friend class TestKeyManager;
 };
 

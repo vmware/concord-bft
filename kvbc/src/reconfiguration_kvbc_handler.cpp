@@ -360,9 +360,6 @@ bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand&
   auto blockId = persistReconfigurationBlock(
       serialized_command, sequence_number, std::string{kvbc::keyTypes::reconfiguration_key_exchange}, ts, false);
   LOG_INFO(getLogger(), "KeyExchangeCommand command block is " << blockId);
-  if (command.tls) {
-    LOG_INFO(getLogger(), "replica tls key exchange command");
-  }
   return true;
 }
 

@@ -19,6 +19,7 @@
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
 #include "crypto_utils.hpp"
+#include "bftengine/InternalBFTClient.hpp"
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
