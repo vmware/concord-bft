@@ -22,6 +22,22 @@ import sys
 import shutil
 
 
+def get_llvm_tools(coveragedir):
+    """
+    Return the path of llvm-profdata and llvm-cov
+    """
+    profdata_exe = os.path.join(coveragedir, 'llvm-profdata')
+    cov_exe = os.path.join(coveragedir, 'llvm-cov')
+    if os.path.exists(profdata_exe):
+        return profdata_exe, cov_exe
+    if os.path.exists('/usr/lib/llvm-9/bin/llvm-profdata'):
+        return '/usr/lib/llvm-9/bin/llvm-profdata', '/usr/lib/llvm-9/bin/llvm-cov'
+    if os.path.exists('/usr/bin/llvm-profdata-6.0'):
+        return '/usr/bin/llvm-profdata-6.0', '/usr/bin/llvm-cov-6.0'
+    print('Could not find LLVM tools for code coverage')
+    sys.exit(1)
+
+
 def change_permissions_recursive(path, mode):
     """
     Set permissions for all the files/folders under path
@@ -156,12 +172,11 @@ if __name__ == '__main__':
     apollo_binary_path = os.path.join(
         'build', 'tests', 'simpleKVBC', 'TesterReplica', 'skvbc_replica')
 
-    # default llvm-profdata and llvm-cov binary from docker image
-    profdata_exe = 'llvm-profdata'
-    cov_exe = 'llvm-cov'
-
     # Path to the directory containing the raw profiles
     profile_data_dir = os.path.join(args.apollo_build_path, 'codecoverage')
+
+    # path to llvm-profdata and llvm-cov binary
+    profdata_exe, cov_exe = get_llvm_tools(profile_data_dir)
 
     profdata_path = merge_raw_profiles(profdata_exe, profile_data_dir)
     if not os.path.isfile(profdata_path):
