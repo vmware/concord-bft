@@ -23,6 +23,7 @@ static const char reconfiguration_add_remove = 0x29;
 static const char reconfiguration_wedge_key = 0x2a;
 static const char reconfiguration_client_data_prefix = 0x2c;
 static const char reconfiguration_epoch_key = 0x2d;
+static const char reconfiguration_tls_exchange_key = 0x2e;
 
 static const char reconfiguration_restart_key = 0x30;
 static const char reconfiguration_ts_key = 0x31;

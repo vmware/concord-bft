@@ -773,4 +773,26 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   return true;
 }
 
+bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchangeKey& command,
+                                                  uint64_t sequence_number,
+                                                  uint32_t sender_id,
+                                                  const std::optional<bftEngine::Timestamp>& ts,
+                                                  concord::messages::ReconfigurationResponse& response) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      sequence_number,
+      std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(sender_id),
+      ts,
+      false);
+  LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
+                                       std::to_string(sender_id) + "/server/server.cert";
+  secretsmanager::SecretsManagerPlain sm;
+  sm.encryptFile(bft_replicas_cert_path, command.cert);
+  LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
+  return true;
+}
+
 }  // namespace concord::kvbc::reconfiguration
