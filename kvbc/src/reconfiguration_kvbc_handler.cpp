@@ -18,6 +18,7 @@
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
+#include "communication/CommStateControl.hpp"
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
@@ -788,6 +789,7 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
                                        std::to_string(sender_id) + "/server/server.cert";
   secretsmanager::SecretsManagerPlain sm;
   sm.encryptFile(bft_replicas_cert_path, command.cert);
+  bft::communication::CommStateControl::instance().restartComm();
   LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
   return true;
 }
