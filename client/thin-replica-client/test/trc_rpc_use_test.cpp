@@ -32,7 +32,7 @@ using std::make_unique;
 using std::shared_ptr;
 using std::string;
 using std::vector;
-using client::thin_replica_client::BasicUpdateQueue;
+using concord::client::concordclient::BasicUpdateQueue;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
 

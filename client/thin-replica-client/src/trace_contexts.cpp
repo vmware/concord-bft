@@ -28,6 +28,9 @@ using opentracing::string_view;
 using opentracing::TextMapReader;
 using opentracing::TextMapWriter;
 
+using concord::client::concordclient::Update;
+using concord::client::concordclient::EventVariant;
+
 using SpanPtr = std::unique_ptr<opentracing::Span>;
 
 namespace client::thin_replica_client {

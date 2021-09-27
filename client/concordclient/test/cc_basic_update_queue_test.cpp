@@ -11,7 +11,13 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#include "client/thin-replica-client/thin_replica_client.hpp"
+#include "client/concordclient/event_update_queue.hpp"
+
+#include <thread>
+#include <chrono>
+#include <vector>
+#include <memory>
+#include <string>
 
 #include "gtest/gtest.h"
 
@@ -26,9 +32,11 @@ using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
 
-using client::thin_replica_client::BasicUpdateQueue;
-using client::thin_replica_client::EventVariant;
-using client::thin_replica_client::Update;
+using namespace std::chrono_literals;
+
+using concord::client::concordclient::BasicUpdateQueue;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::Update;
 
 const milliseconds kBriefDelayDuration = 10ms;
 const uint64_t kNumUpdatesToTest = (uint64_t)1 << 18;

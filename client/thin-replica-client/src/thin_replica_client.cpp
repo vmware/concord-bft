@@ -31,19 +31,19 @@ using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::EventGroup;
+using concord::client::concordclient::Update;
 using std::atomic_bool;
 using std::list;
-using std::lock_guard;
 using std::logic_error;
 using std::make_pair;
-using std::mutex;
 using std::pair;
 using std::runtime_error;
 using std::string;
 using std::stringstream;
 using std::thread;
 using std::to_string;
-using std::unique_lock;
 using std::unique_ptr;
 using std::unordered_set;
 using std::vector;
@@ -65,60 +65,6 @@ LogCid::LogCid(const std::string& cid) {
 LogCid::~LogCid() {
   MDC_REMOVE(cid_key_);
   cid_set_ = false;
-}
-
-BasicUpdateQueue::BasicUpdateQueue() : queue_data_(), mutex_(), condition_(), release_consumers_(false) {}
-
-BasicUpdateQueue::~BasicUpdateQueue() {}
-
-void BasicUpdateQueue::ReleaseConsumers() {
-  {
-    lock_guard<mutex> lock(mutex_);
-    release_consumers_ = true;
-  }
-  condition_.notify_all();
-}
-
-void BasicUpdateQueue::Clear() {
-  lock_guard<mutex> lock(mutex_);
-  queue_data_.clear();
-}
-
-void BasicUpdateQueue::Push(unique_ptr<EventVariant> update) {
-  {
-    lock_guard<mutex> lock(mutex_);
-    queue_data_.push_back(move(update));
-  }
-  condition_.notify_one();
-}
-
-unique_ptr<EventVariant> BasicUpdateQueue::Pop() {
-  unique_lock<mutex> lock(mutex_);
-  while (!(release_consumers_ || (queue_data_.size() > 0))) {
-    condition_.wait(lock);
-  }
-  if (release_consumers_) {
-    return unique_ptr<EventVariant>(nullptr);
-  }
-  ConcordAssert(queue_data_.size() > 0);
-  unique_ptr<EventVariant> ret = move(queue_data_.front());
-  queue_data_.pop_front();
-  return ret;
-}
-
-unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
-  lock_guard<mutex> lock(mutex_);
-  if (queue_data_.size() > 0) {
-    unique_ptr<EventVariant> ret = move(queue_data_.front());
-    queue_data_.pop_front();
-    return ret;
-  } else {
-    return unique_ptr<EventVariant>(nullptr);
-  }
-}
-uint64_t thin_replica_client::BasicUpdateQueue::Size() {
-  std::scoped_lock sl(mutex_);
-  return queue_data_.size();
 }
 
 void ThinReplicaClient::recordCollectedHash(size_t update_source,

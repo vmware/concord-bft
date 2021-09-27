@@ -1,6 +1,6 @@
 // Concord
 //
-// Copyright (c) 2020 VMware, Inc. All Rights Reserved.
+// Copyright (c) 2020-2021 VMware, Inc. All Rights Reserved.
 //
 // This product is licensed to you under the Apache 2.0 license (the "License").
 // You may not use this product except in compliance with the Apache 2.0
@@ -11,19 +11,16 @@
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 
-#ifndef THIN_REPLICA_CLIENT_UPDATE_HPP_
-#define THIN_REPLICA_CLIENT_UPDATE_HPP_
+#pragma once
 
 #include <google/protobuf/timestamp.pb.h>
-#include <chrono>
 #include <map>
 #include <string>
 #include <variant>
 #include <vector>
 
-namespace client::thin_replica_client {
+namespace concord::client::concordclient {
 
-// Types for updates the Thin Replica Client streams from Thin Replica Servers.
 struct EventGroup {
   uint64_t id;
   std::vector<std::string> events;
@@ -51,6 +48,4 @@ struct Update {
 
 typedef std::variant<Update, EventGroup> EventVariant;
 
-}  // namespace client::thin_replica_client
-
-#endif  // THIN_REPLICA_CLIENT_UPDATE_HPP_
+}  // namespace concord::client::concordclient

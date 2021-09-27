@@ -14,6 +14,7 @@
 #include "gtest/gtest.h"
 
 #include "client/thin-replica-client/trc_hash.hpp"
+#include "client/concordclient/event_update.hpp"
 #include "kvbc_app_filter/kvbc_app_filter.h"
 
 using com::vmware::concord::thin_replica::Data;
@@ -21,8 +22,8 @@ using std::make_pair;
 using std::string;
 using std::to_string;
 using client::thin_replica_client::hashUpdate;
-using client::thin_replica_client::EventVariant;
-using client::thin_replica_client::Update;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::Update;
 
 const string kSampleUpdateExpectedHash({'\x02', '\x3D', '\x0D', '\x8B', '\xC6', '\x54', '\x07', '\xD7',
                                         '\x33', '\x94', '\x99', '\xFE', '\x9F', '\x6E', '\x8E', '\xB3',

@@ -24,6 +24,7 @@
 #include "bftclient/bft_client.h"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
+#include "client/concordclient/event_update_queue.hpp"
 #include "Metrics.hpp"
 
 namespace concord::client::concordclient {
@@ -139,8 +140,8 @@ class ConcordClient {
             const std::function<void(SendResult&&)>& callback);
 
   // Subscribe to events which will be populated through the TRC update queue.
-  std::shared_ptr<::client::thin_replica_client::UpdateQueue> subscribe(
-      const SubscribeRequest& request, const std::unique_ptr<opentracing::Span>& parent_span);
+  std::shared_ptr<UpdateQueue> subscribe(const SubscribeRequest& request,
+                                         const std::unique_ptr<opentracing::Span>& parent_span);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
@@ -162,7 +163,7 @@ class ConcordClient {
   // TODO: Allow multiple subscriptions
   std::atomic_bool active_subscription_{false};
 
-  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue_;
+  std::shared_ptr<BasicUpdateQueue> trc_queue_;
   std::unique_ptr<::client::thin_replica_client::ThinReplicaClient> trc_;
   std::unique_ptr<concord::concord_client_pool::ConcordClientPool> client_pool_;
 };

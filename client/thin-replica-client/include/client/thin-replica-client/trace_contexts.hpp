@@ -17,10 +17,12 @@
 #include <opentracing/span.h>
 
 #include "thin_replica.pb.h"
-#include "update.hpp"
+#include "client/concordclient/event_update.hpp"
 #include "Logger.hpp"
 
 using opentracing::expected;
+
+namespace cc = concord::client::concordclient;
 
 namespace client::thin_replica_client {
 
@@ -28,8 +30,8 @@ class TraceContexts {
  public:
   using SpanPtr = std::unique_ptr<opentracing::Span>;
 
-  static void InjectSpan(const SpanPtr& span, EventVariant& update);
-  static expected<std::unique_ptr<opentracing::SpanContext>> ExtractSpan(const EventVariant& update);
+  static void InjectSpan(const SpanPtr& span, cc::EventVariant& update);
+  static expected<std::unique_ptr<opentracing::SpanContext>> ExtractSpan(const cc::EventVariant& update);
   static SpanPtr CreateChildSpanFromBinary(const std::string& trace_context,
                                            const std::string& child_name,
                                            const std::string& correlation_id,

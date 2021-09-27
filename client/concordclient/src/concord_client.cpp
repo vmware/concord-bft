@@ -16,7 +16,6 @@
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 
-using ::client::thin_replica_client::BasicUpdateQueue;
 using ::client::thin_replica_client::ThinReplicaClient;
 using ::client::thin_replica_client::ThinReplicaClientConfig;
 using ::client::thin_replica_client::TrsConnection;
@@ -135,8 +134,8 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
   client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
-std::shared_ptr<::client::thin_replica_client::UpdateQueue> ConcordClient::subscribe(
-    const SubscribeRequest& sub_req, const std::unique_ptr<opentracing::Span>& parent_span) {
+std::shared_ptr<UpdateQueue> ConcordClient::subscribe(const SubscribeRequest& sub_req,
+                                                      const std::unique_ptr<opentracing::Span>& parent_span) {
   bool expected = false;
   if (!active_subscription_.compare_exchange_weak(expected, true)) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");

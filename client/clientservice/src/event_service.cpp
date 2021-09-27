@@ -54,7 +54,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<::client::thin_replica_client::UpdateQueue> trc_queue;
+  std::shared_ptr<cc::UpdateQueue> trc_queue;
   try {
     trc_queue = client_->subscribe(request, span);
   } catch (cc::ConcordClient::SubscriptionExists& e) {
@@ -72,8 +72,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       continue;
     }
 
-    if (std::holds_alternative<::client::thin_replica_client::EventGroup>(*update)) {
-      auto& event_group_in = std::get<::client::thin_replica_client::EventGroup>(*update);
+    if (std::holds_alternative<cc::EventGroup>(*update)) {
+      auto& event_group_in = std::get<cc::EventGroup>(*update);
       EventGroup proto_event_group;
       proto_event_group.set_id(event_group_in.id);
       for (const auto& event : event_group_in.events) {
@@ -86,8 +86,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       *response.mutable_event_group() = proto_event_group;
       stream->Write(response);
 
-    } else if (std::holds_alternative<::client::thin_replica_client::Update>(*update)) {
-      auto& legacy_event_in = std::get<::client::thin_replica_client::Update>(*update);
+    } else if (std::holds_alternative<cc::Update>(*update)) {
+      auto& legacy_event_in = std::get<cc::Update>(*update);
       Events proto_events;
       proto_events.set_block_id(legacy_event_in.block_id);
       for (auto& [key, value] : legacy_event_in.kv_pairs) {

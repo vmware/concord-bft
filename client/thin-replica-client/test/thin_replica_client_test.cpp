@@ -13,6 +13,7 @@
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trs_connection.hpp"
+#include "client/concordclient/event_update_queue.hpp"
 
 #include "gtest/gtest.h"
 #include "thin_replica_client_mocks.hpp"
@@ -32,12 +33,12 @@ using std::unique_ptr;
 using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
-using client::thin_replica_client::BasicUpdateQueue;
-using client::thin_replica_client::EventVariant;
+using concord::client::concordclient::BasicUpdateQueue;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::Update;
+using concord::client::concordclient::UpdateQueue;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
-using client::thin_replica_client::Update;
-using client::thin_replica_client::UpdateQueue;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
