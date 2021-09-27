@@ -139,7 +139,7 @@ class ConcordClient {
             const std::function<void(SendResult&&)>& callback);
 
   // Subscribe to events which will be populated through the TRC update queue.
-  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> subscribe(
+  std::shared_ptr<::client::thin_replica_client::UpdateQueue> subscribe(
       const SubscribeRequest& request, const std::unique_ptr<opentracing::Span>& parent_span);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources

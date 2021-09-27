@@ -54,7 +54,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue;
+  std::shared_ptr<::client::thin_replica_client::UpdateQueue> trc_queue;
   try {
     trc_queue = client_->subscribe(request, span);
   } catch (cc::ConcordClient::SubscriptionExists& e) {

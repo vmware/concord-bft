@@ -135,7 +135,7 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
   client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
-std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> ConcordClient::subscribe(
+std::shared_ptr<::client::thin_replica_client::UpdateQueue> ConcordClient::subscribe(
     const SubscribeRequest& sub_req, const std::unique_ptr<opentracing::Span>& parent_span) {
   bool expected = false;
   if (!active_subscription_.compare_exchange_weak(expected, true)) {
