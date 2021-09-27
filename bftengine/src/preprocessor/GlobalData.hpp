@@ -6,4 +6,4 @@ struct GlobalData {
   // Used for the conflict detection optimization.
   static std::atomic_uint64_t current_block_id;
 };
-};  // namespace preprocessor
+}  // namespace preprocessor
