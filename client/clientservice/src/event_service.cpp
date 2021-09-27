@@ -54,9 +54,9 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<cc::UpdateQueue> trc_queue;
+  std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::BasicUpdateQueue>();
   try {
-    trc_queue = client_->subscribe(request, span);
+    client_->subscribe(request, update_queue, span);
   } catch (cc::ConcordClient::SubscriptionExists& e) {
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
   }
@@ -64,7 +64,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   // TODO: Consider all gRPC return error codes as described in concord_client.proto
   while (!context->IsCancelled()) {
     SubscribeResponse response;
-    auto update = trc_queue->TryPop();
+    auto update = update_queue->TryPop();
     if (not update) {
       // We need to check if the client cancelled the subscription.
       // Therefore, we cannot block via Pop(). Can we do bettern than sleep?

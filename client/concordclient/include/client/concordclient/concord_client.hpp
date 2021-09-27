@@ -139,9 +139,10 @@ class ConcordClient {
             const std::unique_ptr<opentracing::Span>& parent_span,
             const std::function<void(SendResult&&)>& callback);
 
-  // Subscribe to events which will be populated through the TRC update queue.
-  std::shared_ptr<UpdateQueue> subscribe(const SubscribeRequest& request,
-                                         const std::unique_ptr<opentracing::Span>& parent_span);
+  // Subscribe to events which are pushed into the given update queue.
+  void subscribe(const SubscribeRequest& request,
+                 std::shared_ptr<UpdateQueue>& queue,
+                 const std::unique_ptr<opentracing::Span>& parent_span);
 
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
