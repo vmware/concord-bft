@@ -26,7 +26,7 @@ BasicUpdateQueue::BasicUpdateQueue() : queue_data_(), mutex_(), condition_(), re
 
 BasicUpdateQueue::~BasicUpdateQueue() {}
 
-void BasicUpdateQueue::ReleaseConsumers() {
+void BasicUpdateQueue::releaseConsumers() {
   {
     lock_guard<mutex> lock(mutex_);
     release_consumers_ = true;
@@ -34,12 +34,12 @@ void BasicUpdateQueue::ReleaseConsumers() {
   condition_.notify_all();
 }
 
-void BasicUpdateQueue::Clear() {
+void BasicUpdateQueue::clear() {
   lock_guard<mutex> lock(mutex_);
   queue_data_.clear();
 }
 
-void BasicUpdateQueue::Push(unique_ptr<EventVariant> update) {
+void BasicUpdateQueue::push(unique_ptr<EventVariant> update) {
   {
     lock_guard<mutex> lock(mutex_);
     queue_data_.push_back(move(update));
@@ -47,7 +47,7 @@ void BasicUpdateQueue::Push(unique_ptr<EventVariant> update) {
   condition_.notify_one();
 }
 
-unique_ptr<EventVariant> BasicUpdateQueue::Pop() {
+unique_ptr<EventVariant> BasicUpdateQueue::pop() {
   unique_lock<mutex> lock(mutex_);
   while (!(release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
@@ -61,7 +61,7 @@ unique_ptr<EventVariant> BasicUpdateQueue::Pop() {
   return ret;
 }
 
-unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
+unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
   lock_guard<mutex> lock(mutex_);
   if (queue_data_.size() > 0) {
     unique_ptr<EventVariant> ret = move(queue_data_.front());
@@ -72,7 +72,7 @@ unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
   }
 }
 
-uint64_t BasicUpdateQueue::Size() {
+uint64_t BasicUpdateQueue::size() {
   std::scoped_lock sl(mutex_);
   return queue_data_.size();
 }

@@ -121,8 +121,8 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   // Block until an update is received through the subscription stream; we pop 2
   // updates to do this in order to account for the single update the mock
   // server we are using will provide via initial state.
-  update_queue->Pop();
-  update_queue->Pop();
+  update_queue->pop();
+  update_queue->pop();
   servers_used = vector<bool>(num_replicas, false);
   ASSERT_EQ(record->GetSubscribeToUpdatesCalls().size(), 1)
       << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "
@@ -161,11 +161,11 @@ TEST(trc_rpc_use_test, test_trc_subscribe) {
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
-  update_queue->Clear();
+  update_queue->clear();
   trc->Subscribe(1);
 
   // Block until an update is received through the subscription stream.
-  update_queue->Pop();
+  update_queue->pop();
   servers_used = vector<bool>(num_replicas, false);
   ASSERT_EQ(record->GetSubscribeToUpdatesCalls().size(), 1)
       << "ThinReplicaClient::Subscribe's 1-parameter overload generated an "

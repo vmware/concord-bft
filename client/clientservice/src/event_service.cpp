@@ -64,10 +64,10 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   // TODO: Consider all gRPC return error codes as described in concord_client.proto
   while (!context->IsCancelled()) {
     SubscribeResponse response;
-    auto update = update_queue->TryPop();
+    auto update = update_queue->tryPop();
     if (not update) {
       // We need to check if the client cancelled the subscription.
-      // Therefore, we cannot block via Pop(). Can we do bettern than sleep?
+      // Therefore, we cannot block via pop(). Can we do bettern than sleep?
       std::this_thread::sleep_for(10ms);
       continue;
     }

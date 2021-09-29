@@ -78,7 +78,7 @@ void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
                         size_t num_updates,
                         const string& faulty_description) {
   for (size_t i = 0; i < num_updates; ++i) {
-    unique_ptr<EventVariant> received_update = received_updates->Pop();
+    unique_ptr<EventVariant> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from the "
                                           "initial state in the presence of "
                                        << faulty_description << ".";
@@ -93,7 +93,7 @@ void VerifyUpdates(shared_ptr<UpdateQueue>& received_updates,
                    const vector<Data>& expected_updates,
                    const string& faulty_description) {
   for (size_t i = 0; i < expected_updates.size(); ++i) {
-    unique_ptr<EventVariant> received_update = received_updates->Pop();
+    unique_ptr<EventVariant> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to stream an expected update from a "
                                           "subscription in the presence of "
                                        << faulty_description << ".";
