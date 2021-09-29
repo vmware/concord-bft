@@ -98,7 +98,11 @@ void ClientsManager::loadInfoFromReservedPages() {
       ConcordAssert(replyHeader->replyLength >= 0);
       ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 
-    if (!loadReservedPage(getReplyFirstPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) continue;
+      auto& info = clientsInfo_[clientId];
+      if (info.repliesInfo.size() >= maxNumOfReqsPerClient_) deleteOldestReply(clientId);
+      const auto& res = info.repliesInfo.insert_or_assign(replyHeader->reqSeqNum, replyPtr);
+      LOG_INFO(CL_MNGR, "Added/updated reply message" << KVLOG(clientId, replyHeader->reqSeqNum, res.second));
+    }
 
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
     ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
@@ -222,7 +226,6 @@ std::shared_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
     if (replyHeader->reqSeqNum != requestSeqNum) continue;
     ConcordAssert(replyHeader->msgType == MsgCode::ClientReply);
-    ConcordAssert(replyHeader->currentPrimaryId == 0);
     ConcordAssert(replyHeader->replyLength > 0);
     ConcordAssert(replyHeader->replyLength + sizeof(ClientReplyMsgHeader) <= maxReplySize_);
 

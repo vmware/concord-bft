@@ -918,7 +918,7 @@ class BftTestNetwork:
                 replica_views.append(replica_view)
 
             try:
-                with trio.fail_after(seconds=120):
+                with trio.fail_after(seconds=30):
                     while True:
                         replica_views = []
                         async with trio.open_nursery() as nursery:
