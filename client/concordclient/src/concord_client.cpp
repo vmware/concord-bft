@@ -16,7 +16,6 @@
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 
-using ::client::thin_replica_client::BasicUpdateQueue;
 using ::client::thin_replica_client::ThinReplicaClient;
 using ::client::thin_replica_client::ThinReplicaClientConfig;
 using ::client::thin_replica_client::TrsConnection;
@@ -30,25 +29,6 @@ namespace concord::client::concordclient {
 
 ConcordClient::ConcordClient(const ConcordClientConfig& config)
     : logger_(logging::getLogger("concord.client.concordclient")), config_(config) {
-  std::vector<std::unique_ptr<TrsConnection>> trs_connections;
-  for (const auto& replica : config_.topology.replicas) {
-    auto addr = replica.host + ":" + std::to_string(replica.event_port);
-    auto trsc = std::make_unique<TrsConnection>(addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3);
-
-    // TODO: Adapt TRC API to support PEM buffers
-    ConcordAssert(not config.subscribe_config.use_tls);
-    std::string trs_tls_cert_path = "";
-    std::string trc_tls_key = "";
-    auto trsc_config =
-        std::make_unique<TrsConnectionConfig>(config.subscribe_config.use_tls, trs_tls_cert_path, trc_tls_key);
-
-    trsc->connect(trsc_config);
-    trs_connections.push_back(std::move(trsc));
-  }
-  trc_queue_ = std::make_shared<BasicUpdateQueue>();
-  auto trc_config = std::make_unique<ThinReplicaClientConfig>(
-      config_.subscribe_config.id, trc_queue_, config_.topology.f_val, std::move(trs_connections));
-  trc_ = std::make_unique<ThinReplicaClient>(std::move(trc_config), metrics_);
   ConcordClientPoolConfig client_pool_config = createClientPoolStruct(config);
   client_pool_ = std::make_unique<concord::concord_client_pool::ConcordClientPool>(client_pool_config, metrics_);
   while (client_pool_->HealthStatus() == concord::concord_client_pool::PoolStatus::NotServing) {
@@ -135,13 +115,34 @@ void ConcordClient::send(const bft::client::WriteConfig& config,
   client_pool_->SendRequest(config, std::forward<bft::client::Msg>(msg), callback);
 }
 
-std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> ConcordClient::subscribe(
-    const SubscribeRequest& sub_req, const std::unique_ptr<opentracing::Span>& parent_span) {
+void ConcordClient::subscribe(const SubscribeRequest& sub_req,
+                              std::shared_ptr<UpdateQueue>& queue,
+                              const std::unique_ptr<opentracing::Span>& parent_span) {
   bool expected = false;
   if (!active_subscription_.compare_exchange_weak(expected, true)) {
     LOG_ERROR(logger_, "subscription already in progress - unsubscribe first");
     throw SubscriptionExists();
   }
+
+  std::vector<std::unique_ptr<::client::thin_replica_client::TrsConnection>> trs_connections;
+  for (const auto& replica : config_.topology.replicas) {
+    auto addr = replica.host + ":" + std::to_string(replica.event_port);
+    auto trsc = std::make_unique<TrsConnection>(addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3);
+
+    // TODO: Adapt TRC API to support PEM buffers
+    ConcordAssert(not config_.subscribe_config.use_tls);
+    std::string trs_tls_cert_path = "";
+    std::string trc_tls_key = "";
+    auto trsc_config =
+        std::make_unique<TrsConnectionConfig>(config_.subscribe_config.use_tls, trs_tls_cert_path, trc_tls_key);
+
+    trsc->connect(trsc_config);
+    trs_connections.push_back(std::move(trsc));
+  }
+
+  auto trc_config = std::make_unique<ThinReplicaClientConfig>(
+      config_.subscribe_config.id, queue, config_.topology.f_val, std::move(trs_connections));
+  trc_ = std::make_unique<ThinReplicaClient>(std::move(trc_config), metrics_);
 
   if (std::holds_alternative<EventGroupRequest>(sub_req.request)) {
     ::client::thin_replica_client::SubscribeRequest trc_request;
@@ -152,14 +153,13 @@ std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> ConcordClient::
   } else {
     ConcordAssert(false);
   }
-
-  return trc_queue_;
 }
 
 void ConcordClient::unsubscribe() {
   if (active_subscription_) {
     LOG_INFO(logger_, "Closing subscription. Waiting for subscriber to finish.");
     trc_->Unsubscribe();
+    trc_.reset();
     active_subscription_ = false;
     LOG_INFO(logger_, "Subscriber finished.");
   }

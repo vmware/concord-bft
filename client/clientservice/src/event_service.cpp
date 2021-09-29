@@ -54,9 +54,9 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   }
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
-  std::shared_ptr<::client::thin_replica_client::BasicUpdateQueue> trc_queue;
+  std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::BasicUpdateQueue>();
   try {
-    trc_queue = client_->subscribe(request, span);
+    client_->subscribe(request, update_queue, span);
   } catch (cc::ConcordClient::SubscriptionExists& e) {
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
   }
@@ -64,16 +64,16 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   // TODO: Consider all gRPC return error codes as described in concord_client.proto
   while (!context->IsCancelled()) {
     SubscribeResponse response;
-    auto update = trc_queue->TryPop();
+    auto update = update_queue->tryPop();
     if (not update) {
       // We need to check if the client cancelled the subscription.
-      // Therefore, we cannot block via Pop(). Can we do bettern than sleep?
+      // Therefore, we cannot block via pop(). Can we do bettern than sleep?
       std::this_thread::sleep_for(10ms);
       continue;
     }
 
-    if (std::holds_alternative<::client::thin_replica_client::EventGroup>(*update)) {
-      auto& event_group_in = std::get<::client::thin_replica_client::EventGroup>(*update);
+    if (std::holds_alternative<cc::EventGroup>(*update)) {
+      auto& event_group_in = std::get<cc::EventGroup>(*update);
       EventGroup proto_event_group;
       proto_event_group.set_id(event_group_in.id);
       for (const auto& event : event_group_in.events) {
@@ -86,8 +86,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
       *response.mutable_event_group() = proto_event_group;
       stream->Write(response);
 
-    } else if (std::holds_alternative<::client::thin_replica_client::Update>(*update)) {
-      auto& legacy_event_in = std::get<::client::thin_replica_client::Update>(*update);
+    } else if (std::holds_alternative<cc::Update>(*update)) {
+      auto& legacy_event_in = std::get<cc::Update>(*update);
       Events proto_events;
       proto_events.set_block_id(legacy_event_in.block_id);
       for (auto& [key, value] : legacy_event_in.kv_pairs) {

@@ -13,6 +13,7 @@
 
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/thin-replica-client/trs_connection.hpp"
+#include "client/concordclient/event_update_queue.hpp"
 
 #include "gtest/gtest.h"
 #include "thin_replica_client_mocks.hpp"
@@ -32,12 +33,12 @@ using std::unique_ptr;
 using std::vector;
 using std::chrono::milliseconds;
 using std::this_thread::sleep_for;
-using client::thin_replica_client::BasicUpdateQueue;
-using client::thin_replica_client::EventVariant;
+using concord::client::concordclient::BasicUpdateQueue;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::Update;
+using concord::client::concordclient::UpdateQueue;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
-using client::thin_replica_client::Update;
-using client::thin_replica_client::UpdateQueue;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
@@ -66,27 +67,27 @@ TEST(thin_replica_client_test, test_destructor_always_successful) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   EXPECT_NO_THROW(trc.reset()) << "ThinReplicaClient destructor failed.";
-  update_queue->Clear();
+  update_queue->clear();
 
   mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  update_queue->Pop();
-  update_queue->Pop();
+  update_queue->pop();
+  update_queue->pop();
   trc_config.reset();
   EXPECT_NO_THROW(trc.reset()) << "ThinReplicaClient destructor failed when destructing a "
                                   "ThinReplicaClient with an active subscription.";
-  update_queue->Clear();
+  update_queue->clear();
 
   mock_servers = CreateTrsConnections(num_replicas, stream_preparer, hasher);
   trc_config =
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  update_queue->Pop();
-  update_queue->Pop();
+  update_queue->pop();
+  update_queue->pop();
   trc->Unsubscribe();
   trc_config.reset();
   EXPECT_NO_THROW(trc.reset()) << "ThinReplicaClient destructor failed when destructing a "
@@ -143,7 +144,7 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  unique_ptr<EventVariant> update_received = update_queue->Pop();
+  unique_ptr<EventVariant> update_received = update_queue->pop();
   EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
   uint64_t block_id = std::get<Update>(*update_received).block_id;
   trc->Unsubscribe();
@@ -158,11 +159,11 @@ TEST(thin_replica_client_test, test_1_parameter_subscribe_success_cases) {
 
   for (size_t i = 0; i < 8; ++i) {
     trc->Unsubscribe();
-    update_queue->Clear();
+    update_queue->clear();
     uint64_t previous_block_id = block_id;
     EXPECT_NO_THROW(trc->Subscribe(block_id + 1)) << "ThinReplicaClient::Subscribe's 1-parameter overload failed when "
                                                      "subscribing with a Block ID from a previously received block.";
-    update_received = update_queue->Pop();
+    update_received = update_queue->pop();
     EXPECT_TRUE(std::holds_alternative<Update>(*update_received));
     block_id = std::get<Update>(*update_received).block_id;
     EXPECT_GT(block_id, previous_block_id) << "ThinReplicaClient::Subscribe's 1-parameter overload appears to be "
@@ -230,8 +231,8 @@ TEST(thin_replica_client_test, test_unsubscribe_successful) {
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a newly-constructed "
                                          "ThinReplicaClient.";
   trc->Subscribe();
-  update_queue->Pop();
-  update_queue->Pop();
+  update_queue->pop();
+  update_queue->pop();
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a ThinReplicaClient with "
                                          "an active subscription.";
   EXPECT_NO_THROW(trc->Unsubscribe()) << "ThinReplicaClient::Unsubscribe failed for a ThinReplicaClient with a "
@@ -264,7 +265,7 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
   trc->Subscribe();
-  unique_ptr<EventVariant> update_received = update_queue->Pop();
+  unique_ptr<EventVariant> update_received = update_queue->pop();
   EXPECT_TRUE((bool)update_received) << "ThinReplicaClient failed to publish update from initial state.";
 
   thread delay_thread([&]() {
@@ -272,7 +273,7 @@ TEST(thin_replica_client_test, test_pop_fetches_updates_) {
     *spurious_wakeup_indicator = false;
     delay_condition->notify_one();
   });
-  update_received = update_queue->Pop();
+  update_received = update_queue->pop();
   EXPECT_TRUE((bool)update_received) << "ThinReplicaClient failed to publish update received from servers "
                                         "while the application is already waiting on the update queue.";
   delay_thread.join();
@@ -308,8 +309,8 @@ TEST(thin_replica_client_test, test_acknowledge_block_id_success) {
   EXPECT_NO_THROW(trc->AcknowledgeBlockID(1)) << "ThinReplicaClient::AcknowledgeBlockID fails when called on a "
                                                  "freshly-constructed ThinReplicaClient.";
   trc->Subscribe();
-  update_queue->Pop();
-  update_queue->Pop();
+  update_queue->pop();
+  update_queue->pop();
   EXPECT_NO_THROW(trc->AcknowledgeBlockID(2)) << "ThinReplicaClient::AcknowledgeBlockID fails when called on a "
                                                  "ThinReplicaClient with an active subscription.";
   trc->Unsubscribe();
@@ -357,13 +358,13 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
       make_unique<ThinReplicaClientConfig>(kTestingClientID, update_queue, max_faulty, std::move(mock_servers));
   std::shared_ptr<concordMetrics::Aggregator> aggregator;
   auto trc = make_unique<ThinReplicaClient>(std::move(trc_config), aggregator);
-  EXPECT_FALSE((bool)(update_queue->TryPop())) << "ThinReplicaClient appears to have published state to update queue "
+  EXPECT_FALSE((bool)(update_queue->tryPop())) << "ThinReplicaClient appears to have published state to update queue "
                                                   "prior to subscription.";
 
   trc->Subscribe();
   trc->Unsubscribe();
   for (size_t i = 0; i < num_initial_updates; ++i) {
-    unique_ptr<EventVariant> received_update = update_queue->TryPop();
+    unique_ptr<EventVariant> received_update = update_queue->tryPop();
     Data& expected_update = update_data[i];
     EXPECT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update included in "
                                           "the initial state.";
@@ -385,12 +386,12 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
     }
   }
 
-  EXPECT_FALSE((bool)(update_queue->TryPop())) << "ThinReplicaClient appears to have collected an unexpected number of "
+  EXPECT_FALSE((bool)(update_queue->tryPop())) << "ThinReplicaClient appears to have collected an unexpected number of "
                                                   "updates in its initial state.";
   *spurious_wakeup_indicator = false;
   delay_condition->notify_all();
   sleep_for(kBriefDelayDuration);
-  EXPECT_FALSE((bool)(update_queue->TryPop())) << "ThinReplicaClient appears to have received an update after "
+  EXPECT_FALSE((bool)(update_queue->tryPop())) << "ThinReplicaClient appears to have received an update after "
                                                   "unsubscribing.";
   *spurious_wakeup_indicator = true;
 
@@ -398,7 +399,7 @@ TEST(thin_replica_client_test, test_correct_data_returned_) {
   for (size_t i = num_initial_updates; i < update_data.size(); ++i) {
     *spurious_wakeup_indicator = false;
     delay_condition->notify_one();
-    unique_ptr<EventVariant> received_update = update_queue->Pop();
+    unique_ptr<EventVariant> received_update = update_queue->pop();
     *spurious_wakeup_indicator = true;
     Data& expected_update = update_data[i];
 

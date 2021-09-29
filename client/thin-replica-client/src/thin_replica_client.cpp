@@ -31,19 +31,19 @@ using com::vmware::concord::thin_replica::KVPair;
 using com::vmware::concord::thin_replica::ReadStateHashRequest;
 using com::vmware::concord::thin_replica::ReadStateRequest;
 using com::vmware::concord::thin_replica::SubscriptionRequest;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::EventGroup;
+using concord::client::concordclient::Update;
 using std::atomic_bool;
 using std::list;
-using std::lock_guard;
 using std::logic_error;
 using std::make_pair;
-using std::mutex;
 using std::pair;
 using std::runtime_error;
 using std::string;
 using std::stringstream;
 using std::thread;
 using std::to_string;
-using std::unique_lock;
 using std::unique_ptr;
 using std::unordered_set;
 using std::vector;
@@ -65,60 +65,6 @@ LogCid::LogCid(const std::string& cid) {
 LogCid::~LogCid() {
   MDC_REMOVE(cid_key_);
   cid_set_ = false;
-}
-
-BasicUpdateQueue::BasicUpdateQueue() : queue_data_(), mutex_(), condition_(), release_consumers_(false) {}
-
-BasicUpdateQueue::~BasicUpdateQueue() {}
-
-void BasicUpdateQueue::ReleaseConsumers() {
-  {
-    lock_guard<mutex> lock(mutex_);
-    release_consumers_ = true;
-  }
-  condition_.notify_all();
-}
-
-void BasicUpdateQueue::Clear() {
-  lock_guard<mutex> lock(mutex_);
-  queue_data_.clear();
-}
-
-void BasicUpdateQueue::Push(unique_ptr<EventVariant> update) {
-  {
-    lock_guard<mutex> lock(mutex_);
-    queue_data_.push_back(move(update));
-  }
-  condition_.notify_one();
-}
-
-unique_ptr<EventVariant> BasicUpdateQueue::Pop() {
-  unique_lock<mutex> lock(mutex_);
-  while (!(release_consumers_ || (queue_data_.size() > 0))) {
-    condition_.wait(lock);
-  }
-  if (release_consumers_) {
-    return unique_ptr<EventVariant>(nullptr);
-  }
-  ConcordAssert(queue_data_.size() > 0);
-  unique_ptr<EventVariant> ret = move(queue_data_.front());
-  queue_data_.pop_front();
-  return ret;
-}
-
-unique_ptr<EventVariant> BasicUpdateQueue::TryPop() {
-  lock_guard<mutex> lock(mutex_);
-  if (queue_data_.size() > 0) {
-    unique_ptr<EventVariant> ret = move(queue_data_.front());
-    queue_data_.pop_front();
-    return ret;
-  } else {
-    return unique_ptr<EventVariant>(nullptr);
-  }
-}
-uint64_t thin_replica_client::BasicUpdateQueue::Size() {
-  std::scoped_lock sl(mutex_);
-  return queue_data_.size();
 }
 
 void ThinReplicaClient::recordCollectedHash(size_t update_source,
@@ -654,11 +600,11 @@ void ThinReplicaClient::pushUpdateToUpdateQueue(std::unique_ptr<EventVariant> up
                                                 const std::chrono::steady_clock::time_point& start,
                                                 bool is_event_group) {
   // update current queue size metric before pushing to the update_queue
-  metrics_.current_queue_size.Get().Set(config_->update_queue->Size());
+  metrics_.current_queue_size.Get().Set(config_->update_queue->size());
 
   // push update to the update queue for consumption by the application using
   // TRC
-  config_->update_queue->Push(std::move(update));
+  config_->update_queue->push(std::move(update));
 
   // update metrics
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -877,9 +823,9 @@ void ThinReplicaClient::Subscribe() {
 
   LOG_DEBUG(logger_, "Got verified initial state for block " << block_id);
 
-  config_->update_queue->Clear();
+  config_->update_queue->clear();
   while (state.size() > 0) {
-    config_->update_queue->Push(move(state.front()));
+    config_->update_queue->push(move(state.front()));
     state.pop_front();
   }
   latest_verified_block_id_ = block_id;
@@ -898,7 +844,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
     subscription_thread_.reset();
   }
 
-  config_->update_queue->Clear();
+  config_->update_queue->clear();
   latest_verified_block_id_ = block_id > 0 ? block_id - 1 : block_id;
   latest_verified_event_group_id_ = 0;
   is_event_group_request_ = false;
@@ -918,7 +864,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
     subscription_thread_.reset();
   }
 
-  config_->update_queue->Clear();
+  config_->update_queue->clear();
   // We assume that the latest known event group for the caller is the event group prior to the requested one.
   latest_verified_event_group_id_ = req.event_group_id > 0 ? req.event_group_id - 1 : req.event_group_id;
   is_event_group_request_ = true;

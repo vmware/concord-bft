@@ -37,14 +37,6 @@ target_link_libraries(trc_byzantine_tests
   GTest::Main
   GTest::GTest)
 
-add_test(NAME trc_basic_update_queue_tests COMMAND trc_basic_update_queue_tests)
-add_executable(trc_basic_update_queue_tests trc_basic_update_queue_test.cpp)
-target_include_directories(trc_basic_update_queue_tests PRIVATE ../src)
-target_link_libraries(trc_basic_update_queue_tests
-  thin_replica_client_lib
-  GTest::Main
-  GTest::GTest)
-
 add_test(NAME trc_hash_tests COMMAND trc_hash_tests)
 add_executable(trc_hash_tests trc_hash_test.cpp)
 target_include_directories(trc_hash_tests PRIVATE ../src)

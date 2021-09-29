@@ -4,5 +4,18 @@ target_include_directories(concordclient PUBLIC include)
 target_link_libraries(concordclient PUBLIC
   thin_replica_client_lib
   concord_client_pool
+  concordclient-event-api
   util
 )
+
+find_package(PROTOBUF REQUIRED)
+add_library(concordclient-event-api STATIC "src/event_update_queue.cpp")
+target_include_directories(concordclient-event-api PUBLIC include)
+target_link_libraries(concordclient-event-api PRIVATE
+  protobuf::libprotobuf # Needed for the timestamp in EventGroup
+  util
+)
+
+if (BUILD_TESTING)
+  add_subdirectory(test)
+endif()

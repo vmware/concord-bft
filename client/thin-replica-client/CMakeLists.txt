@@ -26,9 +26,10 @@ target_link_libraries(thin_replica_client_lib
   opentracing
   util
   thin-replica-proto
+  concordclient-event-api
 )
 
 # Unit tests
 if (BUILD_TESTING)
-    add_subdirectory(test)
+  add_subdirectory(test)
 endif()

@@ -42,13 +42,13 @@ using std::chrono::milliseconds;
 using std::chrono::steady_clock;
 using std::chrono::time_point;
 using std::this_thread::sleep_for;
-using client::thin_replica_client::BasicUpdateQueue;
-using client::thin_replica_client::EventVariant;
+using concord::client::concordclient::BasicUpdateQueue;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::Update;
+using concord::client::concordclient::UpdateQueue;
 using client::thin_replica_client::kThinReplicaHashLength;
 using client::thin_replica_client::ThinReplicaClient;
 using client::thin_replica_client::ThinReplicaClientConfig;
-using client::thin_replica_client::Update;
-using client::thin_replica_client::UpdateQueue;
 
 const string kTestingClientID = "mock_client_id";
 const string kTestingJaegerAddress = "127.0.0.1:6831";
@@ -78,7 +78,7 @@ void VerifyInitialState(shared_ptr<UpdateQueue>& received_updates,
                         size_t num_updates,
                         const string& faulty_description) {
   for (size_t i = 0; i < num_updates; ++i) {
-    unique_ptr<EventVariant> received_update = received_updates->Pop();
+    unique_ptr<EventVariant> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to fetch an expected update from the "
                                           "initial state in the presence of "
                                        << faulty_description << ".";
@@ -93,7 +93,7 @@ void VerifyUpdates(shared_ptr<UpdateQueue>& received_updates,
                    const vector<Data>& expected_updates,
                    const string& faulty_description) {
   for (size_t i = 0; i < expected_updates.size(); ++i) {
-    unique_ptr<EventVariant> received_update = received_updates->Pop();
+    unique_ptr<EventVariant> received_update = received_updates->pop();
     ASSERT_TRUE((bool)received_update) << "ThinReplicaClient failed to stream an expected update from a "
                                           "subscription in the presence of "
                                        << faulty_description << ".";
