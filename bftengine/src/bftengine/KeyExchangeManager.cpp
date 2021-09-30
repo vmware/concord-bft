@@ -150,7 +150,7 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   std::string cid = "replicaTlsKeyExchange_" + std::to_string(bft_sn) + "_" + std::to_string(repId);
   client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), cid);
   metrics_->tls_key_exchange_requests_++;
-  LOG_INFO(KEY_EX_LOG, "Replica have generated a new tls keys");
+  LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   // first check whether we've already generated keys lately
