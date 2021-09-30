@@ -123,7 +123,7 @@ void run_replica(int argc, char** argv) {
                                       std::map<std::string, categorization::CATEGORY_TYPE>{
                                           {VERSIONED_KV_CAT_ID, categorization::CATEGORY_TYPE::versioned_kv},
                                           {BLOCK_MERKLE_CAT_ID, categorization::CATEGORY_TYPE::block_merkle}},
-                                      std::make_shared<concord::secretsmanager::SecretsManagerPlain>());
+                                      setup->GetSecretManager());
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
         setup->GetCommunication()->Stop();
