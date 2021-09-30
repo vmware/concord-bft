@@ -229,10 +229,13 @@ class Replica : public IReplica,
 
     Recorders() {
       auto &registrar = concord::diagnostics::RegistrarSingleton::getInstance();
-      registrar.perf.registerComponent("iappstate", {get_block_duration, put_block_duration});
+      registrar.perf.registerComponent("iappstate",
+                                       {get_block_duration, put_block_duration, delete_batch_blocks_duration});
     }
     DEFINE_SHARED_RECORDER(get_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
     DEFINE_SHARED_RECORDER(put_block_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
+    DEFINE_SHARED_RECORDER(
+        delete_batch_blocks_duration, 1, MAX_VALUE_MICROSECONDS, 3, concord::diagnostics::Unit::MICROSECONDS);
   };
   Recorders histograms_;
 };  // namespace concord::kvbc
