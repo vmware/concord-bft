@@ -101,10 +101,11 @@ void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
 void TlsTCPCommunication::dispose(NodeNum i) {
   if (config_.selfId == i) {
     for (auto& [_, connMgr] : runner_->principals()) {
-      connMgr.dispose(_);
+      if (connMgr.getCurrentConnectionStatus(_) == ConnectionStatus::Connected) connMgr.dispose(_);
     }
   } else {
-      runner_->principals().at(config_.selfId).dispose(i);
+    auto& connMgr = runner_->principals().at(config_.selfId);
+    if (connMgr.getCurrentConnectionStatus(i) == ConnectionStatus::Connected) connMgr.dispose(i);
   }
 }
 }  // namespace bft::communication
