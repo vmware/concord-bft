@@ -263,7 +263,7 @@ class KeyExchangeCommandHandler : public IStateHandler {
     rreq.command = creq;
     std::vector<uint8_t> req_buf;
     concord::messages::serialize(req_buf, rreq);
-    out = {req_buf, [this, non_encrypted, new_key_path, orig_pk_path, enc, enc_file_path]() {
+    out = {req_buf, [this, non_encrypted, new_key_path, orig_pk_path, enc, enc_file_path, cert]() {
              if (enc) {
                fs::path orig_enc_key_path = orig_pk_path;
                orig_enc_key_path += ".enc";
@@ -282,6 +282,9 @@ class KeyExchangeCommandHandler : public IStateHandler {
                fs::remove(old_pk_path);
                LOG_INFO(this->getLogger(), "exchanged tls keys (non encrypted)");
              }
+             plain_sm_.encryptFile((tls_key_path_ / std::to_string(clientId_) / "client" / "client.cert").string(),
+                                   cert);
+             LOG_INFO(this->getLogger(), "exchanged tls certificate");
            }};
     return true;
   }

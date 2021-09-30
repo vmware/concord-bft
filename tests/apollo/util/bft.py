@@ -308,7 +308,7 @@ class BftTestNetwork:
         os.chdir(bft_network.testdir)
         bft_network._generate_crypto_keys()
         if bft_network.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
-            generate_cre = 0 if bft_network.with_cre is True else 1
+            generate_cre = 0 if bft_network.with_cre is False else 1
             # Generate certificates for all replicas, clients, and reserved clients
             bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
 
@@ -417,7 +417,7 @@ class BftTestNetwork:
         self._generate_crypto_keys()
 
         if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
-            generate_cre = 0 if self.with_cre is True else 1
+            generate_cre = 0 if self.with_cre is False else 1
             # Generate certificates for replicas, clients, and reserved clients
             self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
 

@@ -134,7 +134,7 @@ class PlainUDPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  void dispose(NodeNum i) override {};
+  void dispose(NodeNum i) override{};
   ~PlainUDPCommunication() override;
 
  private:

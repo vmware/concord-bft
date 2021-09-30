@@ -55,7 +55,8 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse& rres) {
   if (command.tls && command.target_replicas.size() > bftEngine::ReplicaConfig::instance().fVal) {
-    concord::messages::ReconfigurationErrorMsg error_msg{"Unable to perform tls key exchange for more than f replicas at once"};
+    concord::messages::ReconfigurationErrorMsg error_msg{
+        "Unable to perform tls key exchange for more than f replicas at once"};
     rres.response = error_msg;
     return false;
   }

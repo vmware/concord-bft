@@ -440,8 +440,8 @@ Replica::Replica(ICommunication *comm,
       secretsManager_{secretsManager},
       blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
                                                                           : std::thread::hardware_concurrency()) {
-  bft::communication::CommStateControl::instance().setCommRestartCallBack([this](uint32_t i) { m_ptrComm->dispose(i);
-  });
+  bft::communication::CommStateControl::instance().setCommRestartCallBack(
+      [this](uint32_t i) { m_ptrComm->dispose(i); });
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,

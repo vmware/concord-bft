@@ -231,7 +231,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         """
             Operator sends client key exchange command for cre client
         """
-        with log.start_action(action_type="test_client_key_exchange_command"):
+        with log.start_action(action_type="test_client_tls_key_exchange_command"):
             bft_network.start_all_replicas()
             bft_network.start_cre()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -297,10 +297,10 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             while not succ:
                 await trio.sleep(1)
                 succ = True
-                priv_key_path = os.path.join(bft_network.certdir + "/" + str(bft_network.cre_id), str(bft_network.cre_id),"client", "pk.pem")
+                priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id), str(bft_network.cre_id),"client", "pk.pem")
                 new_priv_path = priv_key_path + ".new"
 
-                enc_priv_key_path = os.path.join(bft_network.certdir + "/" + str(bft_network.cre_id), str(bft_network.cre_id),"client", "pk.pem.enc")
+                enc_priv_key_path = os.path.join(bft_network.certdir, str(bft_network.cre_id), str(bft_network.cre_id),"client", "pk.pem.enc")
                 enc_new_priv_path = enc_priv_key_path + ".new"
                 if os.path.isfile(priv_key_path):
                     if not os.path.isfile(new_priv_path):
@@ -390,7 +390,6 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         """
         with log.start_action(action_type="test_replica_key_exchange_command"):
             bft_network.start_all_replicas()
-            bft_network.start_cre()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             initial_prim = 0
             exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f, {initial_prim}))

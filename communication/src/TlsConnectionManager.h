@@ -46,6 +46,7 @@ class ConnectionManager {
   void send(const std::set<NodeNum> &destinations, const std::shared_ptr<OutgoingMsg> &msg);
   int getMaxMessageSize() const;
   void dispose(NodeNum i);
+
  private:
   void start();
   void stop();

@@ -248,7 +248,8 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 + replicaConfig.numRoReplicas);
     auto numOfClients =
         replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
-    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_ = std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
+    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_ =
+        std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
 #ifdef USE_COMM_PLAIN_TCP
     bft::communication::PlainTcpConfig conf =
         testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
@@ -287,13 +288,13 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
     std::unique_ptr<TestSetup> setup = nullptr;
     setup.reset(new TestSetup(replicaConfig,
-                             std::move(comm),
-                             logger,
-                             metricsPort,
-                             persistMode == PersistencyMode::RocksDB,
-                             s3ConfigFile,
-                             logPropsFile,
-                             cronEntryNumberOfExecutes));
+                              std::move(comm),
+                              logger,
+                              metricsPort,
+                              persistMode == PersistencyMode::RocksDB,
+                              s3ConfigFile,
+                              logPropsFile,
+                              cronEntryNumberOfExecutes));
     setup->sm_ = sm_;
     return setup;
 
