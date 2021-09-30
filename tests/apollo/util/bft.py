@@ -308,8 +308,9 @@ class BftTestNetwork:
         os.chdir(bft_network.testdir)
         bft_network._generate_crypto_keys()
         if bft_network.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
+            generate_cre = 0 if bft_network.with_cre is True else 1
             # Generate certificates for all replicas, clients, and reserved clients
-            bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + 1)
+            bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
 
         bft_network._init_metrics()
         bft_network._create_clients()
@@ -379,7 +380,7 @@ class BftTestNetwork:
                            "-f", str(self.config.f),
                            "-c", str(self.config.c),
                            "-r", str(self.config.n),
-                           "-k", self.certdir,
+                           "-k", self.certdir + "/" + str(self.cre_id),
                            "-t", os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys", str(self.principals_to_participant_map[self.cre_id]), "transaction_signing_priv.pem"),
                            "-o", "1000"]
                 self.cre_pid = subprocess.Popen(
@@ -416,8 +417,9 @@ class BftTestNetwork:
         self._generate_crypto_keys()
 
         if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
+            generate_cre = 0 if self.with_cre is True else 1
             # Generate certificates for replicas, clients, and reserved clients
-            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA)
+            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
 
 
     def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
@@ -480,8 +482,22 @@ class BftTestNetwork:
         certs_gen_script_path = os.path.join(self.builddir, "tests/simpleTest/scripts/create_tls_certs.sh")
         # If not running TLS, just exit here. keep certs_path to pass it by default to any type of replicas
         # We want to save time in non-TLs runs, avoiding certificate generation
-        args = [certs_gen_script_path, str(num_to_generate), self.certdir, str(start_index)]
+        temp_cert_dir = self.certdir + "/tmp"
+        os.makedirs(temp_cert_dir, exist_ok=True)
+        args = [certs_gen_script_path, str(num_to_generate), temp_cert_dir, str(start_index)]
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+        for c in range(num_to_generate):
+            comp_cert_dir = self.certdir + "/" + str(c)
+            shutil.rmtree(comp_cert_dir, ignore_errors=True)
+            shutil.copytree(temp_cert_dir, comp_cert_dir)
+        shutil.rmtree(temp_cert_dir, ignore_errors=True)
+
+    def copy_certs_from_server_to_clients(self, src):
+        src_cert = self.certdir + "/" + str(src)
+        for c in range(self.num_total_replicas() , self.num_total_replicas() + self.config.num_clients + RESERVED_CLIENTS_QUOTA):
+            comp_cert_dir = self.certdir + "/" + str(c)
+            shutil.rmtree(comp_cert_dir, ignore_errors=True)
+            shutil.copytree(src_cert, comp_cert_dir)
 
     def _create_clients(self):
         start_id = self.config.n + self.config.num_ro_replicas
@@ -515,7 +531,7 @@ class BftTestNetwork:
                                  MAX_MSG_SIZE,
                                  REQ_TIMEOUT_MILLI,
                                  RETRY_TIMEOUT_MILLI,
-                                 self.certdir,
+                                 self.certdir + "/" + str(client_id),
                                  self.txn_signing_keys_base_path,
                                  self.principals_to_participant_map)
 
@@ -622,7 +638,7 @@ class BftTestNetwork:
                 cmd = self.config.start_replica_cmd(self.builddir, replica_id)
             if self.certdir:
                 cmd.append("-c")
-                cmd.append(self.certdir)
+                cmd.append(self.certdir + "/" + str(replica_id))
             if self.txn_signing_enabled:
                 cmd.append("-p")
                 cmd.append(self.principals_mapping)
