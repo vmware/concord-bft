@@ -36,7 +36,7 @@ using bftEngine::impl::PersistentStorageImp;
 using concord::kvbc::BlockId;
 using concord::kvbc::BlockMetadata;
 using concord::kvbc::IReader;
-using concord::kvbc::kConcordInternalCategoryId;
+using concord::kvbc::categorization::kConcordInternalCategoryId;
 using concord::kvbc::ReplicaStateSyncImp;
 using concord::kvbc::categorization::CATEGORY_TYPE;
 using concord::kvbc::categorization::KeyValueBlockchain;
