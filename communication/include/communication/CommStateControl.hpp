@@ -23,14 +23,14 @@ class CommStateControl {
   void setBlockNewConnectionsFlag(bool flag) { blockNewConnectionsFlag_ = flag; }
   bool getBlockNewConnectionsFlag() { return blockNewConnectionsFlag_; }
 
-  void setCommRestartCallBack(std::function<void()> cb) {
+  void setCommRestartCallBack(std::function<void(uint32_t)> cb) {
     if (cb != nullptr) comm_restart_cb_registry_.add(cb);
   }
 
-  void restartComm() { comm_restart_cb_registry_.invokeAll(); }
+  void restartComm(uint32_t id) { comm_restart_cb_registry_.invokeAll(id); }
 
  private:
   bool blockNewConnectionsFlag_ = false;
-  concord::util::CallbackRegistry<> comm_restart_cb_registry_;
+  concord::util::CallbackRegistry<uint32_t> comm_restart_cb_registry_;
 };
 }  // namespace bft::communication

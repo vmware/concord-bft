@@ -352,5 +352,8 @@ ConnectionStatus ConnectionManager::getCurrentConnectionStatus(const NodeNum id)
   }
   return ConnectionStatus::Disconnected;
 }
+void ConnectionManager::dispose(NodeNum i) {
+  connections_.at(i)->dispose(true);
+}
 
 }  // namespace bft::communication::tls

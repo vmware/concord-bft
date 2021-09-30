@@ -98,4 +98,13 @@ void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
   }
 }
 
+void TlsTCPCommunication::dispose(NodeNum i) {
+  if (config_.selfId == i) {
+    for (auto& [_, connMgr] : runner_->principals()) {
+      connMgr.dispose(_);
+    }
+  } else {
+      runner_->principals().at(config_.selfId).dispose(i);
+  }
+}
 }  // namespace bft::communication

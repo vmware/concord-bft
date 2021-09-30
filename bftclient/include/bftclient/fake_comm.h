@@ -128,6 +128,7 @@ class FakeCommunication : public bft::communication::ICommunication {
 
   void setReceiver(NodeNum id, IReceiver* receiver) override { receiver_ = receiver; }
 
+  void dispose(NodeNum i) override {}
  private:
   IReceiver* receiver_;
   BehaviorThreadRunner runner_;

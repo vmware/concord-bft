@@ -44,6 +44,7 @@ class WrapCommunication : public ICommunication {
     communication_->setReceiver(receiverNum, receiver);
   }
 
+  void dispose(NodeNum i) override {}
   static void addStrategies(
       std::string const &strategies,
       char delim,
