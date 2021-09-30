@@ -119,7 +119,7 @@ add_test(NAME skvbc_backup_restore COMMAND sh -c
         "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_backup_restore python3 -m unittest test_skvbc_backup_restore 2>&1 > /dev/null"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-if (USE_S3_OBJECT_STORE)
+if (USE_S3_OBJECT_STORE AND BUILD_COMM_TCP_TLS)
      add_test(NAME skvbc_reconfiguration COMMAND sh -c
              "env ${APOLLO_TEST_ENV} BUILD_COMM_TCP_TLS=${BUILD_COMM_TCP_TLS} TEST_NAME=skvbc_reconfiguration python3 -m unittest test_skvbc_reconfiguration ${TEST_OUTPUT}"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
