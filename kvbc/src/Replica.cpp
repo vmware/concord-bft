@@ -200,7 +200,10 @@ void Replica::handleWedgeEvent() {
 
   uint64_t wedgeBftSeqNum =
       getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, wedgeBlock);
-  ConcordAssert(wedgeBftSeqNum > 0);
+  if (wedgeBftSeqNum == 0) {
+    // We may have a pruning that run in the background
+    return;
+  }
 
   uint64_t wedgePoint = (wedgeBftSeqNum + 2 * checkpointWindowSize);
   wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
