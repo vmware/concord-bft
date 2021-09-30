@@ -217,8 +217,8 @@ class Operator:
                           m_of_n_quorum=bft_client.MofNQuorum.All(self.client.config, [r for r in range(
                               self.config.n)]), reconfiguration=True)
 
-    async def key_exchange(self, target_replicas):
-        reconf_msg = self._construct_reconfiguration_keMsg_command(target_replicas)
+    async def key_exchange(self, target_replicas, tls=False):
+        reconf_msg = self._construct_reconfiguration_keMsg_command(target_replicas, tls)
         return await self.client.write(reconf_msg.serialize(), reconfiguration=True)
     
     async def client_key_exchange_command(self, target_clients, tls=False):
