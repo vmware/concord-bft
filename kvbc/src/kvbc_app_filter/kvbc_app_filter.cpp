@@ -275,7 +275,7 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
 uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) {
   const auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, key);
   if (not opt) {
-    LOG_ERROR(logger_, "Tag-specific event group ID for key \"" << key << "\" doesn't exist yet");
+    LOG_DEBUG(logger_, "Tag-specific event group ID for key \"" << key << "\" doesn't exist yet");
     // In case there are no public or private event groups for a client, return 0.
     // Note: `0` is an invalid event group id
     return 0;
