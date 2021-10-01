@@ -30,10 +30,11 @@ class DbEditorTests : public DbEditorTestsBase {
     auto adapter = KeyValueBlockchain{
         concord::storage::rocksdb::NativeClient::fromIDBClient(db),
         true,
-        std::map<std::string, CATEGORY_TYPE>{{kCategoryMerkle, CATEGORY_TYPE::block_merkle},
-                                             {kCategoryVersioned, CATEGORY_TYPE::versioned_kv},
-                                             {kCategoryImmutable, CATEGORY_TYPE::immutable},
-                                             {concord::kvbc::kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+        std::map<std::string, CATEGORY_TYPE>{
+            {kCategoryMerkle, CATEGORY_TYPE::block_merkle},
+            {kCategoryVersioned, CATEGORY_TYPE::versioned_kv},
+            {kCategoryImmutable, CATEGORY_TYPE::immutable},
+            {concord::kvbc::categorization::kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
 
     const auto mismatch_kv = std::make_pair(getSliver(std::numeric_limits<unsigned>::max()), getSliver(42));
 
@@ -746,9 +747,9 @@ TEST_F(DbEditorTests, get_categories) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"" + std::string(concord::kvbc::kConcordInternalCategoryId) + "\": \"versioned_kv\",\n  \"" +
-                kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle + "\": \"block_merkle\",\n  \"" +
-                kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
+  ASSERT_EQ("{\n  \"" + std::string(concord::kvbc::categorization::kConcordInternalCategoryId) +
+                "\": \"versioned_kv\",\n  \"" + kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle +
+                "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
             out_.str());
 }
 

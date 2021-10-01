@@ -257,8 +257,8 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
 }
 
 uint64_t PruningHandler::getBlockBftSequenceNumber(kvbc::BlockId bid) const {
-  auto opt_value =
-      ro_storage_.get(concord::kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
+  auto opt_value = ro_storage_.get(
+      concord::kvbc::categorization::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
   uint64_t sequenceNum = 0;
   if (!opt_value) {
     LOG_WARN(logger_, "Unable to get block");

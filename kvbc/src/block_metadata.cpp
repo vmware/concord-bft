@@ -16,7 +16,8 @@ std::string BlockMetadata::serialize(uint64_t bft_sequence_num) const {
 }
 
 uint64_t BlockMetadata::getLastBlockSequenceNum() const {
-  const auto value = storage_.getLatest(kConcordInternalCategoryId, IBlockMetadata::kBlockMetadataKeyStr);
+  const auto value = storage_.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId,
+                                        IBlockMetadata::kBlockMetadataKeyStr);
   auto sequenceNum = uint64_t{0};
   if (value) {
     const auto& data = std::get<categorization::VersionedValue>(*value).data;

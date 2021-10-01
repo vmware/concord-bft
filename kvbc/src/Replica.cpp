@@ -40,6 +40,7 @@
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
+using concord::kvbc::categorization::kConcordInternalCategoryId;
 using namespace concord::diagnostics;
 
 using concord::storage::DBMetadataStorage;
@@ -239,7 +240,7 @@ void Replica::handleNewEpochEvent() {
     ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key},
                           concordUtils::toBigEndianStringBuffer(bft_seq_num));
     concord::kvbc::categorization::Updates updates;
-    updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+    updates.add(kConcordInternalCategoryId, std::move(ver_updates));
     try {
       auto bid = add(std::move(updates));
       persistLastBlockIdInMetadata<false>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
@@ -260,9 +261,9 @@ void Replica::handleNewEpochEvent() {
 }
 template <typename T>
 void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
-  auto res = getLatest(kvbc::kConcordInternalCategoryId, key);
+  auto res = getLatest(kConcordInternalCategoryId, key);
   if (res.has_value()) {
-    auto blockid = getLatestVersion(kvbc::kConcordInternalCategoryId, key).value().version;
+    auto blockid = getLatestVersion(kConcordInternalCategoryId, key).value().version;
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;
     std::vector<uint8_t> bytesval(strval.begin(), strval.end());

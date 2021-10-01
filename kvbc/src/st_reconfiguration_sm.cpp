@@ -26,7 +26,8 @@ void StReconfigurationHandler::deserializeCmfMessage(T &msg, const std::string &
 }
 
 uint64_t StReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
-  auto value = ro_storage_.get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
+  auto value = ro_storage_.get(
+      concord::kvbc::categorization::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
   auto sequenceNum = uint64_t{0};
   if (value) {
     const auto &data = std::get<categorization::VersionedValue>(*value).data;
@@ -37,8 +38,9 @@ uint64_t StReconfigurationHandler::getStoredBftSeqNum(BlockId bid) {
 }
 
 uint64_t StReconfigurationHandler::getStoredEpochNumber(BlockId bid) {
-  auto value =
-      ro_storage_.get(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_key}, bid);
+  auto value = ro_storage_.get(concord::kvbc::categorization::kConcordInternalCategoryId,
+                               std::string{kvbc::keyTypes::reconfiguration_epoch_key},
+                               bid);
   auto epoch = uint64_t{0};
   if (value) {
     const auto &data = std::get<categorization::VersionedValue>(*value).data;
@@ -78,9 +80,10 @@ void StReconfigurationHandler::pruneOnStartup() {
 }
 template <typename T>
 bool StReconfigurationHandler::handleStoredCommand(const std::string &key, uint64_t current_cp_num) {
-  auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
+  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId, key);
   if (res.has_value()) {
-    auto blockid = ro_storage_.getLatestVersion(kvbc::kConcordInternalCategoryId, key).value().version;
+    auto blockid =
+        ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordInternalCategoryId, key).value().version;
     auto seqNum = getStoredBftSeqNum(blockid);
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;

@@ -12,6 +12,7 @@
 #include "st_reconfiguraion_sm.hpp"
 #include "OpenTracing.hpp"
 #include "categorization/kv_blockchain.h"
+#include "categorization/db_categories.h"
 #include "communication/ICommunication.hpp"
 #include "communication/CommFactory.hpp"
 #include "bftengine/Replica.hpp"
