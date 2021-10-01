@@ -41,6 +41,7 @@
 #include "trs_metrics.hpp"
 
 using google::protobuf::util::TimeUtil;
+using namespace std::chrono_literals;
 
 namespace concord {
 namespace thin_replica {
@@ -66,19 +67,27 @@ struct ThinReplicaServerConfig {
   std::unordered_set<std::string> client_id_set;
   // the threshold after which metrics aggregator is updated
   const uint16_t update_metrics_aggregator_thresh;
+  // the time duration the TRS waits before printing warning logs when
+  // subscription status for live updates is not ok
+  std::chrono::seconds no_live_subscription_warn_duration;
 
   ThinReplicaServerConfig(const bool is_insecure_trs_,
                           const std::string& tls_trs_cert_path_,
                           const concord::kvbc::IReader* rostorage_,
                           SubBufferList& subscriber_list_,
                           std::unordered_set<std::string>& client_id_set_,
-                          const uint16_t update_metrics_aggregator_thresh_ = 100)
+                          const uint16_t update_metrics_aggregator_thresh_ = 100,
+                          std::chrono::seconds no_live_subscription_warn_duration_ = kNoLiveSubscriptionWarnDuration)
       : is_insecure_trs(is_insecure_trs_),
         tls_trs_cert_path(tls_trs_cert_path_),
         rostorage(rostorage_),
         subscriber_list(subscriber_list_),
         client_id_set(client_id_set_),
-        update_metrics_aggregator_thresh(update_metrics_aggregator_thresh_) {}
+        update_metrics_aggregator_thresh(update_metrics_aggregator_thresh_),
+        no_live_subscription_warn_duration(no_live_subscription_warn_duration_) {}
+
+ private:
+  static constexpr std::chrono::seconds kNoLiveSubscriptionWarnDuration = 60s;
 };
 
 class ThinReplicaImpl {
@@ -96,6 +105,8 @@ class ThinReplicaImpl {
   static constexpr size_t kSubUpdateBufferSize{1000u};
   const std::chrono::milliseconds kWaitForUpdateTimeout{100};
   const std::string kCorrelationIdTag = "cid";
+  // last timestamp when subscription status for live updates was not ok
+  std::optional<std::chrono::steady_clock::time_point> last_failed_subscribe_status_time;
 
  public:
   ThinReplicaImpl(std::unique_ptr<ThinReplicaServerConfig> config,
@@ -235,9 +246,21 @@ class ThinReplicaImpl {
 
     auto [subscribe_status, live_updates] = subscribeToLiveUpdates(request, getClientId(context), kvb_filter);
     if (!subscribe_status.ok()) {
-      LOG_WARN(logger_,
-               "SubscribeToUpdates subscribeToLiveUpdates failed: (" << subscribe_status.error_code() << ") "
-                                                                     << subscribe_status.error_message());
+      auto current_time = std::chrono::steady_clock::now();
+      std::stringstream msg;
+      msg << "SubscribeToUpdates subscribeToLiveUpdates failed: (" << subscribe_status.error_code() << ") "
+          << subscribe_status.error_message();
+      if (!last_failed_subscribe_status_time.has_value()) {
+        LOG_WARN(logger_, msg.str());
+        last_failed_subscribe_status_time = current_time;
+      } else {
+        auto time_since_last_log =
+            std::chrono::duration_cast<std::chrono::seconds>(current_time - last_failed_subscribe_status_time.value());
+        if (time_since_last_log.count() >= config_->no_live_subscription_warn_duration.count()) {
+          LOG_WARN(logger_, msg.str());
+          last_failed_subscribe_status_time = current_time;
+        }
+      }
       return subscribe_status;
     }
 
@@ -526,7 +549,6 @@ class ThinReplicaImpl {
                               kvbc::BlockId start,
                               kvbc::BlockId end,
                               std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
-    using namespace std::chrono_literals;
     boost::lockfree::spsc_queue<kvbc::KvbFilteredUpdate> queue{10};
     std::atomic_bool close_stream = false;
 
@@ -574,7 +596,6 @@ class ThinReplicaImpl {
                                          ServerWriterT* stream,
                                          kvbc::EventGroupId start,
                                          std::shared_ptr<kvbc::KvbAppFilter> kvb_filter) {
-    using namespace std::chrono_literals;
     boost::lockfree::spsc_queue<kvbc::KvbFilteredEventGroupUpdate> queue{10};
     std::atomic_bool close_stream = false;
 
