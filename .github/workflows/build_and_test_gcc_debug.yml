@@ -8,7 +8,7 @@ jobs:
     name: Build
     runs-on: ubuntu-18.04
     outputs:
-      output1: ${{ steps.prepare_artifacts.outputs.test}}
+      err_output: ${{ steps.prepare_artifacts.outputs.test}}
     strategy:
         fail-fast: false
         matrix:
@@ -60,11 +60,9 @@ jobs:
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make test"
         - name: Check ERROR/FATAL logs
-          id: err_report
           run: |
-            chmod +x "./.github/success_action_if_err_logs_exist.sh"
             ./.github/success_action_if_err_logs_exist.sh ./build/tests/apollo/logs
-            echo "file_count=$(find ./build/tests/apollo/logs -name err_logs | wc -l)" >> $GITHUB_ENV
+            echo "file_count=$(find ./build/tests/apollo/logs -name ReplicaErrorLogs.txt | wc -l)" >> $GITHUB_ENV
         - name: Prepare artifacts
           id: prepare_artifacts
           if: failure() || ${{ env.file_count > 0 }}
@@ -81,13 +79,13 @@ jobs:
             name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}-${{ github.sha }}
             path: ${{ github.workspace }}/artifact/
   testlog:
-    name: Check ERROR/ FATAL logs in apollo
+    name: Check ERROR/FATAL logs(Apollo)
     runs-on: ubuntu-18.04
     continue-on-error: true
     needs: build
     steps:
         - name: Check ERROR/FATAL logs in apollo
-          if: needs.build.outputs.output1 == 'success'
+          if: needs.build.outputs.err_output == 'success'
           run: |
             echo "Errors exist in replica logs. Please check Artifacts"
             exit 1

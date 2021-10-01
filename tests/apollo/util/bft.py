@@ -637,8 +637,8 @@ class BftTestNetwork:
         If the file exists for any testcase, warning is displayed in CI
         """
         with log.start_action(action_type="replica_log_scanner") as action:
-            cmd = ['grep', '-R', 'ERROR\|FATAL', '--exclude=err_logs']
-            file_path = f"{self.test_dir}err_logs"
+            cmd = ['grep', '-R', 'ERROR\|FATAL', '--exclude=ReplicaErrorLogs.txt']
+            file_path = f"{self.test_dir}ReplicaErrorLogs.txt"
 
             with open(file_path, 'w+') as outfile:
                 subprocess.run(cmd, stdout=outfile, cwd=self.test_dir)
