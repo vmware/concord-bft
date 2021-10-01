@@ -492,17 +492,19 @@ void ThinReplicaClient::receiveUpdates() {
     if (most_agreeing < (config_->max_faulty + 1)) {
       // print the warning every minute to avoid flooding with logs
       std::string msg = "Couldn't find agreement amongst all servers. Try again.";
+      auto current_time = std::chrono::steady_clock::now();
       if (!last_non_agreement_time.has_value()) {
         LOG_WARN(logger_, msg);
-        last_non_agreement_time = std::chrono::steady_clock::now();
+        last_non_agreement_time = current_time;
       } else {
-        auto current_time = std::chrono::steady_clock::now();
         auto time_since_last_log =
             std::chrono::duration_cast<std::chrono::seconds>(current_time - last_non_agreement_time.value());
         if (time_since_last_log.count() >= config_->no_agreement_warn_duration.count()) {
           LOG_WARN(logger_, msg);
+          last_non_agreement_time = current_time;
         }
       }
+
       // We need to force re-subscription on at least one of the f+1 open
       // streams otherwise we might skip an update. By closing all streams here
       // we do exactly what the algorithm would do in the next iteration of this
