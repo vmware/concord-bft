@@ -363,7 +363,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onInternalMsg(GetStatus& msg) const;
 
   std::pair<PrePrepareMsg*, bool> finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,
-                                                                      uint16_t maxSpaceForReqs,
+                                                                      uint32_t maxSpaceForReqs,
                                                                       uint32_t requiredRequestsSize,
                                                                       uint32_t requiredRequestsNum);
 
@@ -385,7 +385,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg*& nextRequest,
                                                   PrePrepareMsg& prePrepareMsg,
-                                                  uint16_t maxStorageForRequests);
+                                                  uint32_t maxStorageForRequests);
 
   PrePrepareMsg* createPrePrepareMessage();
 
