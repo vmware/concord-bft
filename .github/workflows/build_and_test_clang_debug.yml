@@ -5,6 +5,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-18.04
+    outputs:
+      err_output: ${{ steps.prepare_artifacts.outputs.test}}
     strategy:
         fail-fast: false
         matrix:
@@ -55,16 +57,34 @@ jobs:
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c "make test"
+        - name: Check ERROR/FATAL logs
+          run: |
+            ./.github/success_action_if_err_logs_exist.sh ./build/tests/apollo/logs
+            echo "file_count=$(find ./build/tests/apollo/logs -name ReplicaErrorLogs.txt | wc -l)" >> $GITHUB_ENV
         - name: Prepare artifacts
-          if: failure()
+          id: prepare_artifacts
+          if: failure() || ${{ env.file_count > 0 }}
           run: |
             sudo chown -R ${USER}:${GROUP} ${PWD}/build
             tar -czvf ${{ github.workspace }}/artifact/logs.tar.gz ./build/tests/apollo/logs
             du -h ${{ github.workspace }}/artifact
             sudo df -h
+            echo "::set-output name=test::success"
         - name: Upload artifacts
           uses: actions/upload-artifact@v2
-          if: failure()
+          if: failure() || ${{ env.file_count > 0 }}
           with:
             name: artifacts-${{ matrix.compiler }}-${{ matrix.ci_build_type }}-${{ github.sha }}
             path: ${{ github.workspace }}/artifact/
+  testlog:
+    name: Check ERROR/ FATAL logs(Apollo)
+    runs-on: ubuntu-18.04
+    continue-on-error: true
+    needs: build
+    steps:
+        - name: Check ERROR/FATAL logs in apollo
+          if: needs.build.outputs.err_output == 'success'
+          run: |
+            echo "Errors exist in replica logs. Please check Artifacts"
+            exit 1
+   

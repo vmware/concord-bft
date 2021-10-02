@@ -236,6 +236,8 @@ class BftTestNetwork:
             if self.perf_proc:
                 self.perf_proc.wait()
 
+            self.check_error_logs()
+
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
                  procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[]):
         self.is_existing = is_existing
@@ -628,6 +630,24 @@ class BftTestNetwork:
                 cmd.append("-t")
                 cmd.append(keys_path)
             return cmd
+
+    def check_error_logs(self):
+        """
+        Checking ERROR/FATAL logs in replica logs and writing in a file.
+        If the file exists for any testcase, warning is displayed in CI
+        """
+        with log.start_action(action_type="replica_log_scanner") as action:
+            cmd = ['grep', '-R', 'ERROR\|FATAL', '--exclude=ReplicaErrorLogs.txt']
+            file_path = f"{self.test_dir}ReplicaErrorLogs.txt"
+
+            with open(file_path, 'w+') as outfile:
+                subprocess.run(cmd, stdout=outfile, cwd=self.test_dir)
+
+            if os.path.isfile(file_path):
+                if  os.stat(file_path).st_size > 0:
+                    action.log(message_type=f'Error in Replica logs')
+                else:
+                    os.remove(file_path)
 
     def stop_replica_cmd(self, replica_id):
         """
