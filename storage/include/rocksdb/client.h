@@ -99,11 +99,48 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) override;
 
   Status reclaimDiskSpace() override {
-    ::rocksdb::CompactRangeOptions opt;
+    // First flush the memtable to L0 (and don't start compaction)
+    for (auto& [_, cf] : cf_handles_) {
+      dbInstance_->SetOptions(cf.get(), {{"disable_auto_compactions", "true"}});
+    }
+    dbInstance_->Flush(::rocksdb::FlushOptions());
+
+    //    ::rocksdb::CompactRangeOptions opt;
+    //    opt.change_level = true;
+    //    opt.bottommost_level_compaction = ::rocksdb::BottommostLevelCompaction::kForce;
+
+    // Now, rotate over the cfs and manually compact their files
     for (auto& [_, cf] : cf_handles_) {
       LOG_INFO(logger(), "run compaction for " << _);
-      auto s = dbInstance_->CompactRange(opt, cf.get(), nullptr, nullptr);
-      if (!s.ok()) return Status::GeneralError(s.ToString());
+      ::rocksdb::ColumnFamilyMetaData cf_meta;
+      dbInstance_->GetColumnFamilyMetaData(cf.get(), &cf_meta);
+      std::vector<std::string> input_file_names;
+      int max_level = 0;
+      for (auto level : cf_meta.levels) {
+        for (auto file : level.files) {
+          if (file.being_compacted) {
+            LOG_WARN(logger(),
+                     "unable to run manual compaction, there is another compaction running in the background");
+            return Status::GeneralError("compaction is running in background");
+          }
+          input_file_names.push_back(file.name);
+          if (level.level > max_level) max_level = level.level;
+        }
+      }
+      // First compact all records to the lowest level we have
+      auto s = dbInstance_->CompactFiles(::rocksdb::CompactionOptions(), cf.get(), input_file_names, max_level);
+      if (!s.ok()) {
+        for (auto& [_, cf] : cf_handles_) {
+          dbInstance_->SetOptions(cf.get(), {{"disable_auto_compactions", "false"}});
+        }
+        Status::GeneralError(s.ToString());
+      }
+      //      // Now, re-orgnize the records to the highest level capable to hold them
+      //      s = dbInstance_->CompactRange(opt, cf.get(), nullptr, nullptr);
+      //      if (!s.ok()) return Status::GeneralError(s.ToString());
+    }
+    for (auto& [_, cf] : cf_handles_) {
+      dbInstance_->SetOptions(cf.get(), {{"disable_auto_compactions", "false"}});
     }
     return Status::OK();
   }

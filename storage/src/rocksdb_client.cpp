@@ -13,17 +13,17 @@
 
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
-#incluse <rocksdb/advanced_options.h>
 #include <stdexcept>
 #ifdef USE_ROCKSDB
 
 #include <rocksdb/client.h>
 #include <rocksdb/transaction.h>
+#include <rocksdb/advanced_options.h>
 #include <rocksdb/env.h>
 #include <rocksdb/utilities/options_util.h>
 #include <rocksdb/table.h>
 #include <rocksdb/filter_policy.h>
-
+#include <rocksdb/listener.h>
 #include <algorithm>
 #include <atomic>
 #include <utility>
@@ -42,6 +42,10 @@ namespace rocksdb {
 static unsigned int g_rocksdb_called_read = 0;
 static bool g_rocksdb_print_measurements = false;
 const unsigned int background_threads = 16;
+
+class CompactionListener : public ::rocksdb::EventListener {
+ public:
+};
 /**
  * @brief Converts a Sliver object to a RocksDB Slice object.
  *
@@ -213,7 +217,6 @@ void Client::initDB(bool readOnly, const std::optional<Options> &userOptions, bo
   }
 
   Options options;
-  options.compaction_pri = ::rocksdb::CompactionPri::kByCompensatedSize;
   std::vector<::rocksdb::ColumnFamilyDescriptor> cf_descs;
 
   auto cf_names = std::vector<std::string>{};
