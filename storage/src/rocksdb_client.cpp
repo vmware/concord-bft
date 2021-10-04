@@ -139,6 +139,7 @@ void Client::initDBFromFile(bool readOnly, const Options &user_options) {
   // Some options, notably pointers, are not configurable via the config file. We set them in code here.
   user_options.completeInit(db_options, cf_descs);
   db_options.wal_dir = m_dbPath;
+  db_options.create_missing_column_families = true;
   openRocksDB(readOnly, db_options, cf_descs);
 
   initialized_ = true;
