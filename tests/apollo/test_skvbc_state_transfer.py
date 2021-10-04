@@ -138,3 +138,46 @@ class SkvbcStateTransferTest(unittest.TestCase):
         await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, rotate_keys=True)
+    async def test_state_transfer_for_two_successive_cycles(self, bft_network,exchange_keys=True):
+        """
+        Test that state transfer starts and completes and completes in 2
+        successive cycles. Stop one node, add a bunch of data to the rest
+        of the cluster, start the node and verify state transfer works as
+        expected. After successful state transfer the same source node is
+        stopped again and more data is added to the rest of the cluster,
+        node is started and state transfer is verified. We should be able
+        to stop a different set of f nodes after state transfer completes
+        and still operate correctly.
+        """
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        stale_node = random.choice(
+            bft_network.all_replicas(without={0}))
+
+        await skvbc.prime_for_state_transfer(
+            stale_nodes={stale_node},
+            checkpoints_num=3, # key-exchange channges the last executed seqnum
+            persistency_enabled=False
+        )
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_state_transfer_to_start()
+        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
+        await skvbc.assert_successful_put_get()
+        
+        initial_nodes, _,_,_ = \
+                await skvbc.start_replicas_and_write_known_kv(stale_nodes={stale_node},
+                rep_alredy_started=True)
+        await skvbc.fill_and_wait_for_checkpoint(
+                initial_nodes,
+                num_of_checkpoints_to_add=3,
+                verify_checkpoint_persistency=False,
+                assert_state_transfer_not_started=False)
+        bft_network.start_replica(stale_node)
+        await bft_network.wait_for_state_transfer_to_start()
+        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
+        await skvbc.assert_successful_put_get()
+        await bft_network.force_quorum_including_replica(stale_node)
+        await skvbc.assert_successful_put_get()
