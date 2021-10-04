@@ -744,7 +744,7 @@ struct RemoveMetadata {
     // Once we managed to remove the metadata, we must start a new epoch (which means to add an epoch block)
     uint64_t epoch{0};
     {
-      auto value = adapter.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId,
+      auto value = adapter.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                      std::string{kvbc::keyTypes::reconfiguration_epoch_key});
       if (value) {
         const auto &data = std::get<categorization::VersionedValue>(*value).data;
@@ -766,10 +766,12 @@ struct RemoveMetadata {
     std::string epoch_str = concordUtils::toBigEndianStringBuffer(epoch);
     concord::kvbc::categorization::VersionedUpdates ver_updates;
     ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key}, std::move(epoch_str));
-    std::string sn_str = concordUtils::toBigEndianStringBuffer(last_executed_sn);
-    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, std::move(sn_str));
     concord::kvbc::categorization::Updates updates;
-    updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(ver_updates));
+    updates.add(concord::kvbc::categorization::kConcordReconfigurationCategoryId, std::move(ver_updates));
+    concord::kvbc::categorization::VersionedUpdates sn_updates;
+    std::string sn_str = concordUtils::toBigEndianStringBuffer(last_executed_sn);
+    sn_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, std::move(sn_str));
+    updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(sn_updates));
     adapter.addBlock(std::move(updates));
     std::vector<std::pair<std::string, std::string>> out;
     out.push_back({std::string{"result"}, std::string{"true"}});
