@@ -37,7 +37,7 @@ class TestSetup {
   static std::unique_ptr<TestSetup> ParseArgs(int argc, char** argv);
 
   std::unique_ptr<IStorageFactory> GetStorageFactory();
-  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> GetSecretManager() { return sm_; }
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> GetSecretManager() const { return sm_; }
   const bftEngine::ReplicaConfig& GetReplicaConfig() const { return replicaConfig_; }
   bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
   concordMetrics::Server& GetMetricsServer() { return metricsServer_; }

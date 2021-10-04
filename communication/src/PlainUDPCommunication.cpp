@@ -405,9 +405,9 @@ PlainUDPCommunication *PlainUDPCommunication::create(const PlainUdpConfig &confi
 
 int PlainUDPCommunication::getMaxMessageSize() { return _ptrImpl->getMaxMessageSize(); }
 
-int PlainUDPCommunication::Start() { return _ptrImpl->Start(); }
+int PlainUDPCommunication::start() { return _ptrImpl->Start(); }
 
-int PlainUDPCommunication::Stop() {
+int PlainUDPCommunication::stop() {
   if (!_ptrImpl) return 0;
 
   auto res = _ptrImpl->Stop();

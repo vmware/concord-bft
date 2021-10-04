@@ -18,7 +18,7 @@
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
-#include "communication/CommStateControl.hpp"
+#include "communication/StateControl.hpp"
 #include "secrets_manager_plain.h"
 
 using namespace concord::messages;
@@ -102,7 +102,7 @@ void ReconfigurationHandler::handleWedgeCommands(
       });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-          [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
+          [=]() { bft::communication::StateControl::instance().setBlockNewConnectionsFlag(true); });
     }
   } else {
     if (remove_metadata)
@@ -118,7 +118,7 @@ void ReconfigurationHandler::handleWedgeCommands(
       });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-          [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
+          [=]() { bft::communication::StateControl::instance().setBlockNewConnectionsFlag(true); });
     }
   }
 }

@@ -75,7 +75,7 @@ class SimpleTestClient {
     SimpleClient* client = SimpleClient::createSimpleClient(comm, id, cp.numOfFaulty, cp.numOfSlow);
     auto aggregator = std::make_shared<concordMetrics::Aggregator>();
     client->setAggregator(aggregator);
-    comm->Start();
+    comm->start();
 
     // The state number that the latest write operation returned.
     uint64_t expectedStateNum = 0;
@@ -208,7 +208,7 @@ class SimpleTestClient {
     }
 
     // After all requests have been issued, stop communication and clean up.
-    comm->Stop();
+    comm->stop();
     std::string metric_comp_name = "clientMetrics_" + std::to_string(id);
     LOG_INFO(clientLogger,
              "clientMetrics::retransmissions " << aggregator->GetCounter(metric_comp_name, "retransmissions").Get());

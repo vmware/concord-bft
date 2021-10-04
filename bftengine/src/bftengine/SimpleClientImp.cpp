@@ -329,7 +329,7 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
                   spanContext.empty()));
   ConcordAssert(!(isReadOnly && isPreProcessRequired));
 
-  if (!communication_->isRunning()) communication_->Start();
+  if (!communication_->isRunning()) communication_->start();
   if (!isReadOnly && !isSystemReady()) {
     LOG_WARN(logger_,
              "The system is not ready yet to handle requests => reject"
@@ -403,7 +403,7 @@ OperationResult SimpleClientImp::isBatchRequestValid(const ClientRequest& req) {
 }
 
 OperationResult SimpleClientImp::isBatchValid(uint64_t requestsNbr, uint64_t repliesNbr) {
-  if (!communication_->isRunning()) communication_->Start();
+  if (!communication_->isRunning()) communication_->start();
   OperationResult res = SUCCESS;
   if (!requestsNbr) {
     LOG_ERROR(logger_, "An empty request list specified");

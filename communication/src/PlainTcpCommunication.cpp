@@ -835,9 +835,9 @@ PlainTCPCommunication *PlainTCPCommunication::create(const PlainTcpConfig &confi
 
 int PlainTCPCommunication::getMaxMessageSize() { return _ptrImpl->getMaxMessageSize(); }
 
-int PlainTCPCommunication::Start() { return _ptrImpl->Start(); }
+int PlainTCPCommunication::start() { return _ptrImpl->Start(); }
 
-int PlainTCPCommunication::Stop() {
+int PlainTCPCommunication::stop() {
   if (!_ptrImpl) return 0;
 
   auto res = _ptrImpl->Stop();

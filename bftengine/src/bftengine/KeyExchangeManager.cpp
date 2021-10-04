@@ -127,7 +127,7 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   concord::secretsmanager::SecretsManagerPlain psm_;
   std::fstream nec_f(pk_path);
   if (nec_f.good()) {
-    psm_.encryptFile(pk_path, keys.first);
+    secretsMgr_->encryptFile(pk_path, keys.first);
   }
   std::fstream ec_f(pk_path + ".enc");
   if (ec_f.good()) {

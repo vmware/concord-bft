@@ -384,9 +384,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
-    async def test_replicas_key_exchange_command_without_primary(self, bft_network):
+    async def test_replicas_tls_key_exchange_command_without_primary(self, bft_network):
         """
-            Operator sends client key exchange command for all the clients
+            Operator sends client key exchange command for f replicas
         """
         with log.start_action(action_type="test_replica_key_exchange_command"):
             bft_network.start_all_replicas()

@@ -342,7 +342,7 @@ void setUpCommunication() {
 
   PlainUdpConfig configuration("128.0.0.1", 1234, 4096, nodes, replicaConfig.replicaId);
   communicatorPtr.reset(CommFactory::create(configuration), [](ICommunication* c) {
-    c->Stop();
+    c->stop();
     delete c;
   });
   msgsCommunicator.reset(new MsgsCommunicator(communicatorPtr.get(), msgsStorage, msgReceiver));

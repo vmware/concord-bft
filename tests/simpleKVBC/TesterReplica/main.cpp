@@ -126,7 +126,7 @@ void run_replica(int argc, char** argv) {
                                       setup->GetSecretManager());
   bftEngine::ControlStateManager::instance().addOnRestartProofCallBack(
       [argv, &setup]() {
-        setup->GetCommunication()->Stop();
+        setup->GetCommunication()->stop();
         setup->GetMetricsServer().Stop();
         execv(argv[0], argv);
       },

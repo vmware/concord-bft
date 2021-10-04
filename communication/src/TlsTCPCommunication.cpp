@@ -42,12 +42,12 @@ int TlsTCPCommunication::getMaxMessageSize() {
   }
 }
 
-int TlsTCPCommunication::Start() {
+int TlsTCPCommunication::start() {
   runner_->start();
   return 0;
 }
 
-int TlsTCPCommunication::Stop() {
+int TlsTCPCommunication::stop() {
   if (!runner_) {
     return -1;
   }
