@@ -269,8 +269,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
                                                         << "], senderId=" << senderId);
         if (time_to_collect_batch_ == MinTime) time_to_collect_batch_ = getMonotonicTime();
         requestsQueueOfPrimary.push(m);
-        primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         primaryCombinedReqSize += m->size();
+        primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         tryToSendPrePrepareMsg(true);
         return;
       } else {
@@ -382,11 +382,11 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
 void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   TimeRecorder scoped_timer(*histograms_.removeDuplicatedRequestsFromQueue);
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
-  ClientRequestMsg *first = requestsQueueOfPrimary.front();
+  ClientRequestMsg *first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   while (first != nullptr && !clientsManager->canBecomePending(first->clientProxyId(), first->requestSeqNum())) {
     primaryCombinedReqSize -= first->size();
-    delete first;
     requestsQueueOfPrimary.pop();
+    delete first;
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
@@ -490,7 +490,7 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
 
 ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
                                                             PrePrepareMsg &prePrepareMsg,
-                                                            uint16_t maxStorageForRequests) {
+                                                            uint32_t maxStorageForRequests) {
   if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
     SCOPED_MDC_CID(nextRequest->getCid());
     if (clientsManager->canBecomePending(nextRequest->clientProxyId(), nextRequest->requestSeqNum())) {
@@ -498,14 +498,14 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
       clientsManager->addPendingRequest(
           nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
     }
-    primaryCombinedReqSize -= nextRequest->size();
   } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
     LOG_ERROR(GL,
               "Request was dropped because it exceeds maximum allowed size" << KVLOG(
                   prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
-  delete nextRequest;
+  primaryCombinedReqSize -= nextRequest->size();
   requestsQueueOfPrimary.pop();
+  delete nextRequest;
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
   return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 }
@@ -518,7 +518,7 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
 // The first value of the pair can be nullptr depending on the availability of the result. So the
 // first value cannot represent failure.
 std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
-                                                                                 uint16_t maxSpaceForReqs,
+                                                                                 uint32_t maxSpaceForReqs,
                                                                                  uint32_t requiredRequestsSize,
                                                                                  uint32_t requiredRequestsNum) {
   if (prePrepareMsg->numberOfRequests() == 0) {
@@ -574,10 +574,10 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
-  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   {
     TimeRecorder scoped_timer1(*histograms_.addAllRequestsToPrePrepare);
-    ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+    ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
     while (nextRequest != nullptr)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
   }
@@ -591,7 +591,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
-  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
@@ -606,7 +606,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByBatchSize(u
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
-  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr &&
          (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
