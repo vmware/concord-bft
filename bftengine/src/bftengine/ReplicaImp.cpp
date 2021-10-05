@@ -4074,8 +4074,12 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
                                                 PrePrepareMsg *ppMsg,
                                                 bool recoverFromErrorInRequestsExecution) {
   TimeRecorder scoped_timer(*histograms_.executeRequestsInPrePrepareMsg);
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    return;
+  }
   auto span = concordUtils::startChildSpan("bft_execute_requests_in_preprepare", parent_span);
   if (!isCollectingState()) ConcordAssert(currentViewIsActive());
+
   ConcordAssertNE(ppMsg, nullptr);
   ConcordAssertEQ(ppMsg->viewNumber(), getCurrentView());
   ConcordAssertEQ(ppMsg->seqNumber(), lastExecutedSeqNum + 1);
