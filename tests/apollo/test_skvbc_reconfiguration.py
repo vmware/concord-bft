@@ -11,6 +11,7 @@
 # file.
 import os.path
 import unittest
+import time
 from shutil import copy2
 import trio
 import difflib
@@ -756,11 +757,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             log.log_message(message_type=f"pruned_block {pruned_block}")
             assert pruned_block <= 90   
 
-            # creates 100 new blocks
-            for i in range(100):
+            # creates 300 new blocks
+            for i in range(300):
                 v = skvbc.random_value()
                 await client.write(skvbc.write_req([], [(k, v)], 0))
 
+            #wait for sometime
+            time.sleep(1)
             # now, return the crashed replica and wait for it to done with state transfer
             bft_network.start_replica(crashed_replica)
             await self._wait_for_st(bft_network, crashed_replica, 150)
