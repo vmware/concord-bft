@@ -3359,6 +3359,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
               "Recieved multiple ReplicaRestartReadyMsg from sender_id "
                   << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
     delete msg;
+    return;
   }
   LOG_INFO(GL,
            "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
