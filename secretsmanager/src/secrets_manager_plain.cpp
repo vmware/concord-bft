@@ -34,7 +34,7 @@ std::optional<std::string> SecretsManagerPlain::decryptFile(std::string_view pat
   try {
     data = readFile(path);
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Error opening file for reading    " << path << ": " << e.what());
+    LOG_WARN(logger, "Error opening file for reading    " << path << ": " << e.what());
     return std::nullopt;
   }
 
@@ -46,7 +46,7 @@ std::optional<std::string> SecretsManagerPlain::decryptFile(const std::ifstream&
   try {
     data = readFile(file);
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Error opening stream for reading " << e.what());
+    LOG_WARN(logger, "Error opening stream for reading " << e.what());
     return std::nullopt;
   }
 
