@@ -124,8 +124,8 @@ class PlainUDPCommunication : public ICommunication {
   static PlainUDPCommunication *create(const PlainUdpConfig &config);
 
   int getMaxMessageSize() override;
-  int Start() override;
-  int Stop() override;
+  int start() override;
+  int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
@@ -134,6 +134,7 @@ class PlainUDPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
+  void dispose(NodeNum i) override{};
   ~PlainUDPCommunication() override;
 
  private:
@@ -150,8 +151,8 @@ class PlainTCPCommunication : public ICommunication {
   static PlainTCPCommunication *create(const PlainTcpConfig &config);
 
   int getMaxMessageSize() override;
-  int Start() override;
-  int Stop() override;
+  int start() override;
+  int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
@@ -160,6 +161,7 @@ class PlainTCPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
+  void dispose(NodeNum i) override {}
   ~PlainTCPCommunication() override;
 
  private:
@@ -178,8 +180,8 @@ class TlsTCPCommunication : public ICommunication {
   static TlsTCPCommunication *create(const TlsTcpConfig &config);
 
   int getMaxMessageSize() override;
-  int Start() override;
-  int Stop() override;
+  int start() override;
+  int stop() override;
   bool isRunning() const override;
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override;
 
@@ -188,6 +190,7 @@ class TlsTCPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
+  void dispose(NodeNum i) override;
   ~TlsTCPCommunication() override;
 
  private:

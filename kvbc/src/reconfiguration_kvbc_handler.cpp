@@ -18,6 +18,7 @@
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
+#include "communication/StateControl.hpp"
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
@@ -354,7 +355,13 @@ bool ReconfigurationHandler::handle(const concord::messages::KeyExchangeCommand&
                                     uint64_t sequence_number,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& ts,
-                                    concord::messages::ReconfigurationResponse&) {
+                                    concord::messages::ReconfigurationResponse& rres) {
+  if (command.tls && command.target_replicas.size() > bftEngine::ReplicaConfig::instance().fVal) {
+    concord::messages::ReconfigurationErrorMsg error_msg{
+        "Unable to perform tls key exchange for more than f replicas at once"};
+    rres.response = error_msg;
+    return false;
+  }
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   auto blockId = persistReconfigurationBlock(
@@ -767,6 +774,30 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   concord::secretsmanager::SecretsManagerPlain sm;
   sm.encryptFile(path, pem_key.second);
   LOG_INFO(getLogger(), KVLOG(path, pem_key.second, sender_id));
+  return true;
+}
+
+bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchangeKey& command,
+                                                  uint64_t sequence_number,
+                                                  uint32_t sender_id,
+                                                  const std::optional<bftEngine::Timestamp>& ts,
+                                                  concord::messages::ReconfigurationResponse& response) {
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      sequence_number,
+      std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(sender_id),
+      ts,
+      false);
+  LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
+                                       std::to_string(sender_id) + "/server/server.cert";
+  std::string cert = command.cert;
+  secretsmanager::SecretsManagerPlain sm;
+  sm.encryptFile(bft_replicas_cert_path, cert);
+  LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
+  bft::communication::StateControl::instance().restartComm(sender_id);
   return true;
 }
 

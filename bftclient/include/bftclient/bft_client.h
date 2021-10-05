@@ -40,7 +40,7 @@ class Client {
     metrics_.setAggregator(aggregator);
   }
 
-  void stop() { communication_->Stop(); }
+  void stop() { communication_->stop(); }
 
   // Send a message where the reply gets allocated by the callee and returned in a vector.
   // The message to be sent is moved into the caller to prevent unnecessary copies.

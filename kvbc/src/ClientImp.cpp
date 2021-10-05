@@ -39,14 +39,14 @@ Status ClientImp::start() {
   bftClient_ = bftEngine::SimpleClient::createSimpleClient(comm_, clientId, fVal, cVal);
 
   // Only start the communication after creating the client, because the client sets the receiver of communication
-  comm_->Start();
+  comm_->start();
 
   return Status::OK();
 }
 
 Status ClientImp::stop() {
   // TODO: implement
-  if (0 != comm_->Stop()) {
+  if (0 != comm_->stop()) {
     return Status::GeneralError("No tls runner to stop");
   }
   return Status::OK();

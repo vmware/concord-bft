@@ -87,6 +87,7 @@ Msg ReconfigurationErrorMsg 24 {
 Msg KeyExchangeCommand 25 {
     uint64 sender_id
     list uint64 target_replicas
+    bool tls
 }
 
 Msg AddRemoveCommand 26 {
@@ -223,6 +224,10 @@ Msg ClientsRestartUpdate 56 {
     uint64 sender_id
 }
 
+Msg ReplicaTlsExchangeKey 57 {
+    string cert
+}
+
 Msg ClientStateReply 39 {
     uint64 block_id
     oneof {
@@ -265,6 +270,7 @@ Msg ReconfigurationRequest 1 {
     ClientExchangePublicKey
     ClientTlsExchangeKey
     RestartCommand
+    ReplicaTlsExchangeKey
     ClientsAddRemoveCommand
     ClientsAddRemoveStatusCommand
     ClientsAddRemoveUpdateCommand

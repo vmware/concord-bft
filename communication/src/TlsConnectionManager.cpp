@@ -18,7 +18,7 @@
 #include "assertUtils.hpp"
 #include "TlsConnectionManager.h"
 #include "AsyncTlsConnection.h"
-#include "communication/CommStateControl.hpp"
+#include "communication/StateControl.hpp"
 
 namespace bft::communication::tls {
 
@@ -258,7 +258,7 @@ void ConnectionManager::startClientSSLHandshake(asio::ip::tcp::socket&& socket, 
 
 void ConnectionManager::accept() {
   acceptor_.async_accept(asio::bind_executor(strand_, [this](asio::error_code ec, asio::ip::tcp::socket sock) {
-    if (bft::communication::CommStateControl::instance().getBlockNewConnectionsFlag()) {
+    if (bft::communication::StateControl::instance().getBlockNewConnectionsFlag()) {
       LOG_WARN(logger_, "replica is blocked from creating new connections");
       return;
     } else if (ec) {
@@ -351,6 +351,10 @@ ConnectionStatus ConnectionManager::getCurrentConnectionStatus(const NodeNum id)
     return ConnectionStatus::Connected;
   }
   return ConnectionStatus::Disconnected;
+}
+void ConnectionManager::dispose(NodeNum i) {
+  if (connections_.find(i) == connections_.end()) return;
+  connections_.at(i)->dispose(true);
 }
 
 }  // namespace bft::communication::tls

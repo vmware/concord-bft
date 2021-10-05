@@ -18,7 +18,8 @@
 #include "bftengine/EpochManager.hpp"
 #include "Replica.hpp"
 #include "kvstream.h"
-#include "communication/CommStateControl.hpp"
+#include "communication/StateControl.hpp"
+#include "secrets_manager_plain.h"
 
 using namespace concord::messages;
 namespace concord::reconfiguration {
@@ -52,18 +53,26 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     uint64_t sequence_number,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>&,
-                                    concord::messages::ReconfigurationResponse&) {
+                                    concord::messages::ReconfigurationResponse& rres) {
+  if (command.tls && command.target_replicas.size() > bftEngine::ReplicaConfig::instance().fVal) {
+    concord::messages::ReconfigurationErrorMsg error_msg{
+        "Unable to perform tls key exchange for more than f replicas at once"};
+    rres.response = error_msg;
+    return false;
+  }
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
 
   LOG_INFO(GL, KVLOG(command.id, command.sender_id, sequence_number) << " target replicas: [" << oss.str() << "]");
   if (std::find(command.target_replicas.begin(),
                 command.target_replicas.end(),
-                bftEngine::ReplicaConfig::instance().getreplicaId()) != command.target_replicas.end())
+                bftEngine::ReplicaConfig::instance().getreplicaId()) == command.target_replicas.end())
+    return true;
+  if (command.tls) {
+    bftEngine::impl::KeyExchangeManager::instance().exchangeTlsKeys(sequence_number);
+  } else {
     bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
-  else
-    LOG_INFO(GL, "not among target replicas, ignoring...");
-
+  }
   return true;
 }
 bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeCommand& command,
@@ -93,7 +102,7 @@ void ReconfigurationHandler::handleWedgeCommands(
       });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-          [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
+          [=]() { bft::communication::StateControl::instance().setBlockNewConnectionsFlag(true); });
     }
   } else {
     if (remove_metadata)
@@ -109,7 +118,7 @@ void ReconfigurationHandler::handleWedgeCommands(
       });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-          [=]() { bft::communication::CommStateControl::instance().setBlockNewConnectionsFlag(true); });
+          [=]() { bft::communication::StateControl::instance().setBlockNewConnectionsFlag(true); });
     }
   }
 }

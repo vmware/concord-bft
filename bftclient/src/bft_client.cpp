@@ -56,7 +56,7 @@ Client::Client(std::unique_ptr<bft::communication::ICommunication> comm, const C
         key_plaintext.value().c_str(), concord::util::crypto::KeyFormat::PemFormat);
   }
   communication_->setReceiver(config_.id.val, &receiver_);
-  communication_->Start();
+  communication_->start();
 }
 
 Msg Client::createClientMsg(const RequestConfig& config, Msg&& request, bool read_only, uint16_t client_id) {

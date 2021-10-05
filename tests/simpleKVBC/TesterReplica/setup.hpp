@@ -24,6 +24,7 @@
 #include "config/test_parameters.hpp"
 #include "storage_factory_interface.h"
 #include "PerformanceManager.hpp"
+#include "secrets_manager_impl.h"
 
 #ifdef USE_S3_OBJECT_STORE
 #include "s3/client.hpp"
@@ -36,7 +37,7 @@ class TestSetup {
   static std::unique_ptr<TestSetup> ParseArgs(int argc, char** argv);
 
   std::unique_ptr<IStorageFactory> GetStorageFactory();
-
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> GetSecretManager() const { return sm_; }
   const bftEngine::ReplicaConfig& GetReplicaConfig() const { return replicaConfig_; }
   bft::communication::ICommunication* GetCommunication() const { return communication_.get(); }
   concordMetrics::Server& GetMetricsServer() { return metricsServer_; }
@@ -88,6 +89,7 @@ class TestSetup {
   std::string logPropsFile_;
   std::shared_ptr<concord::performance::PerformanceManager> pm_ = nullptr;
   std::optional<std::uint32_t> cronEntryNumberOfExecutes_;
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_;
 };
 
 }  // namespace concord::kvbc

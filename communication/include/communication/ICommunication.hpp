@@ -42,11 +42,11 @@ class ICommunication {
 
   // Starts the object (including its internal threads).
   // On success, returns 0.
-  virtual int Start() = 0;
+  virtual int start() = 0;
 
   // Stops the object (including its internal threads).
   // On success, returns 0.
-  virtual int Stop() = 0;
+  virtual int stop() = 0;
 
   virtual bool isRunning() const = 0;
 
@@ -67,6 +67,7 @@ class ICommunication {
 
   virtual void setReceiver(NodeNum receiverNum, IReceiver* receiver) = 0;
 
+  virtual void dispose(NodeNum i) = 0;
   virtual ~ICommunication() = default;
 };
 }  // namespace bft::communication
