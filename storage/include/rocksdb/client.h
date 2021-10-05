@@ -103,6 +103,7 @@ class Client : public concord::storage::IDBClient {
     for (auto& [_, cf] : cf_handles_) {
       dbInstance_->SetOptions(cf.get(), {{"disable_auto_compactions", "true"}});
     }
+    dbInstance_->FlushWAL(true);
     dbInstance_->Flush(::rocksdb::FlushOptions());
 
     //    ::rocksdb::CompactRangeOptions opt;
