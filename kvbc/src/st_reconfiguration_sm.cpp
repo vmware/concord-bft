@@ -70,6 +70,12 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
                                                        current_cp_num);
   handleStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
                                                          current_cp_num);
+
+  // Check for every replica if there is a TLS key exchange command
+  for (uint32_t i = 0; i < bftEngine::ReplicaConfig::instance().numReplicas; i++) {
+    handleStoredCommand<concord::messages::ReplicaTlsExchangeKey>(
+        std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(i), current_cp_num);
+  }
 }
 
 void StReconfigurationHandler::pruneOnStartup() {
@@ -244,6 +250,27 @@ bool StReconfigurationHandler::handle(const concord::messages::PruneRequest &com
   // saved command and try to execute it
   bool succ = true;
   concord::messages::ReconfigurationResponse response;
+  for (auto &h : orig_reconf_handlers_) {
+    // If it was written to the blockchain, it means that this is a valid request.
+    succ &= h->handle(command, bft_seq_num, UINT32_MAX, std::nullopt, response);
+  }
+  return succ;
+}
+
+bool StReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchangeKey &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t,
+                                      uint64_t) {
+  // We actually need to run exactly the same logic as in the original handler. As we have only one
+  // implemented handler, it is OK to simply run all the registered handlers.
+  bool succ = true;
+  auto sender_id = command.sender_id;
+  concord::messages::ReconfigurationResponse response;
+  std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
+                                       std::to_string(sender_id) + "/server/server.cert";
+  auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
+  if (current_rep_cert == command.cert) return succ;
+  LOG_INFO(GL, "execute replica TLS key exchange after state transfer");
   for (auto &h : orig_reconf_handlers_) {
     // If it was written to the blockchain, it means that this is a valid request.
     succ &= h->handle(command, bft_seq_num, UINT32_MAX, std::nullopt, response);

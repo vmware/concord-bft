@@ -225,6 +225,7 @@ Msg ClientsRestartUpdate 56 {
 }
 
 Msg ReplicaTlsExchangeKey 57 {
+    uint64 sender_id
     string cert
 }
 

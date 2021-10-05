@@ -136,7 +136,7 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
 
   concord::messages::ReconfigurationRequest req;
   req.sender = repId;
-  req.command = concord::messages::ReplicaTlsExchangeKey{cert};
+  req.command = concord::messages::ReplicaTlsExchangeKey{repId, cert};
   // Mark this request as an internal one
   std::vector<uint8_t> data_vec;
   concord::messages::serialize(data_vec, req);

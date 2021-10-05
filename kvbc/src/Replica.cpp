@@ -165,9 +165,10 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   requestHandler->setReconfigurationHandler(
       std::make_shared<kvbc::reconfiguration::KvbcClientReconfigurationHandler>(*this, *this),
       concord::reconfiguration::ReconfigurationHandlerType::PRE);
-  requestHandler->setReconfigurationHandler(
-      std::make_shared<kvbc::reconfiguration::InternalPostKvReconfigurationHandler>(*this, *this),
-      concord::reconfiguration::ReconfigurationHandlerType::POST);
+  auto internal_reconf_handler =
+      std::make_shared<kvbc::reconfiguration::InternalPostKvReconfigurationHandler>(*this, *this);
+  requestHandler->setReconfigurationHandler(internal_reconf_handler,
+                                            concord::reconfiguration::ReconfigurationHandlerType::POST);
   auto pruning_handler = std::shared_ptr<kvbc::pruning::PruningHandler>(
       new concord::kvbc::pruning::PruningHandler(*this, *this, *this, true));
   requestHandler->setReconfigurationHandler(pruning_handler);
@@ -176,6 +177,7 @@ void Replica::registerReconfigurationHandlers(std::shared_ptr<bftEngine::IReques
   if (bftEngine::ReplicaConfig::instance().pruningEnabled_) {
     stReconfigurationSM_->pruneOnStartup();
   }
+  stReconfigurationSM_->registerHandler(internal_reconf_handler);
 }
 uint64_t Replica::getStoredReconfigData(const std::string &kCategory,
                                         const std::string &key,
