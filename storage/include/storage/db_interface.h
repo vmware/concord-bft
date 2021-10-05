@@ -72,7 +72,7 @@ class IDBClient {
   // status will reflect it.
   virtual Status rangeDel(const Sliver& _beginKey, const Sliver& _endKey) = 0;
   virtual bool isNew() = 0;
-
+  virtual Status reclaimDiskSpace() = 0;
   // the caller is responsible for transaction object lifetime
   // possible options: ITransaction::Guard or std::shared_ptr
   virtual ITransaction* beginTransaction() = 0;

@@ -58,6 +58,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.clientBatchingEnabled = true;
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
+    replicaConfig.manualCompaction_ = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
     const auto persistMode = PersistencyMode::RocksDB;

@@ -87,6 +87,7 @@ class Client : public concord::storage::IDBClient {
     init_ = false;
     LOG_INFO(logger_, "libs3 deinit");
   }
+  Status reclaimDiskSpace() override { return Status::IllegalOperation("not supported with s3 storage"); }
 
   /**
    * @brief used only from the test! name should be immutable string literal
