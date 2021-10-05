@@ -131,7 +131,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(numBlocksToKeep_, uint64_t, 0, "how much blocks to keep while pruning");
   CONFIG_PARAM(manualCompaction_,
                bool,
-               true,
+               false,
                "Enable manual rocksb compaction after pruning (to reclaim the disc space immediately)");
 
   CONFIG_PARAM(debugPersistentStorageEnabled, bool, false, "whether persistent storage debugging is enabled");
