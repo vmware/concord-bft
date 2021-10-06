@@ -188,6 +188,7 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 template <>
 void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   metric_received_client_requests_++;
+  mainThreadUtilization.Start(MsgCode::ClientRequest);
   const NodeIdType senderId = m->senderId();
   const NodeIdType clientId = m->clientProxyId();
   const bool readOnly = m->isReadOnly();
@@ -211,6 +212,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
       LOG_INFO(KEY_EX_LOG, "Didn't complete yet, dropping msg");
       delete m;
+      mainThreadUtilization.End();
       return;
     }
   }
@@ -229,12 +231,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     oss << KVLOG(invalidClient, sentFromReplicaToNonPrimary);
     onReportAboutInvalidMessage(m, oss.str().c_str());
     delete m;
+    mainThreadUtilization.End();
     return;
   }
 
   if (readOnly) {
     executeReadOnlyRequest(span, m);
     delete m;
+    mainThreadUtilization.End();
     return;
   }
 
@@ -243,12 +247,14 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
     delete m;
+    mainThreadUtilization.End();
     return;
   }
 
   if (!currentViewIsActive()) {
     LOG_INFO(GL, "ClientRequestMsg is ignored because current view is inactive. " << KVLOG(reqSeqNum, clientId));
     delete m;
+    mainThreadUtilization.End();
     return;
   }
 
@@ -261,6 +267,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
                  "ClientRequestMsg dropped. Primary request queue is full. "
                      << KVLOG(clientId, reqSeqNum, requestsQueueOfPrimary.size()));
         delete m;
+        mainThreadUtilization.End();
         return;
       }
       if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
@@ -272,6 +279,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         primaryCombinedReqSize += m->size();
         primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         tryToSendPrePrepareMsg(true);
+        mainThreadUtilization.End();
         return;
       } else {
         LOG_INFO(GL,
@@ -305,6 +313,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     }
   }
   delete m;
+  mainThreadUtilization.End();
 }
 
 template <>
@@ -317,6 +326,7 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreP
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
+  mainThreadUtilization.Start(MsgCode::ReplicaAsksToLeaveView);
   MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
   if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
@@ -329,6 +339,7 @@ void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg 
                  getCurrentView(), currentViewIsActive(), m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
     delete m;
   }
+  mainThreadUtilization.End();
 }
 
 bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
@@ -780,15 +791,18 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::PrePrepare);
   if (isSeqNumToStopAt(msg->seqNumber())) {
     LOG_INFO(GL,
              "Ignoring PrePrepareMsg because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
+    mainThreadUtilization.End();
     return;
   }
 
   if (!validatePreProcessedResults(msg)) {
     // validatePreProcessedResults() logs the error
+    mainThreadUtilization.End();
     return;
   }
 
@@ -812,7 +826,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     } else {
       LOG_INFO(GL, "PrePrepare discarded.");
     }
-
+    mainThreadUtilization.End();
     return;  // TODO(GG): memory deallocation is confusing .....
   }
   bool msgAdded = false;
@@ -827,6 +841,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       if (!time_service_manager_->hasTimeRequest(*msg)) {
         LOG_ERROR(GL, "PrePrepare will be ignored");
         delete msg;
+        mainThreadUtilization.End();
         return;
       }
       if (msgSeqNum > maxSeqNumTransferredFromPrevViews /* not transferred from the previous view*/) {
@@ -870,6 +885,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   }
 
   if (!msgAdded) delete msg;
+  mainThreadUtilization.End();
 }
 
 void ReplicaImp::tryToStartSlowPaths() {
@@ -1011,6 +1027,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
 
 template <>
 void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::StartSlowCommit);
   metric_received_start_slow_commits_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
@@ -1042,7 +1059,7 @@ void ReplicaImp::onMessage<StartSlowCommitMsg>(StartSlowCommitMsg *msg) {
         sendPreparePartial(seqNumInfo);
     }
   }
-
+  mainThreadUtilization.End();
   delete msg;
 }
 
@@ -1168,6 +1185,7 @@ void ReplicaImp::sendCommitPartial(const SeqNum s) {
 
 template <>
 void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::PartialCommitProof);
   metric_received_partial_commit_proofs_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const SeqNum msgView = msg->viewNumber();
@@ -1193,17 +1211,20 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
       PartialProofsSet &pps = seqNumInfo.partialProofs();
 
       if (pps.addMsg(msg)) {
+        mainThreadUtilization.End();
         return;
       }
     }
   }
 
   delete msg;
+  mainThreadUtilization.End();
   return;
 }
 
 template <>
 void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::FullCommitProof);
   pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>(
       (char *)msg,
       msg->sizeNeededForObjAndMsgInLocalBuffer(),
@@ -1249,6 +1270,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       metric_total_committed_sn_++;
       pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
       executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
+      mainThreadUtilization.End();
       return;
     } else if (pps.hasFullProof()) {
       const auto fullProofCollectorId = pps.getFullProof()->senderId();
@@ -1260,6 +1282,7 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   }
 
   delete msg;
+  mainThreadUtilization.End();
   return;
 }
 
@@ -1421,6 +1444,7 @@ void ReplicaImp::onInternalMsg(FullCommitProofMsg *msg) {
 
 template <>
 void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::PreparePartial);
   metric_received_prepare_partials_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
@@ -1471,10 +1495,12 @@ void ReplicaImp::onMessage<PreparePartialMsg>(PreparePartialMsg *msg) {
                       << " (seqNumber " << msgSeqNum << ")");
     delete msg;
   }
+  mainThreadUtilization.End();
 }
 
 template <>
 void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::CommitPartial);
   metric_received_commit_partials_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
@@ -1516,10 +1542,12 @@ void ReplicaImp::onMessage<CommitPartialMsg>(CommitPartialMsg *msg) {
     LOG_INFO(GL, "Ignored CommitPartialMsg. " << KVLOG(msgSender));
     delete msg;
   }
+  mainThreadUtilization.End();
 }
 
 template <>
 void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::PrepareFull);
   metric_received_prepare_fulls_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
@@ -1561,9 +1589,11 @@ void ReplicaImp::onMessage<PrepareFullMsg>(PrepareFullMsg *msg) {
     LOG_DEBUG(MSGS, "Ignored PrepareFullMsg." << KVLOG(msgSender));
     delete msg;
   }
+  mainThreadUtilization.End();
 }
 template <>
 void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::CommitFull);
   metric_received_commit_fulls_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
@@ -1605,6 +1635,7 @@ void ReplicaImp::onMessage<CommitFullMsg>(CommitFullMsg *msg) {
                       << " (seqNumber " << msgSeqNum << ")");
     delete msg;
   }
+  mainThreadUtilization.End();
 }
 
 void ReplicaImp::onPrepareCombinedSigFailed(SeqNum seqNumber,
@@ -1857,6 +1888,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::Checkpoint);
   metric_received_checkpoints_++;
   const ReplicaId msgSenderId = msg->senderId();
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
@@ -1886,7 +1918,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     if (checkInfo.isCheckpointCertificateComplete()) {  // 2f + 1
       ConcordAssertNE(checkInfo.selfCheckpointMsg(), nullptr);
       onSeqNumIsStable(msgSeqNum);
-
+      mainThreadUtilization.End();
       return;
     }
   } else if (checkpointsLog->insideActiveWindow(msgSeqNum)) {
@@ -1978,12 +2010,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       onReportAboutLateReplica(msgGenReplicaId, msgSeqNum);
     }
   }
+  mainThreadUtilization.End();
 }
 /**
  * Is sent from a read-only replica
  */
 template <>
 void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::AskForCheckpoint);
   // metric_received_checkpoints_++; // TODO [TK]
 
   // DD: handlers are supposed to either save or delete messages
@@ -2001,6 +2035,7 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
     LOG_INFO(GL, "Sending CheckpointMsg: " << KVLOG(destination));
     send(checkpointMsg, m->senderId());
   }
+  mainThreadUtilization.End();
 }
 
 bool ReplicaImp::handledByRetransmissionsManager(const ReplicaId sourceReplica,
@@ -2156,6 +2191,7 @@ void ReplicaImp::onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqN
 
 template <>
 void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::ReplicaStatus);
   metric_received_replica_statuses_++;
   // TODO(GG): we need filter for msgs (to avoid denial of service attack) + avoid sending messages at a high rate.
   // TODO(GG): for some communication modules/protocols, we can also utilize information about
@@ -2172,6 +2208,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
               "ERROR detected in peer msgSenderId = "
                   << msgSenderId << ". Reported Last Stable Sequence not consistent with checkpointWindowSize "
                   << KVLOG(msgLastStable, checkpointWindowSize));
+    mainThreadUtilization.End();
     return;
   }
 
@@ -2358,7 +2395,7 @@ void ReplicaImp::onMessage<ReplicaStatusMsg>(ReplicaStatusMsg *msg) {
       }
     }
   }
-
+  mainThreadUtilization.End();
   delete msg;
 }
 
@@ -2419,9 +2456,11 @@ void ReplicaImp::tryToSendStatusReport(bool onTimer) {
 
 template <>
 void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::ViewChange);
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   if (!viewChangeProtocolEnabled) {
     delete msg;
+    mainThreadUtilization.End();
     return;
   }
   metric_received_view_changes_++;
@@ -2484,13 +2523,16 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   }
 
   tryToEnterView();
+  mainThreadUtilization.End();
 }
 
 template <>
 void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::NewView);
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   if (!viewChangeProtocolEnabled) {
     delete msg;
+    mainThreadUtilization.End();
     return;
   }
   metric_received_new_views_++;
@@ -2501,14 +2543,21 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
 
   bool msgAdded = viewsManager->add(msg);
 
-  if (!msgAdded) return;
+  if (!msgAdded) {
+    mainThreadUtilization.End();
+    return;
+  }
 
   LOG_INFO(VC_LOG,
            KVLOG(senderId, msg->newView(), msgAdded, getCurrentView(), viewsManager->viewIsActive(getCurrentView())));
 
-  if (viewsManager->viewIsActive(getCurrentView())) return;  // return, if we are still in the previous view
+  if (viewsManager->viewIsActive(getCurrentView())) {
+    mainThreadUtilization.End();
+    return;  // return, if we are still in the previous view
+  }
 
   tryToEnterView();
+  mainThreadUtilization.End();
 }
 
 void ReplicaImp::MoveToHigherView(ViewNum nextView) {
@@ -3128,6 +3177,7 @@ void ReplicaImp::tryToSendReqMissingDataMsg(SeqNum seqNumber, bool slowPathOnly,
 
 template <>
 void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::ReqMissingData);
   metric_received_req_missing_datas_++;
   const SeqNum msgSeqNum = msg->seqNumber();
   const ReplicaId msgSender = msg->senderId();
@@ -3208,6 +3258,7 @@ void ReplicaImp::onMessage<ReqMissingDataMsg>(ReqMissingDataMsg *msg) {
   }
 
   delete msg;
+  mainThreadUtilization.End();
 }
 
 void ReplicaImp::askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave) {
@@ -3339,6 +3390,7 @@ void ReplicaImp::onInfoRequestTimer(Timers::Handle timer) {
 
 template <>
 void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::SimpleAck);
   metric_received_simple_acks_++;
   SCOPED_MDC_SEQ_NUM(std::to_string(msg->seqNumber()));
   uint16_t relatedMsgType = (uint16_t)msg->ackData();  // TODO(GG): does this make sense ?
@@ -3348,12 +3400,13 @@ void ReplicaImp::onMessage<SimpleAckMsg>(SimpleAckMsg *msg) {
   } else {
     LOG_WARN(GL, "Received Ack, but retransmissions not enabled. " << KVLOG(msg->senderId(), relatedMsgType));
   }
-
+  mainThreadUtilization.End();
   delete msg;
 }
 
 template <>
 void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::ReplicaRestartReady);
   auto &restart_msgs = restart_ready_msgs_[static_cast<uint8_t>(msg->getReason())];
   if (restart_msgs.find(msg->idOfGeneratedReplica()) == restart_msgs.end()) {
     restart_msgs[msg->idOfGeneratedReplica()] = std::make_unique<ReplicaRestartReadyMsg>(msg);
@@ -3374,16 +3427,19 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
     LOG_INFO(GL, "Target number = " << targetNumOfMsgs << " of restart ready msgs are recieved. Send resatrt proof");
     sendReplicasRestartReadyProof(static_cast<uint8_t>(msg->getReason()));
   }
+  mainThreadUtilization.End();
 }
 
 template <>
 void ReplicaImp::onMessage<ReplicasRestartReadyProofMsg>(ReplicasRestartReadyProofMsg *msg) {
+  mainThreadUtilization.Start(MsgCode::ReplicasRestartReadyProof);
   LOG_INFO(GL,
            "Recieved  ReplicasRestartReadyProofMsg from sender_id "
                << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
   metric_received_restart_proof_++;
   ControlStateManager::instance().onRestartProof(msg->seqNum(), static_cast<uint8_t>(msg->getRestartReason()));
   delete msg;
+  mainThreadUtilization.End();
 }
 
 void ReplicaImp::sendReplicasRestartReadyProof(uint8_t reason) {

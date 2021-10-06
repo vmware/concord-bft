@@ -90,7 +90,6 @@ class IncomingMsgsStorageImp : public IncomingMsgsStorage {
   std::promise<void> signalStarted_;
   std::atomic<bool> stopped_ = false;
   concordUtil::Timers timers_;
-  concordUtils::UtilCalc mainThreadUtil;
 
   // 5 seconds
   static constexpr int64_t MAX_VALUE_NANOSECONDS = 1000 * 1000 * 1000 * 5l;

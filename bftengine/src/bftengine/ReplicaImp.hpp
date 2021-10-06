@@ -42,6 +42,7 @@
 #include "FakeClock.hpp"
 #include <ccron/ticks_generator.hpp>
 #include "EpochManager.hpp"
+#include "UtilCalc.hpp"
 
 namespace preprocessor {
 class PreProcessResultMsg;
@@ -164,6 +165,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle infoReqTimer_;
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
+  concordUtils::UtilCalc mainThreadUtilization;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;

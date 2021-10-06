@@ -19,7 +19,7 @@ namespace concordUtils {
 
 UtilCalc::UtilCalc()
     : metricsComponent_{concordMetrics::Component("util_calculator", std::make_shared<concordMetrics::Aggregator>())},
-      average_util_gauge_{metricsComponent_.RegisterGauge("avrage_util_gauge", 0)} {
+      average_util_gauge_{metricsComponent_.RegisterGauge("average_util_gauge", 0)} {
   activeMilliSeconds_ = 0;
   lastSecond_ = 0;
   startMilli_ = 0;
@@ -28,13 +28,14 @@ UtilCalc::UtilCalc()
   metricsComponent_.Register();
 }
 
-void UtilCalc::Start() {
+void UtilCalc::Start(bftEngine::impl::MsgCode::Type type) {
   uint64_t nowMilli = getMonotonicTimeMilli();
   uint64_t nowSecond = nowMilli / 1000;
   if (nowSecond > lastSecond_ && activeMilliSeconds_ > 0) {
     Add(activeMilliSeconds_);
     activeMilliSeconds_ = 0;
   }
+  current_type_ = type;
   lastSecond_ = nowSecond;
   startMilli_ = nowMilli;
 }
@@ -61,11 +62,76 @@ void UtilCalc::End() {
 
 void UtilCalc::Add(uint64_t ms) {
   histograms_.mainThread->record(ms);
+  UpdateHistogram(ms);
   aggMilliSeconds_ += ms;
   secondCount_++;
   average_util_.add(ms);
   average_util_gauge_.Get().Set((uint64_t)average_util_.avg());
   if (average_util_.numOfElements() == 1000) average_util_.reset();  // reset the average every 1000 samples
+}
+
+void UtilCalc::UpdateHistogram(uint64_t ms) {
+  switch (current_type_) {
+    case bftEngine::impl::MsgCode::ClientRequest:
+      histograms_.ClientRequestMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::PrePrepare:
+      histograms_.PrePrepareMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::PreparePartial:
+      histograms_.PreparePartialMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::PrepareFull:
+      histograms_.PrepareFullMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::CommitPartial:
+      histograms_.CommitPartialMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::CommitFull:
+      histograms_.CommitFullMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::StartSlowCommit:
+      histograms_.StartSlowCommitMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::PartialCommitProof:
+      histograms_.PartialCommitProofMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::FullCommitProof:
+      histograms_.FullCommitProofMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::SimpleAck:
+      histograms_.SimpleAckMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::ViewChange:
+      histograms_.ViewChangeMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::NewView:
+      histograms_.NewViewMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::Checkpoint:
+      histograms_.CheckpointMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::AskForCheckpoint:
+      histograms_.AskForCheckpointMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::ReplicaStatus:
+      histograms_.ReplicaStatusMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::ReqMissingData:
+      histograms_.ReqMissingDataMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::ReplicaAsksToLeaveView:
+      histograms_.ReplicaAsksToLeaveViewMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::ReplicaRestartReady:
+      histograms_.ReplicaRestartReadyMsg->record(ms);
+      break;
+    case bftEngine::impl::MsgCode::ReplicasRestartReadyProof:
+      histograms_.ReplicasRestartReadyProofMsg->record(ms);
+      break;
+    default:
+      LOG_DEBUG(logger_, "Message without histogram");
+  }
 }
 
 std::string UtilCalc::ToString() const {
