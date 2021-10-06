@@ -243,7 +243,13 @@ class ThinReplicaClient final {
                                      size_t& most_agreeing,
                                      HashRecord& most_agreed_block,
                                      std::unique_ptr<LogCid>& cid);
-  void findBlockHashAgreement(std::vector<bool>& servers_tried,
+
+  // Opens hash streams to all the replicas and tries to read hash updates
+  // from opened streams to check for maximal agreement.
+  // If none of the replicas return a hash update i.e., the connections to
+  // all the replicas either time out or fail while waiting for an update,
+  // findBlockHashAgreement returns false, otherwise returns true.
+  bool findBlockHashAgreement(std::vector<bool>& servers_tried,
                               HashRecordMap& agreeing_subset_members,
                               size_t& most_agreeing,
                               HashRecord& most_agreed_block,
@@ -268,7 +274,9 @@ class ThinReplicaClient final {
                            HashRecordMap& server_indexes_by_reported_update,
                            size_t& maximal_agreeing_subset_size,
                            HashRecord& maximally_agreed_on_update);
-  void readUpdateHashFromStream(size_t server_index,
+
+  // Returns true if a hash update is received from a hash stream, returns false otherwise
+  bool readUpdateHashFromStream(size_t server_index,
                                 HashRecordMap& server_indexes_by_reported_update,
                                 size_t& maximal_agreeing_subset_size,
                                 HashRecord& maximally_agreed_on_update);
