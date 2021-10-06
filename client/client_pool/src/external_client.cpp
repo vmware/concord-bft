@@ -44,6 +44,7 @@ ConcordClient::~ConcordClient() noexcept = default;
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
   bft::client::Reply res;
+  clientRequestError_ = SUCCESS;
   try {
     res = new_client_->send(config, std::move(request));
   } catch (const TimeoutException& e) {
@@ -64,6 +65,7 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
   bft::client::Reply res;
+  clientRequestError_ = SUCCESS;
   try {
     res = new_client_->send(config, std::move(request));
   } catch (const TimeoutException& e) {
