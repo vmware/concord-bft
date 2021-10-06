@@ -16,6 +16,7 @@
 #include "ControlStateManager.hpp"
 #include "bftengine/EpochManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
+#include "communication/StateControl.hpp"
 
 namespace concord::kvbc {
 
@@ -270,11 +271,11 @@ bool StReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchang
                                        std::to_string(sender_id) + "/server/server.cert";
   auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
   if (current_rep_cert == command.cert) return succ;
-  LOG_INFO(GL, "execute replica TLS key exchange after state transfer");
-  for (auto &h : orig_reconf_handlers_) {
-    // If it was written to the blockchain, it means that this is a valid request.
-    succ &= h->handle(command, bft_seq_num, UINT32_MAX, std::nullopt, response);
-  }
+  LOG_INFO(GL, "execute replica TLS key exchange after state transfer" << KVLOG(sender_id));
+  std::string cert = command.cert;
+  sm_.encryptFile(bft_replicas_cert_path, cert);
+  LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
+  bft::communication::StateControl::instance().restartComm(sender_id);
   return succ;
 }
 
