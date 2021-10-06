@@ -185,7 +185,13 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientTls
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
                                               const std::optional<bftEngine::Timestamp>& ts,
-                                              concord::messages::ReconfigurationResponse&) {
+                                              concord::messages::ReconfigurationResponse& response) {
+  if (command.sender_id != sender_id) {
+    concord::messages::ReconfigurationErrorMsg error_msg;
+    error_msg.error_msg = "sender_id of the message does not match the real sender id";
+    response.response = error_msg;
+    return false;
+  }
   std::vector<uint8_t> serialized_command;
   concord::messages::serialize(serialized_command, command);
   auto blockId = persistReconfigurationBlock(

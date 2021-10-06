@@ -72,10 +72,20 @@ void StReconfigurationHandler::stCallBack(uint64_t current_cp_num) {
   handleStoredCommand<concord::messages::InstallCommand>(std::string{kvbc::keyTypes::reconfiguration_install_key},
                                                          current_cp_num);
 
+  auto &rep_info = bftEngine::ReplicaConfig::instance();
   // Check for every replica if there is a TLS key exchange command
-  for (uint32_t i = 0; i < bftEngine::ReplicaConfig::instance().numReplicas; i++) {
+  for (uint32_t i = 0; i < rep_info.numReplicas; i++) {
     handleStoredCommand<concord::messages::ReplicaTlsExchangeKey>(
         std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(i), current_cp_num);
+  }
+  auto first_external_client_id = rep_info.numReplicas + rep_info.numRoReplicas + rep_info.numOfClientProxies;
+  // Check for every client if we have an update for TLS key exchange
+  for (auto i = first_external_client_id; i < first_external_client_id + rep_info.numOfExternalClients; i++) {
+    std::string client_key =
+        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_TLS_KEY_EXCHANGE_COMMAND)} +
+        std::to_string(i);
+    handleStoredCommand<concord::messages::ClientTlsExchangeKey>(client_key, current_cp_num);
   }
 }
 
@@ -262,8 +272,6 @@ bool StReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchang
                                       uint64_t bft_seq_num,
                                       uint64_t,
                                       uint64_t) {
-  // We actually need to run exactly the same logic as in the original handler. As we have only one
-  // implemented handler, it is OK to simply run all the registered handlers.
   bool succ = true;
   auto sender_id = command.sender_id;
   concord::messages::ReconfigurationResponse response;
@@ -276,6 +284,25 @@ bool StReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchang
   sm_.encryptFile(bft_replicas_cert_path, cert);
   LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
   bft::communication::StateControl::instance().restartComm(sender_id);
+  return succ;
+}
+
+bool StReconfigurationHandler::handle(const concord::messages::ClientTlsExchangeKey &command,
+                                      uint64_t bft_seq_num,
+                                      uint64_t,
+                                      uint64_t) {
+  bool succ = true;
+  concord::messages::ReconfigurationResponse response;
+  for (const auto &[cid, cert] : command.clients_certificates) {
+    std::string bft_clients_cert_path =
+        bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(cid) + "/client/client.cert";
+    auto current_rep_cert = sm_.decryptFile(bft_clients_cert_path);
+    if (current_rep_cert == cert) continue;
+    LOG_INFO(GL, "execute client's TLS key exchange after state transfer" << KVLOG(cid));
+    std::string cert_path = bft_clients_cert_path + "/" + std::to_string(cid) + "/client/client.cert";
+    sm_.encryptFile(bft_clients_cert_path, cert);
+    LOG_INFO(GL, bft_clients_cert_path + " is updated on the disk");
+  }
   return succ;
 }
 

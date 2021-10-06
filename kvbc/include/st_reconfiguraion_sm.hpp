@@ -69,6 +69,7 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::ReplicaTlsExchangeKey&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::ClientTlsExchangeKey&, uint64_t, uint64_t, uint64_t);
 
   kvbc::IReader& ro_storage_;
   BlockMetadata block_metadata_;
