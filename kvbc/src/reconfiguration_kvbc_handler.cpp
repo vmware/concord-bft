@@ -18,6 +18,8 @@
 #include "kvbc_app_filter/kvbc_key_types.h"
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
+#include "categorization/db_categories.h"
+
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::vector<uint8_t>& data,
@@ -26,11 +28,9 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::
                                                                      bool include_wedge) {
   concord::kvbc::categorization::VersionedUpdates ver_updates;
   ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
-
-  // All blocks are expected to have the BFT sequence number as a key.
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
   uint64_t epoch = 0;
-  auto value = ro_storage_.getLatest(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key});
+  auto value = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                                     std::string{keyTypes::reconfiguration_epoch_key});
   if (value.has_value()) {
     const auto& epoch_str = std::get<categorization::VersionedValue>(*value).data;
     ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
@@ -38,27 +38,11 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(const std::
   }
   auto current_epoch_buf = concordUtils::toBigEndianStringBuffer(epoch);
   ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, std::move(current_epoch_buf));
-  if (include_wedge) {
-    concord::messages::WedgeCommand wedge_command;
-    std::vector<uint8_t> wedge_buf;
-    concord::messages::serialize(wedge_buf, wedge_command);
-    ver_updates.addUpdate(std::string{keyTypes::reconfiguration_wedge_key},
-                          std::string(wedge_buf.begin(), wedge_buf.end()));
-  }
-  concord::kvbc::categorization::Updates updates;
-  updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
-  try {
-    return blocks_adder_.add(std::move(updates));
-  } catch (const std::exception& e) {
-    LOG_ERROR(GL, "failed to persist the reconfiguration block: " << e.what());
-    throw;
-  }
+  return persistReconfigurationBlock(ver_updates, bft_seq_num, include_wedge);
 }
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     concord::kvbc::categorization::VersionedUpdates& ver_updates, const uint64_t bft_seq_num, bool include_wedge) {
-  // All blocks are expected to have the BFT sequence number as a key.
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
   if (include_wedge) {
     concord::messages::WedgeCommand wedge_command;
     std::vector<uint8_t> wedge_buf;
@@ -66,8 +50,11 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     ver_updates.addUpdate(std::string{keyTypes::reconfiguration_wedge_key},
                           std::string(wedge_buf.begin(), wedge_buf.end()));
   }
+  concord::kvbc::categorization::VersionedUpdates sn_updates;
+  sn_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
   concord::kvbc::categorization::Updates updates;
-  updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+  updates.add(concord::kvbc::categorization::kConcordReconfigurationCategoryId, std::move(ver_updates));
+  updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(sn_updates));
   try {
     return blocks_adder_.add(std::move(updates));
   } catch (const std::exception& e) {
@@ -92,7 +79,7 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
   concord::messages::ClientStateReply creply;
   creply.block_id = 0;
   auto res = ro_storage_.getLatest(
-      kvbc::kConcordInternalCategoryId,
+      concord::kvbc::categorization::kConcordReconfigurationCategoryId,
       std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
           std::to_string(clientid));
   if (res.has_value()) {
@@ -194,7 +181,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
           std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                       static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)} +
           std::to_string(cid);
-      auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
+      auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (res.has_value()) {
         auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
         concord::messages::ClientsAddRemoveUpdateCommand cmd;
@@ -220,7 +207,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
       std::string key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                                     static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::PUBLIC_KEY_EXCHANGE)} +
                         std::to_string(cid);
-      auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, key);
+      auto res = ro_storage_.getLatest(kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (res.has_value()) {
         auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
         concord::messages::ClientExchangePublicKey cmd;
@@ -340,8 +327,8 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& co
                                     uint64_t sequence_number,
                                     uint32_t,
                                     concord::messages::ReconfigurationResponse& response) {
-  auto res =
-      ro_storage_.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_add_remove});
+  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                                   std::string{kvbc::keyTypes::reconfiguration_add_remove});
   if (res.has_value()) {
     auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
     concord::messages::AddRemoveCommand cmd;
@@ -365,7 +352,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
                                     uint64_t sequence_number,
                                     uint32_t,
                                     concord::messages::ReconfigurationResponse& response) {
-  auto res = ro_storage_.getLatest(kvbc::kConcordInternalCategoryId,
+  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                    std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
   if (res.has_value()) {
     auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);

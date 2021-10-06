@@ -28,6 +28,7 @@ inline const auto kExecutionEventGroupIdsCategory = "execution_event_group_ids";
 // Concord and Concord-BFT internal category that is used for various kinds of metadata.
 // The type of the internal category is VersionedKeyValueCategory.
 inline const auto kConcordInternalCategoryId = "concord_internal";
+inline const auto kConcordReconfigurationCategoryId = "concord_reconfiguration";
 
 }  // namespace concord::kvbc::categorization
 
