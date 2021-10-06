@@ -251,6 +251,58 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
             for i in range(100):
                 await skvbc.send_write_kv_set()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_tls_key_exchange_command_with_st(self, bft_network):
+        """
+            Operator sends client key exchange command for cre client
+        """
+        with log.start_action(action_type="test_client_tls_key_exchange_command"):
+            bft_network.start_all_replicas()
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+            initial_prim = 0
+            next_primary = 1
+            bft_network.stop_replica(next_primary)
+            await self.run_client_tls_key_exchange_cycle(bft_network)
+            cert_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
+            assert cert_a is not None
+            assert ts_a is not None
+
+            for i in range(500):
+                await skvbc.send_write_kv_set()
+            current_view = await bft_network.wait_for_view(0)
+            # Let the next primary complete state transfer
+            bft_network.start_replica(next_primary)
+            await bft_network.wait_for_state_transfer_to_start()
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              next_primary,
+                                                              stop_on_stable_seq_num=False)
+            # Now, stop the primary and wait for VC to happen
+            bft_network.stop_replica(initial_prim)
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(skvbc.send_indefinite_ops, 1)
+                with trio.fail_after(60):
+                    while current_view != 1:
+                        current_view = await bft_network.wait_for_view(1, expected=lambda v: v == 1)
+                nursery.cancel_scope.cancel()
+
+            # Now lets run another Client TLS key exchange and make sure the new primary is able
+            # to communicate with the client after its state transfer
+            await self.run_client_tls_key_exchange_cycle(bft_network, cert_a, ts_a)
+            cert_b, ts_b = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
+            assert cert_b is not None
+            assert ts_b is not None
+
+            assert cert_a != cert_b
+            assert ts_a < ts_b
+
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
     async def test_client_restart_command(self, bft_network):
