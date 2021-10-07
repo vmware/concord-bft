@@ -1,0 +1,72 @@
+// Copyright 2021 VMware, all rights reserved
+//
+// Concord Client's State Snapshot Service
+
+syntax = "proto3";
+package vmware.concord.client.snapshot.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+option java_package = "com.vmware.concord.client.snapshot.v1";
+
+// The StateSnapshotService can be used to initialize a client application from a
+// state snapshot visible to Concord Client. State snapshots aggregate all writes
+// from the start of the blockchain up to a specific point by keeping only the last
+// write to a key-value.
+//
+// Concord Client ensures that there is always at least one reasonably
+// recent snapshot that can be served. The intention is that this snapshot is
+// used to initialize a client application after the network has been pruned and
+// some set of historical events are no longer available via the EventService.
+service StateSnapshotService {
+  // Get the ID of a recent and available snapshot.
+  // Errors:
+  // UNAVAILABLE: if Concord Client is not ready yet to process requests.
+  // UNKNOWN: exact cause is unknown.
+  rpc GetRecentStateSnapshotId(google.protobuf.Empty) returns (StateSnapshotId);
+
+  // Stream a specific state snapshot in a resumable fashion as a stream of key-values.
+  // Key-values are streamed with lexicographic order on keys.
+  // Errors:
+  // NOT_FOUND: if the snapshot with this ID is not (or no longer) available.
+  //            Clients applications are advised to retry initialization by
+  //            fetching a new recent snapshot ID.
+  // UNAVAILABLE: if Concord Client is not ready yet to process any requests.
+  // UNKNOWN: exact cause is unknown.
+  rpc StreamStateSnapshot(StreamStateSnapshotRequest) returns (stream KeyValuePair);
+}
+
+message StateSnapshotId {
+  // Mandatory field.
+  //
+  // An ID for the state snapshot.
+  uint64 id = 1;
+}
+
+message StreamStateSnapshotRequest {
+  // Mandatory field.
+  //
+  // The ID of the state snapshot to stream.
+  uint64 snapshot_id = 1;
+
+  // Optional field.
+  //
+  // If set, start streaming `from_key` onwards.
+  // If not set, start streaming from the first key-value in the snapshot.
+  // The empty bytestring is a valid key.
+  // Key-values are streamed with lexicographic order on keys.
+  google.protobuf.BytesValue from_key = 3;
+}
+
+message KeyValuePair {
+  // Mandatory field.
+  //
+  // The key.
+  bytes key = 1;
+
+  // Mandatory field.
+  //
+  // The value.
+  bytes value = 2;
+}
