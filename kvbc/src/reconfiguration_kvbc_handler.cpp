@@ -31,7 +31,7 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
   ver_updates.addUpdate(std::move(key), std::string(data.begin(), data.end()));
 
   uint64_t epoch = 0;
-  auto value = ro_storage_.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId,
+  auto value = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                      std::string{keyTypes::reconfiguration_epoch_key});
   if (value.has_value()) {
     const auto& epoch_str = std::get<categorization::VersionedValue>(*value).data;
@@ -54,7 +54,6 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
     const std::optional<bftEngine::Timestamp>& timestamp,
     bool include_wedge) {
   // All blocks are expected to have the BFT sequence number as a key.
-  ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
   if (timestamp.has_value()) {
     ver_updates.addUpdate(std::string{keyTypes::reconfiguration_ts_key},
                           concordUtils::toBigEndianStringBuffer(timestamp.value().time_since_epoch.count()));
@@ -67,7 +66,11 @@ kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
                           std::string(wedge_buf.begin(), wedge_buf.end()));
   }
   concord::kvbc::categorization::Updates updates;
-  updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(ver_updates));
+  updates.add(concord::kvbc::categorization::kConcordReconfigurationCategoryId, std::move(ver_updates));
+  concord::kvbc::categorization::VersionedUpdates sn_updates;
+  sn_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, block_metadata_.serialize(bft_seq_num));
+  updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(sn_updates));
+
   try {
     return blocks_adder_.add(std::move(updates));
   } catch (const std::exception& e) {
@@ -92,7 +95,7 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
   concord::messages::ClientStateReply creply;
   creply.block_id = 0;
   auto res = ro_storage_.getLatest(
-      concord::kvbc::categorization::kConcordInternalCategoryId,
+      concord::kvbc::categorization::kConcordReconfigurationCategoryId,
       std::string{kvbc::keyTypes::reconfiguration_client_data_prefix, static_cast<char>(command_type)} +
           std::to_string(clientid));
   if (res.has_value()) {
@@ -238,7 +241,7 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsAddRemoveSta
           std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                       static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)} +
           std::to_string(cid);
-      auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId, key);
+      auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (res.has_value()) {
         auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
         concord::messages::ClientsAddRemoveUpdateCommand cmd;
@@ -270,9 +273,9 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
                           static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_TLS_KEY_EXCHANGE_COMMAND)} +
               std::to_string(cid);
       }
-      auto bid = ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordInternalCategoryId, key);
+      auto bid = ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (bid.has_value()) {
-        auto saved_ts = ro_storage_.get(concord::kvbc::categorization::kConcordInternalCategoryId,
+        auto saved_ts = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                         std::string{kvbc::keyTypes::reconfiguration_ts_key},
                                         bid.value().version);
         uint64_t numeric_ts{0};
@@ -283,7 +286,8 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientKeyExchangeSt
             stats.timestamps.push_back(std::make_pair(cid, numeric_ts));
           }
         }
-        auto res = ro_storage_.get(concord::kvbc::categorization::kConcordInternalCategoryId, key, bid.value().version);
+        auto res =
+            ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key, bid.value().version);
         if (res.has_value()) {
           auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
           if (!command.tls) {
@@ -430,7 +434,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveStatus& co
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& response) {
-  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId,
+  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                    std::string{kvbc::keyTypes::reconfiguration_add_remove});
   if (res.has_value()) {
     auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
@@ -456,7 +460,7 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeS
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>& ts,
                                     concord::messages::ReconfigurationResponse& response) {
-  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId,
+  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                    std::string{kvbc::keyTypes::reconfiguration_add_remove, 0x1});
   if (res.has_value()) {
     auto strval = std::visit([](auto&& arg) { return arg.data; }, *res);
@@ -611,9 +615,9 @@ bool ReconfigurationHandler::handle(const concord::messages::ClientsRestartStatu
       std::string key = std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
                                     static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_RESTART_STATUS)} +
                         std::to_string(cid);
-      auto bid = ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordInternalCategoryId, key);
+      auto bid = ro_storage_.getLatestVersion(concord::kvbc::categorization::kConcordReconfigurationCategoryId, key);
       if (bid.has_value()) {
-        auto saved_ts = ro_storage_.get(concord::kvbc::categorization::kConcordInternalCategoryId,
+        auto saved_ts = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                         std::string{kvbc::keyTypes::reconfiguration_ts_key},
                                         bid.value().version);
         uint64_t numeric_ts{0};

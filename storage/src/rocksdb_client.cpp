@@ -130,6 +130,24 @@ void Client::initDBFromFile(bool readOnly, const Options &user_options) {
     LOG_ERROR(logger(), msg);
     throw std::invalid_argument{msg};
   }
+
+  auto default_db_options = ::rocksdb::Options{};
+  auto default_cf_descs = std::vector<::rocksdb::ColumnFamilyDescriptor>{};
+  status = ::rocksdb::LoadOptionsFromFile(m_dbPath, ::rocksdb::Env::Default(), &default_db_options, &default_cf_descs);
+
+  if (status.ok()) {
+    // We wouldn't want to force the user to define a complete *.ini file. In case the DB is not new, and there is a
+    // mismatch between the default options and the user one, add the default to the user.
+    // Note that if you add new CF and not define in the user .ini file, it will have the default rocksdb options.
+    for (auto &ccf : default_cf_descs) {
+      auto it = std::find_if(
+          cf_descs.begin(), cf_descs.end(), [&ccf](const auto &cf_desc) { return ccf.name == cf_desc.name; });
+      if (it == cf_descs.end()) {
+        cf_descs.push_back(ccf);
+      }
+    }
+  }
+
   // Add specific global options
   db_options.IncreaseParallelism(static_cast<int>(std::thread::hardware_concurrency()));
   db_options.sst_file_manager.reset(::rocksdb::NewSstFileManager(::rocksdb::Env::Default()));
@@ -139,6 +157,7 @@ void Client::initDBFromFile(bool readOnly, const Options &user_options) {
   // Some options, notably pointers, are not configurable via the config file. We set them in code here.
   user_options.completeInit(db_options, cf_descs);
   db_options.wal_dir = m_dbPath;
+  db_options.create_missing_column_families = true;
   openRocksDB(readOnly, db_options, cf_descs);
 
   initialized_ = true;

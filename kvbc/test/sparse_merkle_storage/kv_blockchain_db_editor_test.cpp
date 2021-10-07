@@ -34,7 +34,8 @@ class DbEditorTests : public DbEditorTestsBase {
             {kCategoryMerkle, CATEGORY_TYPE::block_merkle},
             {kCategoryVersioned, CATEGORY_TYPE::versioned_kv},
             {kCategoryImmutable, CATEGORY_TYPE::immutable},
-            {concord::kvbc::categorization::kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}};
+            {concord::kvbc::categorization::kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv},
+            {concord::kvbc::categorization::kConcordReconfigurationCategoryId, CATEGORY_TYPE::versioned_kv}}};
 
     const auto mismatch_kv = std::make_pair(getSliver(std::numeric_limits<unsigned>::max()), getSliver(42));
 
@@ -748,6 +749,8 @@ TEST_F(DbEditorTests, get_categories) {
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_EQ("{\n  \"" + std::string(concord::kvbc::categorization::kConcordInternalCategoryId) +
+                "\": \"versioned_kv\",\n  \"" +
+                std::string{concord::kvbc::categorization::kConcordReconfigurationCategoryId} +
                 "\": \"versioned_kv\",\n  \"" + kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle +
                 "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
             out_.str());

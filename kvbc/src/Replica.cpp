@@ -42,6 +42,7 @@
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
 using concord::kvbc::categorization::kConcordInternalCategoryId;
+using concord::kvbc::categorization::kConcordReconfigurationCategoryId;
 using namespace concord::diagnostics;
 
 using concord::storage::DBMetadataStorage;
@@ -196,7 +197,7 @@ uint64_t Replica::getStoredReconfigData(const std::string &kCategory,
 void Replica::handleWedgeEvent() {
   auto lastExecutedSeqNum = m_replicaPtr->getLastExecutedSequenceNum();
   uint64_t wedgeBlock{0};
-  auto version = getLatestVersion(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_wedge_key});
+  auto version = getLatestVersion(kConcordReconfigurationCategoryId, std::string{keyTypes::reconfiguration_wedge_key});
   if (!version.has_value()) return;
   wedgeBlock = version.value().version;
 
@@ -210,9 +211,9 @@ void Replica::handleWedgeEvent() {
   uint64_t wedgePoint = (wedgeBftSeqNum + 2 * checkpointWindowSize);
   wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
   uint64_t latestKnownEpoch =
-      getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, 0);
-  uint64_t wedgeEpoch =
-      getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, wedgeBlock);
+      getStoredReconfigData(kConcordReconfigurationCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, 0);
+  uint64_t wedgeEpoch = getStoredReconfigData(
+      kConcordReconfigurationCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, wedgeBlock);
 
   LOG_INFO(logger,
            "stored wedge info " << KVLOG(wedgePoint, wedgeBlock, wedgeEpoch, lastExecutedSeqNum, latestKnownEpoch));
@@ -226,7 +227,7 @@ void Replica::handleWedgeEvent() {
 }
 void Replica::handleNewEpochEvent() {
   uint64_t epoch = 0;
-  epoch = getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, 0);
+  epoch = getStoredReconfigData(kConcordReconfigurationCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, 0);
 
   auto bft_seq_num = m_replicaPtr->getLastExecutedSequenceNum();
   // Create a new epoch block if needed
@@ -237,11 +238,13 @@ void Replica::handleNewEpochEvent() {
     concord::kvbc::categorization::VersionedUpdates ver_updates;
     ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key},
                           std::string(data.begin(), data.end()));
-    // All blocks are expected to have the BFT sequence number as a key.
-    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key},
-                          concordUtils::toBigEndianStringBuffer(bft_seq_num));
     concord::kvbc::categorization::Updates updates;
-    updates.add(kConcordInternalCategoryId, std::move(ver_updates));
+    updates.add(kConcordReconfigurationCategoryId, std::move(ver_updates));
+    // All blocks are expected to have the BFT sequence number as a key.
+    concord::kvbc::categorization::VersionedUpdates sn_updates;
+    sn_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key},
+                         concordUtils::toBigEndianStringBuffer(bft_seq_num));
+    updates.add(kConcordInternalCategoryId, std::move(sn_updates));
     try {
       auto bid = add(std::move(updates));
       persistLastBlockIdInMetadata<false>(*m_kvBlockchain, m_replicaPtr->persistentStorage());
@@ -262,9 +265,9 @@ void Replica::handleNewEpochEvent() {
 }
 template <typename T>
 void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
-  auto res = getLatest(kConcordInternalCategoryId, key);
+  auto res = getLatest(kConcordReconfigurationCategoryId, key);
   if (res.has_value()) {
-    auto blockid = getLatestVersion(kConcordInternalCategoryId, key).value().version;
+    auto blockid = getLatestVersion(kConcordReconfigurationCategoryId, key).value().version;
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *res);
     T cmd;
     std::vector<uint8_t> bytesval(strval.begin(), strval.end());
@@ -273,8 +276,8 @@ void Replica::saveReconfigurationCmdToResPages(const std::string &key) {
     rreq.command = cmd;
     auto sequenceNum =
         getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::bft_seq_num_key}, blockid);
-    auto epochNum =
-        getStoredReconfigData(kConcordInternalCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
+    auto epochNum = getStoredReconfigData(
+        kConcordReconfigurationCategoryId, std::string{keyTypes::reconfiguration_epoch_key}, blockid);
     auto wedgePoint = (sequenceNum + 2 * checkpointWindowSize);
     wedgePoint = wedgePoint - (wedgePoint % checkpointWindowSize);
     bftEngine::ReconfigurationCmd::instance().saveReconfigurationCmdToResPages(
@@ -491,12 +494,23 @@ Replica::Replica(ICommunication *comm,
 
   if (!replicaConfig.isReadOnly) {
     const auto linkStChain = true;
-    auto [it, inserted] =
-        kvbc_categories.insert(std::make_pair(kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv));
-    if (!inserted && it->second != categorization::CATEGORY_TYPE::versioned_kv) {
-      const auto msg = "Invalid Concord internal category type: " + categorization::categoryStringType(it->second);
-      LOG_ERROR(logger, msg);
-      throw std::invalid_argument{msg};
+    {
+      auto [it, inserted] = kvbc_categories.insert(
+          std::make_pair(kConcordInternalCategoryId, categorization::CATEGORY_TYPE::versioned_kv));
+      if (!inserted && it->second != categorization::CATEGORY_TYPE::versioned_kv) {
+        const auto msg = "Invalid Concord internal category type: " + categorization::categoryStringType(it->second);
+        LOG_ERROR(logger, msg);
+        throw std::invalid_argument{msg};
+      }
+    }
+    {
+      auto [it, inserted] = kvbc_categories.insert(
+          std::make_pair(kConcordReconfigurationCategoryId, categorization::CATEGORY_TYPE::versioned_kv));
+      if (!inserted && it->second != categorization::CATEGORY_TYPE::versioned_kv) {
+        const auto msg = "Invalid Concord internal category type: " + categorization::categoryStringType(it->second);
+        LOG_ERROR(logger, msg);
+        throw std::invalid_argument{msg};
+      }
     }
     m_kvBlockchain.emplace(
         storage::rocksdb::NativeClient::fromIDBClient(m_dbSet.dataDBClient), linkStChain, kvbc_categories);
