@@ -60,9 +60,9 @@ class MockComm : public bft::communication::ICommunication {
     (void)receiver;
   }
 
-  int Start() override { return 0; }
+  int start() override { return 0; }
 
-  int Stop() override { return 0; }
+  int stop() override { return 0; }
 };
 
 TEST(slowdown_test, enabled_disabled) {
