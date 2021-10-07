@@ -32,6 +32,8 @@ service StateSnapshotService {
   // NOT_FOUND: if the snapshot with this ID is not (or no longer) available.
   //            Clients applications are advised to retry initialization by
   //            fetching a new recent snapshot ID.
+  // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is
+  //                   not part of the snapshot.
   // UNAVAILABLE: if Concord Client is not ready yet to process any requests.
   // UNKNOWN: exact cause is unknown.
   rpc StreamStateSnapshot(StreamStateSnapshotRequest) returns (stream KeyValuePair);
@@ -52,9 +54,13 @@ message StreamStateSnapshotRequest {
 
   // Optional field.
   //
-  // If set, start streaming `from_key` onwards.
+  // If set, start streaming `from_key` onwards. If `from_key` is not part
+  // of the snapshot, an INVALID_ARGUMENT error is returned.
+  //
   // If not set, start streaming from the first key-value in the snapshot.
+  //
   // The empty bytestring is a valid key.
+  //
   // Key-values are streamed with lexicographic order on keys.
   google.protobuf.BytesValue from_key = 3;
 }
