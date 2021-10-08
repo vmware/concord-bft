@@ -366,7 +366,8 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
   TestStorage(std::shared_ptr<::concord::storage::rocksdb::NativeClient> native_client)
       : bc_{native_client,
             false,
-            std::map<std::string, CATEGORY_TYPE>{{kConcordReconfigurationCategoryId, CATEGORY_TYPE::versioned_kv}}} {}
+            std::map<std::string, CATEGORY_TYPE>{{kConcordReconfigurationCategoryId, CATEGORY_TYPE::versioned_kv},
+                                                 {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}} {}
 
   // IBlockAdder interface
   BlockId add(categorization::Updates &&updates) override { return bc_.addBlock(std::move(updates)); }

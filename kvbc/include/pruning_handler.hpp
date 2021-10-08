@@ -178,7 +178,6 @@ class PruningHandler : public concord::reconfiguration::BftReconfigurationHandle
   std::uint64_t replica_id_{0};
   std::uint64_t num_blocks_to_keep_{0};
   bool run_async_{false};
-  mutable std::optional<kvbc::BlockId> last_scheduled_block_for_pruning_;
   mutable std::mutex pruning_status_lock_;
   mutable std::future<void> async_pruning_res_;
 };
