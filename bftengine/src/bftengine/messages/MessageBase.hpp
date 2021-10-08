@@ -111,6 +111,7 @@ class MessageBase {
   friend MsgSize maxMessageSizeInLocalBuffer();
 
   static constexpr uint64_t SPAN_CONTEXT_MAX_SIZE{1024};
+  static constexpr uint32_t MAX_BATCH_SIZE{1024};
 #pragma pack(push, 1)
   struct RawHeaderOfObjAndMsg {
     uint32_t magicNum;
