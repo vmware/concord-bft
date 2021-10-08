@@ -8,7 +8,7 @@ target_link_libraries(concordclient PUBLIC
   util
 )
 
-find_package(PROTOBUF REQUIRED)
+find_package(Protobuf REQUIRED)
 add_library(concordclient-event-api STATIC "src/event_update_queue.cpp")
 target_include_directories(concordclient-event-api PUBLIC include)
 target_link_libraries(concordclient-event-api PRIVATE
