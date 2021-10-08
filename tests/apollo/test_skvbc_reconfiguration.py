@@ -908,7 +908,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
             pruned_block = int(data.additional_data.decode('utf-8'))
             log.log_message(message_type=f"pruned_block {pruned_block}")
-            assert pruned_block <= 90   
+            assert pruned_block <= 90
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
@@ -965,6 +965,71 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                         status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
                         last_prune_blockid = status.response.last_pruned_block
                         if status.response.in_progress is False and last_prune_blockid <= 90 and last_prune_blockid > 0:
+                            num_replies += 1
+                    if num_replies == bft_network.config.n:
+                        break
+
+    async def prune_and_send_next_batch(self, bft_network, num_of_reqs):
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        # Get the minimal latest pruneable block among all replicas
+        client = bft_network.random_client()
+        op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+        await op.latest_pruneable_block()
+
+        latest_pruneable_blocks = []
+        rsi_rep = client.get_rsi_replies()
+        for r in rsi_rep.values():
+            lpab = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+            latest_pruneable_blocks += [lpab.response]
+
+        # only one replica is crashed, so there will be consensus for pruning
+        rep = await op.prune(latest_pruneable_blocks)
+        data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
+        pruned_block = int(data.additional_data.decode('utf-8'))
+        log.log_message(message_type=f"pruned_block {pruned_block}")
+
+        # creates num_of_reqs new blocks
+        k, v = await skvbc.send_write_kv_set()
+        for i in range(num_of_reqs):
+            v = skvbc.random_value()
+            await client.write(skvbc.write_req([], [(k, v)], 0))
+
+    @unittest.skip("Disabled till pruning of reconfiguration blocks during state transfer is fixed")
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_pruning_command_with_multiple_failures(self, bft_network):
+        with log.start_action(action_type="test_pruning_command_with_faliures"):
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            client = bft_network.random_client()
+
+            # Create 100 blocks in total, including the genesis block we have 101 blocks
+            k, v = await skvbc.send_write_kv_set()
+            for i in range(99):
+                v = skvbc.random_value()
+                await client.write(skvbc.write_req([], [(k, v)], 0))
+
+            # Now, crash one of the non-primary replicas
+            crashed_replica = 3
+            bft_network.stop_replica(crashed_replica)
+
+            for i in range(10) :
+                await self.prune_and_send_next_batch(bft_network, 1000)
+
+            # now, return the crashed replica and wait for it to done with state transfer
+            bft_network.start_replica(crashed_replica)
+            bft_network.wait_for_state_transfer_to_stop(self, 0, crashed_replica)
+            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+            # We expect the late replica to catch up with the state and to perform pruning
+            with trio.fail_after(seconds=30):
+                while True:
+                    num_replies = 0
+                    await op.prune_status()
+                    rsi_rep = client.get_rsi_replies()
+                    for r in rsi_rep.values():
+                        status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
+                        last_prune_blockid = status.response.last_pruned_block
+                        if status.response.in_progress is False and last_prune_blockid > 0:
                             num_replies += 1
                     if num_replies == bft_network.config.n:
                         break
