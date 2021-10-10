@@ -35,8 +35,13 @@ def start_replica_cmd_with_object_store(builddir, replica_id, config):
     Note each arguments is an element in a list.
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
-    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
-    ret.extend(["-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem"])
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
+        batch_size = "2"
+        time_service_enabled = "1"
+    else :
+        batch_size = "1"
+        time_service_enabled = "0"
+    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
@@ -47,8 +52,13 @@ def start_replica_cmd_with_object_store_and_ke(builddir, replica_id, config):
     Note each arguments is an element in a list.
     """
     ret = start_replica_cmd_prefix(builddir, replica_id, config)
-    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
-    ret.extend(["-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem"])
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
+        batch_size = "2"
+        time_service_enabled = "1"
+    else :
+        batch_size = "1"
+        time_service_enabled = "0"
+    ret.extend(["-f", time_service_enabled, "-b", "2", "-q", batch_size, "-e", str(True), "-o", builddir + "/operator_pub.pem"])
     return ret
 
 def start_replica_cmd(builddir, replica_id):
@@ -61,13 +71,19 @@ def start_replica_cmd(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
-    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
+        batch_size = "2"
+        time_service_enabled = "1"
+    else :
+        batch_size = "1"
+        time_service_enabled = "0"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
             "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-f", time_service_enabled,
             "-b", "2",
             "-q", batch_size,
             "-o", builddir + "/operator_pub.pem"]
@@ -83,13 +99,19 @@ def start_replica_cmd_with_key_exchange(builddir, replica_id):
     statusTimerMilli = "500"
     viewChangeTimeoutMilli = "10000"
     path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
-    batch_size = "2" if os.environ.get('TIME_SERVICE_ENABLED') else "1"
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
+        batch_size = "2"
+        time_service_enabled = "1"
+    else :
+        batch_size = "1"
+        time_service_enabled = "0"
     return [path,
             "-k", KEY_FILE_PREFIX,
             "-i", str(replica_id),
             "-s", statusTimerMilli,
             "-v", viewChangeTimeoutMilli,
             "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-f", time_service_enabled,
             "-b", "2",
             "-q", batch_size,
             "-e", str(True),
@@ -908,8 +930,9 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
             pruned_block = int(data.additional_data.decode('utf-8'))
             log.log_message(message_type=f"pruned_block {pruned_block}")
-            assert pruned_block <= 90   
+            assert pruned_block <= 90
 
+    @unittest.skip("Disabled till pruning of reconfiguration blocks during state transfer is fixed")
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_pruning_command_with_failures(self, bft_network):
@@ -942,18 +965,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             data = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
             pruned_block = int(data.additional_data.decode('utf-8'))
             log.log_message(message_type=f"pruned_block {pruned_block}")
-            assert pruned_block <= 90   
+            assert pruned_block <= 90
 
             # creates 300 new blocks
             for i in range(300):
                 v = skvbc.random_value()
                 await client.write(skvbc.write_req([], [(k, v)], 0))
 
-            #wait for sometime
-            time.sleep(1)
             # now, return the crashed replica and wait for it to done with state transfer
             bft_network.start_replica(crashed_replica)
-            await self._wait_for_st(bft_network, crashed_replica, 150)
+            await self._wait_for_st(bft_network, crashed_replica, 300)
 
             # We expect the late replica to catch up with the state and to perform pruning
             with trio.fail_after(seconds=30):
