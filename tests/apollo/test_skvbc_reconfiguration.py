@@ -273,6 +273,58 @@ class SkvbcReconfigurationTest(unittest.TestCase):
 
             for i in range(100):
                 await skvbc.send_write_kv_set()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
+    async def test_client_tls_key_exchange_command_with_st(self, bft_network):
+        """
+            Operator sends client key exchange command for cre client
+        """
+        with log.start_action(action_type="test_client_tls_key_exchange_command"):
+            bft_network.start_all_replicas()
+            bft_network.start_cre()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+            initial_prim = 0
+            next_primary = 1
+            bft_network.stop_replica(next_primary)
+            await self.run_client_tls_key_exchange_cycle(bft_network)
+            cert_a, ts_a = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
+            assert cert_a is not None
+            assert ts_a is not None
+
+            for i in range(500):
+                await skvbc.send_write_kv_set()
+            current_view = await bft_network.wait_for_view(0)
+            # Let the next primary complete state transfer
+            bft_network.start_replica(next_primary)
+            await bft_network.wait_for_state_transfer_to_start()
+            await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              next_primary,
+                                                              stop_on_stable_seq_num=False)
+            # Now, stop the primary and wait for VC to happen
+            bft_network.stop_replica(initial_prim)
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(skvbc.send_indefinite_ops, 1)
+                with trio.fail_after(60):
+                    while current_view != 1:
+                        current_view = await bft_network.wait_for_view(1, expected=lambda v: v == 1)
+                nursery.cancel_scope.cancel()
+
+            # Now lets run another Client TLS key exchange and make sure the new primary is able
+            # to communicate with the client after its state transfer
+            await self.run_client_tls_key_exchange_cycle(bft_network, cert_a, ts_a)
+            cert_b, ts_b = await self.get_last_client_keys_data(bft_network, bft_network.cre_id, tls=True)
+            assert cert_b is not None
+            assert ts_b is not None
+
+            assert cert_a != cert_b
+            assert ts_a < ts_b
+
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7, with_cre=True)
     async def test_client_restart_command(self, bft_network):
@@ -432,9 +484,76 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, fast_paths[r])
 
-    async def run_replica_tls_key_exchange_cycle(self, bft_network, replicas):
+    @with_trio
+    @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
+    async def test_replicas_tls_key_exchange_command_with_st(self, bft_network):
+        """
+            Operator sends client key exchange command for f - 1 replicas
+        """
+        with log.start_action(action_type="test_replica_key_exchange_command"):
+            bft_network.start_all_replicas()
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            initial_prim = 0
+            crashed_replica = list(bft_network.random_set_of_replicas(1, {initial_prim}))
+            exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f - 2, {initial_prim, crashed_replica[0]}))
+            exchanged_replicas += [initial_prim]
+            for i in range(100):
+                await skvbc.send_write_kv_set()
+            fast_paths = {}
+            for r in bft_network.all_replicas():
+                nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+                fast_paths[r] = nb_fast_path
+
+            bft_network.stop_replicas(crashed_replica)
+
+            live_replicas =  bft_network.all_replicas(without=set(crashed_replica))
+            await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, live_replicas)
+            # Manually copy the new certs from one of the replicas to clients and restart clients
+            bft_network.copy_certs_from_server_to_clients(live_replicas[0])
+            bft_network.restart_clients(False, False)
+            skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+            for i in range(500):
+                await skvbc.send_write_kv_set()
+
+            bft_network.start_replicas(crashed_replica)
+            await bft_network.wait_for_state_transfer_to_start()
+            for r in crashed_replica:
+                await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                                  r,
+                                                                  stop_on_stable_seq_num=False)
+
+            with trio.fail_after(30):
+                succ = False
+                while not succ:
+                    await trio.sleep(1)
+                    succ = True
+                    for rep in crashed_replica:
+                        for r in exchanged_replicas:
+                            prim_cert_path = os.path.join(bft_network.certdir + "/" + str(initial_prim), str(r),"server", "server.cert")
+                            st_cert_path =  os.path.join(bft_network.certdir + "/" + str(rep), str(r),"server", "server.cert")
+                            st_cert_data = []
+                            with open(st_cert_path) as st_cert:
+                                st_cert_data = st_cert.readlines()
+                            prim_cert_data = []
+                            with open(prim_cert_path) as orig_key:
+                                prim_cert_data = orig_key.readlines()
+                            diff = difflib.unified_diff(st_cert_data, prim_cert_data, fromfile="new", tofile="old", lineterm='')
+                            lines = sum(1 for l in diff)
+                            if lines > 0:
+                                succ = False
+                                continue
+
+            for i in range(500):
+                await skvbc.send_write_kv_set()
+            for r in bft_network.all_replicas():
+                nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
+                self.assertGreater(nb_fast_path, fast_paths[r])
+
+    async def run_replica_tls_key_exchange_cycle(self, bft_network, replicas, affected_replicas=[]):
         reps_data = {}
-        for rep in bft_network.all_replicas():
+        if len(affected_replicas) == 0:
+            affected_replicas = bft_network.all_replicas()
+        for rep in affected_replicas:
             reps_data[rep] = {}
             for r in replicas:
                 cert_path = os.path.join(bft_network.certdir + "/" + str(r), str(r),"server", "server.cert")
@@ -452,16 +571,17 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             while not succ:
                 await trio.sleep(1)
                 succ = True
-                for rep in bft_network.all_replicas():
+                for rep in affected_replicas:
                     for r in replicas:
                         cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r),"server", "server.cert")
+                        cert_text = []
                         with open(cert_path) as orig_key:
                             cert_text = orig_key.readlines()
-                            diff = difflib.unified_diff(reps_data[rep][r], cert_text, fromfile="new", tofile="old", lineterm='')
-                            lines = sum(1 for l in diff)
-                            if lines == 0:
-                                succ = False
-                                continue
+                        diff = difflib.unified_diff(reps_data[rep][r], cert_text, fromfile="new", tofile="old", lineterm='')
+                        lines = sum(1 for l in diff)
+                        if lines == 0:
+                            succ = False
+                            continue
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)

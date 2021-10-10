@@ -19,6 +19,7 @@
 #include "reconfiguration/ireconfiguration.hpp"
 #include "SysConsts.hpp"
 #include "block_metadata.hpp"
+#include "secrets_manager_plain.h"
 
 namespace concord::kvbc {
 /*
@@ -67,9 +68,12 @@ class StReconfigurationHandler {
   bool handle(const concord::messages::RestartCommand&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::PruneRequest&, uint64_t, uint64_t, uint64_t);
   bool handle(const concord::messages::InstallCommand&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::ReplicaTlsExchangeKey&, uint64_t, uint64_t, uint64_t);
+  bool handle(const concord::messages::ClientTlsExchangeKey&, uint64_t, uint64_t, uint64_t);
 
   kvbc::IReader& ro_storage_;
   BlockMetadata block_metadata_;
   std::vector<std::shared_ptr<concord::reconfiguration::IReconfigurationHandler>> orig_reconf_handlers_;
+  concord::secretsmanager::SecretsManagerPlain sm_;
 };
 }  // namespace concord::kvbc
