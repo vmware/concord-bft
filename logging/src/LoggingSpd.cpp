@@ -16,7 +16,10 @@
 #include <fstream>
 #include <iostream>
 
-#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/sinks/stdout_sinks.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/async.h"  //support for async logging.
+#include "spdlog/sinks/basic_file_sink.h"
 
 namespace logging {
 
@@ -24,17 +27,18 @@ static const char* logPattern = "%d{%Y-%m-%dT%H:%M:%S,%qZ}|%-5p|%X{rid}|%c|%X{th
 
 bool defaultInit() {
   (void)logPattern;
+  spdlog::init_thread_pool(262144, 1);
   return true;
 }
 
-void initLogger(const std::string& configFileName) { defaultInit(); }
+void initLogger(const std::string& configFileName) {}
 
 Logger getLogger(const std::string& name) {
   static bool __logging_init__ = defaultInit();  // one time initialization
   (void)__logging_init__;
   Logger theLogger = spdlog::get(name);
   if (theLogger == nullptr) {
-    spdlog::stdout_color_mt(name, spdlog::color_mode::never);
+    spdlog::stdout_logger_mt<spdlog::async_factory>(name);
     theLogger = spdlog::get(name);
   }
   return theLogger;
