@@ -47,7 +47,7 @@ void Communication::setReceiver(bft::communication::NodeNum receiverNum, bft::co
   receiver_ = receiver;
 }
 
-concord::client::reconfiguration::ClientReconfigurationEngine* CreFactory::create(
+std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> CreFactory::create(
     std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers) {
   bft::client::ClientConfig bftClientConf;
   auto& repConfig = bftEngine::ReplicaConfig::instance();
@@ -68,9 +68,7 @@ concord::client::reconfiguration::ClientReconfigurationEngine* CreFactory::creat
   cre_config.interval_timeout_ms_ = 1000;
   concord::client::reconfiguration::IStateClient* pbc = new concord::client::reconfiguration::PollBasedStateClient(
       bftClient, cre_config.interval_timeout_ms_, 0, cre_config.interval_timeout_ms_);
-  concord::client::reconfiguration::ClientReconfigurationEngine* cre =
-      new concord::client::reconfiguration::ClientReconfigurationEngine(
-          cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
-  return cre;
+  return std::make_shared<concord::client::reconfiguration::ClientReconfigurationEngine>(
+      cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
 }
 }  // namespace bftEngine::bcst::asyncCRE

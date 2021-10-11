@@ -46,7 +46,7 @@ class Communication : public bft::communication::ICommunication {
 };
 class CreFactory {
  public:
-  static concord::client::reconfiguration::ClientReconfigurationEngine* create(
+  static std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> create(
       std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers);
 };
 }  // namespace bftEngine::bcst::asyncCRE

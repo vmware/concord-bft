@@ -82,6 +82,7 @@ class IStateTransfer : public IReservedPages {
 
   virtual void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
+  virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

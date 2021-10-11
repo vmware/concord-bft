@@ -127,6 +127,10 @@ class BCStateTran : public IStateTransfer {
     cre_ = cre;
   }
 
+  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
+    return cre_;
+  }
+
  protected:
   // handling messages from other context
   std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> messageHandler_;
