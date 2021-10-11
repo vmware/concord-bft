@@ -27,7 +27,7 @@ static const char* logPattern = "%d{%Y-%m-%dT%H:%M:%S,%qZ}|%-5p|%X{rid}|%c|%X{th
 
 bool defaultInit() {
   (void)logPattern;
-  spdlog::init_thread_pool(262144, 1);
+  spdlog::init_thread_pool(65536, 1);
   return true;
 }
 
