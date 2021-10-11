@@ -133,8 +133,8 @@ void Client::initDBFromFile(bool readOnly, const Options &user_options) {
 
   auto default_db_options = ::rocksdb::Options{};
   auto default_cf_descs = std::vector<::rocksdb::ColumnFamilyDescriptor>{};
-  status = ::rocksdb::LoadOptionsFromFile(m_dbPath, ::rocksdb::Env::Default(), &default_db_options, &default_cf_descs);
-
+  status =
+      ::rocksdb::LoadLatestOptions(ssssm_dbPath, ::rocksdb::Env::Default(), &default_db_options, &default_cf_descs);
   if (status.ok()) {
     // We wouldn't want to force the user to define a complete *.ini file. In case the DB is not new, and there is a
     // mismatch between the default options and the user one, add the default to the user.
@@ -146,6 +146,8 @@ void Client::initDBFromFile(bool readOnly, const Options &user_options) {
         cf_descs.push_back(ccf);
       }
     }
+  } else {
+    LOG_WARN(logger(), "unable to open default rocksdb option file, reason: " << status.ToString());
   }
 
   // Add specific global options
