@@ -12,8 +12,19 @@
 // file.
 #include "AsyncStateTransferCRE.hpp"
 #include "bftengine/ReplicaConfig.hpp"
+#include "bftengine/SigManager.hpp"
 
 namespace bftEngine::bcst::asyncCRE {
+class InternalSigner : public concord::util::crypto::ISigner {
+ public:
+  std::string sign(const std::string& data) override {
+    std::string out;
+    out.resize(bftEngine::impl::SigManager::instance()->getMySigLength());
+    bftEngine::impl::SigManager::instance()->sign(data.data(), data.size(), out.data(), signatureLength());
+    return out;
+  }
+  uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
+};
 bftEngine::bcst::asyncCRE::Communication::Communication(std::shared_ptr<MsgsCommunicator> msgsCommunicator,
                                                         std::shared_ptr<MsgHandlersRegistrator> msgHandlers)
     : msgsCommunicator_{msgsCommunicator} {
@@ -63,11 +74,12 @@ std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> C
   std::unique_ptr<bft::communication::ICommunication> comm =
       std::make_unique<Communication>(msgsCommunicator, msgHandlers);
   bft::client::Client* bftClient = new bft::client::Client(std::move(comm), bftClientConf);
+  bftClient->setTransactionSigner(new InternalSigner());
   concord::client::reconfiguration::Config cre_config;
   cre_config.id_ = repConfig.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
   concord::client::reconfiguration::IStateClient* pbc = new concord::client::reconfiguration::PollBasedStateClient(
-      bftClient, cre_config.interval_timeout_ms_, 0, cre_config.interval_timeout_ms_);
+      bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
   return std::make_shared<concord::client::reconfiguration::ClientReconfigurationEngine>(
       cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
 }

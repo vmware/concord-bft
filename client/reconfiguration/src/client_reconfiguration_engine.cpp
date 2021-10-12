@@ -85,9 +85,7 @@ void ClientReconfigurationEngine::stop() {
     LOG_ERROR(getLogger(), e.what());
   }
 }
-void ClientReconfigurationEngine::halt() {
-  stateClient_->halt();
-}
+void ClientReconfigurationEngine::halt() { stateClient_->halt(); }
 void ClientReconfigurationEngine::resume() {
   if (!stopped_) stateClient_->resume();
 }
