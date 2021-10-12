@@ -61,10 +61,10 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
   stateTranTimer_ = timers_.add(
       defaultTimeout, Timers::Timer::RECURRING, [stateTransfer](Timers::Handle h) { stateTransfer->onTimer(); });
   metric_state_transfer_timer_.Get().Set(defaultTimeout.count());
-  stateTransfer->startRunning(this);
 }
 
 void ReplicaForStateTransfer::start() {
+  stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
 

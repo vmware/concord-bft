@@ -33,6 +33,7 @@
 #include "storage/db_interface.h"
 #include "storage/key_manipulator_interface.h"
 #include "memorydb/client.h"
+#include "client/reconfiguration/client_reconfiguration_engine.hpp"
 
 #define STRPAIR(var) toPair(#var, var)
 
@@ -375,8 +376,14 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   LOG_INFO(logger_, "");
-
+  cre_->halt();
+  cre_->start();
   ConcordAssertNE(r, nullptr);
+  FetchingState fs = getFetchingState();
+  if (fs != FetchingState::NotFetching) {
+    LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
+    cre_->resume();
+  }
   running_ = true;
   replicaForStateTransfer_ = r;
   replicaForStateTransfer_->changeStateTransferTimerPeriod(config_.refreshTimerMs);
@@ -684,6 +691,8 @@ void BCStateTran::startCollectingState() {
     g.txn()->deleteAllPendingPages();
     g.txn()->setIsFetchingState(true);
   }
+  LOG_INFO(logger_, "Starts async reconfiguration engine");
+  cre_->resume();
   sendAskForCheckpointSummariesMsg();
 }
 
@@ -2687,6 +2696,11 @@ void BCStateTran::processData(bool lastInBatch) {
 
       checkConsistency(config_.pedanticChecks);
 
+      // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
+      // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e. scaling)
+      // then CRE probably won't work as well.
+      LOG_INFO(logger_, "halting cre");
+      cre_->halt();
       // Completion
       LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_++;
