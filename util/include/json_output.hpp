@@ -35,11 +35,12 @@ inline std::string kvContainerToJson(const KVContainer &kv, const Encoder &enc) 
   return out;
 }
 
-inline std::string kContainerToJson(const std::unordered_map<std::string, std::string> &kv) {
+template <typename KVContainer>
+inline std::string kContainerToJson(const KVContainer &kv) {
   auto out = std::string{"{\n"};
   for (const auto &[key, value] : kv) {
     // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
-    out += ("  \"" + key + "\": " + value + ",\n");
+    out += ("  \"" + key + "\": \"" + value + "\",\n");
   }
   if (out.size() >= 2 && out[out.size() - 2] == ',') {
     out.erase(out.size() - 2, 1);
