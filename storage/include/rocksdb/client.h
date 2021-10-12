@@ -154,8 +154,6 @@ class Client : public concord::storage::IDBClient {
   // Database path on directory (used for connection).
   std::string m_dbPath;
 
-  std::string default_opt_config_name = "OPTIONS_DEFAULT.ini";
-
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
   ::rocksdb::OptimisticTransactionDB* txn_db_ = nullptr;
