@@ -741,6 +741,13 @@ struct RemoveMetadata {
     if (!status.isOK()) {
       throw std::runtime_error{"Failed to delete metadata and state transfer data: " + status.toString()};
     }
+    // For backward compatibility, we add new epoch only if we have the reconfiguration category exist
+    auto categories = adapter.blockchainCategories();
+    if (categories.find(kConcordReconfigurationCategoryId) == categories.end()) {
+      std::vector<std::pair<std::string, std::string>> out;
+      out.push_back({std::string{"result"}, std::string{"true"}});
+      return toJson(out);
+    }
     // Once we managed to remove the metadata, we must start a new epoch (which means to add an epoch block)
     uint64_t epoch{0};
     {
