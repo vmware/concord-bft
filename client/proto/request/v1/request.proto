@@ -6,6 +6,7 @@ syntax = "proto3";
 package vmware.concord.client.request.v1;
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
 
 // Specifies Java package name, using the standard prefix "com."
 option java_package = "com.vmware.concord.client.request.v1";
@@ -28,12 +29,13 @@ service RequestService {
   // RESOURCE_EXHAUSTED: if Concord Client is overloaded. The caller should retry with a backoff.
   // UNAVAILABLE: if Concord Client is currently unable to process any requests. The caller should retry with a backoff.
   // INTERNAL: if Concord Client cannot progress independent of the request.
+  // ABORTED: this error is returned if the PreExecution read/time conditions are not met. TODO: which preexecution condition was violated?
   rpc Send(Request) returns (Response);
 }
 
 message Request {
   // Required application request which gets evaluated by the execution engine.
-  bytes request = 1;
+  protobuf.Any request = 1;
 
   // Required timeout which defines the maximum amount of time the caller is
   // willing to wait for the request to be processed by a quorum of replicas.
@@ -64,5 +66,5 @@ message Request {
 
 message Response {
   // Application data returned by the execution engine.
-  bytes response = 1;
+  protobuf.Any response = 1;
 }
