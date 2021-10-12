@@ -30,6 +30,8 @@ class ClientReconfigurationEngine {
     metrics_.SetAggregator(aggregator_);
   }
   ~ClientReconfigurationEngine();
+  IStateClient* getStateClient() { return stateClient_.get(); }
+  uint64_t getLatestKnownUpdateBlock() { return last_known_block_.Get().Get(); }
   void start();
   void stop();
   void halt();

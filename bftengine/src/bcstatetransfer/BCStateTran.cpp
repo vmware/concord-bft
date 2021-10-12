@@ -34,6 +34,7 @@
 #include "storage/key_manipulator_interface.h"
 #include "memorydb/client.h"
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
+#include "client/reconfiguration/poll_based_state_client.hpp"
 
 #define STRPAIR(var) toPair(#var, var)
 
@@ -2700,6 +2701,25 @@ void BCStateTran::processData(bool lastInBatch) {
       // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e. scaling)
       // then CRE probably won't work as well.
       LOG_INFO(logger_, "halting cre");
+      // 1. First, make sure we handled the most recent available updates.
+      concord::client::reconfiguration::PollBasedStateClient *pbc =
+          (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
+      bool succ = false;
+      while (!succ) {
+        auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
+        auto latestReconfUpdates = pbc->getStateUpdate(succ);
+        if (!succ) {
+          LOG_ERROR(logger_, "unable to get the latest reconfiguration updates");
+        }
+        for (const auto &update : latestReconfUpdates) {
+          if (update.blockid > latestHandledUpdate) {
+            succ = false;
+            break;
+          }
+        }
+      }
+      // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered blocks that
+      // haven't been handled yet
       cre_->halt();
       // Completion
       LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
