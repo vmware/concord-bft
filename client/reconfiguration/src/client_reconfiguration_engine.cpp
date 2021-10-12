@@ -21,15 +21,12 @@ ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
       invalid_handlers_{metrics_.RegisterCounter("invalid_handlers")},
       errored_handlers_{metrics_.RegisterCounter("errored_handlers")},
       last_known_block_(metrics_.RegisterGauge("last_known_block", 0)) {
-  sem_init(&main_notifier_, 0, 0);
   metrics_.Register();
 }
 
 void ClientReconfigurationEngine::main() {
   while (!stopped_) {
     try {
-      sem_wait(&main_notifier_);  // Wait for a signal to continue running
-      sem_post(&main_notifier_);  // Try to run also in the next round (unless someone invoke to stop)
       auto update = stateClient_->getNextState();
       if (update.data.empty()) continue;
       if (stopped_) return;
@@ -63,19 +60,16 @@ void ClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler>
 
 ClientReconfigurationEngine::~ClientReconfigurationEngine() {
   if (!stopped_) {
-    sem_post(&main_notifier_);
     try {
       stateClient_->stop();
       stopped_ = true;
       mainThread_.join();
-      sem_destroy(&main_notifier_);
     } catch (std::exception& e) {
       LOG_ERROR(getLogger(), e.what());
     }
   }
 }
 void ClientReconfigurationEngine::start() {
-  resume();
   if (!stopped_) return;
   stateClient_->start();
   stopped_ = false;
@@ -85,7 +79,6 @@ void ClientReconfigurationEngine::stop() {
   if (stopped_) return;
   stateClient_->stop();
   stopped_ = true;
-  resume();  // Release the main thread if needed
   try {
     mainThread_.join();
   } catch (std::exception& e) {
@@ -93,8 +86,9 @@ void ClientReconfigurationEngine::stop() {
   }
 }
 void ClientReconfigurationEngine::halt() {
-  if (!stopped_) sem_wait(&main_notifier_);
-  if (stopped_) resume();  // In case someone invoked halt and then stop.
+  stateClient_->halt();
 }
-void ClientReconfigurationEngine::resume() { sem_post(&main_notifier_); }
+void ClientReconfigurationEngine::resume() {
+  if (!stopped_) stateClient_->resume();
+}
 }  // namespace concord::client::reconfiguration

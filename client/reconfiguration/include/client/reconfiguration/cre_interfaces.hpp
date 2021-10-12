@@ -33,6 +33,8 @@ class IStateClient {
   virtual void start() = 0;
   virtual void stop() = 0;
   virtual void pushUpdate(std::vector<State>&) {}
+  virtual void halt() {}
+  virtual void resume() {}
   virtual ~IStateClient() = default;
 };
 

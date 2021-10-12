@@ -112,6 +112,13 @@ void PollBasedStateClient::start() {
   stopped = false;
   consumer_ = std::thread([&]() {
     while (!stopped) {
+      {
+        std::unique_lock<std::mutex> lk(resume_lock_);
+        while (halted_) {
+          resume_cond_.wait(lk);
+        }
+      }
+
       std::this_thread::sleep_for(std::chrono::milliseconds(interval_timeout_ms_));
       if (stopped) return;
       std::lock_guard<std::mutex> lk(lock_);
@@ -151,5 +158,14 @@ bool PollBasedStateClient::updateState(const WriteState& state) {
   auto rres = sendReconfigurationRequest(rreq, "updateState-" + std::to_string(sn), sn, false);
   if (rres.success && state.callBack != nullptr) state.callBack();
   return rres.success;
+}
+void PollBasedStateClient::halt() {
+  std::unique_lock<std::mutex> lk(resume_lock_);
+  halted_ = true;
+}
+void PollBasedStateClient::resume() {
+  std::unique_lock<std::mutex> lk(resume_lock_);
+  halted_ = false;
+  resume_cond_.notify_one();
 }
 }  // namespace concord::client::reconfiguration
