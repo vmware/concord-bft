@@ -18,6 +18,8 @@
 
 #include <vector>
 #include <thread>
+#include <semaphore.h>
+
 namespace concord::client::reconfiguration {
 class ClientReconfigurationEngine {
  public:
@@ -32,6 +34,8 @@ class ClientReconfigurationEngine {
   ~ClientReconfigurationEngine();
   void start();
   void stop();
+  void halt();
+  void resume();
 
  private:
   void main();
@@ -49,5 +53,6 @@ class ClientReconfigurationEngine {
   concordMetrics::CounterHandle invalid_handlers_;
   concordMetrics::CounterHandle errored_handlers_;
   concordMetrics::GaugeHandle last_known_block_;
+  sem_t main_notifier_;
 };
 }  // namespace concord::client::reconfiguration
