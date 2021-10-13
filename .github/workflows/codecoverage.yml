@@ -1,7 +1,8 @@
 name: Code Coverage (Apollo tests)
 on:
+  workflow_dispatch:
   schedule:
-    - cron: "0 3 * * 0" # Every Sunday at 3AM UTC
+    - cron: "0 20 * * 6" # Every Saturday at 8PM UTC
 
 jobs:
   build:
@@ -29,30 +30,27 @@ jobs:
           sudo df -h
           script -q -e -c "CONCORD_BFT_CONTAINER_CC=clang CONCORD_BFT_CONTAINER_CXX=clang++ \
           CONCORD_BFT_CMAKE_CODECOVERAGE=TRUE CONCORD_BFT_CMAKE_TRANSPORT=UDP make build" && script -q -e -c "make test"
+        continue-on-error: true
 
       - name: Generate code coverage report for apollo tests
-        id: gccreport
         if: always()
         run: |
           script -q -e -c "make codecoverage"
-
-      - name: Check to see if the code coverage report directory exists
-        id: dccreport
-        if: steps.gccreport.outcome == 'success'
+      - name: Check for coveragereport directory
+        if: always()
         run: |
-          chmod +x "./.github/success_action_if_codecoverage_reports_exist.sh"
           ./.github/success_action_if_codecoverage_reports_exist.sh ./build/tests/apollo/coveragereport
-      - name: Prepare artifacts
-        id: partifacts
-        if: steps.gccreport.outcome == 'success' && steps.dccreport.outcome == 'success'
+          echo "indexfile_count=$(find build/tests/apollo/coveragereport -name index.html | wc -l)" > $GITHUB_ENV
+      - name: Prepare code coverage artifacts
+        if: ${{ env.indexfile_count > 0 }}
         run: |
           sudo chown -R ${USER}:${GROUP} ${PWD}/build
           tar -czvf ${{ github.workspace }}/artifact/apollo-tests-codecoverage.tar.gz ./build/tests/apollo/coveragereport
           du -h ${{ github.workspace }}/artifact
           sudo df -h
-      - name: Upload artifacts
+      - name: Upload code coverage artifacts
         uses: actions/upload-artifact@v2
-        if: steps.partifacts.outcome == 'success'
+        if: ${{ env.indexfile_count > 0 }}
         with:
           name: artifacts-${{ github.sha }}
           path: ${{ github.workspace }}/artifact/
