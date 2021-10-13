@@ -347,10 +347,12 @@ class ThinReplicaImpl {
             update_aggregator_counter = 0;
           }
         }
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-        metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
-        metrics_.updateAggregator();
+        if (!is_event_group_transition) {
+          config_->subscriber_list.removeBuffer(live_updates);
+          live_updates->removeAllUpdates();
+          metrics_.subscriber_list_size.Get().Set(config_->subscriber_list.Size());
+          metrics_.updateAggregator();
+        }
       } catch (std::exception& error) {
         LOG_INFO(logger_, "Subscription stream closed: " << error.what());
       }
