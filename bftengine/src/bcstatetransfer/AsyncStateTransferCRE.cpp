@@ -13,8 +13,43 @@
 #include "AsyncStateTransferCRE.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "bftengine/SigManager.hpp"
-
+#include "bftengine/EpochManager.hpp"
+#include "secrets_manager_plain.h"
+#include "communication/StateControl.hpp"
 namespace bftEngine::bcst::asyncCRE {
+using namespace concord::client::reconfiguration;
+class ReplicaTLSKeyExchangeHandler : public IStateHandler {
+ public:
+  ReplicaTLSKeyExchangeHandler() {}
+
+  bool validate(const State& state) const override {
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    if (crep.epoch < bftEngine::EpochManager::instance().getSelfEpochNumber()) return false;
+    return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
+  }
+  bool execute(const State& state, WriteState& out) override {
+    bool succ = true;
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    auto command = std::get<concord::messages::ReplicaTlsExchangeKey>(crep.response);
+    auto sender_id = command.sender_id;
+    concord::messages::ReconfigurationResponse response;
+    std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
+                                         std::to_string(sender_id) + "/server/server.cert";
+    auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
+    if (current_rep_cert == command.cert) return succ;
+    LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
+    std::string cert = command.cert;
+    sm_.encryptFile(bft_replicas_cert_path, cert);
+    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
+    bft::communication::StateControl::instance().restartComm(sender_id);
+    return succ;
+  }
+
+ private:
+  concord::secretsmanager::SecretsManagerPlain sm_;
+};
 class InternalSigner : public concord::util::crypto::ISigner {
  public:
   std::string sign(const std::string& data) override {
@@ -80,7 +115,9 @@ std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> C
   cre_config.interval_timeout_ms_ = 1000;
   concord::client::reconfiguration::IStateClient* pbc = new concord::client::reconfiguration::PollBasedStateClient(
       bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
-  return std::make_shared<concord::client::reconfiguration::ClientReconfigurationEngine>(
+  auto cre = std::make_shared<concord::client::reconfiguration::ClientReconfigurationEngine>(
       cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
+  cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());
+  return cre;
 }
 }  // namespace bftEngine::bcst::asyncCRE

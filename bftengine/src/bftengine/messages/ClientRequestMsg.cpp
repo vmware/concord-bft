@@ -99,7 +99,8 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   bool isIdOfExternalClient = repInfo.isIdOfExternalClient(clientId);
   bool doSigVerify = false;
   bool emptyReq = (header->requestLength == 0);
-  if ((header->flags & RECONFIG_FLAG) != 0 && repInfo.isIdOfReplica(clientId)) {
+  if ((header->flags & RECONFIG_FLAG) != 0 &&
+      (repInfo.isIdOfReplica(clientId) || repInfo.isIdOfPeerRoReplica(clientId))) {
     // Allow every reconfiguration message from replicas (it will be verified in the reconfiguration handler)
     return;
   }

@@ -263,7 +263,7 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage{std::move(incomingMsgsStorageImpPtr)};
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
-
+  stateTransfer->setReconfigurationEngine(bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator, msgHandlers));
   replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
       replicaConfig, requestsHandler, stateTransfer, msgsCommunicator, msgHandlers, timers);
   return replicaInternal;

@@ -512,7 +512,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             bft_network.copy_certs_from_server_to_clients(live_replicas[0])
             bft_network.restart_clients(False, False)
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            for i in range(500):
+            for i in range(700):
                 await skvbc.send_write_kv_set()
 
             bft_network.start_replicas(crashed_replica)

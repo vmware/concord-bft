@@ -205,12 +205,13 @@ bool SigManager::verifySig(
       return false;
     }
   }
-  bool idOfReplica = false, idOfExternalClient = false;
+  bool idOfReplica = false, idOfExternalClient = false, idOfReadOnlyReplica = false;
   idOfExternalClient = replicasInfo_.isIdOfExternalClient(pid);
   if (!idOfExternalClient) {
     idOfReplica = replicasInfo_.isIdOfReplica(pid);
   }
-  ConcordAssert(idOfReplica || idOfExternalClient);
+  idOfReadOnlyReplica = replicasInfo_.isIdOfPeerRoReplica(pid);
+  ConcordAssert(idOfReplica || idOfExternalClient || idOfReadOnlyReplica);
   if (!result) {  // failure
     if (idOfExternalClient)
       metrics_.externalClientReqSigVerificationFailed_++;

@@ -191,8 +191,9 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
                                               const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
-  if (sender_id >
-      bftEngine::ReplicaConfig::instance().numReplicas + bftEngine::ReplicaConfig::instance().numRoReplicas) {
+  uint16_t first_client_id =
+      bftEngine::ReplicaConfig::instance().numReplicas + bftEngine::ReplicaConfig::instance().numRoReplicas;
+  if (sender_id > first_client_id) {
     for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
          i++) {
       auto csrep = buildClientStateReply(static_cast<keyTypes::CLIENT_COMMAND_TYPES>(i), sender_id);
@@ -200,9 +201,12 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       rep.states.push_back(csrep);
     }
   } else {
-    // 1. Handler TLS key exchange update
-    auto csrep = buildReplicaStateReply(kvbc::keyTypes::reconfiguration_tls_exchange_key, sender_id);
-    if (csrep.block_id > 0) rep.states.push_back(csrep);
+    // 1. Handle TLS key exchange update
+    for (uint16_t i = 0; i < first_client_id; i++) {
+      if (i == sender_id) continue;
+      auto csrep = buildReplicaStateReply(kvbc::keyTypes::reconfiguration_tls_exchange_key, i);
+      if (csrep.block_id > 0) rep.states.push_back(csrep);
+    }
   }
   concord::messages::serialize(rres.additional_data, rep);
   return true;
@@ -848,7 +852,7 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
       sequence_number,
       std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(sender_id),
       ts,
-      true);
+      false);
   LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
   std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
                                        std::to_string(sender_id) + "/server/server.cert";
