@@ -377,13 +377,13 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   LOG_INFO(logger_, "");
-  if (!config_.isReadOnly) cre_->halt();
-  cre_->start();
+  if (!config_.isReadOnly && cre_) cre_->halt();
+  if (cre_) cre_->start();
   ConcordAssertNE(r, nullptr);
   FetchingState fs = getFetchingState();
   if (!config_.isReadOnly && fs != FetchingState::NotFetching) {
     LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
-    cre_->resume();
+    if (cre_) cre_->resume();
   }
   running_ = true;
   replicaForStateTransfer_ = r;
@@ -392,7 +392,7 @@ void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
 
 void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "");
-  cre_->stop();
+  if (cre_) cre_->stop();
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   if (handoff_) handoff_->stop();
@@ -693,7 +693,7 @@ void BCStateTran::startCollectingState() {
     g.txn()->setIsFetchingState(true);
   }
   LOG_INFO(logger_, "Starts async reconfiguration engine");
-  if (!config_.isReadOnly) cre_->resume();
+  if (!config_.isReadOnly && cre_) cre_->resume();
   sendAskForCheckpointSummariesMsg();
 }
 
@@ -2696,7 +2696,7 @@ void BCStateTran::processData(bool lastInBatch) {
       metrics_.checkpoint_being_fetched_.Get().Set(0);
 
       checkConsistency(config_.pedanticChecks);
-      if (!config_.isReadOnly) {
+      if (!config_.isReadOnly && cre_) {
         // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
         // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
         // scaling) then CRE probably won't work as well.

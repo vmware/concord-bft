@@ -26,7 +26,7 @@ using namespace bft::communication;
 class Communication : public ICommunication {
  public:
   Communication(std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers)
-      : msgsCommunicator_{msgsCommunicator} {
+      : msgsCommunicator_{msgsCommunicator}, repId_{bftEngine::ReplicaConfig::instance().replicaId} {
     msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](bftEngine::impl::MessageBase* message) {
       if (receiver_) receiver_->onNewMessage(message->senderId(), message->body(), message->size());
     });
@@ -47,10 +47,16 @@ class Communication : public ICommunication {
     return ConnectionStatus::Connected;
   }
   int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
+    if (destNode == repId_) {
+      return msg.size();
+    }
     return msgsCommunicator_->sendAsyncMessage(destNode, reinterpret_cast<char*>(msg.data()), msg.size());
   }
   std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
     auto ret = dests;
+    if (dests.find(repId_) != dests.end()) {
+      dests.erase(repId_);
+    }
     msgsCommunicator_->send(dests, reinterpret_cast<char*>(msg.data()), msg.size());
     return ret;
   }
@@ -61,6 +67,7 @@ class Communication : public ICommunication {
   std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
   bool is_running_ = false;
   IReceiver* receiver_ = nullptr;
+  uint16_t repId_;
 };
 
 class ReplicaTLSKeyExchangeHandler : public IStateHandler {
