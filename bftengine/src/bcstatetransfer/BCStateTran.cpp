@@ -377,11 +377,11 @@ void BCStateTran::init(uint64_t maxNumOfRequiredStoredCheckpoints,
 
 void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
   LOG_INFO(logger_, "");
-  cre_->halt();
+  if (!config_.isReadOnly) cre_->halt();
   cre_->start();
   ConcordAssertNE(r, nullptr);
   FetchingState fs = getFetchingState();
-  if (fs != FetchingState::NotFetching) {
+  if (!config_.isReadOnly && fs != FetchingState::NotFetching) {
     LOG_INFO(logger_, "State Transfer cycle continues, starts async reconfiguration engine");
     cre_->resume();
   }
@@ -392,7 +392,7 @@ void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
 
 void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "");
-
+  cre_->stop();
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   if (handoff_) handoff_->stop();
@@ -693,7 +693,7 @@ void BCStateTran::startCollectingState() {
     g.txn()->setIsFetchingState(true);
   }
   LOG_INFO(logger_, "Starts async reconfiguration engine");
-  cre_->resume();
+  if (!config_.isReadOnly) cre_->resume();
   sendAskForCheckpointSummariesMsg();
 }
 
@@ -2696,31 +2696,32 @@ void BCStateTran::processData(bool lastInBatch) {
       metrics_.checkpoint_being_fetched_.Get().Set(0);
 
       checkConsistency(config_.pedanticChecks);
-
-      // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
-      // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e. scaling)
-      // then CRE probably won't work as well.
-      LOG_INFO(logger_, "halting cre");
-      // 1. First, make sure we handled the most recent available updates.
-      concord::client::reconfiguration::PollBasedStateClient *pbc =
-          (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
-      bool succ = false;
-      while (!succ) {
-        auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
-        auto latestReconfUpdates = pbc->getStateUpdate(succ);
-        if (!succ) {
-          LOG_ERROR(logger_, "unable to get the latest reconfiguration updates");
-        }
-        for (const auto &update : latestReconfUpdates) {
-          if (update.blockid > latestHandledUpdate) {
-            succ = false;
-            break;
+      if (!config_.isReadOnly) {
+        // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
+        // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
+        // scaling) then CRE probably won't work as well.
+        LOG_INFO(logger_, "halting cre");
+        // 1. First, make sure we handled the most recent available updates.
+        concord::client::reconfiguration::PollBasedStateClient *pbc =
+            (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
+        bool succ = false;
+        while (!succ) {
+          auto latestHandledUpdate = cre_->getLatestKnownUpdateBlock();
+          auto latestReconfUpdates = pbc->getStateUpdate(succ);
+          if (!succ) {
+            LOG_ERROR(logger_, "unable to get the latest reconfiguration updates");
+          }
+          for (const auto &update : latestReconfUpdates) {
+            if (update.blockid > latestHandledUpdate) {
+              succ = false;
+              break;
+            }
           }
         }
+        // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered blocks that
+        // haven't been handled yet
+        cre_->halt();
       }
-      // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered blocks that
-      // haven't been handled yet
-      cre_->halt();
       // Completion
       LOG_INFO(logger_, "Invoking onTransferringComplete callbacks for checkpoint number: " << KVLOG(cp.checkpointNum));
       metrics_.on_transferring_complete_++;
