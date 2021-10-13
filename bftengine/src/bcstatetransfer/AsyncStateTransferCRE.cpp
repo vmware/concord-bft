@@ -16,8 +16,53 @@
 #include "bftengine/EpochManager.hpp"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
+#include "client/reconfiguration/poll_based_state_client.hpp"
+#include "communication/ICommunication.hpp"
+#include "bftclient/bft_client.h"
+
 namespace bftEngine::bcst::asyncCRE {
 using namespace concord::client::reconfiguration;
+using namespace bft::communication;
+class Communication : public ICommunication {
+ public:
+  Communication(std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers)
+      : msgsCommunicator_{msgsCommunicator} {
+    msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](bftEngine::impl::MessageBase* message) {
+      if (receiver_) receiver_->onNewMessage(message->senderId(), message->body(), message->size());
+    });
+  }
+
+  int getMaxMessageSize() override { return 128 * 1024; }  // 128KB
+  int start() override {
+    is_running_ = true;
+    return 0;
+  }
+  int stop() override {
+    is_running_ = false;
+    return 0;
+  }
+  bool isRunning() const override { return is_running_; }
+  ConnectionStatus getCurrentConnectionStatus(NodeNum node) override {
+    if (!is_running_) return ConnectionStatus::Disconnected;
+    return ConnectionStatus::Connected;
+  }
+  int send(NodeNum destNode, std::vector<uint8_t>&& msg) override {
+    return msgsCommunicator_->sendAsyncMessage(destNode, reinterpret_cast<char*>(msg.data()), msg.size());
+  }
+  std::set<NodeNum> send(std::set<NodeNum> dests, std::vector<uint8_t>&& msg) override {
+    auto ret = dests;
+    msgsCommunicator_->send(dests, reinterpret_cast<char*>(msg.data()), msg.size());
+    return ret;
+  }
+  void setReceiver(NodeNum receiverNum, IReceiver* receiver) override { receiver_ = receiver; }
+  void dispose(NodeNum i) override {}
+
+ private:
+  std::shared_ptr<MsgsCommunicator> msgsCommunicator_;
+  bool is_running_ = false;
+  IReceiver* receiver_ = nullptr;
+};
+
 class ReplicaTLSKeyExchangeHandler : public IStateHandler {
  public:
   ReplicaTLSKeyExchangeHandler() {}
@@ -43,7 +88,7 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
     std::string cert = command.cert;
     sm_.encryptFile(bft_replicas_cert_path, cert);
     LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
-    bft::communication::StateControl::instance().restartComm(sender_id);
+    StateControl::instance().restartComm(sender_id);
     return succ;
   }
 
@@ -60,41 +105,9 @@ class InternalSigner : public concord::util::crypto::ISigner {
   }
   uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
 };
-bftEngine::bcst::asyncCRE::Communication::Communication(std::shared_ptr<MsgsCommunicator> msgsCommunicator,
-                                                        std::shared_ptr<MsgHandlersRegistrator> msgHandlers)
-    : msgsCommunicator_{msgsCommunicator} {
-  msgHandlers->registerMsgHandler(MsgCode::ClientReply, [&](bftEngine::impl::MessageBase* message) {
-    if (receiver_) receiver_->onNewMessage(message->senderId(), message->body(), message->size());
-  });
-}
-int Communication::start() {
-  is_running_ = true;
-  return 0;
-}
-int Communication::stop() {
-  is_running_ = false;
-  return 0;
-}
-bool Communication::isRunning() const { return is_running_; }
-bft::communication::ConnectionStatus Communication::getCurrentConnectionStatus(bft::communication::NodeNum) {
-  if (!is_running_) return bft::communication::ConnectionStatus::Disconnected;
-  return bft::communication::ConnectionStatus::Connected;
-}
-int Communication::send(bft::communication::NodeNum destNode, std::vector<uint8_t>&& msg) {
-  return msgsCommunicator_->sendAsyncMessage(destNode, reinterpret_cast<char*>(msg.data()), msg.size());
-}
-std::set<bft::communication::NodeNum> Communication::send(std::set<bft::communication::NodeNum> dests,
-                                                          std::vector<uint8_t>&& msg) {
-  auto ret = dests;
-  msgsCommunicator_->send(dests, reinterpret_cast<char*>(msg.data()), msg.size());
-  return ret;
-}
-void Communication::setReceiver(bft::communication::NodeNum receiverNum, bft::communication::IReceiver* receiver) {
-  receiver_ = receiver;
-}
 
-std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> CreFactory::create(
-    std::shared_ptr<MsgsCommunicator> msgsCommunicator, std::shared_ptr<MsgHandlersRegistrator> msgHandlers) {
+std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<MsgsCommunicator> msgsCommunicator,
+                                                                std::shared_ptr<MsgHandlersRegistrator> msgHandlers) {
   bft::client::ClientConfig bftClientConf;
   auto& repConfig = bftEngine::ReplicaConfig::instance();
   bftClientConf.f_val = repConfig.fVal;
@@ -106,17 +119,15 @@ std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> C
   for (uint16_t i = repConfig.numReplicas; i < repConfig.numReplicas + repConfig.numRoReplicas; i++) {
     bftClientConf.ro_replicas.emplace(bft::client::ReplicaId{i});
   }
-  std::unique_ptr<bft::communication::ICommunication> comm =
-      std::make_unique<Communication>(msgsCommunicator, msgHandlers);
+  std::unique_ptr<ICommunication> comm = std::make_unique<Communication>(msgsCommunicator, msgHandlers);
   bft::client::Client* bftClient = new bft::client::Client(std::move(comm), bftClientConf);
   bftClient->setTransactionSigner(new InternalSigner());
-  concord::client::reconfiguration::Config cre_config;
+  Config cre_config;
   cre_config.id_ = repConfig.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
-  concord::client::reconfiguration::IStateClient* pbc = new concord::client::reconfiguration::PollBasedStateClient(
-      bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
-  auto cre = std::make_shared<concord::client::reconfiguration::ClientReconfigurationEngine>(
-      cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
+  IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
+  auto cre =
+      std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
   cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());
   return cre;
 }
