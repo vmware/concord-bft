@@ -238,7 +238,9 @@ Msg ClientStateReply 39 {
         ClientsAddRemoveUpdateCommand
         ClientTlsExchangeKey
         ClientsRestartCommand
+        ReplicaTlsExchangeKey
       } response
+    uint64 epoch
 }
 
 Msg ClientReconfigurationStateReply 49 {
