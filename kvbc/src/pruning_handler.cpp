@@ -245,7 +245,7 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
   concord::messages::PruneStatus prune_status;
   std::lock_guard lock(pruning_status_lock_);
   const auto genesis_id = ro_storage_.getGenesisBlockId();
-  prune_status.last_pruned_block = ((genesis_id != INITIAL_GENESIS_BLOCK_ID && genesis_id != 0) ? genesis_id - 1 : 0);
+  prune_status.last_pruned_block = (genesis_id > INITIAL_GENESIS_BLOCK_ID ? genesis_id - 1 : 0);
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
   rres.response = prune_status;
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
