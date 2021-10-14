@@ -757,16 +757,16 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             log.log_message(message_type=f"pruned_block {pruned_block}")
             assert pruned_block <= 90   
 
-            # creates 300 new blocks
-            for i in range(300):
+            # creates 1000 new blocks
+            for i in range(1000):
                 v = skvbc.random_value()
                 await client.write(skvbc.write_req([], [(k, v)], 0))
 
-            #wait for sometime
-            time.sleep(1)
-            # now, return the crashed replica and wait for it to done with state transfer
+            # Now, restart the crashed replica and wait for it to finish state transfer.
+            # The total number of seq numbers is 1101 (1000 + 100 writes + 1 prune request).
+            # This translates to 7 checkpoints and, therefore, 7 * 150 = 1050.
             bft_network.start_replica(crashed_replica)
-            await self._wait_for_st(bft_network, crashed_replica, 150)
+            await self._wait_for_st(bft_network, crashed_replica, 1050)
 
             # We expect the late replica to catch up with the state and to perform pruning
             with trio.fail_after(seconds=30):
@@ -777,12 +777,25 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                     for r in rsi_rep.values():
                         status = cmf_msgs.ReconfigurationResponse.deserialize(r)[0]
                         last_prune_blockid = status.response.last_pruned_block
+                        log.log_message(message_type=f"last_prune_blockid {last_prune_blockid}, status.response.sender {status.response.sender}")
                         if status.response.in_progress is False and last_prune_blockid <= 90 and last_prune_blockid > 0:
                             num_replies += 1
                     if num_replies == bft_network.config.n:
                         break
 
+            # Now, crash the same replica again.
+            crashed_replica = 3
+            bft_network.stop_replica(crashed_replica)
 
+            # Execute 1000 writes.
+            for i in range(1000):
+              v = skvbc.random_value()
+              await client.write(skvbc.write_req([], [(k, v)], 0))
+
+            # Make sure ST completes again. Wait for 2100 = 14 checkpoints * 150 seq numbers.
+            bft_network.start_replica(crashed_replica)
+            await self._wait_for_st(bft_network, crashed_replica, 2100)
+    
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
     async def test_pruning_status_command(self, bft_network):
