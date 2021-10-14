@@ -3,54 +3,75 @@
 // Concord Client's State Snapshot Service
 
 syntax = "proto3";
-package vmware.concord.client.snapshot.v1;
+package vmware.concord.client.statesnapshot.v1;
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 
-option java_package = "com.vmware.concord.client.snapshot.v1";
+option java_package = "com.vmware.concord.client.statesnapshot.v1";
 
-// The StateSnapshotService can be used to initialize a client application from a
+// The StateSnapshot service can be used to initialize a Client Application from a
 // state snapshot visible to Concord Client. State snapshots aggregate all writes
-// from the start of the blockchain up to a specific point by keeping only the last
-// write to a key-value.
+// to the merkle storage space from the start of the blockchain up to a specific point
+// that is determined by the event group ID as of which the state snapshot is generated. 
+// State contains only the last write to any merkle storage space key-value and no
+// prior historical writes. We use `state`, `state snapshot` and
+// `merkle storage space key-values` interchangeably from now on.
+//
+// To visualize, we show how events are streamed from Concord Client to the
+// Client Application (App) and the relation between state and event group IDs:
+// ----------------------------------------------------------------------------
+//                               [State Snapshot at evgN]
+//                                          |
+//                                          v
+// ------------------                                            --------------
+// | Concord Client |  -- evg1, evg2, ..., evgN, evgN+1, ... ->  | Client App |
+// ------------------                                            --------------
+// ----------------------------------------------------------------------------
+// where `evgN` is the Nth event group streamed from Concord Client to the Client App.
+// After receiving a state snapshot at `evgN`, a Client App can continue operation by
+// consuming event groups from `evgN+1` onwards.
 //
 // Concord Client ensures that there is always at least one reasonably
 // recent snapshot that can be served. The intention is that this snapshot is
-// used to initialize a client application after the network has been pruned and
-// some set of historical events are no longer available via the EventService.
-service StateSnapshotService {
-  // Get the ID of a recent and available snapshot.
+// used to initialize the Client Application after the network has been pruned and
+// some set of historical events are no longer available via the `EventService`.
+//
+// See `event.proto` for more information about events, event group IDs and
+// `EventService`.
+// See `execution_engine.proto` for more information about merkle storage space.
+service StateSnapshot {
+  // Get the event group ID at which there is a recent and available snapshot.
   // Errors:
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
-  rpc GetRecentStateSnapshotId(google.protobuf.Empty) returns (StateSnapshotId);
+  rpc GetRecentStateSnapshotId(google.protobuf.Empty) returns (EventGroupId);
 
-  // Stream a specific state snapshot in a resumable fashion as a stream of key-values.
+  // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
   // Key-values are streamed with lexicographic order on keys.
   // Errors:
-  // NOT_FOUND: if the snapshot with this ID is not (or no longer) available.
+  // NOT_FOUND: if the snapshot at the requested event group ID is not (or no longer) available.
   //            Clients applications are advised to retry initialization by
-  //            fetching a new recent snapshot ID.
+  //            fetching a new event group ID.
   // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is
   //                   not part of the snapshot.
-  // UNAVAILABLE: if Concord Client is not ready yet to process any requests.
+  // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
   rpc StreamStateSnapshot(StreamStateSnapshotRequest) returns (stream KeyValuePair);
 }
 
-message StateSnapshotId {
+message EventGroupId {
   // Mandatory field.
   //
-  // An ID for the state snapshot.
+  // The event group ID.
   uint64 id = 1;
 }
 
 message StreamStateSnapshotRequest {
   // Mandatory field.
   //
-  // The ID of the state snapshot to stream.
-  uint64 snapshot_id = 1;
+  // The event group ID at which to stream state.
+  uint64 event_group_id = 1;
 
   // Optional field.
   //
