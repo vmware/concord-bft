@@ -95,6 +95,41 @@ class SkvbcTest(unittest.TestCase):
         await skvbc.assert_successful_put_get()
 
     @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_primary_down_while_initial_key_exchange(self, bft_network):
+        """
+        Test that a replica succeeds to ask for missing info from the former window
+
+        1. Start all nodes and process 149 requests.
+        2. Stop f nodes and process 2 more requests (this will cause to the remaining
+            replicas to proceed beyond the checkpoint)
+        3. The node should catchup without executing state transfer.
+        """
+        replicas_to_start = [r for r in range(1, bft_network.config.n)]
+        await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
+        for i in replicas_to_start:
+            view = await bft_network.get_metric(i, bft_network, "Gauges", "view")
+            assert int(view) == 1
+        bft_network.start_replica(0)
+
+        with trio.fail_after(60):
+            view = await bft_network.get_metric(0, bft_network, "Gauges", "view")
+            while int(view) != 1:
+                await trio.sleep(1)
+                view =  await bft_network.get_metric(0,bft_network, "Gauges", "view")
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        for i in range(300):
+            await skvbc.send_write_kv_set()
+
+        with trio.fail_after(60):
+            seqNum = await bft_network.get_metric(0, bft_network, "Gauges", "lastStableSeqNum")
+            while seqNum < 100:
+                await trio.sleep(1)
+                seqNum =  await bft_network.get_metric(0, bft_network, "Gauges", "lastStableSeqNum")
+
+    @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
     async def test_get_block_data_with_blinking_replica(self, bft_network):
         """

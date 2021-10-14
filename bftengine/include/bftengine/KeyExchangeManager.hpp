@@ -32,7 +32,7 @@ class KeyExchangeManager {
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
   // Generates and publish the first replica's key,
-  void sendInitialKey();
+  void sendInitialKey(bool waitForInitialPrimary);
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
@@ -183,7 +183,7 @@ class KeyExchangeManager {
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.
    */
-  void waitForLiveQuorum();
+  void waitForLiveQuorum(bool waitForInitialPrimary);
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
   // deleted

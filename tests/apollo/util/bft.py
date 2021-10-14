@@ -1392,17 +1392,18 @@ class BftTestNetwork:
             
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
         
-    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False):
+    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[]):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
         with log.start_action(action_type="check_initital_key_exchange"):
             required_exchanges = self.config.n - 1 if full_key_exchange else 2 * self.config.f + self.config.c
-            self.start_all_replicas()
+            replicas_to_start = [r for r in range(self.config.n)] if replicas_to_start == [] else replicas_to_start
+            self.start_replicas(replicas_to_start)
             num_of_exchanged_replicas = 0
             with trio.fail_after(seconds=120):
-                for replica_id in range(self.config.n):
+                for replica_id in replicas_to_start:
                     while True:
                         with trio.move_on_after(seconds=1):
                             try:
@@ -1421,8 +1422,8 @@ class BftTestNetwork:
                                 raise KeyExchangeError
                             else:
                                 assert sent_key_exchange_on_start_status == 'True'
-                                assert sent_key_exchange_counter == 1
-                                assert self_key_exchange_counter == 1
+                                assert sent_key_exchange_counter >= 1
+                                assert self_key_exchange_counter >= 1
                                 assert public_key_exchange_for_peer_counter >= required_exchanges
                                 num_of_exchanged_replicas += 1
                                 break
@@ -1430,9 +1431,9 @@ class BftTestNetwork:
                         break
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
+                lastExecutedVal = await self.metrics.get(random.choice(replicas_to_start), *lastExecutedKey)
             if stop_replicas:
-                self.stop_all_replicas()
+                self.stop_replicas(replicas_to_start)
             return lastExecutedVal
 
     async def assert_successful_pre_executions_count(self, replica_id, num_requests):

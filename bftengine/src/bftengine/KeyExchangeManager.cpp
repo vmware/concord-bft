@@ -230,7 +230,7 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey() {
+void KeyExchangeManager::sendInitialKey(bool waitForInitialPrimary) {
   LOG_INFO(KEY_EX_LOG, "");
   if (private_keys_.hasGeneratedKeys()) {
     LOG_INFO(KEY_EX_LOG, "Replica has already generated keys");
@@ -238,10 +238,10 @@ void KeyExchangeManager::sendInitialKey() {
   }
   // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
   // In order not to block it's done as async operation.
-  auto ret = std::async(std::launch::async, [this]() {
+  auto ret = std::async(std::launch::async, [this, waitForInitialPrimary]() {
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
     if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-      waitForLiveQuorum();
+      waitForLiveQuorum(waitForInitialPrimary);
     } else {
       waitForFullCommunication();
     }
@@ -250,7 +250,7 @@ void KeyExchangeManager::sendInitialKey() {
   });
 }
 
-void KeyExchangeManager::waitForLiveQuorum() {
+void KeyExchangeManager::waitForLiveQuorum(bool waitForInitialPrimary) {
   // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
   if (client_->isUdp()) {
     LOG_INFO(KEY_EX_LOG, "UDP communication");
@@ -261,7 +261,7 @@ void KeyExchangeManager::waitForLiveQuorum() {
    * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
    * we wait for the first primary for a pre-defined amount of time.
    */
-  if (repID_ != 0) {
+  if (repID_ != 0 && waitForInitialPrimary) {
     auto start = getMonotonicTime();
     auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
     LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary to be ready");

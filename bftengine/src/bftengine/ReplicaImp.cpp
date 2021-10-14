@@ -2844,6 +2844,11 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   controller->onNewView(getCurrentView(), primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(getCurrentView());
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
+
+  if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
+    LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
+    KeyExchangeManager::instance().sendInitialKey(false);
+  }
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
@@ -4078,7 +4083,7 @@ void ReplicaImp::start() {
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyExchangeManager::instance().sendInitialKey();
+    KeyExchangeManager::instance().sendInitialKey(true);
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
 }
