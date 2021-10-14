@@ -11,7 +11,7 @@
 
 #include "PreProcessBatchRequestMsg.hpp"
 #include "assertUtils.hpp"
-
+#include "SigManager.hpp"
 namespace preprocessor {
 
 using namespace std;
@@ -52,6 +52,41 @@ void PreProcessBatchRequestMsg::validate(const ReplicasInfo& repInfo) const {
     LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
+  if (!checkElements()) {
+    LOG_ERROR(logger(), "One or more PreProcessReqMsg in the list is invalid");
+    throw std::runtime_error(__PRETTY_FUNCTION__);
+  }
+}
+
+bool PreProcessBatchRequestMsg::checkElements() const {
+  const auto totalMsgSize = size();
+  const auto& numOfMessagesInBatch = msgBody()->numOfMessagesInBatch;
+  if (!numOfMessagesInBatch || (numOfMessagesInBatch > MAX_BATCH_SIZE)) {
+    LOG_ERROR(logger(), KVLOG(numOfMessagesInBatch));
+    return false;
+  }
+  char* dataPosition = body() + sizeof(Header) + msgBody()->cidLength;
+  const auto& sigManager = SigManager::instance();
+  const auto& isClientTransactionSigningEnabled = sigManager->isClientTransactionSigningEnabled();
+  for (auto i = 0u; i < numOfMessagesInBatch; i++) {
+    const auto& singleMsgHeader = *(PreProcessRequestMsg::Header*)dataPosition;
+    auto clientId = singleMsgHeader.clientId;
+    auto expectedSigLen = (isClientTransactionSigningEnabled ? sigManager->getSigLength(clientId) : 0);
+    if ((expectedSigLen != singleMsgHeader.reqSignatureLength) || (totalMsgSize < singleMsgHeader.requestLength) ||
+        (totalMsgSize < singleMsgHeader.cidLength)) {
+      LOG_ERROR(logger(),
+                KVLOG(clientId,
+                      totalMsgSize,
+                      expectedSigLen,
+                      singleMsgHeader.reqSignatureLength,
+                      singleMsgHeader.requestLength,
+                      singleMsgHeader.cidLength));
+      return false;
+    }
+    dataPosition += sizeof(PreProcessRequestMsg::Header) + singleMsgHeader.spanContextSize +
+                    singleMsgHeader.requestLength + singleMsgHeader.cidLength + singleMsgHeader.reqSignatureLength;
+  }
+  return true;
 }
 
 void PreProcessBatchRequestMsg::setParams(

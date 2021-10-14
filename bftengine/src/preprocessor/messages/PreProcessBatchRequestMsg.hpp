@@ -65,6 +65,7 @@ class PreProcessBatchRequestMsg : public MessageBase {
   Header* msgBody() const { return ((Header*)msgBody_); }
 
  private:
+  bool checkElements() const;
   std::string cid_;
   PreProcessReqMsgsList preProcessReqMsgsList_;
 };
