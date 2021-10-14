@@ -241,6 +241,11 @@ struct Updates {
   template <typename Update>
   bool appendKeyValue(const std::string& category_id, std::string&& key, typename Update::ValueType&& value);
 
+  template <typename InputType>
+  void addCategoryIfNotExisting(const std::string& category_id) {
+    category_updates_.kv.try_emplace(category_id, InputType{});
+  }
+
   std::size_t size() const { return block_merkle_size + versioned_kv_size + immutable_size; }
   bool empty() const { return size() == 0; }
   std::size_t block_merkle_size{};
