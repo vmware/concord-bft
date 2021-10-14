@@ -100,10 +100,8 @@ class SkvbcTest(unittest.TestCase):
         """
         Test that a replica succeeds to ask for missing info from the former window
 
-        1. Start all nodes and process 149 requests.
-        2. Stop f nodes and process 2 more requests (this will cause to the remaining
-            replicas to proceed beyond the checkpoint)
-        3. The node should catchup without executing state transfer.
+        1. Start all replicas but the primary
+        2. Make sure that eventually we are able to add blocks  
         """
         replicas_to_start = [r for r in range(1, bft_network.config.n)]
         await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
