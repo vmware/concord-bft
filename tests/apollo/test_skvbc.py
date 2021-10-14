@@ -101,7 +101,7 @@ class SkvbcTest(unittest.TestCase):
         Test that a replica succeeds to ask for missing info from the former window
 
         1. Start all replicas but the primary
-        2. Make sure that eventually we are able to add blocks  
+        2. Make sure that eventually we are able to add blocks
         """
         replicas_to_start = [r for r in range(1, bft_network.config.n)]
         await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
@@ -111,7 +111,11 @@ class SkvbcTest(unittest.TestCase):
         bft_network.start_replica(0)
 
         with trio.fail_after(60):
-            view = await bft_network.get_metric(0, bft_network, "Gauges", "view")
+            try:
+                view = await bft_network.get_metric(0, bft_network, "Gauges", "view")
+            except trio.TooSlowError:
+                await trio.sleep(5) # replica 0 is probably no available yet
+                pass
             while int(view) != 1:
                 await trio.sleep(1)
                 view =  await bft_network.get_metric(0,bft_network, "Gauges", "view")
