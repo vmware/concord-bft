@@ -325,6 +325,7 @@ struct DummyClient : public IInternalBFTClient {
   inline NodeIdType getClientId() const { return 1; };
   uint64_t sendRequest(uint8_t flags, uint32_t requestLength, const char* request, const std::string& cid) { return 0; }
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) { return clusterSize; }
+  bool isReplicaConnected(uint16_t repId) const { return true; }
   bool isUdp() const { return false; }
 };
 

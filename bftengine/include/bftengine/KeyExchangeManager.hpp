@@ -41,8 +41,10 @@ class KeyExchangeManager {
   void loadPublicKeys();
   // whether initial key exchange has occurred
   bool exchanged() const {
-    return ReplicaConfig::instance().getkeyExchangeOnStart() ? (publicKeys_.numOfExchangedReplicas() == clusterSize_)
-                                                             : true;
+    uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
+    return ReplicaConfig::instance().getkeyExchangeOnStart()
+               ? (publicKeys_.numOfExchangedReplicas() >= liveClusterSize - 1)
+               : true;
   }
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
@@ -181,6 +183,7 @@ class KeyExchangeManager {
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.
    */
+  void waitForLiveQuorum();
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
   // deleted
@@ -192,6 +195,7 @@ class KeyExchangeManager {
  private:  // members
   uint16_t repID_{};
   uint32_t clusterSize_{};
+  uint32_t quorumSize_{};
   ClusterKeyStore publicKeys_;
   PrivateKeys private_keys_;
   ClientKeyStore clientsPublicKeys_;
