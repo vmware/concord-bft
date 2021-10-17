@@ -13,6 +13,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+
 namespace concord::kvbc::keyTypes {
 static const char bft_seq_num_key = 0x21;
 static const char reconfiguration_pruning_key = 0x24;
@@ -25,6 +27,9 @@ static const char reconfiguration_client_data_prefix = 0x2c;
 static const char reconfiguration_epoch_key = 0x2d;
 
 static const char reconfiguration_restart_key = 0x30;
+static const char reconfiguration_ts_key = 0x31;
+static const std::string genesis_block_key(1, 0x32);
+
 enum CLIENT_COMMAND_TYPES : uint8_t {
   start_ = 0x0,
   PUBLIC_KEY_EXCHANGE = 0x1,             // identifier of public key exchange request by client

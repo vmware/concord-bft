@@ -125,6 +125,10 @@ class KeyValueBlockchain {
   void linkSTChainFrom(BlockId block_id);
   void writeSTLinkTransaction(const BlockId block_id, RawBlock& block);
 
+  // If a block has the genesis ID key, prune up to it. Rationale is that this will preserve the same order of block
+  // deletes relative to block adds on source and destination replicas.
+  void pruneOnSTLink(const RawBlock& block);
+
   // computes the digest of a raw block which is the parent of block_id i.e. block_id - 1
   std::future<BlockDigest> computeParentBlockDigest(const BlockId block_id, VersionedRawBlock&& cached_raw_block);
 
@@ -198,6 +202,8 @@ class KeyValueBlockchain {
                                         const std::string& category_id,
                                         ImmutableInput&& updates,
                                         concord::storage::rocksdb::NativeWriteBatch& write_batch);
+
+  void addGenesisBlockKey(Updates& updates) const;
 
   /////////////////////// Members ///////////////////////
 

@@ -13,10 +13,13 @@
 
 #include "db_editor_tests_base.h"
 #include "kv_blockchain_db_editor.hpp"
+#include "kvbc_key_types.hpp"
+#include "hex_tools.h"
 
 namespace {
 
 using namespace concord::kvbc::tools::db_editor;
+using namespace concord::kvbc::keyTypes;
 
 const auto kTestName = kToolName + "_test";
 const auto kCategoryMerkle = "merkle"s;
@@ -409,9 +412,11 @@ TEST_F(DbEditorTests, get_block_info) {
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getBlockInfo", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("  \"parentBlockDigest\": \"0x"));
+  // Add 1 to total keys and categories, because of the genesis block key that is always present in the Concord
+  // internal category in all blocks.
   ASSERT_THAT(out_.str(),
-              HasSubstr("  \"keyValueTotalCount\": \"" + std::to_string(num_keys_ * num_categories_) + '\"'));
-  ASSERT_THAT(out_.str(), HasSubstr("  \"categoriesCount\": \"" + std::to_string(num_categories_) + '\"'));
+              HasSubstr("  \"keyValueTotalCount\": \"" + std::to_string(num_keys_ * num_categories_ + 1) + '\"'));
+  ASSERT_THAT(out_.str(), HasSubstr("  \"categoriesCount\": \"" + std::to_string(num_categories_ + 1) + '\"'));
   ASSERT_THAT(
       out_.str(),
       HasSubstr("    \"" + kCategoryMerkle + "\": {\n      \"keyValueCount\": \"" + std::to_string(num_keys_) + '\"'));
@@ -428,9 +433,11 @@ TEST_F(DbEditorTests, get_block_info_with_immutable) {
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getBlockInfo", "1"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("  \"parentBlockDigest\": \"0x"));
+  // Add 1 more (i.e. a total of 2) to total keys and categories, because of the genesis block key that is always
+  // present in the Concord internal category in all blocks.
   ASSERT_THAT(out_.str(),
-              HasSubstr("  \"keyValueTotalCount\": \"" + std::to_string(num_keys_ * num_categories_ + 1) + '\"'));
-  ASSERT_THAT(out_.str(), HasSubstr("  \"categoriesCount\": \"" + std::to_string(num_categories_ + 1) + '\"'));
+              HasSubstr("  \"keyValueTotalCount\": \"" + std::to_string(num_keys_ * num_categories_ + 2) + '\"'));
+  ASSERT_THAT(out_.str(), HasSubstr("  \"categoriesCount\": \"" + std::to_string(num_categories_ + 2) + '\"'));
   ASSERT_THAT(
       out_.str(),
       HasSubstr("    \"" + kCategoryMerkle + "\": {\n      \"keyValueCount\": \"" + std::to_string(num_keys_) + '\"'));
@@ -452,7 +459,7 @@ TEST_F(DbEditorTests, get_block_key_values) {
       EXIT_SUCCESS,
       run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getBlockKeyValues", "5"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_THAT(out_.str(), StartsWith("{\n\"" + kCategoryMerkle + "\": {\n  \"0x"));
+  ASSERT_THAT(out_.str(), HasSubstr("\n\"" + kCategoryMerkle + "\": {\n  \"0x"));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x0000003c\": \"0x00000078\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x00000028\": \"0x00000050\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"0x00000032\": \"0x00000064\""));
@@ -549,7 +556,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
-  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"26\""));
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 
   ASSERT_EQ(EXIT_SUCCESS,
@@ -559,7 +566,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
-  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"26\""));
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 
   ASSERT_EQ(
@@ -568,7 +575,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"16\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
-  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"16\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"26\""));
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 
   ASSERT_EQ(
@@ -577,7 +584,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"2\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"1\""));
-  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"2\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"3\""));
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 
   ASSERT_EQ(EXIT_SUCCESS,
@@ -587,7 +594,7 @@ TEST_F(DbEditorTests, get_summary_stale_keys) {
   ASSERT_TRUE(err_.str().empty());
   ASSERT_THAT(out_.str(), HasSubstr("\"block_merkle\": \"4\""));
   ASSERT_THAT(out_.str(), HasSubstr("\"immutable\": \"0\""));
-  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"4\""));
+  ASSERT_THAT(out_.str(), HasSubstr("\"versioned_kv\": \"6\""));
   ASSERT_THAT(out_.str(), EndsWith("\n}\n"));
 }
 
@@ -599,7 +606,11 @@ TEST_F(DbEditorTests, get_empty_block_key_values) {
                 out_,
                 err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n\"" + kCategoryMerkle + "\": {\n},\n\"" + kCategoryVersioned + "\": {\n}\n}\n", out_.str());
+  const auto genesis_hex_key = concordUtils::bufferToHex(genesis_block_key.data(), genesis_block_key.size());
+  ASSERT_EQ("{\n\"" + std::string{concord::kvbc::categorization::kConcordInternalCategoryId} + "\": {\n  \"" +
+                genesis_hex_key + "\": \"0x0000000000000001\"\n},\n\"" + kCategoryMerkle + "\": {\n},\n\"" +
+                kCategoryVersioned + "\": {\n}\n}\n",
+            out_.str());
 }
 
 TEST_F(DbEditorTests, get_block_key_values_missing_block_id) {
@@ -760,7 +771,8 @@ TEST_F(DbEditorTests, get_categories_by_block_with_immutable) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories", "1"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"" + kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle +
+  ASSERT_EQ("{\n  \"" + std::string{concord::kvbc::categorization::kConcordInternalCategoryId} +
+                "\": \"versioned_kv\",\n  \"" + kCategoryImmutable + "\": \"immutable\",\n  \"" + kCategoryMerkle +
                 "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
             out_.str());
 }
@@ -769,9 +781,10 @@ TEST_F(DbEditorTests, get_categories_by_block_no_immutable) {
   ASSERT_EQ(EXIT_SUCCESS,
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getCategories", "3"}}, out_, err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ(
-      "{\n  \"" + kCategoryMerkle + "\": \"block_merkle\",\n  \"" + kCategoryVersioned + "\": \"versioned_kv\"\n}\n",
-      out_.str());
+  ASSERT_EQ("{\n  \"" + std::string{concord::kvbc::categorization::kConcordInternalCategoryId} +
+                "\": \"versioned_kv\",\n  \"" + kCategoryMerkle + "\": \"block_merkle\",\n  \"" + kCategoryVersioned +
+                "\": \"versioned_kv\"\n}\n",
+            out_.str());
 }
 
 TEST_F(DbEditorTests, remove_metadata) {
