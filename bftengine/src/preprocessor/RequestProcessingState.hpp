@@ -43,7 +43,7 @@ class RequestProcessingState {
   ~RequestProcessingState() = default;
 
   // None of RequestProcessingState functions is thread-safe. They are guarded by RequestState::mutex from PreProcessor.
-  void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen);
+  void handlePrimaryPreProcessed(const char* preProcessResult, uint32_t preProcessResultLen, uint64_t blockId);
   void handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr& preProcessReplyMsg);
   std::unique_ptr<MessageBase> buildClientRequestMsg(bool emptyReq = false);
   void setPreProcessRequest(PreProcessRequestMsgSharedPtr preProcessReqMsg);

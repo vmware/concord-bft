@@ -78,7 +78,6 @@ class RequestsBatch {
   void handlePossiblyExpiredRequests();
   void sendCancelBatchedPreProcessingMsgToNonPrimaries(const ClientMsgsList &clientMsgs, NodeIdType destId);
   void updateRegisteredBatchIfNeeded(const std::string &batchCid, const PreProcessReqMsgsList &preProcessReqs);
-  uint64_t getBlockId() const { return cidToBlockid_.second; }
 
  private:
   void setBatchParameters(const std::string &cid, uint32_t batchSize);
@@ -88,7 +87,6 @@ class RequestsBatch {
   PreProcessor &preProcessor_;
   const uint16_t clientId_;
   std::string cid_;
-  std::pair<std::string, uint64_t> cidToBlockid_;
   std::atomic_uint32_t batchSize_ = 0;
   std::atomic_bool batchRegistered_ = false;
   std::atomic_bool batchInProcess_ = false;
@@ -225,21 +223,25 @@ class PreProcessor {
                                          ReqId reqSeqNum,
                                          uint64_t reqRetryId,
                                          uint32_t resBufLen,
-                                         const std::string &cid);
+                                         const std::string &cid,
+                                         uint64_t blockId);
   void handleReqPreProcessedByPrimary(const PreProcessRequestMsgSharedPtr &preProcessReqMsg,
                                       const std::string &batchCid,
                                       uint16_t clientId,
-                                      uint32_t resultBufLen);
+                                      uint32_t resultBufLen,
+                                      uint64_t blockId);
   void handlePreProcessedReqPrimaryRetry(NodeIdType clientId,
                                          uint16_t reqOffsetInBatch,
                                          uint32_t resultBufLen,
-                                         const std::string &batchCid);
+                                         const std::string &batchCid,
+                                         uint64_t blockId);
   void finalizePreProcessing(NodeIdType clientId, uint16_t reqOffsetInBatch, const std::string &batchCid = "");
   void cancelPreProcessing(NodeIdType clientId, const std::string &batchCid, uint16_t reqOffsetInBatch);
   void setPreprocessingRightNow(uint16_t clientId, uint16_t reqOffsetInBatch, bool set);
   PreProcessingResult handlePreProcessedReqByPrimaryAndGetConsensusResult(uint16_t clientId,
                                                                           uint16_t reqOffsetInBatch,
-                                                                          uint32_t resultBufLen);
+                                                                          uint32_t resultBufLen,
+                                                                          uint64_t blockId);
   void handlePreProcessReplyMsg(const std::string &cid,
                                 PreProcessingResult result,
                                 NodeIdType clientId,

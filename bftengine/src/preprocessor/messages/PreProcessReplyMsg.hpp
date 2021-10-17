@@ -30,7 +30,8 @@ class PreProcessReplyMsg : public MessageBase {
                      const char* preProcessResultBuf,
                      uint32_t preProcessResultBufLen,
                      const std::string& cid,
-                     ReplyStatus status);
+                     ReplyStatus status,
+                     uint64_t blockId);
 
   PreProcessReplyMsg(NodeIdType senderId,
                      uint16_t clientId,
@@ -40,7 +41,9 @@ class PreProcessReplyMsg : public MessageBase {
                      const uint8_t* resultsHash,
                      const char* signature,
                      const std::string& cid,
-                     ReplyStatus status);
+                     ReplyStatus status,
+                     uint64_t blockId,
+                     const char* blockSignature);
 
   BFTENGINE_GEN_CONSTRUCT_FROM_BASE_MESSAGE(PreProcessReplyMsg)
 
@@ -52,8 +55,11 @@ class PreProcessReplyMsg : public MessageBase {
   const uint32_t replyLength() const { return msgBody()->replyLength; }
   const uint8_t* resultsHash() const { return msgBody()->resultsHash; }
   const uint8_t status() const { return msgBody()->status; }
+  uint64_t blockId() const { return msgBody()->blockId; }
   std::vector<char> getResultHashSignature() const;
+  std::vector<char> getBlockIdSignature() const;
   std::string getCid() const;
+
   static void setPreProcessorHistograms(preprocessor::PreProcessorRecorder* histograms) {
     preProcessorHistograms_ = histograms;
   }
@@ -71,6 +77,7 @@ class PreProcessReplyMsg : public MessageBase {
     uint32_t replyLength;
     uint32_t cidLength;
     uint64_t reqRetryId;
+    uint64_t blockId;
   };
 // The pre-executed results' hash signature resides in the message body
 #pragma pack(pop)
@@ -89,14 +96,19 @@ class PreProcessReplyMsg : public MessageBase {
                  uint16_t reqOffsetInBatch,
                  ReqId reqSeqNum,
                  uint64_t reqRetryId,
-                 ReplyStatus status);
+                 ReplyStatus status,
+                 uint64_t blockId);
   void setupMsgBody(const char* preProcessResultBuf,
                     uint32_t preProcessResultBufLen,
                     const std::string& cid,
                     ReplyStatus status);
-  void setupMsgBody(const uint8_t* resultsHash, const char* signature, const std::string& cid);
+  void setupMsgBody(const uint8_t* resultsHash,
+                    const char* signature,
+                    const std::string& cid,
+                    const char* blockSignature);
   void setLeftMsgParams(const std::string& cid, uint16_t sigSize);
   Header* msgBody() const { return ((Header*)msgBody_); }
+  std::vector<char> getSignature(uint64_t offset) const;
 
  private:
   static uint16_t maxReplyMsgSize_;
