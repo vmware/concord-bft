@@ -61,7 +61,7 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
   }
 
-  // TODO: Consider all gRPC return error codes as described in concord_client.proto
+  // TODO: Consider all gRPC return error codes as described in event.proto
   while (!context->IsCancelled()) {
     SubscribeResponse response;
     auto update = update_queue->tryPop();

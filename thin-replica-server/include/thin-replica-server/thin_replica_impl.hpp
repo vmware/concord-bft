@@ -415,8 +415,7 @@ class ThinReplicaImpl {
         const auto& filtered_eg_update = kvb_filter->filterEventGroupUpdate(eg_update);
         if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Data>()) {
           //  auto correlation_id = filtered_update.correlation_id; (TODO (Shruti) - Get correlation ID)
-          // TODO (Shruti) : Get and propagate span context
-          sendEventGroupData(stream, filtered_eg_update);
+          sendEventGroupData(stream, filtered_eg_update, sub_eg_update.parent_span);
         } else if constexpr (std::is_same<DataT, com::vmware::concord::thin_replica::Hash>()) {
           sendEventGroupHash(
               stream, sub_eg_update.event_group_id, kvb_filter->hashEventGroupUpdate(filtered_eg_update));
@@ -882,7 +881,9 @@ class ThinReplicaImpl {
     google::protobuf::Timestamp* timestamp = new google::protobuf::Timestamp();
     TimeUtil::FromString(eg_update.event_group.record_time, timestamp);
     data.mutable_event_group()->set_allocated_record_time(timestamp);
-    // TODO (Shruti) Add trace context
+    if (span) {
+      data.mutable_event_group()->set_trace_context(*span);
+    }
     if (!stream->Write(data)) {
       throw StreamClosed("Data event group stream closed");
     }

@@ -202,9 +202,8 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
   SpanPtr span;
   if (update_in.has_event_group()) {
     id = update_in.event_group().id();
-    // TODO: Event Group traces
-    span.reset();
-    cid.reset(new LogCid(to_string(id)));
+    span = TraceContexts::CreateChildSpanFromBinary(update_in.event_group().trace_context(), "trc_read_event_group");
+    cid.reset(new LogCid({}));  // Event groups don't include a correlation id
     ConcordAssert(latest_verified_event_group_id_ <
                   std::numeric_limits<decltype(latest_verified_event_group_id_)>::max());
     id = update_in.event_group().id();
@@ -217,7 +216,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
   } else {
     ConcordAssert(update_in.has_events());
     span = TraceContexts::CreateChildSpanFromBinary(
-        update_in.events().span_context(), "trc_read_block", update_in.events().correlation_id(), logger_);
+        update_in.events().span_context(), "trc_read_block", update_in.events().correlation_id());
     cid.reset(new LogCid(update_in.events().correlation_id()));
     id = update_in.events().block_id();
     if (id < latest_verified_block_id_) {
@@ -574,7 +573,6 @@ void ThinReplicaClient::receiveUpdates() {
         event_group.events.push_back(event);
       }
       event_group.record_time = update_in.event_group().record_time();
-      // TODO: Set trace context
       latest_verified_event_group_id_ = event_group.id;
       update->emplace<EventGroup>(std::move(event_group));
       // If we started with a legacy request then the transition has happened now
@@ -589,8 +587,8 @@ void ThinReplicaClient::receiveUpdates() {
       }
       latest_verified_block_id_ = legacy_event.block_id;
       update->emplace<Update>(std::move(legacy_event));
-      TraceContexts::InjectSpan(span, *update);
     }
+    TraceContexts::InjectSpan(span, *update);
 
     if (metrics_.read_timeouts_per_update.Get().Get() > 0 || metrics_.read_failures_per_update.Get().Get() > 0 ||
         metrics_.read_ignored_per_update.Get().Get() > 0) {
