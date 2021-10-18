@@ -206,6 +206,12 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
                                         err_msg="Make sure we are in the initial view before crashing the primary.")
 
         last_block = await tracker.get_last_block_id(client)
+        expected_last_block =  len(clients) * BATCH_SIZE
+        with trio.move_on_after(seconds=10):
+            while last_block < expected_last_block:
+                last_block = await tracker.get_last_block_id(client)
+                await trio.sleep(seconds=1)
+        self.assertEqual(last_block, expected_last_block)
         bft_network.stop_replica(initial_primary)
 
         try:
