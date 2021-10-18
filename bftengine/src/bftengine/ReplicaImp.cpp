@@ -1298,7 +1298,8 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
       metric_total_committed_sn_++;
       pm_->Delay<concord::performance::SlowdownPhase::ConsensusFullCommitMsgProcess>();
-      executeNextCommittedRequests(execution_span, msgSeqNum, askForMissingInfoAboutCommittedItems);
+      consensus_times_.end(msgSeqNum);
+      executeNextCommittedRequests(execution_span, askForMissingInfoAboutCommittedItems);
       return;
     } else if (pps.hasFullProof()) {
       const auto fullProofCollectorId = pps.getFullProof()->senderId();
@@ -1889,7 +1890,8 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   metric_total_committed_sn_++;
-  executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
+  consensus_times_.end(seqNumber);
+  executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
 }
 
 void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view, bool isValid) {
@@ -1938,7 +1940,8 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
   bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
   metric_total_committed_sn_++;
-  executeNextCommittedRequests(span, seqNumber, askForMissingInfoAboutCommittedItems);
+  consensus_times_.end(seqNumber);
+  executeNextCommittedRequests(span, askForMissingInfoAboutCommittedItems);
 }
 
 template <>
@@ -4471,15 +4474,10 @@ void ReplicaImp::tryToRemovePendingRequestsForSeqNum(SeqNum seqNum) {
   }
 }
 
-void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span,
-                                              SeqNum seqNumber,
-                                              const bool requestMissingInfo) {
+void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_span, const bool requestMissingInfo) {
   if (!isCollectingState()) ConcordAssert(currentViewIsActive());
   ConcordAssertGE(lastExecutedSeqNum, lastStableSeqNum);
   auto span = concordUtils::startChildSpan("bft_execute_next_committed_requests", parent_span);
-  consensus_times_.end(seqNumber);
-  // First of all, we remove the pending request before the execution, to prevent long execution from affecting VC
-  tryToRemovePendingRequestsForSeqNum(seqNumber);
 
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
@@ -4520,7 +4518,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     }
   }
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
-  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > seqNumber && isCurrentPrimary()) {
+  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
     // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
     // messages queue.
     LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
@@ -4544,7 +4542,7 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
                                     strMsg.size(),
                                     strMsg.c_str(),
                                     60000,
-                                    "wedge-noop-command-" + std::to_string(seqNumber));
+                                    "wedge-noop-command-" + std::to_string(lastExecutedSeqNum));
     // Now, try to send a new prepreare immediately, without waiting to a new batch
     onMessage(crm);
     tryToSendPrePrepareMsg(false);
