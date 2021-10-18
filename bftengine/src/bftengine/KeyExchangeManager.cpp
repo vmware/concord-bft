@@ -74,7 +74,7 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
-
+  if (publicKeys_.keyExists(kemsg.repID)) return "ok";
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
@@ -157,7 +157,9 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn, bool reuseLatestKey) {
-  // first check whether we've already generated keys lately
+  // In some cases we would want to reuse the already generated key pair. For example, if on initial key exchange we
+  // want to have another round due to inavailability of the primary. We wouldn't want to generate new keys in this
+  // case, because we don't know for sure that this primary is indeed not functional.
   KeyExchangeMsg msg;
   if (reuseLatestKey || (private_keys_.lastGeneratedSeqnum() &&  // if not initial
                          (sn - private_keys_.lastGeneratedSeqnum() / checkpointWindowSize < 2))) {
@@ -167,6 +169,9 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn, bool reuseLatestKey) 
     msg.repID = repID_;
     std::stringstream ss;
     concord::serialize::Serializable::serialize(ss, msg);
+    if (private_keys_.hasGeneratedKeys())
+      return;  // If at this point, we figure out that the keys were already generated, we don't need to resend the key
+               // again.
     auto strMsg = ss.str();
     client_->sendRequest(
         bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), private_keys_.key_data().generated.cid);
