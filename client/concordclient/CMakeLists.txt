@@ -6,6 +6,7 @@ target_link_libraries(concordclient PUBLIC
   concord_client_pool
   concordclient-event-api
   util
+  secret_retriever
 )
 
 find_package(Protobuf REQUIRED)
