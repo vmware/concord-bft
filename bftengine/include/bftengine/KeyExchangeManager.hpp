@@ -30,9 +30,9 @@ class KeyExchangeManager {
  public:
   void exchangeTlsKeys(const SeqNum&);
   // Generates and publish key to consensus
-  void sendKeyExchange(const SeqNum&);
+  void sendKeyExchange(const SeqNum&, bool reuseLatestKey = false);
   // Generates and publish the first replica's key,
-  void sendInitialKey(bool waitForInitialPrimary);
+  void sendInitialKey();
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
@@ -183,7 +183,7 @@ class KeyExchangeManager {
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.
    */
-  void waitForLiveQuorum(bool waitForInitialPrimary);
+  void waitForLiveQuorum();
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
   // deleted
@@ -206,6 +206,7 @@ class KeyExchangeManager {
   std::vector<IKeyExchanger*> registryToExchange_;
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
   IClientPublicKeyStore* clientPublicKeyStore_{nullptr};
+  std::mutex initialKeyExchangeLock_;
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;

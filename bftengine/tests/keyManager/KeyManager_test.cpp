@@ -350,7 +350,7 @@ TEST(KeyExchangeManager, initialKeyExchange) {
   id.sec = std::shared_ptr<ISecureStore>(new DummyLoaderSaver());
   TestKeyManager test{&id};
   // get the pub and prv keys from the key handlr and set them to be rotated.
-  test.km_.sendInitialKey(true);
+  test.km_.sendInitialKey();
   test.km_.futureRet.get();
   // set public of replica 0
   KeyExchangeMsg kem;
@@ -408,7 +408,7 @@ TEST(KeyExchangeManager, endToEnd) {
   TestKeyManager test{&id};
 
   // set published private key of replica 2
-  test.km_.sendInitialKey(true);
+  test.km_.sendInitialKey();
   test.km_.futureRet.get();
 
   // set public of replica 0

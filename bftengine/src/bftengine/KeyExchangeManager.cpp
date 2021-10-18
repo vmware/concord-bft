@@ -156,14 +156,23 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   metrics_->tls_key_exchange_requests_++;
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
-void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
+void KeyExchangeManager::sendKeyExchange(const SeqNum& sn, bool reuseLatestKey) {
   // first check whether we've already generated keys lately
-  if (private_keys_.lastGeneratedSeqnum() &&  // if not init  ial
-      (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
-    LOG_INFO(KEY_EX_LOG, "ignore request - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
+  KeyExchangeMsg msg;
+  if (reuseLatestKey || (private_keys_.lastGeneratedSeqnum() &&  // if not initial
+                         (sn - private_keys_.lastGeneratedSeqnum() / checkpointWindowSize < 2))) {
+    LOG_INFO(KEY_EX_LOG,
+             "try to send again - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
+    msg.pubkey = private_keys_.key_data().generated.pub;
+    msg.repID = repID_;
+    std::stringstream ss;
+    concord::serialize::Serializable::serialize(ss, msg);
+    auto strMsg = ss.str();
+    client_->sendRequest(
+        bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), private_keys_.key_data().generated.cid);
+    metrics_->sent_key_exchange_counter++;
     return;
   }
-  KeyExchangeMsg msg;
   auto cid = generateCid(kInitialKeyExchangeCid);
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
   private_keys_.key_data().generated.priv = prv;
@@ -230,27 +239,35 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey(bool waitForInitialPrimary) {
-  LOG_INFO(KEY_EX_LOG, "");
-  if (private_keys_.hasGeneratedKeys()) {
-    LOG_INFO(KEY_EX_LOG, "Replica has already generated keys");
+void KeyExchangeManager::sendInitialKey() {
+  auto initKeyExchangeMethod = [this](bool waitForComm) {
+    std::unique_lock<std::mutex> lock(this->initialKeyExchangeLock_);
+    if (!private_keys_.key_data().generated.cid.empty()) {  // It means we already tried to send this key
+      sendKeyExchange(0, true);
+      metrics_->sent_key_exchange_on_start_status.Get().Set("True");
+      return;
+    }
+    SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
+    if (waitForComm) {
+      if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
+        waitForLiveQuorum();
+      } else {
+        waitForFullCommunication();
+      }
+    }
+    sendKeyExchange(0);
+    metrics_->sent_key_exchange_on_start_status.Get().Set("True");
+  };
+  if (client_->numOfConnectedReplicas(clusterSize_) >= quorumSize_) {
+    initKeyExchangeMethod(false);
     return;
   }
   // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
   // In order not to block it's done as async operation.
-  auto ret = std::async(std::launch::async, [this, waitForInitialPrimary]() {
-    SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
-    if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-      waitForLiveQuorum(waitForInitialPrimary);
-    } else {
-      waitForFullCommunication();
-    }
-    sendKeyExchange(0);
-    metrics_->sent_key_exchange_on_start_status.Get().Set("True");
-  });
+  auto ret = std::async(std::launch::async, initKeyExchangeMethod, true);
 }
 
-void KeyExchangeManager::waitForLiveQuorum(bool waitForInitialPrimary) {
+void KeyExchangeManager::waitForLiveQuorum() {
   // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
   if (client_->isUdp()) {
     LOG_INFO(KEY_EX_LOG, "UDP communication");
@@ -261,7 +278,7 @@ void KeyExchangeManager::waitForLiveQuorum(bool waitForInitialPrimary) {
    * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
    * we wait for the first primary for a pre-defined amount of time.
    */
-  if (repID_ != 0 && waitForInitialPrimary) {
+  if (repID_ != 0) {
     auto start = getMonotonicTime();
     auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
     LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary to be ready");

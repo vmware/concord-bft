@@ -126,10 +126,10 @@ class SkvbcTest(unittest.TestCase):
             await skvbc.send_write_kv_set()
 
         with trio.fail_after(60):
-            seqNum = await bft_network.get_metric(0, bft_network, "Gauges", "lastStableSeqNum")
+            seqNum = await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
             while seqNum < 100:
                 await trio.sleep(1)
-                seqNum =  await bft_network.get_metric(0, bft_network, "Gauges", "lastStableSeqNum")
+                seqNum =  await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)
