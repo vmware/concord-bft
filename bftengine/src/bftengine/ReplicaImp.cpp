@@ -4434,19 +4434,21 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
 void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &accumulatedRequests) {
   TimeRecorder scoped_timer(*histograms_.prepareAndSendResponses);
   for (auto &req : accumulatedRequests) {
-    ConcordAssertGT(req.outActualReplySize, 0);
     auto status = req.outExecutionStatus;
     if (status != 0) {
       const auto requestSeqNum = req.requestSequenceNum;
       LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
-      auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
-          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
-      replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
-      free(req.outReply);
-      send(replyMsg.get(), req.clientId);
+      if (req.outActualReplySize != 0) {
+        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
+            req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
+        replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+        send(replyMsg.get(), req.clientId);
+      }
     }
+    free(req.outReply);
+    req.outReply = nullptr;
     clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
   }
 }
