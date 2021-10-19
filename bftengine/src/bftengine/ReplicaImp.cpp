@@ -496,7 +496,10 @@ void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg 
     LOG_INFO(VC_LOG,
              "Received ReplicaAsksToLeaveViewMsg " << KVLOG(m->viewNumber(), m->senderId(), m->idOfGeneratedReplica()));
     viewsManager->storeComplaint(std::unique_ptr<ReplicaAsksToLeaveViewMsg>(m));
-    tryToGotoNextView();
+    if (activeExecutions_ > 0)
+      isTryToGoNextView_ = true;
+    else
+      tryToGotoNextView();
   } else {
     LOG_WARN(VC_LOG,
              "Ignoring ReplicaAsksToLeaveViewMsg " << KVLOG(
@@ -2686,7 +2689,10 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
   viewsManager->processComplaintsFromViewChangeMessage(msg, getMessageValidator());
 
   if (viewsManager->hasQuorumToLeaveView()) {
-    GotoNextView();
+    if (activeExecutions_ > 0)
+      isGoToNextView_ = true;
+    else
+      GotoNextView();
   } else if (viewsManager->tryToJumpToHigherViewAndMoveComplaintsOnQuorum(msg)) {
     MoveToHigherView(msg->newView());
   }
@@ -3494,7 +3500,10 @@ void ReplicaImp::askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason reasonToLeave)
   viewsManager->storeComplaint(std::move(askToLeaveView));
   metric_sent_replica_asks_to_leave_view_msg_++;
 
-  tryToGotoNextView();
+  if (activeExecutions_ > 0)
+    isTryToGoNextView_ = true;
+  else
+    tryToGotoNextView();
 }
 
 void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/update logic
@@ -3521,8 +3530,10 @@ void ReplicaImp::onViewsChangeTimer(Timers::Handle timer)  // TODO(GG): review/u
       LOG_INFO(VC_LOG,
                "Initiate automatic view change in view=" << getCurrentView() << " (" << diffMilli
                                                          << " milli seconds after start working in the previous view)");
-
-      GotoNextView();
+      if (activeExecutions_ > 0)
+        isGoToNextView_ = true;
+      else
+        GotoNextView();
       return;
     }
   }

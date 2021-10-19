@@ -165,6 +165,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   //
   uint16_t activeExecutions_ = 0;
   std::queue<ClientRequestMsg*> deferredRORequests_;
+  bool isTryToGoNextView_ = false;
+  bool isGoToNextView_ = false;
 
   // timers
   concordUtil::Timers::Handle retranTimer_;
