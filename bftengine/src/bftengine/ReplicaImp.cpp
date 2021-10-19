@@ -3056,9 +3056,16 @@ void ReplicaImp::sendCheckpointIfNeeded() {
     sendToAllOtherReplicas(checkpointMessage, true);
     return;
   }
+  if (activeExecutions_ > 0)
+    isSendCheckpointIfNeeded_ = true;
+  else
+    tryToMarkStableForFastPath(lastCheckpointNumber, checkInfo, checkpointMessage);
+}
 
+void ReplicaImp::tryToMarkStableForFastPath(const SeqNum &lastCheckpointNumber,
+                                            CheckpointInfo &checkInfo,
+                                            CheckpointMsg *checkpointMessage) {
   const SeqNum refSeqNumberForCheckpoint = lastCheckpointNumber + MaxConcurrentFastPaths;
-
   if (lastExecutedSeqNum < refSeqNumberForCheckpoint) return;
 
   if (mainLog->insideActiveWindow(lastExecutedSeqNum))  // TODO(GG): condition is needed ?

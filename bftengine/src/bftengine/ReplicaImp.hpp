@@ -167,7 +167,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::queue<ClientRequestMsg*> deferredRORequests_;
   bool isTryToGoNextView_ = false;
   bool isGoToNextView_ = false;
-
+  bool isSendCheckpointIfNeeded_ = false;
   // timers
   concordUtil::Timers::Handle retranTimer_;
   concordUtil::Timers::Handle slowPathTimer_;
@@ -457,6 +457,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   void sendCheckpointIfNeeded();
+  void tryToMarkStableForFastPath(const SeqNum& lastCheckpointNumber,
+                                  CheckpointInfo& checkInfo,
+                                  CheckpointMsg* checkpointMessage);
 
   void tryToGotoNextView();
 
