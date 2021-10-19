@@ -552,7 +552,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
                       selected_configs=lambda n, f, c: n == 7)
-    async def test_replicas_tks_key_exchange_with_ror(self, bft_network):
+    async def test_replicas_tls_key_exchange_with_ror(self, bft_network):
         """
         """
         bft_network.start_all_replicas()

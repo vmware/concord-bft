@@ -77,9 +77,9 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
   bool validate(const State& state) const override {
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
-    if (crep.epoch < bftEngine::EpochManager::instance().getSelfEpochNumber()) return false;
     return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
   }
+
   bool execute(const State& state, WriteState& out) override {
     bool succ = true;
     concord::messages::ClientStateReply crep;
@@ -92,7 +92,7 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
     auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
     if (current_rep_cert == command.cert) return succ;
     LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
-    std::string cert = command.cert;
+    std::string cert = std::move(command.cert);
     sm_.encryptFile(bft_replicas_cert_path, cert);
     LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
     StateControl::instance().restartComm(sender_id);
