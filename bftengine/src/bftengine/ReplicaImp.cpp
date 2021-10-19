@@ -402,8 +402,13 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   }
 
   if (readOnly) {
-    executeReadOnlyRequest(span, m);
-    delete m;
+    if (activeExecutions_ > 0)
+      deferredRORequests_.push(
+          m);  // We should handle span and deleting the message when we handle the deferred message
+    else {
+      executeReadOnlyRequest(span, m);
+      delete m;
+    }
     return;
   }
 
