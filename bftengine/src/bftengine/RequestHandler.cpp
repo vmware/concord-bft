@@ -85,6 +85,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         }
       }
       req.outExecutionStatus = 0;  // stop further processing of this request
+      // Don't continue to process requests after pruning (in case we run in async pruning mode)
+      if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
     } else if (req.flags & TICK_FLAG) {
       // Make sure the reply always contains one dummy 0 byte. Needed as empty replies are not supported at that stage.
       // Also, set replica specific information size to 0.
