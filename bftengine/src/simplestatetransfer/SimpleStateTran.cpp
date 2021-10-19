@@ -98,6 +98,7 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
     return nullptr;
   }
+  virtual void handoffConsensusMessage(shared_ptr<ConsensusMsg>& msg) override{};
 
  protected:
   //////////////////////////////////////////////////////////////////////////
@@ -318,6 +319,7 @@ SimpleStateTran::SimpleStateTran(
       2048,                                 // maxNumOfReservedPages
       4096,                                 // sizeOfReservedPage
       600,                                  // gettingMissingBlocksSummaryWindowSize
+      10,                                   // minPrePrepareMsgsForPrimaryAwarness
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs

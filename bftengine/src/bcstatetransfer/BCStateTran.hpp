@@ -40,7 +40,9 @@
 #include "diagnostics.h"
 #include "performance_handler.h"
 #include "Timers.hpp"
+#include "TimeUtils.hpp"
 #include "SimpleMemoryPool.hpp"
+#include "messages/MessageBase.hpp"
 
 using std::set;
 using std::map;
@@ -113,7 +115,7 @@ class BCStateTran : public IStateTransfer {
 
   void onTimer() override { timerHandler_(); };
 
-  using LocalTimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+  using LocalTimePoint = time_point<steady_clock>;
   static constexpr auto UNDEFINED_LOCAL_TIME_POINT = LocalTimePoint::max();
   void handleStateTransferMessage(char* msg, uint32_t msgLen, uint16_t senderId) override {
     messageHandler_(msg, msgLen, senderId, UNDEFINED_LOCAL_TIME_POINT);
@@ -135,6 +137,9 @@ class BCStateTran : public IStateTransfer {
     return cre_;
   }
 
+  void handoffConsensusMessage(shared_ptr<ConsensusMsg>& msg) override;
+  void peekConsensusMessage(shared_ptr<ConsensusMsg>& msg);
+
  protected:
   // handling messages from other context
   std::function<void(char*, uint32_t, uint16_t, LocalTimePoint)> messageHandler_;
@@ -143,8 +148,8 @@ class BCStateTran : public IStateTransfer {
                                      uint16_t senderId,
                                      LocalTimePoint msgArrivalTime = UNDEFINED_LOCAL_TIME_POINT);
   void handoffMsg(char* msg, uint32_t msgLen, uint16_t senderId) {
-    handoff_->push(std::bind(
-        &BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, std::chrono::steady_clock::now()));
+    handoff_->push(
+        std::bind(&BCStateTran::handleStateTransferMessageImp, this, msg, msgLen, senderId, steady_clock::now()));
   }
 
   // handling timer from other context
@@ -221,11 +226,6 @@ class BCStateTran : public IStateTransfer {
   bool isFetching() const;
 
   inline std::string getSequenceNumber(uint16_t replicaId, uint64_t seqNum, uint16_t = 0, uint64_t = 0);
-
-  ///////////////////////////////////////////////////////////////////////////
-  // Time
-  ///////////////////////////////////////////////////////////////////////////
-  static uint64_t getMonotonicTimeMilli();
 
   ///////////////////////////////////////////////////////////////////////////
   // Send messages

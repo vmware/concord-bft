@@ -155,6 +155,7 @@ struct Config {
   uint32_t maxNumOfReservedPages = 0;
   uint32_t sizeOfReservedPage = 0;  // bytes
   uint32_t gettingMissingBlocksSummaryWindowSize = 600;
+  uint16_t minPrePrepareMsgsForPrimaryAwarness = 10;
 
   // timeouts
   uint32_t refreshTimerMs = 0;
@@ -196,7 +197,8 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.runInSeparateThread,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch,
-              c.gettingMissingBlocksSummaryWindowSize);
+              c.gettingMissingBlocksSummaryWindowSize,
+              c.minPrePrepareMsgsForPrimaryAwarness);
   return os;
 }
 // creates an instance of the state transfer module.
