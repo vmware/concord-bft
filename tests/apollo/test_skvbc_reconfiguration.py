@@ -723,8 +723,8 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             log.log_message(message_type=f"{e}: Replica {target_replica} was unable to query KeyExchangeMetrics")
                             raise KeyExchangeError
                         else:
-                            assert sent_key_exchange_counter == sent_key_exchange_counter_before + 1
-                            assert self_key_exchange_counter == self_key_exchange_counter_before + 1
+                            assert sent_key_exchange_counter >= sent_key_exchange_counter_before + 1
+                            assert self_key_exchange_counter >= self_key_exchange_counter_before + 1
                             #assert public_key_exchange_for_peer_counter ==  public_key_exchange_for_peer_counter_before + 1
                             break
 
