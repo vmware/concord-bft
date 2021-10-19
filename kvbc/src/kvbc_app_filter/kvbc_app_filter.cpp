@@ -141,7 +141,6 @@ KvbFilteredEventGroupUpdate::EventGroup KvbAppFilter::filterEventsInEventGroup(
     filtered_event_group.events.emplace_back(std::move(event));
     delete val;
   }
-  ConcordAssert(!filtered_event_group.events.empty());
   return filtered_event_group;
 }
 
