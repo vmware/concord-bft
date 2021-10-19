@@ -4426,7 +4426,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
         timestamp->time_since_epoch =
             concord::util::deserialize<ConsensusTime>(req.requestBuf(), req.requestBuf() + req.requestLength());
-        timestamp->time_since_epoch = time_service_manager_->compareAndSwap(timestamp->time_since_epoch);
+        timestamp->time_since_epoch = time_service_manager_->compareAndUpdate(timestamp->time_since_epoch);
         LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << timestamp->time_since_epoch.count() << "ms");
         continue;
       }
