@@ -156,28 +156,13 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   metrics_->tls_key_exchange_requests_++;
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
-void KeyExchangeManager::sendKeyExchange(const SeqNum& sn, bool reuseLatestKey) {
-  // In some cases we would want to reuse the already generated key pair. For example, if on initial key exchange we
-  // want to have another round due to inavailability of the primary. We wouldn't want to generate new keys in this
-  // case, because we don't know for sure that this primary is indeed not functional.
-  KeyExchangeMsg msg;
-  if (reuseLatestKey || (private_keys_.lastGeneratedSeqnum() &&  // if not initial
-                         (sn - private_keys_.lastGeneratedSeqnum() / checkpointWindowSize < 2))) {
-    LOG_INFO(KEY_EX_LOG,
-             "try to send again - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
-    msg.pubkey = private_keys_.key_data().generated.pub;
-    msg.repID = repID_;
-    std::stringstream ss;
-    concord::serialize::Serializable::serialize(ss, msg);
-    if (private_keys_.hasGeneratedKeys())
-      return;  // If at this point, we figure out that the keys were already generated, we don't need to resend the key
-               // again.
-    auto strMsg = ss.str();
-    client_->sendRequest(
-        bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), private_keys_.key_data().generated.cid);
-    metrics_->sent_key_exchange_counter++;
+void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
+  if (private_keys_.lastGeneratedSeqnum() &&  // if not init  ial
+      (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
+    LOG_INFO(KEY_EX_LOG, "ignore request - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
     return;
   }
+  KeyExchangeMsg msg;
   auto cid = generateCid(kInitialKeyExchangeCid);
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
   private_keys_.key_data().generated.priv = prv;
@@ -245,31 +230,19 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
 }
 
 void KeyExchangeManager::sendInitialKey() {
-  auto initKeyExchangeMethod = [this](bool waitForComm) {
-    std::unique_lock<std::mutex> lock(this->initialKeyExchangeLock_);
-    if (!private_keys_.key_data().generated.cid.empty()) {  // It means we already tried to send this key
-      sendKeyExchange(0, true);
-      metrics_->sent_key_exchange_on_start_status.Get().Set("True");
-      return;
-    }
+  auto initKeyExchangeMethod = [this]() {
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
-    if (waitForComm) {
-      if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-        waitForLiveQuorum();
-      } else {
-        waitForFullCommunication();
-      }
+    if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
+      waitForLiveQuorum();
+    } else {
+      waitForFullCommunication();
     }
     sendKeyExchange(0);
     metrics_->sent_key_exchange_on_start_status.Get().Set("True");
   };
-  if (client_->numOfConnectedReplicas(clusterSize_) >= quorumSize_) {
-    initKeyExchangeMethod(false);
-    return;
-  }
   // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
   // In order not to block it's done as async operation.
-  auto ret = std::async(std::launch::async, initKeyExchangeMethod, true);
+  async_res_ = std::async(std::launch::async, initKeyExchangeMethod);
 }
 
 void KeyExchangeManager::waitForLiveQuorum() {

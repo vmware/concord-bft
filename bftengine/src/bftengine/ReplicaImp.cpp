@@ -3910,7 +3910,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   onViewNumCallbacks_.add([&](uint64_t) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendInitialKey();
+      KeyExchangeManager::instance().sendKeyExchange(0);
     }
   });
   registerMsgHandlers();

@@ -19,7 +19,7 @@
 #include "secrets_manager_impl.h"
 #include "SysConsts.hpp"
 #include "crypto_utils.hpp"
-
+#include <future>
 namespace bftEngine::impl {
 
 class IInternalBFTClient;
@@ -30,7 +30,7 @@ class KeyExchangeManager {
  public:
   void exchangeTlsKeys(const SeqNum&);
   // Generates and publish key to consensus
-  void sendKeyExchange(const SeqNum&, bool reuseLatestKey = false);
+  void sendKeyExchange(const SeqNum&);
   // Generates and publish the first replica's key,
   void sendInitialKey();
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
@@ -206,7 +206,7 @@ class KeyExchangeManager {
   std::vector<IKeyExchanger*> registryToExchange_;
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
   IClientPublicKeyStore* clientPublicKeyStore_{nullptr};
-  std::mutex initialKeyExchangeLock_;
+  std::future<void> async_res_;
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;
