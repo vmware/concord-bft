@@ -74,7 +74,7 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
-  if (publicKeys_.keyExists(kemsg.repID)) return "ok";
+  if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
