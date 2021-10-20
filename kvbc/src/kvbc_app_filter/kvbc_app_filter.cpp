@@ -383,13 +383,16 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
   }
   // populate event_group_id_batch with only public event group ids iff one of the following occurs -
   // 1. No private event groups exist in storage
-  // 2. The first global event group id in private_event_group_ids is greater than the last global event group id
-  // public_event_group_ids
+  // 2. The first global event group id in private_event_group_ids is greater than the last global event group id in
+  // public_event_group_ids and public_event_group_ids has at least kBatchSize elements
+  // (For e.g., public_event_group_ids = {1,2,3,4} and private_event_group_ids = {5,6,7} must be merged to form
+  // event_group_id_batch).
   // Vice versa is true if event_group_id_batch is populated with only private event group ids
   // Note: each private_event_group_ids and public_event_group_ids hold a sorted list of global event group ids at all
   // times
   if (!public_event_group_ids.empty() &&
-      (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front()))) {
+      (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front() &&
+                                           public_event_group_ids.size() >= kBatchSize))) {
     for (auto public_event_group_id : public_event_group_ids) {
       eg_state->event_group_id_batch.emplace_back(public_event_group_id);
     }
@@ -400,7 +403,8 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
               "Updated public_offset: " << eg_state->public_offset
                                         << " public_event_group_ids size: " << public_event_group_ids.size());
   } else if (!private_event_group_ids.empty() &&
-             (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front()))) {
+             (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front() &&
+                                                 private_event_group_ids.size() >= kBatchSize))) {
     for (auto private_event_group_id : private_event_group_ids) {
       eg_state->event_group_id_batch.emplace_back(private_event_group_id);
     }
