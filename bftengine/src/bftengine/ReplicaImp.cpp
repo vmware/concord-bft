@@ -3187,6 +3187,8 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 }
 
 void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
+  ConcordAssertEQ(activeExecutions_,
+                  0);  // We shouldnt have active executions when checking if sequence number is super stable
   if (lastSuperStableSeqNum >= superStableSeqNum) return;
   lastSuperStableSeqNum = superStableSeqNum;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
@@ -3200,6 +3202,8 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
 }
 
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {
+  ConcordAssertEQ(activeExecutions_,
+                  0);  // We shouldnt have active executions when checking if sequence number is stable
   ConcordAssertOR(hasStateInformation, oldSeqNum);  // !hasStateInformation ==> oldSeqNum
   ConcordAssertEQ(newStableSeqNum % checkpointWindowSize, 0);
 
