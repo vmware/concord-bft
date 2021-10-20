@@ -2844,6 +2844,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   controller->onNewView(getCurrentView(), primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(getCurrentView());
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
+
+  onViewNumCallbacks_.invokeAll(getCurrentView());
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
@@ -3905,7 +3907,12 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
   ConcordAssert(firstTime || ((replicasInfo != nullptr) && (viewsMgr != nullptr) && (sigManager != nullptr)));
-
+  onViewNumCallbacks_.add([&](uint64_t) {
+    if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
+      LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
+      KeyExchangeManager::instance().sendKeyExchange(0);
+    }
+  });
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
 

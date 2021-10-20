@@ -57,7 +57,7 @@ class SkvbcTest(unittest.TestCase):
         """
 
         if exchange_keys:
-            await bft_network.check_initital_key_exchange()
+            await bft_network.check_initital_key_exchange(full_key_exchange=False)
         bft_network.start_all_replicas()
 
         skvbc = kvbc.SimpleKVBCProtocol(bft_network)
@@ -93,6 +93,43 @@ class SkvbcTest(unittest.TestCase):
                         break
 
         await skvbc.assert_successful_put_get()
+
+    @with_trio
+    @with_bft_network(start_replica_cmd)
+    async def test_primary_down_while_initial_key_exchange(self, bft_network):
+        """
+        Test that a replica succeeds to ask for missing info from the former window
+
+        1. Start all replicas but the primary
+        2. Make sure that eventually we are able to add blocks
+        """
+        replicas_to_start = [r for r in range(1, bft_network.config.n)]
+        await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=replicas_to_start)
+        for i in replicas_to_start:
+            view = await bft_network.get_metric(i, bft_network, "Gauges", "view")
+            assert int(view) == 1
+        bft_network.start_replica(0)
+
+        with trio.fail_after(60):
+            try:
+                view = await bft_network.get_metric(0, bft_network, "Gauges", "view")
+            except trio.TooSlowError:
+                await trio.sleep(5) # replica 0 is probably no available yet
+                pass
+            while int(view) != 1:
+                await trio.sleep(1)
+                view =  await bft_network.get_metric(0,bft_network, "Gauges", "view")
+
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+
+        for i in range(300):
+            await skvbc.send_write_kv_set()
+
+        with trio.fail_after(60):
+            seqNum = await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
+            while seqNum < 100:
+                await trio.sleep(1)
+                seqNum =  await bft_network.get_metric(0, bft_network, "Gauges", "lastExecutedSeqNum")
 
     @with_trio
     @with_bft_network(start_replica_cmd, rotate_keys=True)

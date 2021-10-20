@@ -582,6 +582,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::diagnostics::AsyncTimeRecorder<false> time_in_state_transfer_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
+  concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;

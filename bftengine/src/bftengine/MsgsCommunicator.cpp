@@ -70,4 +70,7 @@ bool MsgsCommunicator::isUdp() {
   if (dynamic_cast<PlainUDPCommunication*>(communication_) == nullptr) return false;
   return true;
 }
+bool MsgsCommunicator::isReplicaConnected(uint16_t repId) {
+  return communication_->getCurrentConnectionStatus(repId) == ConnectionStatus::Connected;
+}
 }  // namespace bftEngine::impl

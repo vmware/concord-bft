@@ -24,6 +24,7 @@ namespace bftEngine::impl {
 KeyExchangeManager::KeyExchangeManager(InitData* id)
     : repID_{ReplicaConfig::instance().getreplicaId()},
       clusterSize_{ReplicaConfig::instance().getnumReplicas()},
+      quorumSize_{static_cast<uint32_t>(2 * ReplicaConfig::instance().fVal + ReplicaConfig::instance().cVal)},
       publicKeys_{clusterSize_},
       private_keys_(id->secretsMgr),
       clientsPublicKeys_(),
@@ -73,7 +74,7 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
   }
-
+  if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
@@ -84,8 +85,10 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     for (auto e : registryToExchange_) e->onPublicKeyExchange(kemsg.pubkey, kemsg.repID, sn);
     metrics_->public_key_exchange_for_peer_counter++;
   }
-  if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= clusterSize_))
-    LOG_INFO(KEY_EX_LOG, "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << clusterSize_ << "]");
+  auto liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && (publicKeys_.numOfExchangedReplicas() <= liveQuorumSize))
+    LOG_INFO(KEY_EX_LOG,
+             "Exchanged [" << publicKeys_.numOfExchangedReplicas() << "] out of [" << liveQuorumSize << "]");
   if (!initial_exchange_ && exchanged()) initial_exchange_ = true;
   return "ok";
 }
@@ -111,7 +114,8 @@ void KeyExchangeManager::notifyRegistry() {
 void KeyExchangeManager::loadPublicKeys() {
   // after State Transfer public keys for all replicas are expected to exist
   auto num_loaded = publicKeys_.loadAllReplicasKeyStoresFromReservedPages();
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) ConcordAssert(num_loaded == clusterSize_);
+  uint32_t liveQuorumSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
+  if (ReplicaConfig::instance().getkeyExchangeOnStart()) ConcordAssert(num_loaded >= liveQuorumSize);
   LOG_INFO(KEY_EX_LOG, "building crypto system after state transfer");
   notifyRegistry();
 }
@@ -153,7 +157,6 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
-  // first check whether we've already generated keys lately
   if (private_keys_.lastGeneratedSeqnum() &&  // if not init  ial
       (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
     LOG_INFO(KEY_EX_LOG, "ignore request - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
@@ -227,19 +230,62 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
 }
 
 void KeyExchangeManager::sendInitialKey() {
-  LOG_INFO(KEY_EX_LOG, "");
-  if (private_keys_.hasGeneratedKeys()) {
-    LOG_INFO(KEY_EX_LOG, "Replica has already generated keys");
-    return;
-  }
-  // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
-  // In order not to block it's done as async operation.
-  auto ret = std::async(std::launch::async, [this]() {
+  auto initKeyExchangeMethod = [this]() {
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
-    waitForFullCommunication();
+    if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
+      waitForLiveQuorum();
+    } else {
+      waitForFullCommunication();
+    }
     sendKeyExchange(0);
     metrics_->sent_key_exchange_on_start_status.Get().Set("True");
-  });
+  };
+  // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
+  // In order not to block it's done as async operation.
+  async_res_ = std::async(std::launch::async, initKeyExchangeMethod);
+}
+
+void KeyExchangeManager::waitForLiveQuorum() {
+  // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
+  if (client_->isUdp()) {
+    LOG_INFO(KEY_EX_LOG, "UDP communication");
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    return;
+  }
+  /*
+   * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
+   * we wait for the first primary for a pre-defined amount of time.
+   */
+  if (repID_ != 0) {
+    auto start = getMonotonicTime();
+    auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
+    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary to be ready");
+    while (std::chrono::duration<double, std::milli>(getMonotonicTime() - start).count() / 1000 < timeoutForPrim) {
+      if (client_->isReplicaConnected(0)) {
+        LOG_INFO(KEY_EX_LOG, "primary (0) is connected");
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    if (!client_->isReplicaConnected(0)) {
+      LOG_INFO(KEY_EX_LOG,
+               "replica was not able to connect to primary (0) after "
+                   << timeoutForPrim
+                   << " seconds. The will wait for live quorum and starts (this may cause to a view change");
+    }
+  }
+  auto avlble = client_->numOfConnectedReplicas(clusterSize_);
+  LOG_INFO(KEY_EX_LOG, "Consensus engine: " << avlble << " replicas are connected");
+  uint32_t liveQuorum = 2 * ReplicaConfig::instance().fVal + ReplicaConfig::instance().cVal + 1;
+  // Num of connections should be: (liveQuorum - 1) excluding the current replica
+  while (avlble < liveQuorum - 1) {
+    LOG_INFO(KEY_EX_LOG,
+             "Consensus engine not available, " << avlble << " replicas are connected, we need at lease " << liveQuorum
+                                                << " to start");
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    avlble = client_->numOfConnectedReplicas(clusterSize_);
+  }
+  LOG_INFO(KEY_EX_LOG, "Consensus engine available, " << avlble << " replicas are connected");
 }
 
 void KeyExchangeManager::waitForFullCommunication() {
