@@ -517,6 +517,7 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
   }
 
   if (config_.timeServiceEnabled) {
+    // If time-service is enabled, the first client request will be time request
     auto timeServiceMsg = time_service_manager_->createClientRequestMsg();
     auto pp = new PrePrepareMsg(config_.getreplicaId(),
                                 getCurrentView(),
@@ -524,6 +525,7 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
                                 firstPath,
                                 requestsQueueOfPrimary.front()->spanContext<ClientRequestMsg>(),
                                 primaryCombinedReqSize + timeServiceMsg->size());
+    // add time-Service request as first message in pre-prepare message
     pp->addRequest(timeServiceMsg->body(), timeServiceMsg->size());
     return pp;
   }
@@ -895,6 +897,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     }
     // For MDC it doesn't matter which type of fast path
     SCOPED_MDC_PATH(CommitPathToMDCString(slowStarted ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST));
+    // All pre-prepare messages are added in seqNumInfo even if replica detects incorrect time
     if (seqNumInfo.addMsg(msg, false, time_is_ok)) {
       msgAdded = true;
 
@@ -930,6 +933,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
           sendPreparePartial(seqNumInfo);
         }
       }
+      // if time is not ok, we do not continue with consensus flow
     }
   }
 
@@ -4231,6 +4235,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
 
   if (numOfRequests > 0) {
     if (config_.timeServiceEnabled) {
+      // First request should be a time request, if time-service is enabled
       ConcordAssert(time_service_manager_->hasTimeRequest(*ppMsg));
     }
 
