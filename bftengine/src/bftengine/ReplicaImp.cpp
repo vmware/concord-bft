@@ -491,6 +491,10 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreP
 
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
+  if (activeExecutions_ > 0) {
+    deferredRequests_.push(m);
+    return;
+  }
   MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
   if (m->viewNumber() == getCurrentView()) {
     LOG_INFO(VC_LOG,
@@ -2101,6 +2105,10 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
+  if (activeExecutions_ > 0) {
+    deferredRequests_.push(msg);
+    return;
+  }
   metric_received_checkpoints_++;
   const ReplicaId msgSenderId = msg->senderId();
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
@@ -2676,6 +2684,10 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     delete msg;
     return;
   }
+  if (activeExecutions_ > 0) {
+    deferredRequests_.push(msg);
+    return;
+  }
   metric_received_view_changes_++;
 
   const ReplicaId generatedReplicaId =
@@ -2748,6 +2760,10 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   if (!viewChangeProtocolEnabled) {
     delete msg;
+    return;
+  }
+  if (activeExecutions_ > 0) {
+    deferredRequests_.push(msg);
     return;
   }
   metric_received_new_views_++;

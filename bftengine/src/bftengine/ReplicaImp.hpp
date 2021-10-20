@@ -162,13 +162,6 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   // last time we changed lastAgreedView
   Time timeOfLastAgreedView;
 
-  //
-  uint16_t activeExecutions_ = 0;
-  std::queue<ClientRequestMsg*> deferredRORequests_;
-  bool isTryToGoNextView_ = false;
-  bool isGoToNextView_ = false;
-  bool isSendCheckpointIfNeeded_ = false;
-  bool isStartcollectingState_ = false;
   // timers
   concordUtil::Timers::Handle retranTimer_;
   concordUtil::Timers::Handle slowPathTimer_;

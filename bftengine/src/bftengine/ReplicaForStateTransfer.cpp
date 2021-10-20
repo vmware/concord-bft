@@ -82,6 +82,10 @@ void ReplicaForStateTransfer::stop() {
 
 template <>
 void ReplicaForStateTransfer::onMessage(StateTransferMsg *m) {
+  if (activeExecutions_ > 0) {
+    deferredRequests_.push(m);
+    return;
+  }
   metric_received_state_transfers_++;
   size_t h = sizeof(MessageBase::Header);
   stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
