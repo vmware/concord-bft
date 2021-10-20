@@ -149,17 +149,64 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
   }
   return creply;
 }
+
+concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildReplicaStateReply(const char& command_type,
+                                                                                             uint32_t clientid) {
+  concord::messages::ClientStateReply creply;
+  creply.block_id = 0;
+  auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                                   std::string{command_type} + std::to_string(clientid));
+  if (res.has_value()) {
+    std::visit(
+        [&](auto&& arg) {
+          auto strval = arg.data;
+          std::vector<uint8_t> data_buf(strval.begin(), strval.end());
+          switch (command_type) {
+            case kvbc::keyTypes::reconfiguration_tls_exchange_key: {
+              concord::messages::ReplicaTlsExchangeKey cmd;
+              concord::messages::deserialize(data_buf, cmd);
+              creply.response = cmd;
+              break;
+            }
+            default:
+              break;
+          }
+          auto epoch_data = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                                            std::string{kvbc::keyTypes::reconfiguration_epoch_key},
+                                            arg.block_id);
+          ConcordAssert(epoch_data.has_value());
+          const auto& epoch_str = std::get<categorization::VersionedValue>(*epoch_data).data;
+          ConcordAssertEQ(epoch_str.size(), sizeof(uint64_t));
+          uint64_t epoch = concordUtils::fromBigEndianBuffer<uint64_t>(epoch_str.data());
+          creply.epoch = epoch;
+          creply.block_id = arg.block_id;
+        },
+        *res);
+  }
+  return creply;
+}
 bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientReconfigurationStateRequest& command,
                                               uint64_t bft_seq_num,
                                               uint32_t sender_id,
                                               const std::optional<bftEngine::Timestamp>& ts,
                                               concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ClientReconfigurationStateReply rep;
-  for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
-       i++) {
-    auto csrep = buildClientStateReply(static_cast<keyTypes::CLIENT_COMMAND_TYPES>(i), sender_id);
-    if (csrep.block_id == 0) continue;
-    rep.states.push_back(csrep);
+  uint16_t first_client_id =
+      bftEngine::ReplicaConfig::instance().numReplicas + bftEngine::ReplicaConfig::instance().numRoReplicas;
+  if (sender_id > first_client_id) {
+    for (uint8_t i = kvbc::keyTypes::CLIENT_COMMAND_TYPES::start_ + 1; i < kvbc::keyTypes::CLIENT_COMMAND_TYPES::end_;
+         i++) {
+      auto csrep = buildClientStateReply(static_cast<keyTypes::CLIENT_COMMAND_TYPES>(i), sender_id);
+      if (csrep.block_id == 0) continue;
+      rep.states.push_back(csrep);
+    }
+  } else {
+    // 1. Handle TLS key exchange update
+    for (uint16_t i = 0; i < first_client_id; i++) {
+      if (i == sender_id) continue;
+      auto csrep = buildReplicaStateReply(kvbc::keyTypes::reconfiguration_tls_exchange_key, i);
+      if (csrep.block_id > 0) rep.states.push_back(csrep);
+    }
   }
   concord::messages::serialize(rres.additional_data, rep);
   return true;

@@ -262,8 +262,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   }
 
   // check message validity
-  const bool invalidClient = !isValidClient(clientId);
-  const bool sentFromReplicaToNonPrimary = repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
+  const bool invalidClient =
+      !isValidClient(clientId) &&
+      !((repsInfo->isIdOfReplica(clientId) || repsInfo->isIdOfPeerRoReplica(clientId)) && (flags & RECONFIG_FLAG));
+  const bool sentFromReplicaToNonPrimary =
+      !(flags & RECONFIG_FLAG) && repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
 
   if (invalidClient) {
     ++numInvalidClients;

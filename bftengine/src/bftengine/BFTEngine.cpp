@@ -24,6 +24,7 @@
 #include "RequestHandler.h"
 #include "ReservedPagesClient.hpp"
 #include "bftengine/EpochManager.hpp"
+#include "bcstatetransfer/AsyncStateTransferCRE.hpp"
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -206,6 +207,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
   shared_ptr<bft::communication::IReceiver> msgReceiverPtr(new MsgReceiver(incomingMsgsStoragePtr));
   shared_ptr<MsgsCommunicator> msgsCommunicatorPtr(
       new MsgsCommunicator(communication, incomingMsgsStoragePtr, msgReceiverPtr));
+  stateTransfer->setReconfigurationEngine(
+      bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicatorPtr, msgHandlersPtr));
   if (isNewStorage) {
     auto replicaImp = std::make_unique<ReplicaImp>(replicaConfig,
                                                    requestsHandler,
@@ -260,7 +263,7 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
   std::shared_ptr<IncomingMsgsStorage> incomingMsgsStorage{std::move(incomingMsgsStorageImpPtr)};
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
-
+  stateTransfer->setReconfigurationEngine(bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator, msgHandlers));
   replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
       replicaConfig, requestsHandler, stateTransfer, msgsCommunicator, msgHandlers, timers);
   return replicaInternal;

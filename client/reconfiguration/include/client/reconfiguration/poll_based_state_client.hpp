@@ -36,6 +36,8 @@ class PollBasedStateClient : public IStateClient {
   void start() override;
   void stop() override;
   std::vector<State> getStateUpdate(bool& succ) const;
+  void halt() override;
+  void resume() override;
 
  private:
   concord::messages::ReconfigurationResponse sendReconfigurationRequest(concord::messages::ReconfigurationRequest& rreq,
@@ -58,6 +60,9 @@ class PollBasedStateClient : public IStateClient {
   mutable std::condition_variable new_updates_;
   std::atomic_bool stopped{true};
   std::thread consumer_;
+  bool halted_ = false;
+  std::condition_variable resume_cond_;
+  std::mutex resume_lock_;
 };
 
 }  // namespace concord::client::reconfiguration

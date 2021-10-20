@@ -512,7 +512,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             bft_network.copy_certs_from_server_to_clients(live_replicas[0])
             bft_network.restart_clients(False, False)
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            for i in range(500):
+            for i in range(700):
                 await skvbc.send_write_kv_set()
 
             bft_network.start_replicas(crashed_replica)
@@ -548,6 +548,31 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             for r in bft_network.all_replicas():
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, fast_paths[r])
+
+    @with_trio
+    @with_bft_network(start_replica_cmd=start_replica_cmd_with_object_store_and_ke, num_ro_replicas=1, rotate_keys=True,
+                      selected_configs=lambda n, f, c: n == 7)
+    async def test_replicas_tls_key_exchange_with_ror(self, bft_network):
+        """
+        """
+        bft_network.start_all_replicas()
+        ro_replica_id = bft_network.config.n
+        bft_network.start_replica(ro_replica_id)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
+        for i in range(301): # Produce 301 new blocks
+            await skvbc.send_write_kv_set()
+        # Now, lets switch keys to f replicas
+        exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f))
+        await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, affected_replicas=[r for r in range(bft_network.config.n + 1)])
+        # Now, lets exchange another replica key, to make sure the read only replica is able to exchange the keys
+        exchanged_replicas = list(bft_network.random_set_of_replicas(bft_network.config.f, without=set(exchanged_replicas)))
+        await self.run_replica_tls_key_exchange_cycle(bft_network, exchanged_replicas, affected_replicas=[r for r in range(bft_network.config.n + 1)])
+        # Make sure that the read only replica is able to complete another state transfer
+        for i in range(500): # Produce 500 new blocks
+            await skvbc.send_write_kv_set()
+        await self._wait_for_st(bft_network, ro_replica_id, 600)
+
+
 
     async def run_replica_tls_key_exchange_cycle(self, bft_network, replicas, affected_replicas=[]):
         reps_data = {}

@@ -45,6 +45,11 @@ class NullStateTransfer : public IStateTransfer {
   void addOnTransferringCompleteCallback(std::function<void(uint64_t)>,
                                          StateTransferCallBacksPriorities priority) override{};
   void setEraseMetadataFlag() override {}
+  void setReconfigurationEngine(
+      std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) override {}
+  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() override {
+    return nullptr;
+  }
   virtual ~NullStateTransfer();
 
  protected:
