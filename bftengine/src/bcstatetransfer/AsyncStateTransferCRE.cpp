@@ -19,6 +19,7 @@
 #include "client/reconfiguration/poll_based_state_client.hpp"
 #include "communication/ICommunication.hpp"
 #include "bftclient/bft_client.h"
+#include "ControlStateManager.hpp"
 
 namespace bftEngine::bcst::asyncCRE {
 using namespace concord::client::reconfiguration;
@@ -113,6 +114,45 @@ class InternalSigner : public concord::util::crypto::ISigner {
   uint32_t signatureLength() const override { return bftEngine::impl::SigManager::instance()->getMySigLength(); }
 };
 
+class ScalingReplicaHandler : public IStateHandler {
+ public:
+  bool validate(const State& state) const override {
+    if (state.blockid <= latest_known_scaling_update_) return false;
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    if (crep.epoch < EpochManager::instance().getSelfEpochNumber()) return false;
+    return std::holds_alternative<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
+  }
+
+  bool execute(const State& state, WriteState& out) override {
+    LOG_INFO(getLogger(), "execute AddRemoveWithWedgeCommand");
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    concord::messages::ClientsAddRemoveExecuteCommand command =
+        std::get<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
+
+    concord::messages::ReconfigurationRequest rreq;
+    concord::messages::ClientsAddRemoveUpdateCommand creq;
+    creq.config_descriptor = command.config_descriptor;
+    rreq.command = creq;
+    std::vector<uint8_t> req_buf;
+    concord::messages::serialize(req_buf, rreq);
+    out = {req_buf, [this, command]() {
+             bftEngine::ControlStateManager::instance().markRemoveMetadata();
+             LOG_INFO(this->getLogger(),
+                      "completed scaling procedure for " << command.config_descriptor << " restarting the replica");
+             bftEngine::ControlStateManager::instance().restart();
+           }};
+    return true;
+  }
+
+ private:
+  logging::Logger getLogger() {
+    static logging::Logger logger_(logging::getLogger("bftEngine::bcst::asyncCRE.ScalingReplicaHandler"));
+    return logger_;
+  }
+  uint64_t latest_known_scaling_update_;
+};
 std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<MsgsCommunicator> msgsCommunicator,
                                                                 std::shared_ptr<MsgHandlersRegistrator> msgHandlers) {
   bft::client::ClientConfig bftClientConf;
