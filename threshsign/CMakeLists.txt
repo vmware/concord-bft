@@ -9,6 +9,7 @@ find_package(Threads REQUIRED)
 
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
+string(APPEND CXX_FLAGS " -pthread")
 string(APPEND CXX_FLAGS " -Werror")
 string(APPEND CXX_FLAGS " -Wextra")
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
