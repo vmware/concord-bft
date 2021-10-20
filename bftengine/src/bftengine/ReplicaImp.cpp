@@ -2220,10 +2220,14 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   }
 
   if (askForStateTransfer && !stateTransfer->isCollectingState()) {
-    LOG_INFO(GL, "Call to startCollectingState()");
-    time_in_state_transfer_.start();
-    clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
-    stateTransfer->startCollectingState();
+    if (activeExecutions_ > 0)
+      isStartcollectingState_ = true;
+    else {
+      LOG_INFO(GL, "Call to startCollectingState()");
+      time_in_state_transfer_.start();
+      clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
+      stateTransfer->startCollectingState();
+    }
   } else if (msgSenderId == msgGenReplicaId) {
     if (msgSeqNum > lastStableSeqNum + kWorkWindowSize) {
       onReportAboutAdvancedReplica(msgGenReplicaId, msgSeqNum);

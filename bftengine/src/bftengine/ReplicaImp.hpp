@@ -168,6 +168,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isTryToGoNextView_ = false;
   bool isGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;
+  bool isStartcollectingState_ = false;
   // timers
   concordUtil::Timers::Handle retranTimer_;
   concordUtil::Timers::Handle slowPathTimer_;
