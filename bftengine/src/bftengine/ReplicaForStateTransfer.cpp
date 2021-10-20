@@ -116,7 +116,12 @@ void ReplicaForStateTransfer::sendStateTransferMessage(char *m, uint32_t size, u
 void ReplicaForStateTransfer::onTransferringComplete(uint64_t checkpointNumberOfNewState) {
   // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
   // processing thread
-  onTransferringCompleteImp(checkpointNumberOfNewState);
+  if (activeExecutions_ > 0) {
+    isOnTransferringComplete_ = true;
+    return;
+  } else {
+    onTransferringCompleteImp(checkpointNumberOfNewState);
+  }
 }
 
 void ReplicaForStateTransfer::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) {

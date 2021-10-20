@@ -113,6 +113,7 @@ class ReplicaBase {
   bool isGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;
   bool isStartcollectingState_ = false;
+  bool isOnTransferringComplete_ = false;
 
   //////////////////////////////////////////////////
   // METRICS
