@@ -440,7 +440,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
       if (!has_pub_offset_updated) {
         if (auto pub_it = std::find(public_event_group_ids.begin(), public_event_group_ids.end(), *r_it);
             pub_it != public_event_group_ids.end()) {
-          eg_state->public_offset = ++pub_it - public_event_group_ids.begin();
+          eg_state->public_offset += ++pub_it - public_event_group_ids.begin();
           has_pub_offset_updated = true;
           LOG_DEBUG(logger_,
                     "Updated public_offset: " << eg_state->public_offset
@@ -450,7 +450,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
       if (!has_pvt_offset_updated) {
         if (auto pvt_it = std::find(private_event_group_ids.begin(), private_event_group_ids.end(), *r_it);
             pvt_it != private_event_group_ids.end()) {
-          eg_state->private_offset = ++pvt_it - private_event_group_ids.begin();
+          eg_state->private_offset += ++pvt_it - private_event_group_ids.begin();
           has_pvt_offset_updated = true;
           LOG_DEBUG(logger_,
                     "Updated private_offset: " << eg_state->private_offset
