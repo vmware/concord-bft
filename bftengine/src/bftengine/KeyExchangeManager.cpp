@@ -165,6 +165,19 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     return;
   }
   KeyExchangeMsg msg;
+  if (sn == candidate_private_keys_.generated.sn && !candidate_private_keys_.generated.cid.empty()) {
+    LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
+    msg.pubkey = candidate_private_keys_.generated.pub;
+    msg.repID = repID_;
+    std::stringstream ss;
+    concord::serialize::Serializable::serialize(ss, msg);
+    auto strMsg = ss.str();
+    client_->sendRequest(
+        bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), candidate_private_keys_.generated.cid);
+    metrics_->sent_key_exchange_counter++;
+    return;
+  }
+
   auto cid = generateCid(kInitialKeyExchangeCid);
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
   candidate_private_keys_.generated.priv = prv;
@@ -241,9 +254,7 @@ void KeyExchangeManager::sendInitialKey() {
     sendKeyExchange(0);
     metrics_->sent_key_exchange_on_start_status.Get().Set("True");
   };
-  // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
-  // In order not to block it's done as async operation.
-  async_res_ = std::async(std::launch::async, initKeyExchangeMethod);
+  initKeyExchangeMethod();
 }
 
 void KeyExchangeManager::waitForLiveQuorum() {

@@ -4083,14 +4083,14 @@ void ReplicaImp::start() {
   addTimers();
   recoverRequests();
 
-  // The following line will start the processing thread.
-  // It must happen after the replica recovers requests in the main thread.
-  msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
-
   if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
     KeyExchangeManager::instance().sendInitialKey();
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
+
+  // The following line will start the processing thread.
+  // It must happen after the replica recovers requests in the main thread.
+  msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 }
 
 void ReplicaImp::recoverRequests() {
