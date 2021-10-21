@@ -77,6 +77,8 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
+    private_keys_.key_data().generated = candidate_private_keys_.generated;
+    candidate_private_keys_.generated.clear();
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
     private_keys_.onKeyExchange(cid, sn);
     for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], kemsg.pubkey, sn);
@@ -157,19 +159,18 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
-  if (private_keys_.lastGeneratedSeqnum() &&  // if not init  ial
+  if (private_keys_.lastGeneratedSeqnum() &&  // if not initial
       (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
-    LOG_INFO(KEY_EX_LOG, "ignore request - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
+    LOG_INFO(KEY_EX_LOG, "ignore request - already exchanged keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
     return;
   }
   KeyExchangeMsg msg;
   auto cid = generateCid(kInitialKeyExchangeCid);
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
-  private_keys_.key_data().generated.priv = prv;
-  private_keys_.key_data().generated.pub = pub;
-  private_keys_.key_data().generated.cid = cid;
-  private_keys_.key_data().generated.sn = sn;
-  private_keys_.save();
+  candidate_private_keys_.generated.priv = prv;
+  candidate_private_keys_.generated.pub = pub;
+  candidate_private_keys_.generated.cid = cid;
+  candidate_private_keys_.generated.sn = sn;
 
   LOG_INFO(KEY_EX_LOG, "Sending key exchange :" << KVLOG(cid, pub));
   msg.pubkey = pub;

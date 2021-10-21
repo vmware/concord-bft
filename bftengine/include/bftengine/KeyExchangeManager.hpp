@@ -198,6 +198,7 @@ class KeyExchangeManager {
   uint32_t quorumSize_{};
   ClusterKeyStore publicKeys_;
   PrivateKeys private_keys_;
+  PrivateKeys::KeyData candidate_private_keys_;
   ClientKeyStore clientsPublicKeys_;
   // A flag to prevent race on the replica's internal client.
   std::atomic_bool initial_exchange_;
