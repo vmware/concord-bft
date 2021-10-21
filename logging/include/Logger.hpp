@@ -19,10 +19,12 @@
 #define MDC_PRIMARY_KEY "pri"
 #define MDC_PATH_KEY "path"
 
-#ifndef USE_LOG4CPP
-#include "Logging.hpp"
-#else
+#if defined(USE_LOG4CPP)
 #include "Logging4cplus.hpp"
+#elif defined(USE_SPDLOG)
+#include "LoggingSpd.hpp"
+#else
+#include "Logging.hpp"
 #endif
 
 extern logging::Logger GL;

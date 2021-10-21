@@ -126,7 +126,7 @@ class BcStTest : public ::testing::Test {
 
   void SetUp() override {
     // uncomment if needed after setting the required log level
-#ifdef USE_LOG4CPP
+#if defined(USE_LOG4CPP)
     log4cplus::LogLevel logLevel = log4cplus::INFO_LOG_LEVEL;
     // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
     // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
@@ -134,13 +134,17 @@ class BcStTest : public ::testing::Test {
     logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
     logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
     // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
+#elif defined(USE_SPDLOG)
+    logging::getLogger("concord.bft.st.dst")->set_level(spdlog::level::info);
+    logging::getLogger("concord.bft.st.src")->set_level(spdlog::level::info);
+    logging::getLogger("concord.util.handoff")->set_level(spdlog::level::info);
 #else
     logging::LogLevel logLevel = logging::LogLevel::info;
     // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
     // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
-    logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
-    logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
-    logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
+    logging::getLogger("concord.bft.st.dst").setLogLevel(logLevel);
+    logging::getLogger("concord.bft.st.src").setLogLevel(logLevel);
+    logging::getLogger("concord.util.handoff").setLogLevel(logLevel);
     // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
 #endif
     config_ = TestConfig();

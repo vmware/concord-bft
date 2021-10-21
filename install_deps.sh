@@ -293,5 +293,13 @@ git clone -b v0.8.0 --depth 1 --recurse-submodules https://github.com/jupp0r/pro
     cd ${HOME} && \
     rm -r prometheus-cpp
 
+cd ${HOME}
+git clone https://github.com/gabime/spdlog.git && \
+    cd spdlog && git checkout eb3220622e73a4889eee355ffa37972b3cac3df5 &&  mkdir build && cd build && \
+    cmake .. && make -j$(nproc) && \
+    make install && \
+    cd ${HOME} && \
+    rm -r ${HOME}/spdlog
+
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v

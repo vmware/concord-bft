@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <map>
+
 #include "communication/ICommunication.hpp"
 #include "communication/CommDefs.hpp"
 #include "communication/CommFactory.hpp"
