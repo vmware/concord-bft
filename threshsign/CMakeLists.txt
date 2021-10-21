@@ -10,6 +10,7 @@ find_package(Threads REQUIRED)
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
 string(APPEND CXX_FLAGS " -Werror")
+string(APPEND CXX_FLAGS " ${CMAKE_THREAD_LIBS_INIT}")
 string(APPEND CXX_FLAGS " -Wextra")
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
 string(APPEND CXX_FLAGS " -fno-strict-overflow")
