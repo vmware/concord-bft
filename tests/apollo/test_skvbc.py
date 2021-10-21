@@ -94,6 +94,7 @@ class SkvbcTest(unittest.TestCase):
 
         await skvbc.assert_successful_put_get()
 
+    @unittest.skip("unstable scenario")
     @with_trio
     @with_bft_network(start_replica_cmd)
     async def test_primary_down_while_initial_key_exchange(self, bft_network):
