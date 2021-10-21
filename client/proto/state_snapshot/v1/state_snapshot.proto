@@ -12,11 +12,11 @@ option java_package = "com.vmware.concord.client.statesnapshot.v1";
 
 // The StateSnapshot service can be used to initialize a Client Application from a
 // state snapshot visible to Concord Client. State snapshots aggregate all writes
-// to the merkle storage space from the start of the blockchain up to a specific point
+// to all storage spaces from the start of the blockchain up to a specific point
 // that is determined by the event group ID as of which the state snapshot is generated. 
-// State contains only the last write to any merkle storage space key-value and no
+// State contains only the last write to a key-value in a storage space and no
 // prior historical writes. We use `state`, `state snapshot` and
-// `merkle storage space key-values` interchangeably from now on.
+// `storage space key-values` interchangeably from now on.
 //
 // To visualize, we show how events are streamed from Concord Client to the
 // Client Application (App) and the relation between state and event group IDs:
@@ -39,7 +39,10 @@ option java_package = "com.vmware.concord.client.statesnapshot.v1";
 //
 // See `event.proto` for more information about events, event group IDs and
 // `EventService`.
-// See `execution_engine.proto` for more information about merkle storage space.
+// See `execution_engine.proto` for more information about storage spaces.
+//
+// Note: The StateSnapshot service only supports snapshots based on event group IDs
+// and not legacy events that are based on block IDs.
 service StateSnapshot {
   // Get the event group ID at which there is a recent and available snapshot.
   // Errors:
@@ -51,13 +54,22 @@ service StateSnapshot {
   // Key-values are streamed with lexicographic order on keys.
   // Errors:
   // NOT_FOUND: if the snapshot at the requested event group ID is not (or no longer) available.
-  //            Clients applications are advised to retry initialization by
+  //            Client applications are advised to retry initialization by
   //            fetching a new event group ID.
   // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is
   //                   not part of the snapshot.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
-  rpc StreamStateSnapshot(StreamStateSnapshotRequest) returns (stream KeyValuePair);
+  rpc StreamStateSnapshot(StreamStateSnapshotRequest) returns (stream StreamStateSnapshotResponse);
+
+  // Read the values of given keys as of a specific snapshot.
+  // Errors:
+  // NOT_FOUND: if the snapshot at the requested event group ID is not (or no longer) available.
+  //            Client applications are advised to retry initialization by
+  //            fetching a new event group ID.
+  // UNAVAILABLE: if Concord Client is not ready yet to process requests.
+  // UNKNOWN: exact cause is unknown.
+  rpc ReadAsOf(ReadAsOfRequest) returns (stream ReadAsOfResponse);
 }
 
 message EventGroupId {
@@ -68,10 +80,21 @@ message EventGroupId {
 }
 
 message StreamStateSnapshotRequest {
+  // See execution_engine.proto for more details on storage spaces.
+  message StorageSpaceMerkle {}
+  
   // Mandatory field.
   //
   // The event group ID at which to stream state.
   uint64 event_group_id = 1;
+
+  // Mandatory field.
+  //
+  // Stream keys from the given `storage_space`.
+  // See execution_engine.proto for more details on storage spaces.
+  oneof storage_space {
+    StorageSpaceMerkle merkle = 2;
+  }
 
   // Optional field.
   //
@@ -96,4 +119,24 @@ message KeyValuePair {
   //
   // The value.
   bytes value = 2;
+}
+
+message StreamStateSnapshotResponse {
+  // Mandatory field.
+  KeyValuePair kv = 1;
+}
+
+message ReadAsOfRequest {
+  // Event group ID as of which to read the values.
+  uint64 event_group_id = 1;
+
+  // List of keys for which the values should be returned.
+  repeated bytes keys = 2;
+}
+
+message ReadAsOfResponse {
+  // The `key_values` list contains all the key-values that have a value,
+  // i.e. the ones that have been set and haven't been deleted. Keys that
+  // haven't been set or have been deleted will not be part of `key_values`.
+  repeated KeyValuePair key_values = 1;
 }
