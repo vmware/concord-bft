@@ -169,7 +169,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
     msg.pubkey = candidate_private_keys_.generated.pub;
     msg.repID = repID_;
-    msg.generated_sn = candidate_private_keys_.generated.sn;
+    msg.generated_sn = sn;
     std::stringstream ss;
     concord::serialize::Serializable::serialize(ss, msg);
     auto strMsg = ss.str();
