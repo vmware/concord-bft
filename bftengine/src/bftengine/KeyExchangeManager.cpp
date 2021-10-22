@@ -169,6 +169,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
     msg.pubkey = candidate_private_keys_.generated.pub;
     msg.repID = repID_;
+    msg.generated_sn = candidate_private_keys_.generated.sn;
     std::stringstream ss;
     concord::serialize::Serializable::serialize(ss, msg);
     auto strMsg = ss.str();
@@ -243,11 +244,12 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey() {
-  auto initKeyExchangeMethod = [this]() {
+void KeyExchangeManager::sendInitialKey(uint32_t prim) {
+  auto initKeyExchangeMethod = [prim, this]() {
+    std::unique_lock<std::mutex> lock(startup_mutex_);
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
     if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-      waitForLiveQuorum();
+      waitForLiveQuorum(prim);
     } else {
       waitForFullCommunication();
     }
@@ -257,7 +259,7 @@ void KeyExchangeManager::sendInitialKey() {
   initKeyExchangeMethod();
 }
 
-void KeyExchangeManager::waitForLiveQuorum() {
+void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
   // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
   if (client_->isUdp()) {
     LOG_INFO(KEY_EX_LOG, "UDP communication");
@@ -268,21 +270,21 @@ void KeyExchangeManager::waitForLiveQuorum() {
    * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
    * we wait for the first primary for a pre-defined amount of time.
    */
-  if (repID_ != 0) {
+  if (repID_ != prim) {
     auto start = getMonotonicTime();
     auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
-    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary to be ready");
+    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary (" << prim << ") to be ready");
     while (std::chrono::duration<double, std::milli>(getMonotonicTime() - start).count() / 1000 < timeoutForPrim) {
-      if (client_->isReplicaConnected(0)) {
-        LOG_INFO(KEY_EX_LOG, "primary (0) is connected");
+      if (client_->isReplicaConnected(prim)) {
+        LOG_INFO(KEY_EX_LOG, "primary (" << prim << ") is connected");
         break;
       }
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    if (!client_->isReplicaConnected(0)) {
+    if (!client_->isReplicaConnected(prim)) {
       LOG_INFO(KEY_EX_LOG,
-               "replica was not able to connect to primary (0) after "
-                   << timeoutForPrim
+               "replica was not able to connect to primary ("
+                   << prim << ")  after " << timeoutForPrim
                    << " seconds. The will wait for live quorum and starts (this may cause to a view change");
     }
   }
