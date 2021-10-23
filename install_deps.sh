@@ -293,5 +293,26 @@ git clone -b v0.8.0 --depth 1 --recurse-submodules https://github.com/jupp0r/pro
     cd ${HOME} && \
     rm -r prometheus-cpp
 
+cd ${HOME}
+git clone -b v3.9.1 --depth 1 https://github.com/nlohmann/json && \
+    cd json && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${HOME} && \
+    rm -r json
+
+cd ${HOME}
+git clone -b v0.9.7 --depth 1 https://github.com/yhirose/cpp-httplib && \
+    cd cpp-httplib && \
+    mkdir build && \
+    cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    cmake --build . --target install && \
+    cd ${HOME} && \
+    rm -r cpp-httplib
+
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v
