@@ -189,6 +189,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   LOG_INFO(KEY_EX_LOG, "Sending key exchange :" << KVLOG(cid, pub));
   msg.pubkey = pub;
   msg.repID = repID_;
+  msg.generated_sn = sn;
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
@@ -245,18 +246,15 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
 }
 
 void KeyExchangeManager::sendInitialKey(uint32_t prim) {
-  auto initKeyExchangeMethod = [prim, this]() {
-    std::unique_lock<std::mutex> lock(startup_mutex_);
-    SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
-    if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-      waitForLiveQuorum(prim);
-    } else {
-      waitForFullCommunication();
-    }
-    sendKeyExchange(0);
-    metrics_->sent_key_exchange_on_start_status.Get().Set("True");
-  };
-  initKeyExchangeMethod();
+  std::unique_lock<std::mutex> lock(startup_mutex_);
+  SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
+  if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
+    waitForLiveQuorum(prim);
+  } else {
+    waitForFullCommunication();
+  }
+  sendKeyExchange(0);
+  metrics_->sent_key_exchange_on_start_status.Get().Set("True");
 }
 
 void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
