@@ -3913,7 +3913,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
   onViewNumCallbacks_.add([&](uint64_t) {
     if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
       LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
-      KeyExchangeManager::instance().sendKeyExchange(0);
+      KeyExchangeManager::instance().sendInitialKey(currentPrimary());
     }
   });
   registerMsgHandlers();
@@ -4087,8 +4087,8 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyExchangeManager::instance().sendInitialKey();
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+    KeyExchangeManager::instance().sendInitialKey(currentPrimary());
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
 }

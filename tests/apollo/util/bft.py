@@ -1427,11 +1427,12 @@ class BftTestNetwork:
                                 assert public_key_exchange_for_peer_counter >= required_exchanges
                                 num_of_exchanged_replicas += 1
                                 break
-                    if num_of_exchanged_replicas >= required_exchanges:
+                    if num_of_exchanged_replicas >= len(replicas_to_start):
                         break
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                lastExecutedVal = await self.metrics.get(random.choice(replicas_to_start), *lastExecutedKey)
+                rep = random.choice(replicas_to_start)
+                lastExecutedVal = await self.metrics.get(rep, *lastExecutedKey)
             if stop_replicas:
                 self.stop_replicas(replicas_to_start)
             return lastExecutedVal

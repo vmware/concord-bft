@@ -77,6 +77,8 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
   if (kemsg.repID == repID_) {  // initiated by me
+    private_keys_.key_data().generated = candidate_private_keys_.generated;
+    candidate_private_keys_.generated.clear();
     ConcordAssert(private_keys_.key_data().generated.pub == kemsg.pubkey);
     private_keys_.onKeyExchange(cid, sn);
     for (auto e : registryToExchange_) e->onPrivateKeyExchange(private_keys_.key_data().keys[sn], kemsg.pubkey, sn);
@@ -157,23 +159,37 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
 void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
-  if (private_keys_.lastGeneratedSeqnum() &&  // if not init  ial
+  if (private_keys_.lastGeneratedSeqnum() &&  // if not initial
       (sn - private_keys_.lastGeneratedSeqnum()) / checkpointWindowSize < 2) {
-    LOG_INFO(KEY_EX_LOG, "ignore request - already generated keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
+    LOG_INFO(KEY_EX_LOG, "ignore request - already exchanged keys for seqnum: " << private_keys_.lastGeneratedSeqnum());
     return;
   }
   KeyExchangeMsg msg;
+  if (sn == candidate_private_keys_.generated.sn && !candidate_private_keys_.generated.cid.empty()) {
+    LOG_INFO(KEY_EX_LOG, "we already have a candidate for this sequence number, trying to send it again");
+    msg.pubkey = candidate_private_keys_.generated.pub;
+    msg.repID = repID_;
+    msg.generated_sn = sn;
+    std::stringstream ss;
+    concord::serialize::Serializable::serialize(ss, msg);
+    auto strMsg = ss.str();
+    client_->sendRequest(
+        bftEngine::KEY_EXCHANGE_FLAG, strMsg.size(), strMsg.c_str(), candidate_private_keys_.generated.cid);
+    metrics_->sent_key_exchange_counter++;
+    return;
+  }
+
   auto cid = generateCid(kInitialKeyExchangeCid);
   auto [prv, pub] = multiSigKeyHdlr_->generateMultisigKeyPair();
-  private_keys_.key_data().generated.priv = prv;
-  private_keys_.key_data().generated.pub = pub;
-  private_keys_.key_data().generated.cid = cid;
-  private_keys_.key_data().generated.sn = sn;
-  private_keys_.save();
+  candidate_private_keys_.generated.priv = prv;
+  candidate_private_keys_.generated.pub = pub;
+  candidate_private_keys_.generated.cid = cid;
+  candidate_private_keys_.generated.sn = sn;
 
   LOG_INFO(KEY_EX_LOG, "Sending key exchange :" << KVLOG(cid, pub));
   msg.pubkey = pub;
   msg.repID = repID_;
+  msg.generated_sn = sn;
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();
@@ -229,23 +245,19 @@ void KeyExchangeManager::loadClientPublicKey(const std::string& key,
   if (saveToReservedPages) saveClientsPublicKeys(SigManager::instance()->getClientsPublicKeys());
 }
 
-void KeyExchangeManager::sendInitialKey() {
-  auto initKeyExchangeMethod = [this]() {
-    SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
-    if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
-      waitForLiveQuorum();
-    } else {
-      waitForFullCommunication();
-    }
-    sendKeyExchange(0);
-    metrics_->sent_key_exchange_on_start_status.Get().Set("True");
-  };
-  // First Key exchange is on start, in order not to trigger view change, we'll wait for all replicas to be connected.
-  // In order not to block it's done as async operation.
-  async_res_ = std::async(std::launch::async, initKeyExchangeMethod);
+void KeyExchangeManager::sendInitialKey(uint32_t prim) {
+  std::unique_lock<std::mutex> lock(startup_mutex_);
+  SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(ReplicaConfig::instance().replicaId));
+  if (!ReplicaConfig::instance().waitForFullCommOnStartup) {
+    waitForLiveQuorum(prim);
+  } else {
+    waitForFullCommunication();
+  }
+  sendKeyExchange(0);
+  metrics_->sent_key_exchange_on_start_status.Get().Set("True");
 }
 
-void KeyExchangeManager::waitForLiveQuorum() {
+void KeyExchangeManager::waitForLiveQuorum(uint32_t prim) {
   // If transport is UDP, we can't know the connection status, and we are in Apollo context therefore giving 2sec grace.
   if (client_->isUdp()) {
     LOG_INFO(KEY_EX_LOG, "UDP communication");
@@ -256,21 +268,21 @@ void KeyExchangeManager::waitForLiveQuorum() {
    * Basically, we can start once we have n-f live replicas. However, to avoid unnecessary view change,
    * we wait for the first primary for a pre-defined amount of time.
    */
-  if (repID_ != 0) {
+  if (repID_ != prim) {
     auto start = getMonotonicTime();
     auto timeoutForPrim = bftEngine::ReplicaConfig::instance().timeoutForPrimaryOnStartupSeconds;
-    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary to be ready");
+    LOG_INFO(KEY_EX_LOG, "waiting for at most " << timeoutForPrim << " for primary (" << prim << ") to be ready");
     while (std::chrono::duration<double, std::milli>(getMonotonicTime() - start).count() / 1000 < timeoutForPrim) {
-      if (client_->isReplicaConnected(0)) {
-        LOG_INFO(KEY_EX_LOG, "primary (0) is connected");
+      if (client_->isReplicaConnected(prim)) {
+        LOG_INFO(KEY_EX_LOG, "primary (" << prim << ") is connected");
         break;
       }
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-    if (!client_->isReplicaConnected(0)) {
+    if (!client_->isReplicaConnected(prim)) {
       LOG_INFO(KEY_EX_LOG,
-               "replica was not able to connect to primary (0) after "
-                   << timeoutForPrim
+               "replica was not able to connect to primary ("
+                   << prim << ")  after " << timeoutForPrim
                    << " seconds. The will wait for live quorum and starts (this may cause to a view change");
     }
   }
