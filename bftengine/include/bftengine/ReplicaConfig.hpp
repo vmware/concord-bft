@@ -163,6 +163,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Keys Management
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
+  // Configuration Management
+  // Keys Management
+  CONFIG_PARAM(configurationViewFilePath,
+               std::string,
+               ".",
+               "The path where we write all previous configuration in a file");
   // Time Service
   CONFIG_PARAM(timeServiceEnabled, bool, false, "whether time service enabled");
   CONFIG_PARAM(timeServiceSoftLimitMillis,
@@ -286,6 +292,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, blockAccumulation);
     serialize(outStream, sizeOfInternalThreadPool);
     serialize(outStream, keyViewFilePath);
+    serialize(outStream, configurationViewFilePath);
     serialize(outStream, timeServiceEnabled);
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
@@ -363,6 +370,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, blockAccumulation);
     deserialize(inStream, sizeOfInternalThreadPool);
     deserialize(inStream, keyViewFilePath);
+    deserialize(inStream, configurationViewFilePath);
     deserialize(inStream, timeServiceEnabled);
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);
