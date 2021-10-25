@@ -20,6 +20,7 @@ namespace {
 
 using bftEngine::bcst::impl::SourceSelector;
 using bftEngine::bcst::impl::NO_REPLICA;
+using bftEngine::bcst::impl::SourceReplaceType;
 
 constexpr auto kRetransmissionTimeoutMs = 100;
 constexpr auto kReplicaReplacementTimeoutMs = 300;
@@ -49,7 +50,7 @@ TEST_F(SourceSelectorTestFixture, on_construction_there_is_no_current_replica) {
 TEST_F(SourceSelectorTestFixture, has_no_source_on_construction) { ASSERT_FALSE(source_selector.hasSource()); }
 
 TEST_F(SourceSelectorTestFixture, has_source_after_selection) {
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   ASSERT_TRUE(source_selector.hasSource());
 }
 
@@ -67,39 +68,39 @@ TEST_F(SourceSelectorTestFixture, should_change_source_after_construction) {
   // Make sure that the current replica is "NO_REPLICA".
   // When there is no current replica the selector should select an initial replica as source.
   ASSERT_EQ(source_selector.currentReplica(), NO_REPLICA);
-  ASSERT_TRUE(source_selector.shouldReplaceSource(kSampleCurrentTimeMs, false));
+  ASSERT_EQ(source_selector.shouldReplaceSource(kSampleCurrentTimeMs, false, false), SourceReplaceType::IMMEDIATE);
 }
 
 TEST_F(SourceSelectorTestFixture, should_change_source_when_bad_data_is_received_from_the_current_source) {
   // Select a source
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   // Ensuring that the change of the selected source is not caused by a timeout is
   // done by intentionally passing a value than is not much bigger than the one stated as current time during the
   // selection process.
-  ASSERT_TRUE(source_selector.shouldReplaceSource(kSmallDeltaTime, true));
+  ASSERT_EQ(source_selector.shouldReplaceSource(kSmallDeltaTime, true, false), SourceReplaceType::IMMEDIATE);
 }
 
 TEST_F(SourceSelectorTestFixture, should_change_source_when_the_replacement_time_has_elapsed) {
-  source_selector.updateSource(kSampleCurrentTimeMs);
-  ASSERT_TRUE(source_selector.shouldReplaceSource(kBigDeltaTime, false));
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
+  ASSERT_EQ(source_selector.shouldReplaceSource(kBigDeltaTime, false, true), SourceReplaceType::GRACEFUL);
 }
 
 TEST_F(SourceSelectorTestFixture, source_should_not_be_changed_when_working_and_replacement_time_has_not_elapsed_yet) {
-  source_selector.updateSource(kSampleCurrentTimeMs);
-  ASSERT_FALSE(source_selector.shouldReplaceSource(kSmallDeltaTime, false));
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
+  ASSERT_EQ(source_selector.shouldReplaceSource(kSmallDeltaTime, false, false), SourceReplaceType::DONOT);
 }
 
 // Remove current replica
 TEST_F(SourceSelectorTestFixture, remove_current_replica_sets_the_current_replica_to_no_replica) {
   ASSERT_EQ(source_selector.currentReplica(), NO_REPLICA);
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   ASSERT_NE(source_selector.currentReplica(), NO_REPLICA);
   source_selector.removeCurrentReplica();
   ASSERT_EQ(source_selector.currentReplica(), NO_REPLICA);
 }
 
 TEST_F(SourceSelectorTestFixture, removing_the_current_replica_makes_it_non_preferred_as_well) {
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   const auto current_replica = source_selector.currentReplica();
   ASSERT_TRUE(source_selector.isPreferred(current_replica));
   source_selector.removeCurrentReplica();
@@ -138,7 +139,7 @@ TEST_F(SourceSelectorTestFixture, reset_removes_preferred_replicas) {
 TEST_F(SourceSelectorTestFixture, reset_removes_current_replica) {
   ASSERT_EQ(source_selector.currentReplica(), NO_REPLICA);
   ASSERT_TRUE(source_selector.isReset());
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   // Set the selection and fetching times to zero in order to ensure that the reset function's
   // result is solely based on the current replica.
   source_selector.setSourceSelectionTime(0);
@@ -180,12 +181,12 @@ TEST_F(SourceSelectorTestFixture, select_an_unique_replica_on_each_selection) {
   std::set<uint16_t> selected_replicas;
 
   // Select an initial replica
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   ASSERT_TRUE(selected_replicas.insert(source_selector.currentReplica()).second);
 
   // Loop until the only preferred replica left is the one that has been selected initially
   while (source_selector.numberOfPreferredReplicas() > 1) {
-    source_selector.updateSource(kSampleCurrentTimeMs);
+    source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
     ASSERT_TRUE(selected_replicas.insert(source_selector.currentReplica()).second);
   }
 
@@ -196,7 +197,7 @@ TEST_F(SourceSelectorTestFixture, select_an_unique_replica_on_each_selection) {
 TEST_F(SourceSelectorTestFixture, cannot_select_source_without_initial_replicas) {
   auto source_selector =
       SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
-  ASSERT_DEATH(source_selector.updateSource(kSampleCurrentTimeMs), "");
+  ASSERT_DEATH(source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE), "");
 }
 
 TEST_F(SourceSelectorTestFixture, add_preferred_replica) {
@@ -211,7 +212,7 @@ TEST_F(SourceSelectorTestFixture, select_the_only_preferred_replica) {
       SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
   source_selector.addPreferredReplica(kSampleReplicaId);
   ASSERT_TRUE(source_selector.isPreferred(kSampleReplicaId));
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   ASSERT_EQ(source_selector.currentReplica(), kSampleReplicaId);
 }
 
@@ -223,7 +224,7 @@ TEST_F(SourceSelectorTestFixture, select_amongst_preferred_replicas) {
     source_selector.addPreferredReplica(r);
   }
 
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
   ASSERT_TRUE(source_selector.isPreferred(source_selector.currentReplica()));
 }
 
@@ -237,7 +238,7 @@ TEST_F(SourceSelectorTestFixture, change_source_after_too_many_retransmissions) 
   auto curTimeMs = kSampleCurrentTimeMs;
   // should return false - source not selected
   ASSERT_FALSE(source_selector.retransmissionTimeoutExpired(curTimeMs));
-  source_selector.updateSource(kSampleCurrentTimeMs);
+  source_selector.updateSource(kSampleCurrentTimeMs, SourceReplaceType::IMMEDIATE);
 
   // should return false - fetch time never set
   ASSERT_FALSE(source_selector.retransmissionTimeoutExpired(curTimeMs));
@@ -247,29 +248,29 @@ TEST_F(SourceSelectorTestFixture, change_source_after_too_many_retransmissions) 
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += 10;
   ASSERT_FALSE(source_selector.retransmissionTimeoutExpired(curTimeMs));
-  ASSERT_FALSE(source_selector.shouldReplaceSource(curTimeMs, false));
+  ASSERT_EQ(source_selector.shouldReplaceSource(curTimeMs, false, false), SourceReplaceType::DONOT);
 
   // operation: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
   // validate: source should not yet be replaced and retransmission expired (counter = 1)
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += kRetransmissionTimeoutMs + 10;
   ASSERT_TRUE(source_selector.retransmissionTimeoutExpired(curTimeMs));
-  ASSERT_FALSE(source_selector.shouldReplaceSource(curTimeMs, false));
+  ASSERT_EQ(source_selector.shouldReplaceSource(curTimeMs, false, false), SourceReplaceType::DONOT);
 
   // operation: send fetch msg and than advance kRetransmissionTimeoutMs + 10 ms
   // validate: source should be replaced and retransmission expired (counter = 2 and >= maxFetchRetransmissions)
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += kRetransmissionTimeoutMs + 10;
   ASSERT_TRUE(source_selector.retransmissionTimeoutExpired(curTimeMs));
-  ASSERT_TRUE(source_selector.shouldReplaceSource(curTimeMs, false));
+  ASSERT_EQ(source_selector.shouldReplaceSource(curTimeMs, false, false), SourceReplaceType::IMMEDIATE);
 
   // operation: update source, send fetch msg and than advance 10ms
   // validate: source should not yet be replaced and retransmission not expired
-  source_selector.updateSource(curTimeMs);
+  source_selector.updateSource(curTimeMs, SourceReplaceType::IMMEDIATE);
   source_selector.setFetchingTimeStamp(curTimeMs, true);
   curTimeMs += 10;
   ASSERT_FALSE(source_selector.retransmissionTimeoutExpired(curTimeMs));
-  ASSERT_FALSE(source_selector.shouldReplaceSource(curTimeMs, false));
+  ASSERT_EQ(source_selector.shouldReplaceSource(curTimeMs, false, false), SourceReplaceType::DONOT);
 }
 
 }  // namespace
