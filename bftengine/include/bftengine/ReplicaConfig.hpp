@@ -186,12 +186,18 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
 
   CONFIG_PARAM(preExecutionResultAuthEnabled, bool, false, "if PreExecution result authentication is enabled");
 
-  CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, false, "Enabling asynchronous preprepare finishing");
+  CONFIG_PARAM(prePrepareFinalizeAsyncEnabled, bool, true, "Enabling asynchronous preprepare finishing");
 
   CONFIG_PARAM(threadbagConcurrency,
                uint32_t,
                64u,
                "Number of threads given to thread pool that is created for any request processing");
+
+  CONFIG_PARAM(timeoutForPrimaryOnStartupSeconds,
+               uint32_t,
+               60,
+               "timeout we ready to wait for primary to be ready on the system first startup");
+  CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
 
   // Not predefined configuration parameters
   // Example of usage:
@@ -288,7 +294,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, preExecutionResultAuthEnabled);
     serialize(outStream, prePrepareFinalizeAsyncEnabled);
     serialize(outStream, threadbagConcurrency);
-
+    serialize(outStream, timeoutForPrimaryOnStartupSeconds);
+    serialize(outStream, waitForFullCommOnStartup);
     serialize(outStream, config_params_);
   }
   void deserializeDataMembers(std::istream& inStream) {
@@ -364,7 +371,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, preExecutionResultAuthEnabled);
     deserialize(inStream, prePrepareFinalizeAsyncEnabled);
     deserialize(inStream, threadbagConcurrency);
-
+    deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
+    deserialize(inStream, waitForFullCommOnStartup);
     deserialize(inStream, config_params_);
   }
 

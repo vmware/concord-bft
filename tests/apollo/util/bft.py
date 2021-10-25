@@ -236,6 +236,8 @@ class BftTestNetwork:
             if self.perf_proc:
                 self.perf_proc.wait()
 
+            self.check_error_logs()
+
     def __init__(self, is_existing, origdir, config, testdir, certdir, builddir, toolsdir,
                  procs, replicas, clients, metrics, client_factory, background_nursery, ro_replicas=[]):
         self.is_existing = is_existing
@@ -306,8 +308,9 @@ class BftTestNetwork:
         os.chdir(bft_network.testdir)
         bft_network._generate_crypto_keys()
         if bft_network.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
+            generate_cre = 0 if bft_network.with_cre is False else 1
             # Generate certificates for all replicas, clients, and reserved clients
-            bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + 1)
+            bft_network.generate_tls_certs(bft_network.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
 
         bft_network._init_metrics()
         bft_network._create_clients()
@@ -377,7 +380,7 @@ class BftTestNetwork:
                            "-f", str(self.config.f),
                            "-c", str(self.config.c),
                            "-r", str(self.config.n),
-                           "-k", self.certdir,
+                           "-k", self.certdir + "/" + str(self.cre_id),
                            "-t", os.path.join(self.txn_signing_keys_base_path, "transaction_signing_keys", str(self.principals_to_participant_map[self.cre_id]), "transaction_signing_priv.pem"),
                            "-o", "1000"]
                 self.cre_pid = subprocess.Popen(
@@ -414,8 +417,9 @@ class BftTestNetwork:
         self._generate_crypto_keys()
 
         if generate_tls and self.comm_type() == bft_config.COMM_TYPE_TCP_TLS:
+            generate_cre = 0 if self.with_cre is False else 1
             # Generate certificates for replicas, clients, and reserved clients
-            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA)
+            self.generate_tls_certs(self.num_total_replicas() + config.num_clients + RESERVED_CLIENTS_QUOTA + generate_cre)
 
 
     def restart_clients(self, generate_tx_signing_keys=True, restart_replicas=True):
@@ -478,8 +482,22 @@ class BftTestNetwork:
         certs_gen_script_path = os.path.join(self.builddir, "tests/simpleTest/scripts/create_tls_certs.sh")
         # If not running TLS, just exit here. keep certs_path to pass it by default to any type of replicas
         # We want to save time in non-TLs runs, avoiding certificate generation
-        args = [certs_gen_script_path, str(num_to_generate), self.certdir, str(start_index)]
+        temp_cert_dir = self.certdir + "/tmp"
+        os.makedirs(temp_cert_dir, exist_ok=True)
+        args = [certs_gen_script_path, str(num_to_generate), temp_cert_dir, str(start_index)]
         subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+        for c in range(num_to_generate):
+            comp_cert_dir = self.certdir + "/" + str(c)
+            shutil.rmtree(comp_cert_dir, ignore_errors=True)
+            shutil.copytree(temp_cert_dir, comp_cert_dir)
+        shutil.rmtree(temp_cert_dir, ignore_errors=True)
+
+    def copy_certs_from_server_to_clients(self, src):
+        src_cert = self.certdir + "/" + str(src)
+        for c in range(self.num_total_replicas() , self.num_total_replicas() + self.config.num_clients + RESERVED_CLIENTS_QUOTA):
+            comp_cert_dir = self.certdir + "/" + str(c)
+            shutil.rmtree(comp_cert_dir, ignore_errors=True)
+            shutil.copytree(src_cert, comp_cert_dir)
 
     def _create_clients(self):
         start_id = self.config.n + self.config.num_ro_replicas
@@ -513,7 +531,7 @@ class BftTestNetwork:
                                  MAX_MSG_SIZE,
                                  REQ_TIMEOUT_MILLI,
                                  RETRY_TIMEOUT_MILLI,
-                                 self.certdir,
+                                 self.certdir + "/" + str(client_id),
                                  self.txn_signing_keys_base_path,
                                  self.principals_to_participant_map)
 
@@ -620,7 +638,7 @@ class BftTestNetwork:
                 cmd = self.config.start_replica_cmd(self.builddir, replica_id)
             if self.certdir:
                 cmd.append("-c")
-                cmd.append(self.certdir)
+                cmd.append(self.certdir + "/" + str(replica_id))
             if self.txn_signing_enabled:
                 cmd.append("-p")
                 cmd.append(self.principals_mapping)
@@ -628,6 +646,24 @@ class BftTestNetwork:
                 cmd.append("-t")
                 cmd.append(keys_path)
             return cmd
+
+    def check_error_logs(self):
+        """
+        Checking ERROR/FATAL logs in replica logs and writing in a file.
+        If the file exists for any testcase, warning is displayed in CI
+        """
+        with log.start_action(action_type="replica_log_scanner") as action:
+            cmd = ['grep', '-R', 'ERROR\|FATAL', '--exclude=ReplicaErrorLogs.txt']
+            file_path = f"{self.test_dir}ReplicaErrorLogs.txt"
+
+            with open(file_path, 'w+') as outfile:
+                subprocess.run(cmd, stdout=outfile, cwd=self.test_dir)
+
+            if os.path.isfile(file_path):
+                if  os.stat(file_path).st_size > 0:
+                    action.log(message_type=f'Error in Replica logs')
+                else:
+                    os.remove(file_path)
 
     def stop_replica_cmd(self, replica_id):
         """
@@ -1356,15 +1392,18 @@ class BftTestNetwork:
             
         return await self.wait_for(the_number_of_slow_path_requests, 5, .5)
         
-    async def check_initital_key_exchange(self, stop_replicas=True):
+    async def check_initital_key_exchange(self, stop_replicas=True, full_key_exchange=False, replicas_to_start=[]):
         """
         Performs initial key exchange, starts all replicas, validate the exchange and stops all replicas.
         The stop is done in order for a test who uses this functionality, to proceed without imposing n up replicas.
         """
         with log.start_action(action_type="check_initital_key_exchange"):
-            self.start_all_replicas()
+            required_exchanges = self.config.n - 1 if full_key_exchange else 2 * self.config.f + self.config.c
+            replicas_to_start = [r for r in range(self.config.n)] if replicas_to_start == [] else replicas_to_start
+            self.start_replicas(replicas_to_start)
+            num_of_exchanged_replicas = 0
             with trio.fail_after(seconds=120):
-                for replica_id in range(self.config.n):
+                for replica_id in replicas_to_start:
                     while True:
                         with trio.move_on_after(seconds=1):
                             try:
@@ -1375,7 +1414,7 @@ class BftTestNetwork:
                                 if  sent_key_exchange_on_start_status == 'False' or \
                                     sent_key_exchange_counter < 1 or \
                                     self_key_exchange_counter < 1 or \
-                                    public_key_exchange_for_peer_counter < self.config.n - 1 :
+                                    public_key_exchange_for_peer_counter < required_exchanges :
                                     await trio.sleep(0.1)
                                     continue
                             except trio.TooSlowError:
@@ -1383,15 +1422,19 @@ class BftTestNetwork:
                                 raise KeyExchangeError
                             else:
                                 assert sent_key_exchange_on_start_status == 'True'
-                                assert sent_key_exchange_counter == 1
-                                assert self_key_exchange_counter == 1
-                                assert public_key_exchange_for_peer_counter == self.config.n - 1
+                                assert sent_key_exchange_counter >= 1
+                                assert self_key_exchange_counter >= 1
+                                assert public_key_exchange_for_peer_counter >= required_exchanges
+                                num_of_exchanged_replicas += 1
                                 break
+                    if num_of_exchanged_replicas >= len(replicas_to_start):
+                        break
             with trio.fail_after(seconds=5):
                 lastExecutedKey = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                lastExecutedVal = await self.metrics.get(0, *lastExecutedKey)
+                rep = random.choice(replicas_to_start)
+                lastExecutedVal = await self.metrics.get(rep, *lastExecutedKey)
             if stop_replicas:
-                self.stop_all_replicas()
+                self.stop_replicas(replicas_to_start)
             return lastExecutedVal
 
     async def assert_successful_pre_executions_count(self, replica_id, num_requests):

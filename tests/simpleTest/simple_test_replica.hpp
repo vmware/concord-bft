@@ -171,7 +171,7 @@ class SimpleTestReplica {
     // TODO(DD): Reset manually because apparently the order matters - fixit
     replica.reset();
     if (comm) {
-      comm->Stop();
+      comm->stop();
       delete comm;
     }
     if (behaviorPtr) {

@@ -161,8 +161,6 @@ class Client : public concord::storage::IDBClient {
   // Database checkpoint directory
   std::string dbCheckpointPath_;  // default val = m_dbPath + "_checkpoint"
 
-  std::string default_opt_config_name = "OPTIONS_DEFAULT.ini";
-
   // Database object (created on connection).
   std::unique_ptr<::rocksdb::DB> dbInstance_;
   ::rocksdb::OptimisticTransactionDB* txn_db_ = nullptr;

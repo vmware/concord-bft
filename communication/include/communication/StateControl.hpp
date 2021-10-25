@@ -11,17 +11,26 @@
 // LICENSE file.
 
 #pragma once
+#include <functional>
+#include "callback_registry.hpp"
 namespace bft::communication {
-class CommStateControl {
+class StateControl {
  public:
-  static CommStateControl& instance() {
-    static CommStateControl instance_;
+  static StateControl& instance() {
+    static StateControl instance_;
     return instance_;
   }
   void setBlockNewConnectionsFlag(bool flag) { blockNewConnectionsFlag_ = flag; }
-  bool getBlockNewConnectionsFlag() { return blockNewConnectionsFlag_; }
+  bool getBlockNewConnectionsFlag() const { return blockNewConnectionsFlag_; }
+
+  void setCommRestartCallBack(std::function<void(uint32_t)> cb) {
+    if (cb != nullptr) comm_restart_cb_registry_.add(cb);
+  }
+
+  void restartComm(uint32_t id) { comm_restart_cb_registry_.invokeAll(id); }
 
  private:
   bool blockNewConnectionsFlag_ = false;
+  concord::util::CallbackRegistry<uint32_t> comm_restart_cb_registry_;
 };
 }  // namespace bft::communication

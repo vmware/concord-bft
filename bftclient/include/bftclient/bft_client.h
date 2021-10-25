@@ -40,7 +40,7 @@ class Client {
     metrics_.setAggregator(aggregator);
   }
 
-  void stop() { communication_->Stop(); }
+  void stop() { communication_->stop(); }
 
   // Send a message where the reply gets allocated by the callee and returned in a vector.
   // The message to be sent is moved into the caller to prevent unnecessary copies.
@@ -56,6 +56,7 @@ class Client {
   // Useful for testing. Shouldn't be relied on in production.
   std::optional<ReplicaId> primary() { return primary_; }
   std::string signMessage(std::vector<uint8_t>&);
+  void setTransactionSigner(concord::util::crypto::ISigner* signer) { transaction_signer_.reset(signer); }
 
  private:
   // Generic function for sending a read or write message.

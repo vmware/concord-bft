@@ -78,3 +78,17 @@ set_property(DIRECTORY .. APPEND PROPERTY INCLUDE_DIRECTORIES
 install (TARGETS util_shared DESTINATION lib${LIB_SUFFIX})
 
 set_property(GLOBAL PROPERTY UTIL_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+if (USE_PROMETHEUS)
+  find_package(prometheus-cpp CONFIG REQUIRED)
+  set(util_prometheus_src
+      ${util_source_files}
+      src/concord_prometheus_metrics.cpp
+  )
+  add_library(util_prometheus STATIC ${util_prometheus_src})
+  target_link_libraries(util_prometheus PUBLIC
+    prometheus-cpp::core
+    prometheus-cpp::pull
+    util
+  )
+endif()

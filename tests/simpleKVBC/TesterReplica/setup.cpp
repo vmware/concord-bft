@@ -40,6 +40,7 @@
 #include "strategy/ShufflePrePrepareMsgStrategy.hpp"
 #include "strategy/MangledPreProcessResultMsgStrategy.hpp"
 #include "WrapCommunication.hpp"
+#include "secrets_manager_enc.h"
 
 namespace fs = std::experimental::filesystem;
 
@@ -66,7 +67,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.clientBatchingEnabled = true;
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
-    replicaConfig.timeServiceEnabled = true;
     replicaConfig.batchedPreProcessEnabled = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
@@ -247,12 +247,19 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         (uint16_t)(3 * replicaConfig.fVal + 2 * replicaConfig.cVal + 1 + replicaConfig.numRoReplicas);
     auto numOfClients =
         replicaConfig.numOfClientProxies ? replicaConfig.numOfClientProxies : replicaConfig.numOfExternalClients;
+    std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> sm_ =
+        std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
 #ifdef USE_COMM_PLAIN_TCP
     bft::communication::PlainTcpConfig conf =
         testCommConfig.GetTCPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
 #elif USE_COMM_TLS_TCP
     bft::communication::TlsTcpConfig conf = testCommConfig.GetTlsTCPConfig(
         true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile, certRootPath);
+    if (conf.secretData.has_value()) {
+      sm_ = std::make_shared<concord::secretsmanager::SecretsManagerEnc>(conf.secretData.value());
+    } else {
+      sm_ = std::make_shared<concord::secretsmanager::SecretsManagerPlain>();
+    }
 #else
     bft::communication::PlainUdpConfig conf =
         testCommConfig.GetUDPConfig(true, replicaConfig.replicaId, numOfClients, numOfReplicas, commConfigFile);
@@ -278,15 +285,17 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     uint16_t metricsPort = conf.listenPort + 1000;
 
     LOG_INFO(logger, "\nReplica Configuration: \n" << replicaConfig);
-
-    return std::unique_ptr<TestSetup>(new TestSetup{replicaConfig,
-                                                    std::move(comm),
-                                                    logger,
-                                                    metricsPort,
-                                                    persistMode == PersistencyMode::RocksDB,
-                                                    s3ConfigFile,
-                                                    logPropsFile,
-                                                    cronEntryNumberOfExecutes});
+    std::unique_ptr<TestSetup> setup = nullptr;
+    setup.reset(new TestSetup(replicaConfig,
+                              std::move(comm),
+                              logger,
+                              metricsPort,
+                              persistMode == PersistencyMode::RocksDB,
+                              s3ConfigFile,
+                              logPropsFile,
+                              cronEntryNumberOfExecutes));
+    setup->sm_ = sm_;
+    return setup;
 
   } catch (const std::exception& e) {
     LOG_FATAL(GL, "failed to parse command line arguments: " << e.what());

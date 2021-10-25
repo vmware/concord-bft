@@ -19,7 +19,7 @@
 #include "secrets_manager_impl.h"
 #include "SysConsts.hpp"
 #include "crypto_utils.hpp"
-
+#include <future>
 namespace bftEngine::impl {
 
 class IInternalBFTClient;
@@ -28,10 +28,11 @@ typedef int64_t SeqNum;  // TODO [TK] redefinition
 
 class KeyExchangeManager {
  public:
+  void exchangeTlsKeys(const SeqNum&);
   // Generates and publish key to consensus
   void sendKeyExchange(const SeqNum&);
   // Generates and publish the first replica's key,
-  void sendInitialKey();
+  void sendInitialKey(uint32_t prim = 0);
   // The execution handler implementation that is called when a key exchange msg has passed consensus.
   std::string onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid);
   // Register a IKeyExchanger to notification when keys are rotated.
@@ -40,8 +41,10 @@ class KeyExchangeManager {
   void loadPublicKeys();
   // whether initial key exchange has occurred
   bool exchanged() const {
-    return ReplicaConfig::instance().getkeyExchangeOnStart() ? (publicKeys_.numOfExchangedReplicas() == clusterSize_)
-                                                             : true;
+    uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
+    return ReplicaConfig::instance().getkeyExchangeOnStart()
+               ? (publicKeys_.numOfExchangedReplicas() >= liveClusterSize - 1)
+               : true;
   }
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";
   const std::string kInitialClientsKeysCid = "CLIENTS-PUB-KEYS-";
@@ -180,6 +183,7 @@ class KeyExchangeManager {
    * Samples periodically how many connections the replica has with other replicas.
    * returns when num of connections is (clusterSize - 1) i.e. full communication.
    */
+  void waitForLiveQuorum(uint32_t prim = 0);
   void waitForFullCommunication();
   void initMetrics(std::shared_ptr<concordMetrics::Aggregator> a, std::chrono::seconds interval);
   // deleted
@@ -191,8 +195,10 @@ class KeyExchangeManager {
  private:  // members
   uint16_t repID_{};
   uint32_t clusterSize_{};
+  uint32_t quorumSize_{};
   ClusterKeyStore publicKeys_;
   PrivateKeys private_keys_;
+  PrivateKeys::KeyData candidate_private_keys_;
   ClientKeyStore clientsPublicKeys_;
   // A flag to prevent race on the replica's internal client.
   std::atomic_bool initial_exchange_;
@@ -201,6 +207,7 @@ class KeyExchangeManager {
   std::vector<IKeyExchanger*> registryToExchange_;
   IMultiSigKeyGenerator* multiSigKeyHdlr_{nullptr};
   IClientPublicKeyStore* clientPublicKeyStore_{nullptr};
+  std::mutex startup_mutex_;
 
   struct Metrics {
     std::chrono::seconds lastMetricsDumpTime;
@@ -212,6 +219,7 @@ class KeyExchangeManager {
     concordMetrics::CounterHandle sent_key_exchange_counter;
     concordMetrics::CounterHandle self_key_exchange_counter;
     concordMetrics::CounterHandle public_key_exchange_for_peer_counter;
+    concordMetrics::CounterHandle tls_key_exchange_requests_;
 
     void setAggregator(std::shared_ptr<concordMetrics::Aggregator> a) {
       aggregator = a;
@@ -226,13 +234,14 @@ class KeyExchangeManager {
           clients_keys_published_status{component.RegisterStatus("clients_keys_published", "False")},
           sent_key_exchange_counter{component.RegisterCounter("sent_key_exchange")},
           self_key_exchange_counter{component.RegisterCounter("self_key_exchange")},
-          public_key_exchange_for_peer_counter{component.RegisterCounter("public_key_exchange_for_peer")} {}
+          public_key_exchange_for_peer_counter{component.RegisterCounter("public_key_exchange_for_peer")},
+          tls_key_exchange_requests_{component.RegisterCounter("tls_key_exchange_requests")} {}
   };
 
   std::unique_ptr<Metrics> metrics_;
   concordUtil::Timers::Handle metricsTimer_;
   concordUtil::Timers& timers_;
-
+  std::shared_ptr<concord::secretsmanager::ISecretsManagerImpl> secretsMgr_;
   friend class TestKeyManager;
 };
 

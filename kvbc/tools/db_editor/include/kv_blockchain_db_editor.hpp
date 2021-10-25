@@ -311,7 +311,7 @@ struct VerifyBlockRequests {
     std::vector<uint8_t> v{imm_val.data.begin(), imm_val.data.end()};
     concord::messages::execution_data::deserialize(v, record);
 
-    auto opt_keys_val = adapter.get(concord::kvbc::kConcordInternalCategoryId,
+    auto opt_keys_val = adapter.get(concord::kvbc::categorization::kConcordInternalCategoryId,
                                     std::string(1, concord::kvbc::kClientsPublicKeys),
                                     record.keys_version);
     if (!opt_keys_val) {
@@ -741,11 +741,18 @@ struct RemoveMetadata {
     if (!status.isOK()) {
       throw std::runtime_error{"Failed to delete metadata and state transfer data: " + status.toString()};
     }
+    // For backward compatibility, we add new epoch only if we have the reconfiguration category exist
+    auto categories = adapter.blockchainCategories();
+    if (categories.find(kConcordReconfigurationCategoryId) == categories.end()) {
+      std::vector<std::pair<std::string, std::string>> out;
+      out.push_back({std::string{"result"}, std::string{"true"}});
+      return toJson(out);
+    }
     // Once we managed to remove the metadata, we must start a new epoch (which means to add an epoch block)
     uint64_t epoch{0};
     {
-      auto value =
-          adapter.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::reconfiguration_epoch_key});
+      auto value = adapter.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
+                                     std::string{kvbc::keyTypes::reconfiguration_epoch_key});
       if (value) {
         const auto &data = std::get<categorization::VersionedValue>(*value).data;
         ConcordAssertEQ(data.size(), sizeof(uint64_t));
@@ -754,7 +761,8 @@ struct RemoveMetadata {
     }
     uint64_t last_executed_sn{0};
     {
-      auto value = adapter.getLatest(kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key});
+      auto value = adapter.getLatest(concord::kvbc::categorization::kConcordInternalCategoryId,
+                                     std::string{kvbc::keyTypes::bft_seq_num_key});
       if (value) {
         const auto &data = std::get<categorization::VersionedValue>(*value).data;
         ConcordAssertEQ(data.size(), sizeof(uint64_t));
@@ -765,10 +773,12 @@ struct RemoveMetadata {
     std::string epoch_str = concordUtils::toBigEndianStringBuffer(epoch);
     concord::kvbc::categorization::VersionedUpdates ver_updates;
     ver_updates.addUpdate(std::string{kvbc::keyTypes::reconfiguration_epoch_key}, std::move(epoch_str));
-    std::string sn_str = concordUtils::toBigEndianStringBuffer(last_executed_sn);
-    ver_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, std::move(sn_str));
     concord::kvbc::categorization::Updates updates;
-    updates.add(kvbc::kConcordInternalCategoryId, std::move(ver_updates));
+    updates.add(concord::kvbc::categorization::kConcordReconfigurationCategoryId, std::move(ver_updates));
+    concord::kvbc::categorization::VersionedUpdates sn_updates;
+    std::string sn_str = concordUtils::toBigEndianStringBuffer(last_executed_sn);
+    sn_updates.addUpdate(std::string{kvbc::keyTypes::bft_seq_num_key}, std::move(sn_str));
+    updates.add(concord::kvbc::categorization::kConcordInternalCategoryId, std::move(sn_updates));
     adapter.addBlock(std::move(updates));
     std::vector<std::pair<std::string, std::string>> out;
     out.push_back({std::string{"result"}, std::string{"true"}});

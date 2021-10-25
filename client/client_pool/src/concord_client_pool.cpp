@@ -43,6 +43,14 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
                                             std::string correlation_id,
                                             std::string span_context,
                                             const bftEngine::RequestCallBack &callback) {
+  if (callback && timeout_ms.count() == 0) {
+    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    return SubmitResult::Overloaded;
+  }
+  if (callback && flags & ClientMsgFlag::PRE_PROCESS_REQ && flags & ClientMsgFlag::READ_ONLY_REQ) {
+    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    return SubmitResult::Overloaded;
+  }
   externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
   metricsComponent_.UpdateAggregator();
@@ -148,7 +156,13 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     ClientPoolMetrics_.rejected_counter++;
     is_overloaded_ = true;
     LOG_WARN(logger_, "Cannot allocate client for" << KVLOG(correlation_id));
-    if (callback) callback(bftEngine::SendResult{SubmitResult::Overloaded});
+    if (callback) {
+      if (serving_candidates == 0 && !clients_.empty()) {
+        callback(bftEngine::SendResult{SubmitResult::ClientUnavailable});
+      } else {
+        callback(bftEngine::SendResult{SubmitResult::Overloaded});
+      }
+    }
     return SubmitResult::Overloaded;
   }
 }
@@ -401,7 +415,13 @@ void SingleRequestProcessingJob::execute() {
     read_config_.request.span_context = span_context_;
     res = processing_client_->SendRequest(read_config_, std::move(request_));
     reply_size = res.matched_data.size();
-    if (callback_) callback_(bftEngine::SendResult{res});
+    if (callback_) {
+      if (processing_client_->getClientRequestError() != TIMEOUT) {
+        callback_(bftEngine::SendResult{res});
+      } else {
+        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+      }
+    }
   } else {
     write_config_.request.timeout = timeout_ms_;
     write_config_.request.sequence_number = seq_num_;
@@ -410,7 +430,13 @@ void SingleRequestProcessingJob::execute() {
     write_config_.request.pre_execute = flags_ & PRE_PROCESS_REQ;
     res = processing_client_->SendRequest(write_config_, std::move(request_));
     reply_size = res.matched_data.size();
-    if (callback_) callback_(bftEngine::SendResult{res});
+    if (callback_) {
+      if (processing_client_->getClientRequestError() != TIMEOUT) {
+        callback_(bftEngine::SendResult{res});
+      } else {
+        callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+      }
+    }
   }
   external_client::ConcordClient::PendingReplies replies;
   replies.push_back(ClientReply{static_cast<uint32_t>(request_.size()),
@@ -509,7 +535,11 @@ void ConcordClientPool::InsertClientToQueue(
       }
     }
   }
-  ClientPoolMetrics_.clients_gauge.Get().Set(clients_.size());
+  if (replies.second.front().cb && client->getClientRequestError() == bftEngine::TIMEOUT) {
+    for (const auto &reply : replies.second) {
+      reply.cb(SendResult{SubmitResult::TimedOut});
+    }
+  }
   Done(std::move(replies));
 }
 

@@ -16,9 +16,13 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <memory>
 #include "IReservedPages.hpp"
 #include "Timers.hpp"
 
+namespace concord::client::reconfiguration {
+class ClientReconfigurationEngine;
+}
 namespace bftEngine {
 class IReplicaForStateTransfer;  // forward definition
 
@@ -75,6 +79,10 @@ class IStateTransfer : public IReservedPages {
       StateTransferCallBacksPriorities priority = StateTransferCallBacksPriorities::DEFAULT) = 0;
 
   virtual void setEraseMetadataFlag() = 0;
+
+  virtual void setReconfigurationEngine(
+      std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
+  virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning

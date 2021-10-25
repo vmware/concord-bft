@@ -363,7 +363,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onInternalMsg(GetStatus& msg) const;
 
   std::pair<PrePrepareMsg*, bool> finishAddingRequestsToPrePrepareMsg(PrePrepareMsg*& prePrepareMsg,
-                                                                      uint16_t maxSpaceForReqs,
+                                                                      uint32_t maxSpaceForReqs,
                                                                       uint32_t requiredRequestsSize,
                                                                       uint32_t requiredRequestsNum);
 
@@ -385,13 +385,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   ClientRequestMsg* addRequestToPrePrepareMessage(ClientRequestMsg*& nextRequest,
                                                   PrePrepareMsg& prePrepareMsg,
-                                                  uint16_t maxStorageForRequests);
+                                                  uint32_t maxStorageForRequests);
 
   PrePrepareMsg* createPrePrepareMessage();
 
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum);
 
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
+
+  void validatePrePrepareMsg(PrePrepareMsg*& ppm);
 
   void removeDuplicatedRequestsFromRequestsQueue();
 
@@ -488,7 +490,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool isSeqNumToStopAt(SeqNum seq_num);
 
-  bool validatePreProcessedResults(const PrePrepareMsg* msg);
+  bool validatePreProcessedResults(const PrePrepareMsg* msg, const ViewNum registeredView) const;
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
   // 5 years
@@ -580,6 +582,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concord::diagnostics::AsyncTimeRecorder<false> time_in_state_transfer_;
   batchingLogic::RequestsBatchingLogic reqBatchingLogic_;
   ReplicaStatusHandlers replStatusHandlers_;
+  concord::util::CallbackRegistry<uint64_t> onViewNumCallbacks_;
 
 #ifdef USE_FAKE_CLOCK_IN_TS
   std::optional<TimeServiceManager<concord::util::FakeClock>> time_service_manager_;

@@ -51,6 +51,7 @@ class ClientBatchRequestMsg : public MessageBase {
     static logging::Logger logger_ = logging::getLogger("concord.preprocessor");
     return logger_;
   }
+  bool checkElements() const;
   std::string cid_;
   ClientMsgsList clientMsgsList_;
 };

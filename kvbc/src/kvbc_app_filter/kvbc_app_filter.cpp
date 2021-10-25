@@ -141,7 +141,6 @@ KvbFilteredEventGroupUpdate::EventGroup KvbAppFilter::filterEventsInEventGroup(
     filtered_event_group.events.emplace_back(std::move(event));
     delete val;
   }
-  ConcordAssert(!filtered_event_group.events.empty());
   return filtered_event_group;
 }
 
@@ -275,7 +274,7 @@ void KvbAppFilter::readBlockRange(BlockId block_id_start,
 uint64_t KvbAppFilter::getValueFromLatestTable(const std::string &key) {
   const auto opt = rostorage_->getLatest(kvbc::categorization::kExecutionEventGroupLatestCategory, key);
   if (not opt) {
-    LOG_ERROR(logger_, "Tag-specific event group ID for key \"" << key << "\" doesn't exist yet");
+    LOG_DEBUG(logger_, "Tag-specific event group ID for key \"" << key << "\" doesn't exist yet");
     // In case there are no public or private event groups for a client, return 0.
     // Note: `0` is an invalid event group id
     return 0;
@@ -384,13 +383,16 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
   }
   // populate event_group_id_batch with only public event group ids iff one of the following occurs -
   // 1. No private event groups exist in storage
-  // 2. The first global event group id in private_event_group_ids is greater than the last global event group id
-  // public_event_group_ids
+  // 2. The first global event group id in private_event_group_ids is greater than the last global event group id in
+  // public_event_group_ids and public_event_group_ids has at least kBatchSize elements
+  // (For e.g., public_event_group_ids = {1,2,3,4} and private_event_group_ids = {5,6,7} must be merged to form
+  // event_group_id_batch).
   // Vice versa is true if event_group_id_batch is populated with only private event group ids
   // Note: each private_event_group_ids and public_event_group_ids hold a sorted list of global event group ids at all
   // times
   if (!public_event_group_ids.empty() &&
-      (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front()))) {
+      (private_event_group_ids.empty() || (public_event_group_ids.back() <= private_event_group_ids.front() &&
+                                           public_event_group_ids.size() >= kBatchSize))) {
     for (auto public_event_group_id : public_event_group_ids) {
       eg_state->event_group_id_batch.emplace_back(public_event_group_id);
     }
@@ -401,7 +403,8 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
               "Updated public_offset: " << eg_state->public_offset
                                         << " public_event_group_ids size: " << public_event_group_ids.size());
   } else if (!private_event_group_ids.empty() &&
-             (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front()))) {
+             (public_event_group_ids.empty() || (private_event_group_ids.back() <= public_event_group_ids.front() &&
+                                                 private_event_group_ids.size() >= kBatchSize))) {
     for (auto private_event_group_id : private_event_group_ids) {
       eg_state->event_group_id_batch.emplace_back(private_event_group_id);
     }
@@ -437,7 +440,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
       if (!has_pub_offset_updated) {
         if (auto pub_it = std::find(public_event_group_ids.begin(), public_event_group_ids.end(), *r_it);
             pub_it != public_event_group_ids.end()) {
-          eg_state->public_offset = ++pub_it - public_event_group_ids.begin();
+          eg_state->public_offset += ++pub_it - public_event_group_ids.begin();
           has_pub_offset_updated = true;
           LOG_DEBUG(logger_,
                     "Updated public_offset: " << eg_state->public_offset
@@ -447,7 +450,7 @@ std::optional<uint64_t> KvbAppFilter::getNextEventGroupId(std::shared_ptr<EventG
       if (!has_pvt_offset_updated) {
         if (auto pvt_it = std::find(private_event_group_ids.begin(), private_event_group_ids.end(), *r_it);
             pvt_it != private_event_group_ids.end()) {
-          eg_state->private_offset = ++pvt_it - private_event_group_ids.begin();
+          eg_state->private_offset += ++pvt_it - private_event_group_ids.begin();
           has_pvt_offset_updated = true;
           LOG_DEBUG(logger_,
                     "Updated private_offset: " << eg_state->private_offset

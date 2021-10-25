@@ -96,7 +96,7 @@ void ThinReplicaClient::recordCollectedHash(size_t update_source,
   }
 }
 
-void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
+bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                                                  HashRecordMap& server_indexes_by_reported_update,
                                                  size_t& maximal_agreeing_subset_size,
                                                  HashRecord& maximally_agreed_on_update) {
@@ -107,12 +107,12 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
   if (read_result == TrsConnection::Result::kTimeout) {
     LOG_DEBUG(logger_, "Hash stream " << server_index << " timed out.");
     metrics_.read_timeouts_per_update++;
-    return;
+    return false;
   }
   if (read_result == TrsConnection::Result::kFailure) {
     LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed.");
     metrics_.read_failures_per_update++;
-    return;
+    return false;
   }
   ConcordAssert(read_result == TrsConnection::Result::kSuccess);
 
@@ -126,7 +126,7 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
       LOG_WARN(logger_,
                "Hash stream " << server_index << " gave an update with decreasing event group number: " << hash_id);
       metrics_.read_ignored_per_update++;
-      return;
+      return true;
     }
     hash_string = hash.event_group().hash();
 
@@ -135,7 +135,7 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                "Hash stream " << server_index << " gave an update (event_group " << hash_id
                               << ") with an unexpectedly long hash: " << hash.events().hash().length());
       metrics_.read_ignored_per_update++;
-      return;
+      return true;
     }
   } else {
     ConcordAssert(hash.has_events());
@@ -143,7 +143,7 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
     if (hash_id < latest_verified_block_id_) {
       LOG_WARN(logger_, "Hash stream " << server_index << " gave an update with decreasing update number: " << hash_id);
       metrics_.read_ignored_per_update++;
-      return;
+      return true;
     }
     hash_string = hash.events().hash();
 
@@ -152,7 +152,7 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                "Hash stream " << server_index << " gave an update (block " << hash_id
                               << ") with an unexpectedly long hash: " << hash.events().hash().length());
       metrics_.read_ignored_per_update++;
-      return;
+      return true;
     }
   }
 
@@ -167,6 +167,7 @@ void ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                       server_indexes_by_reported_update,
                       maximal_agreeing_subset_size,
                       maximally_agreed_on_update);
+  return true;
 }
 
 std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& update_in,
@@ -251,7 +252,7 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
   return config_->trs_conns[server_index]->openHashStream(request);
 }
 
-void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
+bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
                                                HashRecordMap& agreeing_subset_members,
                                                size_t& most_agreeing,
                                                HashRecord& most_agreed_block,
@@ -271,13 +272,14 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
     return config_->trs_conns[a]->hasHashStream() > config_->trs_conns[b]->hasHashStream();
   });
 
+  size_t unsuccessful_hash_stream_subset_size = 0;
   for (auto server_index : sorted_servers) {
     ConcordAssertNE(config_->trs_conns[server_index], nullptr);
     if (servers_tried[server_index]) {
       continue;
     }
     if (stop_subscription_thread_) {
-      return;
+      return false;
     }
 
     if (!config_->trs_conns[server_index]->hasHashStream()) {
@@ -304,13 +306,22 @@ void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
       }
     }
 
-    readUpdateHashFromStream(server_index, agreeing_subset_members, most_agreeing, most_agreed_block);
+    bool has_hash = readUpdateHashFromStream(server_index, agreeing_subset_members, most_agreeing, most_agreed_block);
+    if (!has_hash) unsuccessful_hash_stream_subset_size++;
     servers_tried[server_index] = true;
 
     if (most_agreeing >= (config_->max_faulty + 1)) {
-      return;
+      return true;
     }
   }
+  auto all_servers_tried =
+      std::all_of(servers_tried.begin(), servers_tried.end(), [](bool elem) { return elem == true; });
+  // At all times, total number of hash streams opened are `servers_tried.size() - 1` (the one stream not accounted for
+  // is the data stream)
+  if (all_servers_tried && unsuccessful_hash_stream_subset_size >= servers_tried.size() - 1) {
+    return false;
+  }
+  return true;
 }
 
 TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) {
@@ -470,6 +481,7 @@ void ThinReplicaClient::receiveUpdates() {
     HashRecord most_agreed_block;
     size_t most_agreeing = 0;
     bool has_data = false;
+    bool has_hash_updates = false;
     bool has_verified_data = false;
 
     // First, we collect updates from all subscription streams we have which
@@ -483,7 +495,8 @@ void ThinReplicaClient::receiveUpdates() {
     uint64_t update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
     LOG_DEBUG(logger_,
               "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
-    findBlockHashAgreement(servers_tried, agreeing_subset_members, most_agreeing, most_agreed_block, span);
+    has_hash_updates =
+        findBlockHashAgreement(servers_tried, agreeing_subset_members, most_agreeing, most_agreed_block, span);
     if (stop_subscription_thread_) {
       break;
     }
@@ -491,18 +504,29 @@ void ThinReplicaClient::receiveUpdates() {
     // At this point we need to have agreeing servers.
     if (most_agreeing < (config_->max_faulty + 1)) {
       // print the warning every minute to avoid flooding with logs
-      std::string msg = "Couldn't find agreement amongst all servers. Try again.";
+      std::string no_agreement_msg = "Couldn't find agreement amongst all servers. Try again.";
+      std::string no_update_msg = "No new update from replicas";
+      auto current_time = std::chrono::steady_clock::now();
       if (!last_non_agreement_time.has_value()) {
-        LOG_WARN(logger_, msg);
-        last_non_agreement_time = std::chrono::steady_clock::now();
+        if (!has_data && !has_hash_updates) {
+          LOG_WARN(logger_, no_update_msg);
+        } else {
+          LOG_WARN(logger_, no_agreement_msg);
+        }
+        last_non_agreement_time = current_time;
       } else {
-        auto current_time = std::chrono::steady_clock::now();
         auto time_since_last_log =
             std::chrono::duration_cast<std::chrono::seconds>(current_time - last_non_agreement_time.value());
         if (time_since_last_log.count() >= config_->no_agreement_warn_duration.count()) {
-          LOG_WARN(logger_, msg);
+          if (!has_data && !has_hash_updates) {
+            LOG_WARN(logger_, no_update_msg);
+          } else {
+            LOG_WARN(logger_, no_agreement_msg);
+          }
+          last_non_agreement_time = current_time;
         }
       }
+
       // We need to force re-subscription on at least one of the f+1 open
       // streams otherwise we might skip an update. By closing all streams here
       // we do exactly what the algorithm would do in the next iteration of this

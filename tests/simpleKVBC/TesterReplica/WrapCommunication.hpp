@@ -30,8 +30,8 @@ class WrapCommunication : public ICommunication {
       : communication_(std::move(comm)), separate_communication_(separate_communication), logger_(logger) {}
 
   int getMaxMessageSize() override { return communication_->getMaxMessageSize(); }
-  int Start() override { return communication_->Start(); }
-  int Stop() override { return communication_->Stop(); }
+  int start() override { return communication_->start(); }
+  int stop() override { return communication_->stop(); }
   bool isRunning() const override { return communication_->isRunning(); }
   ConnectionStatus getCurrentConnectionStatus(NodeNum node) override {
     return communication_->getCurrentConnectionStatus(node);
@@ -44,6 +44,7 @@ class WrapCommunication : public ICommunication {
     communication_->setReceiver(receiverNum, receiver);
   }
 
+  void dispose(NodeNum i) override {}
   static void addStrategies(
       std::string const &strategies,
       char delim,

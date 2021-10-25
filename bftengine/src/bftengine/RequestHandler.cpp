@@ -33,7 +33,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
     if (req.flags & KEY_EXCHANGE_FLAG) {
       KeyExchangeMsg ke = KeyExchangeMsg::deserializeMsg(req.request, req.requestSize);
       LOG_INFO(KEY_EX_LOG, "BFT handler received KEY_EXCHANGE msg " << ke.toString());
-      auto resp = impl::KeyExchangeManager::instance().onKeyExchange(ke, req.executionSequenceNum, req.cid);
+      auto resp = impl::KeyExchangeManager::instance().onKeyExchange(ke, ke.generated_sn, req.cid);
       if (resp.size() <= req.maxReplySize) {
         std::copy(resp.begin(), resp.end(), req.outReply);
         req.outActualReplySize = resp.size();
@@ -85,6 +85,8 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         }
       }
       req.outExecutionStatus = 0;  // stop further processing of this request
+      // Don't continue to process requests after pruning (in case we run in async pruning mode)
+      if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
     } else if (req.flags & TICK_FLAG) {
       // Make sure the reply always contains one dummy 0 byte. Needed as empty replies are not supported at that stage.
       // Also, set replica specific information size to 0.

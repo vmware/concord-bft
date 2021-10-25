@@ -26,14 +26,14 @@ MsgsCommunicator::MsgsCommunicator(ICommunication* comm,
 int MsgsCommunicator::startCommunication(uint16_t replicaId) {
   replicaId_ = replicaId;
   communication_->setReceiver(replicaId_, msgReceiver_.get());
-  int commStatus = communication_->Start();
+  int commStatus = communication_->start();
   ConcordAssert(commStatus == 0);
   LOG_INFO(GL, "Communication for replica " << replicaId_ << " started");
   return commStatus;
 }
 
 int MsgsCommunicator::stopCommunication() {
-  int res = communication_->Stop();
+  int res = communication_->stop();
   LOG_INFO(GL, "Communication for replica " << replicaId_ << " stopped");
   return res;
 }
@@ -69,5 +69,8 @@ uint32_t MsgsCommunicator::numOfConnectedReplicas(uint32_t clusterSize) {
 bool MsgsCommunicator::isUdp() {
   if (dynamic_cast<PlainUDPCommunication*>(communication_) == nullptr) return false;
   return true;
+}
+bool MsgsCommunicator::isReplicaConnected(uint16_t repId) {
+  return communication_->getCurrentConnectionStatus(repId) == ConnectionStatus::Connected;
 }
 }  // namespace bftEngine::impl

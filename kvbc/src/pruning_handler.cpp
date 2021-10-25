@@ -210,10 +210,6 @@ void PruningHandler::pruneThroughBlockId(kvbc::BlockId block_id) const {
   const auto genesis_block_id = ro_storage_.getGenesisBlockId();
   if (block_id >= genesis_block_id) {
     bftEngine::ControlStateManager::instance().setPruningProcess(true);
-    // last_scheduled_block_for_pruning_ is being updated only here, thus, once
-    // we set the control_state_manager, no other write request will be executed
-    // and we can set it without grabing the mutex
-    last_scheduled_block_for_pruning_ = block_id;
     auto prune = [this](kvbc::BlockId until) {
       try {
         blocks_deleter_.deleteBlocksUntil(until);
@@ -248,8 +244,8 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
   if (!pruning_enabled_) return true;
   concord::messages::PruneStatus prune_status;
   std::lock_guard lock(pruning_status_lock_);
-  prune_status.last_pruned_block =
-      last_scheduled_block_for_pruning_.has_value() ? last_scheduled_block_for_pruning_.value() : 0;
+  const auto genesis_id = ro_storage_.getGenesisBlockId();
+  prune_status.last_pruned_block = (genesis_id > INITIAL_GENESIS_BLOCK_ID ? genesis_id - 1 : 0);
   prune_status.in_progress = bftEngine::ControlStateManager::instance().getPruningProcessStatus();
   rres.response = prune_status;
   LOG_INFO(logger_, "Pruning status is " << KVLOG(prune_status.in_progress));
@@ -257,8 +253,8 @@ bool PruningHandler::handle(const concord::messages::PruneStatusRequest&,
 }
 
 uint64_t PruningHandler::getBlockBftSequenceNumber(kvbc::BlockId bid) const {
-  auto opt_value =
-      ro_storage_.get(concord::kvbc::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
+  auto opt_value = ro_storage_.get(
+      concord::kvbc::categorization::kConcordInternalCategoryId, std::string{kvbc::keyTypes::bft_seq_num_key}, bid);
   uint64_t sequenceNum = 0;
   if (!opt_value) {
     LOG_WARN(logger_, "Unable to get block");

@@ -100,12 +100,12 @@ class FakeCommunication : public bft::communication::ICommunication {
   FakeCommunication(Behavior&& behavior) : runner_(std::move(behavior)) {}
 
   int getMaxMessageSize() override { return 1024; }
-  int Start() override {
+  int start() override {
     runner_.setClientReceiver(receiver_);
     fakeCommThread_ = std::thread(std::ref(runner_));
     return 0;
   }
-  int Stop() override {
+  int stop() override {
     runner_.stop();
     fakeCommThread_.join();
     return 0;
@@ -127,6 +127,8 @@ class FakeCommunication : public bft::communication::ICommunication {
   }
 
   void setReceiver(NodeNum id, IReceiver* receiver) override { receiver_ = receiver; }
+
+  void dispose(NodeNum i) override {}
 
  private:
   IReceiver* receiver_;

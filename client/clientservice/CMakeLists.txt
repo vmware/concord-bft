@@ -15,7 +15,7 @@ target_link_libraries(clientservice-lib PUBLIC
   gRPC::grpc++_reflection
   logging
   yaml-cpp
-  util
+  util_prometheus
 )
 
 add_executable(clientservice "src/main.cpp")

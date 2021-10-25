@@ -35,6 +35,7 @@ class IInternalBFTClient {
                                IncomingMsgsStorage::Callback onPoppedFromQueue) = 0;
 
   virtual uint32_t numOfConnectedReplicas(uint32_t clusterSize) = 0;
+  virtual bool isReplicaConnected(uint16_t repId) const = 0;
   virtual bool isUdp() const = 0;
 };
 
@@ -51,6 +52,7 @@ class InternalBFTClient : public IInternalBFTClient {
   uint32_t numOfConnectedReplicas(uint32_t clusterSize) override {
     return msgComm_->numOfConnectedReplicas(clusterSize);
   }
+  bool isReplicaConnected(uint16_t repId) const override { return msgComm_->isReplicaConnected(repId); }
   bool isUdp() const override { return msgComm_->isUdp(); }
 
  private:

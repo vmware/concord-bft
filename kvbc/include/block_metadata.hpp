@@ -9,6 +9,7 @@
 
 #include "Logger.hpp"
 #include "db_interfaces.h"
+#include "categorization/db_categories.h"
 
 namespace concord {
 namespace kvbc {

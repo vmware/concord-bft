@@ -30,6 +30,7 @@ class MsgsCommunicator {
   void startMsgsProcessing(uint16_t replicaId);
   void stopMsgsProcessing();
   uint32_t numOfConnectedReplicas(uint32_t clusterSize);
+  bool isReplicaConnected(uint16_t repId);
   bool isUdp();
 
   [[nodiscard]] bool isMsgsProcessingRunning() const { return incomingMsgsStorage_->isRunning(); }

@@ -9,7 +9,6 @@
 // these subcomponents is subject to the terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
-
 namespace concord::client::reconfiguration {
 
 ClientReconfigurationEngine::ClientReconfigurationEngine(const Config& config,
@@ -71,6 +70,7 @@ ClientReconfigurationEngine::~ClientReconfigurationEngine() {
   }
 }
 void ClientReconfigurationEngine::start() {
+  if (!stopped_) return;
   stateClient_->start();
   stopped_ = false;
   mainThread_ = std::thread([&] { main(); });
@@ -84,5 +84,9 @@ void ClientReconfigurationEngine::stop() {
   } catch (std::exception& e) {
     LOG_ERROR(getLogger(), e.what());
   }
+}
+void ClientReconfigurationEngine::halt() { stateClient_->halt(); }
+void ClientReconfigurationEngine::resume() {
+  if (!stopped_) stateClient_->resume();
 }
 }  // namespace concord::client::reconfiguration

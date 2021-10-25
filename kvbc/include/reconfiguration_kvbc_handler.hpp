@@ -78,6 +78,7 @@ class KvbcClientReconfigurationHandler : public concord::reconfiguration::Client
  private:
   concord::messages::ClientStateReply buildClientStateReply(kvbc::keyTypes::CLIENT_COMMAND_TYPES command_type,
                                                             uint32_t clientid);
+  concord::messages::ClientStateReply buildReplicaStateReply(const char& command_type, uint32_t clientid);
 };
 /**
  * This component is responsible for logging reconfiguration request (issued by an authorized operator) in the
@@ -224,5 +225,11 @@ class InternalPostKvReconfigurationHandler : public concord::reconfiguration::IR
               uint32_t,
               const std::optional<bftEngine::Timestamp>&,
               concord::messages::ReconfigurationResponse& response) override;
+
+  bool handle(const concord::messages::ReplicaTlsExchangeKey&,
+              uint64_t,
+              uint32_t,
+              const std::optional<bftEngine::Timestamp>&,
+              concord::messages::ReconfigurationResponse&) override;
 };
 }  // namespace concord::kvbc::reconfiguration

@@ -17,6 +17,9 @@
 #include "json_output.hpp"
 #include "diagnostics.h"
 #include "performance_handler.h"
+#include "kvbc_key_types.hpp"
+#include "categorization/db_categories.h"
+#include "endianness.hpp"
 
 #include <stdexcept>
 
@@ -146,6 +149,15 @@ void KeyValueBlockchain::loadCategories() {
   }
 }
 
+void KeyValueBlockchain::addGenesisBlockKey(Updates& updates) const {
+  const auto stale_on_update = true;
+  updates.addCategoryIfNotExisting<VersionedInput>(kConcordInternalCategoryId);
+  updates.appendKeyValue<VersionedUpdates>(
+      kConcordInternalCategoryId,
+      std::string{keyTypes::genesis_block_key},
+      VersionedUpdates::ValueType{concordUtils::toBigEndianStringBuffer(getGenesisBlockId()), stale_on_update});
+}
+
 // 1) Defines a new block
 // 2) calls per cateogry with its updates
 // 3) inserts the updates KV to the DB updates set per column family
@@ -154,6 +166,7 @@ BlockId KeyValueBlockchain::addBlock(Updates&& updates) {
   diagnostics::TimeRecorder scoped_timer(*histograms_.addBlock);
   // Use new client batch and column families
   auto write_batch = native_client_->getBatch();
+  addGenesisBlockKey(updates);
   auto block_id = addBlock(std::move(updates.category_updates_), write_batch);
   native_client_->write(std::move(write_batch));
   block_chain_.setAddedBlockId(block_id);
@@ -729,11 +742,30 @@ void KeyValueBlockchain::linkSTChainFrom(BlockId block_id) {
     if (!raw_block) {
       return;
     }
+    // First prune and then link the block to the chain. Rationale is that this will preserve the same order of block
+    // deletes relative to block adds on source and destination replicas.
+    pruneOnSTLink(*raw_block);
     writeSTLinkTransaction(i, *raw_block);
   }
   // Linking has fully completed and we should not have any more ST temporary blocks left. Therefore, make sure we don't
   // have any value for the latest ST temporary block ID cache.
   state_transfer_block_chain_.resetChain();
+}
+
+void KeyValueBlockchain::pruneOnSTLink(const RawBlock& block) {
+  auto cat_it = block.data.updates.kv.find(kConcordInternalCategoryId);
+  if (cat_it == block.data.updates.kv.cend()) {
+    return;
+  }
+  const auto& internal_kvs = std::get<VersionedInput>(cat_it->second).kv;
+  auto key_it = internal_kvs.find(keyTypes::genesis_block_key);
+  if (key_it != internal_kvs.cend()) {
+    const auto block_genesis_id = concordUtils::fromBigEndianBuffer<BlockId>(key_it->second.data.data());
+    while (getGenesisBlockId() >= INITIAL_GENESIS_BLOCK_ID && getGenesisBlockId() < getLastReachableBlockId() &&
+           block_genesis_id > getGenesisBlockId()) {
+      deleteGenesisBlock();
+    }
+  }
 }
 
 // Atomic delete from state transfer and add to blockchain

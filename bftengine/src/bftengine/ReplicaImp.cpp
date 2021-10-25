@@ -43,6 +43,8 @@
 #include "messages/ReplicaRestartReadyMsg.hpp"
 #include "messages/ReplicasRestartReadyProofMsg.hpp"
 #include "messages/PreProcessResultMsg.hpp"
+#include "messages/ViewChangeIndicatorInternalMsg.hpp"
+#include "messages/PrePrepareCarrierInternalMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
@@ -134,14 +136,24 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
       return;
     }
   }
-  if (validateMessage(trueTypeObj) && !isCollectingState())
-    onMessage<T>(trueTypeObj);
-  else
-    delete trueTypeObj;
-}
 
-template <class T>
-void onMessage(T *);
+  if constexpr (std::is_same_v<T, PrePrepareMsg>) {
+    if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+      if (!isCollectingState()) {
+        validatePrePrepareMsg(trueTypeObj);
+        return;
+      } else {
+        delete trueTypeObj;
+        return;
+      }
+    }
+  }
+  if (!isCollectingState() && validateMessage(trueTypeObj)) {
+    onMessage<T>(trueTypeObj);
+  } else {
+    delete trueTypeObj;
+  }
+}
 
 bool ReplicaImp::validateMessage(MessageBase *msg) {
   if (config_.debugStatisticsEnabled) {
@@ -154,6 +166,40 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
     onReportAboutInvalidMessage(msg, e.what());
     return false;
   }
+}
+
+/**
+ * validatePrePrepareMsg initiates the validation and waits for completion of validation.
+ * After validation, it routes the preprepare message as an internal message.
+ *
+ * @param msg : This is the PrePrepare message received by the replica, which is about
+ * to get handled.
+ * @return : returns nothing
+ */
+void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
+  RequestThreadPool::getThreadPool().async(
+      [this](auto *prePrepareMsg, auto *replicaInfo, auto *incomingMessageQueue, auto viewNum) {
+        try {
+          prePrepareMsg->validate(*replicaInfo);
+          if (!validatePreProcessedResults(prePrepareMsg, viewNum)) {
+            InternalMessage viewChangeIndicatorIm = ViewChangeIndicatorInternalMsg(
+                ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult, viewNum);
+            incomingMessageQueue->pushInternalMsg(std::move(viewChangeIndicatorIm));
+            delete prePrepareMsg;
+            return;
+          }
+          InternalMessage prePrepareCarrierIm = PrePrepareCarrierInternalMsg(prePrepareMsg);
+          incomingMessageQueue->pushInternalMsg(std::move(prePrepareCarrierIm));
+        } catch (std::exception &e) {
+          onReportAboutInvalidMessage(prePrepareMsg, e.what());
+          delete prePrepareMsg;
+          return;
+        }
+      },
+      ppm,
+      repsInfo,
+      &(getIncomingMsgsStorage()),
+      getCurrentView());
 }
 
 std::function<bool(MessageBase *)> ReplicaImp::getMessageValidator() {
@@ -216,8 +262,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   }
 
   // check message validity
-  const bool invalidClient = !isValidClient(clientId);
-  const bool sentFromReplicaToNonPrimary = repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
+  const bool invalidClient =
+      !isValidClient(clientId) &&
+      !((repsInfo->isIdOfReplica(clientId) || repsInfo->isIdOfPeerRoReplica(clientId)) && (flags & RECONFIG_FLAG));
+  const bool sentFromReplicaToNonPrimary =
+      !(flags & RECONFIG_FLAG) && repsInfo->isIdOfReplica(senderId) && !isCurrentPrimary();
 
   if (invalidClient) {
     ++numInvalidClients;
@@ -269,8 +318,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
                                                         << "], senderId=" << senderId);
         if (time_to_collect_batch_ == MinTime) time_to_collect_batch_ = getMonotonicTime();
         requestsQueueOfPrimary.push(m);
-        primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         primaryCombinedReqSize += m->size();
+        primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
         tryToSendPrePrepareMsg(true);
         return;
       } else {
@@ -382,11 +431,11 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
 void ReplicaImp::removeDuplicatedRequestsFromRequestsQueue() {
   TimeRecorder scoped_timer(*histograms_.removeDuplicatedRequestsFromQueue);
   // Remove duplicated requests that are result of client retrials from the head of the requestsQueueOfPrimary
-  ClientRequestMsg *first = requestsQueueOfPrimary.front();
+  ClientRequestMsg *first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   while (first != nullptr && !clientsManager->canBecomePending(first->clientProxyId(), first->requestSeqNum())) {
     primaryCombinedReqSize -= first->size();
-    delete first;
     requestsQueueOfPrimary.pop();
+    delete first;
     first = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
   }
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
@@ -467,7 +516,9 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
     return nullptr;
   }
 
-  controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
+  if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+    controller->onSendingPrePrepare((primaryLastUsedSeqNum + 1), firstPath);
+  }
 
   if (config_.timeServiceEnabled) {
     auto timeServiceMsg = time_service_manager_->createClientRequestMsg();
@@ -490,7 +541,7 @@ PrePrepareMsg *ReplicaImp::createPrePrepareMessage() {
 
 ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&nextRequest,
                                                             PrePrepareMsg &prePrepareMsg,
-                                                            uint16_t maxStorageForRequests) {
+                                                            uint32_t maxStorageForRequests) {
   if (nextRequest->size() <= prePrepareMsg.remainingSizeForRequests()) {
     SCOPED_MDC_CID(nextRequest->getCid());
     if (clientsManager->canBecomePending(nextRequest->clientProxyId(), nextRequest->requestSeqNum())) {
@@ -498,14 +549,14 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
       clientsManager->addPendingRequest(
           nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
     }
-    primaryCombinedReqSize -= nextRequest->size();
   } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
     LOG_ERROR(GL,
               "Request was dropped because it exceeds maximum allowed size" << KVLOG(
                   prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
-  delete nextRequest;
+  primaryCombinedReqSize -= nextRequest->size();
   requestsQueueOfPrimary.pop();
+  delete nextRequest;
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
   return (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
 }
@@ -518,7 +569,7 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
 // The first value of the pair can be nullptr depending on the availability of the result. So the
 // first value cannot represent failure.
 std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg(PrePrepareMsg *&prePrepareMsg,
-                                                                                 uint16_t maxSpaceForReqs,
+                                                                                 uint32_t maxSpaceForReqs,
                                                                                  uint32_t requiredRequestsSize,
                                                                                  uint32_t requiredRequestsNum) {
   if (prePrepareMsg->numberOfRequests() == 0) {
@@ -574,10 +625,10 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
-  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   {
     TimeRecorder scoped_timer1(*histograms_.addAllRequestsToPrePrepare);
-    ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
+    ClientRequestMsg *nextRequest = (!requestsQueueOfPrimary.empty() ? requestsQueueOfPrimary.front() : nullptr);
     while (nextRequest != nullptr)
       nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
   }
@@ -591,7 +642,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
-  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr && prePrepareMsg->numberOfRequests() < requiredRequestsNum)
     nextRequest = addRequestToPrePrepareMessage(nextRequest, *prePrepareMsg, maxSpaceForReqs);
@@ -606,7 +657,7 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByBatchSize(u
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
   SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
 
-  uint16_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
+  uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
   while (nextRequest != nullptr &&
          (maxSpaceForReqs - prePrepareMsg->remainingSizeForRequests() < requiredBatchSizeInBytes))
@@ -630,6 +681,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   metric_bft_batch_size_.Get().Set(pp->numberOfRequests());
   primaryLastUsedSeqNum++;
   if (isCreatedEarlier) {
+    controller->onSendingPrePrepare(primaryLastUsedSeqNum, firstPath);
     pp->setSeqNumber(primaryLastUsedSeqNum);
   }
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
@@ -741,7 +793,7 @@ bool ReplicaImp::relevantMsgForActiveView(const T *msg) {
   }
 }
 
-bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) {
+bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const ViewNum registeredView) const {
   RequestsIterator reqIter(msg);
   char *requestBody = nullptr;
   std::vector<std::future<void>> tasks;
@@ -767,11 +819,8 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg) {
   errors.resize(error_id);
   for (auto err : errors) {
     if (err) {
-      // trigger view change
-      LOG_ERROR(VC_LOG,
-                "Received PrePrepareMsg containing PreProcessResult with invalid signature: "
-                    << *err << ". Ask to leave view " << getCurrentView());
-      askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+      // Indicate a view change
+      LOG_WARN(VC_LOG, "Replica will ask to leave view" << KVLOG(*err, registeredView));
       return false;
     }
   }
@@ -787,9 +836,13 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     return;
   }
 
-  if (!validatePreProcessedResults(msg)) {
-    // validatePreProcessedResults() logs the error
-    return;
+  if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+    if (!validatePreProcessedResults(msg, getCurrentView())) {
+      // trigger view change
+      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
+      return;
+    }
   }
 
   metric_received_pre_prepares_++;
@@ -1272,7 +1325,43 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   }
   // Handle a pre prepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
-    return startConsensusProcess(*ppm, true);
+    if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+      LOG_INFO(GL, "Received PrePrepareMsg while pruning or state transfer, so ignoring the message");
+      delete *ppm;
+      ppm = nullptr;
+      return;
+    } else {
+      return startConsensusProcess(*ppm, true);
+    }
+  }
+
+  // Handle a the PrePrepare Carrier
+  if (auto *ppcim = std::get_if<PrePrepareCarrierInternalMsg>(&msg)) {
+    if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+      LOG_INFO(GL, "Received PrePrepareCarrierInternalMsg while pruning or state transfer, so ignoring the message");
+      delete ppcim->ppm_;
+      ppcim->ppm_ = nullptr;
+      return;
+    } else {
+      return onMessage(ppcim->ppm_);
+    }
+  }
+
+  // Handle a view change indicator and trigger view change
+  if (auto *vciim = std::get_if<ViewChangeIndicatorInternalMsg>(&msg)) {
+    if ((vciim->fromView_ != getCurrentView()) || isCollectingState() ||
+        bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+      LOG_INFO(GL,
+               "Ignoring the Received ViewChangeIndicatorInternalMsg while pruning or state transfer or view is "
+               "already changed"
+                   << KVLOG(vciim->fromView_, getCurrentView()));
+      return;
+    } else {
+      // trigger view change
+      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      askToLeaveView(vciim->reasonToLeave_);
+      return;
+    }
   }
   // Handle prepare related internal messages
   if (auto *csf = std::get_if<CombinedSigFailedInternalMsg>(&msg)) {
@@ -2758,6 +2847,8 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   controller->onNewView(getCurrentView(), primaryLastUsedSeqNum);
   metric_current_active_view_.Get().Set(getCurrentView());
   metric_sent_replica_asks_to_leave_view_msg_.Get().Set(0);
+
+  onViewNumCallbacks_.invokeAll(getCurrentView());
 }
 
 void ReplicaImp::sendCheckpointIfNeeded() {
@@ -3363,6 +3454,7 @@ void ReplicaImp::onMessage<ReplicaRestartReadyMsg>(ReplicaRestartReadyMsg *msg) 
               "Recieved multiple ReplicaRestartReadyMsg from sender_id "
                   << std::to_string(msg->idOfGeneratedReplica()) << " with seq_num" << std::to_string(msg->seqNum()));
     delete msg;
+    return;
   }
   LOG_INFO(GL,
            "Recieved ReplicaRestartReadyMsg from sender_id " << std::to_string(msg->idOfGeneratedReplica())
@@ -3818,7 +3910,12 @@ ReplicaImp::ReplicaImp(bool firstTime,
   // TODO(GG): more asserts on params !!!!!!!!!!!
 
   ConcordAssert(firstTime || ((replicasInfo != nullptr) && (viewsMgr != nullptr) && (sigManager != nullptr)));
-
+  onViewNumCallbacks_.add([&](uint64_t) {
+    if (config_.keyExchangeOnStart && !KeyExchangeManager::instance().exchanged()) {
+      LOG_INFO(GL, "key exchange has not been finished yet. Give it another try");
+      KeyExchangeManager::instance().sendInitialKey(currentPrimary());
+    }
+  });
   registerMsgHandlers();
   replStatusHandlers_.registerStatusHandlers();
 
@@ -3990,8 +4087,8 @@ void ReplicaImp::start() {
   // It must happen after the replica recovers requests in the main thread.
   msgsCommunicator_->startMsgsProcessing(config_.getreplicaId());
 
-  if (ReplicaConfig::instance().getkeyExchangeOnStart()) {
-    KeyExchangeManager::instance().sendInitialKey();
+  if (ReplicaConfig::instance().getkeyExchangeOnStart() && !KeyExchangeManager::instance().exchanged()) {
+    KeyExchangeManager::instance().sendInitialKey(currentPrimary());
   }
   KeyExchangeManager::instance().sendInitialClientsKeys(SigManager::instance()->getClientsPublicKeys());
 }
@@ -4083,8 +4180,12 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
                                                 PrePrepareMsg *ppMsg,
                                                 bool recoverFromErrorInRequestsExecution) {
   TimeRecorder scoped_timer(*histograms_.executeRequestsInPrePrepareMsg);
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    return;
+  }
   auto span = concordUtils::startChildSpan("bft_execute_requests_in_preprepare", parent_span);
   if (!isCollectingState()) ConcordAssert(currentViewIsActive());
+
   ConcordAssertNE(ppMsg, nullptr);
   ConcordAssertEQ(ppMsg->viewNumber(), getCurrentView());
   ConcordAssertEQ(ppMsg->seqNumber(), lastExecutedSeqNum + 1);
@@ -4343,19 +4444,21 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
 void ReplicaImp::sendResponses(PrePrepareMsg *ppMsg, IRequestsHandler::ExecutionRequestsQueue &accumulatedRequests) {
   TimeRecorder scoped_timer(*histograms_.prepareAndSendResponses);
   for (auto &req : accumulatedRequests) {
-    ConcordAssertGT(req.outActualReplySize, 0);
     auto status = req.outExecutionStatus;
     if (status != 0) {
       const auto requestSeqNum = req.requestSequenceNum;
       LOG_WARN(CNSUS, "Request execution failed: " << KVLOG(req.clientId, requestSeqNum, ppMsg->getCid()));
     } else {
       if (req.flags & HAS_PRE_PROCESSED_FLAG) metric_total_preexec_requests_executed_++;
-      auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
-          req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
-      replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
-      free(req.outReply);
-      send(replyMsg.get(), req.clientId);
+      if (req.outActualReplySize != 0) {
+        auto replyMsg = clientsManager->allocateNewReplyMsgAndWriteToStorage(
+            req.clientId, req.requestSequenceNum, currentPrimary(), req.outReply, req.outActualReplySize);
+        replyMsg->setReplicaSpecificInfoLength(req.outReplicaSpecificInfoSize);
+        send(replyMsg.get(), req.clientId);
+      }
     }
+    free(req.outReply);
+    req.outReply = nullptr;
     clientsManager->removePendingForExecutionRequest(req.clientId, req.requestSequenceNum);
   }
 }

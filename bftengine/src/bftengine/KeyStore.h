@@ -66,6 +66,10 @@ class ClusterKeyStore : public ResPagesClient<ClusterKeyStore> {
 
   bool keyExists(uint16_t repId) const { return clusterKeys_.find(repId) != clusterKeys_.end(); }
 
+  bool keyExists(uint16_t repId, SeqNum sn) {
+    return clusterKeys_.find(repId) != clusterKeys_.end() &&
+           clusterKeys_.at(repId).keys.find(sn) != clusterKeys_.at(repId).keys.end();
+  }
   PublicKeys keys(uint16_t repId) const {
     try {
       return clusterKeys_.at(repId);

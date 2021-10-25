@@ -366,7 +366,8 @@ class TestStorage : public IReader, public IBlockAdder, public IBlocksDeleter {
   TestStorage(std::shared_ptr<::concord::storage::rocksdb::NativeClient> native_client)
       : bc_{native_client,
             false,
-            std::map<std::string, CATEGORY_TYPE>{{kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}} {}
+            std::map<std::string, CATEGORY_TYPE>{{kConcordReconfigurationCategoryId, CATEGORY_TYPE::versioned_kv},
+                                                 {kConcordInternalCategoryId, CATEGORY_TYPE::versioned_kv}}} {}
 
   // IBlockAdder interface
   BlockId add(categorization::Updates &&updates) override { return bc_.addBlock(std::move(updates)); }
@@ -489,7 +490,7 @@ void InitBlockchainStorage(std::size_t replica_count,
     versioned_updates.calculateRootHash(false);
 
     concord::kvbc::categorization::Updates updates;
-    updates.add(kConcordInternalCategoryId, std::move(versioned_updates));
+    updates.add(kConcordReconfigurationCategoryId, std::move(versioned_updates));
 
     BlockId blockId;
     blockId = s.add(std::move(updates));
@@ -499,7 +500,7 @@ void InitBlockchainStorage(std::size_t replica_count,
 
     // Make sure our storage mock works properly.
     {
-      auto stored_val = s.get(kConcordInternalCategoryId, std::string({0x20}), blockId);
+      auto stored_val = s.get(kConcordReconfigurationCategoryId, std::string({0x20}), blockId);
       ASSERT_TRUE(stored_val.has_value());
       VersionedValue out = std::get<VersionedValue>(stored_val.value());
       ASSERT_EQ(blockId, out.block_id);

@@ -15,10 +15,6 @@
 
 namespace concord::kvbc {
 
-// Concord and Concord-BFT internal category that is used for various kinds of metadata.
-// The type of the internal category is VersionedKeyValueCategory.
-inline const auto kConcordInternalCategoryId = "concord_internal";
-
 // Add blocks to the key-value blockchain.
 class IBlockAdder {
  public:

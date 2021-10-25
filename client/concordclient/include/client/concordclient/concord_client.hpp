@@ -124,10 +124,8 @@ struct SubscribeRequest {
 // observe events.
 class ConcordClient {
  public:
-  ConcordClient(const ConcordClientConfig& config);
+  ConcordClient(const ConcordClientConfig&, std::shared_ptr<concordMetrics::Aggregator>);
   ~ConcordClient() { unsubscribe(); }
-
-  void setMetricsAggregator(std::shared_ptr<concordMetrics::Aggregator> m) { metrics_ = m; }
 
   // Register a callback that gets invoked once the handling BFT client returns.
   void send(const bft::client::WriteConfig& config,
