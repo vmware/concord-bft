@@ -22,6 +22,7 @@ from util.object_store import ObjectStore, start_replica_cmd_prefix, with_object
 import sys
 from util import eliot_logging as log
 import concord_msgs as cmf_msgs
+from util import bft_network_partitioning as net
 
 sys.path.append(os.path.abspath("../../util/pyclient"))
 
@@ -1534,45 +1535,81 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             crashed_replica = bft_network.random_set_of_replicas(1, {initial_prim})
             log.log_message(message_type=f"crashed replica is {crashed_replica}")
             live_replicas = bft_network.all_replicas(without=crashed_replica)
-            bft_network.start_replicas(live_replicas)
-
+            bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
             for i in range(100):
                 await skvbc.send_write_kv_set()
-            client = bft_network.random_client()
-            client.config._replace(req_timeout_milli=10000)
-            op = operator.Operator(bft_network.config, client,  bft_network.builddir)
-            test_config = 'new_configuration_n_7_f_2_c_0'
-            await op.add_remove_with_wedge(test_config, bft=True, restart=False)
-            await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
-            new_replicas = {4, 5, 6}
-            source = list(bft_network.random_set_of_replicas(1, without=crashed_replica)).pop()
+            with net.ReplicaSubsetIsolatingAdversary(bft_network, crashed_replica) as adversary:
+                adversary.interfere()
+
+                for i in range(601):
+                    await skvbc.send_write_kv_set()
+                client = bft_network.random_client()
+                client.config._replace(req_timeout_milli=10000)
+                op = operator.Operator(bft_network.config, client,  bft_network.builddir)
+                test_config = 'new_configuration_n_7_f_2_c_0'
+                await op.add_remove_with_wedge(test_config, bft=True, restart=False)
+                await self.validate_stop_on_wedge_point(bft_network, skvbc, fullWedge=False)
+                new_replicas = {4, 5, 6}
+                replicas_for_st = {6}
+                source = list(bft_network.random_set_of_replicas(1, without=crashed_replica)).pop()
+
+            await bft_network.wait_for_state_transfer_to_start()
+
+            # Lets wait until the late replica gets the new configuration
+            with trio.fail_after(30):
+                for r in crashed_replica:
+                    while True:
+                        await trio.sleep(1)
+                        configurations_file = os.path.join(bft_network.testdir, "configurations." + str(r))
+                        if not os.path.isfile(configurations_file):
+                            continue
+                        with open(configurations_file, "r") as file:
+                            done = False
+                            for l in file.readlines():
+                                if test_config in l:
+                                    done = True
+                            if done:
+                                break
+
             bft_network.stop_all_replicas()
-            bft_network.transfer_db_files(source, new_replicas)
+            bft_network.transfer_db_files(source, new_replicas - replicas_for_st)
+
+            # Change the cluster's configuration
             conf = TestConfig(n=7,
                               f=2,
                               c=0,
                               num_clients=10,
                               key_file_prefix=KEY_FILE_PREFIX,
-                              start_replica_cmd=start_replica_cmd,
+                              start_replica_cmd=start_replica_cmd_with_key_exchange,
                               stop_replica_cmd=None,
                               num_ro_replicas=0)
             await bft_network.change_configuration(conf, generate_tls=True)
-            bft_network.restart_clients(restart_replicas=False)
-            live_replicas = bft_network.all_replicas(without=crashed_replica)
-            bft_network.start_replicas(live_replicas)
-            initial_prim = 0
+            bft_network.restart_clients(generate_tx_signing_keys=True, restart_replicas=False)
 
-            await self.validate_epoch_number(bft_network, 1, live_replicas)
+            live_replicas = bft_network.all_replicas(without=replicas_for_st.union(crashed_replica))
+            await bft_network.check_initital_key_exchange(stop_replicas=False, full_key_exchange=False, replicas_to_start=live_replicas)
+            bft_network.start_replicas(crashed_replica)
             for i in range(601):
                 await skvbc.send_write_kv_set()
 
-            bft_network.start_replicas(crashed_replica)
-            await bft_network.wait_for_state_transfer_to_start()
             for r in crashed_replica:
                 await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                                   r,
                                                                   stop_on_stable_seq_num=False)
+            live_replicas = live_replicas = bft_network.all_replicas(without=replicas_for_st)
+            await self.validate_epoch_number(bft_network, 1, live_replicas)
+
+            bft_network.start_replicas(replicas_for_st)
+            for i in range(601):
+                await skvbc.send_write_kv_set()
+
+            await bft_network.wait_for_state_transfer_to_start()
+            for r in replicas_for_st:
+                await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                                  r,
+                                                                  stop_on_stable_seq_num=False)
+
             await self.validate_epoch_number(bft_network, 1, bft_network.all_replicas())
             for i in range(300):
                 await skvbc.send_write_kv_set()
