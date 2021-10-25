@@ -14,12 +14,12 @@
 #pragma once
 
 #include <string>
-#include "secret_data.h"
+#include "../include/secret_data.h"
 
-namespace concord::secretsretriever {
+namespace concord::secretsmanager::secretretriever {
 
 // This function is inteded to be used only once, at startup. Then the result
 // should be stored for use throughout the application
-concord::secretsmanager::SecretData SecretRetrieve(const std::string &secret_url);
+concord::secretsmanager::SecretData secretRetriever(const std::string &secret_url);
 
-}  // namespace concord::secretsretriever
+}  // namespace concord::secretsmanager::secretretriever

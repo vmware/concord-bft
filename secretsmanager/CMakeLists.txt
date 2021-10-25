@@ -28,6 +28,7 @@ target_include_directories(secretsmanager PRIVATE src)
 target_link_libraries(secretsmanager_shared PUBLIC ${CRYPTOPP_LIBRARIES})
 target_include_directories(secretsmanager_shared PUBLIC include ${CRYPTOPP_INCLUDE_DIRS})
 
+add_subdirectory(secretretriever)
 if (BUILD_TESTING)
     add_subdirectory(test)
 endif()
