@@ -27,7 +27,15 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
 namespace concord::storage::rocksdb {
 
 using namespace std::string_view_literals;
@@ -275,6 +283,17 @@ inline Client::CfUniquePtr NativeClient::createColumnFamilyHandle(const std::str
   auto ret = Client::CfUniquePtr{cf, Client::CfDeleter{client_.get()}};
   detail::throwOnError("cannot create column family handle"sv, cFamily, std::move(s));
   return ret;
+}
+
+inline void NativeClient::createCheckpointNative(const uint64_t &checkPointId) {
+  client_->createCheckpoint(checkPointId);
+}
+inline std::vector<uint64_t> NativeClient::getListOfCreatedCheckpointsNative() const {
+  return client_->getListOfCreatedCheckpoints();
+}
+
+inline void NativeClient::removeCheckpointNative(const uint64_t &checkPointId) const {
+  client_->removeCheckpoint(checkPointId);
 }
 
 }  // namespace concord::storage::rocksdb

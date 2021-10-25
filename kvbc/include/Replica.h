@@ -23,6 +23,7 @@
 #include "replica_state_sync_imp.hpp"
 #include "db_adapter_interface.h"
 #include "db_interfaces.h"
+#include "db_checkpoint.h"
 #include "memorydb/client.h"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "storage_factory_interface.h"
@@ -150,6 +151,10 @@ class Replica : public IReplica,
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
   void registerStBasedReconfigurationHandler(std::shared_ptr<concord::client::reconfiguration::IStateHandler>);
 
+  // Api related to database checkpoint/snapshot
+  Status createCheckpoint(const uint64_t &checkPtId);
+  void getCheckPoints();  //
+
   ~Replica() override;
 
  protected:
@@ -222,6 +227,7 @@ class Replica : public IReplica,
   concord::util::ThreadPool blocksIOWorkersPool_;
   std::unique_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> creEngine_;
   std::shared_ptr<concord::client::reconfiguration::IStateClient> creClient_;
+  std::unique_ptr<concord::kvbc::IDbCheckPointManager> dbCheckpointMgr_;
 
  private:
   struct Recorders {

@@ -22,6 +22,7 @@
 #include <rocksdb/db.h>
 #include <rocksdb/utilities/optimistic_transaction_db.h>
 #include <rocksdb/sst_file_manager.h>
+#include <rocksdb/utilities/checkpoint.h>
 #include "storage/db_interface.h"
 #include "storage/storage_metrics.h"
 
@@ -66,9 +67,9 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(const std::string& _dbPath) : m_dbPath(_dbPath) {}
+  Client(const std::string& _dbPath) : m_dbPath(_dbPath), dbCheckpointPath_{_dbPath + "_checkpoint"} {}
   Client(const std::string& _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
-      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
+      : m_dbPath(_dbPath), dbCheckpointPath_{_dbPath + "_checkpoint"}, comparator_(std::move(comparator)) {}
 
   ~Client() {
     // Clear column family handles before the DB as handle destruction calls a DB instance member and we want that to
@@ -103,6 +104,10 @@ class Client : public concord::storage::IDBClient {
   void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
     storage_metrics_.setAggregator(aggregator);
   }
+  void setCheckpointPath(const std::string& path) override { dbCheckpointPath_ = path; }
+  concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;
+  std::vector<uint64_t> getListOfCreatedCheckpoints() const override;
+  void removeCheckpoint(const uint64_t& checkPointId) const override;
 
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");
@@ -153,6 +158,8 @@ class Client : public concord::storage::IDBClient {
 
   // Database path on directory (used for connection).
   std::string m_dbPath;
+  // Database checkpoint directory
+  std::string dbCheckpointPath_;  // default val = m_dbPath + "_checkpoint"
 
   std::string default_opt_config_name = "OPTIONS_DEFAULT.ini";
 
@@ -164,6 +171,7 @@ class Client : public concord::storage::IDBClient {
 
   // Metrics
   mutable RocksDbStorageMetrics storage_metrics_;
+  std::unique_ptr<::rocksdb::Checkpoint> dbCheckPoint_;
 
   friend class NativeClient;
 };

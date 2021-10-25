@@ -964,5 +964,21 @@ bool PersistentStorageImp::getNewEpochFlag() {
 
 void PersistentStorageImp::eraseMetadata() { metadataStorage_->eraseData(); }
 
+void PersistentStorageImp::setDbCheckpointMetadata(const std::vector<std::uint8_t> &v) {
+  std::string data(v.begin(), v.end());
+  metadataStorage_->atomicWrite(DB_CHECKPOINT_DESCRIPTOR, data.data(), data.size());
+}
+std::optional<std::vector<std::uint8_t>> PersistentStorageImp::getDbCheckpointMetadata(const uint32_t &maxBuffSz) {
+  uint32_t outActualObjectSize = 0;
+  UniquePtrToChar outBuf(new char[maxBuffSz]);
+  char *outBufPtr = outBuf.get();
+  metadataStorage_->read(DB_CHECKPOINT_DESCRIPTOR, maxBuffSz, outBufPtr, outActualObjectSize);
+  if (!outActualObjectSize)  // Parameter not found
+    return std::nullopt;
+  std::vector<uint8_t> v(outActualObjectSize, 0);
+  for (auto i = 0u; i < outActualObjectSize; i++) v[i] = static_cast<uint8_t>(outBuf[i]);
+  return v;
+}
+
 }  // namespace impl
 }  // namespace bftEngine

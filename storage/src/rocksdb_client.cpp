@@ -14,6 +14,15 @@
 #include <rocksdb/db.h>
 #include <rocksdb/options.h>
 #include <stdexcept>
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
 #ifdef USE_ROCKSDB
 
 #include <rocksdb/client.h>
@@ -190,6 +199,13 @@ void Client::openRocksDB(bool readOnly,
       throw std::runtime_error("Failed to open rocksdb database at " + m_dbPath + std::string(" reason: ") +
                                s.ToString());
     dbInstance_.reset(txn_db_->GetBaseDB());
+    // create checkpoint instance
+    ::rocksdb::Checkpoint *checkpoint;
+    s = ::rocksdb::Checkpoint::Create(dbInstance_.get(), &checkpoint);
+    if (!s.ok()) throw std::runtime_error("Failed to create checkpoint instance for incremental db snapshot");
+    dbCheckPoint_.reset(checkpoint);
+    fs::path path{dbCheckpointPath_};
+    fs::create_directory(path);
   }
   cf_handles_ = std::move(unique_cf_handles);
 }
@@ -555,6 +571,41 @@ Status Client::rangeDel(const Sliver &_beginKey, const Sliver &_endKey) {
   }
   LOG_TRACE(logger(), "RocksDB successful range delete, begin=" << _beginKey << ", end=" << _endKey);
   return Status::OK();
+}
+
+Status Client::createCheckpoint(const uint64_t &checkPointId) {
+  if (!dbCheckPoint_.get()) return Status::GeneralError("Checkpoint instance is not initialized");
+  // create dir(remove if already exist)
+  ConcordAssertNE(dbCheckpointPath_, m_dbPath);
+  fs::path path{dbCheckpointPath_};
+  fs::path chkptDirPath = path / std::to_string(checkPointId);
+  if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+
+  ::rocksdb::Status s = dbCheckPoint_.get()->CreateCheckpoint(chkptDirPath.string());
+  if (s.ok()) {
+    LOG_INFO(logger(), "created rocks db checkpoint: " << KVLOG(checkPointId));
+    return Status::OK();
+  }
+  LOG_ERROR(logger(), "RocksDB checkpoint creation failed for " << KVLOG(checkPointId, chkptDirPath.string()));
+  if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+  return Status::GeneralError("checkpoint creation failed");
+}
+std::vector<uint64_t> Client::getListOfCreatedCheckpoints() const {
+  std::vector<uint64_t> createdCheckPoints_;
+  fs::path path{dbCheckpointPath_};
+  if (fs::exists(path)) {
+    for (const auto &entry : fs::directory_iterator(path)) {
+      auto dirName = entry.path().filename();
+      createdCheckPoints_.emplace_back(std::stoull(dirName));
+    }
+  }
+  return createdCheckPoints_;
+}
+void Client::removeCheckpoint(const uint64_t &checkPointId) const {
+  ConcordAssertNE(dbCheckpointPath_, m_dbPath);
+  fs::path path{dbCheckpointPath_};
+  fs::path chkptDirPath = path / std::to_string(checkPointId);
+  if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
 }
 
 /**

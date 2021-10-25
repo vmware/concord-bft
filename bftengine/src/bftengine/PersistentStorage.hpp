@@ -155,6 +155,8 @@ class PersistentStorage {
   virtual bool getCompletedMarkInCheckWindow(SeqNum seqNum) = 0;
 
   virtual std::optional<std::vector<std::uint8_t>> getUserData() const = 0;
+  virtual void setDbCheckpointMetadata(const std::vector<std::uint8_t> &) = 0;
+  virtual std::optional<std::vector<std::uint8_t>> getDbCheckpointMetadata(const uint32_t &) = 0;
 };
 
 }  // namespace impl

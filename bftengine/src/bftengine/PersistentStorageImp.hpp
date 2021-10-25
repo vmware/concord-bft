@@ -66,6 +66,7 @@ enum ConstMetadataParameterIds : uint32_t {
   ERASE_METADATA_ON_STARTUP = 9,
   USER_DATA = 10,
   START_NEW_EPOCH = 11,
+  DB_CHECKPOINT_DESCRIPTOR = 12,
   CONST_METADATA_PARAMETERS_NUM,
 };
 
@@ -176,6 +177,8 @@ class PersistentStorageImp : public PersistentStorage {
   bool hasDescriptorOfLastExitFromView() override;
   bool hasDescriptorOfLastNewView() override;
   bool hasDescriptorOfLastExecution() override;
+  void setDbCheckpointMetadata(const std::vector<std::uint8_t> &) override;
+  std::optional<std::vector<std::uint8_t>> getDbCheckpointMetadata(const uint32_t &) override;
 
   // Returns 'true' in case storage is empty
   bool init(std::unique_ptr<MetadataStorage> metadataStorage);
