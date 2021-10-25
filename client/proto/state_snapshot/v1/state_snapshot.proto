@@ -12,11 +12,14 @@ option java_package = "com.vmware.concord.client.statesnapshot.v1";
 
 // The StateSnapshot service can be used to initialize a Client Application from a
 // state snapshot visible to Concord Client. State snapshots aggregate all writes
-// to all storage spaces from the start of the blockchain up to a specific point
-// that is determined by the event group ID as of which the state snapshot is generated. 
-// State contains only the last write to a key-value in a storage space and no
-// prior historical writes. We use `state`, `state snapshot` and
-// `storage space key-values` interchangeably from now on.
+// to the `STORAGE_SPACE_MERKLE` storage space from the start of the blockchain up
+// to a specific point that is determined by the event group ID as of which the
+// state snapshot is generated.
+//
+// State contains only the last write to a key-value in the `STORAGE_SPACE_MERKLE`
+// storage space and no prior historical writes. We use `state`, `state snapshot`,
+// `snapshot` and `STORAGE_SPACE_MERKLE` to refer to all key-values that are part
+// of a snapshot from now on.
 //
 // To visualize, we show how events are streamed from Concord Client to the
 // Client Application (App) and the relation between state and event group IDs:
@@ -48,7 +51,7 @@ service StateSnapshot {
   // Errors:
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
-  rpc GetRecentStateSnapshotId(google.protobuf.Empty) returns (EventGroupId);
+  rpc GetRecentSnapshot(GetRecentSnapshotRequest) returns (GetRecentSnapshotResponse);
 
   // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
   // Key-values are streamed with lexicographic order on keys.
@@ -60,7 +63,7 @@ service StateSnapshot {
   //                   not part of the snapshot.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
-  rpc StreamStateSnapshot(StreamStateSnapshotRequest) returns (stream StreamStateSnapshotResponse);
+  rpc StreamSnapshot(StreamSnapshotRequest) returns (stream StreamSnapshotResponse);
 
   // Read the values of given keys as of a specific snapshot.
   // Errors:
@@ -72,29 +75,28 @@ service StateSnapshot {
   rpc ReadAsOf(ReadAsOfRequest) returns (stream ReadAsOfResponse);
 }
 
-message EventGroupId {
-  // Mandatory field.
-  //
-  // The event group ID.
-  uint64 id = 1;
+message GetRecentSnapshotRequest {
 }
 
-message StreamStateSnapshotRequest {
-  // See execution_engine.proto for more details on storage spaces.
-  message StorageSpaceMerkle {}
-  
+message GetRecentSnapshotResponse {
   // Mandatory field.
   //
-  // The event group ID at which to stream state.
+  // The event group ID at which there is a recent and available snapshot.
   uint64 event_group_id = 1;
 
   // Mandatory field.
   //
-  // Stream keys from the given `storage_space`.
-  // See execution_engine.proto for more details on storage spaces.
-  oneof storage_space {
-    StorageSpaceMerkle merkle = 2;
-  }
+  // An estimate (with reasonable accuracy) of the count of key-values
+  // contained in the snapshot. Please note that this is an estimation
+  // and *not* the actual count.
+  uint64 key_value_count_estimate = 2;
+}
+
+message StreamSnapshotRequest {  
+  // Mandatory field.
+  //
+  // The event group ID at which to stream state.
+  uint64 event_group_id = 1;
 
   // Optional field.
   //
@@ -106,7 +108,7 @@ message StreamStateSnapshotRequest {
   // The empty bytestring is a valid key.
   //
   // Key-values are streamed with lexicographic order on keys.
-  google.protobuf.BytesValue from_key = 3;
+  google.protobuf.BytesValue from_key = 2;
 }
 
 message KeyValuePair {
@@ -121,9 +123,9 @@ message KeyValuePair {
   bytes value = 2;
 }
 
-message StreamStateSnapshotResponse {
+message StreamSnapshotResponse {
   // Mandatory field.
-  KeyValuePair kv = 1;
+  KeyValuePair key_value = 1;
 }
 
 message ReadAsOfRequest {
@@ -134,9 +136,20 @@ message ReadAsOfRequest {
   repeated bytes keys = 2;
 }
 
+message OptionalValue {
+  oneof option {
+    google.protobuf.Empty non_existent = 1;
+    bytes value = 2;
+  }
+}
+
 message ReadAsOfResponse {
-  // The `key_values` list contains all the key-values that have a value,
-  // i.e. the ones that have been set and haven't been deleted. Keys that
-  // haven't been set or have been deleted will not be part of `key_values`.
-  repeated KeyValuePair key_values = 1;
+  // The `values` list contains entries for all requested keys
+  // in `ReadAsOfRequest.keys`, i.e. it is the exact same length.
+  //
+  // If a key-value has been deleted or has never been set,
+  // `OptionalValue.option.non_existent` will be set. Otherwise,
+  // `OptionalValue.option.value` will be set with the value as
+  // of the requested snapshot.
+  repeated OptionalValue values = 1;
 }
