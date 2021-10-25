@@ -131,7 +131,9 @@ void PreProcessReplyMsg::setupMsgBody(const char* preProcessResultBuf,
     sigSize = sigManager->getMySigLength();
     SHA3_256::Digest hash;
     // Calculate pre-process result hash
-    hash = SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
+    auto length = preProcessResultBufLen > 256 ? 256 : preProcessResultBufLen;
+    if (length == 256) LOG_DEBUG(logger(), "DELTA replicas hash is trancated");
+    hash = SHA3_256().digest(preProcessResultBuf, length);
     memcpy(msgBody()->resultsHash, hash.data(), SHA3_256::SIZE_IN_BYTES);
     {
       concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->signPreProcessReplyHash);

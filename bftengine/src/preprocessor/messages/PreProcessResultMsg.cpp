@@ -69,7 +69,9 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
     return err.str();
   }
 
-  auto hash = concord::util::SHA3_256().digest(requestBuf(), requestLength());
+  auto length = requestLength() > 256 ? 256 : requestLength();
+  if (length == 256) LOG_DEBUG(GL, "DELTA validating hash is trancated");
+  auto hash = concord::util::SHA3_256().digest(requestBuf(), length);
   std::unordered_set<bftEngine::impl::NodeIdType> seen_signatures;
   for (const auto& s : sigs) {
     // insert returns std::pair<iterator, bool>. The bool indicates if the element was created or it was already in the

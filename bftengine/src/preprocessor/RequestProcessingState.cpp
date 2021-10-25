@@ -75,8 +75,9 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
   preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
   primaryPreProcessResultLen_ = preProcessResultLen;
-  primaryPreProcessResultHash_ =
-      convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
+  auto length = primaryPreProcessResultLen_ > 256 ? 256 : primaryPreProcessResultLen_;
+  if (length == 256) LOG_DEBUG(logger(), "DELTA primary hash is trancated");
+  primaryPreProcessResultHash_ = convertToArray(SHA3_256().digest(primaryPreProcessResult_, length).data());
 
   auto sm = SigManager::instance();
   std::vector<char> sig(sm->getMySigLength());
