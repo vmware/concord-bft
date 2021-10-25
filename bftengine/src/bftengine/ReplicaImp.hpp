@@ -118,6 +118,16 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::map<uint64_t, std::pair<Time, ClientRequestMsg*>>
       requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
   size_t NonPrimaryCombinedReqSize = 1000;
+  //
+  uint16_t activeExecutions_ = 0;
+  std::queue<ClientRequestMsg*> deferredRORequests_;
+  std::queue<MessageBase*> deferredRequests_;
+  bool isTryToGoNextView_ = false;
+  bool isGoToNextView_ = false;
+  bool isSendCheckpointIfNeeded_ = false;
+  bool isStartcollectingState_ = false;
+  bool isOnTransferringComplete_ = false;
+
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
   typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1, false> WindowOfSeqNumInfo;

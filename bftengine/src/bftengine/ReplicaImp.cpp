@@ -52,6 +52,7 @@
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
 #include "messages/PrePrepareCarrierInternalMsg.hpp"
 #include "messages/ValidatedMessageCarrierInternalMsg.hpp"
+#include "messages/StateTransferMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
@@ -151,6 +152,9 @@ void ReplicaImp::registerMsgHandlers() {
   msgHandlers_->registerMsgHandler(MsgCode::ReplicasRestartReadyProof,
                                    bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1),
                                    bind(&ReplicaImp::validatedMessageHandler<ReplicasRestartReadyProofMsg>, this, _1));
+
+  msgHandlers_->registerMsgHandler(MsgCode::StateTransfer,
+                                   bind(&ReplicaImp::messageHandler<StateTransferMsg>, this, _1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -349,6 +353,16 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 
   // TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem (old
   // version,bug,malicious,...)).
+}
+
+template <>
+void ReplicaImp::onMessage<StateTransferMsg>(StateTransferMsg *m) {
+  if (activeExecutions_ > 0) {
+    deferredRequests_.push(m);
+    return;
+  } else {
+    ReplicaForStateTransfer::onMessage<StateTransferMsg>(m);
+  }
 }
 
 template <>
@@ -3110,6 +3124,10 @@ void ReplicaImp::tryToMarkStableForFastPath(const SeqNum &lastCheckpointNumber,
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
+  if (activeExecutions_ > 0) {
+    isOnTransferringComplete_ = true;
+    return;
+  }
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();

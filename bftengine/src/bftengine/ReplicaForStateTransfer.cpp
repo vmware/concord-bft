@@ -82,10 +82,6 @@ void ReplicaForStateTransfer::stop() {
 
 template <>
 void ReplicaForStateTransfer::onMessage(StateTransferMsg *m) {
-  if (activeExecutions_ > 0) {
-    deferredRequests_.push(m);
-    return;
-  }
   metric_received_state_transfers_++;
   size_t h = sizeof(MessageBase::Header);
   stateTransfer->handleStateTransferMessage(m->body() + h, m->size() - h, m->senderId());
@@ -116,12 +112,7 @@ void ReplicaForStateTransfer::sendStateTransferMessage(char *m, uint32_t size, u
 void ReplicaForStateTransfer::onTransferringComplete(uint64_t checkpointNumberOfNewState) {
   // TODO(GG): if this method is invoked by an external thread, then send an "internal message" to the commands
   // processing thread
-  if (activeExecutions_ > 0) {
-    isOnTransferringComplete_ = true;
-    return;
-  } else {
-    onTransferringCompleteImp(checkpointNumberOfNewState);
-  }
+  onTransferringCompleteImp(checkpointNumberOfNewState);
 }
 
 void ReplicaForStateTransfer::changeStateTransferTimerPeriod(uint32_t timerPeriodMilli) {

@@ -105,16 +105,6 @@ class ReplicaBase {
   // last SeqNum executed  by this replica (or its affect was transferred to this replica)
   SeqNum lastExecutedSeqNum = 0;
 
-  //
-  uint16_t activeExecutions_ = 0;
-  std::queue<ClientRequestMsg*> deferredRORequests_;
-  std::queue<MessageBase*> deferredRequests_;
-  bool isTryToGoNextView_ = false;
-  bool isGoToNextView_ = false;
-  bool isSendCheckpointIfNeeded_ = false;
-  bool isStartcollectingState_ = false;
-  bool isOnTransferringComplete_ = false;
-
   //////////////////////////////////////////////////
   // METRICS
   std::chrono::seconds last_metrics_dump_time_;
