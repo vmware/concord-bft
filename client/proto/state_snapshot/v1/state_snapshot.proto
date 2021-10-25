@@ -72,7 +72,7 @@ service StateSnapshot {
   //            fetching a new event group ID.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
-  rpc ReadAsOf(ReadAsOfRequest) returns (stream ReadAsOfResponse);
+  rpc ReadAsOf(ReadAsOfRequest) returns (ReadAsOfResponse);
 }
 
 message GetRecentSnapshotRequest {
