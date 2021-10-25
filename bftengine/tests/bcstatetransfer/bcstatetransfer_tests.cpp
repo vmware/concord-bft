@@ -144,6 +144,14 @@ class BcStTest : public ::testing::Test {
     // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
 #endif
     config_ = TestConfig();
+
+    // TO DO - This is a temporary patch. Should be removed as part of BC-14426.
+    char TestCaseName[] = "validatePeriodicSourceReplacement";
+    if (memcmp(::testing::UnitTest::GetInstance()->current_test_info()->name(), TestCaseName, sizeof(TestCaseName)) ==
+        0) {
+      config_.sourceReplicaReplacementTimeoutMs = 1000;
+    }
+
     // For now we assume no chunking is supported
     ConcordAssertEQ(config_.maxChunkSize, config_.maxBlockSize);
 #ifdef USE_ROCKSDB
@@ -373,6 +381,7 @@ class BcStTest : public ::testing::Test {
         itemDataMsg->requestMsgSeqNum = fetchBlocksMsg->msgSeqNum;
         itemDataMsg->dataSize = blk->totalBlockSize;
         memcpy(itemDataMsg->data, blk.get(), blk->totalBlockSize);
+
         stateTransfer_->onMessage(itemDataMsg, itemDataMsg->size(), msg.to_, std::chrono::steady_clock::now());
         if (lastInBatch) {
           break;
@@ -565,7 +574,7 @@ class BcStTest : public ::testing::Test {
     random_bytes_engine rbe;
     std::generate(data, data + bytesToFill, std::ref(rbe));
   }
-};  // class BcStTest
+};  // namespace bftEngine::bcst::impl
 
 // Validates that GettingCheckpointSummaries is sent to all replicas
 TEST_F(BcStTest, dstSendAskForCheckpointSummariesMsg) { ASSERT_NO_FATAL_FAILURE(SendCheckpointSummaries()); }
@@ -685,6 +694,38 @@ TEST_F(BcStTest, dstValidateRealSourceListReported) {
   bool doneSending = false;
   while (!doneSending) mockedSrc_->ReplyResPagesMsg(doneSending);
   // now validate completion
+  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
+// Validate a recurring source selection, during ongoing state transfer;
+TEST_F(BcStTest, validatePeriodicSourceReplacement) {
+  ASSERT_NO_FATAL_FAILURE(SendCheckpointSummaries());
+  mockedSrc_->ReplyAskForCheckpointSummariesMsg();
+  uint32_t batch_count{0};
+  while (true) {
+    // once the source is selected, adding sleep for more than source replacement time duration
+    if (batch_count < 2) {
+      this_thread::sleep_for(milliseconds(config_.sourceReplicaReplacementTimeoutMs));
+    }
+    ASSERT_NO_FATAL_FAILURE(
+        AssertFetchBlocksMsgSent(testParams_.expectedFirstRequiredBlockNum, testParams_.expectedLastRequiredBlockNum));
+    mockedSrc_->ReplyFetchBlocksMsg();
+    if (testParams_.expectedLastRequiredBlockNum <= config_.maxNumberOfChunksInBatch) break;
+    testParams_.expectedLastRequiredBlockNum -= config_.maxNumberOfChunksInBatch;
+    // There might be pending jobs for putBlock, we need to wait some time and then finalize them by calling
+    this_thread::sleep_for(chrono::milliseconds(20));
+    onTimerImp();
+    batch_count++;
+  }
+  const auto& sources_ = GetSourceSelector().getActualSources();
+  ASSERT_EQ(sources_.size(), 3);
+  ASSERT_NO_FATAL_FAILURE(AssertFetchResPagesMsgSent());
+  bool doneSending = false;
+  while (!doneSending) mockedSrc_->ReplyResPagesMsg(doneSending);
+  // source is changed after the ongoing block fetch is done
+  // ASSERT_NE(first_rep, GetSourceSelector().currentReplica());
+  // now validate commpletion
   ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }

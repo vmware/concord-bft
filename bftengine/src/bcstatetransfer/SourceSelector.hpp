@@ -26,6 +26,8 @@ namespace impl {
 
 static const uint16_t NO_REPLICA = UINT16_MAX;
 
+enum class SourceReplaceType { GRACEFUL, IMMEDIATE, DONOT };
+
 // Information about which current source is selected and which replicas are
 // preferred, as well as data that helps to select a current source replica.
 class SourceSelector {
@@ -52,10 +54,10 @@ class SourceSelector {
   bool retransmissionTimeoutExpired(uint64_t currTimeMilli) const;
 
   // Return true if the source should be replaced, false otherwise.
-  bool shouldReplaceSource(uint64_t currTimeMilli, bool badDataFromCurrentSource) const;
+  SourceReplaceType shouldReplaceSource(uint64_t currTimeMilli, bool badDataFromCurrentSource, bool lastInBatch) const;
 
   // Replace the source.
-  void updateSource(uint64_t currTimeMilli);
+  void updateSource(uint64_t currTimeMilli, SourceReplaceType replaceSourceType);
 
   // Reset the source selection time without actually changing the source
   void setSourceSelectionTime(uint64_t currTimeMilli);

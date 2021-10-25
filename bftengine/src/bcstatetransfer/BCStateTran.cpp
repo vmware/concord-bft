@@ -2463,24 +2463,24 @@ void BCStateTran::processData(bool lastInBatch) {
   bool badDataFromCurrentSourceReplica = false;
 
   while (true) {
-    bool newSourceReplica = sourceSelector_.shouldReplaceSource(currTime, badDataFromCurrentSourceReplica);
+    const auto sourceReplacmentScheme =
+        sourceSelector_.shouldReplaceSource(currTime, badDataFromCurrentSourceReplica, lastInBatch);
 
-    if (newSourceReplica) {
+    if (sourceReplacmentScheme != SourceReplaceType::DONOT) {
       //////////////////////////////////////////////////////////////////////////
       // Select a source replica
       //////////////////////////////////////////////////////////////////////////
-      sourceSelector_.removeCurrentReplica();
       if (fs == FetchingState::GettingMissingResPages && sourceSelector_.noPreferredReplicas()) {
         EnterGettingCheckpointSummariesState();
         return;
       }
-      sourceSelector_.updateSource(currTime);
+      sourceSelector_.updateSource(currTime, sourceReplacmentScheme);
       auto currentSource = sourceSelector_.currentReplica();
       LOG_DEBUG(logger_, "Selected new source replica: " << currentSource);
       metrics_.current_source_replica_.Get().Set(currentSource);
       metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
-      clearAllPendingItemsData();
+      if (sourceReplacmentScheme == SourceReplaceType::IMMEDIATE) clearAllPendingItemsData();
     }
 
     // We have a valid source replica at this point
@@ -2514,6 +2514,7 @@ void BCStateTran::processData(bool lastInBatch) {
       }
     }
 
+    bool newSourceReplica = (sourceReplacmentScheme != SourceReplaceType::DONOT);
     ConcordAssertNE(nextRequiredBlock_, 0);
     ConcordAssertOR(
         (fetchingState == FetchingState::GettingMissingBlocks) && (nextCommittedBlockId_ >= nextRequiredBlock_),
@@ -2569,7 +2570,6 @@ void BCStateTran::processData(bool lastInBatch) {
       //////////////////////////////////////////////////////////////////////////
       // if we have a new block
       //////////////////////////////////////////////////////////////////////////
-      sourceSelector_.setSourceSelectionTime(currTime);
       sourceSelector_.onReceivedValidBlockFromSource();
 
       ConcordAssertAND(lastChunkInRequiredBlock >= 1, actualBlockSize > 0);
@@ -2659,7 +2659,6 @@ void BCStateTran::processData(bool lastInBatch) {
       // if we have a new vblock
       //////////////////////////////////////////////////////////////////////////
       DataStoreTransaction::Guard g(psd_->beginTransaction());
-      sourceSelector_.setSourceSelectionTime(currTime);
       sourceSelector_.onReceivedValidBlockFromSource();
 
       if (config_.enableReservedPages) {
