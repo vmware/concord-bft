@@ -99,14 +99,11 @@ TEST(TimersTest, Basic) {
   // Add a third timer and ensure it fires.
   // This tests the monotonicity of counter ids as used by handles.
   bool third_timer_fired = false;
-  auto handle = timers.add(
+  timers.add(
       duration, Timers::Timer::ONESHOT, [&third_timer_fired](Handle h) { third_timer_fired = true; }, now);
   now += duration;
   timers.evaluate(now);
   ASSERT_TRUE(third_timer_fired);
-
-  // Try to reset a timer that no longer exists. This should throw an exception.
-  ASSERT_THROW(timers.reset(handle, duration * 2, now), std::invalid_argument);
 }
 
 }  // namespace concordUtil
