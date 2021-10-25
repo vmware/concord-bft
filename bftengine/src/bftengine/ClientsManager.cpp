@@ -41,6 +41,9 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
       metric_reply_inconsistency_detected_{metrics_.RegisterCounter("totalReplyInconsistenciesDetected")},
       metric_removed_due_to_out_of_boundaries_{metrics_.RegisterCounter("totalRemovedDueToOutOfBoundaries")} {
   reservedPagesPerClient_ = reservedPagesPerClient(sizeOfReservedPage(), maxReplySize_);
+  for (NodeIdType i = 0; i < ReplicaConfig::instance().numReplicas + ReplicaConfig::instance().numRoReplicas; i++) {
+    clientIds_.insert(i);
+  }
   clientIds_.insert(proxyClients_.begin(), proxyClients_.end());
   clientIds_.insert(externalClients_.begin(), externalClients_.end());
   clientIds_.insert(internalClients_.begin(), internalClients_.end());
@@ -81,7 +84,6 @@ void ClientsManager::loadInfoFromReservedPages() {
     }
 
     if (!loadReservedPage(getReplyFirstPageId(clientId), sizeOfReservedPage(), scratchPage_.data())) continue;
-
     ClientReplyMsgHeader* replyHeader = (ClientReplyMsgHeader*)scratchPage_.data();
     ConcordAssert(replyHeader->msgType == 0 || replyHeader->msgType == MsgCode::ClientReply);
     ConcordAssert(replyHeader->currentPrimaryId == 0);

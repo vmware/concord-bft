@@ -21,6 +21,8 @@
 #include "communication/StateControl.hpp"
 #include "secrets_manager_plain.h"
 
+#include <fstream>
+
 using namespace concord::messages;
 namespace concord::reconfiguration {
 
@@ -83,6 +85,16 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
   LOG_INFO(getLogger(), "AddRemoveWithWedgeCommand instructs replica to stop at seq_num " << bft_seq_num);
   bftEngine::ControlStateManager::instance().setStopAtNextCheckpoint(bft_seq_num);
   handleWedgeCommands(command.bft_support, true, command.restart, true, true);
+  std::ofstream configuration_file;
+  configuration_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
+                              configurationsFileName + "." +
+                              std::to_string(bftEngine::ReplicaConfig::instance().replicaId),
+                          std::ios_base::app);
+  if (!configuration_file.good()) {
+    LOG_FATAL(getLogger(), "unable to open the reconfigurations file");
+  }
+  configuration_file << (command.config_descriptor + "\n");
+  configuration_file.close();
   return true;
 }
 void ReconfigurationHandler::handleWedgeCommands(

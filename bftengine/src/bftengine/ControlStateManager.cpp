@@ -56,13 +56,18 @@ void ControlStateManager::addOnRestartProofCallBack(std::function<void()> cb,
 void ControlStateManager::onRestartProof(const SeqNum& seq_num, uint8_t reason) {
   // If operator sends add-remove request with bft option then
   // It can happen that some replicas receives a restart proof and yet to reach
-  // stable checkpoint. We should not rstart replica in that case since
+  // stable checkpoint. We should not restart replica in that case since
   // configuration update happens on stable checkpoint.
 
   if ((restartBftEnabled_ && IControlHandler::instance()->isOnStableCheckpoint()) ||
       IControlHandler::instance()->isOnNOutOfNCheckpoint()) {
     auto seq_num_to_stop_at = getCheckpointToStopAt();
     if (seq_num_to_stop_at.has_value() && seq_num) {
+      // A nasty hack to allow state transfer replicas to get the update in high probability - we are going to sleep for
+      // 10 seconds, assuming that it is enough for state transfer replicas to get the state change and perform the
+      // update
+      if (reason == static_cast<uint8_t>(ReplicaRestartReadyMsg::Reason::Scale))
+        std::this_thread::sleep_for(std::chrono::seconds(10));
       hasRestartProofAtSeqNum_[reason] = seq_num;
       for (const auto& kv : onRestartProofCbRegistry_[reason]) {
         kv.second.invokeAll();
