@@ -12,6 +12,8 @@
 #include <concord_prometheus_metrics.hpp>
 #include <memory>
 #include <string>
+#include <vector>
+#include <chrono>
 #include <grpcpp/grpcpp.h>
 #include <boost/program_options.hpp>
 #include <yaml-cpp/yaml.h>
@@ -21,6 +23,7 @@
 #include "client/concordclient/concord_client.hpp"
 #include "Logger.hpp"
 #include "Metrics.hpp"
+#include <jaegertracing/Tracer.h>
 
 using concord::client::clientservice::ClientService;
 using concord::client::clientservice::configureSubscription;
@@ -51,6 +54,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
     ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
+    ("jaeger", po::value<std::string>()->default_value("jaeger-agent:6831"), "Push trace data to this Jaeger Agent")
   ;
   // clang-format on
   po::variables_map opts;
@@ -70,6 +74,42 @@ initPrometheus(int port) {
   return std::make_tuple(registry, collector);
 }
 
+class JaegerLogger : public jaegertracing::logging::Logger {
+ private:
+  logging::Logger logger = logging::getLogger("concord.client.clientservice.jaeger");
+
+ public:
+  void error(const std::string& message) override { LOG_ERROR(logger, message); }
+  void info(const std::string& message) override { LOG_INFO(logger, message); }
+};
+
+void initJaeger(const std::string& addr, const std::string& id) {
+  // No sampling for now - report all traces
+  jaegertracing::samplers::Config sampler_config(jaegertracing::kSamplerTypeConst, 1.0);
+  jaegertracing::reporters::Config reporter_config(jaegertracing::reporters::Config::kDefaultQueueSize,
+                                                   jaegertracing::reporters::Config::defaultBufferFlushInterval(),
+                                                   false /* false=don't log spans, true=JaegerUI */,
+                                                   addr);
+  jaegertracing::propagation::HeadersConfig headers_config(jaegertracing::kJaegerDebugHeader,
+                                                           jaegertracing::kJaegerBaggageHeader,
+                                                           jaegertracing::kTraceContextHeaderName,
+                                                           jaegertracing::kTraceBaggageHeaderPrefix);
+  jaegertracing::baggage::RestrictionsConfig baggage_restrictions(false, "", std::chrono::steady_clock::duration());
+  std::string trace_proc_name = "clientservice-" + id;
+  jaegertracing::Config config(false,
+                               false,
+                               sampler_config,
+                               reporter_config,
+                               headers_config,
+                               baggage_restrictions,
+                               trace_proc_name,
+                               std::vector<jaegertracing::Tag>(),
+                               jaegertracing::propagation::Format::W3C);
+  auto tracer = jaegertracing::Tracer::make(
+      trace_proc_name, config, std::unique_ptr<jaegertracing::logging::Logger>(new JaegerLogger()));
+  opentracing::Tracer::InitGlobal(std::static_pointer_cast<opentracing::Tracer>(tracer));
+}
+
 int main(int argc, char** argv) {
   LOG_CONFIGURE_AND_WATCH(getLog4CplusConfigLocation(), kLogConfigRefreshIntervalInMs);
   auto logger = logging::getLogger("concord.client.clientservice.main");
@@ -87,11 +127,16 @@ int main(int argc, char** argv) {
   }
   LOG_INFO(logger, "ConcordClient configured");
 
+  // Metrics
   auto port = opts["metrics-port"].as<int>();
   const auto& ptuple = initPrometheus(port);
   const auto& metrics_collector = std::get<1>(ptuple);
-
   LOG_INFO(logger, "Prometheus metrics available on port " << port);
+
+  // Tracing
+  auto jaeger_addr = opts["jaeger"].as<std::string>();
+  initJaeger(jaeger_addr, opts["tr-id"].as<std::string>());
+  LOG_INFO(logger, "Sending trace data to Jaeger Agent at " << jaeger_addr);
 
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
   ClientService service(std::move(concord_client));
