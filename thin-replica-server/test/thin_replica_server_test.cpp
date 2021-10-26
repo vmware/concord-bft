@@ -1205,7 +1205,7 @@ TEST(thin_replica_server_test, SubscribeWithWrongBlockId) {
   request.mutable_events()->set_block_id(kLastBlockId + 100);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
-  EXPECT_EQ(status.error_code(), grpc::StatusCode::FAILED_PRECONDITION);
+  EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
 }
 
 TEST(thin_replica_server_test, SubscribeWithWrongEventGroupId) {
@@ -1228,7 +1228,7 @@ TEST(thin_replica_server_test, SubscribeWithWrongEventGroupId) {
   request.mutable_event_groups()->set_event_group_id(kLastEventGroupId + 100);
   auto status =
       replica.SubscribeToUpdates<TestServerContext, TestServerWriter<Data>, Data>(&context, &request, &stream);
-  EXPECT_EQ(status.error_code(), grpc::StatusCode::FAILED_PRECONDITION);
+  EXPECT_EQ(status.error_code(), grpc::StatusCode::OUT_OF_RANGE);
 }
 
 TEST(thin_replica_server_test, GetClientIdFromCertSubjectField) {
