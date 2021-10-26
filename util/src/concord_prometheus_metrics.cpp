@@ -110,7 +110,7 @@ PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress, uint64_t 
 }
 
 PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress)
-    : PrometheusRegistry(bindAddress, defaultMetricsDumpInterval){};
+    : PrometheusRegistry(bindAddress, defaultMetricsDumpInterval) {}
 
 void PrometheusRegistry::scrapeRegistry(std::shared_ptr<prometheus::Collectable> registry) {
   if (!exposer_) return;

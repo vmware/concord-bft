@@ -88,7 +88,9 @@ int main(int argc, char** argv) {
   LOG_INFO(logger, "ConcordClient configured");
 
   auto port = opts["metrics-port"].as<int>();
-  auto [registry, metrics_collector] = initPrometheus(port);
+  const auto& ptuple = initPrometheus(port);
+  const auto& metrics_collector = std::get<1>(ptuple);
+
   LOG_INFO(logger, "Prometheus metrics available on port " << port);
 
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
