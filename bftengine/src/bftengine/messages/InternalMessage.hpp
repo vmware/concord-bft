@@ -17,6 +17,7 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "messages/TickInternalMsg.hpp"
+#include "messages/OnTransferringCompleteMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/SignatureInternalMsgs.hpp"
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
@@ -75,6 +76,9 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      GetStatus,
 
                                      // Concord Cron related
-                                     TickInternalMsg>;
+                                     TickInternalMsg,
+
+                                     // post execution defer related
+                                     OnTransferringCompletelMsg>;
 
 }  // namespace bftEngine::impl

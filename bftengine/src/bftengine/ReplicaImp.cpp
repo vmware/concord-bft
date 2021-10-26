@@ -1588,6 +1588,10 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
     return ticks_gen_->onInternalTick(*tick);
   }
 
+  if (auto *transfer = std::get_if<OnTransferringCompletelMsg>(&msg)) {
+    return onDeferredTransferringCompleteImp(transfer->newStateCheckpoint);
+  }
+
   ConcordAssert(false);
 }
 
@@ -3124,6 +3128,16 @@ void ReplicaImp::tryToMarkStableForFastPath(const SeqNum &lastCheckpointNumber,
 }
 
 void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
+  if (MAIN_THREAD_ID != std::this_thread::get_id()) {
+    InternalMessage OnTransferringComplete = OnTransferringCompletelMsg(newStateCheckpoint);
+    getIncomingMsgsStorage().pushInternalMsg(std::move(OnTransferringComplete));
+    return;
+  } else {
+    onDeferredTransferringCompleteImp(newStateCheckpoint);
+  }
+}
+
+void ReplicaImp::onDeferredTransferringCompleteImp(uint64_t newStateCheckpoint) {
   if (activeExecutions_ > 0) {
     isOnTransferringComplete_ = true;
     return;
@@ -4063,6 +4077,7 @@ ReplicaImp::ReplicaImp(bool firstTime,
       viewChangeProtocolEnabled{config.viewChangeProtocolEnabled},
       autoPrimaryRotationEnabled{config.autoPrimaryRotationEnabled},
       restarted_{!firstTime},
+      MAIN_THREAD_ID{std::this_thread::get_id()},
       replyBuffer{(char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader))},
       timeOfLastStateSynch{getMonotonicTime()},    // TODO(GG): TBD
       timeOfLastViewEntrance{getMonotonicTime()},  // TODO(GG): TBD

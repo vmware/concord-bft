@@ -119,6 +119,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
       requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
   size_t NonPrimaryCombinedReqSize = 1000;
   //
+  const std::thread::id MAIN_THREAD_ID;
   uint16_t activeExecutions_ = 0;
   std::queue<ClientRequestMsg*> deferredRORequests_;
   std::queue<MessageBase*> deferredRequests_;
@@ -449,6 +450,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void onSeqNumIsSuperStable(SeqNum superStableSeqNum);
   void onTransferringCompleteImp(uint64_t) override;
+  void onDeferredTransferringCompleteImp(uint64_t);
 
   template <typename T>
   bool relevantMsgForActiveView(const T* msg);
