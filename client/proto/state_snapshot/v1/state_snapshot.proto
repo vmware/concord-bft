@@ -5,7 +5,6 @@
 syntax = "proto3";
 package vmware.concord.client.statesnapshot.v1;
 
-import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";
 
 option java_package = "com.vmware.concord.client.statesnapshot.v1";
@@ -95,7 +94,7 @@ message GetRecentSnapshotResponse {
 message StreamSnapshotRequest {  
   // Mandatory field.
   //
-  // The event group ID at which to stream state.
+  // The event group ID as of which to stream state.
   uint64 event_group_id = 1;
 
   // Optional field.
@@ -137,10 +136,7 @@ message ReadAsOfRequest {
 }
 
 message OptionalValue {
-  oneof option {
-    google.protobuf.Empty non_existent = 1;
-    bytes value = 2;
-  }
+  optional bytes value = 1;
 }
 
 message ReadAsOfResponse {
@@ -148,8 +144,7 @@ message ReadAsOfResponse {
   // in `ReadAsOfRequest.keys`, i.e. it is the exact same length.
   //
   // If a key-value has been deleted or has never been set,
-  // `OptionalValue.option.non_existent` will be set. Otherwise,
-  // `OptionalValue.option.value` will be set with the value as
-  // of the requested snapshot.
+  // `OptionalValue.value` will not be set. Otherwise, it will
+  // be set to the value's bytes as of the requested snapshot.
   repeated OptionalValue values = 1;
 }
