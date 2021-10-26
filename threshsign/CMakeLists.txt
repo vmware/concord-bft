@@ -10,6 +10,10 @@ find_package(Threads REQUIRED)
 # Compiler flags
 string(APPEND CXX_FLAGS " -Wall")
 string(APPEND CXX_FLAGS " -Werror")
+if(USE_LOG4CPP)
+	#log4cplus needs pthread
+	string(APPEND CXX_FLAGS " -pthread")
+endif(USE_LOG4CPP)
 string(APPEND CXX_FLAGS " -Wextra")
 # TODO: Figure out right way to deal with -fstrict-overflow / -Wstrict-overflow related errors
 string(APPEND CXX_FLAGS " -fno-strict-overflow")
