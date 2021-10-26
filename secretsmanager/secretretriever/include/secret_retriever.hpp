@@ -18,8 +18,8 @@
 
 namespace concord::secretsmanager::secretretriever {
 
-// This function is inteded to be used only once, at startup. Then the result
+// This function is intedend to be used only once, at startup. Then the result
 // should be stored for use throughout the application
-concord::secretsmanager::SecretData secretRetriever(const std::string &secret_url);
+concord::secretsmanager::SecretData retrieveSecret(const std::string &secret_url);
 
 }  // namespace concord::secretsmanager::secretretriever

@@ -41,7 +41,7 @@ SecretData parseJson(json j) {
                     j["additional_info"].is_string() ? j["additional_info"].get<std::string>() : ""};
 }
 
-std::optional<SecretData> fileSecretRetrieve(const std::string &secret_url) {
+std::optional<SecretData> retrieveFileSecret(const std::string &secret_url) {
   std::regex url_regex(R"(^file://(.*))", std::regex::extended);
   std::smatch url_match;
   if (std::regex_match(secret_url, url_match, url_regex)) {
@@ -75,7 +75,7 @@ httplib::Result getWithRetry(httplib::ClientImpl &cli, const std::string &path) 
   }
 }
 
-std::optional<SecretData> remoteSecretRetrieve(const std::string &secret_url) {
+std::optional<SecretData> retrieveSecretRemote(const std::string &secret_url) {
   std::regex url_regex(R"(^(https|http)://([a-zA-Z0-9\.-]+)(:([0-9]+))?(.*))", std::regex::extended);
   std::smatch url_match;
   if (std::regex_match(secret_url, url_match, url_regex)) {
@@ -107,13 +107,13 @@ std::optional<SecretData> remoteSecretRetrieve(const std::string &secret_url) {
   }
 }
 
-SecretData secretRetriever(const std::string &secret_url) {
+SecretData retrieveSecret(const std::string &secret_url) {
   {
-    auto res = fileSecretRetrieve(secret_url);
+    auto res = retrieveFileSecret(secret_url);
     if (res) return res.value();
   }
   {
-    auto res = remoteSecretRetrieve(secret_url);
+    auto res = retrieveSecretRemote(secret_url);
     if (res) return res.value();
   }
   throw std::runtime_error("URL is invalid.");
