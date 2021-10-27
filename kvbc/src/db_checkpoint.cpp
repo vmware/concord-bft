@@ -59,13 +59,19 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
   return Status::OK();
 }
 void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
-  auto max_buff_size = maxNumOfCheckpoints_ * sizeof(std::pair<CheckpointId, DbCheckpointMetadata>);
+  auto max_buff_size =
+      bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata>);
   std::optional<std::vector<std::uint8_t>> db_checkpoint_metadata = ps_->getDbCheckpointMetadata(max_buff_size);
   if (db_checkpoint_metadata.has_value()) {
     std::string data(db_checkpoint_metadata.value().begin(), db_checkpoint_metadata.value().end());
     std::istringstream inStream;
     inStream.str(data);
     concord::serialize::Serializable::deserialize(inStream, dbCheckptMetadata_);
+    LOG_INFO(getLogger(),
+             "Num of db_checkpoints loaded from persistence " << KVLOG(dbCheckptMetadata_.dbCheckPoints_.size()));
+    for (const auto& [db_chkpt_id, db_chk_pt_val] : dbCheckptMetadata_.dbCheckPoints_) {
+      LOG_INFO(getLogger(), KVLOG(db_chkpt_id, db_chk_pt_val.creationTimeSinceEpoch_.count()));
+    }
   }
 }
 void RocksDbCheckPointManager::checkforCleanup() {

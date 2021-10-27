@@ -41,6 +41,15 @@ class ControlHandler : public IControlHandler {
   void addOnStableCheckpointCallBack(const std::function<void()>& cb) override {
     onStableCheckpointCallBack.emplace_back(cb);
   }
+  void enableCreatingDbCheckpoint(bool enable) override { enableDbCheckpoint_ = enable; }
+  bool isDbCheckpointEnabled() override { return enableDbCheckpoint_; }
+
+  void addCreateDbCheckpointCb(const std::function<void(uint64_t)>& cb) override {
+    if (cb) createDbChecheckpointCb_ = cb;
+  }
+  void createDbCheckPointCb(const uint64_t& seqNum) override {
+    if (createDbChecheckpointCb_) createDbChecheckpointCb_(seqNum);
+  }
 
   void resetState() override {
     onNoutOfNCheckpoint_ = false;
@@ -56,6 +65,8 @@ class ControlHandler : public IControlHandler {
   bool onPruningProcess_ = false;
   std::vector<std::function<void()>> onSuperStableCheckpointCallBack;
   std::vector<std::function<void()>> onStableCheckpointCallBack;
+  bool enableDbCheckpoint_{false};
+  std::function<void(uint64_t)> createDbChecheckpointCb_;
 };
 
 }  // namespace bftEngine

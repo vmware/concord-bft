@@ -79,6 +79,10 @@ class IControlHandler {
   virtual void addOnSuperStableCheckpointCallBack(const std::function<void()> &cb) = 0;
   virtual void addOnStableCheckpointCallBack(const std::function<void()> &cb) = 0;
   virtual void resetState() = 0;
+  virtual bool isDbCheckpointEnabled() { return false; };
+  virtual void enableCreatingDbCheckpoint(bool) {}
+  virtual void addCreateDbCheckpointCb(const std::function<void(uint64_t)> &) {}
+  virtual void createDbCheckPointCb(const uint64_t &) {}
   virtual ~IControlHandler() = default;
 };
 

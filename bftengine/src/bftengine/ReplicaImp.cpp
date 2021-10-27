@@ -2983,6 +2983,10 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
     metric_on_call_back_of_super_stable_cp_.Get().Set(1);
     IControlHandler::instance()->onSuperStableCheckpoint();
   }
+
+  if (IControlHandler::instance()->isDbCheckpointEnabled()) {
+    IControlHandler::instance()->createDbCheckPointCb(superStableSeqNum);
+  }
 }
 
 void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformation, bool oldSeqNum) {

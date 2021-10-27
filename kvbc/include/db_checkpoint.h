@@ -25,12 +25,15 @@
 #include <queue>
 #include <condition_variable>
 #include <chrono>
+#include <bftengine/db_checkpoint_metadata.hpp>
 
 namespace concord::kvbc {
-constexpr int MAX_ALLOWED_CHECKPOINTS{100};
-using CheckpointId = uint64_t;
+
+using CheckpointId = bftengine::dbcheckpoint_mdt::CheckpointId;
+using DbCheckpointMetadata = bftengine::dbcheckpoint_mdt::DbCheckpointMetadata;
 using Time = std::chrono::duration<long>;
 using Status = concordUtils::Status;
+#if 0
 struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbCheckpointMetadata> {
   struct DbCheckPointDescriptor : public concord::serialize::SerializableFactory<DbCheckPointDescriptor> {
     // unique id for the checkpoint
@@ -58,6 +61,7 @@ struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbC
   void serializeDataMembers(std::ostream& outStream) const override { serialize(outStream, dbCheckPoints_); }
   void deserializeDataMembers(std::istream& inStream) override { deserialize(inStream, dbCheckPoints_); }
 };
+#endif
 
 class IDbCheckPointManager {
  public:
@@ -82,16 +86,18 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
  public:
   RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient, const uint32_t& maxNumOfChkPt = 10)
       : rocksDbClient_{dbClient}, ps_{nullptr}, maxNumOfCheckpoints_{maxNumOfChkPt} {
-    if (maxNumOfChkPt > MAX_ALLOWED_CHECKPOINTS) maxNumOfCheckpoints_ = MAX_ALLOWED_CHECKPOINTS;
+    if (maxNumOfChkPt > bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS)
+      maxNumOfCheckpoints_ = bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS;
   }
   void init() override;
   Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId) override;
 
   void removeCheckpoint(const uint64_t& checkPointId) override;
   void setMaxNumOfAllowedCheckpoints(const uint32_t& maxNumDbCheckpoint) override {
-    if (maxNumDbCheckpoint > MAX_ALLOWED_CHECKPOINTS) {
+    if (maxNumDbCheckpoint > bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS) {
       LOG_ERROR(getLogger(),
-                "setting maxNumDbCheckpoint checkpoint failed" << KVLOG(maxNumDbCheckpoint, MAX_ALLOWED_CHECKPOINTS));
+                "setting maxNumDbCheckpoint checkpoint failed"
+                    << KVLOG(maxNumDbCheckpoint, bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS));
       return;
     }
     maxNumOfCheckpoints_ = maxNumDbCheckpoint;
