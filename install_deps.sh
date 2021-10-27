@@ -314,5 +314,41 @@ git clone -b v0.9.7 --depth 1 https://github.com/yhirose/cpp-httplib && \
     cd ${HOME} && \
     rm -r cpp-httplib
 
+# Thrift is the protocol used by Jaeger to export metrics
+cd $HOME
+wget ${WGET_FLAGS} https://downloads.apache.org/thrift/0.11.0/thrift-0.11.0.tar.gz && \
+    tar xzf thrift-0.11.0.tar.gz && \
+    cd thrift-0.11.0 && \
+    ./configure CXXFLAGS='-g -O2' \
+      --without-python --enable-static --disable-shared \
+      --disable-tests --disable-tutorial --disable-coverage && \
+    make -j$(nproc) install && \
+    cd ${HOME} && \
+    rm -r thrift-0.11.0 thrift-0.11.0.tar.gz
+
+# TODO: Upgrade to opentelemetry-cpp
+# Tracing via Jaeger and Thrift protocol
+# Copy FindThrift.cmake because installing Thrift does not include a CMake definition
+cd $HOME
+git clone -b v0.7.0 --depth 1 https://github.com/jaegertracing/jaeger-client-cpp && \
+    cd jaeger-client-cpp && \
+    mkdir build && \
+    cd build && \
+    cmake -DHUNTER_ENABLED=OFF -DHUNTER_BUILD_SHARED_LIBS=OFF -DBUILD_TESTING=OFF \
+          -DBUILD_SHARED_LIBS=OFF -DJAEGERTRACING_BUILD_EXAMPLES=OFF \
+          -DJAEGERTRACING_PLUGIN=OFF -DJAEGERTRACING_COVERAGE=OFF \
+          -DJAEGERTRACING_BUILD_CROSSDOCK=OFF -DJAEGERTRACING_WITH_YAML_CPP=OFF \
+          .. && \
+    make -j$(nproc) install && \
+    cp ../cmake/Findthrift.cmake /usr/share/cmake-3.20/Modules/ && \
+    cd ${HOME} && \
+    rm -r jaeger-client-cpp
+
+# Jaeger really wants to find BoostConfig.cmake, not FindBoost.cmake.
+# This wasn't introduced until boost 1.70.
+# Jaegertracing.cmake finds FindBoost.cmake first anyways.
+# The following sed just removes the search for BoostConfig.cmake.
+sed -i '/boost_components/d' /usr/local/lib/cmake/jaegertracing/jaegertracingConfig.cmake
+
 # After installing all libraries, let's make sure that they will be found at compile time
 ldconfig -v
