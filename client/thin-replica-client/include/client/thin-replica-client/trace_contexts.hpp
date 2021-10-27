@@ -15,6 +15,7 @@
 #define THIN_REPLICA_CLIENT_TRACE_CONTEXTS_HPP_
 
 #include <opentracing/span.h>
+#include <optional>
 
 #include "thin_replica.pb.h"
 #include "client/concordclient/event_update.hpp"
@@ -34,8 +35,7 @@ class TraceContexts {
   static expected<std::unique_ptr<opentracing::SpanContext>> ExtractSpan(const cc::EventVariant& update);
   static SpanPtr CreateChildSpanFromBinary(const std::string& trace_context,
                                            const std::string& child_name,
-                                           const std::string& correlation_id,
-                                           const logging::Logger& logger);
+                                           const std::string& correlation_id = {});
 };
 
 }  // namespace client::thin_replica_client
