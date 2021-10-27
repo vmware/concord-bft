@@ -1,52 +1,24 @@
 // Copyright 2021 VMware, all rights reserved
 //
-// Concord Client's State Snapshot Service
+// Concord Client's StateSnapshot Service
 
 syntax = "proto3";
 package vmware.concord.client.statesnapshot.v1;
 
-import "google/protobuf/wrappers.proto";
-
 option java_package = "com.vmware.concord.client.statesnapshot.v1";
 
-// The StateSnapshot service can be used to initialize a Client Application from a
-// state snapshot visible to Concord Client. State snapshots aggregate all writes
-// to the `STORAGE_SPACE_MERKLE` storage space from the start of the blockchain up
-// to a specific point that is determined by the event group ID as of which the
-// state snapshot is generated.
+// The StateSnapshot service can be used to initialize an Application from a state
+// snapshot visible to Concord Client. A state snapshot contains all key-values
+// in the `STORAGE_SPACE_MERKLE` storage space from the start of the blockchain up
+// to a specific point and is identified by a snapshot ID.
 //
-// State contains only the last write to a key-value in the `STORAGE_SPACE_MERKLE`
-// storage space and no prior historical writes. We use `state`, `state snapshot`,
-// `snapshot` and `STORAGE_SPACE_MERKLE` to refer to all key-values that are part
-// of a snapshot from now on.
+// A state snapshot contains only the last writes (as of the state snapshot itself)
+// to key-values in the `STORAGE_SPACE_MERKLE` storage space and no prior historical
+// writes.
 //
-// To visualize, we show how events are streamed from Concord Client to the
-// Client Application (App) and the relation between state and event group IDs:
-// ----------------------------------------------------------------------------
-//                               [State Snapshot at evgN]
-//                                          |
-//                                          v
-// ------------------                                            --------------
-// | Concord Client |  -- evg1, evg2, ..., evgN, evgN+1, ... ->  | Client App |
-// ------------------                                            --------------
-// ----------------------------------------------------------------------------
-// where `evgN` is the Nth event group streamed from Concord Client to the Client App.
-// After receiving a state snapshot at `evgN`, a Client App can continue operation by
-// consuming event groups from `evgN+1` onwards.
-//
-// Concord Client ensures that there is always at least one reasonably
-// recent snapshot that can be served. The intention is that this snapshot is
-// used to initialize the Client Application after the network has been pruned and
-// some set of historical events are no longer available via the `EventService`.
-//
-// See `event.proto` for more information about events, event group IDs and
-// `EventService`.
 // See `execution_engine.proto` for more information about storage spaces.
-//
-// Note: The StateSnapshot service only supports snapshots based on event group IDs
-// and not legacy events that are based on block IDs.
 service StateSnapshot {
-  // Get the event group ID at which there is a recent and available snapshot.
+  // Get the ID of a recent and available state snapshot.
   // Errors:
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
@@ -55,20 +27,18 @@ service StateSnapshot {
   // Stream a specific state snapshot in a resumable fashion as a finite stream of key-values.
   // Key-values are streamed with lexicographic order on keys.
   // Errors:
-  // NOT_FOUND: if the snapshot at the requested event group ID is not (or no longer) available.
-  //            Client applications are advised to retry initialization by
-  //            fetching a new event group ID.
-  // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is
-  //                   not part of the snapshot.
+  // NOT_FOUND: if a state snapshot with the requested ID is not (or no longer) available.
+  //            Applications are advised to retry initialization by fetching a new snapshot ID.
+  // INVALID_ARGUMENT: if resuming a stream using `from_key` and that key is not part of the
+  //                   state snapshot.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
   rpc StreamSnapshot(StreamSnapshotRequest) returns (stream StreamSnapshotResponse);
 
-  // Read the values of given keys as of a specific snapshot.
+  // Read the values of the given keys as of a specific state snapshot.
   // Errors:
-  // NOT_FOUND: if the snapshot at the requested event group ID is not (or no longer) available.
-  //            Client applications are advised to retry initialization by
-  //            fetching a new event group ID.
+  // NOT_FOUND: if the state snapshot with the requested ID is not (or no longer) available.
+  //            Applications are advised to retry initialization by fetching a new snapshot ID.
   // UNAVAILABLE: if Concord Client is not ready yet to process requests.
   // UNKNOWN: exact cause is unknown.
   rpc ReadAsOf(ReadAsOfRequest) returns (ReadAsOfResponse);
@@ -80,34 +50,65 @@ message GetRecentSnapshotRequest {
 message GetRecentSnapshotResponse {
   // Mandatory field.
   //
-  // The event group ID at which there is a recent and available snapshot.
-  uint64 event_group_id = 1;
+  // The ID of a recent and available state snapshot.
+  uint64 snapshot_id = 1;
 
   // Mandatory field.
   //
-  // An estimate (with reasonable accuracy) of the count of key-values
-  // contained in the snapshot. Please note that this is an estimation
-  // and *not* the actual count.
-  uint64 key_value_count_estimate = 2;
+  // The event group ID at which the state snapshot with `snapshot_id` was taken.
+  //
+  // To visualize, we show how events are streamed from Concord Client to the
+  // Application and the relation between state and event group IDs:
+  // -----------------------------------------------------------------------------
+  //                               [State Snapshot at evgN]
+  //                                          |
+  //                                          v
+  // ------------------                                            ---------------
+  // | Concord Client |  -- evg1, evg2, ..., evgN, evgN+1, ... ->  | Application |
+  // ------------------                                            ---------------
+  // -----------------------------------------------------------------------------
+  // where `evgN` is the Nth event group streamed from Concord Client to the Application.
+  // After receiving a state snapshot at `evgN`, an Application can continue operation by
+  // consuming event groups from `evgN+1` onwards.
+  //
+  // Concord Client ensures that there is always at least one reasonably recent
+  // state snapshot that can be served. The intention is that this state snapshot
+  // can be used to initialize the Application after the blockchain has been pruned and
+  // some set of historical events are no longer available via the `EventService`.
+  //
+  // See `event.proto` for more information about events, event group IDs and
+  // `EventService`.
+  //
+  // Note: The StateSnapshot service only supports state snapshots based on event
+  // group IDs and not legacy events that are based on block IDs.
+  uint64 event_group_id = 2;
+
+  // Mandatory field.
+  //
+  // An estimate (with reasonable accuracy) of the count of key-values contained
+  // in the state snapshot. Please note that this is an estimation and *not* the
+  // actual count.
+  uint64 key_value_count_estimate = 3;
 }
 
 message StreamSnapshotRequest {  
   // Mandatory field.
   //
-  // The event group ID as of which to stream state.
-  uint64 event_group_id = 1;
+  // The ID of the state snapshot to be streamed.
+  uint64 snapshot_id = 1;
 
   // Optional field.
   //
-  // If set, start streaming `from_key` onwards. If `from_key` is not part
-  // of the snapshot, an INVALID_ARGUMENT error is returned.
+  // If set, start streaming `from_key` onwards, including `from_key`.
+  // If `from_key` is not part of the state snapshot, an INVALID_ARGUMENT
+  // error is returned.
   //
-  // If not set, start streaming from the first key-value in the snapshot.
+  // If not set, start streaming from the first key-value in the state snapshot.
   //
   // The empty bytestring is a valid key.
   //
   // Key-values are streamed with lexicographic order on keys.
-  google.protobuf.BytesValue from_key = 2;
+  optional bytes from_key = 2;
 }
 
 message KeyValuePair {
@@ -128,8 +129,10 @@ message StreamSnapshotResponse {
 }
 
 message ReadAsOfRequest {
-  // Event group ID as of which to read the values.
-  uint64 event_group_id = 1;
+  // Mandatory field.
+  //
+  // The ID of the state snapshot as of which to read the values.
+  uint64 snapshot_id = 1;
 
   // List of keys for which the values should be returned.
   repeated bytes keys = 2;
@@ -145,6 +148,6 @@ message ReadAsOfResponse {
   //
   // If a key-value has been deleted or has never been set,
   // `OptionalValue.value` will not be set. Otherwise, it will
-  // be set to the value's bytes as of the requested snapshot.
+  // be set to the value's bytes as of the requested state snapshot.
   repeated OptionalValue values = 1;
 }
