@@ -163,6 +163,10 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   ::rocksdb::ColumnFamilyHandle *defaultColumnFamilyHandle() const;
   ::rocksdb::ColumnFamilyHandle *columnFamilyHandle(const std::string &cFamily) const;
 
+  void createCheckpointNative(const uint64_t &checkPointId);
+  std::vector<uint64_t> getListOfCreatedCheckpointsNative() const;
+  void removeCheckpointNative(const uint64_t &checkPointId) const;
+
  private:
   NativeClient(const std::string &path, bool readOnly, const DefaultOptions &);
   NativeClient(const std::string &path, bool readOnly, const ExistingOptions &);

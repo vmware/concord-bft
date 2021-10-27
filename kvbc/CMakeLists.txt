@@ -30,6 +30,7 @@ add_library(kvbc  src/ClientImp.cpp
     src/sparse_merkle/walker.cpp
     
     src/reconfiguration_kvbc_handler.cpp
+    src/db_checkpoint.cpp
 )
 
 if (BUILD_ROCKSDB_STORAGE)

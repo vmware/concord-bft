@@ -72,6 +72,8 @@ class DebugPersistentStorage : public PersistentStorage {
   void setEraseMetadataStorageFlag() override {}
   bool getEraseMetadataStorageFlag() override { return false; };
   void eraseMetadata() override{};
+  void setDbCheckpointMetadata(const std::vector<std::uint8_t>&) override{};
+  std::optional<std::vector<std::uint8_t>> getDbCheckpointMetadata(const uint32_t&) override { return std::nullopt; }
 
   void setNewEpochFlag(bool flag) override {}
   bool getNewEpochFlag() override { return false; };

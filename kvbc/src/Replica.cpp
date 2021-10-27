@@ -86,6 +86,8 @@ Status Replica::initInternals() {
     });
   } else {
     createReplicaAndSyncState();
+    // dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
+    // dbCheckpointMgr_->init();
   }
   m_replicaPtr->SetAggregator(aggregator_);
   return Status::OK();
@@ -316,8 +318,19 @@ void Replica::createReplicaAndSyncState() {
       std::terminate();
     }
   }
+
   handleNewEpochEvent();
   handleWedgeEvent();
+  if (dbCheckpointMgr_) {
+    dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
+    dbCheckpointMgr_->init();
+    bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack([this]() {
+      const auto &lastBlockid = getLastBlockId();
+      const auto lastExecutedSeqnum = m_replicaPtr->getLastExecutedSequenceNum();
+      if (!(lastExecutedSeqnum % 1500))                                  // make frequency configurable
+        dbCheckpointMgr_->createDbCheckpoint(lastBlockid, lastBlockid);  // checkpoint id and last block id is same
+    });
+  }
 }
 
 /**
@@ -529,6 +542,7 @@ Replica::Replica(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
+  dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(m_dbSet.dataDBClient, 10);
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
