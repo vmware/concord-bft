@@ -17,8 +17,11 @@
 namespace concord::kvbc {
 using Clock = std::chrono::steady_clock;
 using SystemClock = std::chrono::system_clock;
-Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPointId, const uint64_t& lastBlockId) {
+Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPointId,
+                                                    const uint64_t& lastBlockId,
+                                                    const uint64_t& seqNum) {
   if (!maxNumOfCheckpoints_) return Status::OK();
+  if (seqNum <= lastCheckpointSeqNum_) return Status::OK();
   if (dbCheckptMetadata_.dbCheckPoints_.find(checkPointId) == dbCheckptMetadata_.dbCheckPoints_.end()) {
     auto start = Clock::now();
     auto status = rocksDbClient_->createCheckpoint(checkPointId);
@@ -29,11 +32,13 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
     auto end = Clock::now();
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count()));
+    lastCheckpointSeqNum_ = seqNum;
     dbCheckptMetadata_.dbCheckPoints_.insert(
         {checkPointId,
          {checkPointId,
           std::chrono::duration_cast<std::chrono::seconds>(SystemClock::now().time_since_epoch()),
-          lastBlockId}});
+          lastBlockId,
+          lastCheckpointSeqNum_}});
     while (dbCheckptMetadata_.dbCheckPoints_.size() > maxNumOfCheckpoints_) {
       auto it = dbCheckptMetadata_.dbCheckPoints_.begin();
       {
@@ -56,6 +61,7 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
       }
     }
   }
+
   return Status::OK();
 }
 void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
@@ -70,7 +76,13 @@ void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
     LOG_INFO(getLogger(),
              "Num of db_checkpoints loaded from persistence " << KVLOG(dbCheckptMetadata_.dbCheckPoints_.size()));
     for (const auto& [db_chkpt_id, db_chk_pt_val] : dbCheckptMetadata_.dbCheckPoints_) {
-      LOG_INFO(getLogger(), KVLOG(db_chkpt_id, db_chk_pt_val.creationTimeSinceEpoch_.count()));
+      LOG_INFO(
+          getLogger(),
+          KVLOG(db_chkpt_id, db_chk_pt_val.creationTimeSinceEpoch_.count(), db_chk_pt_val.lastDbCheckpointSeqNum_));
+    }
+    if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
+      lastCheckpointSeqNum_ = it->second.lastDbCheckpointSeqNum_;
+      LOG_INFO(getLogger(), KVLOG(lastCheckpointSeqNum_));
     }
   }
 }

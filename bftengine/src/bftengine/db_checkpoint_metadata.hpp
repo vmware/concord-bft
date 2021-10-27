@@ -32,18 +32,25 @@ struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbC
     Time creationTimeSinceEpoch_;
     // last block Id/ For now checkPointId = lastBlockId
     uint64_t lastBlockId_{0};
+    // last SeqNum at which db_checkpoint is created
+    uint64_t lastDbCheckpointSeqNum_{0};
 
-    DbCheckPointDescriptor(const CheckpointId& id = 0, const Time& t = Time{0}, const uint64_t lastBlockId = 0)
-        : checkPointId_{id}, creationTimeSinceEpoch_{t}, lastBlockId_{lastBlockId} {}
+    DbCheckPointDescriptor(const CheckpointId& id = 0,
+                           const Time& t = Time{0},
+                           const uint64_t& lastBlockId = 0,
+                           const uint64_t& seq = 0)
+        : checkPointId_{id}, creationTimeSinceEpoch_{t}, lastBlockId_{lastBlockId}, lastDbCheckpointSeqNum_{seq} {}
     void serializeDataMembers(std::ostream& outStream) const override {
       serialize(outStream, checkPointId_);
       serialize(outStream, creationTimeSinceEpoch_);
       serialize(outStream, lastBlockId_);
+      serialize(outStream, lastDbCheckpointSeqNum_);
     }
     void deserializeDataMembers(std::istream& inStream) override {
       deserialize(inStream, checkPointId_);
       deserialize(inStream, creationTimeSinceEpoch_);
       deserialize(inStream, lastBlockId_);
+      deserialize(inStream, lastDbCheckpointSeqNum_);
     }
   };
   std::map<CheckpointId, DbCheckPointDescriptor> dbCheckPoints_;

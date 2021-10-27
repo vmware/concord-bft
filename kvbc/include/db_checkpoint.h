@@ -33,40 +33,11 @@ using CheckpointId = bftengine::dbcheckpoint_mdt::CheckpointId;
 using DbCheckpointMetadata = bftengine::dbcheckpoint_mdt::DbCheckpointMetadata;
 using Time = std::chrono::duration<long>;
 using Status = concordUtils::Status;
-#if 0
-struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbCheckpointMetadata> {
-  struct DbCheckPointDescriptor : public concord::serialize::SerializableFactory<DbCheckPointDescriptor> {
-    // unique id for the checkpoint
-    CheckpointId checkPointId_{0};
-    // number of seconds since epoch
-    Time creationTimeSinceEpoch_;
-    // last block Id/ For now checkPointId = lastBlockId
-    uint64_t lastBlockId_{0};
-
-    DbCheckPointDescriptor(const CheckpointId& id = 0, const Time& t = Time{0}, const uint64_t lastBlockId = 0)
-        : checkPointId_{id}, creationTimeSinceEpoch_{t}, lastBlockId_{lastBlockId} {}
-    void serializeDataMembers(std::ostream& outStream) const override {
-      serialize(outStream, checkPointId_);
-      serialize(outStream, creationTimeSinceEpoch_);
-      serialize(outStream, lastBlockId_);
-    }
-    void deserializeDataMembers(std::istream& inStream) override {
-      deserialize(inStream, checkPointId_);
-      deserialize(inStream, creationTimeSinceEpoch_);
-      deserialize(inStream, lastBlockId_);
-    }
-  };
-  std::map<CheckpointId, DbCheckPointDescriptor> dbCheckPoints_;
-  DbCheckpointMetadata() = default;
-  void serializeDataMembers(std::ostream& outStream) const override { serialize(outStream, dbCheckPoints_); }
-  void deserializeDataMembers(std::istream& inStream) override { deserialize(inStream, dbCheckPoints_); }
-};
-#endif
 
 class IDbCheckPointManager {
  public:
   // create checkpoint
-  virtual Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId) = 0;
+  virtual Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId, const uint64_t&) = 0;
   // set max num of checkpoints
   virtual void setMaxNumOfAllowedCheckpoints(const uint32_t& maxNum) = 0;
   virtual uint32_t getMaxNumOfCheckpoints() const = 0;
@@ -84,13 +55,13 @@ class IDbCheckPointManager {
 
 class RocksDbCheckPointManager : public IDbCheckPointManager {
  public:
-  RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient, const uint32_t& maxNumOfChkPt = 10)
+  RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient, const uint32_t& maxNumOfChkPt)
       : rocksDbClient_{dbClient}, ps_{nullptr}, maxNumOfCheckpoints_{maxNumOfChkPt} {
     if (maxNumOfChkPt > bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS)
       maxNumOfCheckpoints_ = bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS;
   }
   void init() override;
-  Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId) override;
+  Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId, const uint64_t& seqNum) override;
 
   void removeCheckpoint(const uint64_t& checkPointId) override;
   void setMaxNumOfAllowedCheckpoints(const uint32_t& maxNumDbCheckpoint) override {
@@ -123,5 +94,6 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   std::condition_variable cv_;
   std::mutex lock_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
+  uint64_t lastCheckpointSeqNum_{0};
 };
 }  // namespace concord::kvbc

@@ -86,8 +86,6 @@ Status Replica::initInternals() {
     });
   } else {
     createReplicaAndSyncState();
-    // dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
-    // dbCheckpointMgr_->init();
   }
   m_replicaPtr->SetAggregator(aggregator_);
   return Status::OK();
@@ -321,14 +319,16 @@ void Replica::createReplicaAndSyncState() {
 
   handleNewEpochEvent();
   handleWedgeEvent();
-  if (dbCheckpointMgr_) {
+  if (replicaConfig_.maxNumberOfDbCheckpoints && dbCheckpointMgr_) {
     dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
     dbCheckpointMgr_->init();
     bftEngine::IControlHandler::instance()->enableCreatingDbCheckpoint(true);
     bftEngine::IControlHandler::instance()->addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
       const auto &lastBlockid = getLastBlockId();
-      if (!(seqNum % 150))                                               // make frequency configurable
-        dbCheckpointMgr_->createDbCheckpoint(lastBlockid, lastBlockid);  // checkpoint id and last block id is same
+      const auto &dbCheckpointFreq = replicaConfig_.dbCheckPointWindowSize;
+      if (!(seqNum % dbCheckpointFreq))  // make frequency configurable
+        dbCheckpointMgr_->createDbCheckpoint(
+            lastBlockid, lastBlockid, seqNum);  // checkpoint id and last block id is same
     });
   }
 }
@@ -542,7 +542,9 @@ Replica::Replica(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
-  dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(m_dbSet.dataDBClient, 3);
+
+  if (replicaConfig_.maxNumberOfDbCheckpoints)
+    dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(m_dbSet.dataDBClient, 3);
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());
