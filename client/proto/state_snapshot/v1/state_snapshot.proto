@@ -58,7 +58,7 @@ message GetRecentSnapshotResponse {
   // The event group ID at which the state snapshot with `snapshot_id` was taken.
   //
   // To visualize, we show how events are streamed from Concord Client to the
-  // Application and the relation between state and event group IDs:
+  // Application and the relation between state snapshot and event group IDs:
   // -----------------------------------------------------------------------------
   //                               [State Snapshot at evgN]
   //                                          |
@@ -99,8 +99,9 @@ message StreamSnapshotRequest {
 
   // Optional field.
   //
-  // If set, start streaming `from_key` onwards, including `from_key`.
-  // If `from_key` is not part of the state snapshot, an INVALID_ARGUMENT
+  // If set, start streaming from `last_received_key` onwards, excluding
+  // `last_received_key`.
+  // If `last_received_key` is not part of the state snapshot, an INVALID_ARGUMENT
   // error is returned.
   //
   // If not set, start streaming from the first key-value in the state snapshot.
@@ -108,7 +109,7 @@ message StreamSnapshotRequest {
   // The empty bytestring is a valid key.
   //
   // Key-values are streamed with lexicographic order on keys.
-  optional bytes from_key = 2;
+  optional bytes last_received_key = 2;
 }
 
 message KeyValuePair {
