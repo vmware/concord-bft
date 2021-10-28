@@ -53,6 +53,10 @@ class Client {
   // Useful for testing. Shouldn't be relied on in production.
   std::optional<ReplicaId> primary() { return primary_; }
 
+  // thread safe version of send api
+  Reply sendThreadSafe(const WriteConfig& config, Msg&& request);
+  Reply sendThreadSafe(const ReadConfig& config, Msg&& request);
+
  private:
   // Generic function for sending a read or write message.
   Reply send(const MatchConfig& match_config, const RequestConfig& request_config, Msg&& request, bool read_only);
@@ -140,6 +144,7 @@ class Client {
   static constexpr uint32_t count_between_snapshots = 200;
   uint32_t snapshot_index_ = 0;
   std::unique_ptr<Recorders> histograms_;
+  std::mutex lock_;
 };
 
 }  // namespace bft::client
