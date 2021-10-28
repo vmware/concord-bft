@@ -91,7 +91,7 @@ void RocksDbCheckPointManager::checkforCleanup() {
   while (checkpointToBeRemoved_.empty()) {
     cv_.wait_for(lk, std::chrono::seconds(2), [this]() { return !checkpointToBeRemoved_.empty(); });
   }
-  auto id = std::move(checkpointToBeRemoved_.front());
+  auto id = checkpointToBeRemoved_.front();
   checkpointToBeRemoved_.pop();
   removeCheckpoint(id);
 }
