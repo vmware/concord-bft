@@ -34,7 +34,7 @@ std::optional<std::string> SecretsManagerPlain::decryptFile(std::string_view pat
   try {
     data = readFile(path);
   } catch (std::exception& e) {
-    LOG_ERROR(logger, "Error opening file for reading    " << path << ": " << e.what());
+    LOG_WARN(logger, "Unable to open file for reading    " << path << ": " << e.what());
     return std::nullopt;
   }
 
