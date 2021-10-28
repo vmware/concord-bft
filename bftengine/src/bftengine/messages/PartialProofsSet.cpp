@@ -48,7 +48,6 @@ void PartialProofsSet::resetAndFree() {
   fullCommitProof = nullptr;
   if (selfPartialCommitProof) delete selfPartialCommitProof;
   selfPartialCommitProof = nullptr;
-  prePrepare_ = nullptr;
   participatingReplicasInFast.clear();
   participatingReplicasInOptimisticFast.clear();
   expectedDigest.makeZero();
@@ -61,21 +60,19 @@ void PartialProofsSet::addSelfMsgAndPPDigest(PartialCommitProofMsg* m, Digest& d
   const ReplicaId myId = m->senderId();
 
   ConcordAssert(m != nullptr && myId == replica->getReplicasInfo().myId());
-  ConcordAssert(expectedDigest.isZero() || expectedDigest == digest);
-  ConcordAssert((seqNumber == 0) || (seqNumber == m->seqNumber()));
+  ConcordAssert(seqNumber == 0);
+  ConcordAssert(expectedDigest.isZero());
   ConcordAssert(selfPartialCommitProof == nullptr);
   ConcordAssert(fullCommitProof == nullptr);
 
+  seqNumber = m->seqNumber();
+  expectedDigest = digest;
+  // NOTE: Accumulator might not be created yet, but the thresholdAccumulator() method creates it for us transparently
+  // if needed
   thresholdAccumulator(m->commitPath())
       ->setExpectedDigest(reinterpret_cast<unsigned char*>(digest.content()), DIGEST_SIZE);
-
-  expectedDigest = digest;
   selfPartialCommitProof = m;
-  seqNumber = m->seqNumber();
 
-  if (m->commitPath() == CommitPath::FAST_WITH_THRESHOLD) {
-    participatingReplicasInFast.insert(m->senderId());
-  }
   addImp(m, m->commitPath());
 }
 
@@ -91,15 +88,13 @@ bool PartialProofsSet::addMsg(PartialCommitProofMsg* m) {
   if (fullCommitProof != nullptr) return false;
 
   if ((selfPartialCommitProof != nullptr) && (selfPartialCommitProof->commitPath() != cPath)) {
-    LOG_WARN(GL, "Ignoring PartialCommitProofMsg");
+    // TODO(GG): TBD - print warning
     return false;
   }
 
   if (cPath == CommitPath::OPTIMISTIC_FAST) {
-    if (participatingReplicasInOptimisticFast.count(repId) > 0) {
-      LOG_TRACE(GL, "Replica's " << repId << " signature is already added to participatingReplicasInOptimisticFast");
+    if (participatingReplicasInOptimisticFast.count(repId) > 0)
       return false;  // check that replica id has not been added yet
-    }
 
     if (participatingReplicasInOptimisticFast.size() < numOfRequiredPartialProofsForOptimisticFast - 1) {
       participatingReplicasInOptimisticFast.insert(repId);
@@ -108,18 +103,9 @@ bool PartialProofsSet::addMsg(PartialCommitProofMsg* m) {
       return true;
     }
   } else {
-    if (participatingReplicasInFast.count(repId) > 0) {
-      return false;  // check that replica id has not been added yet
-    }
+    if (participatingReplicasInFast.count(repId) > 0) return false;  // check that replica id has not been added yet
 
-    if (participatingReplicasInFast.size() < numOfRequiredPartialProofsForFast) {
-      // DD: Received PartialCommitProofMsg but there is no self PCP
-      if (participatingReplicasInFast.empty() && !expectedDigest.isZero()) {
-        LOG_TRACE(GL,
-                  "Received PartialCommitProofMsg but there is no self PCP, add expected digest: " << expectedDigest);
-        thresholdAccumulator(m->commitPath())
-            ->setExpectedDigest(reinterpret_cast<unsigned char*>(expectedDigest.content()), DIGEST_SIZE);
-      }
+    if (participatingReplicasInFast.size() < numOfRequiredPartialProofsForFast - 1) {
       participatingReplicasInFast.insert(repId);
       addImp(m, cPath);
       delete m;
@@ -147,7 +133,7 @@ void PartialProofsSet::addImp(PartialCommitProofMsg* m, CommitPath cPath) {
   } else {
     thresholdAccumulator(cPath)->add(m->thresholSignature(), m->thresholSignatureLength());
 
-    if ((participatingReplicasInFast.size() == (numOfRequiredPartialProofsForFast)) &&
+    if ((participatingReplicasInFast.size() == (numOfRequiredPartialProofsForFast - 1)) &&
         (selfPartialCommitProof != nullptr)) {
       tryToCreateFullProof();
     }
@@ -165,32 +151,19 @@ bool PartialProofsSet::addMsg(FullCommitProofMsg* m) {
 
   PartialCommitProofMsg* myPCP = selfPartialCommitProof;
 
-  // DD: If the current replica does not have its own PCP, then the only possibility to reach consensus is
-  // FAST_WITH_THRESHOLD
-  auto commitPath = CommitPath::FAST_WITH_THRESHOLD;
-  if (myPCP) {
-    commitPath = myPCP->commitPath();
-  } else {
+  if (myPCP == nullptr) {
     // TODO(GG): can be improved (we can keep the FullCommitProof  message until myPCP!=nullptr
     LOG_WARN(GL, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
-
-    if (prePrepare_ == nullptr) {
-      LOG_WARN(GL, "There is no corresponding PrePrepare for FullCommitProofMsg");
-      return false;
-    }
-
-    LOG_DEBUG(GL,
-              "This replica does not have self PCP (did not participate in consensus), using: "
-                  << CommitPathToStr(CommitPath::FAST_WITH_THRESHOLD));
+    return false;
   }
 
-  if (m->seqNumber() != (*prePrepare_)->seqNumber() || m->viewNumber() != (*prePrepare_)->viewNumber()) {
+  if (m->seqNumber() != myPCP->seqNumber() || m->viewNumber() != myPCP->viewNumber()) {
     LOG_WARN(GL, "Received unexpected FullCommitProofMsg");
     return false;
   }
 
   bool succ =
-      thresholdVerifier(commitPath)
+      thresholdVerifier(myPCP->commitPath())
           ->verify((const char*)&expectedDigest, sizeof(Digest), m->thresholSignature(), m->thresholSignatureLength());
 
   if (succ) {
@@ -299,7 +272,7 @@ void PartialProofsSet::tryToCreateFullProof() {
     ready = (participatingReplicasInOptimisticFast.size() == (numOfRequiredPartialProofsForOptimisticFast - 1));
     thresholdAccumulator = thresholdAccumulatorForOptimisticFast;
   } else {
-    ready = (participatingReplicasInFast.size() == (numOfRequiredPartialProofsForFast));
+    ready = (participatingReplicasInFast.size() == (numOfRequiredPartialProofsForFast - 1));
     thresholdAccumulator = thresholdAccumulatorForFast;
   }
 
