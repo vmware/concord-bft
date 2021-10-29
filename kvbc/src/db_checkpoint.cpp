@@ -65,8 +65,7 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
   return Status::OK();
 }
 void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
-  auto max_buff_size =
-      bftengine::dbcheckpoint_mdt::MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata>);
+  auto max_buff_size = bftEngine::impl::MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata>);
   std::optional<std::vector<std::uint8_t>> db_checkpoint_metadata = ps_->getDbCheckpointMetadata(max_buff_size);
   if (db_checkpoint_metadata.has_value()) {
     std::string data(db_checkpoint_metadata.value().begin(), db_checkpoint_metadata.value().end());
@@ -98,18 +97,6 @@ void RocksDbCheckPointManager::checkforCleanup() {
 void RocksDbCheckPointManager::init() {
   // check if there is chkpt data in persistence
   loadCheckpointDataFromPersistence();
-
-  // if db checkpoint creation is disabled then remove all checkpoints
-  if (!maxNumOfCheckpoints_ && !dbCheckptMetadata_.dbCheckPoints_.empty()) {
-    dbCheckptMetadata_.dbCheckPoints_.clear();
-    std::ostringstream outStream;
-    concord::serialize::Serializable::serialize(outStream, dbCheckptMetadata_);
-    auto data = outStream.str();
-    std::vector<uint8_t> v(data.begin(), data.end());
-    ps_->setDbCheckpointMetadata(v);
-    removeAllCheckpoint();
-    return;
-  }
   // start cleanup thread if checkpoint collection is enabled
   cleanupThread_ = std::thread([this]() {
     while (maxNumOfCheckpoints_) {
@@ -136,10 +123,21 @@ void RocksDbCheckPointManager::init() {
 void RocksDbCheckPointManager::removeCheckpoint(const uint64_t& checkPointId) {
   return rocksDbClient_->removeCheckpoint(checkPointId);
 }
-void RocksDbCheckPointManager::removeAllCheckpoint() {
-  auto listOfCheckpointsCreated = rocksDbClient_->getListOfCreatedCheckpoints();
-  for (auto& cp : listOfCheckpointsCreated) {
-    removeCheckpoint(cp);
+void RocksDbCheckPointManager::removeAllCheckpoints() const { return rocksDbClient_->removeAllCheckpoints(); }
+void RocksDbCheckPointManager::cleanUp() {
+  // check if there is chkpt data in persistence
+  loadCheckpointDataFromPersistence();
+  // if db checkpoint creation is disabled then remove all checkpoints
+  if (!maxNumOfCheckpoints_) {
+    if (!dbCheckptMetadata_.dbCheckPoints_.empty()) {
+      dbCheckptMetadata_.dbCheckPoints_.clear();
+      std::ostringstream outStream;
+      concord::serialize::Serializable::serialize(outStream, dbCheckptMetadata_);
+      auto data = outStream.str();
+      std::vector<uint8_t> v(data.begin(), data.end());
+      ps_->setDbCheckpointMetadata(v);
+    }
+    removeAllCheckpoints();
   }
 }
 }  // namespace concord::kvbc

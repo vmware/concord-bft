@@ -200,8 +200,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
 
   // Db checkpoint
-  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 10u, "Max number of db checkpoints to be created");
-  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 300u, "Db checkpoint window size in terms of bft sequence number");
+  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 3u, "Max number of db checkpoints to be created");
+  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 150u, "Db checkpoint window size in terms of bft sequence number");
 
   // Not predefined configuration parameters
   // Example of usage:

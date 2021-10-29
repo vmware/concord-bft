@@ -108,6 +108,7 @@ class Client : public concord::storage::IDBClient {
   concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;
   std::vector<uint64_t> getListOfCreatedCheckpoints() const override;
   void removeCheckpoint(const uint64_t& checkPointId) const override;
+  void removeAllCheckpoints() const override;
 
   static logging::Logger& logger() {
     static logging::Logger logger_ = logging::getLogger("concord.storage.rocksdb");

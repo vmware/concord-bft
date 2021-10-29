@@ -19,9 +19,12 @@
 
 #include <ccron/cron_table_registry.hpp>
 #include "ccron_msgs.cmf.hpp"
+#include "db_checkpoint.cmf.hpp"
+#include "DbCheckpointManager.hpp"
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
+using concord::messages::db_checkpoint::CreateDbCheckpoint;
 
 namespace bftEngine {
 
@@ -71,6 +74,15 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           std::copy(error.cbegin(), error.cend(), std::back_inserter(rsi_res.additional_data));
           req.outActualReplySize = 0;
         }
+      } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
+        CreateDbCheckpoint createDbChkPtMsg;
+        concord::messages::db_checkpoint::deserialize(
+            std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
+        DbCheckpointManager::Instance().onCreateDbCheckpointMsg(createDbChkPtMsg.seqNum);
+        std::string resp = "Ok";
+        std::copy(resp.begin(), resp.end(), req.outReply);
+        req.outActualReplySize = resp.size();
+
       } else {  // in case of write request return the whole response
         std::vector<uint8_t> serialized_rsi_response;
         concord::messages::serialize(serialized_rsi_response, rsi_res);

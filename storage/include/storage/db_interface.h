@@ -76,6 +76,7 @@ class IDBClient {
   virtual void setCheckpointPath(const std::string&){};
   virtual std::vector<uint64_t> getListOfCreatedCheckpoints() const { return {}; }
   virtual void removeCheckpoint(const uint64_t&) const {}
+  virtual void removeAllCheckpoints() const {};
 
   // the caller is responsible for transaction object lifetime
   // possible options: ITransaction::Guard or std::shared_ptr

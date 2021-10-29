@@ -13,7 +13,7 @@
 #include "PersistentStorageImp.hpp"
 #include "Logger.hpp"
 #include "bftengine/EpochManager.hpp"
-#include "db_checkpoint_metadata.hpp"
+#include "bftengine/DbCheckpointMetadata.hpp"
 #include <list>
 #include <sstream>
 #include <stdexcept>
@@ -94,8 +94,7 @@ ObjectDescUniquePtr PersistentStorageImp::getDefaultMetadataObjectDescriptors(ui
   metadataObjectsArray.get()[ERASE_METADATA_ON_STARTUP].maxSize = sizeof(bool);
   metadataObjectsArray.get()[USER_DATA].maxSize = kMaxUserDataSizeBytes;
   metadataObjectsArray.get()[START_NEW_EPOCH].maxSize = sizeof(bool);
-  metadataObjectsArray.get()[DB_CHECKPOINT_DESCRIPTOR].maxSize =
-      bftengine::dbcheckpoint_mdt::MAX_SIZE_REQUIRED_FOR_PERSISTENCE;
+  metadataObjectsArray.get()[DB_CHECKPOINT_DESCRIPTOR].maxSize = DB_CHECKPOINT_METADATA_MAX_SIZE;
 
   for (auto i = 0; i < kWorkWindowSize; ++i) {
     metadataObjectsArray.get()[LAST_EXIT_FROM_VIEW_DESC + 1 + i].maxSize =

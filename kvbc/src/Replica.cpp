@@ -38,6 +38,7 @@
 #include "client/reconfiguration/client_reconfiguration_engine.hpp"
 #include "bftengine/ReplicaConfig.hpp"
 #include "communication/StateControl.hpp"
+#include "bftengine/DbCheckpointManager.hpp"
 
 using bft::communication::ICommunication;
 using bftEngine::bcst::StateTransferDigest;
@@ -319,17 +320,20 @@ void Replica::createReplicaAndSyncState() {
 
   handleNewEpochEvent();
   handleWedgeEvent();
-  if (replicaConfig_.maxNumberOfDbCheckpoints && dbCheckpointMgr_) {
+  if (dbCheckpointMgr_) {
     dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
-    dbCheckpointMgr_->init();
-    bftEngine::IControlHandler::instance()->enableCreatingDbCheckpoint(true);
-    bftEngine::IControlHandler::instance()->addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
-      const auto &lastBlockid = getLastBlockId();
-      const auto &dbCheckpointFreq = replicaConfig_.dbCheckPointWindowSize;
-      if (!(seqNum % dbCheckpointFreq))  // make frequency configurable
+    if (replicaConfig_.maxNumberOfDbCheckpoints) {
+      dbCheckpointMgr_->init();
+      bftEngine::impl::DbCheckpointManager::Instance().enableCreatingDbCheckpoint(true);
+      bftEngine::impl::DbCheckpointManager::Instance().addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
+        const auto &lastBlockid = getLastBlockId();
         dbCheckpointMgr_->createDbCheckpoint(
             lastBlockid, lastBlockid, seqNum);  // checkpoint id and last block id is same
-    });
+      });
+    } else {
+      // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
+      std::async(std::launch::async, [this]() { dbCheckpointMgr_->cleanUp(); });
+    }
   }
 }
 
@@ -542,9 +546,8 @@ Replica::Replica(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
-
-  if (replicaConfig_.maxNumberOfDbCheckpoints)
-    dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(m_dbSet.dataDBClient, 3);
+  dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(m_dbSet.dataDBClient,
+                                                                               replicaConfig_.maxNumberOfDbCheckpoints);
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());

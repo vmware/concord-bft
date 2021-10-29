@@ -18,25 +18,24 @@
 #include <vector>
 #include <chrono>
 
-namespace bftengine {
-namespace dbcheckpoint_mdt {
+namespace bftEngine::impl {
 constexpr int MAX_ALLOWED_CHECKPOINTS{100};
 using CheckpointId = uint64_t;
-using Time = std::chrono::duration<long>;
+using TimeDuration = std::chrono::duration<long>;
 
 struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbCheckpointMetadata> {
   struct DbCheckPointDescriptor : public concord::serialize::SerializableFactory<DbCheckPointDescriptor> {
     // unique id for the checkpoint
     CheckpointId checkPointId_{0};
     // number of seconds since epoch
-    Time creationTimeSinceEpoch_;
+    TimeDuration creationTimeSinceEpoch_;
     // last block Id/ For now checkPointId = lastBlockId
     uint64_t lastBlockId_{0};
     // last SeqNum at which db_checkpoint is created
     uint64_t lastDbCheckpointSeqNum_{0};
 
     DbCheckPointDescriptor(const CheckpointId& id = 0,
-                           const Time& t = Time{0},
+                           const TimeDuration& t = TimeDuration{0},
                            const uint64_t& lastBlockId = 0,
                            const uint64_t& seq = 0)
         : checkPointId_{id}, creationTimeSinceEpoch_{t}, lastBlockId_{lastBlockId}, lastDbCheckpointSeqNum_{seq} {}
@@ -58,7 +57,6 @@ struct DbCheckpointMetadata : public concord::serialize::SerializableFactory<DbC
   void serializeDataMembers(std::ostream& outStream) const override { serialize(outStream, dbCheckPoints_); }
   void deserializeDataMembers(std::istream& inStream) override { deserialize(inStream, dbCheckPoints_); }
 };
-constexpr size_t MAX_SIZE_REQUIRED_FOR_PERSISTENCE{
+constexpr size_t DB_CHECKPOINT_METADATA_MAX_SIZE{
     MAX_ALLOWED_CHECKPOINTS * sizeof(std::pair<CheckpointId, DbCheckpointMetadata::DbCheckPointDescriptor>)};
-}  // namespace dbcheckpoint_mdt
-}  // namespace bftengine
+}  // namespace bftEngine::impl

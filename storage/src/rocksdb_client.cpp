@@ -613,6 +613,10 @@ void Client::removeCheckpoint(const uint64_t &checkPointId) const {
   fs::path chkptDirPath = path / std::to_string(checkPointId);
   if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
 }
+void Client::removeAllCheckpoints() const {
+  ConcordAssertNE(dbCheckpointPath_, m_dbPath);
+  if (fs::exists(dbCheckpointPath_)) fs::remove_all(dbCheckpointPath_);
+}
 
 /**
  * @brief Returns the KeyValuePair object of the first key in the database.

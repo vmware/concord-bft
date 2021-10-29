@@ -51,6 +51,7 @@
 #include "secrets_manager_plain.h"
 #include "bftengine/EpochManager.hpp"
 #include "RequestThreadPool.hpp"
+#include "DbCheckpointManager.hpp"
 #include <memory>
 #include <optional>
 #include <string>
@@ -4004,6 +4005,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
 
   KeyExchangeManager::instance(&id);
 
+  DbCheckpointManager::Instance(internalBFTClient_.get());
+
   LOG_INFO(GL, "ReplicaConfig parameters: " << config);
 }
 
@@ -4570,6 +4573,13 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
       lastExecutedSeqNum == ControlStateManager::instance().getCheckpointToStopAt()) {
     // We are about to stop execution. To avoid VC we now clear all pending requests
     clientsManager->clearAllPendingRequests();
+  }
+  if (DbCheckpointManager::Instance().isDbCheckpointEnabled() && isCurrentPrimary() && seqNumber &&
+      !(seqNumber % getReplicaConfig().dbCheckPointWindowSize)) {
+    LOG_INFO(
+        GL,
+        "sendInternalCreateDbCheckpointMsg command " << KVLOG(seqNumber, getReplicaConfig().dbCheckPointWindowSize));
+    DbCheckpointManager::Instance().sendInternalCreateDbCheckpointMsg(seqNumber);
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }

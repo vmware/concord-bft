@@ -72,6 +72,7 @@ set(corebft_source_files
     ../ccron/src/ticks_generator.cpp
     ../ccron/src/periodic_action.cpp
     ../ccron/src/cron_table.cpp
+    src/bftengine/DbCheckpointManager.cpp
 )
 
 #
@@ -112,6 +113,7 @@ target_link_libraries(corebft PUBLIC
   concordbft_reconfiguration
   secretsmanager
   keys_and_signatures_cmf
+  db_checkpoint_cmf
   cre
   stdc++fs
   )
