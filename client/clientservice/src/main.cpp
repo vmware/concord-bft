@@ -113,7 +113,13 @@ void initJaeger(const std::string& addr, const std::string& id) {
 int main(int argc, char** argv) {
   LOG_CONFIGURE_AND_WATCH(getLog4CplusConfigLocation(), kLogConfigRefreshIntervalInMs);
   auto logger = logging::getLogger("concord.client.clientservice.main");
-  auto opts = parseCmdLine(argc, argv);
+  po::variables_map opts;
+  try {
+    opts = parseCmdLine(argc, argv);
+  } catch (const boost::bad_lexical_cast& e) {
+    LOG_ERROR(logger, "Failed to parse command line arguments: " << e.what());
+    return 1;
+  }
 
   ConcordClientConfig config;
   try {

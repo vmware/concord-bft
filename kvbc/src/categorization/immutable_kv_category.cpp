@@ -95,12 +95,16 @@ ImmutableOutput ImmutableKeyValueCategory::add(BlockId block_id,
       key_hash = hash(key);
       value_hash = hash(value.data);
     }
-
-    // Persist the key-value.
-    const auto header =
-        toSlice(serializeThreadLocal(ImmutableDbValueHeader{block_id, static_cast<std::uint32_t>(value.data.size())}));
-    const auto slices = std::array<::rocksdb::Slice, 2>{header, toSlice(value.data)};
-    batch.put(cf_, key, slices);
+    try {
+      // Persist the key-value.
+      const auto header = toSlice(
+          serializeThreadLocal(ImmutableDbValueHeader{block_id, static_cast<std::uint32_t>(value.data.size())}));
+      const auto slices = std::array<::rocksdb::Slice, 2>{header, toSlice(value.data)};
+      batch.put(cf_, key, slices);
+    } catch (const std::bad_variant_access &e) {
+      LOG_ERROR(CAT_BLOCK_LOG, "Bad variant access exception detected: " << std::string_view(e.what()) << "\n");
+      return ImmutableOutput{};  // Return empty due to exception occurred.
+    }
 
     // Move the key and the tags to the update info and (optionally) update hashes per tag.
     auto &key_tags = update_info.tagged_keys.emplace(std::move(key), std::vector<std::string>{}).first->second;

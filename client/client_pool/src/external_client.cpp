@@ -30,12 +30,12 @@ uint16_t ConcordClient::required_num_of_replicas_ = 0;
 uint16_t ConcordClient::num_of_replicas_ = 0;
 size_t ConcordClient::max_reply_size_ = 0;
 bool ConcordClient::delayed_behaviour_ = false;
-bftEngine::OperationResult ConcordClient::clientRequestError_ = SUCCESS;
 
 ConcordClient::ConcordClient(int client_id,
                              ConcordClientPoolConfig& struct_config,
                              const SimpleClientParams& client_params)
-    : logger_(logging::getLogger("concord.client.client_pool.external_client")) {
+    : logger_(logging::getLogger("concord.client.client_pool.external_client")),
+      clientRequestError_(OperationResult::SUCCESS) {
   client_id_ = client_id;
   CreateClient(struct_config, client_params);
 }
@@ -44,11 +44,14 @@ ConcordClient::~ConcordClient() noexcept = default;
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& config, bft::client::Msg&& request) {
   bft::client::Reply res;
-  clientRequestError_ = SUCCESS;
+  clientRequestError_ = OperationResult::SUCCESS;
   try {
     res = new_client_->send(config, std::move(request));
+  } catch (const BadQuorumConfigException& e) {
+    clientRequestError_ = OperationResult::INVALID_REQUEST;
+    LOG_ERROR(logger_, "Invalid write config: " << e.what());
   } catch (const TimeoutException& e) {
-    clientRequestError_ = TIMEOUT;
+    clientRequestError_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
@@ -65,11 +68,14 @@ bft::client::Reply ConcordClient::SendRequest(const bft::client::WriteConfig& co
 
 bft::client::Reply ConcordClient::SendRequest(const bft::client::ReadConfig& config, bft::client::Msg&& request) {
   bft::client::Reply res;
-  clientRequestError_ = SUCCESS;
+  clientRequestError_ = OperationResult::SUCCESS;
   try {
     res = new_client_->send(config, std::move(request));
+  } catch (const BadQuorumConfigException& e) {
+    clientRequestError_ = OperationResult::INVALID_REQUEST;
+    LOG_ERROR(logger_, "Invalid read config: " << e.what());
   } catch (const TimeoutException& e) {
-    clientRequestError_ = TIMEOUT;
+    clientRequestError_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_,
               "reqSeqNum=" << config.request.sequence_number << " cid=" << config.request.correlation_id
                            << " has failed to invoke, timeout=" << config.request.timeout.count()
