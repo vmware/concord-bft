@@ -108,7 +108,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, rotate_keys=True)
+    @with_bft_network(start_replica_cmd,
+            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_wrong_time_in_non_primary(self, bft_network, tracker):
         """
@@ -232,7 +233,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20) 
 
     @with_trio
-    @with_bft_network(start_replica_cmd, rotate_keys=True)
+    @with_bft_network(start_replica_cmd,
+            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_wrong_time_in_f_replicas(self, bft_network, tracker):
         """
