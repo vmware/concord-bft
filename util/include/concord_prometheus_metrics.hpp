@@ -33,8 +33,11 @@ class ConcordCustomCollector : public prometheus::Collectable {
                                       const std::map<std::string, std::string>& labels);
 
  public:
-  explicit ConcordCustomCollector(std::chrono::seconds dumpInterval)
-      : logger_(logging::getLogger("concord.utils.prometheus")), dumpInterval_(dumpInterval), last_dump_time_(0) {}
+  explicit ConcordCustomCollector(std::chrono::seconds dumpInterval, bool dump_metrics_enabled)
+      : logger_(logging::getLogger("concord.utils.prometheus")),
+        dumpInterval_(dumpInterval),
+        dump_metrics_enabled_(dump_metrics_enabled),
+        last_dump_time_(0) {}
   std::vector<prometheus::MetricFamily> Collect() const override;
   friend class PrometheusRegistry;
 
@@ -42,13 +45,16 @@ class ConcordCustomCollector : public prometheus::Collectable {
   logging::Logger logger_;
   std::vector<std::shared_ptr<prometheus::Family<T>>> metrics_;
   std::chrono::seconds dumpInterval_;
+  bool dump_metrics_enabled_;
   mutable std::chrono::seconds last_dump_time_;
   mutable std::mutex lock_;
 };
 
 class PrometheusRegistry {
  public:
-  explicit PrometheusRegistry(const std::string& bindAddress, uint64_t metricsDumpInterval /* 10 minutes by default */);
+  explicit PrometheusRegistry(const std::string& bindAddress,
+                              uint64_t metricsDumpInterval /* 10 minutes by default */,
+                              const bool& metricsDumpEnabled = true);
 
   explicit PrometheusRegistry(const std::string& bindAddress);
   PrometheusRegistry();

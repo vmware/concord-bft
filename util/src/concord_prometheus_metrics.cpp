@@ -93,16 +93,18 @@ std::string ConcordBftPrometheusCollector::getMetricName(const std::string& orig
   return metricNamePrefix_ + origName;
 }
 
-PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress, uint64_t metricsDumpInterval)
+PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress,
+                                       uint64_t metricsDumpInterval,
+                                       const bool& metricsDumpEnabled)
     : exposer_(std::make_unique<prometheus::Exposer>(bindAddress, 1)),
-      counters_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Counter>>(std::chrono::seconds(metricsDumpInterval))),
-      gauges_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Gauge>>(std::chrono::seconds(metricsDumpInterval))),
-      histogram_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Histogram>>(std::chrono::seconds(metricsDumpInterval))),
-      summary_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Summary>>(std::chrono::seconds(metricsDumpInterval))) {
+      counters_custom_collector_(std::make_shared<ConcordCustomCollector<prometheus::Counter>>(
+          std::chrono::seconds(metricsDumpInterval), metricsDumpEnabled)),
+      gauges_custom_collector_(std::make_shared<ConcordCustomCollector<prometheus::Gauge>>(
+          std::chrono::seconds(metricsDumpInterval), metricsDumpEnabled)),
+      histogram_custom_collector_(std::make_shared<ConcordCustomCollector<prometheus::Histogram>>(
+          std::chrono::seconds(metricsDumpInterval), metricsDumpEnabled)),
+      summary_custom_collector_(std::make_shared<ConcordCustomCollector<prometheus::Summary>>(
+          std::chrono::seconds(metricsDumpInterval), metricsDumpEnabled)) {
   exposer_->RegisterCollectable(counters_custom_collector_);
   exposer_->RegisterCollectable(gauges_custom_collector_);
   exposer_->RegisterCollectable(histogram_custom_collector_);
@@ -110,7 +112,7 @@ PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress, uint64_t 
 }
 
 PrometheusRegistry::PrometheusRegistry(const std::string& bindAddress)
-    : PrometheusRegistry(bindAddress, defaultMetricsDumpInterval) {}
+    : PrometheusRegistry(bindAddress, defaultMetricsDumpInterval, true) {}
 
 void PrometheusRegistry::scrapeRegistry(std::shared_ptr<prometheus::Collectable> registry) {
   if (!exposer_) return;
@@ -184,12 +186,13 @@ prometheus::Summary& PrometheusRegistry::createSummary(const std::string& name,
 }
 PrometheusRegistry::PrometheusRegistry()
     : counters_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Counter>>(std::chrono::seconds(1))),
-      gauges_custom_collector_(std::make_shared<ConcordCustomCollector<prometheus::Gauge>>(std::chrono::seconds(1))),
+          std::make_shared<ConcordCustomCollector<prometheus::Counter>>(std::chrono::seconds(1), true)),
+      gauges_custom_collector_(
+          std::make_shared<ConcordCustomCollector<prometheus::Gauge>>(std::chrono::seconds(1), true)),
       histogram_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Histogram>>(std::chrono::seconds(1))),
+          std::make_shared<ConcordCustomCollector<prometheus::Histogram>>(std::chrono::seconds(1), true)),
       summary_custom_collector_(
-          std::make_shared<ConcordCustomCollector<prometheus::Summary>>(std::chrono::seconds(1))) {}
+          std::make_shared<ConcordCustomCollector<prometheus::Summary>>(std::chrono::seconds(1), true)) {}
 
 template <typename T>
 prometheus::Family<T>& ConcordCustomCollector<T>::createFamily(const std::string& name,
@@ -210,7 +213,7 @@ std::vector<prometheus::MetricFamily> ConcordCustomCollector<T>::Collect() const
   if (!res.empty()) {
     auto currTime =
         std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
-    if (currTime - last_dump_time_ >= dumpInterval_) {
+    if (dump_metrics_enabled_ && (currTime - last_dump_time_ >= dumpInterval_)) {
       last_dump_time_ = currTime;
       LOG_INFO(logger_, "prometheus metrics dump: " + prometheus::TextSerializer().Serialize(res));
     }
