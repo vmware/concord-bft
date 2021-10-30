@@ -200,8 +200,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
 
   // Db checkpoint
-  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 3u, "Max number of db checkpoints to be created");
-  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 150u, "Db checkpoint window size in terms of bft sequence number");
+  CONFIG_PARAM(maxNumberOfDbCheckpoints, uint32_t, 0u, "Max number of db checkpoints to be created");
+  CONFIG_PARAM(dbCheckPointWindowSize, uint32_t, 300u, "Db checkpoint window size in bft sequence number");
 
   // Not predefined configuration parameters
   // Example of usage:
@@ -300,6 +300,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, threadbagConcurrency);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
+    serialize(outStream, maxNumberOfDbCheckpoints);
+    serialize(outStream, dbCheckPointWindowSize);
     serialize(outStream, config_params_);
   }
   void deserializeDataMembers(std::istream& inStream) {
@@ -377,6 +379,8 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, threadbagConcurrency);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
+    deserialize(inStream, maxNumberOfDbCheckpoints);
+    deserialize(inStream, dbCheckPointWindowSize);
     deserialize(inStream, config_params_);
   }
 

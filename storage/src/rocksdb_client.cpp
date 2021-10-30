@@ -585,6 +585,7 @@ Status Client::createCheckpoint(const uint64_t &checkPointId) {
   ConcordAssertNE(dbCheckpointPath_, m_dbPath);
   fs::path path{dbCheckpointPath_};
   fs::path chkptDirPath = path / std::to_string(checkPointId);
+  // rocksDb create the dir for the checkpoint
   if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
 
   ::rocksdb::Status s = dbCheckPoint_.get()->CreateCheckpoint(chkptDirPath.string());

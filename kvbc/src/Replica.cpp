@@ -324,7 +324,7 @@ void Replica::createReplicaAndSyncState() {
     dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
     if (replicaConfig_.maxNumberOfDbCheckpoints) {
       dbCheckpointMgr_->init();
-      bftEngine::impl::DbCheckpointManager::Instance().enableCreatingDbCheckpoint(true);
+      bftEngine::impl::DbCheckpointManager::Instance().enableDbCheckpoint(true);
       bftEngine::impl::DbCheckpointManager::Instance().addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
         const auto &lastBlockid = getLastBlockId();
         dbCheckpointMgr_->createDbCheckpoint(
@@ -332,7 +332,7 @@ void Replica::createReplicaAndSyncState() {
       });
     } else {
       // db checkpoint is disabled. Cleanup metadata and checkpoints created if any
-      std::async(std::launch::async, [this]() { dbCheckpointMgr_->cleanUp(); });
+      auto ret = std::async(std::launch::async, [this]() { dbCheckpointMgr_->cleanUp(); });
     }
   }
 }

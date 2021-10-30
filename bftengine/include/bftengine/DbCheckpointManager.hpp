@@ -26,10 +26,10 @@ using InternalBftClient = bftEngine::impl::InternalBFTClient;
 class DbCheckpointManager {
  public:
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum);
-  void enableCreatingDbCheckpoint(bool enable) { enableDbCheckpoint_ = enable; }
+  void enableDbCheckpoint(bool enable) { enableDbCheckpoint_ = enable; }
   bool isDbCheckpointEnabled() { return enableDbCheckpoint_; }
 
-  void addCreateDbCheckpointCb(const std::function<void(uint64_t)>& cb) {
+  void addCreateDbCheckpointCb(const std::function<void(SeqNum)>& cb) {
     if (cb) createDbChecheckpointCb_ = cb;
   }
   void onCreateDbCheckpointMsg(const SeqNum& seqNum) {

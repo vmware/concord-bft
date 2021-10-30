@@ -74,15 +74,6 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
           std::copy(error.cbegin(), error.cend(), std::back_inserter(rsi_res.additional_data));
           req.outActualReplySize = 0;
         }
-      } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
-        CreateDbCheckpoint createDbChkPtMsg;
-        concord::messages::db_checkpoint::deserialize(
-            std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
-        DbCheckpointManager::Instance().onCreateDbCheckpointMsg(createDbChkPtMsg.seqNum);
-        std::string resp = "Ok";
-        std::copy(resp.begin(), resp.end(), req.outReply);
-        req.outActualReplySize = resp.size();
-
       } else {  // in case of write request return the whole response
         std::vector<uint8_t> serialized_rsi_response;
         concord::messages::serialize(serialized_rsi_response, rsi_res);
@@ -99,6 +90,16 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outExecutionStatus = 0;  // stop further processing of this request
       // Don't continue to process requests after pruning (in case we run in async pruning mode)
       if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
+    } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
+      concord::messages::db_checkpoint::CreateDbCheckpoint createDbChkPtMsg;
+      concord::messages::db_checkpoint::deserialize(
+          std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
+      DbCheckpointManager::Instance().onCreateDbCheckpointMsg(createDbChkPtMsg.seqNum);
+      DbCheckpointManager::Instance().onCreateDbCheckpointMsg(300);
+      std::string resp = "Ok";
+      std::copy(resp.begin(), resp.end(), req.outReply);
+      req.outActualReplySize = resp.size();
+      LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum));
     } else if (req.flags & TICK_FLAG) {
       // Make sure the reply always contains one dummy 0 byte. Needed as empty replies are not supported at that stage.
       // Also, set replica specific information size to 0.
@@ -152,5 +153,4 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
   if (userRequestsHandler_) return userRequestsHandler_->execute(requests, timestamp, batchCid, parent_span);
   return;
 }
-
 }  // namespace bftEngine
