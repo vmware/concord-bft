@@ -122,7 +122,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   const std::thread::id MAIN_THREAD_ID;
   uint16_t activeExecutions_ = 0;
   std::queue<ClientRequestMsg*> deferredRORequests_;
-  std::queue<MessageBase*> deferredRequests_;
+  std::queue<MessageBase*> deferredMessages_;
   bool isTryToGoNextView_ = false;
   bool isGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;

@@ -12,7 +12,6 @@
 #pragma once
 
 #include <memory>
-#include <messages/ClientRequestMsg.hpp>
 #include "IRequestHandler.hpp"
 #include "PrimitiveTypes.hpp"
 #include "ReplicaConfig.hpp"

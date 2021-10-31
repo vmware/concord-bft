@@ -358,7 +358,7 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 template <>
 void ReplicaImp::onMessage<StateTransferMsg>(StateTransferMsg *m) {
   if (activeExecutions_ > 0) {
-    deferredRequests_.push(m);
+    deferredMessages_.push(m);
     return;
   } else {
     ReplicaForStateTransfer::onMessage<StateTransferMsg>(m);
@@ -506,7 +506,7 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreP
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
   if (activeExecutions_ > 0) {
-    deferredRequests_.push(m);
+    deferredMessages_.push(m);
     return;
   }
   MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
@@ -2124,7 +2124,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (activeExecutions_ > 0) {
-    deferredRequests_.push(msg);
+    deferredMessages_.push(msg);
     return;
   }
   metric_received_checkpoints_++;
@@ -2703,7 +2703,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     return;
   }
   if (activeExecutions_ > 0) {
-    deferredRequests_.push(msg);
+    deferredMessages_.push(msg);
     return;
   }
   metric_received_view_changes_++;
@@ -2781,7 +2781,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
     return;
   }
   if (activeExecutions_ > 0) {
-    deferredRequests_.push(msg);
+    deferredMessages_.push(msg);
     return;
   }
   metric_received_new_views_++;
