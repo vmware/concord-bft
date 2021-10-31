@@ -231,7 +231,7 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
-      LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
+      LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
     }
 
   } else {

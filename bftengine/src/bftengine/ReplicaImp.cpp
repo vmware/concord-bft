@@ -550,9 +550,9 @@ ClientRequestMsg *ReplicaImp::addRequestToPrePrepareMessage(ClientRequestMsg *&n
           nextRequest->clientProxyId(), nextRequest->requestSeqNum(), nextRequest->getCid());
     }
   } else if (nextRequest->size() > maxStorageForRequests) {  // The message is too big
-    LOG_ERROR(GL,
-              "Request was dropped because it exceeds maximum allowed size" << KVLOG(
-                  prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
+    LOG_WARN(GL,
+             "Request was dropped because it exceeds maximum allowed size" << KVLOG(
+                 prePrepareMsg.seqNumber(), nextRequest->senderId(), nextRequest->size(), maxStorageForRequests));
   }
   primaryCombinedReqSize -= nextRequest->size();
   requestsQueueOfPrimary.pop();
@@ -839,7 +839,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
   if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
     if (!validatePreProcessedResults(msg, getCurrentView())) {
       // trigger view change
-      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      LOG_WARN(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
       askToLeaveView(ReplicaAsksToLeaveViewMsg::Reason::PrimarySentBadPreProcessResult);
       return;
     }
@@ -878,7 +878,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     bool time_is_ok = true;
     if (config_.timeServiceEnabled && msg->numberOfRequests() > 0) {
       if (!time_service_manager_->hasTimeRequest(*msg)) {
-        LOG_ERROR(GL, "PrePrepare will be ignored");
+        LOG_WARN(GL, "PrePrepare will be ignored");
         delete msg;
         return;
       }
@@ -1358,7 +1358,7 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
       return;
     } else {
       // trigger view change
-      LOG_ERROR(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
+      LOG_WARN(VC_LOG, "PreProcessResult Signature failure. Ask to leave view" << KVLOG(getCurrentView()));
       askToLeaveView(vciim->reasonToLeave_);
       return;
     }
@@ -3675,7 +3675,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         try {
           ConcordAssert(seqNumInfo.addMsg(e.getPrepareFullMsg(), true));
         } catch (const std::exception &e) {
-          LOG_ERROR(GL, "Failed to add sn " << s << " to main log, reason: " << e.what());
+          LOG_FATAL(GL, "Failed to add sn " << s << " to main log, reason: " << e.what());
           throw;
         }
 
@@ -3694,7 +3694,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
         try {
           ConcordAssert(seqNumInfo.addMsg(e.getCommitFullMsg(), true));
         } catch (const std::exception &e) {
-          LOG_ERROR(GL, "Failed to add sn [" << s << "] to main log, reason: " << e.what());
+          LOG_FATAL(GL, "Failed to add sn [" << s << "] to main log, reason: " << e.what());
           throw;
         }
 
@@ -4164,7 +4164,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
-      LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
+      LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
     }
 
   } else {

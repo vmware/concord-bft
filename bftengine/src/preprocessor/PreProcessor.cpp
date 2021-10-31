@@ -281,7 +281,7 @@ bool PreProcessor::validateMessage(MessageBase *msg) const {
     msg->validate(myReplica_.getReplicasInfo());
     return true;
   } catch (std::exception &e) {
-    LOG_ERROR(logger(), "Message validation failed: " << e.what());
+    LOG_WARN(logger(), "Message validation failed: " << e.what());
     return false;
   }
 }
@@ -479,9 +479,9 @@ bool PreProcessor::checkClientMsgCorrectness(uint64_t reqSeqNum,
 
 bool PreProcessor::checkClientBatchMsgCorrectness(const ClientBatchRequestMsgUniquePtr &clientBatchReqMsg) {
   if (!clientBatchingEnabled_) {
-    LOG_ERROR(logger(),
-              "Batching functionality is disabled => reject message"
-                  << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
+    LOG_WARN(logger(),
+             "Batching functionality is disabled => reject message"
+                 << KVLOG(clientBatchReqMsg->clientId(), clientBatchReqMsg->senderId(), clientBatchReqMsg->getCid()));
     preProcessorMetrics_.preProcReqIgnored++;
     return false;
   }
@@ -995,7 +995,7 @@ void PreProcessor::onMessage<PreProcessBatchReplyMsg>(PreProcessBatchReplyMsg *m
 template <typename T>
 void PreProcessor::messageHandler(MessageBase *msg) {
   if (!msgs_.write_available()) {
-    LOG_ERROR(logger(), "PreProcessor queue is full, returning message");
+    LOG_WARN(logger(), "PreProcessor queue is full, returning message");
     incomingMsgsStorage_->pushExternalMsg(std::unique_ptr<MessageBase>(msg));
     return;
   }
@@ -1102,8 +1102,8 @@ void PreProcessor::handlePreProcessReplyMsg(const string &cid,
       break;
     }
     case CANCELLED_BY_PRIMARY:
-      LOG_ERROR(logger(),
-                "Received reply message with status CANCELLED_BY_PRIMARY" << KVLOG(reqSeqNum, clientId, batchCid));
+      LOG_WARN(logger(),
+               "Received reply message with status CANCELLED_BY_PRIMARY" << KVLOG(reqSeqNum, clientId, batchCid));
       break;
   }
 }

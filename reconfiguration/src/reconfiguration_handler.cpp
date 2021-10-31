@@ -160,7 +160,7 @@ bool ReconfigurationHandler::handle(const concord::messages::InstallCommand& cmd
                                     concord::messages::ReconfigurationResponse& rres) {
   concord::messages::ReconfigurationErrorMsg error_msg;
   if (cmd.version.empty()) {
-    LOG_ERROR(getLogger(), "InstallCommand received with empty version string at seq_num " << sequence_num);
+    LOG_WARN(getLogger(), "InstallCommand received with empty version string at seq_num " << sequence_num);
     return false;
   }
   LOG_INFO(getLogger(), "InstallCommand instructs replica to stop at seq_num " << KVLOG(sequence_num, cmd.version));
@@ -197,7 +197,7 @@ BftReconfigurationHandler::BftReconfigurationHandler() {
   std::ifstream key_content;
   key_content.open(operatorPubKeyPath);
   if (!key_content) {
-    LOG_ERROR(getLogger(), "unable to read the operator public key file");
+    LOG_WARN(getLogger(), "unable to read the operator public key file");
     return;
   }
   auto key_str = std::string{};
