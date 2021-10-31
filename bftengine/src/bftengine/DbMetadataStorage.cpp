@@ -108,7 +108,7 @@ void DBMetadataStorage::writeInBatch(uint32_t objectId, const char *data, uint32
   Sliver copy = Sliver::copy(data, dataLength);
   lock_guard<mutex> lock(ioMutex_);
   if (!batch_) {
-    LOG_ERROR(logger_, WRONG_FLOW);
+    LOG_FATAL(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   // Delete an older parameter with the same key (if exists) before inserting a new one.
@@ -121,13 +121,13 @@ void DBMetadataStorage::commitAtomicWriteOnlyBatch() {
   lock_guard<mutex> lock(ioMutex_);
   LOG_DEBUG(logger_, "Begin Commit atomic transaction");
   if (!batch_) {
-    LOG_ERROR(logger_, WRONG_FLOW);
+    LOG_FATAL(logger_, WRONG_FLOW);
     throw runtime_error(WRONG_FLOW);
   }
   Status status = dbClient_->multiPut(*batch_);
   LOG_DEBUG(logger_, "End Commit atomic transaction");
   if (!status.isOK()) {
-    LOG_ERROR(logger_, "DBClient multiPut operation failed");
+    LOG_FATAL(logger_, "DBClient multiPut operation failed");
     throw runtime_error("DBClient multiPut operation failed");
   }
   delete batch_;
