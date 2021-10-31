@@ -392,6 +392,7 @@ void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
 
 void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "");
+  if (cre_) cre_->stop();
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   if (handoff_) handoff_->stop();
@@ -434,7 +435,6 @@ void BCStateTran::stopRunning() {
   ConcordAssert(ioPool_.full());
   totalSizeOfPendingItemDataMsgs = 0;
   replicaForStateTransfer_ = nullptr;
-  cre_->stop();
 }
 
 bool BCStateTran::isRunning() const { return running_; }

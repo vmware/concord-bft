@@ -146,7 +146,6 @@ class ScalingReplicaHandler : public IStateHandler {
     concord::messages::deserialize(state.data, crep);
     concord::messages::ClientsAddRemoveExecuteCommand command =
         std::get<concord::messages::ClientsAddRemoveExecuteCommand>(crep.response);
-    LOG_INFO(getLogger(), "b(1)" << KVLOG(command.token, command.config_descriptor, command.restart));
     std::ofstream configuration_file;
     configuration_file.open(bftEngine::ReplicaConfig::instance().configurationViewFilePath + "/" +
                                 concord::reconfiguration::configurationsFileName + "." +
