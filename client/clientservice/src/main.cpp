@@ -55,6 +55,8 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
     ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
+    ("bft-clients", po::value<int>()->default_value(15), "Number of clients in the pool")
+    ("use-cre", po::value<bool>()->default_value(true), "Use cre feature")
   ;
   // clang-format on
   po::variables_map opts;
@@ -148,6 +150,10 @@ int main(int argc, char** argv) {
     LOG_INFO(logger, "No Jaeger Agent address provided");
   }
 
+  auto num_bft_clients = opts["bft-clients"].as<int>();
+  auto enable_cre = opts["use-cre"].as<bool>();
+  config.num_of_used_bft_clients = num_bft_clients;
+  config.topology.with_cre = enable_cre;
   auto concord_client = std::make_unique<ConcordClient>(config, metrics_collector->getAggregator());
   ClientService service(std::move(concord_client));
 
