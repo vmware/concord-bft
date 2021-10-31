@@ -189,7 +189,7 @@ std::shared_ptr<ClientReconfigurationEngine> CreFactory::create(std::shared_ptr<
   Config cre_config;
   cre_config.id_ = repConfig.replicaId;
   cre_config.interval_timeout_ms_ = 1000;
-  PollBasedStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
+  IStateClient* pbc = new PollBasedStateClient(bftClient, cre_config.interval_timeout_ms_, 0, cre_config.id_);
   auto cre =
       std::make_shared<ClientReconfigurationEngine>(cre_config, pbc, std::make_shared<concordMetrics::Aggregator>());
   cre->registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>());

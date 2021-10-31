@@ -194,13 +194,6 @@ bool StReconfigurationHandler::handleWedgeCommands(const T &cmd,
   if (my_last_known_epoch == command_epoch && my_last_known_epoch == last_known_global_epoch && cp_sn < wedge_point)
     return true;  // We still need to complete another state transfer
 
-  //  // If we reached to this point, we are defiantly going to run the addRemove command,
-  //  // so lets invoke all original reconfiguration handlers from the product layer (without concord-bft's ones)
-  //  concord::messages::ReconfigurationResponse response;
-  //  for (auto &h : orig_reconf_handlers_) {
-  //    h->handle(cmd, bft_seq_num, UINT32_MAX, std::nullopt, response);
-  //  }
-
   if (my_last_known_epoch < last_known_global_epoch) {
     // now, we cannot rely on the received sequence number (as it may be reused), we simply want to stop immediately
     auto fake_seq_num = cp_sn - 2 * checkpointWindowSize;

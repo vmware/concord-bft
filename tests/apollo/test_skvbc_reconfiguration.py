@@ -1597,7 +1597,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                 await bft_network.wait_for_state_transfer_to_stop(initial_prim,
                                                                   r,
                                                                   stop_on_stable_seq_num=False)
-            live_replicas = live_replicas = bft_network.all_replicas(without=replicas_for_st)
+            live_replicas = bft_network.all_replicas(without=replicas_for_st)
             await self.validate_epoch_number(bft_network, 1, live_replicas)
 
             bft_network.start_replicas(replicas_for_st)
