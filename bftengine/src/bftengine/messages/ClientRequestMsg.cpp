@@ -88,7 +88,7 @@ bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY
 void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   const auto* header = msgBody();
   PrincipalId clientId = header->idOfClientProxy;
-  ConcordAssert(this->senderId() != repInfo.myId());
+  if ((header->flags & RECONFIG_FLAG) == 0) ConcordAssert(this->senderId() != repInfo.myId());
   /// to do - should it be just the header?
   auto minMsgSize = sizeof(ClientRequestMsgHeader) + header->cidLength + spanContextSize() + header->reqSignatureLength;
   const auto msgSize = size();

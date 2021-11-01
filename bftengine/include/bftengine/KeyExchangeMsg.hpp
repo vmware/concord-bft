@@ -21,10 +21,12 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
   std::string pubkey;
   uint16_t repID;
   uint64_t generated_sn;
+  uint64_t epoch;
 
   std::string toString() const {
     std::stringstream ss;
-    ss << "pubkey [" << pubkey << "] replica id [" << repID << "] generate sequence number [" << generated_sn << "]";
+    ss << "pubkey [" << pubkey << "] replica id [" << repID << "] generate sequence number [" << generated_sn
+       << "] epoch [" << epoch << "]";
     return ss.str();
   }
   static KeyExchangeMsg deserializeMsg(const char* serializedMsg, const int& size) {
@@ -42,11 +44,13 @@ struct KeyExchangeMsg : public concord::serialize::SerializableFactory<KeyExchan
     serialize(outStream, pubkey);
     serialize(outStream, repID);
     serialize(outStream, generated_sn);
+    serialize(outStream, epoch);
   }
   void deserializeDataMembers(std::istream& inStream) override {
     deserialize(inStream, op);
     deserialize(inStream, pubkey);
     deserialize(inStream, repID);
     deserialize(inStream, generated_sn);
+    deserialize(inStream, epoch);
   }
 };

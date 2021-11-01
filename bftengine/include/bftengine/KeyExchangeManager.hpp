@@ -42,8 +42,9 @@ class KeyExchangeManager {
   // whether initial key exchange has occurred
   bool exchanged() const {
     uint32_t liveClusterSize = ReplicaConfig::instance().waitForFullCommOnStartup ? clusterSize_ : quorumSize_;
+    bool exchange_self_keys = publicKeys_.keyExists(ReplicaConfig::instance().replicaId);
     return ReplicaConfig::instance().getkeyExchangeOnStart()
-               ? (publicKeys_.numOfExchangedReplicas() >= liveClusterSize - 1)
+               ? (publicKeys_.numOfExchangedReplicas() >= liveClusterSize - 1) && exchange_self_keys
                : true;
   }
   const std::string kInitialKeyExchangeCid = "KEY-EXCHANGE-";

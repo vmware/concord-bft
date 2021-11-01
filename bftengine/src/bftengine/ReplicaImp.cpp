@@ -4229,7 +4229,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
           reqIdx++;
           continue;
         }
-        const bool validClient = isValidClient(clientId);
+        const bool validClient = isValidClient(clientId) || ((req.flags() & RECONFIG_FLAG) && isIdOfReplica(clientId));
         if (!validClient) {
           ++numInvalidClients;
           LOG_WARN(GL, "The client is not valid" << KVLOG(clientId));
