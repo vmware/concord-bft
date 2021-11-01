@@ -137,7 +137,7 @@ void Server::sendError(sockaddr_in* cliaddr, socklen_t addrlen) {
   memcpy(buf_ + sizeof(Header), msg, msglen);
   auto len = sendto(sock_, buf_, msglen + sizeof(Header), 0, (const struct sockaddr*)cliaddr, addrlen);
   if (len < 0) {
-    LOG_ERROR(logger_, "Failed to send error msg: " << concordUtils::errnoString(errno));
+    LOG_WARN(logger_, "Failed to send error msg: " << concordUtils::errnoString(errno));
   }
 }
 
