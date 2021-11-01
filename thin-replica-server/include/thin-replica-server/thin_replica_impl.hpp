@@ -989,7 +989,7 @@ class ThinReplicaImpl {
       LOG_DEBUG(logger_, "subscribeToLiveUpdates event groups (client id " << client_id << ")");
 
       auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
-      LOG_INFO(
+      LOG_DEBUG(
           logger_,
           "subscribeToLiveUpdates (eg vs last) " << request->event_groups().event_group_id() << " > " << last_eg_id);
       if (request->event_groups().event_group_id() > last_eg_id) {
