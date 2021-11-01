@@ -4168,7 +4168,7 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
     }
 
   } else {
-    LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
+    LOG_WARN(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
 
   if (config_.getdebugStatisticsEnabled()) {

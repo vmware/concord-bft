@@ -673,9 +673,9 @@ void DBAdapter::getLastKnownReconfigurationCmdBlock(std::string &outBlockData) c
       if (Status s = mdtGet(lastKnownReconfigCmdBlockIdKey, val); s.isOK())
         outBlockData = val.toString();
       else
-        LOG_ERROR(logger_, "Error in getting Latest known reconfig block ");
+        LOG_WARN(logger_, "Error in getting Latest known reconfig block ");
     } catch (std::exception &e) {
-      LOG_ERROR(logger_, "Error in getting Latest known reconfig block" << e.what());
+      LOG_WARN(logger_, "Error in getting Latest known reconfig block" << e.what());
     }
   }
 }
