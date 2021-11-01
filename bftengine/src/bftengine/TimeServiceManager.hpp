@@ -40,6 +40,11 @@ class TimeServiceManager {
   ~TimeServiceManager() = default;
   TimeServiceManager(const TimeServiceManager&) = delete;
 
+  ConsensusTime getTime() {
+    auto last_timestamp = client_.getLastTimestamp();
+    return last_timestamp;
+  }
+
   // Loads timestamp from reserved pages, to be called once ST is done
   void load() {
     client_.load();

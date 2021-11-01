@@ -23,6 +23,8 @@
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
 #include "messages/PrePrepareCarrierInternalMsg.hpp"
 #include "messages/ValidatedMessageCarrierInternalMsg.hpp"
+#include "messages/FinishExecutePrePrepareInternalMsg.hpp"
+#include "IRequestHandler.hpp"
 
 namespace bftEngine::impl {
 
@@ -30,7 +32,6 @@ struct GetStatus {
   std::string key;
   std::promise<std::string> output;
 };
-
 // An InternalMessage is a value type sent from threads to the ReplicaImp over the IncomingMsgsStorage channel.
 //
 // All internal messages should be included in this variant.
@@ -79,6 +80,8 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      TickInternalMsg,
 
                                      // post execution defer related
-                                     OnTransferringCompletelMsg>;
+                                     OnTransferringCompletelMsg,
+
+                                     FinishExecutePrePrepareInternalMsg>;
 
 }  // namespace bftEngine::impl

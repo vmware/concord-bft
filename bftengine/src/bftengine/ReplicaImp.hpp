@@ -128,6 +128,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool isSendCheckpointIfNeeded_ = false;
   bool isStartcollectingState_ = false;
   bool isOnTransferringComplete_ = false;
+  bool startedToExecute = false;
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
@@ -332,6 +333,17 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool tryToSendPrePrepareMsg(bool batchingLogic = false) override;
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
+  void onFinishtExecuting();
+  void finishExecutePrePrepareMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests);
+  void executeRequests(PrePrepareMsg* pp, Bitmap& requestSet, Timestamp time);
+  void executeSpecialRequests(PrePrepareMsg* ppMsg,
+                              uint16_t numOfSpecialReqs,
+                              bool recoverFromErrorInRequestsExecution,
+                              Timestamp& outTimestamp);
+  void startExecutePrePrepareMsg(PrePrepareMsg* ppMsg,
+                                 bool allowParallelExecution,
+                                 bool recoverFromErrorInRequestsExecution);
+  void tryToStartOrFinishExecuting(const bool requestMissingInfo = false);
 
  protected:
   ReplicaImp(bool firstTime,
@@ -431,9 +443,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
 
-  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span,
-                                    SeqNum seqNumber,
-                                    const bool requestMissingInfo = false);
+  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, const bool requestMissingInfo = false);
 
   void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
                                       PrePrepareMsg* pp,
