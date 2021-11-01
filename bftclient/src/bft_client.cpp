@@ -274,7 +274,7 @@ std::optional<Reply> Client::wait() {
   SeqNumToReplyMap replies;
   wait(replies);
   if (replies.empty()) {
-    static constexpr size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 5;
+    static const size_t CLEAR_MATCHER_REPLIES_THRESHOLD = 2 * config_.f_val + config_.c_val + 1;
     // reply_certificates_ should hold just one request when using this wait method
     auto req = reply_certificates_.begin();
     if (req->second.numDifferentReplies() > CLEAR_MATCHER_REPLIES_THRESHOLD) {
