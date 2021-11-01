@@ -474,7 +474,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void sendCheckpointIfNeeded();
   void tryToMarkStableForFastPath(const SeqNum& lastCheckpointNumber,
-                                  CheckpointInfo& checkInfo,
+                                  CheckpointInfo<>& checkInfo,
                                   CheckpointMsg* checkpointMessage);
 
   void tryToGotoNextView();

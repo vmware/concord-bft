@@ -933,7 +933,7 @@ bool PersistentStorageImp::getIsAllowed() const {
 
 bool PersistentStorageImp::nonExecSetIsAllowed() {
   return setIsAllowed() &&
-         (!hasDescriptorOfLastExecution() || descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_);
+         (!hasDescriptorOfLastExecution() || descriptorOfLastExecution_.executedSeqNum <= lastExecutedSeqNum_ + 1);
 }
 void PersistentStorageImp::setEraseMetadataStorageFlag() {
   bool eraseMtOnStartUp = true;
