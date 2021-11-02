@@ -48,13 +48,9 @@ message GetRecentSnapshotRequest {
 }
 
 message GetRecentSnapshotResponse {
-  // Mandatory field.
-  //
   // The ID of a recent and available state snapshot.
   uint64 snapshot_id = 1;
 
-  // Mandatory field.
-  //
   // The event group ID at which the state snapshot with `snapshot_id` was taken.
   //
   // The event group ID can be used in the `EventService` to subscribe to events
@@ -88,8 +84,6 @@ message GetRecentSnapshotResponse {
   // group IDs and not legacy events that are based on block IDs.
   uint64 event_group_id = 2;
 
-  // Mandatory field.
-  //
   // An estimate (with reasonable accuracy) of the count of key-values contained
   // in the state snapshot. Please note that this is an estimation and *not* the
   // actual count.
@@ -97,13 +91,9 @@ message GetRecentSnapshotResponse {
 }
 
 message StreamSnapshotRequest {  
-  // Mandatory field.
-  //
   // The ID of the state snapshot to be streamed.
   uint64 snapshot_id = 1;
 
-  // Optional field.
-  //
   // If set, start streaming from `last_received_key` onwards, excluding
   // `last_received_key`.
   // If `last_received_key` is not part of the state snapshot, an INVALID_ARGUMENT
@@ -118,25 +108,15 @@ message StreamSnapshotRequest {
 }
 
 message KeyValuePair {
-  // Mandatory field.
-  //
-  // The key.
   bytes key = 1;
-
-  // Mandatory field.
-  //
-  // The value.
   bytes value = 2;
 }
 
 message StreamSnapshotResponse {
-  // Mandatory field.
   KeyValuePair key_value = 1;
 }
 
 message ReadAsOfRequest {
-  // Mandatory field.
-  //
   // The ID of the state snapshot as of which to read the values.
   uint64 snapshot_id = 1;
 
