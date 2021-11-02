@@ -364,7 +364,7 @@ class SkvbcViewChangeTest(unittest.TestCase):
             err_msg="Make sure the initial primary replica works in the new view."
         )
 
-        # waiting for the active window to be rebuilt after the view change
+        # waiting for the active window in the initial primary to be rebuilt after the view change
         await trio.sleep(seconds=5)
 
         # crash the new primary to trigger a view change
