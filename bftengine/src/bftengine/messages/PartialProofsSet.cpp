@@ -153,12 +153,12 @@ bool PartialProofsSet::addMsg(FullCommitProofMsg* m) {
 
   if (myPCP == nullptr) {
     // TODO(GG): can be improved (we can keep the FullCommitProof  message until myPCP!=nullptr
-    LOG_WARN(GL, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
+    LOG_WARN(CNSUS, "FullCommitProofMsg arrived before PrePrepare. TODO(GG): should be handled to avoid delays. ");
     return false;
   }
 
   if (m->seqNumber() != myPCP->seqNumber() || m->viewNumber() != myPCP->viewNumber()) {
-    LOG_WARN(GL, "Received unexpected FullCommitProofMsg");
+    LOG_WARN(CNSUS, "Received unexpected FullCommitProofMsg");
     return false;
   }
 
@@ -170,7 +170,7 @@ bool PartialProofsSet::addMsg(FullCommitProofMsg* m) {
     fullCommitProof = m;
     return true;
   } else {
-    LOG_INFO(GL, "Unable to verify FullCommitProofMsg message for seqNumber " << m->seqNumber());
+    LOG_INFO(CNSUS, "Unable to verify FullCommitProofMsg message for seqNumber " << m->seqNumber());
     return false;
   }
 }
@@ -206,7 +206,7 @@ class AsynchProofCreationJob : public concord::util::SimpleThreadPool::Job {
     SCOPED_MDC(MDC_REPLICA_ID_KEY, std::to_string(me->getReplicaConfig().replicaId));
     SCOPED_MDC_SEQ_NUM(std::to_string(seqNumber));
     SCOPED_MDC_PATH(CommitPathToMDCString(CommitPath::OPTIMISTIC_FAST));
-    LOG_DEBUG(GL, "begin...");
+    LOG_DEBUG(CNSUS, "begin...");
 
     auto span = concordUtils::startChildSpanFromContext(span_context_, "bft_create_FullCommitProofMsg");
     (void)span;
@@ -219,7 +219,7 @@ class AsynchProofCreationJob : public concord::util::SimpleThreadPool::Job {
 
     //		if (sigLength > sizeof(bufferForSigComputations) || sigLength > UINT16_MAX || sigLength == 0)
     if (sigLength > UINT16_MAX || sigLength == 0) {
-      LOG_WARN(GL, "Unable to create FullProof for seqNumber " << seqNumber);
+      LOG_WARN(CNSUS, "Unable to create FullProof for seqNumber " << seqNumber);
       return;
     }
 
@@ -229,8 +229,8 @@ class AsynchProofCreationJob : public concord::util::SimpleThreadPool::Job {
         verifier->verify((char*)&expectedDigest, sizeof(Digest), bufferForSigComputations.data(), (uint16_t)sigLength);
 
     if (!succ) {
-      LOG_WARN(GL, "Failed to create FullProof for seqNumber " << seqNumber);
-      LOG_DEBUG(GL, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
+      LOG_WARN(CNSUS, "Failed to create FullProof for seqNumber " << seqNumber);
+      LOG_DEBUG(CNSUS, "PartialProofsSet::AsynchProofCreationJob::execute - end (for seqNumber " << seqNumber);
       return;
     } else {
       LOG_DEBUG(CNSUS, "Created FullProof, sending full commit proof");
@@ -243,7 +243,7 @@ class AsynchProofCreationJob : public concord::util::SimpleThreadPool::Job {
       me->getIncomingMsgsStorage().pushInternalMsg(fcpMsg);
     }
 
-    LOG_DEBUG(GL, "end...");
+    LOG_DEBUG(CNSUS, "end...");
   }
 
   virtual void release() { delete this; }
@@ -293,7 +293,7 @@ void PartialProofsSet::tryToCreateFullProof() {
 
     replica->getInternalThreadPool().add(j);
 
-    LOG_TRACE(GL, "send to BK thread (for seqNumber " << seqNumber << ")");
+    LOG_TRACE(CNSUS, "send to BK thread (for seqNumber " << seqNumber << ")");
   }
 }
 
