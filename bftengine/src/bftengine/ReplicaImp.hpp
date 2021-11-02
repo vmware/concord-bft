@@ -114,6 +114,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
   size_t primaryCombinedReqSize = 0;                     // only used by the primary
 
+  std::map<uint64_t, ClientRequestMsg*>
+      requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
+  size_t NonPrimaryCombinedReqSize = 1000;
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
   typedef SequenceWithActiveWindow<kWorkWindowSize, 1, SeqNum, SeqNumInfo, SeqNumInfo, 1, false> WindowOfSeqNumInfo;
@@ -164,6 +167,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   concordUtil::Timers::Handle infoReqTimer_;
   concordUtil::Timers::Handle statusReportTimer_;
   concordUtil::Timers::Handle viewChangeTimer_;
+  concordUtil::Timers::Handle clientRequestsRetransmissionTimer_;
 
   int viewChangeTimerMilli = 0;
   int autoPrimaryRotationTimerMilli = 0;

@@ -324,9 +324,11 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
       if (clientsManager->canBecomePending(clientId, reqSeqNum)) {
         clientsManager->addPendingRequest(clientId, reqSeqNum, m->getCid());
 
-        // TODO(GG): add a mechanism that retransmits (otherwise we may start unnecessary view-change)
+        // Adding the message to a queue for future retransmission.
+        if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize) requestsOfNonPrimary[m->requestSeqNum()] = m;
         send(m, currentPrimary());
         LOG_INFO(CNSUS, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
+        return;
       }
       if (clientsManager->isPending(clientId, reqSeqNum)) {
         // As long as this request is not committed, we want to continue and alert the primary about it
@@ -894,6 +896,10 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
+        if (requestsOfNonPrimary.find(req.requestSeqNum()) != requestsOfNonPrimary.end()) {
+          delete requestsOfNonPrimary.at(req.requestSeqNum());
+          requestsOfNonPrimary.erase(req.requestSeqNum());
+        }
       }
       if (ps_) {
         ps_->beginWriteTran();
@@ -2798,6 +2804,11 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     requestsQueueOfPrimary.pop();
     delete msg;
   }
+  for (auto &[_, msg] : requestsOfNonPrimary) {
+    (void)_;
+    delete msg;
+  }
+  requestsOfNonPrimary.clear();
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 
   // send messages
@@ -4003,6 +4014,7 @@ void ReplicaImp::stop() {
   timers_.cancel(slowPathTimer_);
   timers_.cancel(infoReqTimer_);
   timers_.cancel(statusReportTimer_);
+  timers_.cancel(clientRequestsRetransmissionTimer_);
   if (viewChangeProtocolEnabled) timers_.cancel(viewChangeTimer_);
   ReplicaForStateTransfer::stop();
 }
@@ -4015,6 +4027,14 @@ void ReplicaImp::addTimers() {
   statusReportTimer_ = timers_.add(milliseconds(statusReportTimerMilli),
                                    Timers::Timer::RECURRING,
                                    [this](Timers::Handle h) { onStatusReportTimer(h); });
+  clientRequestsRetransmissionTimer_ = timers_.add(
+      milliseconds(config_.clientRequestRetransmissionTimerMilli), Timers::Timer::RECURRING, [this](Timers::Handle h) {
+        if (isCurrentPrimary()) return;
+        for (const auto &[_, msg] : requestsOfNonPrimary) {
+          (void)_;
+          send(msg, currentPrimary());
+        }
+      });
   if (viewChangeProtocolEnabled) {
     int t = viewChangeTimerMilli;
     if (autoPrimaryRotationEnabled && t > autoPrimaryRotationTimerMilli) t = autoPrimaryRotationTimerMilli;

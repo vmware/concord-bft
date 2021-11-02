@@ -60,6 +60,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(numOfExternalClients, uint16_t, 0, "number of objects that represent external clients");
   CONFIG_PARAM(sizeOfInternalThreadPool, uint16_t, 8, "number of threads in the internal replica thread pool");
   CONFIG_PARAM(statusReportTimerMillisec, uint16_t, 0, "how often the replica sends a status report to other replicas");
+  CONFIG_PARAM(clientRequestRetransmissionTimerMilli,
+               uint16_t,
+               1000,
+               "how often the replica tries to retransmit client request received by non primary");
   CONFIG_PARAM(concurrencyLevel,
                uint16_t,
                0,
