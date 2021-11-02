@@ -365,5 +365,12 @@ std::string Client::signMessage(std::vector<uint8_t>& data) {
   }
   return signature;
 }
-
+Reply Client::sendThreadSafe(const WriteConfig& config, Msg&& request) {
+  std::lock_guard<std::mutex> lg(lock_);
+  return send(config, std::move(request));
+}
+Reply Client::sendThreadSafe(const ReadConfig& config, Msg&& request) {
+  std::lock_guard<std::mutex> lg(lock_);
+  return send(config, std::move(request));
+}
 }  // namespace bft::client

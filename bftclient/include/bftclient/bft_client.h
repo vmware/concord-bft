@@ -57,6 +57,9 @@ class Client {
   std::optional<ReplicaId> primary() { return primary_; }
   std::string signMessage(std::vector<uint8_t>&);
   void setTransactionSigner(concord::util::crypto::ISigner* signer) { transaction_signer_.reset(signer); }
+  // thread safe version of send api
+  Reply sendThreadSafe(const WriteConfig& config, Msg&& request);
+  Reply sendThreadSafe(const ReadConfig& config, Msg&& request);
 
  private:
   // Generic function for sending a read or write message.
@@ -145,6 +148,7 @@ class Client {
   static constexpr uint32_t count_between_snapshots = 200;
   uint32_t snapshot_index_ = 0;
   std::unique_ptr<Recorders> histograms_;
+  std::mutex lock_;
 };
 
 }  // namespace bft::client
