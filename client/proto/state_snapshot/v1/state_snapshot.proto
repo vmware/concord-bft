@@ -149,8 +149,9 @@ message OptionalValue {
 }
 
 message ReadAsOfResponse {
-  // The `values` list contains entries for all requested keys
-  // in `ReadAsOfRequest.keys`, i.e. it is the exact same length.
+  // The `values` list contains entries for *all* requested keys
+  // in `ReadAsOfRequest.keys` in the exact same order. `values`
+  // is, therefore, the exact same length as `ReadAsOfRequest.keys`.
   //
   // If a key-value has been deleted or has never been set,
   // `OptionalValue.value` will not be set. Otherwise, it will
