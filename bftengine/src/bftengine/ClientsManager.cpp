@@ -58,6 +58,14 @@ ClientsManager::ClientsManager(const std::set<NodeIdType>& proxyClients,
   clientIds_.insert(externalClients_.begin(), externalClients_.end());
   clientIds_.insert(internalClients_.begin(), internalClients_.end());
   ConcordAssert(clientIds_.size() >= 1);
+
+  // For the benefit of code accessing clientsInfo_, pre-fill cliensInfo_ with a blank entry for each client to reduce
+  // ambiguity between invalid client IDs and valid client IDs for which nothing stored in clientsInfo_ has been loaded
+  // so far.
+  for (const auto& client_id : clientIds_) {
+    clientsInfo_.emplace(client_id, ClientInfo());
+  }
+
   std::ostringstream oss;
   oss << "proxy clients: ";
   std::copy(proxyClients_.begin(), proxyClients_.end(), std::ostream_iterator<NodeIdType>(oss, " "));
@@ -204,8 +212,10 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateNewReplyMsgAndWriteToSto
     const uint32_t sizePage = ((i < numOfPages - 1) ? sizeOfReservedPage() : sizeLastPage);
     saveReservedPage(firstPageId + i, sizePage, ptrPage);
   }
-  // now save the RSI in the rsiManager
-  rsiManager_->setRsiForClient(clientId, requestSeqNum, std::string(reply + commonMsgSize, rsiLength));
+  // now save the RSI in the rsiManager, if this ClientsManager has one.
+  if (rsiManager_) {
+    rsiManager_->setRsiForClient(clientId, requestSeqNum, std::string(reply + commonMsgSize, rsiLength));
+  }
   // we cannot set the RSI metadata before saving the reply to the reserved paged, hence save it now.
   r->setReplicaSpecificInfoLength(rsiLength);
 
@@ -251,14 +261,16 @@ std::unique_ptr<ClientReplyMsg> ClientsManager::allocateReplyFromSavedOne(NodeId
     loadReservedPage(firstPageId + i, sizePage, ptrPage);
   }
 
-  // Load the RSI data from persistent storage
-  auto rsiItem = rsiManager_->getRsiForClient(clientId, requestSeqNum);
-  auto rsiSize = rsiItem.data().size();
-  if (rsiSize > 0) {
-    auto commDataLength = r->replyLength();
-    r->setReplyLength(r->replyLength() + rsiSize);
-    memcpy(r->replyBuf() + commDataLength, rsiItem.data().data(), rsiSize);
-    r->setReplicaSpecificInfoLength(rsiSize);
+  // Load the RSI data from persistent storage, if an RSI manager is in use.
+  if (rsiManager_) {
+    auto rsiItem = rsiManager_->getRsiForClient(clientId, requestSeqNum);
+    auto rsiSize = rsiItem.data().size();
+    if (rsiSize > 0) {
+      auto commDataLength = r->replyLength();
+      r->setReplyLength(r->replyLength() + rsiSize);
+      memcpy(r->replyBuf() + commDataLength, rsiItem.data().data(), rsiSize);
+      r->setReplicaSpecificInfoLength(rsiSize);
+    }
   }
   const auto& replySeqNum = r->reqSeqNum();
   if (replySeqNum != requestSeqNum) {
@@ -344,7 +356,7 @@ bool ClientsManager::canBecomePending(NodeIdType clientId, ReqId reqSeqNum) cons
     return true;
   } catch (const std::out_of_range& e) {
     LOG_DEBUG(CL_MNGR, "no info for client: " << clientId);
-    return true;
+    return false;
   }
 }
 
