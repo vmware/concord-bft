@@ -66,11 +66,6 @@ std::string KeyExchangeManager::generateCid(std::string cid) {
 }
 
 std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const SeqNum& sn, const std::string& cid) {
-  uint64_t my_epoch = EpochManager::instance().getSelfEpochNumber();
-  if (kemsg.epoch != my_epoch) {
-    LOG_WARN(KEY_EX_LOG, "Got KeyExchangeMsg of a different epoch, ignore..." << KVLOG(kemsg.epoch, my_epoch));
-    return "invalid epoch";
-  }
   SCOPED_MDC_SEQ_NUM(std::to_string(sn));
   LOG_INFO(KEY_EX_LOG, kemsg.toString() << KVLOG(sn, cid, exchanged()));
   // client query
@@ -78,6 +73,11 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     LOG_INFO(KEY_EX_LOG, "Has keys: " << std::boolalpha << exchanged() << std::noboolalpha);
     if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
+  }
+  uint64_t my_epoch = EpochManager::instance().getSelfEpochNumber();
+  if (kemsg.epoch != my_epoch) {
+    LOG_WARN(KEY_EX_LOG, "Got KeyExchangeMsg of a different epoch, ignore..." << KVLOG(kemsg.epoch, my_epoch));
+    return "invalid epoch";
   }
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
