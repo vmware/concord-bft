@@ -2889,7 +2889,10 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   TimeRecorder scoped_timer(*histograms_.onTransferringCompleteImp);
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
-
+  for (auto &req : requestsOfNonPrimary) {
+    delete req.second;
+  }
+  requestsOfNonPrimary.clear();
   if (ps_) {
     ps_->beginWriteTran();
   }
@@ -4029,7 +4032,7 @@ void ReplicaImp::addTimers() {
                                    [this](Timers::Handle h) { onStatusReportTimer(h); });
   clientRequestsRetransmissionTimer_ = timers_.add(
       milliseconds(config_.clientRequestRetransmissionTimerMilli), Timers::Timer::RECURRING, [this](Timers::Handle h) {
-        if (isCurrentPrimary()) return;
+        if (isCurrentPrimary() || isCollectingState() || ControlHandler::instance()->onPruningProcess()) return;
         for (const auto &[_, msg] : requestsOfNonPrimary) {
           (void)_;
           send(msg, currentPrimary());
