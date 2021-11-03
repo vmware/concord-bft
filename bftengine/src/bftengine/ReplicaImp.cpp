@@ -2581,6 +2581,13 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   ConcordAssert(viewChangeProtocolEnabled);
   ConcordAssertLT(getCurrentView(), nextView);
 
+  // Once we move to higher view we would prefer tp avoid retransmitting clients request from previous view
+  for (auto &[_, msg] : requestsOfNonPrimary) {
+    (void)_;
+    delete msg;
+  }
+  requestsOfNonPrimary.clear();
+
   const bool wasInPrevViewNumber = viewsManager->viewIsActive(getCurrentView());
 
   LOG_INFO(VC_LOG, "Moving to higher view: " << KVLOG(getCurrentView(), nextView, wasInPrevViewNumber));
@@ -2804,11 +2811,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
     requestsQueueOfPrimary.pop();
     delete msg;
   }
-  for (auto &[_, msg] : requestsOfNonPrimary) {
-    (void)_;
-    delete msg;
-  }
-  requestsOfNonPrimary.clear();
+
   primary_queue_size_.Get().Set(requestsQueueOfPrimary.size());
 
   // send messages
