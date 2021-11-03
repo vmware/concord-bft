@@ -89,6 +89,8 @@ struct SubscribeConfig {
   std::string id;
   // If set to false then all certificates related to subscription will be ignored
   bool use_tls;
+  // TRC/S certificate path
+  std::string trsc_tls_cert_path;
   // Buffer with the client's PEM encoded certififacte chain
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key

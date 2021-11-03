@@ -132,11 +132,12 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
 
     // TODO: Adapt TRC API to support PEM buffers
     if (config_.subscribe_config.use_tls) {
-      std::string trs_tls_cert_path = "";
       std::string trc_tls_key = "";
-      LOG_INFO(logger_, "TLS for thin replica client is enabled, certificate path: " << trs_tls_cert_path);
-      const std::string client_cert_path = trs_tls_cert_path + "/client.cert";
-      const std::string server_cert_path = trs_tls_cert_path + "/server.cert";
+      LOG_INFO(
+          logger_,
+          "TLS for thin replica client is enabled, certificate path: " << config_.subscribe_config.trsc_tls_cert_path);
+      const std::string client_cert_path = config_.subscribe_config.trsc_tls_cert_path + "/client.cert";
+      const std::string server_cert_path = config_.subscribe_config.trsc_tls_cert_path + "/server.cert";
 
       std::string trc_cert, root_cert;
       readCert(client_cert_path, trc_cert);
