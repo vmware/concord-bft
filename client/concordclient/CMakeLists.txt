@@ -5,6 +5,7 @@ target_link_libraries(concordclient PUBLIC
   thin_replica_client_lib
   concord_client_pool
   concordclient-event-api
+  secret_retriever
   util
 )
 

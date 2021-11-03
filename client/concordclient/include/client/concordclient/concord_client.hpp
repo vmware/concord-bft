@@ -91,6 +91,8 @@ struct SubscribeConfig {
   bool use_tls;
   // TRC/S certificate path
   std::string trsc_tls_cert_path;
+  // URL used to decrypt private keys
+  std::string secrets_url;
   // Buffer with the client's PEM encoded certififacte chain
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
@@ -157,6 +159,8 @@ class ConcordClient {
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
+
+  const std::string decryptPK(const std::optional<std::string>& secrets_url, const std::string& path);
 
   // This method reads certificates from file if TLS is enabled
   void readCert(const std::string& input_filename, std::string& out_data);

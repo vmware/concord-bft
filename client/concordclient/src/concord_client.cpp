@@ -13,6 +13,9 @@
 #include <thread>
 
 #include "assertUtils.hpp"
+#include "secret_retriever.hpp"
+#include "secrets_manager_enc.h"
+#include "secrets_manager_plain.h"
 #include "client/concordclient/concord_client.hpp"
 #include "client/thin-replica-client/thin_replica_client.hpp"
 
@@ -132,7 +135,8 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
 
     // TODO: Adapt TRC API to support PEM buffers
     if (config_.subscribe_config.use_tls) {
-      std::string trc_tls_key = "";
+      std::string trc_tls_key =
+          decryptPK(config_.subscribe_config.secrets_url, config_.subscribe_config.trsc_tls_cert_path);
       LOG_INFO(
           logger_,
           "TLS for thin replica client is enabled, certificate path: " << config_.subscribe_config.trsc_tls_cert_path);
@@ -170,6 +174,26 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
   } else {
     ConcordAssert(false);
   }
+}
+
+const std::string ConcordClient::decryptPK(const std::optional<std::string>& secrets_url, const std::string& path) {
+  std::string pkpath;
+  std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> secrets_manager;
+  if (secrets_url) {
+    auto secret_data = concord::secretsmanager::secretretriever::retrieveSecret(*secrets_url);
+    pkpath = path + "/pk.pem.enc";
+    secrets_manager.reset(new concord::secretsmanager::SecretsManagerEnc(secret_data));
+  } else {
+    pkpath = path + "/pk.pem";
+    secrets_manager.reset(new concord::secretsmanager::SecretsManagerPlain());
+  }
+
+  auto decrypted_data = secrets_manager->decryptFile(pkpath);
+  if (!decrypted_data) {
+    throw std::runtime_error("Error loading " + pkpath);
+  }
+
+  return *decrypted_data;
 }
 
 void ConcordClient::readCert(const std::string& input_filename, std::string& out_data) {
