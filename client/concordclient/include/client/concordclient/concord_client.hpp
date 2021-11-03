@@ -155,6 +155,17 @@ class ConcordClient {
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
+
+  // This method reads certificates from file if TLS is enabled
+  void readCert(const std::string& input_filename, std::string& out_data);
+
+  // This method gets the client_id from the OU field in the client certificate
+  std::string getClientIdFromClientCert(const std::string& client_cert_path);
+
+  // This method is used by getClientIdFromClientCert to get the client_id from
+  // the subject in the client certificate
+  std::string parseClientIdFromSubject(const std::string& subject_str);
+
   logging::Logger logger_;
   const ConcordClientConfig& config_;
   std::shared_ptr<concordMetrics::Aggregator> metrics_;

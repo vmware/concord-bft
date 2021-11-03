@@ -125,16 +125,32 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
   }
 
   std::vector<std::unique_ptr<::client::thin_replica_client::TrsConnection>> trs_connections;
+  std::unique_ptr<TrsConnectionConfig> trsc_config;
   for (const auto& replica : config_.topology.replicas) {
     auto addr = replica.host + ":" + std::to_string(replica.event_port);
     auto trsc = std::make_unique<TrsConnection>(addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3);
 
     // TODO: Adapt TRC API to support PEM buffers
-    ConcordAssert(not config_.subscribe_config.use_tls);
-    std::string trs_tls_cert_path = "";
-    std::string trc_tls_key = "";
-    auto trsc_config =
-        std::make_unique<TrsConnectionConfig>(config_.subscribe_config.use_tls, trs_tls_cert_path, trc_tls_key);
+    if (config_.subscribe_config.use_tls) {
+      std::string trs_tls_cert_path = "";
+      std::string trc_tls_key = "";
+      LOG_INFO(logger_, "TLS for thin replica client is enabled, certificate path: " << trs_tls_cert_path);
+      const std::string client_cert_path = trs_tls_cert_path + "/client.cert";
+      const std::string server_cert_path = trs_tls_cert_path + "/server.cert";
+
+      std::string trc_cert, root_cert;
+      readCert(client_cert_path, trc_cert);
+
+      // server_cert_path specifies the path to a composite cert file i.e., a
+      // concatentation of the certificates of all known servers
+      readCert(server_cert_path, root_cert);
+
+      std::string cert_trc_id = getClientIdFromClientCert(client_cert_path);
+      trsc_config = std::make_unique<TrsConnectionConfig>(
+          config_.subscribe_config.use_tls, trc_tls_key, trc_cert, root_cert, cert_trc_id);
+    } else {
+      trsc_config = std::make_unique<TrsConnectionConfig>(config_.subscribe_config.use_tls);
+    }
 
     trsc->connect(trsc_config);
     trs_connections.push_back(std::move(trsc));
@@ -153,6 +169,71 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
   } else {
     ConcordAssert(false);
   }
+}
+
+void ConcordClient::readCert(const std::string& input_filename, std::string& out_data) {
+  std::ifstream input_file(input_filename.c_str(), std::ios::in);
+
+  if (!input_file.is_open()) {
+    LOG_FATAL(logger_, "Failed to construct concord client.");
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": Could not open the input file (") + input_filename +
+                             std::string(") to establish TLS connection with the thin replica server."));
+  } else {
+    try {
+      std::stringstream read_buffer;
+      read_buffer << input_file.rdbuf();
+      input_file.close();
+      out_data = read_buffer.str();
+      LOG_INFO(logger_, "Successfully loaded the contents of " + input_filename);
+    } catch (std::exception& e) {
+      LOG_FATAL(logger_, "Failed to construct concord client.");
+      throw std::runtime_error(__PRETTY_FUNCTION__ +
+                               std::string(": An exception occurred while trying to read the input file (") +
+                               input_filename + std::string("): ") + std::string(e.what()));
+    }
+  }
+  return;
+}
+
+std::string ConcordClient::getClientIdFromClientCert(const std::string& client_cert_path) {
+  std::array<char, 128> buffer;
+  std::string client_id;
+
+  // check if client cert can be opened
+  std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
+
+  if (!input_file.is_open()) {
+    throw std::runtime_error("Could not open the input file (" + client_cert_path + ") at the thin replica client.");
+  }
+
+  // The cmd string is used to get the subject in the client cert.
+  std::string cmd =
+      "openssl crl2pkcs7 -nocrl -certfile " + client_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+  if (!pipe) {
+    throw std::runtime_error("Failed to read subject fields from client cert - popen() failed!");
+  }
+  if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+    // parse the OU field i.e., the client id from the subject field
+    client_id = parseClientIdFromSubject(buffer.data());
+  }
+  return client_id;
+}
+
+// Parses the value of the OU field i.e., the client id from the subject
+// string
+std::string ConcordClient::parseClientIdFromSubject(const std::string& subject_str) {
+  std::string delim = "OU = ";
+  size_t start = subject_str.find(delim) + delim.length();
+  size_t end = subject_str.find(',', start);
+  std::string raw_str = subject_str.substr(start, end - start);
+  size_t fstart = 0;
+  size_t fend = raw_str.length();
+  // remove surrounding whitespaces and newlines
+  if (raw_str.find_first_not_of(' ') != std::string::npos) fstart = raw_str.find_first_not_of(' ');
+  if (raw_str.find_last_not_of(' ') != std::string::npos) fend = raw_str.find_last_not_of(' ');
+  raw_str.erase(std::remove(raw_str.begin(), raw_str.end(), '\n'), raw_str.end());
+  return raw_str.substr(fstart, fend - fstart + 1);
 }
 
 void ConcordClient::unsubscribe() {
