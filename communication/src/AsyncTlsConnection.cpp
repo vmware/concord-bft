@@ -291,7 +291,13 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   }
 
   // Only allow using the strongest cipher suites.
-  SSL_CTX_set_cipher_list(ssl_context_.native_handle(), config_.cipherSuite.c_str());
+  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
+    LOG_ERROR(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
+
+    // Setting to Default
+    if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
+      LOG_FATAL(logger_, "Failed to set default TLS cipher suite");
+  }
 }
 
 void AsyncTlsConnection::initServerSSLContext() {
@@ -349,7 +355,13 @@ void AsyncTlsConnection::initServerSSLContext() {
   EC_KEY_free(ecdh);
 
   // Only allow using the strongest cipher suites.
-  SSL_CTX_set_cipher_list(ssl_context_.native_handle(), config_.cipherSuite.c_str());
+  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
+    LOG_ERROR(logger_, "Failed to set TLS cipher suite from config : " << config_.cipherSuite.c_str());
+
+    // Setting to default
+    if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
+      LOG_FATAL(logger_, "Failed to set default TLS cipher suite");
+  }
 }
 
 bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id) {
