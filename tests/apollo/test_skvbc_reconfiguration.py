@@ -1537,8 +1537,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
             live_replicas = bft_network.all_replicas(without=crashed_replica)
             bft_network.start_all_replicas()
             skvbc = kvbc.SimpleKVBCProtocol(bft_network)
-            for i in range(100):
-                await skvbc.send_write_kv_set()
+            # This is a loop to make sure that all replicas are up before interfering them
+            with trio.fail_after(30):
+                nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
+                while nb_fast_path <= 0:
+                    for i in range(100):
+                        await skvbc.send_write_kv_set()
+                    nb_fast_path = await bft_network.get_metric(initial_prim, bft_network, "Counters", "totalFastPaths")
             with net.ReplicaSubsetIsolatingAdversary(bft_network, crashed_replica) as adversary:
                 adversary.interfere()
 
