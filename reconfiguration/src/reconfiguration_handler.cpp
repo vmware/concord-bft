@@ -114,7 +114,7 @@ void ReconfigurationHandler::handleWedgeCommands(
       });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnStableCheckpointCallBack(
-          [=]() { bft::communication::StateControl::instance().setBlockNewConnectionsFlag(true); });
+          [=]() { bft::communication::StateControl::instance().lockComm(); });
     }
   } else {
     if (remove_metadata)
@@ -130,7 +130,7 @@ void ReconfigurationHandler::handleWedgeCommands(
       });
     if (blockNewConnections) {
       bftEngine::IControlHandler::instance()->addOnSuperStableCheckpointCallBack(
-          [=]() { bft::communication::StateControl::instance().setBlockNewConnectionsFlag(true); });
+          [=]() { bft::communication::StateControl::instance().lockComm(); });
     }
   }
 }
