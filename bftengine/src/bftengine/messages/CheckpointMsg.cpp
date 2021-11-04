@@ -19,6 +19,7 @@ namespace impl {
 
 CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                              SeqNum seqNum,
+                             std::uint64_t state,
                              const Digest& stateDigest,
                              bool stateIsStable,
                              const concordUtils::SpanContext& spanContext)
@@ -28,6 +29,7 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                   sizeof(Header) + SigManager::instance()->getMySigLength()) {
   b()->seqNum = seqNum;
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
+  b()->state = state;
   b()->stateDigest = stateDigest;
   b()->flags = 0;
   b()->genReplicaId = genReplica;
