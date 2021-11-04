@@ -392,7 +392,6 @@ void BCStateTran::startRunning(IReplicaForStateTransfer *r) {
 
 void BCStateTran::stopRunning() {
   LOG_INFO(logger_, "");
-  if (cre_) cre_->stop();
   ConcordAssert(running_);
   ConcordAssertNE(replicaForStateTransfer_, nullptr);
   if (handoff_) handoff_->stop();
