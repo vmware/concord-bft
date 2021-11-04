@@ -149,11 +149,113 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                            const std::string& secrets_url) {
   config.subscribe_config.id = tr_id;
   config.subscribe_config.use_tls = not is_insecure;
+  config.subscribe_config.trsc_tls_cert_path = tls_path;
+  config.subscribe_config.secrets_url = secrets_url;
 
+  if (config.subscribe_config.use_tls) {
+    const std::string client_cert_path = config.subscribe_config.trsc_tls_cert_path + "/client.cert";
+
+    readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
+
+    config.subscribe_config.pem_private_key =
+        decryptPK(config.subscribe_config.secrets_url, config.subscribe_config.trsc_tls_cert_path);
+
+    config.subscribe_config.id_from_cert = getClientIdFromClientCert(client_cert_path);
+
+    const std::string server_cert_path = config.subscribe_config.trsc_tls_cert_path + "/server.cert";
+    for (const auto& replica : config.topology.replicas) {
+      // server_cert_path specifies the path to a composite cert file i.e., a
+      // concatentation of the certificates of all known servers
+      readCert(server_cert_path, config.subscribe_config.root_cert_chain_map[replica.id.val]);
+    }
+  }
   // TODO: Read TLS certs for this TRC instance
-  config.subscribe_config.pem_cert_chain = "";
-  config.subscribe_config.pem_private_key = "";
   config.transport.event_pem_certs = "";
+}
+
+const std::string decryptPK(const std::optional<std::string>& secrets_url, const std::string& path) {
+  std::string pkpath;
+  std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> secrets_manager;
+  if (secrets_url) {
+    auto secret_data = concord::secretsmanager::secretretriever::retrieveSecret(*secrets_url);
+    pkpath = path + "/pk.pem.enc";
+    secrets_manager.reset(new concord::secretsmanager::SecretsManagerEnc(secret_data));
+  } else {
+    pkpath = path + "/pk.pem";
+    secrets_manager.reset(new concord::secretsmanager::SecretsManagerPlain());
+  }
+
+  auto decrypted_data = secrets_manager->decryptFile(pkpath);
+  if (!decrypted_data) {
+    throw std::runtime_error("Error loading " + pkpath);
+  }
+
+  return *decrypted_data;
+}
+
+void readCert(const std::string& input_filename, std::string& out_data) {
+  std::ifstream input_file(input_filename.c_str(), std::ios::in);
+
+  if (!input_file.is_open()) {
+    LOG_FATAL(logger, "Failed to construct concord client.");
+    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": Could not open the input file (") + input_filename +
+                             std::string(") to establish TLS connection with the thin replica server."));
+  } else {
+    try {
+      std::stringstream read_buffer;
+      read_buffer << input_file.rdbuf();
+      input_file.close();
+      out_data = read_buffer.str();
+      LOG_INFO(logger, "Successfully loaded the contents of " + input_filename);
+    } catch (std::exception& e) {
+      LOG_FATAL(logger, "Failed to construct concord client.");
+      throw std::runtime_error(__PRETTY_FUNCTION__ +
+                               std::string(": An exception occurred while trying to read the input file (") +
+                               input_filename + std::string("): ") + std::string(e.what()));
+    }
+  }
+  return;
+}
+
+std::string getClientIdFromClientCert(const std::string& client_cert_path) {
+  std::array<char, 128> buffer;
+  std::string client_id;
+
+  // check if client cert can be opened
+  std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
+
+  if (!input_file.is_open()) {
+    throw std::runtime_error("Could not open the input file (" + client_cert_path + ") at the thin replica client.");
+  }
+
+  // The cmd string is used to get the subject in the client cert.
+  std::string cmd =
+      "openssl crl2pkcs7 -nocrl -certfile " + client_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
+  if (!pipe) {
+    throw std::runtime_error("Failed to read subject fields from client cert - popen() failed!");
+  }
+  if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+    // parse the OU field i.e., the client id from the subject field
+    client_id = parseClientIdFromSubject(buffer.data());
+  }
+  return client_id;
+}
+
+// Parses the value of the OU field i.e., the client id from the subject
+// string
+std::string parseClientIdFromSubject(const std::string& subject_str) {
+  std::string delim = "OU = ";
+  size_t start = subject_str.find(delim) + delim.length();
+  size_t end = subject_str.find(',', start);
+  std::string raw_str = subject_str.substr(start, end - start);
+  size_t fstart = 0;
+  size_t fend = raw_str.length();
+  // remove surrounding whitespaces and newlines
+  if (raw_str.find_first_not_of(' ') != std::string::npos) fstart = raw_str.find_first_not_of(' ');
+  if (raw_str.find_last_not_of(' ') != std::string::npos) fend = raw_str.find_last_not_of(' ');
+  raw_str.erase(std::remove(raw_str.begin(), raw_str.end(), '\n'), raw_str.end());
+  return raw_str.substr(fstart, fend - fstart + 1);
 }
 
 }  // namespace concord::client::clientservice

@@ -97,6 +97,10 @@ struct SubscribeConfig {
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
   std::string pem_private_key;
+  // TRC ID obtained from OU field in pem_cert_chain
+  std::string id_from_cert;
+  // Map with replica ID as key and buffer with the servers' PEM encoded certificates for the host as value
+  std::unordered_map<uint16_t, std::string> root_cert_chain_map;
 };
 
 struct ConcordClientConfig {
@@ -159,18 +163,6 @@ class ConcordClient {
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
-
-  const std::string decryptPK(const std::optional<std::string>& secrets_url, const std::string& path);
-
-  // This method reads certificates from file if TLS is enabled
-  void readCert(const std::string& input_filename, std::string& out_data);
-
-  // This method gets the client_id from the OU field in the client certificate
-  std::string getClientIdFromClientCert(const std::string& client_cert_path);
-
-  // This method is used by getClientIdFromClientCert to get the client_id from
-  // the subject in the client certificate
-  std::string parseClientIdFromSubject(const std::string& subject_str);
 
   logging::Logger logger_;
   const ConcordClientConfig& config_;
