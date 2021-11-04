@@ -73,7 +73,7 @@ void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr 
 
 void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
   preprocessingRightNow_ = false;
-  primaryPreProcessResult_ = preProcessResult;
+  primaryPreProcessResult_ = const_cast<char *>(preProcessResult);
   primaryPreProcessResultLen_ = preProcessResultLen;
   primaryPreProcessResultHash_ =
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
@@ -182,6 +182,26 @@ PreProcessingResult RequestProcessingState::definePreProcessingConsensusResult()
   if (maxNumOfEqualHashes >= numOfRequiredEqualReplies_) {
     if (itOfChosenHash->first == primaryPreProcessResultHash_) return COMPLETE;  // Pre-execution consensus reached
     if (primaryPreProcessResultLen_ != 0 && !retrying_) {
+      // A known scenario that can cause a mismatch, is due to rejection of the block id sent by the primary.
+      // In this case the difference should be only the last 64 bits that encodes the `0` as the rejection value.
+      uint64_t blockid = 0;
+      // since this scenario is rare, a new string is allocated for safety.
+      std::string newHash(primaryPreProcessResult_, primaryPreProcessResultLen_);
+      memcpy(newHash.data() + newHash.size() - sizeof(uint64_t), reinterpret_cast<char *>(&blockid), sizeof(uint64_t));
+      auto newPreProcessResultHash = convertToArray(SHA3_256().digest(newHash.c_str(), newHash.size()).data());
+      if (itOfChosenHash->first == newPreProcessResultHash) {
+        memcpy(const_cast<char *>(primaryPreProcessResult_), newHash.c_str(), primaryPreProcessResultLen_);
+        primaryPreProcessResultHash_ = newPreProcessResultHash;
+        auto sm = SigManager::instance();
+        std::vector<char> sig(sm->getMySigLength());
+        sm->sign(reinterpret_cast<const char *>(primaryPreProcessResultHash_.data()),
+                 primaryPreProcessResultHash_.size(),
+                 sig.data(),
+                 sig.size());
+        preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+        LOG_INFO(logger(), "Primary changed block id of result to 0");
+        return COMPLETE;
+      }
       // Primary replica calculated hash is different from a hash that passed pre-execution consensus => we don't have
       // correct pre-processed results. Let's launch a pre-processing retry.
       const auto &primaryHash =
