@@ -26,6 +26,7 @@ void parseConfigFile(concord::client::concordclient::ConcordClientConfig&, const
 void configureSubscription(concord::client::concordclient::ConcordClientConfig&,
                            const std::string& tr_id,
                            bool insecure,
-                           const std::string& tls_path);
+                           const std::string& tls_path,
+                           const std::string& secrets_url);
 
 }  // namespace concord::client::clientservice

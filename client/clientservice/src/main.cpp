@@ -53,6 +53,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("tr-id", po::value<std::string>()->required(), "ID used to subscribe to replicas for data/hashes")
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
+    ("secrets-url", po::value<std::string>()->default_value(""), "URL to decrypt private keys")
     ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
   ;
@@ -125,8 +126,11 @@ int main(int argc, char** argv) {
   try {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
-    configureSubscription(
-        config, opts["tr-id"].as<std::string>(), opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
+    configureSubscription(config,
+                          opts["tr-id"].as<std::string>(),
+                          opts["tr-insecure"].as<bool>(),
+                          opts["tr-tls-path"].as<std::string>(),
+                          opts["secrets-url"].as<std::string>());
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());
     return 1;

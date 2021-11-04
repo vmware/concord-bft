@@ -16,6 +16,9 @@
 #include <sstream>
 
 #include "assertUtils.hpp"
+#include "secret_retriever.hpp"
+#include "secrets_manager_enc.h"
+#include "secrets_manager_plain.h"
 #include "client/clientservice/client_service.hpp"
 
 using concord::client::concordclient::ConcordClientConfig;
@@ -142,7 +145,8 @@ void parseConfigFile(ConcordClientConfig& config, const YAML::Node& yaml) {
 void configureSubscription(concord::client::concordclient::ConcordClientConfig& config,
                            const std::string& tr_id,
                            bool is_insecure,
-                           const std::string& tls_path) {
+                           const std::string& tls_path,
+                           const std::string& secrets_url) {
   config.subscribe_config.id = tr_id;
   config.subscribe_config.use_tls = not is_insecure;
 
