@@ -896,7 +896,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
-        if (requestsOfNonPrimary.find(req.requestSeqNum()) != requestsOfNonPrimary.end()) {
+        if (requestsOfNonPrimary.count(req.requestSeqNum())) {
           delete requestsOfNonPrimary.at(req.requestSeqNum());
           requestsOfNonPrimary.erase(req.requestSeqNum());
         }
@@ -2803,6 +2803,13 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   if (ps_) ps_->endWriteTran();
 
   clientsManager->clearAllPendingRequests();
+
+  // Once we move to higher view we would prefer tp avoid retransmitting clients request from previous view
+  for (auto &[_, msg] : requestsOfNonPrimary) {
+    (void)_;
+    delete msg;
+  }
+  requestsOfNonPrimary.clear();
 
   // clear requestsQueueOfPrimary
   while (!requestsQueueOfPrimary.empty()) {
