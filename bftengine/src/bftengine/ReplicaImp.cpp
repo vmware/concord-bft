@@ -325,7 +325,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
         clientsManager->addPendingRequest(clientId, reqSeqNum, m->getCid());
 
         // Adding the message to a queue for future retransmission.
-        if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize) requestsOfNonPrimary[m->requestSeqNum()] = m;
+        if (requestsOfNonPrimary.size() < NonPrimaryCombinedReqSize)
+          requestsOfNonPrimary[m->requestSeqNum()] = std::make_pair(getMonotonicTime(), m);
         send(m, currentPrimary());
         LOG_INFO(CNSUS, "Forwarding ClientRequestMsg to the current primary." << KVLOG(reqSeqNum, clientId));
         return;
@@ -897,7 +898,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         if (clientsManager->canBecomePending(req.clientProxyId(), req.requestSeqNum()))
           clientsManager->addPendingRequest(req.clientProxyId(), req.requestSeqNum(), req.getCid());
         if (requestsOfNonPrimary.count(req.requestSeqNum())) {
-          delete requestsOfNonPrimary.at(req.requestSeqNum());
+          delete std::get<1>(requestsOfNonPrimary.at(req.requestSeqNum()));
           requestsOfNonPrimary.erase(req.requestSeqNum());
         }
       }
@@ -2584,7 +2585,7 @@ void ReplicaImp::MoveToHigherView(ViewNum nextView) {
   // Once we move to higher view we would prefer tp avoid retransmitting clients request from previous view
   for (auto &[_, msg] : requestsOfNonPrimary) {
     (void)_;
-    delete msg;
+    delete std::get<1>(msg);
   }
   requestsOfNonPrimary.clear();
 
@@ -2807,7 +2808,7 @@ void ReplicaImp::onNewView(const std::vector<PrePrepareMsg *> &prePreparesForNew
   // Once we move to higher view we would prefer tp avoid retransmitting clients request from previous view
   for (auto &[_, msg] : requestsOfNonPrimary) {
     (void)_;
-    delete msg;
+    delete std::get<1>(msg);
   }
   requestsOfNonPrimary.clear();
 
@@ -2900,7 +2901,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   time_in_state_transfer_.end();
   LOG_INFO(GL, KVLOG(newStateCheckpoint));
   for (auto &req : requestsOfNonPrimary) {
-    delete req.second;
+    delete std::get<1>(req.second);
   }
   requestsOfNonPrimary.clear();
   if (ps_) {
@@ -4043,9 +4044,12 @@ void ReplicaImp::addTimers() {
   clientRequestsRetransmissionTimer_ = timers_.add(
       milliseconds(config_.clientRequestRetransmissionTimerMilli), Timers::Timer::RECURRING, [this](Timers::Handle h) {
         if (isCurrentPrimary() || isCollectingState() || ControlHandler::instance()->onPruningProcess()) return;
-        for (const auto &[_, msg] : requestsOfNonPrimary) {
-          (void)_;
-          send(msg, currentPrimary());
+        for (const auto &[sn, msg] : requestsOfNonPrimary) {
+          auto timeout = duration_cast<milliseconds>(getMonotonicTime() - std::get<0>(msg)).count();
+          if (timeout > (5 * config_.clientRequestRetransmissionTimerMilli)) {
+            LOG_INFO(GL, "retransmmiting client request in non primary due to timeout" << KVLOG(sn, timeout));
+            send(std::get<1>(msg), currentPrimary());
+          }
         }
       });
   if (viewChangeProtocolEnabled) {
