@@ -258,10 +258,11 @@ void ConnectionManager::startClientSSLHandshake(asio::ip::tcp::socket&& socket, 
 
 void ConnectionManager::accept() {
   acceptor_.async_accept(asio::bind_executor(strand_, [this](asio::error_code ec, asio::ip::tcp::socket sock) {
-    if (bft::communication::StateControl::instance().getBlockNewConnectionsFlag()) {
-      LOG_WARN(logger_, "replica is blocked from creating new connections");
+    if (!StateControl::instance().tryLockComm()) {
+      LOG_WARN(logger_, "incoming comm is blocked");
       return;
-    } else if (ec) {
+    }
+    if (ec) {
       LOG_WARN(logger_, "async_accept failed: " << ec.message());
       // When io_service is stopped, the handlers are destroyed and when the
       // io_service dtor runs they will be invoked with operation_aborted error.
@@ -273,6 +274,7 @@ void ConnectionManager::accept() {
       setSocketOptions(sock);
       LOG_INFO(logger_, "Accepted connection " << total_accepted_connections_);
       startServerSSLHandshake(std::move(sock));
+      StateControl::instance().unlockComm();
     }
     accept();
   }));

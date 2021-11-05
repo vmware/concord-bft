@@ -649,11 +649,11 @@ class BftTestNetwork:
 
     def check_error_logs(self):
         """
-        Checking ERROR/FATAL logs in replica logs and writing in a file.
+        Checking FATAL logs in replica logs and writing in a file.
         If the file exists for any testcase, warning is displayed in CI
         """
         with log.start_action(action_type="replica_log_scanner") as action:
-            cmd = ['grep', '-R', 'ERROR\|FATAL', '--exclude=ReplicaErrorLogs.txt']
+            cmd = ['grep', '-R', 'FATAL', '--exclude=ReplicaErrorLogs.txt']
             file_path = f"{self.test_dir}ReplicaErrorLogs.txt"
 
             with open(file_path, 'w+') as outfile:

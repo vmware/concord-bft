@@ -2700,7 +2700,6 @@ void BCStateTran::processData(bool lastInBatch) {
         // At this point, we, if are not going to have another blocks in state transfer. So, we can safely stop CRE.
         // if there is a reconfiguration state change that prevents us from starting another state transfer (i.e.
         // scaling) then CRE probably won't work as well.
-        LOG_INFO(logger_, "halting cre");
         // 1. First, make sure we handled the most recent available updates.
         concord::client::reconfiguration::PollBasedStateClient *pbc =
             (concord::client::reconfiguration::PollBasedStateClient *)(cre_->getStateClient());
@@ -2718,6 +2717,7 @@ void BCStateTran::processData(bool lastInBatch) {
             }
           }
         }
+        LOG_INFO(logger_, "halting cre");
         // 2. Now we can safely halt cre. We know for sure that there are no update in the state transffered blocks that
         // haven't been handled yet
         cre_->halt();

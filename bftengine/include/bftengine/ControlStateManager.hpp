@@ -38,6 +38,12 @@ class ControlStateManager {
   void setRestartBftFlag(bool bft) { restartBftEnabled_ = bft; }
   void setRemoveMetadataFunc(std::function<void(bool)> fn) { removeMetadataCbRegistry_.add(fn); }
   void setRestartReadyFunc(std::function<void(uint8_t, const std::string&)> fn) { sendRestartReady_ = fn; }
+  void setGetNewConfigurationCallBack(std::function<void(const std::string&, const std::string&)> fn) {
+    getNewConfigurationRegistry_.add(fn);
+  }
+  void getNewConfiguration(const std::string& config_descriptor, const std::string& token) {
+    getNewConfigurationRegistry_.invokeAll(config_descriptor, token);
+  }
   void sendRestartReadyToAllReplica(uint8_t reason, const std::string& extraData) {
     sendRestartReady_(reason, extraData);
   }
@@ -58,6 +64,7 @@ class ControlStateManager {
   std::unordered_map<uint8_t, SeqNum> hasRestartProofAtSeqNum_;  // reason for restart is the key
   std::atomic_bool onPruningProcess_ = false;
   concord::util::CallbackRegistry<bool> removeMetadataCbRegistry_;
+  concord::util::CallbackRegistry<const std::string&, const std::string&> getNewConfigurationRegistry_;
   std::function<void(uint8_t, const std::string&)> sendRestartReady_;
   // reason for restart is the key
   std::unordered_map<uint8_t, std::map<uint32_t, concord::util::CallbackRegistry<>>> onRestartProofCbRegistry_;

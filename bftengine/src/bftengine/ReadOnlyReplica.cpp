@@ -41,7 +41,7 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
                   metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
-  LOG_INFO(GL, "");
+  LOG_INFO(GL, "Initialising ReadOnly Replica");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(
       MsgCode::Checkpoint, std::bind(&ReadOnlyReplica::messageHandler<CheckpointMsg>, this, std::placeholders::_1));
@@ -168,7 +168,7 @@ void ReadOnlyReplica::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   const uint64_t flags = m->flags();
 
   SCOPED_MDC_CID(m->getCid());
-  LOG_DEBUG(MSGS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
+  LOG_DEBUG(CNSUS, KVLOG(clientId, reqSeqNum, senderId) << " flags: " << std::bitset<sizeof(uint64_t) * 8>(flags));
 
   const auto &span_context = m->spanContext<std::remove_pointer<ClientRequestMsg>::type>();
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");

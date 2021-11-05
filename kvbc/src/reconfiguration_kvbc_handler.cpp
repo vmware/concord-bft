@@ -19,6 +19,8 @@
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
@@ -150,26 +152,28 @@ concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildClien
   return creply;
 }
 
-concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildReplicaStateReply(const char& command_type,
-                                                                                             uint32_t clientid) {
+concord::messages::ClientStateReply KvbcClientReconfigurationHandler::buildReplicaStateReply(
+    const std::string& command_type, uint32_t clientid) {
   concord::messages::ClientStateReply creply;
   creply.block_id = 0;
   auto res = ro_storage_.getLatest(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
-                                   std::string{command_type} + std::to_string(clientid));
+                                   command_type + std::to_string(clientid));
   if (res.has_value()) {
     std::visit(
         [&](auto&& arg) {
           auto strval = arg.data;
           std::vector<uint8_t> data_buf(strval.begin(), strval.end());
-          switch (command_type) {
-            case kvbc::keyTypes::reconfiguration_tls_exchange_key: {
-              concord::messages::ReplicaTlsExchangeKey cmd;
-              concord::messages::deserialize(data_buf, cmd);
-              creply.response = cmd;
-              break;
-            }
-            default:
-              break;
+          if (command_type == std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}) {
+            concord::messages::ReplicaTlsExchangeKey cmd;
+            concord::messages::deserialize(data_buf, cmd);
+            creply.response = cmd;
+          } else if (command_type ==
+                     std::string{
+                         kvbc::keyTypes::reconfiguration_client_data_prefix,
+                         static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)}) {
+            concord::messages::ClientsAddRemoveExecuteCommand cmd;
+            concord::messages::deserialize(data_buf, cmd);
+            creply.response = cmd;
           }
           auto epoch_data = ro_storage_.get(concord::kvbc::categorization::kConcordReconfigurationCategoryId,
                                             std::string{kvbc::keyTypes::reconfiguration_epoch_key},
@@ -201,11 +205,23 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       rep.states.push_back(csrep);
     }
   } else {
-    // 1. Handle TLS key exchange update
+    auto scaling_key_prefix =
+        std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                    static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
     for (uint16_t i = 0; i < first_client_id; i++) {
       if (i == sender_id) continue;
-      auto csrep = buildReplicaStateReply(kvbc::keyTypes::reconfiguration_tls_exchange_key, i);
-      if (csrep.block_id > 0) rep.states.push_back(csrep);
+      // 1. Handle TLS key exchange update
+      auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}, i);
+      if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
+      // 2. Handle scaling command
+      auto scale_csrep = buildReplicaStateReply(scaling_key_prefix, i);
+      if (scale_csrep.block_id > 0) rep.states.push_back(scale_csrep);
+      // 3. Handler scaling status update
+      auto scale_status_csrep = buildReplicaStateReply(
+          std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                      static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_COMMAND_STATUS)},
+          i);
+      if (scale_status_csrep.block_id > 0) rep.states.push_back(scale_csrep);
     }
   }
   concord::messages::serialize(rres.additional_data, rep);
@@ -452,8 +468,29 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
                         std::string(serialized_command.begin(), serialized_command.end()));
   auto epoch = bftEngine::EpochManager::instance().getSelfEpochNumber();
   ver_updates.addUpdate(std::string{keyTypes::reconfiguration_epoch_key}, concordUtils::toBigEndianStringBuffer(epoch));
+
+  // Inject an update for state transferred replicas
+  std::map<uint64_t, std::string> token;
+  for (const auto& t : command.token) token.insert(t);
+  auto execute_key_prefix =
+      std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
+                  static_cast<char>(kvbc::keyTypes::CLIENT_COMMAND_TYPES::CLIENT_SCALING_EXECUTE_COMMAND)};
+  for (uint64_t i = 0;
+       i < bftEngine::ReplicaConfig::instance().numReplicas + bftEngine::ReplicaConfig::instance().numRoReplicas;
+       i++) {
+    concord::messages::ClientsAddRemoveExecuteCommand cmd;
+    cmd.config_descriptor = command.config_descriptor;
+    if (token.find(i) == token.end()) continue;
+    cmd.token = token[i];
+    cmd.restart = command.restart;
+    std::vector<uint8_t> serialized_cmd_data;
+    concord::messages::serialize(serialized_cmd_data, cmd);
+    // CRE will get this command and execute it
+    ver_updates.addUpdate(execute_key_prefix + std::to_string(i),
+                          std::string(serialized_cmd_data.begin(), serialized_cmd_data.end()));
+  }
   auto blockId = persistReconfigurationBlock(ver_updates, sequence_number, ts, true);
-  LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
+
   // update reserved pages for RO replica
   auto epochNum = bftEngine::EpochManager::instance().getSelfEpochNumber();
   auto wedgePoint = (sequence_number + 2 * checkpointWindowSize);
@@ -466,6 +503,9 @@ bool ReconfigurationHandler::handle(const concord::messages::AddRemoveWithWedgeC
       blockId,
       wedgePoint,
       epochNum);
+
+  LOG_INFO(getLogger(), "AddRemove configuration command block is " << blockId);
+
   return true;
 }
 
@@ -854,10 +894,44 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
       ts,
       false);
   LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  if (sender_id == bftEngine::ReplicaConfig::instance().replicaId) {
+    // exchange the private key
+    std::string pk_file_name = "pk.pem";
+    std::string pk_tmp_file_name = pk_file_name;
+    std::string pk_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id);
+    std::ifstream pld_key(pk_path + "/server/" + pk_file_name);
+    if (pld_key.good()) {
+      pk_tmp_file_name += ".tmp";
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/server/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/client/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
+    }
+    pk_tmp_file_name = pk_file_name;
+    std::ifstream enc_pkey(pk_path + "/server/" + pk_file_name + ".enc");
+    if (enc_pkey.good()) {
+      pk_file_name += ".enc";
+      pk_tmp_file_name += ".enc.tmp";
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/server/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/client/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
+    }
+  }
   std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
                                        std::to_string(sender_id) + "/server/server.cert";
   std::string cert = command.cert;
   secretsmanager::SecretsManagerPlain sm;
+  sm.encryptFile(bft_replicas_cert_path, cert);
+  LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
+  bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id) +
+                           "/client/client.cert";
   sm.encryptFile(bft_replicas_cert_path, cert);
   LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
   bft::communication::StateControl::instance().restartComm(sender_id);

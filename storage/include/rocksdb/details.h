@@ -39,7 +39,7 @@ template <typename Span,
                                std::is_convertible_v<std::remove_pointer_t<decltype(std::declval<Span>().data())> (*)[],
                                                      const char (*)[]>,
                            int> = 0>
-::rocksdb::Slice toSlice(const Span &span) noexcept {
+::rocksdb::Slice toSlice(const Span &span) {
   return ::rocksdb::Slice{span.data(), span.size()};
 }
 
@@ -49,7 +49,7 @@ template <typename Span,
                                std::is_convertible_v<std::remove_pointer_t<decltype(std::declval<Span>().data())> (*)[],
                                                      const std::uint8_t (*)[]>,
                            int> = 0>
-::rocksdb::Slice toSlice(const Span &span) noexcept {
+::rocksdb::Slice toSlice(const Span &span) {
   return ::rocksdb::Slice{reinterpret_cast<const char *>(span.data()), span.size()};
 }
 

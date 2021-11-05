@@ -17,7 +17,7 @@
 #include "SigManager.hpp"
 #include "secrets_manager_plain.h"
 #include "concord.cmf.hpp"
-#include <thread>
+#include "bftengine/EpochManager.hpp"
 
 namespace bftEngine::impl {
 
@@ -73,6 +73,11 @@ std::string KeyExchangeManager::onKeyExchange(const KeyExchangeMsg& kemsg, const
     LOG_INFO(KEY_EX_LOG, "Has keys: " << std::boolalpha << exchanged() << std::noboolalpha);
     if (!exchanged()) return std::string(KeyExchangeMsg::hasKeysFalseReply);
     return std::string(KeyExchangeMsg::hasKeysTrueReply);
+  }
+  uint64_t my_epoch = EpochManager::instance().getSelfEpochNumber();
+  if (kemsg.epoch != my_epoch) {
+    LOG_WARN(KEY_EX_LOG, "Got KeyExchangeMsg of a different epoch, ignore..." << KVLOG(kemsg.epoch, my_epoch));
+    return "invalid epoch";
   }
   if (publicKeys_.keyExists(kemsg.repID, sn)) return "ok";
   publicKeys_.push(kemsg, sn);
@@ -133,11 +138,11 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   concord::secretsmanager::SecretsManagerPlain psm_;
   std::fstream nec_f(pk_path);
   if (nec_f.good()) {
-    secretsMgr_->encryptFile(pk_path, keys.first);
+    secretsMgr_->encryptFile(pk_path + ".tmp", keys.first);
   }
   std::fstream ec_f(pk_path + ".enc");
   if (ec_f.good()) {
-    secretsMgr_->encryptFile(pk_path + ".enc", keys.first);
+    secretsMgr_->encryptFile(pk_path + ".enc.tmp", keys.first);
   }
 
   concord::messages::ReconfigurationRequest req;
@@ -170,6 +175,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
     msg.pubkey = candidate_private_keys_.generated.pub;
     msg.repID = repID_;
     msg.generated_sn = sn;
+    msg.epoch = EpochManager::instance().getSelfEpochNumber();
     std::stringstream ss;
     concord::serialize::Serializable::serialize(ss, msg);
     auto strMsg = ss.str();
@@ -190,6 +196,7 @@ void KeyExchangeManager::sendKeyExchange(const SeqNum& sn) {
   msg.pubkey = pub;
   msg.repID = repID_;
   msg.generated_sn = sn;
+  msg.epoch = EpochManager::instance().getSelfEpochNumber();
   std::stringstream ss;
   concord::serialize::Serializable::serialize(ss, msg);
   auto strMsg = ss.str();

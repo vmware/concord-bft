@@ -390,10 +390,9 @@ void PreProcessor::addTimers() {
 }
 
 void PreProcessor::cancelTimers() {
-  try {
-    timers_.cancel(metricsTimer_);
-    if (preExecReqStatusCheckPeriodMilli_ != 0) timers_.cancel(requestsStatusCheckTimer_);
-  } catch (std::invalid_argument &e) {
+  timers_.cancel(metricsTimer_);
+  if (preExecReqStatusCheckPeriodMilli_ != 0) {
+    timers_.cancel(requestsStatusCheckTimer_);
   }
 }
 

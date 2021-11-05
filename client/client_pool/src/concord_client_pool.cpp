@@ -431,10 +431,12 @@ void SingleRequestProcessingJob::execute() {
     res = processing_client_->SendRequest(write_config_, std::move(request_));
     reply_size = res.matched_data.size();
     if (callback_) {
-      if (processing_client_->getClientRequestError() != TIMEOUT) {
+      if (OperationResult::SUCCESS == processing_client_->getClientRequestError()) {
         callback_(bftEngine::SendResult{res});
-      } else {
+      } else if (OperationResult::TIMEOUT == processing_client_->getClientRequestError()) {
         callback_(bftEngine::SendResult{SubmitResult::TimedOut});
+      } else {  // Lets treat as invalid argument request.
+        callback_(bftEngine::SendResult{SubmitResult::InvalidArgument});
       }
     }
   }
@@ -538,6 +540,10 @@ void ConcordClientPool::InsertClientToQueue(
   if (replies.second.front().cb && client->getClientRequestError() == bftEngine::TIMEOUT) {
     for (const auto &reply : replies.second) {
       reply.cb(SendResult{SubmitResult::TimedOut});
+    }
+  } else if (replies.second.front().cb && client->getClientRequestError() == bftEngine::INVALID_REQUEST) {
+    for (const auto &reply : replies.second) {
+      reply.cb(SendResult{SubmitResult::InvalidArgument});
     }
   }
   Done(std::move(replies));

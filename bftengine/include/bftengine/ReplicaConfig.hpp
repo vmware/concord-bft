@@ -60,6 +60,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(numOfExternalClients, uint16_t, 0, "number of objects that represent external clients");
   CONFIG_PARAM(sizeOfInternalThreadPool, uint16_t, 8, "number of threads in the internal replica thread pool");
   CONFIG_PARAM(statusReportTimerMillisec, uint16_t, 0, "how often the replica sends a status report to other replicas");
+  CONFIG_PARAM(clientRequestRetransmissionTimerMilli,
+               uint16_t,
+               1000,
+               "how often the replica tries to retransmit client request received by non primary");
   CONFIG_PARAM(concurrencyLevel,
                uint16_t,
                0,
@@ -163,6 +167,12 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   // Keys Management
   CONFIG_PARAM(keyExchangeOnStart, bool, false, "whether to perform initial key exchange");
   CONFIG_PARAM(keyViewFilePath, std::string, ".", "TODO");
+  // Configuration Management
+  // Keys Management
+  CONFIG_PARAM(configurationViewFilePath,
+               std::string,
+               ".",
+               "The path where we write all previous configuration in a file");
   // Time Service
   CONFIG_PARAM(timeServiceEnabled, bool, false, "whether time service enabled");
   CONFIG_PARAM(timeServiceSoftLimitMillis,
@@ -291,6 +301,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, blockAccumulation);
     serialize(outStream, sizeOfInternalThreadPool);
     serialize(outStream, keyViewFilePath);
+    serialize(outStream, configurationViewFilePath);
     serialize(outStream, timeServiceEnabled);
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
@@ -371,6 +382,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, blockAccumulation);
     deserialize(inStream, sizeOfInternalThreadPool);
     deserialize(inStream, keyViewFilePath);
+    deserialize(inStream, configurationViewFilePath);
     deserialize(inStream, timeServiceEnabled);
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);

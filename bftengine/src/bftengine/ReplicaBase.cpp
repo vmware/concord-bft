@@ -69,7 +69,7 @@ bool ReplicaBase::isRunning() const { return msgsCommunicator_->isMsgsProcessing
 
 void ReplicaBase::sendToAllOtherReplicas(MessageBase* m, bool includeRo) {
   MsgCode::Type type = static_cast<MsgCode::Type>(m->type());
-  LOG_DEBUG(MSGS, "Sending msg type: " << type << " to all replicas.");
+  LOG_DEBUG(CNSUS, "Sending msg type: " << type << " to all replicas.");
 
   const auto& ids = repsInfo->idsOfPeerReplicas();
   std::set<bft::communication::NodeNum> replicas;
@@ -87,9 +87,9 @@ void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   if (config_.debugStatisticsEnabled) DebugStatistics::onSendExMessage(m->type());
   MsgCode::Type type = static_cast<MsgCode::Type>(m->type());
 
-  LOG_DEBUG(MSGS, "sending msg type: " << type << ", dest: " << dest);
+  LOG_DEBUG(CNSUS, "sending msg type: " << type << ", dest: " << dest);
   if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size())) {
-    LOG_ERROR(MSGS, "sendAsyncMessage failed: " << KVLOG(type, dest));
+    LOG_ERROR(CNSUS, "sendAsyncMessage failed: " << KVLOG(type, dest));
   }
 }
 

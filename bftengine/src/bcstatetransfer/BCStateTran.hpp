@@ -661,7 +661,7 @@ class BCStateTran : public IStateTransfer {
   AsyncTimeRecorder<false> src_send_batch_duration_rec_;
   AsyncTimeRecorder<false> dst_time_between_sendFetchBlocksMsg_rec_;
   AsyncTimeRecorder<false> time_in_handoff_queue_rec_;
-  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_;
+  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_ = nullptr;
 };  // class BCStateTran
 
 }  // namespace bftEngine::bcst::impl

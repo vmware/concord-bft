@@ -18,7 +18,6 @@
 #include "PrimitiveTypes.hpp"
 #include "Digest.hpp"
 #include "TimeUtils.hpp"
-#include "messages/PrePrepareMsg.hpp"
 
 class IThresholdVerifier;
 class IThresholdAccumulator;
@@ -43,16 +42,6 @@ class PartialProofsSet {
   bool addMsg(PartialCommitProofMsg* m);
 
   bool addMsg(FullCommitProofMsg* m);
-  bool addMsg(PrePrepareMsg** prePrepare, Digest& digest) {
-    ConcordAssert(prePrepare_ == nullptr);
-    ConcordAssert(seqNumber == 0);
-    ConcordAssert(expectedDigest.isZero());
-
-    prePrepare_ = prePrepare;
-    expectedDigest = digest;
-    seqNumber = (*prePrepare_)->seqNumber();
-    return true;
-  }
 
   PartialCommitProofMsg* getSelfPartialCommitProof();
 
@@ -82,7 +71,6 @@ class PartialProofsSet {
   SeqNum seqNumber;
   FullCommitProofMsg* fullCommitProof;
   PartialCommitProofMsg* selfPartialCommitProof;
-  PrePrepareMsg** prePrepare_ = nullptr;
   std::set<ReplicaId> participatingReplicasInFast;            // not including the current replica
   std::set<ReplicaId> participatingReplicasInOptimisticFast;  // not including the current replica
   Digest expectedDigest;

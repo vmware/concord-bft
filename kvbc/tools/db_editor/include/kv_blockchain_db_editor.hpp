@@ -951,20 +951,27 @@ inline const auto commands_map = std::map<std::string, Command>{
 };
 
 inline std::string usage() {
-  auto ret = "Usage: " + kToolName + " PATH-TO-DB COMMAND [ARGUMENTS]...\n\n";
-  ret += "Supported commands:\n\n";
+  std::string ret;
+  try {
+    ret = "Usage: " + kToolName + " PATH-TO-DB COMMAND [ARGUMENTS]...\n\n";
+    ret += "Supported commands:\n\n";
 
-  for (const auto &kv : commands_map) {
-    ret += std::visit([](const auto &command) { return command.description(); }, kv.second);
-    ret += "\n\n";
+    for (const auto &kv : commands_map) {
+      ret += std::visit([](const auto &command) { return command.description(); }, kv.second);
+      ret += "\n\n";
+    }
+
+    ret += "Examples:\n";
+    ret += "  " + kToolName + " /rocksdb-path getGenesisBlockID\n";
+    ret += "  " + kToolName + " /rocksdb-path getRawBlock 42\n";
+    ret += "  " + kToolName + " /rocksdb-path getValue merkle 0x0a0b0c\n";
+    ret += "  " + kToolName + " /rocksdb-path getValue versioned 0x0a0b0c 42\n";
+
+  } catch (const std::bad_variant_access &e) {
+    ret = "Bad variant access exception occurred: " + std::string(e.what()) + '\n';
+  } catch (const std::exception &e) {
+    ret = "Exception occurred: " + std::string(e.what()) + '\n';
   }
-
-  ret += "Examples:\n";
-  ret += "  " + kToolName + " /rocksdb-path getGenesisBlockID\n";
-  ret += "  " + kToolName + " /rocksdb-path getRawBlock 42\n";
-  ret += "  " + kToolName + " /rocksdb-path getValue merkle 0x0a0b0c\n";
-  ret += "  " + kToolName + " /rocksdb-path getValue versioned 0x0a0b0c 42\n";
-
   return ret;
 }
 

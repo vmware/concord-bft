@@ -99,13 +99,14 @@ void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
 }
 
 void TlsTCPCommunication::dispose(NodeNum i) {
-  if (config_.selfId == i) {
-    for (auto &[_, connMgr] : runner_->principals()) {
-      if (connMgr.getCurrentConnectionStatus(_) == ConnectionStatus::Connected) connMgr.dispose(_);
+  auto &connMgr = runner_->principals().at(config_.selfId);
+  if (i == config_.selfId) {
+    auto end = std::min<size_t>(config_.selfId, config_.maxServerId + 1);
+    for (auto rep = 0u; rep < end; rep++) {
+      connMgr.dispose(rep);
     }
-  } else {
-    auto &connMgr = runner_->principals().at(config_.selfId);
-    if (connMgr.getCurrentConnectionStatus(i) == ConnectionStatus::Connected) connMgr.dispose(i);
+  } else if (i < config_.selfId) {
+    connMgr.dispose(i);
   }
 }
 }  // namespace bft::communication

@@ -22,6 +22,7 @@
 #include "ReservedPagesClient.hpp"
 #include "ClientsManager.hpp"
 #include "KeyStore.h"
+#include "bcstatetransfer/AsyncStateTransferCRE.hpp"
 
 namespace bftEngine::impl {
 using namespace std::chrono_literals;
@@ -49,7 +50,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 
   // Reserved Pages and State Transfer initialization
   ClientsManager::setNumResPages(
-      (config.numOfClientProxies + config.numOfExternalClients + config.numReplicas) *
+      (config.numReplicas + config.numRoReplicas + config.numOfClientProxies + config.numOfExternalClients +
+       config.numReplicas) *
       ClientsManager::reservedPagesPerClient(config.getsizeOfReservedPage(), config.maxReplyMessageSize));
   ClusterKeyStore::setNumResPages(config.numReplicas);
 
@@ -64,6 +66,8 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 }
 
 void ReplicaForStateTransfer::start() {
+  stateTransfer->setReconfigurationEngine(
+      bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator_, msgHandlers_));
   stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
