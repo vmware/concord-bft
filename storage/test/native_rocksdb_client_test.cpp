@@ -904,6 +904,8 @@ TEST_F(native_rocksdb_test, multiget_resize_values_and_statuses) {
 }
 
 TEST_F(native_rocksdb_test, create_rocksdb_checkpoint) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
   auto batch = db->getBatch();
   batch.put(key1, value1);
   batch.put(key2, value2);
@@ -933,6 +935,8 @@ TEST_F(native_rocksdb_test, create_rocksdb_checkpoint) {
 }
 
 TEST_F(native_rocksdb_test, create_rocksdb_checkpoint_and_update_db) {
+  auto checkPointDirPath = db->path() + "_checkpoint";
+  db->setCheckpointDirNative(checkPointDirPath);
   db->put(key, value);
   auto dbValue = db->get(key);
   ASSERT_TRUE(dbValue.has_value());

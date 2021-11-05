@@ -287,6 +287,7 @@ inline std::vector<uint64_t> NativeClient::getListOfCreatedCheckpointsNative() c
 inline void NativeClient::removeCheckpointNative(const uint64_t &checkPointId) const {
   client_->removeCheckpoint(checkPointId);
 }
+inline void NativeClient::setCheckpointDirNative(const std::string &path) { client_->setCheckpointPath(path); }
 
 }  // namespace concord::storage::rocksdb
 

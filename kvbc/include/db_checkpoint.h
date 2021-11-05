@@ -75,7 +75,9 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
         dbCheckPointDirPath_{dbCheckpointDir},
         metrics_{concordMetrics::Component("rocksdbCheckpoint", std::make_shared<concordMetrics::Aggregator>())},
         maxDbCheckpointCreationTimeMsec_(metrics_.RegisterGauge("maxDbCheckpointCreationTimeInMsecSoFar", 0)),
-        lastDbCheckpointSizeInMb_(metrics_.RegisterGauge("lastDbCheckpointSizeInMb", 0)) {
+        dbCheckpointCreationAverageTimeMsec_(metrics_.RegisterGauge("dbCheckpointCreationAverageTimeMsec", 0)),
+        lastDbCheckpointSizeInMb_(metrics_.RegisterGauge("lastDbCheckpointSizeInMb", 0)),
+        numOfDbCheckpointsCreated_(metrics_.RegisterCounter("numOfDbCheckpointsCreated", 0)) {
     rocksDbClient_->setCheckpointPath(dbCheckPointDirPath_);
     maxNumOfCheckpoints_ = std::min(maxNumOfCheckpoints_, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
     metrics_.Register();
@@ -123,6 +125,8 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   std::string dbCheckPointDirPath_;
   concordMetrics::Component metrics_;
   concordMetrics::GaugeHandle maxDbCheckpointCreationTimeMsec_;
+  concordMetrics::GaugeHandle dbCheckpointCreationAverageTimeMsec_;
   concordMetrics::GaugeHandle lastDbCheckpointSizeInMb_;
+  concordMetrics::CounterHandle numOfDbCheckpointsCreated_;
 };
 }  // namespace concord::kvbc

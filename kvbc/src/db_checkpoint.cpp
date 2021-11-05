@@ -47,8 +47,14 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
     }
     auto end = Clock::now();
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    numOfDbCheckpointsCreated_++;
     auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
     maxDbCheckpointCreationTimeMsec_.Get().Set(std::max(maxSoFar, static_cast<uint64_t>(duration_ms.count())));
+    auto count = numOfDbCheckpointsCreated_.Get().Get();
+    auto averageSoFar =
+        (dbCheckpointCreationAverageTimeMsec_.Get().Get() * (count - 1) + static_cast<uint64_t>(duration_ms.count())) /
+        count;
+    dbCheckpointCreationAverageTimeMsec_.Get().Set(averageSoFar);
     metrics_.UpdateAggregator();
     LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count()));
     lastCheckpointSeqNum_ = seqNum;
@@ -80,7 +86,7 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
       }
     }
     // update metrics
-    std::async(std::launch::async, [this]() {
+    auto ret = std::async(std::launch::async, [this]() {
       const auto& checkpointDir = rocksDbClient_->getCheckpointPath();
       if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
         _fs::path path(checkpointDir);
