@@ -19,7 +19,7 @@
 #include <chrono>
 
 namespace bftEngine::impl {
-constexpr int MAX_ALLOWED_CHECKPOINTS{100};
+constexpr uint32_t MAX_ALLOWED_CHECKPOINTS{100};
 using CheckpointId = uint64_t;
 using TimeDuration = std::chrono::duration<long>;
 

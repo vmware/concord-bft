@@ -26,7 +26,17 @@
 #include <condition_variable>
 #include <chrono>
 #include <bftengine/DbCheckpointMetadata.hpp>
-
+#include "Metrics.hpp"
+#include <algorithm>
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace _fs = std::experimental::filesystem;
+#else
+#error "Missing filesystem support"
+#endif
 namespace concord::kvbc {
 
 using CheckpointId = bftEngine::impl::CheckpointId;
@@ -56,10 +66,19 @@ class IDbCheckPointManager {
 
 class RocksDbCheckPointManager : public IDbCheckPointManager {
  public:
-  RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient, const uint32_t& maxNumOfChkPt)
-      : rocksDbClient_{dbClient}, ps_{nullptr}, maxNumOfCheckpoints_{maxNumOfChkPt} {
-    if (maxNumOfChkPt > bftEngine::impl::MAX_ALLOWED_CHECKPOINTS)
-      maxNumOfCheckpoints_ = bftEngine::impl::MAX_ALLOWED_CHECKPOINTS;
+  RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient,
+                           const uint32_t& maxNumOfChkPt,
+                           const std::string& dbCheckpointDir)
+      : rocksDbClient_{dbClient},
+        ps_{nullptr},
+        maxNumOfCheckpoints_{maxNumOfChkPt},
+        dbCheckPointDirPath_{dbCheckpointDir},
+        metrics_{concordMetrics::Component("rocksdbCheckpoint", std::make_shared<concordMetrics::Aggregator>())},
+        maxDbCheckpointCreationTimeMsec_(metrics_.RegisterGauge("maxDbCheckpointCreationTimeInMsecSoFar", 0)),
+        lastDbCheckpointSizeInMb_(metrics_.RegisterGauge("lastDbCheckpointSizeInMb", 0)) {
+    rocksDbClient_->setCheckpointPath(dbCheckPointDirPath_);
+    maxNumOfCheckpoints_ = std::min(maxNumOfCheckpoints_, bftEngine::impl::MAX_ALLOWED_CHECKPOINTS);
+    metrics_.Register();
   }
   void init() override;
   Status createDbCheckpoint(const uint64_t& checkPointId, const uint64_t& lastBlockId, const uint64_t& seqNum) override;
@@ -87,6 +106,8 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
     static logging::Logger logger_(logging::getLogger("concord.kvbc.db_checkpoint"));
     return logger_;
   }
+  // get total size recursively
+  uint64_t directorySize(const _fs::path& directory, const bool& excludeHardLinks);
   // get checkpoint metadata
   void loadCheckpointDataFromPersistence();
   void checkforCleanup();
@@ -99,5 +120,9 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   std::mutex lock_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   uint64_t lastCheckpointSeqNum_{0};
+  std::string dbCheckPointDirPath_;
+  concordMetrics::Component metrics_;
+  concordMetrics::GaugeHandle maxDbCheckpointCreationTimeMsec_;
+  concordMetrics::GaugeHandle lastDbCheckpointSizeInMb_;
 };
 }  // namespace concord::kvbc

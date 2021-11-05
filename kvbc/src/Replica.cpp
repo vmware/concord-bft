@@ -546,8 +546,8 @@ Replica::Replica(ICommunication *comm,
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
   }
-  dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(m_dbSet.dataDBClient,
-                                                                               replicaConfig_.maxNumberOfDbCheckpoints);
+  dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(
+      m_dbSet.dataDBClient, replicaConfig_.maxNumberOfDbCheckpoints, replicaConfig_.dbCheckpointDirPath);
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());

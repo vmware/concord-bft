@@ -13,10 +13,26 @@
 #include "assertUtils.hpp"
 #include "db_checkpoint.h"
 #include <utility>
+#include <cmath>
 
 namespace concord::kvbc {
 using Clock = std::chrono::steady_clock;
 using SystemClock = std::chrono::system_clock;
+struct HumanReadable {
+  std::uintmax_t size{};
+
+  template <typename Os>
+  friend Os& operator<<(Os& os, HumanReadable hr) {
+    int i{};
+    double mantissa = hr.size;
+    for (; mantissa >= 1024.; ++i) {
+      mantissa /= 1024.;
+    }
+    mantissa = std::ceil(mantissa * 10.) / 10.;
+    os << mantissa << "BKMGTPE"[i];
+    return i == 0 ? os : os << "B (" << hr.size << ')';
+  }
+};
 Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPointId,
                                                     const uint64_t& lastBlockId,
                                                     const uint64_t& seqNum) {
@@ -31,6 +47,9 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
     }
     auto end = Clock::now();
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
+    maxDbCheckpointCreationTimeMsec_.Get().Set(std::max(maxSoFar, static_cast<uint64_t>(duration_ms.count())));
+    metrics_.UpdateAggregator();
     LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count()));
     lastCheckpointSeqNum_ = seqNum;
     dbCheckptMetadata_.dbCheckPoints_.insert(
@@ -60,6 +79,20 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
         cv_.notify_one();
       }
     }
+    // update metrics
+    std::async(std::launch::async, [this]() {
+      const auto& checkpointDir = rocksDbClient_->getCheckpointPath();
+      if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
+        _fs::path path(checkpointDir);
+        _fs::path chkptIdPath = path / std::to_string(it->first);
+        auto lastDbCheckpointSize = directorySize(chkptIdPath, false);
+        lastDbCheckpointSizeInMb_.Get().Set(lastDbCheckpointSize / (1024 * 1024));
+        metrics_.UpdateAggregator();
+        LOG_INFO(getLogger(),
+                 "rocksdb check point id:" << it->first << ", size: " << HumanReadable{lastDbCheckpointSize});
+        LOG_INFO(GL, "-- RocksDb checkpoint metrics dump--" + metrics_.ToJson());
+      }
+    });
   }
 
   return Status::OK();
@@ -139,5 +172,23 @@ void RocksDbCheckPointManager::cleanUp() {
     }
     removeAllCheckpoints();
   }
+}
+uint64_t RocksDbCheckPointManager::directorySize(const _fs::path& directory, const bool& excludeHardLinks) {
+  uint64_t size{0};
+  try {
+    if (_fs::exists(directory)) {
+      for (const auto& entry : _fs::recursive_directory_iterator(directory)) {
+        if (_fs::is_regular_file(entry) && !_fs::is_symlink(entry)) {
+          if (_fs::hard_link_count(entry) > 1 && excludeHardLinks) continue;
+          size += _fs::file_size(entry);
+        } else if (_fs::is_directory(entry)) {
+          size += directorySize(entry.path(), excludeHardLinks);
+        }
+      }
+    }
+  } catch (std::exception& e) {
+    LOG_ERROR(getLogger(), "Failed to find size of the checkpoint dir: " << e.what());
+  }
+  return size;
 }
 }  // namespace concord::kvbc

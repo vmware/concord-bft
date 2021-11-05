@@ -67,9 +67,9 @@ class ClientIterator : public concord::storage::IDBClient::IDBClientIterator {
 
 class Client : public concord::storage::IDBClient {
  public:
-  Client(const std::string& _dbPath) : m_dbPath(_dbPath), dbCheckpointPath_{_dbPath + "_checkpoint"} {}
+  Client(const std::string& _dbPath) : m_dbPath(_dbPath) {}
   Client(const std::string& _dbPath, std::unique_ptr<const ::rocksdb::Comparator>&& comparator)
-      : m_dbPath(_dbPath), dbCheckpointPath_{_dbPath + "_checkpoint"}, comparator_(std::move(comparator)) {}
+      : m_dbPath(_dbPath), comparator_(std::move(comparator)) {}
 
   ~Client() {
     // Clear column family handles before the DB as handle destruction calls a DB instance member and we want that to
@@ -105,6 +105,7 @@ class Client : public concord::storage::IDBClient {
     storage_metrics_.setAggregator(aggregator);
   }
   void setCheckpointPath(const std::string& path) override { dbCheckpointPath_ = path; }
+  std::string getCheckpointPath() const override { return dbCheckpointPath_; }
   concordUtils::Status createCheckpoint(const uint64_t& checkPointId) override;
   std::vector<uint64_t> getListOfCreatedCheckpoints() const override;
   void removeCheckpoint(const uint64_t& checkPointId) const override;

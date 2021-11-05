@@ -224,8 +224,6 @@ void Client::openRocksDB(bool readOnly,
     s = ::rocksdb::Checkpoint::Create(dbInstance_.get(), &checkpoint);
     if (!s.ok()) throw std::runtime_error("Failed to create checkpoint instance for incremental db snapshot");
     dbCheckPoint_.reset(checkpoint);
-    fs::path path{dbCheckpointPath_};
-    fs::create_directory(path);
   }
   cf_handles_ = std::move(unique_cf_handles);
 }
@@ -583,40 +581,70 @@ Status Client::createCheckpoint(const uint64_t &checkPointId) {
   if (!dbCheckPoint_.get()) return Status::GeneralError("Checkpoint instance is not initialized");
   // create dir(remove if already exist)
   ConcordAssertNE(dbCheckpointPath_, m_dbPath);
-  fs::path path{dbCheckpointPath_};
-  fs::path chkptDirPath = path / std::to_string(checkPointId);
-  // rocksDb create the dir for the checkpoint
-  if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
 
-  ::rocksdb::Status s = dbCheckPoint_.get()->CreateCheckpoint(chkptDirPath.string());
-  if (s.ok()) {
-    LOG_INFO(logger(), "created rocks db checkpoint: " << KVLOG(checkPointId));
-    return Status::OK();
+  try {
+    if (dbCheckpointPath_.empty()) {
+      LOG_ERROR(logger(), "RocksDb checkpoint dir path not set");
+      return Status::GeneralError("checkpoint creation failed");
+    }
+    fs::path path{dbCheckpointPath_};
+    if (!fs::exists(path)) {
+      fs::create_directory(path);
+    }
+    fs::path chkptDirPath = path / std::to_string(checkPointId);
+    // rocksDb create the dir for the checkpoint
+    if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+
+    ::rocksdb::Status s = dbCheckPoint_.get()->CreateCheckpoint(chkptDirPath.string());
+    if (s.ok()) {
+      LOG_INFO(logger(), "created rocks db checkpoint: " << KVLOG(checkPointId));
+      return Status::OK();
+    }
+    LOG_ERROR(logger(), "RocksDB checkpoint creation failed for " << KVLOG(checkPointId, chkptDirPath.string()));
+    if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+    return Status::GeneralError("checkpoint creation failed");
+  } catch (std::exception &e) {
+    LOG_FATAL(logger(), "Failed to create rocksdb checkpoint: " << e.what());
+    return Status::GeneralError("checkpoint creation failed");
   }
-  LOG_ERROR(logger(), "RocksDB checkpoint creation failed for " << KVLOG(checkPointId, chkptDirPath.string()));
-  if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
-  return Status::GeneralError("checkpoint creation failed");
 }
 std::vector<uint64_t> Client::getListOfCreatedCheckpoints() const {
   std::vector<uint64_t> createdCheckPoints_;
-  fs::path path{dbCheckpointPath_};
-  if (fs::exists(path)) {
-    for (const auto &entry : fs::directory_iterator(path)) {
-      auto dirName = entry.path().filename();
-      createdCheckPoints_.emplace_back(std::stoull(dirName));
+  try {
+    fs::path path{dbCheckpointPath_};
+    if (fs::exists(path)) {
+      for (const auto &entry : fs::directory_iterator(path)) {
+        auto dirName = entry.path().filename();
+        createdCheckPoints_.emplace_back(std::stoull(dirName));
+      }
     }
+  } catch (std::exception &e) {
+    LOG_ERROR(logger(), "Failed to get list of checkpoints dir: " << e.what());
   }
   return createdCheckPoints_;
 }
 void Client::removeCheckpoint(const uint64_t &checkPointId) const {
   ConcordAssertNE(dbCheckpointPath_, m_dbPath);
-  fs::path path{dbCheckpointPath_};
-  fs::path chkptDirPath = path / std::to_string(checkPointId);
-  if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+  try {
+    fs::path path{dbCheckpointPath_};
+    fs::path chkptDirPath = path / std::to_string(checkPointId);
+    if (fs::exists(chkptDirPath)) fs::remove_all(chkptDirPath);
+  } catch (std::exception &e) {
+    LOG_ERROR(logger(), "Failed to remove checkpoint id: " << checkPointId << " - " << e.what());
+  }
 }
 void Client::removeAllCheckpoints() const {
   ConcordAssertNE(dbCheckpointPath_, m_dbPath);
-  if (fs::exists(dbCheckpointPath_)) fs::remove_all(dbCheckpointPath_);
+  try {
+    fs::path path{dbCheckpointPath_};
+    if (fs::exists(path)) {
+      for (const auto &entry : fs::directory_iterator(path)) {
+        fs::remove_all(entry.path());
+      }
+    }
+  } catch (std::exception &e) {
+    LOG_FATAL(logger(), "Failed remove rocksdb checkpoint: " << e.what());
+  }
 }
 
 /**
