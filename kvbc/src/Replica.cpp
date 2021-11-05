@@ -443,7 +443,20 @@ Replica::Replica(ICommunication *comm,
       secretsManager_{secretsManager},
       blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
                                                                           : std::thread::hardware_concurrency()) {
-  bft::communication::StateControl::instance().setCommRestartCallBack([this](uint32_t i) { m_ptrComm->dispose(i); });
+  bft::communication::StateControl::instance().setCommRestartCallBack([this](uint32_t i) {
+    m_ptrComm->dispose(i);
+    // Now wait for a live quorum before continue running
+    uint32_t live_replicas = 1;
+    uint32_t minQuorumSize = 2 * replicaConfig_.fVal + replicaConfig_.cVal + 1;
+    while (live_replicas < minQuorumSize) {
+      live_replicas = 1;
+      for (uint32_t r = 0; r < replicaConfig_.numReplicas; r++) {
+        if (r == replicaConfig_.replicaId) continue;
+        live_replicas += (m_ptrComm->getCurrentConnectionStatus(r) == bft::communication::ConnectionStatus::Connected);
+      }
+    }
+    LOG_INFO(GL, "post communication restart: resuming running after getting " << live_replicas << " connected");
+  });
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,

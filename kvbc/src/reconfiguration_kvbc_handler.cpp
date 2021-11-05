@@ -19,6 +19,8 @@
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
@@ -892,10 +894,44 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
       ts,
       false);
   LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  if (sender_id == bftEngine::ReplicaConfig::instance().replicaId) {
+    // exchange the private key
+    std::string pk_file_name = "pk.pem";
+    std::string pk_tmp_file_name = pk_file_name;
+    std::string pk_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id);
+    std::ifstream pld_key(pk_path + "/server/" + pk_file_name);
+    if (pld_key.good()) {
+      pk_tmp_file_name += ".tmp";
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/server/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/client/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
+    }
+    pk_tmp_file_name = pk_file_name;
+    std::ifstream enc_pkey(pk_path + "/server/" + pk_file_name + ".enc");
+    if (enc_pkey.good()) {
+      pk_file_name += ".enc";
+      pk_tmp_file_name += ".enc.tmp";
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/server/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
+               pk_path + "/client/" + pk_file_name,
+               fs::copy_options::update_existing);
+      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
+    }
+  }
   std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
                                        std::to_string(sender_id) + "/server/server.cert";
   std::string cert = command.cert;
   secretsmanager::SecretsManagerPlain sm;
+  sm.encryptFile(bft_replicas_cert_path, cert);
+  LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
+  bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id) +
+                           "/client/client.cert";
   sm.encryptFile(bft_replicas_cert_path, cert);
   LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
   bft::communication::StateControl::instance().restartComm(sender_id);

@@ -20,8 +20,9 @@ class StateControl {
     static StateControl instance_;
     return instance_;
   }
-  void setBlockNewConnectionsFlag(bool flag) { blockNewConnectionsFlag_ = flag; }
-  bool getBlockNewConnectionsFlag() const { return blockNewConnectionsFlag_; }
+  void lockComm() { lock_comm_.lock(); }
+  bool tryLockComm() { return lock_comm_.try_lock(); }
+  void unlockComm() { lock_comm_.unlock(); }
 
   void setCommRestartCallBack(std::function<void(uint32_t)> cb) {
     if (cb != nullptr) comm_restart_cb_registry_.add(cb);
@@ -30,7 +31,7 @@ class StateControl {
   void restartComm(uint32_t id) { comm_restart_cb_registry_.invokeAll(id); }
 
  private:
-  bool blockNewConnectionsFlag_ = false;
+  std::mutex lock_comm_;
   concord::util::CallbackRegistry<uint32_t> comm_restart_cb_registry_;
 };
 }  // namespace bft::communication

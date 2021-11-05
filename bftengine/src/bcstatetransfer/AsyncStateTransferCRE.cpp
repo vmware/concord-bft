@@ -97,6 +97,10 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
     std::string cert = std::move(command.cert);
     sm_.encryptFile(bft_replicas_cert_path, cert);
     LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
+    bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
+                             std::to_string(sender_id) + "/client/client.cert";
+    sm_.encryptFile(bft_replicas_cert_path, cert);
+    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
     StateControl::instance().restartComm(sender_id);
     return succ;
   }

@@ -138,11 +138,11 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   concord::secretsmanager::SecretsManagerPlain psm_;
   std::fstream nec_f(pk_path);
   if (nec_f.good()) {
-    secretsMgr_->encryptFile(pk_path, keys.first);
+    secretsMgr_->encryptFile(pk_path + ".tmp", keys.first);
   }
   std::fstream ec_f(pk_path + ".enc");
   if (ec_f.good()) {
-    secretsMgr_->encryptFile(pk_path + ".enc", keys.first);
+    secretsMgr_->encryptFile(pk_path + ".enc.tmp", keys.first);
   }
 
   concord::messages::ReconfigurationRequest req;
