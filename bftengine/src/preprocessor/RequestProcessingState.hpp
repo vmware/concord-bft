@@ -78,6 +78,8 @@ class RequestProcessingState {
   const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
+  const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
+  const char* getResult() { return primaryPreProcessResult_; }
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(

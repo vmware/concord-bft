@@ -73,7 +73,7 @@ void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr 
 
 void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
   preprocessingRightNow_ = false;
-  primaryPreProcessResult_ = const_cast<char *>(preProcessResult);
+  primaryPreProcessResult_ = preProcessResult;
   primaryPreProcessResultLen_ = preProcessResultLen;
   primaryPreProcessResultHash_ =
       convertToArray(SHA3_256().digest(primaryPreProcessResult_, primaryPreProcessResultLen_).data());
@@ -171,12 +171,13 @@ std::pair<std::string, concord::util::SHA3_256::Digest> RequestProcessingState::
     const concord::util::SHA3_256::Digest &other, uint64_t blockId) {
   // since this scenario is rare, a new string is allocated for safety.
   std::string modifiedResult(primaryPreProcessResult_, primaryPreProcessResultLen_);
+  ConcordAssertGT(modifiedResult.size(), sizeof(uint64_t));
   memcpy(modifiedResult.data() + modifiedResult.size() - sizeof(uint64_t),
          reinterpret_cast<char *>(&blockId),
          sizeof(uint64_t));
   auto modifiedHash = convertToArray(SHA3_256().digest(modifiedResult.c_str(), modifiedResult.size()).data());
   if (other == modifiedHash) {
-    LOG_INFO(logger(), "Primary hash is different from quorum due to mismatch in block id");
+    LOG_INFO(logger(), "Primary hash is different from quorum due to mismatch in block id " << KVLOG(reqSeqNum_));
     return {modifiedResult, modifiedHash};
   }
   return {"", concord::util::SHA3_256::Digest{}};

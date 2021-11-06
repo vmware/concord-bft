@@ -1516,7 +1516,7 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
     blockId = 0;
     LOG_INFO(logger(),
              "Primary block [" << preProcessReqMsg->primaryBlockId()
-                               << "] is too advance for conflict detection optimizaton, replica block id ["
+                               << "] is too advanced for conflict detection optimization, replica block id ["
                                << GlobalData::current_block_id << "] delta [" << GlobalData::block_delta << "]");
   }
   auto preProcessResultBuffer = (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
@@ -1533,13 +1533,10 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
-  // Append the conflict detection block id and add sizeof(uint64_t) the the result length.
+  // Append the conflict detection block id and add sizeof(uint64_t) the resulting length.
   memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
   const auto resultLen = request.outActualReplySize + sizeof(uint64_t);
-  LOG_INFO(logger(),
-           "CD_INFO using block id " << blockId << " hash of result + block id is "
-                                     << std::hash<std::string>{}(std::string(preProcessResultBuffer, resultLen)));
-  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
+  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
   if (status != 0 || !resultLen) {
     LOG_FATAL(
         logger(),
