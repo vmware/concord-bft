@@ -92,6 +92,14 @@ class RequestProcessingState {
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
 
+  // Detect if a hash is different from the input param because of the
+  // appended block id.
+  std::pair<std::string, concord::util::SHA3_256::Digest> detectFailureDueToBlockID(
+      const concord::util::SHA3_256::Digest&, uint64_t);
+
+  // Set a new block id at the end of the result.
+  void modifyPrimayResult(const std::pair<std::string, concord::util::SHA3_256::Digest>&);
+
  private:
   static uint16_t numOfRequiredEqualReplies_;
   static preprocessor::PreProcessorRecorder* preProcessorHistograms_;
