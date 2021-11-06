@@ -422,6 +422,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
                                       bool recoverFromErrorInRequestsExecution = false);
 
   void executeRequestsAndSendResponses(PrePrepareMsg* pp, Bitmap& requestSet, concordUtils::SpanWrapper& span);
+
+  uint64_t getMinBlockId(const char* requestBody) const;
+
   void sendResponses(PrePrepareMsg* ppMsg, IRequestsHandler::ExecutionRequestsQueue& accumulatedRequests);
 
   void onSeqNumIsStable(

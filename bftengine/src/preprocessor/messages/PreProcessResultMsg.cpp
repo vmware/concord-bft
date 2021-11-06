@@ -76,18 +76,28 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
     // set and no insertion was performed. The latter case indicates that we already have got a signature from this
     // replica.
     if (!seen_signatures.insert(s.sender_replica).second) {
-      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id";
+      return "PreProcessResult signatures validation failure - got more than one signatures with the same sender id " +
+             std::to_string(s.sender_replica);
     }
 
+    auto blockIdStr = concordUtils::toBigEndianStringBuffer(s.blockId);
     bool verificationResult = false;
+    bool blockIdVerificationResult = false;
     if (myReplicaId == s.sender_replica) {
       std::vector<char> mySignature(sigManager_->getMySigLength(), '\0');
       sigManager_->sign(
           reinterpret_cast<const char*>(hash.data()), hash.size(), mySignature.data(), mySignature.size());
       verificationResult = mySignature == s.signature;
+      sigManager_->sign(blockIdStr.data(), blockIdStr.size(), mySignature.data(), mySignature.size());
+      blockIdVerificationResult = (mySignature == s.blockid_signature);
     } else {
       verificationResult = sigManager_->verifySig(
           s.sender_replica, (const char*)hash.data(), hash.size(), s.signature.data(), s.signature.size());
+      blockIdVerificationResult = sigManager_->verifySig(s.sender_replica,
+                                                         blockIdStr.data(),
+                                                         blockIdStr.size(),
+                                                         s.blockid_signature.data(),
+                                                         s.blockid_signature.size());
     }
 
     if (!verificationResult) {
@@ -96,16 +106,36 @@ std::optional<std::string> PreProcessResultMsg::validatePreProcessResultSignatur
           << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
       return err.str();
     }
+    if (!blockIdVerificationResult) {
+      std::stringstream err;
+      err << "PreProcessResult block id signatures validation failure - invalid signature from replica "
+          << s.sender_replica << " " << KVLOG(clientProxyId(), getCid(), requestSeqNum());
+      return err.str();
+    }
   }
 
   return {};
+}
+
+std::pair<NodeIdType, uint64_t> PreProcessResultMsg::getMinBlockID() {
+  const auto [buf, buf_len] = getResultSignaturesBuf();
+  auto sigs = preprocessor::PreProcessResultSignature::deserializeResultSignatureList(buf, buf_len);
+  uint64_t blockId = std::numeric_limits<uint64_t>::max();
+  NodeIdType replica = 0;
+  for (const auto& s : sigs) {
+    if (s.blockId >= blockId) continue;
+    blockId = s.blockId;
+    replica = s.sender_replica;
+  }
+  return {replica, blockId};
 }
 
 std::string PreProcessResultSignature::serializeResultSignatureList(
     const std::list<PreProcessResultSignature>& signatures) {
   size_t buf_len = 0;
   for (const auto& s : signatures) {
-    buf_len += sizeof(s.sender_replica) + sizeof(uint32_t) + s.signature.size();
+    buf_len += sizeof(s.sender_replica) + sizeof(uint64_t) + sizeof(uint32_t) + s.signature.size() + sizeof(uint32_t) +
+               s.blockid_signature.size();
   }
 
   std::string output;
@@ -113,8 +143,11 @@ std::string PreProcessResultSignature::serializeResultSignatureList(
 
   for (const auto& s : signatures) {
     output.append(concordUtils::toBigEndianStringBuffer(s.sender_replica));
+    output.append(concordUtils::toBigEndianStringBuffer<uint64_t>(s.blockId));
     output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(s.signature.size()));
     output.append(s.signature.begin(), s.signature.end());
+    output.append(concordUtils::toBigEndianStringBuffer<uint32_t>(s.blockid_signature.size()));
+    output.append(s.blockid_signature.begin(), s.blockid_signature.end());
   }
 
   return output;
@@ -127,6 +160,7 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
   while (1) {
     bftEngine::impl::NodeIdType sender_id;
     uint32_t signature_size;
+    uint64_t block_id;
 
     if (sizeof(sender_id) + sizeof(signature_size) > len - pos) {
       throw std::runtime_error(
@@ -136,6 +170,8 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
     // Read fixed size values
     sender_id = concordUtils::fromBigEndianBuffer<bftEngine::impl::NodeIdType>(buf + pos);
     pos += sizeof(bftEngine::impl::NodeIdType);
+    block_id = concordUtils::fromBigEndianBuffer<uint64_t>(buf + pos);
+    pos += sizeof(uint64_t);
     signature_size = concordUtils::fromBigEndianBuffer<uint32_t>(buf + pos);
     pos += sizeof(uint32_t);
 
@@ -143,10 +179,18 @@ std::list<PreProcessResultSignature> PreProcessResultSignature::deserializeResul
       throw std::runtime_error(
           "PreProcessResultSignature deserialisation error - remaining buffer length less than signature size");
     }
-
-    ret.emplace_back(std::vector<char>(buf + pos, buf + pos + signature_size), sender_id);
+    auto sig = std::vector<char>(buf + pos, buf + pos + signature_size);
     pos += signature_size;
+    auto blockid_sig_size = concordUtils::fromBigEndianBuffer<uint32_t>(buf + pos);
+    pos += sizeof(uint32_t);
 
+    if (blockid_sig_size > len - pos) {
+      throw std::runtime_error(
+          "PreProcessResultSignature deserialisation error - remaining buffer length less than block signature size");
+    }
+    auto block_id_sig = std::vector<char>(buf + pos, buf + pos + blockid_sig_size);
+    pos += blockid_sig_size;
+    ret.emplace_back(std::move(sig), sender_id, block_id, std::move(block_id_sig));
     if (len - pos == 0) {
       break;
     }

@@ -81,7 +81,8 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
     const auto& singleMsgHeader = *(PreProcessReplyMsg::Header*)dataPosition;
     const auto& reqSeqNum = singleMsgHeader.reqSeqNum;
     const char* sigPosition = dataPosition + sizeof(PreProcessReplyMsg::Header);
-    const char* cidPosition = sigPosition + sigLen;
+    const char* blockSigPosition = sigPosition + sigLen;
+    const char* cidPosition = blockSigPosition + sigLen;
     const string cid(cidPosition, singleMsgHeader.cidLength);
     auto preProcessReplyMsg =
         make_unique<preprocessor::PreProcessReplyMsg>(senderId,
@@ -92,9 +93,12 @@ PreProcessReplyMsgsList& PreProcessBatchReplyMsg::getPreProcessReplyMsgs() {
                                                       (const uint8_t*)&singleMsgHeader.resultsHash,
                                                       sigPosition,
                                                       cid,
-                                                      (ReplyStatus)singleMsgHeader.status);
+                                                      (ReplyStatus)singleMsgHeader.status,
+                                                      singleMsgHeader.blockId,
+                                                      blockSigPosition);
     preProcessReplyMsgsList_.push_back(move(preProcessReplyMsg));
-    dataPosition += sizeof(PreProcessReplyMsg::Header) + sigLen + singleMsgHeader.cidLength;
+    // |Header|result_signature|blockId_signature|cid|
+    dataPosition += sizeof(PreProcessReplyMsg::Header) + 2 * sigLen + singleMsgHeader.cidLength;
   }
   LOG_DEBUG(logger(), KVLOG(batchCid, clientId, senderId, numOfMessagesInBatch, preProcessReplyMsgsList_.size()));
   return preProcessReplyMsgsList_;

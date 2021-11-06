@@ -55,19 +55,23 @@ class PreProcessResultMsg : public ClientRequestMsg {
 
   std::pair<char*, uint32_t> getResultSignaturesBuf();
   ErrorMessage validatePreProcessResultSignatures(ReplicaId myReplicaId, int16_t fVal);
+  std::pair<NodeIdType, uint64_t> getMinBlockID();
 };
 
 struct PreProcessResultSignature {
   std::vector<char> signature;
   NodeIdType sender_replica;
+  uint64_t blockId;
+  std::vector<char> blockid_signature;
 
   PreProcessResultSignature() = default;
 
-  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender)
-      : signature{std::move(sig)}, sender_replica{sender} {}
+  PreProcessResultSignature(std::vector<char>&& sig, NodeIdType sender, uint64_t blockId, std::vector<char>&& block_sig)
+      : signature{std::move(sig)}, sender_replica{sender}, blockId(blockId), blockid_signature(std::move(block_sig)) {}
 
   bool operator==(const PreProcessResultSignature& rhs) const {
-    return signature == rhs.signature && sender_replica == rhs.sender_replica;
+    return signature == rhs.signature && sender_replica == rhs.sender_replica && blockId == rhs.blockId &&
+           blockid_signature == rhs.blockid_signature;
   }
 
   static std::string serializeResultSignatureList(const std::list<PreProcessResultSignature>& signatures);

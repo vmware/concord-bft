@@ -12,6 +12,7 @@
 #include "RequestProcessingState.hpp"
 #include "sparse_merkle/base_types.h"
 #include "SigManager.hpp"
+#include "endianness.hpp"
 
 namespace preprocessor {
 
@@ -71,7 +72,9 @@ void RequestProcessingState::setPreProcessRequest(PreProcessRequestMsgSharedPtr 
   reqRetryId_ = preProcessRequestMsg_->reqRetryId();
 }
 
-void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult, uint32_t preProcessResultLen) {
+void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessResult,
+                                                       uint32_t preProcessResultLen,
+                                                       uint64_t blockId) {
   preprocessingRightNow_ = false;
   primaryPreProcessResult_ = preProcessResult;
   primaryPreProcessResultLen_ = preProcessResultLen;
@@ -84,7 +87,16 @@ void RequestProcessingState::handlePrimaryPreProcessed(const char *preProcessRes
            primaryPreProcessResultHash_.size(),
            sig.data(),
            sig.size());
-  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(std::move(sig), myReplicaId_);
+  // Sign the block id as well
+  std::vector<char> blockIdSig(sm->getMySigLength());
+  auto blockIdStr = concordUtils::toBigEndianStringBuffer(blockId);
+  sm->sign(blockIdStr.data(), blockIdStr.size(), blockIdSig.data(), blockIdSig.size());
+  LOG_DEBUG(
+      logger(),
+      "primary block id signature is " << std::hash<std::string>{}(std::string(blockIdSig.begin(), blockIdSig.end())));
+
+  preProcessingResultHashes_[primaryPreProcessResultHash_].emplace_back(
+      std::move(sig), myReplicaId_, blockId, std::move(blockIdSig));
   // Decision when PreProcessing is complete is made based on the value of received replies. The value should be
   // increased for the primary hash too.
   numOfReceivedReplies_++;
@@ -116,13 +128,29 @@ void RequestProcessingState::detectNonDeterministicPreProcessing(const uint8_t *
 
 void RequestProcessingState::handlePreProcessReplyMsg(const PreProcessReplyMsgSharedPtr &preProcessReplyMsg) {
   const auto &senderId = preProcessReplyMsg->senderId();
+  const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
   if (preProcessReplyMsg->status() == STATUS_GOOD) {
+    if (preProcessingResultHashes_.count(newHashArray) > 0) {
+      for (const auto &s : preProcessingResultHashes_[newHashArray]) {
+        if (s.sender_replica == preProcessReplyMsg->senderId()) {
+          LOG_WARN(logger(),
+                   "Hash from that replica already exists " << KVLOG(s.sender_replica, reqSeqNum_, clientId_));
+          return;
+        }
+      }
+    }
+
     numOfReceivedReplies_++;
-    const auto &newHashArray = convertToArray(preProcessReplyMsg->resultsHash());
     // Counts equal hashes and saves the signatures with the replica ID. They will be used as a proof that the primary
     // is sending correct preexecution result to the rest of the replicas.
+    auto blockIdSig = preProcessReplyMsg->getBlockIdSignature();
+    LOG_DEBUG(logger(),
+              "block id signature is " << std::hash<std::string>{}(std::string(blockIdSig.begin(), blockIdSig.end()))
+                                       << " sender " << senderId);
     preProcessingResultHashes_[newHashArray].emplace_back(preProcessReplyMsg->getResultHashSignature(),
-                                                          preProcessReplyMsg->senderId());
+                                                          preProcessReplyMsg->senderId(),
+                                                          preProcessReplyMsg->blockId(),
+                                                          std::move(blockIdSig));
     detectNonDeterministicPreProcessing(newHashArray, senderId, preProcessReplyMsg->reqRetryId());
   } else {
     SCOPED_MDC_CID(cid_);

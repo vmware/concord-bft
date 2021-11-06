@@ -17,6 +17,7 @@
 #include "helper.hpp"
 #include "RequestProcessingState.hpp"
 #include "Replica.hpp"
+#include "endianness.hpp"
 
 namespace {
 using namespace bftEngine::impl;
@@ -58,6 +59,7 @@ struct MsgParams {
   const std::string correlationId = "correlationId";
   const char rawSpanContext[14] = {"span_\0context"};  // make clnag-tidy happy
   const std::string spanContext{rawSpanContext};
+  uint64_t blockId = 880;
 };
 
 class PreProcessResultMsgTestFixture : public testing::Test {
@@ -85,7 +87,12 @@ class PreProcessResultMsgTestFixture : public testing::Test {
     // for simplicity, copy the same signatures
     std::list<PreProcessResultSignature> resultSigs;
     for (int i = 0; i < sigCount; i++) {
-      resultSigs.emplace_back(std::vector<char>(msgSig), duplicateSigs ? 0 : i);
+      auto repBlockId = p.blockId + i;
+      auto blockIdStr = concordUtils::toBigEndianStringBuffer(repBlockId);
+      auto msgBlockSig = std::vector<char>(sigManager->getMySigLength(), 0);
+      sigManager->sign(blockIdStr.data(), blockIdStr.size(), msgBlockSig.data(), msgBlockSig.size());
+      resultSigs.emplace_back(
+          std::vector<char>(msgSig), duplicateSigs ? 0 : i, repBlockId, std::vector<char>(msgBlockSig));
     }
     auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatureList(resultSigs);
 
@@ -111,6 +118,7 @@ class PreProcessResultMsgTestFixture : public testing::Test {
     EXPECT_EQ(m->getCid(), p.correlationId);
     EXPECT_EQ(m->spanContext<ClientRequestMsg>().data(), p.spanContext);
     EXPECT_EQ(m->requestTimeoutMilli(), p.requestTimeoutMilli);
+    EXPECT_EQ(m->getMinBlockID().second, p.blockId);
     EXPECT_NO_THROW(m->validate(replicaInfo));
   }
 };
@@ -130,12 +138,23 @@ TEST_F(PreProcessResultMsgTestFixture, SignatureDeserialisation) {
 
   std::list<PreProcessResultSignature> resultSigs;
   for (int i = 0; i < replicaInfo.getNumberOfReplicas(); i++) {
-    resultSigs.emplace_back(std::vector<char>(msgSig), 0);
+    auto blockIdStr = concordUtils::toBigEndianStringBuffer(i);
+    auto msgBlockSig = std::vector<char>(sigManager->getMySigLength(), 0);
+    sigManager->sign(blockIdStr.data(), blockIdStr.size(), msgBlockSig.data(), msgBlockSig.size());
+    resultSigs.emplace_back(std::vector<char>(msgSig), 0, i, std::move(msgBlockSig));
   }
   auto resultSigsBuf = PreProcessResultSignature::serializeResultSignatureList(resultSigs);
   auto deserialized =
       PreProcessResultSignature::deserializeResultSignatureList(resultSigsBuf.data(), resultSigsBuf.size());
   EXPECT_THAT(resultSigs, deserialized);
+  auto resultSigsIt = resultSigs.begin();
+  auto deserializedIt = deserialized.begin();
+  while (resultSigsIt != resultSigs.end()) {
+    EXPECT_EQ(resultSigsIt->blockId, deserializedIt->blockId);
+    EXPECT_THAT(resultSigsIt->blockid_signature, deserializedIt->blockid_signature);
+    resultSigsIt++;
+    deserializedIt++;
+  }
 }
 
 TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
@@ -165,9 +184,18 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisation) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
   sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+
+  auto i = 0;
   for (const auto& s : sigs) {
+    auto blockIdStr = concordUtils::toBigEndianStringBuffer(p.blockId + i);
+    auto msgBlockSig = std::vector<char>(sigManager->getMySigLength(), 0);
+    sigManager->sign(blockIdStr.data(), blockIdStr.size(), msgBlockSig.data(), msgBlockSig.size());
+
     ASSERT_EQ(s.sender_replica, 0);
     EXPECT_THAT(msgSig, s.signature);
+    ASSERT_EQ(s.blockId, p.blockId + i);
+    EXPECT_THAT(msgBlockSig, s.blockid_signature);
+    i++;
   }
 }
 
@@ -197,9 +225,17 @@ TEST_F(PreProcessResultMsgTestFixture, MsgDeserialisationFromBase) {
   std::vector<char> msgSig(msgSigSize, 0);
   auto hash = concord::util::SHA3_256().digest(m->requestBuf(), m->requestLength());
   sigManager->sign(reinterpret_cast<char*>(hash.data()), hash.size(), msgSig.data(), msgSigSize);
+
+  auto i = 0;
   for (const auto& s : sigs) {
+    auto blockIdStr = concordUtils::toBigEndianStringBuffer(p.blockId + i);
+    auto msgBlockSig = std::vector<char>(sigManager->getMySigLength(), 0);
+    sigManager->sign(blockIdStr.data(), blockIdStr.size(), msgBlockSig.data(), msgBlockSig.size());
     ASSERT_EQ(s.sender_replica, 0);
     EXPECT_THAT(msgSig, s.signature);
+    ASSERT_EQ(s.blockId, p.blockId + i);
+    EXPECT_THAT(msgBlockSig, s.blockid_signature);
+    i++;
   }
 }
 

@@ -4377,6 +4377,20 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
   }
 }
 
+// If the request is from preexecution (the default behavior), then gets the minimum block id,
+// from all the replicas that have sent responses.
+// Used for the conflict detection optimization.
+uint64_t ReplicaImp::getMinBlockId(const char *requestBody) const {
+  const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
+  if (hdr->msgType == MsgCode::PreProcessResult) {
+    preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
+    const auto &[sender, id] = req.getMinBlockID();
+    LOG_DEBUG(GL, "minimum block id is [" << id << "], sent by replica id [" << sender << "]");
+    return id;
+  }
+  return 0;
+}
+
 void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
                                                  Bitmap &requestSet,
                                                  concordUtils::SpanWrapper &span) {
@@ -4391,6 +4405,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
     size_t tmp = reqIdx;
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    const auto minBlockID = getMinBlockId(requestBody);
+
     if (config_.timeServiceEnabled) {
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
         timestamp->time_since_epoch =
@@ -4417,7 +4433,8 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         std::string(req.requestSignature(), req.requestSignatureLength()),
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
-        req.requestSeqNum()});
+        req.requestSeqNum(),
+        minBlockID});
   }
   if (ReplicaConfig::instance().blockAccumulation) {
     LOG_INFO(GL,

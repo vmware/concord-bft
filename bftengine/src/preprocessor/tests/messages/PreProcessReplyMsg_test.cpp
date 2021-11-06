@@ -16,7 +16,7 @@
 #include "messages/PreProcessReplyMsg.hpp"
 #include "helper.hpp"
 #include "sha_hash.hpp"
-
+#include "endianness.hpp"
 namespace {
 using namespace bftEngine::impl;
 using namespace bftEngine;
@@ -41,7 +41,7 @@ class PreProcessReplyMsgTestFixture : public testing::Test {
   PreProcessorRecorder preProcessorRecorder;
 };
 
-TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
+TEST_F(PreProcessReplyMsgTestFixture, getSignatures) {
   ASSERT_TRUE(sigManager);
   const NodeIdType senderId = 1;
   const uint16_t clientId = 1;
@@ -52,6 +52,7 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
   const uint32_t preProcessResultBufLen = sizeof(preProcessResultBuf);
   const std::string& cid = "";
   const ReplyStatus status = STATUS_GOOD;
+  const uint64_t blockId = 420;
 
   auto m = PreProcessReplyMsg(senderId,
                               clientId,
@@ -61,12 +62,21 @@ TEST_F(PreProcessReplyMsgTestFixture, getResultHashSignature) {
                               preProcessResultBuf,
                               preProcessResultBufLen,
                               cid,
-                              status);
+                              status,
+                              blockId);
+  {
+    auto hash = concord::util::SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
+    auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
+    sigManager->sign((char*)hash.data(), sizeof(hash), expected_signature.data(), expected_signature.size());
+    EXPECT_THAT(expected_signature, testing::ContainerEq(m.getResultHashSignature()));
+  }
 
-  auto hash = concord::util::SHA3_256().digest(preProcessResultBuf, preProcessResultBufLen);
-  auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
-  sigManager->sign((char*)hash.data(), sizeof(hash), expected_signature.data(), expected_signature.size());
-  EXPECT_THAT(expected_signature, testing::ContainerEq(m.getResultHashSignature()));
+  {
+    auto blockIdStr = concordUtils::toBigEndianStringBuffer(blockId);
+    auto expected_signature = std::vector<char>(sigManager->getMySigLength(), 0);
+    sigManager->sign(blockIdStr.data(), blockIdStr.size(), expected_signature.data(), expected_signature.size());
+    EXPECT_THAT(expected_signature, testing::ContainerEq(m.getBlockIdSignature()));
+  }
 }
 
 }  // namespace
