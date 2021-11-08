@@ -149,20 +149,17 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                            const std::string& secrets_url) {
   config.subscribe_config.id = tr_id;
   config.subscribe_config.use_tls = not is_insecure;
-  config.subscribe_config.trsc_tls_cert_path = tls_path;
-  config.subscribe_config.secrets_url = secrets_url;
 
   if (config.subscribe_config.use_tls) {
-    const std::string client_cert_path = config.subscribe_config.trsc_tls_cert_path + "/client.cert";
+    const std::string client_cert_path = tls_path + "/client.cert";
 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
 
-    config.subscribe_config.pem_private_key =
-        decryptPrivateKey(config.subscribe_config.secrets_url, config.subscribe_config.trsc_tls_cert_path);
+    config.subscribe_config.pem_private_key = decryptPrivateKey(secrets_url, tls_path);
 
     config.subscribe_config.id_from_cert = getClientIdFromClientCert(client_cert_path);
 
-    const std::string server_cert_path = config.subscribe_config.trsc_tls_cert_path + "/server.cert";
+    const std::string server_cert_path = tls_path + "/server.cert";
     for (const auto& replica : config.topology.replicas) {
       // server_cert_path specifies the path to a composite cert file i.e., a
       // concatentation of the certificates of all known servers
@@ -200,21 +197,19 @@ void readCert(const std::string& input_filename, std::string& out_data) {
     LOG_FATAL(logger, "Failed to construct concord client.");
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": Could not open the input file (") + input_filename +
                              std::string(") to establish TLS connection with the thin replica server."));
-  } else {
-    try {
-      std::stringstream read_buffer;
-      read_buffer << input_file.rdbuf();
-      input_file.close();
-      out_data = read_buffer.str();
-      LOG_INFO(logger, "Successfully loaded the contents of " + input_filename);
-    } catch (std::exception& e) {
-      LOG_FATAL(logger, "Failed to construct concord client.");
-      throw std::runtime_error(__PRETTY_FUNCTION__ +
-                               std::string(": An exception occurred while trying to read the input file (") +
-                               input_filename + std::string("): ") + std::string(e.what()));
-    }
   }
-  return;
+  try {
+    std::stringstream read_buffer;
+    read_buffer << input_file.rdbuf();
+    input_file.close();
+    out_data = read_buffer.str();
+    LOG_INFO(logger, "Successfully loaded the contents of " + input_filename);
+  } catch (std::exception& e) {
+    LOG_FATAL(logger, "Failed to construct concord client.");
+    throw std::runtime_error(__PRETTY_FUNCTION__ +
+                             std::string(": An exception occurred while trying to read the input file (") +
+                             input_filename + std::string("): ") + std::string(e.what()));
+  }
 }
 
 std::string getClientIdFromClientCert(const std::string& client_cert_path) {

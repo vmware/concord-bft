@@ -30,7 +30,7 @@ target_compile_definitions(secret_retriever_shared PUBLIC
 
 target_link_libraries(secret_retriever PRIVATE nlohmann_json::nlohmann_json ${OPENSSL_LIBRARIES})
 
-target_link_libraries(secret_retriever_shared PRIVATE nlohmann_json::nlohmann_json ${OPENSSL_LIBRARIES}       )
+target_link_libraries(secret_retriever_shared PRIVATE nlohmann_json::nlohmann_json ${OPENSSL_LIBRARIES})
 
 install (TARGETS secret_retriever DESTINATION lib${LIB_SUFFIX})
 install (TARGETS secret_retriever_shared DESTINATION lib${LIB_SUFFIX})
