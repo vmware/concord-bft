@@ -174,7 +174,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
                                             const std::string& subject,
                                             std::optional<NodeNum> expected_peer_id);
 
-  const std::string decryptPK(const boost::filesystem::path& path);
+  const std::string decryptPrivateKey(const boost::filesystem::path& path);
 
   logging::Logger logger_;
   asio::io_context& io_context_;

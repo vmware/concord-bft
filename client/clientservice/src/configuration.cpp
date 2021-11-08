@@ -158,7 +158,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
 
     config.subscribe_config.pem_private_key =
-        decryptPK(config.subscribe_config.secrets_url, config.subscribe_config.trsc_tls_cert_path);
+        decryptPrivateKey(config.subscribe_config.secrets_url, config.subscribe_config.trsc_tls_cert_path);
 
     config.subscribe_config.id_from_cert = getClientIdFromClientCert(client_cert_path);
 
@@ -173,7 +173,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
   config.transport.event_pem_certs = "";
 }
 
-const std::string decryptPK(const std::optional<std::string>& secrets_url, const std::string& path) {
+const std::string decryptPrivateKey(const std::optional<std::string>& secrets_url, const std::string& path) {
   std::string pkpath;
   std::unique_ptr<concord::secretsmanager::ISecretsManagerImpl> secrets_manager;
   if (secrets_url) {
