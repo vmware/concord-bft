@@ -31,7 +31,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig&,
 
 const std::string decryptPrivateKey(const std::optional<std::string>& secrets_url, const std::string& path);
 
-// This method reads certificates from file if TLS is enabled
+// This method reads certificates from file
 void readCert(const std::string& input_filename, std::string& out_data);
 
 // This method gets the client_id from the OU field in the client certificate
