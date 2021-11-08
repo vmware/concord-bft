@@ -133,6 +133,7 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
   const auto& batch_cid =
       std::to_string(client_id_) + "-" + std::to_string(seqGen_->generateUniqueSequenceNumberForRequest());
   OperationResult ret = OperationResult::SUCCESS;
+  clientRequestError_ = OperationResult::SUCCESS;
   std::deque<bft::client::WriteRequest> request_queue;
   std::map<uint64_t, std::string> seq_num_to_cid;
   for (auto req : pending_requests_) {
@@ -162,6 +163,7 @@ std::pair<int8_t, ConcordClient::PendingReplies> ConcordClient::SendPendingReque
       }
     }
   } catch (BatchTimeoutException& e) {
+    clientRequestError_ = OperationResult::TIMEOUT;
     LOG_ERROR(logger_, "Batch cid =" << batch_cid << " has failed to invoke, timeout has been reached");
     ret = OperationResult::TIMEOUT;
   }
