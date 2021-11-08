@@ -4187,6 +4187,16 @@ void ReplicaImp::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_span, 
   }
 }
 
+void ReplicaImp::setConflictDetectionBlockId(const ClientRequestMsg &clientReqMsg,
+                                             IRequestsHandler::ExecutionRequest &execReq) {
+  ConcordAssertGT(clientReqMsg.requestLength(), sizeof(uint64_t));
+  auto requestSize = clientReqMsg.requestLength() - sizeof(uint64_t);
+  auto opt_block_id = *(reinterpret_cast<uint64_t *>(clientReqMsg.requestBuf() + requestSize));
+  LOG_DEBUG(GL, "Conflict detection optimization block id is " << opt_block_id);
+  execReq.blockId = opt_block_id;
+  execReq.requestSize = requestSize;
+}
+
 void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &parent_span,
                                                 PrePrepareMsg *ppMsg,
                                                 bool recoverFromErrorInRequestsExecution) {
@@ -4423,6 +4433,11 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum()});
+    // Decode the pre-execution block-id for the conflict detection optimization,
+    // and pass it to the post-execution.
+    if (((MessageBase::Header *)requestBody)->msgType == MsgCode::PreProcessResult) {
+      setConflictDetectionBlockId(req, accumulatedRequests.back());
+    }
   }
   if (ReplicaConfig::instance().blockAccumulation) {
     LOG_INFO(GL,

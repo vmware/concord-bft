@@ -1446,7 +1446,8 @@ const char *PreProcessor::getPreProcessResultBuffer(uint16_t clientId, ReqId req
   LOG_TRACE(logger(), KVLOG(clientId, reqSeqNum, reqOffsetInBatch, bufferOffset, reqSeqNum));
   char *buf = nullptr;
   if (!preProcessResultBuffers_[bufferOffset].first) {
-    buf = new char[maxPreExecResultSize_];
+    // sizeof(uint64_t) -> block id of conflict detection optimization
+    buf = new char[maxPreExecResultSize_ + sizeof(uint64_t)];
     {
       std::unique_lock lock(resultBufferLock_);
       if (!preProcessResultBuffers_[bufferOffset].first) {
@@ -1510,6 +1511,15 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
   auto span = concordUtils::startChildSpanFromContext(span_context, "bft_process_preprocess_msg");
   LOG_DEBUG(logger(), "Pass request for a pre-execution" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
   bftEngine::IRequestsHandler::ExecutionRequestsQueue accumulatedRequests;
+  uint64_t blockId = preProcessReqMsg->primaryBlockId();
+  if (preProcessReqMsg->primaryBlockId() - GlobalData::block_delta > GlobalData::current_block_id) {
+    blockId = 0;
+    LOG_INFO(logger(),
+             "Primary block [" << preProcessReqMsg->primaryBlockId()
+                               << "] is too advanced for conflict detection optimization, replica block id ["
+                               << GlobalData::current_block_id << "] delta [" << GlobalData::block_delta << "]");
+  }
+  auto preProcessResultBuffer = (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch);
   accumulatedRequests.push_back(bftEngine::IRequestsHandler::ExecutionRequest{
       clientId,
       reqSeqNum,
@@ -1519,13 +1529,14 @@ uint32_t PreProcessor::launchReqPreProcessing(const PreProcessRequestMsgSharedPt
       preProcessReqMsg->requestBuf(),
       std::string(preProcessReqMsg->requestSignature(), preProcessReqMsg->requestSignatureLength()),
       maxPreExecResultSize_,
-      (char *)getPreProcessResultBuffer(clientId, reqSeqNum, reqOffsetInBatch)});
-  accumulatedRequests.back().blockId = preProcessReqMsg->primaryBlockId();
+      preProcessResultBuffer});
   requestsHandler_.execute(accumulatedRequests, std::nullopt, cid, span);
   const IRequestsHandler::ExecutionRequest &request = accumulatedRequests.back();
   const auto status = request.outExecutionStatus;
-  const auto resultLen = request.outActualReplySize;
-  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch));
+  // Append the conflict detection block id and add sizeof(uint64_t) the resulting length.
+  memcpy(preProcessResultBuffer + request.outActualReplySize, reinterpret_cast<char *>(&blockId), sizeof(uint64_t));
+  const auto resultLen = request.outActualReplySize + sizeof(uint64_t);
+  LOG_DEBUG(logger(), "Pre-execution operation done" << KVLOG(cid, reqSeqNum, clientId, reqOffsetInBatch, blockId));
   if (status != 0 || !resultLen) {
     LOG_FATAL(
         logger(),
