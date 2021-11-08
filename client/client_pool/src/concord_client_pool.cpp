@@ -589,19 +589,13 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
   return result == trueReply;
 }
 
-std::string ConcordClientPool::SampleSpan(const std::string &span_blob) {
-  if (span_rate <= 0) return kEmptySpanContext;
-  if (span_rate == 1) return span_blob;
-  std::unique_lock<std::mutex> lock(transaction_count_lock_);
-  if (transaction_count == 0) {
-    transaction_count++;
-    return span_blob;
+bftEngine::OperationResult ConcordClientPool::getClientsError() {
+  for (auto &client : this->clients_) {
+    if (client->getClientRequestError() != bftEngine::OperationResult::SUCCESS) {
+      return client->getClientRequestError();
+    }
   }
-  transaction_count++;
-  if (transaction_count == span_rate) {
-    transaction_count = 0;
-  }
-  return kEmptySpanContext;
+  return bftEngine::OperationResult::SUCCESS;
 }
 
 }  // namespace concord::concord_client_pool
