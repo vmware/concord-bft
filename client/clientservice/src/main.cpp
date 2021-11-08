@@ -27,6 +27,7 @@
 
 using concord::client::clientservice::ClientService;
 using concord::client::clientservice::configureSubscription;
+using concord::client::clientservice::configureTransport;
 using concord::client::clientservice::parseConfigFile;
 
 using concord::client::concordclient::ConcordClient;
@@ -131,6 +132,7 @@ int main(int argc, char** argv) {
                           opts["tr-insecure"].as<bool>(),
                           opts["tr-tls-path"].as<std::string>(),
                           opts["secrets-url"].as<std::string>());
+    configureTransport(config, opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());
     return 1;

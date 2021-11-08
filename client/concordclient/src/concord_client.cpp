@@ -131,11 +131,10 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
     auto trsc = std::make_unique<TrsConnection>(addr, config_.subscribe_config.id, /* TODO */ 3, /* TODO */ 3);
 
     // TODO: Adapt TRC API to support PEM buffers
-    auto trsc_config =
-        std::make_unique<TrsConnectionConfig>(config_.subscribe_config.use_tls,
-                                              config_.subscribe_config.pem_private_key,
-                                              config_.subscribe_config.pem_cert_chain,
-                                              config_.subscribe_config.root_cert_chain_map.at(replica.id.val));
+    auto trsc_config = std::make_unique<TrsConnectionConfig>(config_.subscribe_config.use_tls,
+                                                             config_.subscribe_config.pem_private_key,
+                                                             config_.subscribe_config.pem_cert_chain,
+                                                             config_.transport.event_pem_certs);
 
     trsc->connect(trsc_config);
     trs_connections.push_back(std::move(trsc));

@@ -176,16 +176,19 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                                ") does not match the client ID in the environment variable (" +
                                config.subscribe_config.id + ").");
     }
-
-    const std::string server_cert_path = tls_path + "/server.cert";
-    for (const auto& replica : config.topology.replicas) {
-      // server_cert_path specifies the path to a composite cert file i.e., a
-      // concatentation of the certificates of all known servers
-      readCert(server_cert_path, config.subscribe_config.root_cert_chain_map[replica.id.val]);
-    }
   }
-  // TODO: Read TLS certs for this TRC instance
-  config.transport.event_pem_certs = "";
+}
+
+void configureTransport(concord::client::concordclient::ConcordClientConfig& config,
+                        bool is_insecure,
+                        const std::string& tls_path) {
+  if (not is_insecure) {
+    const std::string server_cert_path = tls_path + "/server.cert";
+    // read server TLS certs for this TRC instance
+    // server_cert_path specifies the path to a composite cert file i.e., a
+    // concatentation of the certificates of all known servers
+    readCert(server_cert_path, config.transport.event_pem_certs);
+  }
 }
 
 const std::string decryptPrivateKey(const std::optional<std::string>& secrets_url, const std::string& path) {

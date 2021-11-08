@@ -29,6 +29,10 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig&,
                            const std::string& tls_path,
                            const std::string& secrets_url);
 
+void configureTransport(concord::client::concordclient::ConcordClientConfig& config,
+                        bool is_insecure,
+                        const std::string& tls_path);
+
 const std::string decryptPrivateKey(const std::optional<std::string>& secrets_url, const std::string& path);
 
 // This method reads certificates from file

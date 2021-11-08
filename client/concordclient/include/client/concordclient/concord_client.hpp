@@ -80,7 +80,7 @@ struct TransportConfig {
   // TLS settings ignored if comm_type is not TlsTcp
   std::string tls_cert_root_path;
   std::string tls_cipher_suite;
-  // Buffer with the servers' PEM encoded certififactes for the event port
+  // Buffer with the servers' PEM encoded certificates for the event port
   std::string event_pem_certs;
 };
 
@@ -93,8 +93,6 @@ struct SubscribeConfig {
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
   std::string pem_private_key;
-  // Map with replica ID as key and buffer with the servers' PEM encoded certificates for the host as value
-  std::unordered_map<uint16_t, std::string> root_cert_chain_map;
 };
 
 struct ConcordClientConfig {
