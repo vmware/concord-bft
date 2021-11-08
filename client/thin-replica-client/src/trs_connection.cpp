@@ -50,27 +50,6 @@ void TrsConnection::createChannel() {
   if (config_->use_tls) {
     LOG_INFO(logger_, "TLS for thin replica client is enabled for server: " << address_);
 
-    // If TLS is enabled for TRC-TRS connection, the client cert must have the
-    // client ID in the OU field, because the TRS obtains the client_id
-    // from the certificate of the connecting client.
-    if (config_->cert_client_id.empty()) {
-      LOG_FATAL(logger_, "Failed to construct thin replica client.");
-      throw std::runtime_error(
-          "The OU field in client certificate is empty. It must contain the "
-          "client ID.");
-    }
-    // cert_client_id in client cert should match the client_id_ if TLS is
-    // enabled for TRC-TRS connection. Since the TRS reads the client id from
-    // the connecting client cert, and the value of the TRID specified by the
-    // user for TRC initialization can be used by TRC's client application to
-    // generate requests, if they do not match, the TRS will filter out all the
-    // key value pairs meant for the requesting client.
-    if (config_->cert_client_id.compare(client_id_) != 0) {
-      LOG_FATAL(logger_, "Failed to construct thin replica client.");
-      throw std::runtime_error("The client ID in the OU field of the client certificate (" + config_->cert_client_id +
-                               ")does not match the client ID in the environment variable (" + client_id_ + ").");
-    }
-
     grpc::SslCredentialsOptions opts = {config_->server_cert, config_->client_key, config_->client_cert};
     channel_ = grpc::CreateCustomChannel(address_, grpc::SslCredentials(opts), args);
   } else {

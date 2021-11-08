@@ -36,20 +36,12 @@ struct TrsConnectionConfig {
   const std::string& client_key;
   const std::string& client_cert;
   const std::string& server_cert;
-  // If TLS is enabled for TRC-TRS connection, the client cert must have the
-  // client ID in the OU field which should match the client ID of the client
-  const std::string& cert_client_id;
 
   TrsConnectionConfig(const bool use_tls_,
                       const std::string& client_key_,
                       const std::string& client_cert_,
-                      const std::string& server_cert_,
-                      const std::string& cert_client_id_)
-      : use_tls(use_tls_),
-        client_key(client_key_),
-        client_cert(client_cert_),
-        server_cert(server_cert_),
-        cert_client_id(cert_client_id_) {}
+                      const std::string& server_cert_)
+      : use_tls(use_tls_), client_key(client_key_), client_cert(client_cert_), server_cert(server_cert_) {}
 };
 
 // The default message size for incoming data is 4MiB but certain workloads

@@ -157,7 +157,25 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
 
     config.subscribe_config.pem_private_key = decryptPrivateKey(secrets_url, tls_path);
 
-    config.subscribe_config.id_from_cert = getClientIdFromClientCert(client_cert_path);
+    std::string cert_client_id = getClientIdFromClientCert(client_cert_path);
+    // The client cert must have the client ID in the OU field, because the TRS obtains
+    // the client_id from the certificate of the connecting client.
+    if (cert_client_id.empty()) {
+      LOG_FATAL(logger, "Failed to construct thin replica client.");
+      throw std::runtime_error("The OU field in client certificate is empty. It must contain the client ID.");
+    }
+    // cert_client_id in client cert should match the client_id if TLS is
+    // enabled for TRC-TRS connection. Since the TRS reads the client id from
+    // the connecting client cert, and the value of the TRID specified by the
+    // user for TRC initialization can be used by TRC's client application to
+    // generate requests, if they do not match, the TRS will filter out all the
+    // key value pairs meant for the requesting client.
+    if (cert_client_id.compare(config.subscribe_config.id) != 0) {
+      LOG_FATAL(logger, "Failed to construct thin replica client.");
+      throw std::runtime_error("The client ID in the OU field of the client certificate (" + cert_client_id +
+                               ") does not match the client ID in the environment variable (" +
+                               config.subscribe_config.id + ").");
+    }
 
     const std::string server_cert_path = tls_path + "/server.cert";
     for (const auto& replica : config.topology.replicas) {

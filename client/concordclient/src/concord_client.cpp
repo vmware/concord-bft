@@ -135,8 +135,7 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
         std::make_unique<TrsConnectionConfig>(config_.subscribe_config.use_tls,
                                               config_.subscribe_config.pem_private_key,
                                               config_.subscribe_config.pem_cert_chain,
-                                              config_.subscribe_config.root_cert_chain_map.at(replica.id.val),
-                                              config_.subscribe_config.id_from_cert);
+                                              config_.subscribe_config.root_cert_chain_map.at(replica.id.val));
 
     trsc->connect(trsc_config);
     trs_connections.push_back(std::move(trsc));

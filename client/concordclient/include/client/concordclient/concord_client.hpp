@@ -93,8 +93,6 @@ struct SubscribeConfig {
   std::string pem_cert_chain;
   // Buffer with the client's PEM encoded private key
   std::string pem_private_key;
-  // TRC ID obtained from OU field in pem_cert_chain
-  std::string id_from_cert;
   // Map with replica ID as key and buffer with the servers' PEM encoded certificates for the host as value
   std::unordered_map<uint16_t, std::string> root_cert_chain_map;
 };
