@@ -47,10 +47,6 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
     return SubmitResult::Overloaded;
   }
-  if (callback && flags & ClientMsgFlag::PRE_PROCESS_REQ && flags & ClientMsgFlag::READ_ONLY_REQ) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
-    return SubmitResult::Overloaded;
-  }
   externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
   metricsComponent_.UpdateAggregator();
@@ -223,6 +219,10 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                                             bft::client::Msg &&request,
                                             const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
+  if (callback && config.request.pre_execute) {
+    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    return SubmitResult::Overloaded;
+  }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      ClientMsgFlag::READ_ONLY_REQ,
                      config.request.timeout,
