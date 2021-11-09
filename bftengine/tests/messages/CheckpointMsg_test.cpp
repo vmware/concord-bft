@@ -59,7 +59,7 @@ void CheckpointMsgTestsFixture::CheckpointMsgBaseTests(const std::string& spanCo
   Digest digest(digestContext, sizeof(digestContext));
   bool isStable = false;
   const std::string correlationId = "correlationId";
-  CheckpointMsg msg(senderId, reqSeqNum, digest, isStable, concordUtils::SpanContext{spanContext});
+  CheckpointMsg msg(senderId, reqSeqNum, 0, digest, isStable, concordUtils::SpanContext{spanContext});
   EXPECT_EQ(msg.seqNumber(), reqSeqNum);
   EXPECT_EQ(msg.isStableState(), isStable);
   msg.setStateAsStable();

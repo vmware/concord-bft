@@ -569,7 +569,10 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
   ConcordAssertLE(checkpointNumber, psd_->getLastStoredCheckpoint());
 }
 
-void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char *outDigestBuffer) {
+void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
+                                        uint16_t sizeOfDigestBuffer,
+                                        uint64_t &outBlockId,
+                                        char *outDigestBuffer) {
   ConcordAssert(running_);
   ConcordAssertGE(sizeOfDigestBuffer, sizeof(STDigest));
   ConcordAssertGT(checkpointNumber, 0);
@@ -591,6 +594,7 @@ void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t size
   if (s < sizeOfDigestBuffer) {
     memset(outDigestBuffer + s, 0, sizeOfDigestBuffer - s);
   }
+  outBlockId = desc.lastBlock;
 }
 
 bool BCStateTran::isCollectingState() const { return isFetching(); }

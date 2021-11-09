@@ -127,8 +127,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                            checkpointWindowSize,
                            SeqNum,
-                           CheckpointInfo,
-                           CheckpointInfo>* checkpointsLog = nullptr;
+                           CheckpointInfo<>,
+                           CheckpointInfo<>>* checkpointsLog = nullptr;
 
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum

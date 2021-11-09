@@ -49,7 +49,10 @@ class IStateTransfer : public IReservedPages {
 
   virtual void markCheckpointAsStable(uint64_t checkpointNumber) = 0;
 
-  virtual void getDigestOfCheckpoint(uint64_t checkpointNumber, uint16_t sizeOfDigestBuffer, char *outDigestBuffer) = 0;
+  virtual void getDigestOfCheckpoint(uint64_t checkpointNumber,
+                                     uint16_t sizeOfDigestBuffer,
+                                     uint64_t &outBlockId,
+                                     char *outDigestBuffer) = 0;
 
   // state
   virtual void startCollectingState() = 0;

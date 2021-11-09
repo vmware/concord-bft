@@ -110,11 +110,11 @@ void testCheckWindowSetUp(const SeqNum shift, bool toSet) {
   ReplicaId sender = 3;
   Digest stateDigest;
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, 0, stateDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, 0, stateDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, 0, stateDigest, stateIsStable);
   checkpointInitialMsg2.sign();
 
   const bool completed = true;
@@ -343,11 +343,11 @@ void testCheckDescriptorOfLastStableCheckpoint(bool init) {
   const ReplicaId sender = 3;
   const Digest stateDigest('d');
   const bool stateIsStable = true;
-  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg0(sender, checkpointSeqNum0, 0, stateDigest, stateIsStable);
   checkpointInitialMsg0.sign();
-  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg1(sender, checkpointSeqNum1, 0, stateDigest, stateIsStable);
   checkpointInitialMsg1.sign();
-  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, stateDigest, stateIsStable);
+  CheckpointMsg checkpointInitialMsg2(sender, checkpointSeqNum2, 0, stateDigest, stateIsStable);
   checkpointInitialMsg2.sign();
   std::vector<CheckpointMsg *> msgs;
   msgs.push_back(&checkpointInitialMsg0);

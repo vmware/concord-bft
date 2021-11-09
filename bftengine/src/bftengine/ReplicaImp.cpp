@@ -1929,12 +1929,13 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
   const SeqNum msgSeqNum = msg->seqNumber();
   const EpochNum msgEpochNum = msg->epochNumber();
+  const CheckpointMsg::State msgState = msg->state();
   const Digest msgDigest = msg->digestOfState();
   const bool msgIsStable = msg->isStableState();
   SCOPED_MDC_SEQ_NUM(std::to_string(msgSeqNum));
   LOG_INFO(GL,
-           "Received checkpoint message from node. "
-               << KVLOG(msgSenderId, msgGenReplicaId, msgSeqNum, msgEpochNum, msg->size(), msgIsStable, msgDigest));
+           "Received checkpoint message from node. " << KVLOG(
+               msgSenderId, msgGenReplicaId, msgSeqNum, msgEpochNum, msg->size(), msgIsStable, msgState, msgDigest));
   LOG_INFO(GL, "My " << KVLOG(lastStableSeqNum, lastExecutedSeqNum, getSelfEpochNumber()));
   auto span = concordUtils::startChildSpanFromContext(msg->spanContext<std::remove_pointer<decltype(msg)>::type>(),
                                                       "bft_handle_checkpoint_msg");
@@ -1943,7 +1944,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if ((msgSeqNum > lastStableSeqNum) && (msgSeqNum <= lastStableSeqNum + kWorkWindowSize) &&
       (msgEpochNum >= getSelfEpochNumber())) {
     ConcordAssert(mainLog->insideActiveWindow(msgSeqNum));
-    CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
+    auto &checkInfo = checkpointsLog->get(msgSeqNum);
     bool msgAdded = checkInfo.addCheckpointMsg(msg, msgGenReplicaId);
 
     if (msgAdded) {
@@ -1957,7 +1958,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       return;
     }
   } else if (checkpointsLog->insideActiveWindow(msgSeqNum)) {
-    CheckpointInfo &checkInfo = checkpointsLog->get(msgSeqNum);
+    auto &checkInfo = checkpointsLog->get(msgSeqNum);
     bool msgAdded = checkInfo.addCheckpointMsg(msg, msgGenReplicaId);
     if (msgAdded && checkInfo.isCheckpointSuperStable()) {
       onSeqNumIsSuperStable(msgSeqNum);
@@ -1976,7 +1977,7 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
       // <= to allow repeating checkpoint message since state transfer may not kick in when we are inside active
       // window
       if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
+      CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgState, msgDigest, msgIsStable);
       x->setEpochNumber(msgEpochNum);
       tableOfStableCheckpoints[msgGenReplicaId] = x;
       LOG_INFO(GL,
@@ -2057,7 +2058,7 @@ void ReplicaImp::onMessage<AskForCheckpointMsg>(AskForCheckpointMsg *msg) {
   std::unique_ptr<AskForCheckpointMsg> m{msg};
   LOG_INFO(GL, "Received AskForCheckpoint message: " << KVLOG(m->senderId(), lastStableSeqNum));
 
-  const CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+  const auto &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
   CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
   if (checkpointMsg == nullptr) {
@@ -2853,7 +2854,7 @@ void ReplicaImp::sendCheckpointIfNeeded() {
 
   ConcordAssert(checkpointsLog->insideActiveWindow(lastCheckpointNumber));
 
-  CheckpointInfo &checkInfo = checkpointsLog->get(lastCheckpointNumber);
+  auto &checkInfo = checkpointsLog->get(lastCheckpointNumber);
   CheckpointMsg *checkpointMessage = checkInfo.selfCheckpointMsg();
 
   if (!checkpointMessage) {
@@ -2941,11 +2942,12 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 
   // create and send my checkpoint
   Digest digestOfNewState;
-  stateTransfer->getDigestOfCheckpoint(newStateCheckpoint, sizeof(Digest), (char *)&digestOfNewState);
+  CheckpointMsg::State state;
+  stateTransfer->getDigestOfCheckpoint(newStateCheckpoint, sizeof(Digest), state, (char *)&digestOfNewState);
   CheckpointMsg *checkpointMsg =
-      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, digestOfNewState, false);
+      new CheckpointMsg(config_.getreplicaId(), newCheckpointSeqNum, state, digestOfNewState, false);
   checkpointMsg->sign();
-  CheckpointInfo &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
+  auto &checkpointInfo = checkpointsLog->get(newCheckpointSeqNum);
   checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
   checkpointInfo.setCheckpointSentAllOrApproved();
 
@@ -3036,14 +3038,15 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
       clientsManager->loadInfoFromReservedPages();
     }
     if (ps_) ps_->setLastExecutedSeqNum(lastExecutedSeqNum);
-    CheckpointInfo &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
+    auto &checkpointInfo = checkpointsLog->get(lastStableSeqNum);
     CheckpointMsg *checkpointMsg = checkpointInfo.selfCheckpointMsg();
 
     if (checkpointMsg == nullptr) {
       Digest digestOfState;
+      CheckpointMsg::State state;
       const uint64_t checkpointNum = lastStableSeqNum / checkpointWindowSize;
-      stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&digestOfState);
-      checkpointMsg = new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, digestOfState, true);
+      stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), state, (char *)&digestOfState);
+      checkpointMsg = new CheckpointMsg(config_.getreplicaId(), lastStableSeqNum, state, digestOfState, true);
       checkpointMsg->sign();
       checkpointInfo.addCheckpointMsg(checkpointMsg, config_.getreplicaId());
     } else {
@@ -3724,7 +3727,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
 
     if (!e.isCheckpointMsgSet()) continue;
 
-    CheckpointInfo &checkInfo = checkpointsLog->get(s);
+    auto &checkInfo = checkpointsLog->get(s);
 
     ConcordAssertEQ(e.getCheckpointMsg()->seqNumber(), s);
     ConcordAssertEQ(e.getCheckpointMsg()->senderId(), config_.getreplicaId());
@@ -3971,8 +3974,8 @@ ReplicaImp::ReplicaImp(bool firstTime,
   checkpointsLog = new SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                                                 checkpointWindowSize,
                                                 SeqNum,
-                                                CheckpointInfo,
-                                                CheckpointInfo>(0, (InternalReplicaApi *)this);
+                                                CheckpointInfo<>,
+                                                CheckpointInfo<>>(0, (InternalReplicaApi *)this);
 
   // create controller . TODO(GG): do we want to pass the controller as a parameter ?
   controller = new ControllerWithSimpleHistory(
@@ -4345,11 +4348,13 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
     bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
     Digest checkDigest;
+    CheckpointMsg::State checkState;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), (char *)&checkDigest);
-    CheckpointMsg *checkMsg = new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkDigest, false);
+    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), checkState, (char *)&checkDigest);
+    CheckpointMsg *checkMsg =
+        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkState, checkDigest, false);
     checkMsg->sign();
-    CheckpointInfo &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
+    auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
 
     if (ps_) ps_->setCheckpointMsgInCheckWindow(lastExecutedSeqNum, checkMsg);

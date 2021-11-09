@@ -21,7 +21,6 @@ set(corebft_source_files
     src/bftengine/ReplicasInfo.cpp
     src/bftengine/ViewChangeSafetyLogic.cpp
     src/bftengine/ViewsManager.cpp
-    src/bftengine/CheckpointInfo.cpp
     src/bftengine/ClientsManager.cpp
     src/bftengine/NullStateTransfer.cpp
     src/bftengine/BFTEngine.cpp

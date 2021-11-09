@@ -25,7 +25,6 @@ namespace bftEngine::impl {
 
 class MsgHandlersRegistrator;
 class MsgsCommunicator;
-class CheckpointMsg;
 class ReplicasInfo;
 
 using concordMetrics::GaugeHandle;
