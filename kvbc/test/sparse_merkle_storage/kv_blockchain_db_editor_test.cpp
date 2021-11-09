@@ -628,7 +628,7 @@ TEST_F(DbEditorTests, get_value_latest) {
           out_,
           err_));
   ASSERT_TRUE(err_.str().empty());
-  ASSERT_EQ("{\n  \"value\": \"0x00000050\"\n}\n", out_.str());
+  ASSERT_EQ("{\n  \"value\": \"0x00000050\",\n  \"version\": \"5\"\n}\n", out_.str());
 }
 
 TEST_F(DbEditorTests, get_value_with_block_version) {
@@ -810,6 +810,35 @@ TEST_F(DbEditorTests, get_st_metadata) {
             run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getSTMetadata"}}, out_, err_));
   ASSERT_THAT(out_.str(), HasSubstr("\"NumberOfReservedPages\": \"75\""));
   ASSERT_TRUE(err_.str().empty());
+}
+
+TEST_F(DbEditorTests, list_column_families) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "listColumnFamilies"}}, out_, err_));
+  const std::string outStr = out_.str();
+  ASSERT_THAT(outStr, HasSubstr("\"versioned_ver_values\""));
+  ASSERT_THAT(outStr, HasSubstr("\"versioned_ver_latest\""));
+}
+
+TEST_F(DbEditorTests, get_column_families_stats) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName, rocksDbPath(main_path_db_id_), "getColumnFamilyStats"}}, out_, err_));
+  const std::string outStr = out_.str();
+  ASSERT_THAT(outStr, HasSubstr("\"rocksdb.estimate-num-keys\" : 27"));
+}
+
+TEST_F(DbEditorTests, get_column_families_stats_with_args) {
+  ASSERT_EQ(EXIT_SUCCESS,
+            run(CommandLineArguments{{kTestName,
+                                      rocksDbPath(main_path_db_id_),
+                                      "getColumnFamilyStats",
+                                      "versioned_ver_values",
+                                      "versioned_ver_latest"}},
+                out_,
+                err_));
+  const std::string outStr = out_.str();
+  ASSERT_THAT(outStr, HasSubstr("\"rocksdb.estimate-num-keys\" : 27"));
+  ASSERT_THAT(outStr, Not(HasSubstr("\"block_merkle_keys\"")));
 }
 
 }  // namespace

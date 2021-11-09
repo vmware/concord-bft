@@ -13,6 +13,9 @@
 
 #pragma once
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <rocksdb/table_properties.h>
+
 #include "kvbc_key_types.hpp"
 #include "db_editor_common.hpp"
 #include "categorization/kv_blockchain.h"
@@ -26,6 +29,9 @@
 #include "bftengine/PersistentStorageImp.hpp"
 #include "bftengine/DbMetadataStorage.hpp"
 #include "crypto_utils.hpp"
+#include "json_output.hpp"
+
+#include <unordered_map>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -458,7 +464,7 @@ struct GetCategories {
       }
     }
 
-    return toJson(out);
+    return concordUtils::kContainerToJson(out);
   }
 };
 
@@ -498,7 +504,7 @@ struct GetEarliestCategoryUpdates {
     }
     std::map<std::string, std::string> out{
         {"blockID", std::to_string(relevantBlockId)}, {"category", cat}, {"updates", toJson(cat_updates_map)}};
-    return toJson(out);
+    return concordUtils::kContainerToJson(out);
   }
 };
 
@@ -631,16 +637,26 @@ struct GetValue {
     const auto &category = args.values[0];
     const auto key = concordUtils::hexToSliver(args.values[1]).toString();
     std::optional<categorization::Value> val;
+
+    std::unordered_map<std::string, std::string> outputMap;
     if (args.values.size() >= 3) {
       auto requested_block_version = toBlockId(args.values[2]);
       val = adapter.get(category, key, requested_block_version);
     } else {
       val = adapter.getLatest(category, key);
+      const auto taggedVersion = adapter.getLatestVersion(category, key);
+      if (taggedVersion) {
+        auto uint64Version = taggedVersion.value().version;
+        outputMap.insert(std::make_pair(std::string("version"), std::to_string(uint64Version)));
+      }
     }
     if (!val) throw NotFoundException{"Couldn't find a value"};
 
     auto strval = std::visit([](auto &&arg) { return arg.data; }, *val);
-    return toJson("value", concordUtils::bufferToHex(strval.data(), strval.size()));
+
+    outputMap.insert(std::make_pair("value", concordUtils::bufferToHex(strval.data(), strval.size())));
+
+    return concordUtils::kContainerToJson(outputMap);
   }
 };
 
@@ -908,6 +924,78 @@ struct ResetMetadata {
   }
 };
 
+struct ListColumnFamilies {
+  const bool read_only = true;
+  std::string description() const {
+    return "listColumnFamilies\n"
+           " List the names of all column families in RocksDB";
+  }
+
+  std::string toJson(const std::unordered_set<std::string> &result) const {
+    std::ostringstream oss;
+    oss << "{\n  \"column_families\":[";
+    if (!result.empty()) {
+      auto it = result.begin();
+      oss << "\"" << *it << "\"";
+      while (++it != result.end()) {
+        oss << ",\n\"" << *it << "\"";
+      }
+    }
+    oss << "]\n}";
+    return oss.str();
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    auto result = adapter.db()->columnFamilies();
+    return toJson(result);
+  }
+};
+
+struct GetColumnFamilyStats {
+  const bool read_only = true;
+  const std::string *properties[3] = {&rocksdb::DB::Properties::kTotalSstFilesSize,
+                                      &rocksdb::DB::Properties::kEstimateNumKeys,
+                                      &rocksdb::DB::Properties::kNumEntriesActiveMemTable};
+  std::string description() const {
+    std::ostringstream oss;
+    oss << "GetColumnStats optional:COLUMN_FAMILY_NAME\n"
+        << " gets following column family stats:\n";
+    for (const auto p : properties) {
+      oss << *p << ",\n";
+    }
+    return oss.str();
+  }
+
+  std::string execute(const KeyValueBlockchain &adapter, const CommandArguments &args) const {
+    std::unordered_set<std::string> columnFamilies;
+    if (args.values.size() > 0) {
+      for (const auto &s : args.values) {
+        columnFamilies.insert(s);
+      }
+    } else {
+      columnFamilies = adapter.db()->columnFamilies();
+    }
+
+    std::ostringstream oss;
+
+    oss << "{";
+
+    for (auto columnFamily : columnFamilies) {
+      oss << "\n\t\"" << columnFamily << "\" : {";
+      auto handle = adapter.db()->columnFamilyHandle(columnFamily);
+      uint64_t v;
+      for (auto property : properties) {
+        adapter.db()->rawDB().GetIntProperty(handle, rocksdb::Slice(property->c_str(), property->length()), &v);
+        oss << "\n\t\t\"" << *property << "\" : " << v << ",";
+      }
+
+      oss << "\n\t},";
+    }
+    oss << "\n}";
+    return oss.str();
+  }
+};
+
 using Command = std::variant<GetGenesisBlockID,
                              GetLastReachableBlockID,
                              GetLastStateTransferBlockID,
@@ -926,7 +1014,9 @@ using Command = std::variant<GetGenesisBlockID,
                              GetSTMetadata,
                              ResetMetadata,
                              GetBlockRequests,
-                             VerifyBlockRequests>;
+                             VerifyBlockRequests,
+                             ListColumnFamilies,
+                             GetColumnFamilyStats>;
 
 inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("getGenesisBlockID", GetGenesisBlockID{}),
@@ -948,6 +1038,8 @@ inline const auto commands_map = std::map<std::string, Command>{
     std::make_pair("resetMetadata", ResetMetadata{}),
     std::make_pair("getBlockRequests", GetBlockRequests{}),
     std::make_pair("verifyBlockRequests", VerifyBlockRequests{}),
+    std::make_pair("listColumnFamilies", ListColumnFamilies{}),
+    std::make_pair("getColumnFamilyStats", GetColumnFamilyStats{}),
 };
 
 inline std::string usage() {
