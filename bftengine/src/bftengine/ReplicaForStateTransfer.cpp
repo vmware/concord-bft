@@ -66,14 +66,15 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
 }
 
 void ReplicaForStateTransfer::start() {
-  stateTransfer->setReconfigurationEngine(
-      bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator_, msgHandlers_));
+  cre_ = bftEngine::bcst::asyncCRE::CreFactory::create(msgsCommunicator_, msgHandlers_);
+  stateTransfer->setReconfigurationEngine(cre_);
   stateTransfer->startRunning(this);
   ReplicaBase::start();  // msg communicator should be last in the starting chain
 }
 
 void ReplicaForStateTransfer::stop() {
   // stop in reverse order
+  cre_->stop();
   ReplicaBase::stop();
   stateTransfer->stopRunning();
   timers_.cancel(stateTranTimer_);

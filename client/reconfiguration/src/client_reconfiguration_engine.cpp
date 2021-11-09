@@ -61,6 +61,7 @@ void ClientReconfigurationEngine::registerHandler(std::shared_ptr<IStateHandler>
 ClientReconfigurationEngine::~ClientReconfigurationEngine() {
   if (!stopped_) {
     try {
+      resume();
       stateClient_->stop();
       stopped_ = true;
       mainThread_.join();
@@ -77,6 +78,7 @@ void ClientReconfigurationEngine::start() {
 }
 void ClientReconfigurationEngine::stop() {
   if (stopped_) return;
+  resume();
   stateClient_->stop();
   stopped_ = true;
   try {
