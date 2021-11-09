@@ -96,6 +96,7 @@ class PrePrepareMsg : public MessageBase {
   void setSeqNumber(SeqNum s) { b()->seqNum = s; }
 
   std::string getCid() const;
+  void setCid(SeqNum s);
 
   CommitPath firstPath() const;
 
