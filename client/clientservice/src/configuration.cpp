@@ -151,6 +151,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
   config.subscribe_config.use_tls = not is_insecure;
 
   if (config.subscribe_config.use_tls) {
+    LOG_INFO(logger, "TLS for thin replica client is enabled, certificate path: " << tls_path);
     const std::string client_cert_path = tls_path + "/client.cert";
 
     readCert(client_cert_path, config.subscribe_config.pem_cert_chain);
@@ -161,7 +162,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
     // The client cert must have the client ID in the OU field, because the TRS obtains
     // the client_id from the certificate of the connecting client.
     if (cert_client_id.empty()) {
-      LOG_FATAL(logger, "Failed to construct thin replica client.");
+      LOG_FATAL(logger, "Failed to construct concord client.");
       throw std::runtime_error("The OU field in client certificate is empty. It must contain the client ID.");
     }
     // cert_client_id in client cert should match the client_id if TLS is
@@ -171,11 +172,15 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
     // generate requests, if they do not match, the TRS will filter out all the
     // key value pairs meant for the requesting client.
     if (cert_client_id.compare(config.subscribe_config.id) != 0) {
-      LOG_FATAL(logger, "Failed to construct thin replica client.");
+      LOG_FATAL(logger, "Failed to construct concord client.");
       throw std::runtime_error("The client ID in the OU field of the client certificate (" + cert_client_id +
                                ") does not match the client ID in the environment variable (" +
                                config.subscribe_config.id + ").");
     }
+  } else {
+    LOG_WARN(logger,
+             "TLS for thin replica client is disabled, falling back to "
+             "insecure channel");
   }
 }
 
@@ -217,7 +222,7 @@ void readCert(const std::string& input_filename, std::string& out_data) {
   if (!input_file.is_open()) {
     LOG_FATAL(logger, "Failed to construct concord client.");
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": Could not open the input file (") + input_filename +
-                             std::string(") to establish TLS connection with the thin replica server."));
+                             std::string(") to establish TLS connection with thin replica server."));
   }
   try {
     std::stringstream read_buffer;
@@ -241,7 +246,7 @@ std::string getClientIdFromClientCert(const std::string& client_cert_path) {
   std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
 
   if (!input_file.is_open()) {
-    throw std::runtime_error("Could not open the input file (" + client_cert_path + ") at the thin replica client.");
+    throw std::runtime_error("Could not open the input file (" + client_cert_path + ") at the concord client.");
   }
 
   // The cmd string is used to get the subject in the client cert.
