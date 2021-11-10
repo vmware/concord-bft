@@ -64,6 +64,7 @@ typedef struct ConcordClientPoolConfig {
   std::string signing_key_path = "resources/signing_keys";
   std::uint32_t external_requests_queue_size = 0;
   std::uint32_t trace_sampling_rate = 0;
+  bool enable_traces_in_concord_only_env = false;
   std::string file_name;
   bool client_batching_enabled = false;
   size_t client_batching_max_messages_nbr = 20;
@@ -118,6 +119,7 @@ class ClientPoolConfig {
   const std::string CLIENT_BATCHING_MAX_MSG_NUM = "client_batching_max_messages_nbr";
   const std::string CLIENT_BATCHING_TIMEOUT_MILLI = "client_batching_flush_timeout_ms";
   const std::string TRACE_SAMPLING_RATE = "trace_sampling_rate";
+  const std::string ENABLE_TRACES_IN_CONCORD_ONLY_ENV = "enable_traces_in_concord_only_env";
   ClientPoolConfig();
 
  private:
