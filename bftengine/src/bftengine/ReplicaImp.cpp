@@ -619,7 +619,10 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
   TimeRecorder scoped_timer(*histograms_.buildPrePrepareMessage);
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
-  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+
+  if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+    SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+  }
 
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   {
@@ -636,7 +639,9 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessage() {
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum(uint32_t requiredRequestsNum) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
-  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+  if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+    SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+  }
 
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -651,7 +656,9 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByRequestsNum
 std::pair<PrePrepareMsg *, bool> ReplicaImp::buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes) {
   PrePrepareMsg *prePrepareMsg = createPrePrepareMessage();
   if (!prePrepareMsg) return std::make_pair(nullptr, false);
-  SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+  if (!getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+    SCOPED_MDC("pp_msg_cid", prePrepareMsg->getCid());
+  }
 
   uint32_t maxSpaceForReqs = prePrepareMsg->remainingSizeForRequests();
   ClientRequestMsg *nextRequest = requestsQueueOfPrimary.front();
@@ -679,9 +686,13 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
   if (isCreatedEarlier) {
     controller->onSendingPrePrepare(primaryLastUsedSeqNum, firstPath);
     pp->setSeqNumber(primaryLastUsedSeqNum);
+    pp->setCid(primaryLastUsedSeqNum);
   }
   metric_primary_last_used_seq_num_.Get().Set(primaryLastUsedSeqNum);
   SCOPED_MDC_SEQ_NUM(std::to_string(primaryLastUsedSeqNum));
+  if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
+    SCOPED_MDC("pp_msg_cid", pp->getCid());
+  }
   SCOPED_MDC_PATH(CommitPathToMDCString(firstPath));
 
   LOG_INFO(CNSUS,

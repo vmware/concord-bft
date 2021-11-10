@@ -116,13 +116,21 @@ void PrePrepareMsg::validate(const ReplicasInfo& repInfo) const {
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size)
     : PrePrepareMsg(sender, v, s, firstPath, concordUtils::SpanContext{}, size) {}
 
+// Sequence number provided in the PPM at the time of constructor call might change later
+// This will result into allotment of next available sequence number. As the sequence number
+// is a monotonically increasing series, the next available sequence number will be greater
+// then the sequence number allocated and with a probability of 1/(10^digits(seqNum)), the
+// next available seq number is having one more digit. As this probability is decreasing
+// exponentially for higher digits, the case of seq number with next digit is only taken care,
+// and a 0 is prefixed.
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
                              SeqNum s,
                              CommitPath firstPath,
                              const concordUtils::SpanContext& spanContext,
                              size_t size)
-    : PrePrepareMsg::PrePrepareMsg(sender, v, s, firstPath, spanContext, std::to_string(s), size) {}
+    : PrePrepareMsg::PrePrepareMsg(
+          sender, v, s, firstPath, spanContext, std::string(1, '0') + std::to_string(s), size) {}
 
 PrePrepareMsg::PrePrepareMsg(ReplicaId sender,
                              ViewNum v,
@@ -328,6 +336,15 @@ bool RequestsIterator::getAndGoToNext(char*& pRequest) {
 
 std::string PrePrepareMsg::getCid() const {
   return std::string(this->body() + this->payloadShift() - b()->batchCidLength, b()->batchCidLength);
+}
+
+void PrePrepareMsg::setCid(SeqNum s) {
+  std::string cidStr = std::to_string(s);
+  if (cidStr.size() >= b()->batchCidLength) {
+    memcpy(this->body() + this->payloadShift() - b()->batchCidLength, cidStr.data(), b()->batchCidLength);
+  } else {
+    memcpy(this->body() + this->payloadShift() - b()->batchCidLength + 1, cidStr.data(), b()->batchCidLength - 1);
+  }
 }
 
 }  // namespace impl
