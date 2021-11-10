@@ -19,6 +19,9 @@
 #include "kv_types.hpp"
 #include "rocksdb/native_client.h"
 #include "sha_hash.hpp"
+#include "thread_pool.hpp"
+
+#include "multi_get_batch.hpp"
 
 #include <boost/program_options.hpp>
 #include <boost/program_options/errors.hpp>
@@ -35,6 +38,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <future>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -51,9 +55,12 @@ using namespace concord::kvbc::categorization::detail;
 using namespace concord::storage::rocksdb;
 using namespace concord::util;
 
-namespace benchmark {
+namespace concord::benchmark {
 
 std::pair<po::options_description, po::variables_map> parseArgs(int argc, char* argv[]) {
+  const auto kSystemThreads =
+      unsigned{std::thread::hardware_concurrency() > 0 ? std::thread::hardware_concurrency() : 1};
+
   auto desc = po::options_description("Allowed options");
 
   // clang-format off
@@ -68,9 +75,13 @@ std::pair<po::options_description, po::variables_map> parseArgs(int argc, char* 
       po::value<std::int64_t>()->default_value(4294967296), // 4GB
       "RocksDB block cache size in bytes.")
 
-    ("multiget-batch-size",
-      po::value<std::int64_t>()->default_value(100),
-      "The number of values read at once via RocksDB multiGet().")
+    ("point-lookup-batch-size",
+      po::value<std::int64_t>()->default_value(1000),
+      "The number of keys to accumulate and then read via RocksDB MultiGet(). Will be rounded if needed.")
+
+    ("point-lookup-threads",
+      po::value<std::int64_t>()->default_value(kSystemThreads),
+      "Number of threads that execute MultiGet() point lookups in parallel.")
 
     ("report-progress-key-count",
       po::value<std::int64_t>()->default_value(100000),
@@ -113,31 +124,27 @@ class Time {
   const std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };
 
-template <typename T>
-auto hash(const T& buf) {
-  return SHA2_256{}.digest(buf.data(), buf.size());
-}
-
 struct PerformanceReport {
   PerformanceReport(std::uint64_t bytes_read, std::int64_t elapsed_sec)
-      : mb_read{bytes_read / 1024 / 1024}, mb_per_sec{mb_read / (elapsed_sec <= 0 ? 1 : elapsed_sec)} {}
+      : mb_read_{bytes_read / 1024 / 1024}, mb_per_sec_{mb_read_ / (elapsed_sec <= 0 ? 1 : elapsed_sec)} {}
 
-  std::uint64_t mb_read{0};
-  std::uint64_t mb_per_sec{0};
+  std::uint64_t mb_read_{0};
+  std::uint64_t mb_per_sec_{0};
 };
 
 // As iterating, form a blockchain:
 //
-//  h0 = hash("a")
-//  h1 = hash(h0 || hash(key1) || value1)
-//  h2 = hash(h1 || hash(key2) || value2)
+//  h0 = hash2("a")
+//  h1 = hash2(h0 || hash3(key1) || value1)
+//  h2 = hash2(h1 || hash3(key2) || value2)
 //  ...
-//  hN = hash(hN-1 || hash(keyN) || valueN)
+//  hN = hash2(hN-1 || hash3(keyN) || valueN)
 //
-// where hash is SHA2-256 and || means concatenation.
+// where hash2 is SHA2-256, hash3 is SHA3-256 and || means concatenation.
 //
-// Note that keys are ordered lexicographically on key hash and not the key itself. This is about to change in a future
-// commit when the BLOCK_MERKLE_LATEST_KEY_VERSION_CF column family starts using keys instead of key hashes.
+// Note that keys are ordered lexicographically on key hash and not the key itself. Moreover, keys are hashed with
+// SHA3-256 instead of SHA2-256, because the block merkle implementation uses SHA3-256. This is about to change in a
+// future commit when the BLOCK_MERKLE_LATEST_KEY_VERSION_CF column family starts using keys instead of key hashes.
 int run(int argc, char* argv[]) {
   const auto [desc, config] = parseArgs(argc, argv);
 
@@ -152,13 +159,17 @@ int run(int argc, char* argv[]) {
   }
 
   const auto rocksdb_path = config["rocksdb-path"].as<std::string>();
-  const auto multiget_batch_size = config["multiget-batch-size"].as<std::int64_t>();
+  auto point_lookup_batch_size = config["point-lookup-batch-size"].as<std::int64_t>();
+  const auto point_lookup_threads = config["point-lookup-threads"].as<std::int64_t>();
   const auto rocksdb_cache_size = config["rocksdb-cache-size"].as<std::int64_t>();
   const auto report_key_count = config["report-progress-key-count"].as<std::int64_t>();
   const auto rocksdb_conf = config["rocksdb-config-file"].as<std::string>();
 
-  if (multiget_batch_size < 1) {
-    std::cerr << "multiget-batch-size must be greater than or equal to 1" << std::endl;
+  if (point_lookup_batch_size < 1) {
+    std::cerr << "point-lookup-batch-size must be greater than or equal to 1" << std::endl;
+    return EXIT_FAILURE;
+  } else if (point_lookup_threads < 1) {
+    std::cerr << "point-lookup-threads must be greater than or equal to 1" << std::endl;
     return EXIT_FAILURE;
   } else if (rocksdb_cache_size < 8192) {
     std::cerr << "rocksdb-cache-size must be greater than or equal to 8192" << std::endl;
@@ -168,25 +179,30 @@ int run(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  std::cout << "Hashing state with a multiGet() batch size = " << multiget_batch_size
+  // Make the point lookup batch size divisible by the number of threads for simplicity.
+  while (point_lookup_batch_size % point_lookup_threads) {
+    point_lookup_batch_size++;
+  }
+
+  auto thread_pool = ThreadPool{static_cast<std::uint32_t>(point_lookup_threads)};
+
+  std::cout << "Hashing state with a point lookup batch size = " << point_lookup_batch_size
+            << ", point lookup threads = " << point_lookup_threads
             << ", RocksDB block cache size = " << rocksdb_cache_size << " bytes, configuration file = " << rocksdb_conf
             << ", DB path = " << rocksdb_path << std::endl;
 
-  auto completeInit = [rocksdb_cache_size](auto& db_options, auto& cf_descs) {
+  auto complete_init = [rocksdb_cache_size](auto& db_options, auto& cf_descs) {
     completeRocksdbConfiguration(db_options, cf_descs, rocksdb_cache_size);
   };
-
-  auto opts = NativeClient::UserOptions{rocksdb_conf, completeInit};
+  auto opts = NativeClient::UserOptions{rocksdb_conf, complete_init};
   const auto read_only = true;
   auto db = NativeClient::newClient(config["rocksdb-path"].as<std::string>(), read_only, opts);
 
-  // Start with an arbitrary hash.
+  // Start with an arbitrary hash - SHA2-256('a').
   auto current_hash = SHA2_256{}.digest("a", 1);
   const auto time = Time{};
-  auto multiget_serialized_keys = std::vector<Buffer>{};
-  auto multiget_keys = std::vector<VersionedKey>{};
-  auto value_slices = std::vector<::rocksdb::PinnableSlice>{};
-  auto statuses = std::vector<::rocksdb::Status>{};
+  auto multi_get_batch = MultiGetBatch<Buffer>{static_cast<std::uint64_t>(point_lookup_batch_size),
+                                               static_cast<std::uint32_t>(point_lookup_threads)};
   auto iterated = 0ull;
   auto bytes_read = 0ull;
   auto deleted = 0ull;
@@ -195,30 +211,48 @@ int run(int argc, char* argv[]) {
     const auto elapsed_sec = time.elapsedSeconds();
     const auto report = PerformanceReport{bytes_read, elapsed_sec};
     std::cout << "elapsed (" << elapsed_sec << "sec = " << elapsed_sec / 60 << "min), iterated keys = " << iterated
-              << ", deleted keys = " << deleted << ", MB read = " << report.mb_read
-              << ", MB/sec = " << report.mb_per_sec << std::endl;
+              << ", deleted keys = " << deleted << ", MB read = " << report.mb_read_
+              << ", MB/sec = " << report.mb_per_sec_ << std::endl;
   };
 
   auto hash_batch = [&]() {
-    if (multiget_serialized_keys.empty()) {
+    if (multi_get_batch.empty()) {
       return;
     }
 
-    db->multiGet(BLOCK_MERKLE_KEYS_CF, multiget_serialized_keys, value_slices, statuses);
-    for (auto i = 0ull; i < value_slices.size(); ++i) {
-      ConcordAssert(statuses[i].ok());
-      bytes_read += (multiget_serialized_keys[i].size() + value_slices[i].size());
-      auto h = SHA2_256{};
-      h.init();
-      h.update(current_hash.data(), current_hash.size());
-      h.update(multiget_keys[i].key_hash.value.data(), multiget_keys[i].key_hash.value.size());
-      h.update(value_slices[i].data(), value_slices[i].size());
-      current_hash = h.finish();
+    auto futures = std::vector<std::future<void>>{};
+    for (auto i = 0ull; i < multi_get_batch.numSubBatches(); ++i) {
+      const auto& serialized_keys = multi_get_batch.serializedKeys(i);
+      if (serialized_keys.empty()) {
+        break;
+      }
+      auto& value_slices = multi_get_batch.valueSlices(i);
+      auto& statuses = multi_get_batch.statuses(i);
+      futures.push_back(
+          thread_pool.async([&]() { db->multiGet(BLOCK_MERKLE_KEYS_CF, serialized_keys, value_slices, statuses); }));
     }
-    multiget_serialized_keys.clear();
-    multiget_keys.clear();
-    value_slices.clear();
-    statuses.clear();
+
+    auto key_idx = 0;
+    for (auto i = 0ull; i < futures.size(); ++i) {
+      futures[i].wait();
+
+      const auto& serialized_keys = multi_get_batch.serializedKeys(i);
+      const auto& value_slices = multi_get_batch.valueSlices(i);
+      const auto& statuses = multi_get_batch.statuses(i);
+
+      for (auto j = 0ull; j < serialized_keys.size(); ++j) {
+        ConcordAssert(statuses[j].ok());
+        bytes_read += (serialized_keys[j].size() + value_slices[j].size());
+        auto h = SHA2_256{};
+        h.init();
+        h.update(current_hash.data(), current_hash.size());
+        const auto& ver_key = multi_get_batch[key_idx];
+        h.update(ver_key.key_hash.value.data(), ver_key.key_hash.value.size());
+        h.update(value_slices[j].data(), value_slices[j].size());
+        current_hash = h.finish();
+        ++key_idx;
+      }
+    }
   };
 
   auto it = db->getIterator(BLOCK_MERKLE_LATEST_KEY_VERSION_CF);
@@ -255,29 +289,32 @@ int run(int argc, char* argv[]) {
     }
 
     ver_key.version = tagged_version.version;
-    multiget_serialized_keys.push_back(serialize(ver_key));
-    multiget_keys.push_back(ver_key);
+    multi_get_batch.push_back(ver_key);
 
-    if (multiget_serialized_keys.size() == static_cast<std::uint32_t>(multiget_batch_size)) {
+    if (multi_get_batch.size() == static_cast<std::uint32_t>(point_lookup_batch_size)) {
       hash_batch();
+      multi_get_batch.clear();
     }
   }
 
   // Hash any leftovers in the last batch.
   hash_batch();
 
-  std::cout << std::endl << "Completed with a multiGet() batch size = " << multiget_batch_size << std::endl;
+  std::cout << "Completed with a point lookup batch size = " << point_lookup_batch_size
+            << ", point lookup threads = " << point_lookup_threads
+            << ", RocksDB block cache size = " << rocksdb_cache_size << " bytes, configuration file = " << rocksdb_conf
+            << ", DB path = " << rocksdb_path << std::endl;
   print_report();
-  std::cout << "state hash = " << bufferToHex(current_hash.data(), current_hash.size()) << std::endl;
+  std::cout << "State hash = " << bufferToHex(current_hash.data(), current_hash.size()) << std::endl;
 
   return EXIT_SUCCESS;
 }
 
-}  // namespace benchmark
+}  // namespace concord::benchmark
 
 int main(int argc, char* argv[]) {
   try {
-    return benchmark::run(argc, argv);
+    return concord::benchmark::run(argc, argv);
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << std::endl;
   } catch (...) {
