@@ -146,7 +146,7 @@ void configureSubscription(concord::client::concordclient::ConcordClientConfig& 
                            const std::string& tr_id,
                            bool is_insecure,
                            const std::string& tls_path,
-                           const std::string& secrets_url) {
+                           const std::optional<std::string>& secrets_url) {
   config.subscribe_config.id = tr_id;
   config.subscribe_config.use_tls = not is_insecure;
 
