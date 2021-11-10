@@ -25,6 +25,7 @@
 #include "MsgsCommunicator.hpp"
 #include "SigManager.hpp"
 #include "ReconfigurationCmd.hpp"
+#include "json_output.hpp"
 
 using concordUtil::Timers;
 
@@ -57,6 +58,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                    config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
                    concord::util::crypto::KeyFormat::PemFormat,
                    *repsInfo);
+
+  // Register status handler for Read-Only replica
+  registerStatusHandlers();
 }
 
 void ReadOnlyReplica::start() {
@@ -78,6 +82,7 @@ void ReadOnlyReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   lastExecutedSeqNum = newStateCheckpoint * checkpointWindowSize;
 
   ro_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+  last_executed_seq_num_ = lastExecutedSeqNum;
 }
 
 void ReadOnlyReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
@@ -210,6 +215,22 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
   } else {
     LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
+}
+
+void ReadOnlyReplica::registerStatusHandlers() {
+  auto h = concord::diagnostics::StatusHandler(
+      "replica", "Last executed sequence number of the read-only replica", [this]() {
+        std::ostringstream oss;
+        std::unordered_map<std::string, std::string> result, nested_data;
+
+        nested_data.insert(concordUtils::toPair("lastExecutedSeqNum", last_executed_seq_num_));
+        result.insert(concordUtils::toPair(
+            "sequenceNumbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+
+        oss << concordUtils::kContainerToJson(result);
+        return oss.str();
+      });
+  concord::diagnostics::RegistrarSingleton::getInstance().status.registerHandler(h);
 }
 
 }  // namespace bftEngine::impl
