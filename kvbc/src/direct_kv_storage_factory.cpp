@@ -77,10 +77,9 @@ std::unique_ptr<storage::ISTKeyManipulator> MemoryDBStorageFactory::newSTKeyMani
 #if defined(USE_S3_OBJECT_STORE)
 IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
   auto ret = IStorageFactory::DatabaseSet{};
-  const auto comparator = storage::memorydb::KeyComparator{new DBKeyComparator{}};
-  ret.metadataDBClient = std::make_shared<storage::memorydb::Client>(comparator);
   ret.dataDBClient = std::make_shared<storage::s3::Client>(s3Conf_);
   ret.dataDBClient->init();
+  ret.metadataDBClient = ret.dataDBClient;
 
   auto dataKeyGenerator = std::make_unique<S3KeyGenerator>(s3Conf_.pathPrefix);
   ret.dbAdapter = std::make_unique<DBAdapter>(
@@ -90,7 +89,7 @@ IStorageFactory::DatabaseSet S3StorageFactory::newDatabaseSet() const {
 }
 
 std::unique_ptr<storage::IMetadataKeyManipulator> S3StorageFactory::newMetadataKeyManipulator() const {
-  return std::make_unique<storage::v1DirectKeyValue::MetadataKeyManipulator>();
+  return std::make_unique<storage::v1DirectKeyValue::S3MetadataKeyManipulator>(s3Conf_.pathPrefix);
 }
 
 std::unique_ptr<storage::ISTKeyManipulator> S3StorageFactory::newSTKeyManipulator() const {

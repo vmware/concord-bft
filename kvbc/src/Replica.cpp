@@ -64,7 +64,8 @@ Status Replica::initInternals() {
     LOG_INFO(logger, "ReadOnly mode");
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
+    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
+        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
@@ -538,9 +539,12 @@ Replica::Replica(ICommunication *comm,
   m_dbSet.metadataDBClient->setAggregator(aggregator);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
-  m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
+    m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+  } else {
+    m_metadataStorage =
+        new storage::DBMetadataStorageUnbounded(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   }
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.

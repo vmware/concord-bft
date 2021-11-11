@@ -18,7 +18,6 @@
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "CheckpointInfo.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "PersistentStorage.hpp"
@@ -35,12 +34,14 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
-                                 concordUtil::Timers &timers)
+                                 concordUtil::Timers &timers,
+                                 MetadataStorage *metadataStorage)
     : ReplicaForStateTransfer(config, requestsHandler, stateTransfer, msgComm, msgHandlerReg, true, timers),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
-                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
+      metadataStorage_{metadataStorage} {
   LOG_INFO(GL, "Initialising ReadOnly Replica");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(
@@ -107,8 +108,9 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
                  msg->epochNumber(),
                  msg->size(),
                  msg->isStableState(),
-                 msg->state())
-               << ", state digest: " << msg->digestOfState().toString());
+                 msg->state(),
+                 msg->digestOfState(),
+                 msg->otherDigest()));
 
   // Reconfiguration cmd block is synced to RO replica via reserved pages
   EpochNum replicasLastKnownEpochVal = 0;
@@ -126,10 +128,30 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   checkpointsInfo[msg->seqNumber()].addCheckpointMsg(msg, msg->idOfGeneratedReplica());
   // if enough - invoke state transfer
   if (checkpointsInfo[msg->seqNumber()].isCheckpointCertificateComplete()) {
+    persistCheckpointDescriptor(msg->seqNumber(), checkpointsInfo[msg->seqNumber()]);
     checkpointsInfo.clear();
     LOG_INFO(GL, "call to startCollectingState()");
     stateTransfer->startCollectingState();
   }
+}
+
+void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const CheckpointInfo<false> &chckpinfo) {
+  std::vector<CheckpointMsg *> msgs;
+  msgs.reserve(chckpinfo.getAllCheckpointMsgs().size());
+  for (const auto &m : chckpinfo.getAllCheckpointMsgs()) msgs.push_back(m.second);
+  DescriptorOfLastStableCheckpoint desc(ReplicaConfig::instance().getnumReplicas(), msgs);
+  const size_t bufLen = DescriptorOfLastStableCheckpoint::maxSize(ReplicaConfig::instance().getnumReplicas());
+  concord::serialize::UniquePtrToChar descBuf(new char[bufLen]);
+  char *descBufPtr = descBuf.get();
+  size_t actualSize = 0;
+  desc.serialize(descBufPtr, bufLen, actualSize);
+  ConcordAssertNE(actualSize, 0);
+
+  // TODO [TK] S3KeyGenerator
+  // checkpoints/<SeqNum>/<BlockId>/<RepId>
+  std::ostringstream oss;
+  oss << "checkpoints/" << seqnum << "/" << msgs[0]->state() << "/" << config_.replicaId;
+  metadataStorage_->atomicWriteArbitraryObject(oss.str(), descBuf.get(), actualSize);
 }
 
 template <>

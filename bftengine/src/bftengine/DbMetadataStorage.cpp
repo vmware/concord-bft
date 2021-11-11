@@ -92,6 +92,24 @@ void DBMetadataStorage::atomicWrite(uint32_t objectId, const char *data, uint32_
   }
 }
 
+void DBMetadataStorageUnbounded::atomicWriteArbitraryObject(const std::string &key,
+                                                            const char *data,
+                                                            uint32_t dataLength) {
+  Sliver k = Sliver::copy(key.data(), key.length());
+  Sliver v = Sliver::copy(data, dataLength);
+  lock_guard<mutex> lock(ioMutex_);
+  LOG_DEBUG(logger_, "key: " << key);
+  Status status = dbClient_->put(metadataKeyManipulator_->generateMetadataKey(k), v);
+  if (!status.isOK()) {
+    throw runtime_error("DBClient put operation failed");
+  }
+}
+
+void DBMetadataStorage::atomicWriteArbitraryObject(const std::string &key, const char *data, uint32_t dataLength) {
+  LOG_ERROR(GL, "shouldn't have been called. key: " << key);
+  throw runtime_error("DBMetadataStorage::atomicWriteArbitraryObject() shouldn't have been called.");
+}
+
 void DBMetadataStorage::beginAtomicWriteOnlyBatch() {
   lock_guard<mutex> lock(ioMutex_);
   LOG_DEBUG(logger_, "Begin atomic transaction");

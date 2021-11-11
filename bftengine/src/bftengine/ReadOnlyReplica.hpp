@@ -13,6 +13,7 @@
 
 #include "ReplicaForStateTransfer.hpp"
 #include "Timers.hpp"
+#include "CheckpointInfo.hpp"
 
 namespace bftEngine::impl {
 
@@ -27,7 +28,8 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
                   IStateTransfer*,
                   std::shared_ptr<MsgsCommunicator>,
                   std::shared_ptr<MsgHandlersRegistrator>,
-                  concordUtil::Timers& timers);
+                  concordUtil::Timers& timers,
+                  MetadataStorage* metadataStorage);
 
   void start() override;
   void stop() override;
@@ -52,6 +54,9 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   template <class T>
   void onMessage(T*);
 
+  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+  void persistCheckpointDescriptor(const SeqNum&, const CheckpointInfo<false>&);
+
  protected:
   concordUtil::Timers::Handle askForCheckpointMsgTimer_;
 
@@ -62,7 +67,7 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
 
-  void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+  std::unique_ptr<MetadataStorage> metadataStorage_;
 };
 
 }  // namespace bftEngine::impl

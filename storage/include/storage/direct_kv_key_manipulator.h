@@ -27,6 +27,15 @@ class MetadataKeyManipulator : public DBKeyGeneratorBase, public IMetadataKeyMan
   concordUtils::Sliver generateMetadataKey(ObjectId objectId) const override;
 };
 
+class S3MetadataKeyManipulator : public IMetadataKeyManipulator {
+ public:
+  S3MetadataKeyManipulator(const std::string& prefix = "") : prefix_(prefix.size() ? prefix + std::string("/") : "") {}
+  concordUtils::Sliver generateMetadataKey(const concordUtils::Sliver&) const override;
+
+ protected:
+  std::string prefix_;
+};
+
 class STKeyManipulator : public DBKeyGeneratorBase, public ISTKeyManipulator {
  public:
   concordUtils::Sliver generateStateTransferKey(ObjectId objectId) const override;
