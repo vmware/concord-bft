@@ -22,7 +22,8 @@ namespace concord::storage {
 
 class IMetadataKeyManipulator {
  public:
-  virtual concordUtils::Sliver generateMetadataKey(ObjectId objectId) const = 0;
+  virtual concordUtils::Sliver generateMetadataKey(ObjectId objectId) const { return concordUtils::Sliver(); }
+  virtual concordUtils::Sliver generateMetadataKey(const concordUtils::Sliver&) const { return concordUtils::Sliver(); }
   virtual ~IMetadataKeyManipulator() = default;
 };
 

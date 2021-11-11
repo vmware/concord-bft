@@ -336,10 +336,7 @@ bool DescriptorOfLastStableCheckpoint::equals(const DescriptorOfLastStableCheckp
     return false;
   }
   for (size_t i = 0; i < checkpointMsgs.size(); i++) {
-    if (other.checkpointMsgs[i] == nullptr ||
-        checkpointMsgs[i]->idOfGeneratedReplica() != other.checkpointMsgs[i]->idOfGeneratedReplica() ||
-        checkpointMsgs[i]->seqNumber() != other.checkpointMsgs[i]->seqNumber() ||
-        checkpointMsgs[i]->digestOfState() != other.checkpointMsgs[i]->digestOfState()) {
+    if (other.checkpointMsgs[i] == nullptr || !CheckpointMsg::equivalent(checkpointMsgs[i], other.checkpointMsgs[i])) {
       return false;
     }
   }

@@ -251,7 +251,8 @@ IReplica::IReplicaPtr IReplica::createNewReplica(const ReplicaConfig &replicaCon
 IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaConfig,
                                                    std::shared_ptr<IRequestsHandler> requestsHandler,
                                                    IStateTransfer *stateTransfer,
-                                                   bft::communication::ICommunication *communication) {
+                                                   bft::communication::ICommunication *communication,
+                                                   MetadataStorage *metadataStorage) {
   auto replicaInternal = std::make_unique<ReplicaInternal>();
   auto msgHandlers = std::make_shared<MsgHandlersRegistrator>();
   auto incomingMsgsStorageImpPtr =
@@ -261,7 +262,7 @@ IReplica::IReplicaPtr IReplica::createNewRoReplica(const ReplicaConfig &replicaC
   auto msgReceiver = std::make_shared<MsgReceiver>(incomingMsgsStorage);
   auto msgsCommunicator = std::make_shared<MsgsCommunicator>(communication, incomingMsgsStorage, msgReceiver);
   replicaInternal->replica_ = std::make_unique<ReadOnlyReplica>(
-      replicaConfig, requestsHandler, stateTransfer, msgsCommunicator, msgHandlers, timers);
+      replicaConfig, requestsHandler, stateTransfer, msgsCommunicator, msgHandlers, timers, metadataStorage);
   return replicaInternal;
 }
 
