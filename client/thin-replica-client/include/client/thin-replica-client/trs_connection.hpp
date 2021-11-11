@@ -31,21 +31,17 @@ struct TrsConnectionConfig {
   // use_tls determines if a TLS enabled secure channel will be opened
   // by the thin replica client, or an insecure channel will be employed.
   const bool use_tls;
-  // thin_replica_tls_cert_path specifies the path of the certificates used for
-  // the TLS channel.
-  const std::string thin_replica_tls_cert_path;
   // client_key is the private key used by TRC to create a secure channel if
   // `is_insecure_trc_val` is false.
-  const std::string client_key;
-  const std::string client_cert_path;
-  const std::string server_cert_path;
+  const std::string& client_key;
+  const std::string& client_cert;
+  const std::string& server_cert;
 
-  TrsConnectionConfig(bool use_tls_, const std::string& thin_replica_tls_cert_path_, const std::string& client_key_)
-      : use_tls(use_tls_),
-        thin_replica_tls_cert_path(thin_replica_tls_cert_path_),
-        client_key(client_key_),
-        client_cert_path(thin_replica_tls_cert_path + "/client.cert"),
-        server_cert_path(thin_replica_tls_cert_path + "/server.cert") {}
+  TrsConnectionConfig(const bool use_tls_,
+                      const std::string& client_key_,
+                      const std::string& client_cert_,
+                      const std::string& server_cert_)
+      : use_tls(use_tls_), client_key(client_key_), client_cert(client_cert_), server_cert(server_cert_) {}
 };
 
 // The default message size for incoming data is 4MiB but certain workloads
@@ -184,16 +180,6 @@ class TrsConnection {
 
   std::chrono::milliseconds data_timeout_;
   std::chrono::milliseconds hash_timeout_;
-
-  // This method reads certificates from file if TLS is enabled
-  void readCert(const std::string& input_filename, std::string& out_data);
-
-  // This method gets the client_id from the OU field in the client certificate
-  std::string getClientIdFromClientCert(const std::string& client_cert_path);
-
-  // This method is used by getClientIdFromClientCert to get the client_id from
-  // the subject in the client certificate
-  std::string parseClientIdFromSubject(const std::string& subject_str);
 };
 
 }  // namespace client::thin_replica_client

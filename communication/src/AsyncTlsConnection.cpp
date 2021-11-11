@@ -283,7 +283,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
   try {
     ssl_context_.use_certificate_chain_file((path / "client.cert").string());
-    const std::string pk = decryptPK(path);
+    const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
@@ -331,7 +331,7 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   try {
     ssl_context_.use_certificate_chain_file((path / fs::path("server.cert")).string());
-    const std::string pk = decryptPK(path);
+    const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
@@ -485,7 +485,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
 
 using namespace concord::secretsmanager;
 
-const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& path) {
+const std::string AsyncTlsConnection::decryptPrivateKey(const boost::filesystem::path& path) {
   namespace fs = boost::filesystem;
   std::string pkpath;
 
