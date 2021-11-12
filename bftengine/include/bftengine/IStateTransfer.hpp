@@ -19,12 +19,24 @@
 #include <memory>
 #include "IReservedPages.hpp"
 #include "Timers.hpp"
+#include "messages/MessageBase.hpp"
+
+using std::shared_ptr;
 
 namespace concord::client::reconfiguration {
 class ClientReconfigurationEngine;
 }
 namespace bftEngine {
 class IReplicaForStateTransfer;  // forward definition
+
+// May become larger over time based on all types of msgs we intercept
+// For now we intercept only preprepare
+struct ConsensusMsg {
+  ConsensusMsg() = delete;
+  ConsensusMsg(MsgType type, NodeIdType sender_id) : type_(type), sender_id_(sender_id) {}
+  const MsgType type_;
+  const NodeIdType sender_id_;
+};
 
 class IStateTransfer : public IReservedPages {
  public:
@@ -86,6 +98,7 @@ class IStateTransfer : public IReservedPages {
   virtual void setReconfigurationEngine(
       std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine>) = 0;
   virtual std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> getReconfigurationEngine() = 0;
+  virtual void handoffConsensusMessage(shared_ptr<ConsensusMsg> &msg) = 0;
 };
 
 // This interface may only be used when the state transfer module is runnning
