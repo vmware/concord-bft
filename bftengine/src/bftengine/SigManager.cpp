@@ -183,7 +183,7 @@ uint16_t SigManager::getSigLength(PrincipalId pid) const {
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
       return pos->second->signatureLength();
     } else {
-      LOG_WARN(GL, "Unrecognized pid " << pid);
+      LOG_ERROR(GL, "Unrecognized pid " << pid);
       return 0;
     }
   }
@@ -199,7 +199,7 @@ bool SigManager::verifySig(
     if (auto pos = verifiers_.find(pid); pos != verifiers_.end()) {
       result = pos->second->verify(str_data, str_sig);
     } else {
-      LOG_WARN(GL, "Unrecognized pid " << pid);
+      LOG_ERROR(GL, "Unrecognized pid " << pid);
       metrics_.sigVerificationFailedOnUnrecognizedParticipantId_++;
       metrics_component_.UpdateAggregator();
       return false;

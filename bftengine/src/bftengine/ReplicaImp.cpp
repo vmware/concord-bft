@@ -887,7 +887,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
     bool time_is_ok = true;
     if (config_.timeServiceEnabled && msg->numberOfRequests() > 0) {
       if (!time_service_manager_->hasTimeRequest(*msg)) {
-        LOG_ERROR(CNSUS, "PrePrepare will be ignored");
+        LOG_WARN(CNSUS, "PrePrepare will be ignored");
         delete msg;
         return;
       }
