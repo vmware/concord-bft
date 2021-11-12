@@ -1184,51 +1184,7 @@ class BftTestNetwork:
                                     return
 
                                 await trio.sleep(0.5)
-
-    async def wait_for_state_transfer_to_stop_with_RFMD(self, up_to_date_node, stale_node, stop_on_stable_seq_num=False):
-        with log.start_action(action_type="wait_for_state_transfer_to_stop_with_RFMD", up_to_date_node=up_to_date_node, stale_node=stale_node, stop_on_stable_seq_num=stop_on_stable_seq_num):
-            with trio.fail_after(30): # seconds
-                # Get the lastExecutedSeqNumber from a started node
-                if stop_on_stable_seq_num:
-                    key = ['replica', 'Gauges', 'lastStableSeqNum']
-                else:
-                    key = ['replica', 'Gauges', 'lastExecutedSeqNum']
-                expected_seq_num = await self.metrics.get(up_to_date_node, *key)
-                with log.start_action(action_type='start_polling', key=key[2], expected_seq_num=expected_seq_num) as action:
-                    last_n = -1
-                    while True:
-                        with trio.move_on_after(.5): # seconds
-                            metrics = await self.metrics.get_all(stale_node)                           
-                            try:
-                                n = self.metrics.get_local(metrics, *key)
-                                # If seq_num is not moving send the new message to advance it
-                                if (n == last_n):
-                                    skvbc = kvbc.SimpleKVBCProtocol(self)
-                                    client = self.random_client()
-                                    # Write a KV pair with a known value
-                                    known_key = skvbc.unique_random_key()
-                                    known_val = skvbc.random_value()
-                                    known_kv = [(known_key, known_val)]
-                                    await skvbc.send_write_kv_set(client, known_kv)
-                            except KeyError:
-                                # ignore - the metric will eventually become available
-                                await trio.sleep(0.1)
-                            else:
-                                # Debugging
-                                if n != last_n:
-                                    last_n = n
-                                    last_stored_checkpoint = self.metrics.get_local(metrics,
-                                        'bc_state_transfer', 'Gauges', 'last_stored_checkpoint')
-                                    on_transferring_complete = self.metrics.get_local(metrics,
-                                        'bc_state_transfer', 'Counters', 'on_transferring_complete')
-                                    action.log(message_type="Not complete yet",
-                                        seq_num=n, last_stored_checkpoint=last_stored_checkpoint, on_transferring_complete=on_transferring_complete)
-
-                                # Exit condition
-                                if n >= expected_seq_num:
-                                    action.add_success_fields(n=n, expected_seq_num=expected_seq_num)
-                                    return
-                                               
+                    
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
         """
         Wait for every replica in `replicas` to take a checkpoint.

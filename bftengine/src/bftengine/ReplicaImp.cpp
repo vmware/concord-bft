@@ -928,14 +928,16 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
         if (slowStarted) ps_->setSlowStartedInSeqNumWindow(msgSeqNum, true);
         ps_->endWriteTran();
       }
-      if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
-                         // before PrePrepareMsg
-      {
-        sendPartialProof(seqNumInfo);
-      } else {
-        seqNumInfo.startSlowPath();
-        metric_slow_path_count_++;
-        sendPreparePartial(seqNumInfo);
+      if (time_is_ok) {
+        if (!slowStarted)  // TODO(GG): make sure we correctly handle a situation where StartSlowCommitMsg is handled
+                           // before PrePrepareMsg
+        {
+          sendPartialProof(seqNumInfo);
+        } else {
+          seqNumInfo.startSlowPath();
+          metric_slow_path_count_++;
+          sendPreparePartial(seqNumInfo);
+        }
       }
       // if time is not ok, we do not continue with consensus flow
     }
@@ -1155,7 +1157,6 @@ void ReplicaImp::sendPartialProof(SeqNumInfo &seqNumInfo) {
 
     partialProofs.setTimeOfSelfPartialProof(getMonotonicTime());
 
-    if (!seqNumInfo.isTimeCorrect()) return;
     // send PartialCommitProofMsg (only if, from my point of view, at most MaxConcurrentFastPaths are in progress)
     if (seqNum <= lastExecutedSeqNum + MaxConcurrentFastPaths) {
       // TODO(GG): improve the following code (use iterators instead of a simple array)
@@ -1194,9 +1195,7 @@ void ReplicaImp::sendPreparePartial(SeqNumInfo &seqNumInfo) {
                                   span_context);
     seqNumInfo.addSelfMsg(p);
 
-    if (!isCurrentPrimary() && seqNumInfo.isTimeCorrect()) {
-      sendRetransmittableMsgToReplica(p, currentPrimary(), pp->seqNumber());
-    }
+    if (!isCurrentPrimary()) sendRetransmittableMsgToReplica(p, currentPrimary(), pp->seqNumber());
   }
 }
 
