@@ -85,6 +85,19 @@ ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
 
 bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
+bool ClientRequestMsg::shouldValidateAsync() const {
+  // Reconfiguration messages are validated in their own handler
+  // so we should not do its validtion in asynchronous manner
+  // as that will lead to overhead.
+  // Similarly key exchanges should happen rarely and thus we
+  // should validate as quick as possible, in sync.
+  const auto* header = msgBody();
+  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0)) {
+    return false;
+  }
+  return true;
+}
+
 void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   const auto* header = msgBody();
   PrincipalId clientId = header->idOfClientProxy;

@@ -82,6 +82,8 @@ class ViewChangeMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
+  bool shouldValidateAsync() const override { return true; }
+
   class ElementsIterator {
    public:
     // this ctor assumes that m is a legal ViewChangeMsg message (as defined by checkElements() )
