@@ -496,7 +496,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool validatePreProcessedResults(const PrePrepareMsg* msg, const ViewNum registeredView) const;
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
-
+  bool createDbCheckpoint_{false};
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
   // 5 Minutes

@@ -4576,12 +4576,25 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
     // We are about to stop execution. To avoid VC we now clear all pending requests
     clientsManager->clearAllPendingRequests();
   }
-  if (DbCheckpointManager::Instance().isDbCheckpointEnabled() && isCurrentPrimary() && seqNumber &&
-      !(seqNumber % getReplicaConfig().dbCheckPointWindowSize)) {
-    LOG_INFO(
-        GL,
-        "sendInternalCreateDbCheckpointMsg command " << KVLOG(seqNumber, getReplicaConfig().dbCheckPointWindowSize));
-    DbCheckpointManager::Instance().sendInternalCreateDbCheckpointMsg(seqNumber);
+  if ((DbCheckpointManager::Instance().isDbCheckpointEnabled() && isCurrentPrimary() && seqNumber &&
+       !(seqNumber % getReplicaConfig().dbCheckPointWindowSize)) ||
+      createDbCheckpoint_) {
+    //create db snapshot after we have reached stable seq num. This is to ensure 
+    //that checkpoint desc from all replicas are recorded into the db before we create snapshot
+    if ((DbCheckpointManager::Instance().getNextSeqNumToCreateCheckpoint() == lastStableSeqNum) &&
+        createDbCheckpoint_) {
+      DbCheckpointManager::Instance().sendInternalCreateDbCheckpointMsg(seqNumber, false);
+      createDbCheckpoint_ = false;
+      LOG_INFO(
+          GL,
+          "sendInternalCreateDbCheckpointMsg command " << KVLOG(seqNumber, getReplicaConfig().dbCheckPointWindowSize));
+    } else {
+      if (!createDbCheckpoint_) DbCheckpointManager::Instance().setNextSeqNumToCreateCheckpoint(seqNumber);
+      DbCheckpointManager::Instance().sendInternalCreateDbCheckpointMsg(
+          seqNumber, true);  // send noop till we reach stable checkpoint
+      createDbCheckpoint_ = true;
+      LOG_INFO(GL, "sendInternalCreateDbCheckpointMsg noop command ");
+    }
   }
   if (isCurrentPrimary() && requestsQueueOfPrimary.size() > 0) tryToSendPrePrepareMsg(true);
 }
