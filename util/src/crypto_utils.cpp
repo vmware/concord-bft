@@ -358,8 +358,7 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
 
   EVP_PKEY* priv_key = EVP_PKEY_new();
   BIO* priv_bio = BIO_new(BIO_s_mem());
-  std::string priv_key_pem = signing_key;
-  int priv_bio_write_ret = BIO_write(priv_bio, static_cast<const char*>(priv_key_pem.c_str()), priv_key_pem.size());
+  int priv_bio_write_ret = BIO_write(priv_bio, static_cast<const char*>(signing_key.c_str()), signing_key.size());
   if (priv_bio_write_ret <= 0) {
     EVP_PKEY_free(priv_key);
     BIO_free(priv_bio);
@@ -370,10 +369,9 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
     BIO_free(priv_bio);
     return std::string();
   }
-  std::string pub_key_pem = public_key;
   EVP_PKEY* pub_key = EVP_PKEY_new();
   BIO* pub_bio = BIO_new(BIO_s_mem());
-  int pub_bio_write_ret = BIO_write(pub_bio, static_cast<const char*>(pub_key_pem.c_str()), pub_key_pem.size());
+  int pub_bio_write_ret = BIO_write(pub_bio, static_cast<const char*>(public_key.c_str()), public_key.size());
   if (pub_bio_write_ret <= 0) {
     EVP_PKEY_free(pub_key);
     BIO_free(pub_bio);

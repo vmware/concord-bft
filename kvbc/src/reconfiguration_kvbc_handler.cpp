@@ -19,8 +19,7 @@
 #include "concord.cmf.hpp"
 #include "secrets_manager_plain.h"
 #include "communication/StateControl.hpp"
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
+
 namespace concord::kvbc::reconfiguration {
 
 kvbc::BlockId ReconfigurationBlockTools::persistReconfigurationBlock(
