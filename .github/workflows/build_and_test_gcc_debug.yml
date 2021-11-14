@@ -15,7 +15,6 @@ jobs:
             ci_build_type:
                 - "-DCMAKE_BUILD_TYPE=DEBUG -DBUILD_COMM_TCP_TLS=FALSE"
             use_s3_obj_store:
-                - "-DUSE_S3_OBJECT_STORE=ON"
                 - "-DUSE_S3_OBJECT_STORE=OFF"
     steps:
         - name: Cleanup pre-installed tools
@@ -57,7 +56,8 @@ jobs:
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DRUN_APOLLO_TESTS=FALSE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
-              && script -q -e -c "make test"
+              && script -q -e -c \
+              "make single-test TEST_NAME=\"bcstatetransfer_tests\|source_selector_test\|skvbc_reconfiguration\|skvbc_state_transfer_tests\|skvbc_persistence_tests\|skvbc_network_partitioning_tests\|skvbc_backup_restore\|skvbc_ro_replica_tests\|skvbc_basic_tests\|skvbc_chaotic_startup\" "
         - name: Prepare artifacts
           if: failure()
           run: |
