@@ -32,7 +32,11 @@ class FakeClock {
     auto& config = ReplicaConfig::instance();
     std::string path = "/tmp/fake_clock_" + std::to_string(config.replicaId) + ".config";
     std::fstream file_reader(path, std::ios_base::in);
-    if (!file_reader.good()) return std::chrono::system_clock::now();
+    if (!file_reader.good()) {
+      LOG_INFO(TS_MNGR, "Fake Clock: Clock drift file not found, using system clock");
+      return std::chrono::system_clock::now();
+    }
+
     int clock_drift = 0;
     file_reader >> clock_drift;
     LOG_INFO(TS_MNGR,

@@ -1184,7 +1184,7 @@ class BftTestNetwork:
                                     return
 
                                 await trio.sleep(0.5)
-                    
+                                               
     async def wait_for_replicas_to_checkpoint(self, replica_ids, expected_checkpoint_num=None):
         """
         Wait for every replica in `replicas` to take a checkpoint.
