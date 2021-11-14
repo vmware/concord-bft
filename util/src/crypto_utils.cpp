@@ -246,79 +246,6 @@ class Crypto::Impl {
     return keyPair;
   }
 
-  std::string generateSelfSignedCert(const std::pair<std::string, std::string>& keyPair_pem,
-                                     const std::string& host,
-                                     uint32_t node_id) {
-    EVP_PKEY* priv_key = EVP_PKEY_new();
-    BIO* priv_bio = BIO_new(BIO_s_mem());
-    std::string priv_key_pem = keyPair_pem.first;
-    int priv_bio_write_ret = BIO_write(priv_bio, static_cast<const char*>(priv_key_pem.c_str()), priv_key_pem.size());
-    if (priv_bio_write_ret <= 0) {
-      EVP_PKEY_free(priv_key);
-      BIO_free(priv_bio);
-      return std::string();
-    }
-    if (!PEM_read_bio_PrivateKey(priv_bio, &priv_key, NULL, NULL)) {
-      EVP_PKEY_free(priv_key);
-      BIO_free(priv_bio);
-      return std::string();
-    }
-    std::string pub_key_pem = keyPair_pem.second;
-    EVP_PKEY* pub_key = EVP_PKEY_new();
-    BIO* pub_bio = BIO_new(BIO_s_mem());
-    int pub_bio_write_ret = BIO_write(pub_bio, static_cast<const char*>(pub_key_pem.c_str()), pub_key_pem.size());
-    if (pub_bio_write_ret <= 0) {
-      EVP_PKEY_free(pub_key);
-      BIO_free(pub_bio);
-      return std::string();
-    }
-    if (!PEM_read_bio_PUBKEY(pub_bio, &pub_key, NULL, NULL)) {
-      EVP_PKEY_free(pub_key);
-      BIO_free(pub_bio);
-      return std::string();
-    }
-    X509* x509;
-    x509 = X509_new();
-
-    ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
-    X509_gmtime_adj(X509_get_notBefore(x509), 0);
-    X509_gmtime_adj(X509_get_notAfter(x509), 31536000L);
-
-    X509_set_pubkey(x509, pub_key);
-
-    X509_NAME* name;
-    name = X509_get_subject_name(x509);
-
-    X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "ST", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "L", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (unsigned char*)"NA", -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "OU", MBSTRING_ASC, (unsigned char*)std::to_string(node_id).c_str(), -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)host.c_str(), -1, -1, 0);
-    X509_set_issuer_name(x509, name);
-    X509_sign(x509, priv_key, EVP_sha256());
-
-    BIO* outbio = BIO_new(BIO_s_mem());
-    if (!PEM_write_bio_X509(outbio, x509)) {
-      BIO_free(outbio);
-      EVP_PKEY_free(pub_key);
-      BIO_free(pub_bio);
-      EVP_PKEY_free(pub_key);
-      BIO_free(pub_bio);
-      return std::string();
-    }
-    std::string certStr;
-    int certLen = BIO_pending(outbio);
-    certStr.resize(certLen);
-    BIO_read(outbio, (void*)&(certStr.front()), certLen);
-    // free all pointers
-    BIO_free(outbio);
-    EVP_PKEY_free(priv_key);
-    BIO_free(priv_bio);
-    EVP_PKEY_free(pub_key);
-    BIO_free(pub_bio);
-    return certStr;
-  }
   ~Impl() = default;
 };
 
@@ -338,11 +265,6 @@ std::pair<std::string, std::string> Crypto::ECDSAHexToPem(const std::pair<std::s
   return impl_->ECDSAHexToPem(key_pair);
 }
 
-std::string Crypto::generateSelfSignedCertificate(const std::pair<std::string, std::string>& keyPair_pem,
-                                                  const std::string& host,
-                                                  uint32_t node_id) {
-  return impl_->generateSelfSignedCert(keyPair_pem, host, node_id);
-}
 KeyFormat Crypto::getFormat(const std::string& key) const {
   return key.find("BEGIN") != std::string::npos ? KeyFormat::PemFormat : KeyFormat::HexaDecimalStrippedFormat;
 }

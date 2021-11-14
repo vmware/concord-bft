@@ -123,9 +123,6 @@ class Crypto {
   std::pair<std::string, std::string> RsaHexToPem(const std::pair<std::string, std::string>& key_pair) const;
   std::pair<std::string, std::string> ECDSAHexToPem(const std::pair<std::string, std::string>& key_pair) const;
   KeyFormat getFormat(const std::string& key_str) const;
-  std::string generateSelfSignedCertificate(const std::pair<std::string, std::string>& keyPair_pem,
-                                            const std::string& host,
-                                            uint32_t node_id);
 
  private:
   class Impl;
