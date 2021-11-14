@@ -67,7 +67,7 @@ class ICommunication {
 
   virtual void setReceiver(NodeNum receiverNum, IReceiver* receiver) = 0;
 
-  virtual void dispose(NodeNum i) = 0;
+  virtual void restartCommunication(NodeNum i) = 0;
   virtual ~ICommunication() = default;
 };
 }  // namespace bft::communication

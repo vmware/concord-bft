@@ -98,7 +98,7 @@ void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
   }
 }
 
-void TlsTCPCommunication::dispose(NodeNum i) {
+void TlsTCPCommunication::restartCommunication(NodeNum i) {
   auto &connMgr = runner_->principals().at(config_.selfId);
   if (i == config_.selfId) {
     auto end = std::min<size_t>(config_.selfId, config_.maxServerId + 1);
