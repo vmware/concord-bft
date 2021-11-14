@@ -187,7 +187,10 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
                std::chrono::milliseconds,
                std::chrono::milliseconds{1},
                "time provided to execution is max(consensus_time, last_time + timeServiceEpsilonMillis)");
-
+  CONFIG_PARAM(rotatingCertificatesTimeoutSeconds,
+               uint64_t,
+               300,
+               "specifies the amount of time we wait after TLS key rotation before start using the new certificate");
   // Ticks Generator
   CONFIG_PARAM(ticksGeneratorPollPeriod,
                std::chrono::seconds,
@@ -301,6 +304,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, timeServiceHardLimitMillis);
     serialize(outStream, timeServiceSoftLimitMillis);
     serialize(outStream, timeServiceEpsilonMillis);
+    serialize(outStream, rotatingCertificatesTimeoutSeconds);
     serialize(outStream, ticksGeneratorPollPeriod);
     serialize(outStream, preExecutionResultAuthEnabled);
     serialize(outStream, prePrepareFinalizeAsyncEnabled);
@@ -379,6 +383,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, timeServiceHardLimitMillis);
     deserialize(inStream, timeServiceSoftLimitMillis);
     deserialize(inStream, timeServiceEpsilonMillis);
+    deserialize(inStream, rotatingCertificatesTimeoutSeconds);
     deserialize(inStream, ticksGeneratorPollPeriod);
     deserialize(inStream, preExecutionResultAuthEnabled);
     deserialize(inStream, prePrepareFinalizeAsyncEnabled);

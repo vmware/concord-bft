@@ -19,6 +19,11 @@
 #include "OpenTracing.hpp"
 #include "SigManager.hpp"
 #include "crypto_utils.hpp"
+#include "SimpleThreadPool.hpp"
+#include "communication/StateControl.hpp"
+#include "secrets_manager_plain.h"
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 
 namespace concord::reconfiguration {
 class BftReconfigurationHandler : public IReconfigurationHandler {
@@ -30,7 +35,8 @@ class BftReconfigurationHandler : public IReconfigurationHandler {
 };
 class ReconfigurationHandler : public BftReconfigurationHandler {
  public:
-  ReconfigurationHandler() {}
+  ReconfigurationHandler() { executor_.start(); }
+  ~ReconfigurationHandler() { executor_.stop(); }
   bool handle(const concord::messages::WedgeCommand &,
               uint64_t,
               uint32_t,
@@ -72,6 +78,7 @@ class ReconfigurationHandler : public BftReconfigurationHandler {
  private:
   void handleWedgeCommands(
       bool bft_support, bool remove_metadata, bool restart, bool unwedge, bool blockNewConnections);
+  concord::util::SimpleThreadPool executor_;
 };
 
 class ClientReconfigurationHandler : public concord::reconfiguration::IReconfigurationHandler {

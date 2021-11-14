@@ -11,7 +11,6 @@
 // file.
 
 #include "reconfiguration/reconfiguration_handler.hpp"
-
 #include "bftengine/KeyExchangeManager.hpp"
 #include "bftengine/ControlStateManager.hpp"
 #include "messages/ReplicaRestartReadyMsg.hpp"
@@ -25,6 +24,36 @@
 
 using namespace concord::messages;
 namespace concord::reconfiguration {
+
+class RestartCommJob : public concord::util::SimpleThreadPool::Job {
+ public:
+  RestartCommJob(uint64_t time_interval_seconds) : time_interval_seconds_{time_interval_seconds} {};
+
+ private:
+  void execute() override {
+    std::this_thread::sleep_for(std::chrono::seconds(time_interval_seconds_));
+    auto cert_root = fs::path(bftEngine::ReplicaConfig::instance().certificatesRootPath) /
+                     std::to_string(bftEngine::ReplicaConfig::instance().replicaId);
+    fs::copy(cert_root / "server" / "server.cert.latest",
+             cert_root / "server" / "server.cert",
+             fs::copy_options::update_existing);
+    fs::remove(cert_root / "server" / "server.cert.latest");
+    if (fs::exists(cert_root / "server" / "pk.pem")) {
+      fs::copy(
+          cert_root / "server" / "pk.pem.latest", cert_root / "server" / "pk.pem", fs::copy_options::update_existing);
+      fs::remove(cert_root / "server" / "pk.pem.latest");
+    }
+    if (fs::exists(cert_root / "server" / "pk.pem.enc")) {
+      fs::copy(cert_root / "server" / "pk.pem.enc.latest",
+               cert_root / "server" / "pk.pem.enc",
+               fs::copy_options::update_existing);
+      fs::remove(cert_root / "server" / "pk.pem.enc.latest");
+    }
+    bft::communication::StateControl::instance().restartComm(bftEngine::ReplicaConfig::instance().replicaId);
+  }
+  void release() override {}
+  uint64_t time_interval_seconds_;
+};
 
 bool ReconfigurationHandler::handle(const WedgeCommand& cmd,
                                     uint64_t bft_seq_num,
@@ -56,12 +85,6 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
                                     uint32_t,
                                     const std::optional<bftEngine::Timestamp>&,
                                     concord::messages::ReconfigurationResponse& rres) {
-  if (command.tls && command.target_replicas.size() > bftEngine::ReplicaConfig::instance().fVal) {
-    concord::messages::ReconfigurationErrorMsg error_msg{
-        "Unable to perform tls key exchange for more than f replicas at once"};
-    rres.response = error_msg;
-    return false;
-  }
   std::ostringstream oss;
   std::copy(command.target_replicas.begin(), command.target_replicas.end(), std::ostream_iterator<int>(oss, " "));
 
@@ -72,6 +95,8 @@ bool ReconfigurationHandler::handle(const KeyExchangeCommand& command,
     return true;
   if (command.tls) {
     bftEngine::impl::KeyExchangeManager::instance().exchangeTlsKeys(sequence_number);
+    auto j = new RestartCommJob(bftEngine::ReplicaConfig::instance().rotatingCertificatesTimeoutSeconds);
+    executor_.add(j);
   } else {
     bftEngine::impl::KeyExchangeManager::instance().sendKeyExchange(sequence_number);
   }
