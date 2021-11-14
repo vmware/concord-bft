@@ -364,7 +364,7 @@ void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reaso
 template <>
 void ReplicaImp::onMessage<StateTransferMsg>(StateTransferMsg *m) {
   if (activeExecutions_ > 0) {
-    deferredMessages_.push(m);
+    deferredMessages_.push_back(m);
     return;
   } else {
     ReplicaForStateTransfer::onMessage<StateTransferMsg>(m);
@@ -423,7 +423,7 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
 
   if (readOnly) {
     if (activeExecutions_ > 0)
-      deferredRORequests_.push(
+      deferredRORequests_.push_back(
           m);  // We should handle span and deleting the message when we handle the deferred message
     else {
       executeReadOnlyRequest(span, m);
@@ -512,7 +512,7 @@ void ReplicaImp::onMessage<preprocessor::PreProcessResultMsg>(preprocessor::PreP
 template <>
 void ReplicaImp::onMessage<ReplicaAsksToLeaveViewMsg>(ReplicaAsksToLeaveViewMsg *m) {
   if (activeExecutions_ > 0) {
-    deferredMessages_.push(m);
+    deferredMessages_.push_back(m);
     return;
   }
   MDC_PUT(MDC_SEQ_NUM_KEY, std::to_string(getCurrentView()));
@@ -2144,7 +2144,7 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 template <>
 void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   if (activeExecutions_ > 0) {
-    deferredMessages_.push(msg);
+    deferredMessages_.push_back(msg);
     return;
   }
   metric_received_checkpoints_++;
@@ -2723,7 +2723,7 @@ void ReplicaImp::onMessage<ViewChangeMsg>(ViewChangeMsg *msg) {
     return;
   }
   if (activeExecutions_ > 0) {
-    deferredMessages_.push(msg);
+    deferredMessages_.push_back(msg);
     return;
   }
   metric_received_view_changes_++;
@@ -2801,7 +2801,7 @@ void ReplicaImp::onMessage<NewViewMsg>(NewViewMsg *msg) {
     return;
   }
   if (activeExecutions_ > 0) {
-    deferredMessages_.push(msg);
+    deferredMessages_.push_back(msg);
     return;
   }
   metric_received_new_views_++;
@@ -3160,7 +3160,7 @@ void ReplicaImp::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
 
 void ReplicaImp::onDeferredTransferringCompleteImp(uint64_t newStateCheckpoint) {
   if (activeExecutions_ > 0) {
-    isOnTransferringComplete_ = true;
+    isOnTransferringComplete_ = newStateCheckpoint;
     return;
   }
   SCOPED_MDC_SEQ_NUM(std::to_string(getCurrentView()));
@@ -4045,6 +4045,7 @@ ReplicaImp::ReplicaImp(const LoadedReplicaData &ld,
   }
 
   internalThreadPool.start(config_.getsizeOfInternalThreadPool());
+  postExecThread_.start(1);  // TODO(LG) should be configurable;
 }
 
 ReplicaImp::ReplicaImp(const ReplicaConfig &config,
@@ -4080,6 +4081,7 @@ ReplicaImp::ReplicaImp(const ReplicaConfig &config,
   auto numThreads = 8;
   LOG_INFO(GL, "Starting internal replica thread pool. " << KVLOG(numThreads));
   internalThreadPool.start(numThreads);  // TODO(GG): use configuration
+  postExecThread_.start(1);              // TODO(LG) should be configurable;
 }
 
 ReplicaImp::ReplicaImp(bool firstTime,
@@ -4291,6 +4293,7 @@ ReplicaImp::~ReplicaImp() {
   // TODO(GG): rewrite this method !!!!!!!! (notice that the order may be important here ).
   // TODO(GG): don't delete objects that are passed as params (TBD)
   internalThreadPool.stop();
+  postExecThread_.stop();
 
   delete viewsManager;
   delete controller;
@@ -4535,7 +4538,7 @@ void ReplicaImp::tryToStartOrFinishExecuting(const bool requestMissingInfo) {
 
   if (!startedToExecute) startedToExecute = true;
 
-  const bool allowParallel = false;  // TODO(GG): read from a configuration flag
+  const bool allowParallel = true;  // TODO(GG): read from a configuration flag
   startExecutePrePrepareMsg(prePrepareMsg, allowParallel, false);
 }
 
@@ -4692,10 +4695,29 @@ void ReplicaImp::startExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
     activeExecutions_ = 1;
 
     // TODO(GG): if shouldRunRequestsInParallel, the following method should be executed by another thread
-    executeRequests(ppMsg,
+    class PostExecJob : public concord::util::SimpleThreadPool::Job {
+     private:
+      PrePrepareMsg *ppMsg_;
+      Bitmap requestSet_;
+      Timestamp time_;
+      ReplicaImp &parent_;
+
+     public:
+      PostExecJob(PrePrepareMsg *ppMsg, Bitmap requestSet, Timestamp time, ReplicaImp &p)
+          : ppMsg_{ppMsg}, requestSet_{requestSet}, time_{time}, parent_{p} {}
+
+      virtual ~PostExecJob() {}
+
+      virtual void release() override { delete this; }
+
+      virtual void execute() override { parent_.executeRequests(ppMsg_, requestSet_, time_); }
+    };
+    PostExecJob *j = new PostExecJob(ppMsg, requestSet, time, *this);
+    postExecThread_.add(j);
+    /*executeRequests(ppMsg,
                     requestSet,
-                    time);  // this method will send internal message that will call to finishExecutePrePrepareMsg
-  } else                    // if we don't have requests in ppMsg
+                    time);*/  // this method will send internal message that will call to finishExecutePrePrepareMsg
+  } else  // if we don't have requests in ppMsg
   {
     // send internal message that will call to finishExecutePrePrepareMsg
     ConcordAssert(activeExecutions_ == 0);
@@ -4985,10 +5007,54 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
 
 void ReplicaImp::onFinishtExecuting() {
   // TODO(GG): !!!! here we should call to all deferred operations (flags, messages etc.)
+  if (isOnTransferringComplete_ != 0) {
+    onDeferredTransferringCompleteImp(isOnTransferringComplete_);
+    isOnTransferringComplete_ = 0;
+  }
+  if (isStartcollectingState_) {
+    if (!stateTransfer->isCollectingState()) {
+      LOG_INFO(GL, "Call to startCollectingState()");
+      time_in_state_transfer_.start();
+      clientsManager->clearAllPendingRequests();  // to avoid entering a new view on old request timeout
+      stateTransfer->startCollectingState();
+    }
+    isStartcollectingState_ = false;
+  }
   if (isSendCheckpointIfNeeded_) {
     sendCheckpointIfNeeded();
     isSendCheckpointIfNeeded_ = false;
   }
+  if (isGoToNextView_) {
+    GotoNextView();
+    isGoToNextView_ = false;
+    isTryToGoNextView_ = false;
+  }
+  if (isTryToGoNextView_) {
+    tryToGotoNextView();
+    isTryToGoNextView_ = false;
+  }
+  for (size_t i = 0; i < deferredMessages_.size(); i++) {
+    auto msg = deferredMessages_.front();
+    deferredMessages_.pop_front();
+    auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
+    if (msgHandlerCallback) {
+      msgHandlerCallback(msg);
+    } else {
+      delete msg;
+    }
+  }
+
+  for (size_t i = 0; i < deferredRORequests_.size(); i++) {
+    auto msg = deferredRORequests_.front();
+    deferredRORequests_.pop_front();
+    auto msgHandlerCallback = msgHandlers_->getCallback(msg->type());
+    if (msgHandlerCallback) {
+      msgHandlerCallback(msg);
+    } else {
+      delete msg;
+    }
+  }
+
   auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
   if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
     // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming

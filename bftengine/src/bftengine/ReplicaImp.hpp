@@ -121,14 +121,15 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   //
   const std::thread::id MAIN_THREAD_ID;
   uint16_t activeExecutions_ = 0;
-  std::queue<ClientRequestMsg*> deferredRORequests_;
-  std::queue<MessageBase*> deferredMessages_;
+  std::deque<ClientRequestMsg*> deferredRORequests_;
+  std::deque<MessageBase*> deferredMessages_;
   bool isTryToGoNextView_ = false;
   bool isGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;
   bool isStartcollectingState_ = false;
-  bool isOnTransferringComplete_ = false;
+  uint64_t isOnTransferringComplete_ = 0;
   bool startedToExecute = false;
+  concord::util::SimpleThreadPool postExecThread_;
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
   // kWorkWindowSize]
