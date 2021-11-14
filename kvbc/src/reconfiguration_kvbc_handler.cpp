@@ -204,6 +204,10 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       if (csrep.block_id == 0) continue;
       rep.states.push_back(csrep);
     }
+    for (uint16_t i = 0; i < first_client_id; i++) {
+      auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}, i);
+      if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
+    }
   } else {
     auto scaling_key_prefix =
         std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
@@ -843,6 +847,29 @@ bool InternalKvReconfigurationHandler::handle(const concord::messages::WedgeComm
   return false;
 }
 
+bool InternalKvReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchangeKey& command,
+                                              uint64_t sequence_number,
+                                              uint32_t sender_id,
+                                              const std::optional<bftEngine::Timestamp>& ts,
+                                              concord::messages::ReconfigurationResponse& response) {
+  if (command.sender_id != sender_id) {
+    concord::messages::ReconfigurationErrorMsg error_msg;
+    error_msg.error_msg = "sender_id of the message does not match the real sender id";
+    response.response = error_msg;
+    return false;
+  }
+  std::vector<uint8_t> serialized_command;
+  concord::messages::serialize(serialized_command, command);
+  auto blockId = persistReconfigurationBlock(
+      serialized_command,
+      sequence_number,
+      std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(sender_id),
+      ts,
+      false);
+  LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
+  return true;
+}
+
 bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ClientExchangePublicKey& command,
                                                   uint64_t sequence_number,
                                                   uint32_t sender_id,
@@ -871,70 +898,6 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Clien
   concord::secretsmanager::SecretsManagerPlain sm;
   sm.encryptFile(path, pem_key.second);
   LOG_INFO(getLogger(), KVLOG(path, pem_key.second, sender_id));
-  return true;
-}
-
-bool InternalPostKvReconfigurationHandler::handle(const concord::messages::ReplicaTlsExchangeKey& command,
-                                                  uint64_t sequence_number,
-                                                  uint32_t sender_id,
-                                                  const std::optional<bftEngine::Timestamp>& ts,
-                                                  concord::messages::ReconfigurationResponse& response) {
-  if (command.sender_id != sender_id) {
-    concord::messages::ReconfigurationErrorMsg error_msg;
-    error_msg.error_msg = "sender_id of the message does not match the real sender id";
-    response.response = error_msg;
-    return false;
-  }
-  std::vector<uint8_t> serialized_command;
-  concord::messages::serialize(serialized_command, command);
-  auto blockId = persistReconfigurationBlock(
-      serialized_command,
-      sequence_number,
-      std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key} + std::to_string(sender_id),
-      ts,
-      false);
-  LOG_INFO(getLogger(), "ReplicaTlsExchangeKey block id: " << blockId << " for replica " << sender_id);
-  if (sender_id == bftEngine::ReplicaConfig::instance().replicaId) {
-    // exchange the private key
-    std::string pk_file_name = "pk.pem";
-    std::string pk_tmp_file_name = pk_file_name;
-    std::string pk_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id);
-    std::ifstream pld_key(pk_path + "/server/" + pk_file_name);
-    if (pld_key.good()) {
-      pk_tmp_file_name += ".tmp";
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/server/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/client/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
-    }
-    pk_tmp_file_name = pk_file_name;
-    std::ifstream enc_pkey(pk_path + "/server/" + pk_file_name + ".enc");
-    if (enc_pkey.good()) {
-      pk_file_name += ".enc";
-      pk_tmp_file_name += ".enc.tmp";
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/server/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/client/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
-    }
-  }
-  std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
-                                       std::to_string(sender_id) + "/server/server.cert";
-  std::string cert = command.cert;
-  secretsmanager::SecretsManagerPlain sm;
-  sm.encryptFile(bft_replicas_cert_path, cert);
-  LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
-  bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id) +
-                           "/client/client.cert";
-  sm.encryptFile(bft_replicas_cert_path, cert);
-  LOG_INFO(getLogger(), bft_replicas_cert_path + " is updated on the disk");
-  bft::communication::StateControl::instance().restartComm(sender_id);
   return true;
 }
 

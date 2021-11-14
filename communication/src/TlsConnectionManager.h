@@ -45,7 +45,6 @@ class ConnectionManager {
   void send(const NodeNum destination, const std::shared_ptr<OutgoingMsg> &msg);
   void send(const std::set<NodeNum> &destinations, const std::shared_ptr<OutgoingMsg> &msg);
   int getMaxMessageSize() const;
-  void dispose(NodeNum i);
 
  private:
   void start();
@@ -154,6 +153,7 @@ class ConnectionManager {
   // Diagnostics
   std::shared_ptr<TlsStatus> status_;
   Recorders histograms_;
+  std::atomic_bool stopped_ = false;
 };
 
 }  // namespace bft::communication::tls

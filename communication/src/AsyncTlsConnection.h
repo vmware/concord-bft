@@ -142,6 +142,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Clean up the connection
   void dispose(bool close_connection = true);
 
+  void close();
+
  private:
   // We know the size of the message and that a message should be forthcoming. We start a timer and
   // ensure we read all remaining bytes within a given timeout. If we read the full message we
@@ -169,10 +171,7 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   // Check for a specific certificate and do not rely on chain authentication.
   //
   // Return true along with the actual node id if verification succeeds, (false, 0) if not.
-  std::pair<bool, NodeNum> checkCertificate(X509* cert,
-                                            std::string connectionType,
-                                            const std::string& subject,
-                                            std::optional<NodeNum> expected_peer_id);
+  std::pair<bool, NodeNum> checkCertificate(X509* cert, std::optional<NodeNum> expected_peer_id);
 
   const std::string decryptPrivateKey(const boost::filesystem::path& path);
 
@@ -217,6 +216,8 @@ class AsyncTlsConnection : public std::enable_shared_from_this<AsyncTlsConnectio
   TlsStatus& status_;
   Recorders& histograms_;
   WriteQueue write_queue_;
+  std::mutex shutdown_lock_;
+  bool closed_ = false;
 };
 
 }  // namespace bft::communication::tls

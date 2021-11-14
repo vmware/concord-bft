@@ -30,6 +30,7 @@ void Runner::start() {
   std::lock_guard<std::mutex> lock(start_stop_mutex);
   ConcordAssert(io_threads_.empty());
   LOG_INFO(logger_, "Starting TLS Runner");
+  io_context_.restart();
 
   // Give the io_context work to do.
   for (auto& [_, conn_mgr] : principals_) {

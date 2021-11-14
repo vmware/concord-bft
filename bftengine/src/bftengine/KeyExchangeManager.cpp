@@ -127,24 +127,39 @@ void KeyExchangeManager::loadPublicKeys() {
   notifyRegistry();
 }
 
-void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
-  auto repId = bftEngine::ReplicaConfig::instance().replicaId;
+void KeyExchangeManager::exchangeTlsKeys(const std::string& type, uint64_t bftSn) {
+  std::string tmp_suffix = type == "client" ? std::string() : ".latest";
   auto keys = concord::util::crypto::Crypto::instance().generateECDSAKeyPair(
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
-  auto cert = concord::util::crypto::Crypto::instance().generateSelfSignedCertificate(
-      keys, "node" + std::to_string(repId) + "ser", repId);
-  std::string pk_path =
-      bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repId) + "/server/pk.pem";
-  concord::secretsmanager::SecretsManagerPlain psm_;
+  std::string root_path =
+      bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repID_) + "/" + type;
+
+  std::string cert_path = root_path + "/" + type + ".cert";
+  std::string prev_key_pem = concord::util::crypto::Crypto::instance()
+                                 .RsaHexToPem(std::make_pair(SigManager::instance()->getSelfPrivKey(), ""))
+                                 .first;
+  auto cert = concord::util::crypto::CertificateUtils::generateSelfSignedCert(cert_path, keys.second, prev_key_pem);
+  // Now that we have generated new key pair and certificate, lets do the actual exchange on this replica
+  std::string pk_path = root_path + "/pk.pem";
   std::fstream nec_f(pk_path);
-  if (nec_f.good()) {
-    secretsMgr_->encryptFile(pk_path + ".tmp", keys.first);
-  }
   std::fstream ec_f(pk_path + ".enc");
+
+  // 1. exchange private key
+  if (nec_f.good()) {
+    secretsMgr_->encryptFile(pk_path + tmp_suffix, keys.first);
+    nec_f.close();
+  }
   if (ec_f.good()) {
-    secretsMgr_->encryptFile(pk_path + ".enc.tmp", keys.first);
+    secretsMgr_->encryptFile(pk_path + ".enc" + tmp_suffix, keys.first);
+    ec_f.close();
   }
 
+  concord::secretsmanager::SecretsManagerPlain psm_;
+  // 2. exchange the certificate itself
+  psm_.encryptFile(cert_path + tmp_suffix, cert);
+
+  if (type == "client") return;
+  auto repId = bftEngine::ReplicaConfig::instance().replicaId;
   concord::messages::ReconfigurationRequest req;
   req.sender = repId;
   req.command = concord::messages::ReplicaTlsExchangeKey{repId, cert};
@@ -158,8 +173,13 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
   data_vec.clear();
   concord::messages::serialize(data_vec, req);
   std::string strMsg(data_vec.begin(), data_vec.end());
-  std::string cid = "replicaTlsKeyExchange_" + std::to_string(bft_sn) + "_" + std::to_string(repId);
+  std::string cid = "replicaTlsKeyExchange_" + std::to_string(bftSn) + "_" + std::to_string(repId);
   client_->sendRequest(RECONFIG_FLAG, strMsg.size(), strMsg.c_str(), cid);
+}
+
+void KeyExchangeManager::exchangeTlsKeys(uint64_t bftSn) {
+  exchangeTlsKeys("server", bftSn);
+  exchangeTlsKeys("client", bftSn);
   metrics_->tls_key_exchange_requests_++;
   LOG_INFO(KEY_EX_LOG, "Replica has generated a new tls keys");
 }
