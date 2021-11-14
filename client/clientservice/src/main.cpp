@@ -27,6 +27,7 @@
 
 using concord::client::clientservice::ClientService;
 using concord::client::clientservice::configureSubscription;
+using concord::client::clientservice::configureTransport;
 using concord::client::clientservice::parseConfigFile;
 
 using concord::client::concordclient::ConcordClient;
@@ -54,6 +55,7 @@ po::variables_map parseCmdLine(int argc, char** argv) {
     ("tr-insecure", po::value<bool>()->default_value(false), "Testing only: Allow insecure connection with TRS on replicas")
     ("tr-tls-path", po::value<std::string>()->default_value(""), "Path to thin replica TLS certificates")
     ("metrics-port", po::value<int>()->default_value(9891), "Prometheus port to query clientservice metrics")
+    ("secrets-url", po::value<std::string>(), "URL to decrypt private keys")
     ("jaeger", po::value<std::string>(), "Push trace data to this Jaeger Agent")
   ;
   // clang-format on
@@ -125,8 +127,14 @@ int main(int argc, char** argv) {
   try {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
-    configureSubscription(
-        config, opts["tr-id"].as<std::string>(), opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
+    const std::optional<std::string>& secrets_url =
+        opts.count("secrets-url") ? opts["secrets-url"].as<std::optional<std::string>>() : std::nullopt;
+    configureSubscription(config,
+                          opts["tr-id"].as<std::string>(),
+                          opts["tr-insecure"].as<bool>(),
+                          opts["tr-tls-path"].as<std::string>(),
+                          secrets_url);
+    configureTransport(config, opts["tr-insecure"].as<bool>(), opts["tr-tls-path"].as<std::string>());
   } catch (std::exception& e) {
     LOG_ERROR(logger, "Failed to configure ConcordClient: " << e.what());
     return 1;

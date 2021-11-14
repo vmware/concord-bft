@@ -80,7 +80,7 @@ struct TransportConfig {
   // TLS settings ignored if comm_type is not TlsTcp
   std::string tls_cert_root_path;
   std::string tls_cipher_suite;
-  // Buffer with the servers' PEM encoded certififactes for the event port
+  // Buffer with the servers' PEM encoded certificates for the event port
   std::string event_pem_certs;
 };
 
@@ -155,6 +155,7 @@ class ConcordClient {
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
+
   logging::Logger logger_;
   const ConcordClientConfig& config_;
   std::shared_ptr<concordMetrics::Aggregator> metrics_;

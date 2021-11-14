@@ -65,6 +65,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   concordMetrics::CounterHandle metric_received_state_transfers_;
   concordMetrics::GaugeHandle metric_state_transfer_timer_;
   bool firstTime_;
+  std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_;
 };
 
 }  // namespace bftEngine::impl

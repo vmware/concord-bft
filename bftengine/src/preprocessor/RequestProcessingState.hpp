@@ -78,6 +78,8 @@ class RequestProcessingState {
   const std::list<PreProcessResultSignature>& getPreProcessResultSignatures();
 
   static void init(uint16_t numOfRequiredReplies, preprocessor::PreProcessorRecorder* histograms);
+  const concord::util::SHA3_256::Digest& getResultHash() { return primaryPreProcessResultHash_; };
+  const char* getResult() { return primaryPreProcessResult_; }
 
  private:
   static concord::util::SHA3_256::Digest convertToArray(
@@ -91,6 +93,14 @@ class RequestProcessingState {
   void detectNonDeterministicPreProcessing(const concord::util::SHA3_256::Digest& newHash,
                                            NodeIdType newSenderId,
                                            uint64_t reqRetryId) const;
+
+  // Detect if a hash is different from the input param because of the
+  // appended block id.
+  std::pair<std::string, concord::util::SHA3_256::Digest> detectFailureDueToBlockID(
+      const concord::util::SHA3_256::Digest&, uint64_t);
+
+  // Set a new block id at the end of the result.
+  void modifyPrimayResult(const std::pair<std::string, concord::util::SHA3_256::Digest>&);
 
  private:
   static uint16_t numOfRequiredEqualReplies_;

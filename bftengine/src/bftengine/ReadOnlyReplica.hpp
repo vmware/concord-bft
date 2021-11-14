@@ -12,14 +12,11 @@
 #pragma once
 
 #include "ReplicaForStateTransfer.hpp"
-#include "messages/ClientRequestMsg.hpp"
 #include "Timers.hpp"
 
 namespace bftEngine::impl {
 
-class PersistentStorage;
-class SigManager;
-
+class ClientRequestMsg;
 /**
  *
  */
@@ -56,10 +53,6 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   void onMessage(T*);
 
  protected:
-  // last known stable checkpoint of each peer replica.
-  // We sometimes delete checkpoints before lastExecutedSeqNum
-  std::map<ReplicaId, CheckpointMsg*> tableOfStableCheckpoints;
-
   concordUtil::Timers::Handle askForCheckpointMsgTimer_;
 
   struct Metrics {
@@ -68,9 +61,6 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
     concordMetrics::CounterHandle received_invalid_msg_;
     concordMetrics::GaugeHandle last_executed_seq_num_;
   } ro_metrics_;
-
-  // digital signatures
-  std::unique_ptr<SigManager> sigManager_;
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
 };

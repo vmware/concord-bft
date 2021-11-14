@@ -28,6 +28,7 @@ class NullStateTransfer : public IStateTransfer {
   virtual void markCheckpointAsStable(uint64_t checkpointNumber) override;
   virtual void getDigestOfCheckpoint(uint64_t checkpointNumber,
                                      uint16_t sizeOfDigestBuffer,
+                                     uint64_t& outBlockId,
                                      char* outDigestBuffer) override;
 
   virtual void startCollectingState() override;

@@ -24,13 +24,6 @@ int replyLen = strlen(reply);
 bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 ReplicaId randomReplicaId() { return rand() % numOfReplicas; }
 
-class mockCheckpointMsgCmp : public CheckpointInfo {
- public:
-  static bool equivalent(CheckpointMsg* a, CheckpointMsg* b) {
-    return CheckpointInfo::CheckpointMsgCmp::equivalent(a, b);
-  }
-};
-
 class msgsCertificateTestsFixture : public ::testing::Test {
  public:
   msgsCertificateTestsFixture()
@@ -66,10 +59,10 @@ class msgsCertificateTestsFixture : public ::testing::Test {
   }
   void test_self_msg_added_peer_msg_ignored() {
     bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
-    MsgsCertificate<CheckpointMsg, true, true, true, mockCheckpointMsgCmp> replysCertificate(
+    MsgsCertificate<CheckpointMsg, true, true, true, CheckpointMsg> replysCertificate(
         numOfReplicas, fval, numOfRequired, selfReplicaId);
 
-    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, Digest(), false);
+    auto selfMsg = new CheckpointMsg(selfReplicaId, 0, 0, Digest(), false);
     selfMsg->setEpochNumber(0);
     replysCertificate.addMsg(selfMsg, selfReplicaId);
 

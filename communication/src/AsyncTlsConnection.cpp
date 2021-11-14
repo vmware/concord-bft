@@ -283,7 +283,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
   try {
     ssl_context_.use_certificate_chain_file((path / "client.cert").string());
-    const std::string pk = decryptPK(path);
+    const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
@@ -291,7 +291,13 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
   }
 
   // Only allow using the strongest cipher suites.
-  SSL_CTX_set_cipher_list(ssl_context_.native_handle(), config_.cipherSuite.c_str());
+  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
+    LOG_ERROR(logger_, "Failed to set TLS cipher suite from config: " << config_.cipherSuite.c_str());
+
+    // Setting to Default
+    if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
+      LOG_FATAL(logger_, "Failed to set default TLS cipher suite");
+  }
 }
 
 void AsyncTlsConnection::initServerSSLContext() {
@@ -325,7 +331,7 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   try {
     ssl_context_.use_certificate_chain_file((path / fs::path("server.cert")).string());
-    const std::string pk = decryptPK(path);
+    const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
@@ -349,7 +355,13 @@ void AsyncTlsConnection::initServerSSLContext() {
   EC_KEY_free(ecdh);
 
   // Only allow using the strongest cipher suites.
-  SSL_CTX_set_cipher_list(ssl_context_.native_handle(), config_.cipherSuite.c_str());
+  if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), config_.cipherSuite.c_str())) {
+    LOG_ERROR(logger_, "Failed to set TLS cipher suite from config : " << config_.cipherSuite.c_str());
+
+    // Setting to default
+    if (!SSL_CTX_set_ciphersuites(ssl_context_.native_handle(), "TLS_AES_256_GCM_SHA384"))
+      LOG_FATAL(logger_, "Failed to set default TLS cipher suite");
+  }
 }
 
 bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx, NodeNum expected_dest_id) {
@@ -473,7 +485,7 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
 
 using namespace concord::secretsmanager;
 
-const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& path) {
+const std::string AsyncTlsConnection::decryptPrivateKey(const boost::filesystem::path& path) {
   namespace fs = boost::filesystem;
   std::string pkpath;
 

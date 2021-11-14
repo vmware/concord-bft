@@ -384,6 +384,37 @@ TEST(requestPreprocessingState_test, notEnoughRepliesReceived) {
   clearDiagnosticsHandlers();
 }
 
+TEST(requestPreprocessingState_test, changePrimaryBlockId) {
+  memset(buf, '5', bufLen);
+  uint64_t blockid = 0;
+  uint64_t primaryBlockId = 420;
+  memcpy(buf + bufLen - sizeof(uint64_t), reinterpret_cast<char*>(&blockid), sizeof(uint64_t));
+  RequestProcessingState reqState(replicaConfig.replicaId,
+                                  replicaConfig.numReplicas,
+                                  "",
+                                  clientId,
+                                  0,
+                                  cid,
+                                  reqSeqNum,
+                                  ClientPreProcessReqMsgUniquePtr(),
+                                  PreProcessRequestMsgSharedPtr());
+  bftEngine::impl::ReplicasInfo repInfo(replicaConfig, true, true);
+  auto reply = preProcessNonPrimary(1, repInfo);
+  for (auto i = 1; i < numOfRequiredReplies + 1; i++) {
+    reqState.handlePreProcessReplyMsg(preProcessNonPrimary(i, repInfo));
+    ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), CONTINUE);
+  }
+  // set block id to other than the replicas
+  memcpy(buf + bufLen - sizeof(uint64_t), reinterpret_cast<char*>(&primaryBlockId), sizeof(uint64_t));
+  reqState.handlePrimaryPreProcessed(buf, bufLen);
+
+  concord::util::SHA3_256::Digest replicasHash = *((concord::util::SHA3_256::Digest*)reply->resultsHash());
+  ConcordAssertNE(replicasHash, reqState.getResultHash());
+  ConcordAssertEQ(reqState.definePreProcessingConsensusResult(), COMPLETE);
+  ConcordAssertEQ(replicasHash, reqState.getResultHash());
+  clearDiagnosticsHandlers();
+}
+
 TEST(requestPreprocessingState_test, allRepliesReceivedButNotEnoughSameHashesCollected) {
   RequestProcessingState reqState(replicaConfig.replicaId,
                                   replicaConfig.numReplicas,

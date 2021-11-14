@@ -50,13 +50,13 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
       std::bind(&ReadOnlyReplica::messageHandler<ClientRequestMsg>, this, std::placeholders::_1));
   metrics_.Register();
 
-  sigManager_.reset(SigManager::init(config_.replicaId,
-                                     config_.replicaPrivateKey,
-                                     config_.publicKeysOfReplicas,
-                                     concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
-                                     config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
-                                     concord::util::crypto::KeyFormat::PemFormat,
-                                     *repsInfo));
+  SigManager::init(config_.replicaId,
+                   config_.replicaPrivateKey,
+                   config_.publicKeysOfReplicas,
+                   concord::util::crypto::KeyFormat::HexaDecimalStrippedFormat,
+                   config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
+                   concord::util::crypto::KeyFormat::PemFormat,
+                   *repsInfo);
 }
 
 void ReadOnlyReplica::start() {
@@ -100,60 +100,33 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
     return;
   }
   ro_metrics_.received_checkpoint_msg_++;
-  const ReplicaId msgGenReplicaId = msg->idOfGeneratedReplica();
-  const SeqNum msgSeqNum = msg->seqNumber();
-  const Digest msgDigest = msg->digestOfState();
-  const bool msgIsStable = msg->isStableState();
-  const EpochNum msgEpochNum = msg->epochNumber();
-  EpochNum replicasLastKnownEpochVal = 0;
   LOG_INFO(GL,
-           KVLOG(msg->senderId(), msgGenReplicaId, msgSeqNum, msg->size(), msgIsStable)
-               << ", digest: " << msgDigest.toString());
+           KVLOG(msg->senderId(),
+                 msg->idOfGeneratedReplica(),
+                 msg->seqNumber(),
+                 msg->epochNumber(),
+                 msg->size(),
+                 msg->isStableState(),
+                 msg->state())
+               << ", state digest: " << msg->digestOfState().toString());
+
   // Reconfiguration cmd block is synced to RO replica via reserved pages
+  EpochNum replicasLastKnownEpochVal = 0;
   auto epochNumberFromResPages = ReconfigurationCmd::instance().getReconfigurationCommandEpochNumber();
-  if (epochNumberFromResPages.has_value()) {
-    replicasLastKnownEpochVal = epochNumberFromResPages.value();
-  }
+  if (epochNumberFromResPages.has_value()) replicasLastKnownEpochVal = epochNumberFromResPages.value();
+
   // not relevant
-  if (!msgIsStable || msgSeqNum <= lastExecutedSeqNum) return;
-
-  // previous CheckpointMsg from the same sender
-  auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
-  if (pos != tableOfStableCheckpoints.end() &&
-      (pos->second->seqNumber() >= msgSeqNum || msgEpochNum < replicasLastKnownEpochVal))
+  if (!msg->isStableState() || msg->seqNumber() <= lastExecutedSeqNum ||
+      msg->epochNumber() < replicasLastKnownEpochVal) {
+    delete msg;
     return;
-  if (pos != tableOfStableCheckpoints.end()) delete pos->second;
-  CheckpointMsg *x = new CheckpointMsg(msgGenReplicaId, msgSeqNum, msgDigest, msgIsStable);
-  x->setEpochNumber(msgEpochNum);
-  tableOfStableCheckpoints[msgGenReplicaId] = x;
-  LOG_INFO(GL,
-           "Added stable Checkpoint message to tableOfStableCheckpoints (message generated from node "
-               << msgGenReplicaId << " for seqNumber " << msgSeqNum << " sender node " << msg->senderId() << ")");
-
-  // not enough CheckpointMsg's
-  if ((uint16_t)tableOfStableCheckpoints.size() < config_.fVal + 1) return;
-
-  // check if got enough relevant CheckpointMsgs
-  uint16_t numRelevant = 0;
-  for (auto tableItrator = tableOfStableCheckpoints.begin(); tableItrator != tableOfStableCheckpoints.end();) {
-    if (tableItrator->second->seqNumber() <= lastExecutedSeqNum) {
-      if (msgEpochNum <= replicasLastKnownEpochVal) {
-        delete tableItrator->second;
-        tableItrator = tableOfStableCheckpoints.erase(tableItrator);
-      } else {  // committer replicas have moved to higer epoch
-        numRelevant++;
-        tableItrator++;
-      }
-    } else {
-      numRelevant++;
-      tableItrator++;
-    }
   }
-  ConcordAssert(numRelevant == tableOfStableCheckpoints.size());
-  LOG_INFO(GL, "numRelevant=" << numRelevant);
-
+  // no self certificate
+  static std::map<SeqNum, CheckpointInfo<false>> checkpointsInfo;
+  checkpointsInfo[msg->seqNumber()].addCheckpointMsg(msg, msg->idOfGeneratedReplica());
   // if enough - invoke state transfer
-  if (numRelevant >= config_.fVal + 1) {
+  if (checkpointsInfo[msg->seqNumber()].isCheckpointCertificateComplete()) {
+    checkpointsInfo.clear();
     LOG_INFO(GL, "call to startCollectingState()");
     stateTransfer->startCollectingState();
   }

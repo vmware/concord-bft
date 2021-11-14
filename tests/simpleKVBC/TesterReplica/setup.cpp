@@ -68,6 +68,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.pruningEnabled_ = true;
     replicaConfig.numBlocksToKeep_ = 10;
     replicaConfig.batchedPreProcessEnabled = true;
+    replicaConfig.timeServiceEnabled = false;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
     replicaConfig.set("concord.bft.st.runInSeparateThread", true);
     replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);

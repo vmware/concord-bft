@@ -49,7 +49,7 @@ class TimeServiceManager {
   // Checks if the new time is less or equal to the one reserved pages,
   // if this is the case, returns reserved pages time + epsilon
   // otherwise, returns the new time
-  [[nodiscard]] ConsensusTime compareAndSwap(ConsensusTime new_time) {
+  [[nodiscard]] ConsensusTime compareAndUpdate(ConsensusTime new_time) {
     auto last_timestamp = client_.getLastTimestamp();
     if (new_time > last_timestamp) {
       client_.setLastTimestamp(new_time);

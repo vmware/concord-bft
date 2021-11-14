@@ -163,6 +163,8 @@ class ConcordClientPool {
 
   inline bool IsBatchingEnabled() { return client_batching_enabled_; }
 
+  bftEngine::OperationResult getClientsError();
+
  private:
   void setUpClientParams(bftEngine::SimpleClientParams& client_params,
                          const concord::config_pool::ConcordClientPoolConfig&);
@@ -170,7 +172,6 @@ class ConcordClientPool {
 
   void OnBatchingTimeout(ClientPtr client);
   bool clusterHasKeys(ClientPtr& cl);
-  std::string SampleSpan(const std::string& span_blob);
   std::atomic_bool hasKeys_{false};
   std::atomic_bool stop_{false};
   size_t batch_size_ = 0UL;
@@ -206,9 +207,6 @@ class ConcordClientPool {
   std::atomic_bool is_overloaded_ = false;
   EXT_DONE_CALLBACK done_callback_ = nullptr;
   uint32_t jobs_queue_max_size_ = 0;
-  uint32_t span_rate = 0;
-  uint32_t transaction_count = 0;
-  std::mutex transaction_count_lock_;
   using Timer_t = ::concord_client_pool::Timer<ClientPtr>;
   std::unique_ptr<Timer_t> batch_timer_;
   bftEngine::impl::RollingAvgAndVar average_req_dur_;

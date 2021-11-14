@@ -182,7 +182,7 @@ TEST(TimeServiceManager, TimeOnTheEdgeOfSoftLimits) {
   EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 0);
 }
 
-TEST(TimeServiceManager, CompareAndSwap) {
+TEST(TimeServiceManager, CompareAndUpdate) {
   ReservedPagesMock m;
   auto& config = ReplicaConfig::instance();
   config.timeServiceEnabled = true;
@@ -196,12 +196,12 @@ TEST(TimeServiceManager, CompareAndSwap) {
 
   // check that if now does not move, the manager increases it by epsilon
   for (size_t i = 0U; i < 10; ++i) {
-    EXPECT_EQ(now + (config.timeServiceEpsilonMillis * i), manager.compareAndSwap(now));
+    EXPECT_EQ(now + (config.timeServiceEpsilonMillis * i), manager.compareAndUpdate(now));
   }
 
   EXPECT_EQ(aggregator->GetCounter("time_service", "hard_limit_reached_counter").Get(), 0);
   EXPECT_EQ(aggregator->GetCounter("time_service", "soft_limit_reached_counter").Get(), 0);
-  // DD: The first time compareAndSwap is called there is no saved value, so TS accepts the given one.
+  // DD: The first time compareAndUpdate is called there is no saved value, so TS accepts the given one.
   EXPECT_EQ(aggregator->GetCounter("time_service", "new_time_is_less_or_equal_to_previous").Get(), 9);
   EXPECT_EQ(aggregator->GetCounter("time_service", "ill_formed_preprepare").Get(), 0);
 }

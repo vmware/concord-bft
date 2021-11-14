@@ -114,7 +114,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::queue<ClientRequestMsg*> requestsQueueOfPrimary;  // only used by the primary
   size_t primaryCombinedReqSize = 0;                     // only used by the primary
 
-  std::map<uint64_t, ClientRequestMsg*>
+  std::map<uint64_t, std::pair<Time, ClientRequestMsg*>>
       requestsOfNonPrimary;  // used to retransmit client requests by a non primary replica
   size_t NonPrimaryCombinedReqSize = 1000;
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
@@ -127,8 +127,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   SequenceWithActiveWindow<kWorkWindowSize + 2 * checkpointWindowSize,
                            checkpointWindowSize,
                            SeqNum,
-                           CheckpointInfo,
-                           CheckpointInfo>* checkpointsLog = nullptr;
+                           CheckpointInfo<>,
+                           CheckpointInfo<>>* checkpointsLog = nullptr;
 
   // last known stable checkpoint of each peer replica.
   // We sometimes delete checkpoints before lastExecutedSeqNum
@@ -496,7 +496,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   bool validatePreProcessedResults(const PrePrepareMsg* msg, const ViewNum registeredView) const;
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
-  bool createDbCheckpoint_{false};
+
+  void setConflictDetectionBlockId(const ClientRequestMsg&, IRequestsHandler::ExecutionRequest&);
+
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;
   // 5 Minutes
@@ -506,6 +508,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   using Recorder = concord::diagnostics::Recorder;
   using Unit = concord::diagnostics::Unit;
+  bool createDbCheckpoint_{false};
 
   struct Recorders {
     Recorders() {

@@ -47,10 +47,6 @@ SubmitResult ConcordClientPool::SendRequest(std::vector<uint8_t> &&request,
     callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
     return SubmitResult::Overloaded;
   }
-  if (callback && flags & ClientMsgFlag::PRE_PROCESS_REQ && flags & ClientMsgFlag::READ_ONLY_REQ) {
-    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
-    return SubmitResult::Overloaded;
-  }
   externalRequest external_request;
   std::unique_lock<std::mutex> lock(clients_queue_lock_);
   metricsComponent_.UpdateAggregator();
@@ -223,6 +219,10 @@ SubmitResult ConcordClientPool::SendRequest(const bft::client::ReadConfig &confi
                                             bft::client::Msg &&request,
                                             const bftEngine::RequestCallBack &callback) {
   LOG_INFO(logger_, "Received read request with cid=" << config.request.correlation_id);
+  if (callback && config.request.pre_execute) {
+    callback(bftEngine::SendResult{SubmitResult::InvalidArgument});
+    return SubmitResult::Overloaded;
+  }
   return SendRequest(std::forward<std::vector<uint8_t>>(request),
                      ClientMsgFlag::READ_ONLY_REQ,
                      config.request.timeout,
@@ -589,19 +589,13 @@ bool ConcordClientPool::clusterHasKeys(ClientPtr &cl) {
   return result == trueReply;
 }
 
-std::string ConcordClientPool::SampleSpan(const std::string &span_blob) {
-  if (span_rate <= 0) return kEmptySpanContext;
-  if (span_rate == 1) return span_blob;
-  std::unique_lock<std::mutex> lock(transaction_count_lock_);
-  if (transaction_count == 0) {
-    transaction_count++;
-    return span_blob;
+bftEngine::OperationResult ConcordClientPool::getClientsError() {
+  for (auto &client : this->clients_) {
+    if (client->getClientRequestError() != bftEngine::OperationResult::SUCCESS) {
+      return client->getClientRequestError();
+    }
   }
-  transaction_count++;
-  if (transaction_count == span_rate) {
-    transaction_count = 0;
-  }
-  return kEmptySpanContext;
+  return bftEngine::OperationResult::SUCCESS;
 }
 
 }  // namespace concord::concord_client_pool
