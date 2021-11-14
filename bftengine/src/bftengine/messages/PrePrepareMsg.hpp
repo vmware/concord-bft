@@ -60,6 +60,8 @@ class PrePrepareMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
+  bool shouldValidateAsync() const override { return true; }
+
   // size - total size of all requests that will be added
   PrePrepareMsg(ReplicaId sender, ViewNum v, SeqNum s, CommitPath firstPath, size_t size);
 

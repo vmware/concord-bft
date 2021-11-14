@@ -16,7 +16,6 @@
 #include "assertUtils.hpp"
 #include "Digest.hpp"
 #include "ReplicaConfig.hpp"
-
 #include "MessageBase.hpp"
 #include "OpenTracing.hpp"
 
@@ -51,6 +50,8 @@ class ReplicaAsksToLeaveViewMsg : public MessageBase {
                                            const concordUtils::SpanContext& spanContext = {});
 
   void validate(const ReplicasInfo&) const override;
+
+  bool shouldValidateAsync() const override { return true; }
 
  protected:
   template <typename MessageT>

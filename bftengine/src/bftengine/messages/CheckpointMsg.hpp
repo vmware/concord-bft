@@ -48,6 +48,8 @@ class CheckpointMsg : public MessageBase {
 
   void validate(const ReplicasInfo& repInfo) const override;
 
+  bool shouldValidateAsync() const override { return true; }
+
   void sign();
 
   void setSenderId(NodeIdType id) { sender_ = id; }
