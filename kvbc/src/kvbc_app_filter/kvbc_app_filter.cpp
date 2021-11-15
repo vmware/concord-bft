@@ -314,6 +314,11 @@ uint64_t KvbAppFilter::oldestTagSpecificPublicEventGroupId() {
   uint64_t public_oldest = getValueFromLatestTable(kPublicEgIdKeyOldest);
   uint64_t private_oldest = getValueFromLatestTable(client_id_ + "_oldest");
   if (!public_oldest && !private_oldest) return 0;
+  if (!public_oldest) return private_oldest;
+  if (!private_oldest) return public_oldest;
+  // Adding public and private gives you a tag-specific event group id including two query-able event groups
+  // (the oldest private and the oldest public).
+  // However, we are only interested in the oldest and not the second oldest. Hence, we have to subtract 1.
   return public_oldest + private_oldest - 1;
 }
 
