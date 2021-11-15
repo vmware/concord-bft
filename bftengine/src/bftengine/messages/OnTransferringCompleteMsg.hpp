@@ -20,8 +20,4 @@ struct OnTransferringCompletelMsg {
   OnTransferringCompletelMsg(std::uint64_t n) : newStateCheckpoint{n} {}
 };
 
-inline bool operator==(const OnTransferringCompletelMsg& l, const OnTransferringCompletelMsg& r) {
-  return (l.newStateCheckpoint == r.newStateCheckpoint);
-}
-
 }  // namespace bftEngine::impl
