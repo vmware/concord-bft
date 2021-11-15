@@ -147,9 +147,21 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
   if (std::holds_alternative<EventGroupRequest>(sub_req.request)) {
     ::client::thin_replica_client::SubscribeRequest trc_request;
     trc_request.event_group_id = std::get<EventGroupRequest>(sub_req.request).event_group_id;
-    trc_->Subscribe(trc_request);
+    try {
+      trc_->Subscribe(trc_request);
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      throw ConcordClient::UpdateNotFound();
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      throw ConcordClient::OutOfRangeSubscriptionRequest();
+    }
   } else if (std::holds_alternative<LegacyEventRequest>(sub_req.request)) {
-    trc_->Subscribe(std::get<LegacyEventRequest>(sub_req.request).block_id);
+    try {
+      trc_->Subscribe(std::get<LegacyEventRequest>(sub_req.request).block_id);
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      throw ConcordClient::UpdateNotFound();
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      throw ConcordClient::OutOfRangeSubscriptionRequest();
+    }
   } else {
     ConcordAssert(false);
   }

@@ -99,7 +99,9 @@ void ThinReplicaClient::recordCollectedHash(size_t update_source,
 bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
                                                  HashRecordMap& server_indexes_by_reported_update,
                                                  size_t& maximal_agreeing_subset_size,
-                                                 HashRecord& maximally_agreed_on_update) {
+                                                 HashRecord& maximally_agreed_on_update,
+                                                 size_t& servers_out_of_range,
+                                                 size_t& servers_pruned) {
   Hash hash;
   LOG_DEBUG(logger_, "Read hash from " << server_index);
 
@@ -112,6 +114,18 @@ bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
   if (read_result == TrsConnection::Result::kFailure) {
     LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed.");
     metrics_.read_failures_per_update++;
+    return false;
+  }
+  if (read_result == TrsConnection::Result::kOutOfRange) {
+    LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed, request out of range.");
+    metrics_.read_failures_per_update++;
+    if (!is_subscription_successful_) servers_out_of_range++;
+    return false;
+  }
+  if (read_result == TrsConnection::Result::kNotFound) {
+    LOG_DEBUG(logger_, "Hash stream " << server_index << " read failed, requested update pruned.");
+    metrics_.read_failures_per_update++;
+    servers_pruned++;
     return false;
   }
   ConcordAssert(read_result == TrsConnection::Result::kSuccess);
@@ -170,11 +184,12 @@ bool ThinReplicaClient::readUpdateHashFromStream(size_t server_index,
   return true;
 }
 
-std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& update_in,
-                                                                         HashRecordMap& agreeing_subset_members,
-                                                                         size_t& most_agreeing,
-                                                                         HashRecord& most_agreed_block,
-                                                                         unique_ptr<LogCid>& cid) {
+std::pair<TrsConnection::Result, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(
+    Data& update_in,
+    HashRecordMap& agreeing_subset_members,
+    size_t& most_agreeing,
+    HashRecord& most_agreed_block,
+    unique_ptr<LogCid>& cid) {
   if (!config_->trs_conns[data_conn_index_]->hasDataStream()) {
     // It may be the case that there is no data stream open after the data
     // stream was opened or rotated because the initial SubscribeToUpdates call
@@ -182,19 +197,29 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
     // data stream in the same way as if the first read on that stream didn't
     // succeed; therefore readBlock treats not having a data stream when it is
     // called the same as a read failure.
-    return {false, nullptr};
+    return {TrsConnection::Result::kFailure, nullptr};
   }
 
   TrsConnection::Result read_result = config_->trs_conns[data_conn_index_]->readData(&update_in);
   if (read_result == TrsConnection::Result::kTimeout) {
     LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " timed out");
     metrics_.read_timeouts_per_update++;
-    return {false, nullptr};
+    return {read_result, nullptr};
   }
   if (read_result == TrsConnection::Result::kFailure) {
     LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed");
     metrics_.read_failures_per_update++;
-    return {false, nullptr};
+    return {read_result, nullptr};
+  }
+  if (read_result == TrsConnection::Result::kOutOfRange) {
+    LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed, request out of range");
+    metrics_.read_failures_per_update++;
+    return {read_result, nullptr};
+  }
+  if (read_result == TrsConnection::Result::kNotFound) {
+    LOG_DEBUG(logger_, "Data stream " << data_conn_index_ << " read failed, requested update pruned");
+    metrics_.read_failures_per_update++;
+    return {read_result, nullptr};
   }
   ConcordAssert(read_result == TrsConnection::Result::kSuccess);
 
@@ -211,7 +236,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
       LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing event group id: " << id);
       metrics_.read_ignored_per_update++;
       cid.reset(nullptr);
-      return {false, nullptr};
+      return {read_result, nullptr};
     }
   } else {
     ConcordAssert(update_in.has_events());
@@ -223,7 +248,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
       LOG_WARN(logger_, "Data stream " << data_conn_index_ << " gave an update with decreasing block number: " << id);
       metrics_.read_ignored_per_update++;
       cid.reset(nullptr);
-      return {false, nullptr};
+      return {read_result, nullptr};
     }
   }
 
@@ -235,7 +260,7 @@ std::pair<bool, ThinReplicaClient::SpanPtr> ThinReplicaClient::readBlock(Data& u
                       agreeing_subset_members,
                       most_agreeing,
                       most_agreed_block);
-  return {true, std::move(span)};
+  return {read_result, std::move(span)};
 }
 
 TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index) {
@@ -255,7 +280,9 @@ bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
                                                HashRecordMap& agreeing_subset_members,
                                                size_t& most_agreeing,
                                                HashRecord& most_agreed_block,
-                                               SpanPtr& parent_span) {
+                                               SpanPtr& parent_span,
+                                               size_t& servers_out_of_range,
+                                               size_t& servers_pruned) {
   SpanPtr span = nullptr;
   if (parent_span) {
     span = opentracing::Tracer::Global()->StartSpan("trclient_verify_hash_against_additional_servers",
@@ -289,7 +316,9 @@ bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
       // without updating the following code.
       ConcordAssert(stream_open_status == TrsConnection::Result::kSuccess ||
                     stream_open_status == TrsConnection::Result::kTimeout ||
-                    stream_open_status == TrsConnection::Result::kFailure);
+                    stream_open_status == TrsConnection::Result::kFailure ||
+                    stream_open_status == TrsConnection::Result::kOutOfRange ||
+                    stream_open_status == TrsConnection::Result::kNotFound);
 
       if (stream_open_status == TrsConnection::Result::kTimeout) {
         LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " timed out.");
@@ -299,13 +328,24 @@ bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
         LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed.");
         metrics_.read_failures_per_update++;
       }
+      if (stream_open_status == TrsConnection::Result::kOutOfRange) {
+        LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed, request out of range.");
+        metrics_.read_failures_per_update++;
+        if (!is_subscription_successful_) servers_out_of_range++;
+      }
+      if (stream_open_status == TrsConnection::Result::kNotFound) {
+        LOG_DEBUG(logger_, "Opening a hash stream to server " << server_index << " failed, requested update pruned.");
+        metrics_.read_failures_per_update++;
+        servers_pruned++;
+      }
       if (stream_open_status != TrsConnection::Result::kSuccess) {
         servers_tried[server_index] = true;
         continue;
       }
     }
 
-    bool has_hash = readUpdateHashFromStream(server_index, agreeing_subset_members, most_agreeing, most_agreed_block);
+    bool has_hash = readUpdateHashFromStream(
+        server_index, agreeing_subset_members, most_agreeing, most_agreed_block, servers_out_of_range, servers_pruned);
     if (!has_hash) unsuccessful_hash_stream_subset_size++;
     servers_tried[server_index] = true;
 
@@ -380,7 +420,8 @@ bool ThinReplicaClient::rotateDataStreamAndVerify(Data& update_in,
       metrics_.read_timeouts_per_update++;
       continue;
     }
-    if (open_stream_result == TrsConnection::Result::kFailure || read_result == TrsConnection::Result::kFailure) {
+    if ((open_stream_result == TrsConnection::Result::kFailure) || (read_result == TrsConnection::Result::kFailure) ||
+        (read_result == TrsConnection::Result::kOutOfRange) || (read_result == TrsConnection::Result::kNotFound)) {
       LOG_DEBUG(logger_, "Read failed on a data subscription stream (to server index " << server_index << ").");
       metrics_.read_failures_per_update++;
       continue;
@@ -445,6 +486,14 @@ void ThinReplicaClient::logDataStreamResetResult(const TrsConnection::Result& re
     LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed.");
     metrics_.read_failures_per_update++;
   }
+  if (result == TrsConnection::Result::kOutOfRange) {
+    LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed, request out of range.");
+    metrics_.read_failures_per_update++;
+  }
+  if (result == TrsConnection::Result::kNotFound) {
+    LOG_DEBUG(logger_, "Opening a data stream to server " << server_index << " failed, requested update pruned.");
+    metrics_.read_failures_per_update++;
+  }
 }
 
 void ThinReplicaClient::receiveUpdates() {
@@ -475,9 +524,14 @@ void ThinReplicaClient::receiveUpdates() {
     unique_ptr<LogCid> update_cid;
     SpanPtr span = nullptr;
     vector<bool> servers_tried(config_->trs_conns.size(), false);
+    // indicates the number of servers in one iteration of the while loop have returned OUT_OF_RANGE error
+    size_t servers_out_of_range = 0;
+    // indicates the number of servers in one iteration of the while loop have returned NOT_FOUND error
+    size_t servers_pruned = 0;
 
     HashRecordMap agreeing_subset_members;
     HashRecord most_agreed_block;
+    TrsConnection::Result read_result;
     size_t most_agreeing = 0;
     bool has_data = false;
     bool has_hash_updates = false;
@@ -487,15 +541,27 @@ void ThinReplicaClient::receiveUpdates() {
     // are already open, starting with the data stream and followed by any hash
     // streams.
     LOG_DEBUG(logger_, "Read from data stream " << data_conn_index_);
-    std::tie(has_data, span) =
+    std::tie(read_result, span) =
         readBlock(update_in, agreeing_subset_members, most_agreeing, most_agreed_block, update_cid);
+    has_data = (read_result != TrsConnection::Result::kSuccess) ? false : true;
     servers_tried[data_conn_index_] = true;
+
+    if (read_result == TrsConnection::Result::kOutOfRange && !is_subscription_successful_) {
+      servers_out_of_range++;
+    } else if (read_result == TrsConnection::Result::kNotFound) {
+      servers_pruned++;
+    }
 
     uint64_t update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
     LOG_DEBUG(logger_,
               "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
-    has_hash_updates =
-        findBlockHashAgreement(servers_tried, agreeing_subset_members, most_agreeing, most_agreed_block, span);
+    has_hash_updates = findBlockHashAgreement(servers_tried,
+                                              agreeing_subset_members,
+                                              most_agreeing,
+                                              most_agreed_block,
+                                              span,
+                                              servers_out_of_range,
+                                              servers_pruned);
     if (stop_subscription_thread_) {
       break;
     }
@@ -531,6 +597,18 @@ void ThinReplicaClient::receiveUpdates() {
       // we do exactly what the algorithm would do in the next iteration of this
       // loop anyways.
       closeAllHashStreams();
+      // Throw OutOfRangeSubscriptionRequest error if f+1 servers out of range in the first round of subscription
+      if (!is_subscription_successful_ && servers_out_of_range >= (config_->max_faulty + 1)) {
+        std::string msg{"Out of range subscription request"};
+        LOG_ERROR(logger_, msg);
+        throw OutOfRangeSubscriptionRequest();
+      }
+      // Throw UpdateNotFound error if requested update pruned at f+1 servers in this subscription round
+      if (servers_pruned >= (config_->max_faulty + 1)) {
+        std::string msg{"Requested update has been pruned"};
+        LOG_ERROR(logger_, msg);
+        throw UpdateNotFound();
+      }
       size_t new_data_index = (data_conn_index_ + 1) % config_->trs_conns.size();
       logDataStreamResetResult(resetDataStreamTo(new_data_index), new_data_index);
       continue;
@@ -561,6 +639,7 @@ void ThinReplicaClient::receiveUpdates() {
     }
 
     ConcordAssert(has_verified_data);
+    is_subscription_successful_ = true;
     LOG_DEBUG(logger_, "Read and verified data for update " << update_id);
 
     ConcordAssertNE(config_->update_queue, nullptr);
@@ -654,7 +733,15 @@ ThinReplicaClient::~ThinReplicaClient() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      std::string msg{"Subscription failed: Requested event group not found"};
+      LOG_ERROR(logger_, msg);
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+    }
   }
 }
 
@@ -673,7 +760,17 @@ void ThinReplicaClient::Subscribe() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      std::string msg{"Subscription failed: Requested event group not found"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    }
     subscription_thread_.reset();
   }
   is_event_group_request_ = false;
@@ -862,7 +959,17 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      std::string msg{"Subscription failed: Requested update not found"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    }
     subscription_thread_.reset();
   }
 
@@ -882,7 +989,17 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      std::string msg{"Subscription failed: Requested update not found"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    }
     subscription_thread_.reset();
   }
 
@@ -912,7 +1029,17 @@ void ThinReplicaClient::Unsubscribe() {
   stop_subscription_thread_ = true;
   if (subscription_thread_) {
     ConcordAssert(subscription_thread_->joinable());
-    subscription_thread_->join();
+    try {
+      subscription_thread_->join();
+    } catch (ThinReplicaClient::UpdateNotFound& e) {
+      std::string msg{"Subscription failed: Requested update not found"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+      std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    }
     subscription_thread_.reset();
   }
 

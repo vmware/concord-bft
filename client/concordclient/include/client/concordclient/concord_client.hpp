@@ -153,6 +153,18 @@ class ConcordClient {
     SubscriptionExists() : std::runtime_error("subscription exists already"){};
   };
 
+  // An ongoing subscription may request an update that has not yet been added to the blockchain
+  class UpdateNotFound : public std::runtime_error {
+   public:
+    UpdateNotFound() : std::runtime_error("requested update does not exist yet"){};
+  };
+
+  // A new subscription may request an out of range update
+  class OutOfRangeSubscriptionRequest : public std::runtime_error {
+   public:
+    OutOfRangeSubscriptionRequest() : std::runtime_error("out of range subscription request"){};
+  };
+
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
 

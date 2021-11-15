@@ -59,6 +59,10 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     client_->subscribe(request, update_queue, span);
   } catch (cc::ConcordClient::SubscriptionExists& e) {
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
+  } catch (cc::ConcordClient::UpdateNotFound& e) {
+    return grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
+  } catch (cc::ConcordClient::OutOfRangeSubscriptionRequest& e) {
+    return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
   }
 
   // TODO: Consider all gRPC return error codes as described in event.proto

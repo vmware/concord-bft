@@ -190,6 +190,8 @@ class ThinReplicaClient final {
   bool is_event_group_request_;
   uint64_t latest_verified_block_id_;
   uint64_t latest_verified_event_group_id_;
+  // a subscription is said to be successful when TRC receives the first verified update.
+  bool is_subscription_successful_;
 
   std::unique_ptr<std::thread> subscription_thread_;
   std::atomic_bool stop_subscription_thread_;
@@ -238,11 +240,11 @@ class ThinReplicaClient final {
   using HashRecordMap = std::map<HashRecord, std::unordered_set<size_t>, CompareHashRecord>;
 
   using SpanPtr = std::unique_ptr<opentracing::Span>;
-  std::pair<bool, SpanPtr> readBlock(com::vmware::concord::thin_replica::Data& update_in,
-                                     HashRecordMap& agreeing_subset_members,
-                                     size_t& most_agreeing,
-                                     HashRecord& most_agreed_block,
-                                     std::unique_ptr<LogCid>& cid);
+  std::pair<TrsConnection::Result, SpanPtr> readBlock(com::vmware::concord::thin_replica::Data& update_in,
+                                                      HashRecordMap& agreeing_subset_members,
+                                                      size_t& most_agreeing,
+                                                      HashRecord& most_agreed_block,
+                                                      std::unique_ptr<LogCid>& cid);
 
   // Opens hash streams to all the replicas and tries to read hash updates
   // from opened streams to check for maximal agreement.
@@ -253,7 +255,9 @@ class ThinReplicaClient final {
                               HashRecordMap& agreeing_subset_members,
                               size_t& most_agreeing,
                               HashRecord& most_agreed_block,
-                              SpanPtr& parent_span);
+                              SpanPtr& parent_span,
+                              size_t& servers_out_of_range,
+                              size_t& servers_pruned);
 
   bool rotateDataStreamAndVerify(com::vmware::concord::thin_replica::Data& update_in,
                                  HashRecordMap& agreeing_subset_members,
@@ -279,7 +283,9 @@ class ThinReplicaClient final {
   bool readUpdateHashFromStream(size_t server_index,
                                 HashRecordMap& server_indexes_by_reported_update,
                                 size_t& maximal_agreeing_subset_size,
-                                HashRecord& maximally_agreed_on_update);
+                                HashRecord& maximally_agreed_on_update,
+                                size_t& servers_out_of_range,
+                                size_t& servers_pruned);
 
  public:
   // Constructor for ThinReplicaClient. Note that, as the ThinReplicaClient
@@ -299,6 +305,7 @@ class ThinReplicaClient final {
         data_conn_index_(0),
         latest_verified_block_id_(0),
         latest_verified_event_group_id_(0),
+        is_subscription_successful_(false),
         subscription_thread_(),
         stop_subscription_thread_(false) {
     metrics_.setAggregator(aggregator);
@@ -423,6 +430,18 @@ class ThinReplicaClient final {
 
   // Register the callback to update external metrics
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
+
+  // An ongoing subscription may request an update that has not yet been added to the blockchain
+  class UpdateNotFound : public std::runtime_error {
+   public:
+    UpdateNotFound() : std::runtime_error("requested update does not exist yet"){};
+  };
+
+  // A new subscription may request an out of range update
+  class OutOfRangeSubscriptionRequest : public std::runtime_error {
+   public:
+    OutOfRangeSubscriptionRequest() : std::runtime_error("out of range subscription request"){};
+  };
 };
 
 }  // namespace client::thin_replica_client
