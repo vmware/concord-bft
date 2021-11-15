@@ -115,12 +115,13 @@ TrsConnection::Result TrsConnection::openDataStream(const SubscriptionRequest& r
 
   ConcordAssert(status == future_status::ready);
   data_stream_ = stream.get();
-  if (!data_stream_) {
-    data_context_.reset();
-    return Result::kFailure;
-  } else {
-    return Result::kSuccess;
-  }
+  if (data_stream_) return Result::kSuccess;
+
+  auto grpc_status = data_stream_->Finish();
+  if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
+  if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
+  data_context_.reset();
+  return Result::kFailure;
 }
 
 void TrsConnection::cancelDataStream() {
@@ -151,7 +152,12 @@ TrsConnection::Result TrsConnection::readData(Data* data) {
   }
 
   ConcordAssert(status == future_status::ready);
-  return result.get() ? Result::kSuccess : Result::kFailure;
+  if (result.get()) return Result::kSuccess;
+
+  auto grpc_status = data_stream_->Finish();
+  if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
+  if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
+  return Result::kFailure;
 }
 
 TrsConnection::Result TrsConnection::openStateStream(const ReadStateRequest& request) {
@@ -271,7 +277,12 @@ TrsConnection::Result TrsConnection::readStateHash(const ReadStateHashRequest& r
              "ReadStateHash from " << address_ << " failed with error code: " << call_grpc_status.error_code() << ", \""
                                    << call_grpc_status.error_message() << "\".");
   }
-  return call_grpc_status.ok() ? Result::kSuccess : Result::kFailure;
+
+  if (call_grpc_status.ok()) return Result::kSuccess;
+
+  if (call_grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
+  if (call_grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
+  return Result::kFailure;
 }
 
 TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request) {
@@ -300,12 +311,13 @@ TrsConnection::Result TrsConnection::openHashStream(SubscriptionRequest& request
 
   ConcordAssert(status == future_status::ready);
   hash_stream_ = stream.get();
-  if (!hash_stream_) {
-    hash_context_.reset();
-    return Result::kFailure;
-  } else {
-    return Result::kSuccess;
-  }
+  if (hash_stream_) return Result::kSuccess;
+
+  auto grpc_status = hash_stream_->Finish();
+  if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
+  if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
+  hash_context_.reset();
+  return Result::kFailure;
 }
 
 void TrsConnection::cancelHashStream() {
@@ -336,7 +348,12 @@ TrsConnection::Result TrsConnection::readHash(Hash* hash) {
   }
 
   ConcordAssert(status == future_status::ready);
-  return result.get() ? Result::kSuccess : Result::kFailure;
+  if (result.get()) return Result::kSuccess;
+
+  auto grpc_status = hash_stream_->Finish();
+  if (grpc_status.error_code() == grpc::StatusCode::OUT_OF_RANGE) return Result::kOutOfRange;
+  if (grpc_status.error_code() == grpc::StatusCode::NOT_FOUND) return Result::kNotFound;
+  return Result::kFailure;
 }
 
 }  // namespace client::thin_replica_client
