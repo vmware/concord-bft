@@ -149,6 +149,7 @@ void copyChildVariantContainingLeafChild(benchmark::State &state) {
   const Child src = leafChild;
 
   for (auto _ : state) {
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const auto copy = src;
     benchmark::DoNotOptimize(copy);
   }
@@ -158,6 +159,7 @@ void copyChildVariantContainingInteranlChild(benchmark::State &state) {
   const Child src = internalChild;
 
   for (auto _ : state) {
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     const auto copy = src;
     benchmark::DoNotOptimize(copy);
   }
