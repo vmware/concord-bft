@@ -32,6 +32,7 @@ ReplicaBase::ReplicaBase(const ReplicaConfig& config,
       last_metrics_dump_time_(0),
       metrics_dump_interval_in_sec_(config_.metricsDumpIntervalSeconds),
       metrics_{concordMetrics::Component("replica", std::make_shared<concordMetrics::Aggregator>())},
+      connected_external_client{metrics_.RegisterGauge("number_of_external_clients_connected_to_replica", 0)},
       timers_{timers} {
   LOG_INFO(GL, "");
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
@@ -91,6 +92,15 @@ void ReplicaBase::sendRaw(MessageBase* m, NodeIdType dest) {
   if (msgsCommunicator_->sendAsyncMessage(dest, m->body(), m->size())) {
     LOG_ERROR(CNSUS, "sendAsyncMessage failed: " << KVLOG(type, dest));
   }
+
+  auto& external_clients = this->repsInfo->idsOfExternalClients();
+  int num_of_connected_external_clients = 0;
+  for (PrincipalId external_client : external_clients) {
+    if (msgsCommunicator_->isReplicaConnected(external_client)) {
+      num_of_connected_external_clients++;
+    }
+  }
+  connected_external_client.Get().Set(num_of_connected_external_clients);
 }
 
 }  // namespace bftEngine::impl

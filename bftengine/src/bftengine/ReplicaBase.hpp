@@ -110,7 +110,7 @@ class ReplicaBase {
   std::chrono::seconds metrics_dump_interval_in_sec_;
   concordMetrics::Component metrics_;
   std::shared_ptr<concordMetrics::Aggregator> aggregator_;
-
+  GaugeHandle connected_external_client;
   ///////////////////////////////////////////////////
   // Timers
   Timers::Handle debugStatTimer_;
