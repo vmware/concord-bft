@@ -297,6 +297,38 @@ class KeyExchangeCommandHandler : public IStateHandler {
   uint64_t init_last_tls_update_block_;
 };
 
+class ReplicaTLSKeyExchangeHandler : public IStateHandler {
+ public:
+  ReplicaTLSKeyExchangeHandler(const std::string& cert_root_path) : cert_root_path_{cert_root_path} {}
+
+  bool validate(const State& state) const override {
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
+  }
+
+  bool execute(const State& state, WriteState& out) override {
+    bool succ = true;
+    concord::messages::ClientStateReply crep;
+    concord::messages::deserialize(state.data, crep);
+    auto command = std::get<concord::messages::ReplicaTlsExchangeKey>(crep.response);
+    auto sender_id = command.sender_id;
+    concord::messages::ReconfigurationResponse response;
+    std::string bft_replicas_cert_path = cert_root_path_ + "/" + std::to_string(sender_id) + "/server/server.cert";
+    auto current_rep_cert = sm_.decryptFile(bft_replicas_cert_path);
+    if (current_rep_cert == command.cert) return succ;
+    LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
+    std::string cert = std::move(command.cert);
+    sm_.encryptFile(bft_replicas_cert_path + ".latest", cert);
+    LOG_INFO(GL, bft_replicas_cert_path + ".latest" + " is updated on the disk");
+    return succ;
+  }
+
+ private:
+  concord::secretsmanager::SecretsManagerPlain sm_;
+  std::string cert_root_path_;
+};
+
 class ClientsAddRemoveHandler : public IStateHandler {
  public:
   ClientsAddRemoveHandler(uint64_t init_update_block) : init_last_update_block_{init_update_block} {}
@@ -419,6 +451,7 @@ int main(int argc, char** argv) {
                                                   sm_));
   cre.registerHandler(std::make_shared<ClientsAddRemoveHandler>(last_scaling_status));
   cre.registerHandler(std::make_shared<ClientsRestartHandler>(last_resatrt_status, creParams.CreConfig.id_));
+  cre.registerHandler(std::make_shared<ReplicaTLSKeyExchangeHandler>(creParams.certFolder));
   cre.start();
   while (true) std::this_thread::sleep_for(1s);
 }
