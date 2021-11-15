@@ -582,32 +582,47 @@ class SkvbcReconfigurationTest(unittest.TestCase):
         for rep in affected_replicas:
             reps_data[rep] = {}
             for r in replicas:
-                cert_path = os.path.join(bft_network.certdir + "/" + str(r), str(r),"server", "server.cert")
+                val = []
+                cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r), "server", "server.cert")
                 with open(cert_path) as orig_key:
                     cert_text = orig_key.readlines()
-                    reps_data[rep][r] = cert_text
+                    val += [cert_text]
+                cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r), "client", "client.cert")
+                with open(cert_path) as orig_key:
+                    cert_text = orig_key.readlines()
+                    val += [cert_text]
+                reps_data[rep][r] = val
         client = bft_network.random_client()
         op = operator.Operator(bft_network.config, client, bft_network.builddir)
-        rep = await op.key_exchange(replicas, tls=True)
-        rep = cmf_msgs.ReconfigurationResponse.deserialize(rep)[0]
-        assert rep.success is True
 
-        with trio.fail_after(30):
+        try:
+            await op.key_exchange(replicas, tls=True)
+        except trio.TooSlowError:
+            # As we rotate the TLS keys immediately, the call may return with timeout
+            pass
+        with trio.fail_after(60):
             succ = False
             while not succ:
                 await trio.sleep(1)
                 succ = True
                 for rep in affected_replicas:
                     for r in replicas:
-                        cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r),"server", "server.cert")
-                        cert_text = []
+                        cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r), "server", "server.cert")
                         with open(cert_path) as orig_key:
                             cert_text = orig_key.readlines()
-                        diff = difflib.unified_diff(reps_data[rep][r], cert_text, fromfile="new", tofile="old", lineterm='')
-                        lines = sum(1 for l in diff)
-                        if lines == 0:
-                            succ = False
-                            continue
+                            diff = difflib.unified_diff(reps_data[rep][r][0], cert_text, fromfile="new", tofile="old", lineterm='')
+                            lines = sum(1 for l in diff)
+                            if lines > 0:
+                                continue
+                        cert_path = os.path.join(bft_network.certdir + "/" + str(rep), str(r), "client", "client.cert")
+                        with open(cert_path) as orig_key:
+                            cert_text = orig_key.readlines()
+                            diff = difflib.unified_diff(reps_data[rep][r][1], cert_text, fromfile="new", tofile="old", lineterm='')
+                            lines = sum(1 for l in diff)
+                            if lines > 0:
+                                continue
+                        succ = False
+                        break
 
     @with_trio
     @with_bft_network(start_replica_cmd, selected_configs=lambda n, f, c: n == 7)
