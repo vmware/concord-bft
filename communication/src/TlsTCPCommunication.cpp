@@ -99,7 +99,9 @@ void TlsTCPCommunication::setReceiver(NodeNum id, IReceiver *receiver) {
 }
 
 void TlsTCPCommunication::restartCommunication(NodeNum i) {
-  runner_->stop();
-  runner_->start();
+  if (i == config_.selfId) {
+    runner_->stop();
+    runner_->start();
+  }
 }
 }  // namespace bft::communication

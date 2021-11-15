@@ -304,10 +304,12 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
   bool validate(const State& state) const override {
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
+    LOG_INFO(GL, "b(1)");
     return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
   }
 
   bool execute(const State& state, WriteState& out) override {
+    LOG_INFO(GL, "b(2)");
     bool succ = true;
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
@@ -319,8 +321,8 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
     if (current_rep_cert == command.cert) return succ;
     LOG_INFO(GL, "execute replica TLS key exchange using state transfer cre" << KVLOG(sender_id));
     std::string cert = std::move(command.cert);
-    sm_.encryptFile(bft_replicas_cert_path + ".latest", cert);
-    LOG_INFO(GL, bft_replicas_cert_path + ".latest" + " is updated on the disk");
+    sm_.encryptFile(bft_replicas_cert_path, cert);
+    LOG_INFO(GL, bft_replicas_cert_path + " is updated on the disk");
     return succ;
   }
 
