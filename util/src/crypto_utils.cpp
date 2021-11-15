@@ -362,11 +362,13 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
   if (priv_bio_write_ret <= 0) {
     EVP_PKEY_free(priv_key);
     BIO_free(priv_bio);
+    LOG_ERROR(GL, "Unable to create private key object");
     return std::string();
   }
   if (!PEM_read_bio_PrivateKey(priv_bio, &priv_key, NULL, NULL)) {
     EVP_PKEY_free(priv_key);
     BIO_free(priv_bio);
+    LOG_ERROR(GL, "Unable to create private key object");
     return std::string();
   }
   EVP_PKEY* pub_key = EVP_PKEY_new();
@@ -375,11 +377,13 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
   if (pub_bio_write_ret <= 0) {
     EVP_PKEY_free(pub_key);
     BIO_free(pub_bio);
+    LOG_ERROR(GL, "Unable to create public key object");
     return std::string();
   }
   if (!PEM_read_bio_PUBKEY(pub_bio, &pub_key, NULL, NULL)) {
     EVP_PKEY_free(pub_key);
     BIO_free(pub_bio);
+    LOG_ERROR(GL, "Unable to create public key object");
     return std::string();
   }
 
@@ -394,6 +398,7 @@ std::string CertificateUtils::generateSelfSignedCert(const std::string& origin_c
     EVP_PKEY_free(pub_key);
     BIO_free(pub_bio);
     X509_free(cert);
+    LOG_ERROR(GL, "Unable to create certificate object");
     return std::string();
   }
   std::string certStr;

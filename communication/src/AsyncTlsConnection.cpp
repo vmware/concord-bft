@@ -401,18 +401,25 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
   std::string conn_type;
   bool res = concord::util::crypto::CertificateUtils::verifyCertificate(
       receivedCert, config_.certificatesRootPath, peerId, conn_type);
-  LOG_INFO(GL, "*** :" << KVLOG(res, expectedPeerId.has_value()));
   if (expectedPeerId.has_value() && peerId != expectedPeerId.value()) return std::make_pair(false, peerId);
   if (!res) {
+    LOG_INFO(logger_,
+             "Unable to validate certificate against the local storage, falling back to validate against the RSA "
+             "public key");
     std::string pem_pub_key = StateControl::instance().getPeerPubKey(peerId);
-    if (concord::util::crypto::Crypto::instance().getFormat(pem_pub_key) !=
-        concord::util::crypto::KeyFormat::PemFormat) {
-      pem_pub_key = concord::util::crypto::Crypto::instance()
-                        .RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId)))
-                        .second;
+    if (!pem_pub_key.empty()) {
+      if (concord::util::crypto::Crypto::instance().getFormat(pem_pub_key) !=
+          concord::util::crypto::KeyFormat::PemFormat) {
+        pem_pub_key = concord::util::crypto::Crypto::instance()
+                          .RsaHexToPem(std::make_pair("", StateControl::instance().getPeerPubKey(peerId)))
+                          .second;
+      }
+      res = concord::util::crypto::CertificateUtils::verifyCertificate(receivedCert, pem_pub_key);
     }
-    res = concord::util::crypto::CertificateUtils::verifyCertificate(receivedCert, pem_pub_key);
     if (!res) {
+      LOG_INFO(logger_,
+               "Unable to validate certificate against the RSA public key, falling back to validate against the "
+               ".latest certificate");
       auto latest_cert = config_.certificatesRootPath + "/" + std::to_string(peerId) + "/server/server.cert.latest";
       auto deleter = [](FILE* fp) {
         if (fp) fclose(fp);
