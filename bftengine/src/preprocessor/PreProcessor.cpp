@@ -725,6 +725,10 @@ void PreProcessor::onMessage<ClientBatchRequestMsg>(ClientBatchRequestMsg *msg) 
   const auto senderId = clientBatchMsg->senderId();
   const auto &batchCid = clientBatchMsg->getCid();
   const auto batchSize = clientBatchMsg->numOfMessagesInBatch();
+  if (batchSize > PreProcessor::clientMaxBatchSize_) {
+    LOG_ERROR(logger(), "The batch size exceeds the allowed maximum" << KVLOG(batchSize, clientMaxBatchSize_));
+    return;
+  }
   LOG_DEBUG(logger(), "Received ClientBatchRequestMsg" << KVLOG(batchCid, senderId, clientId, batchSize));
   if (!checkClientBatchMsgCorrectness(clientBatchMsg)) {
     preProcessorMetrics_.preProcReqIgnored++;
