@@ -304,12 +304,10 @@ class ReplicaTLSKeyExchangeHandler : public IStateHandler {
   bool validate(const State& state) const override {
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
-    LOG_INFO(GL, "b(1)");
     return std::holds_alternative<concord::messages::ReplicaTlsExchangeKey>(crep.response);
   }
 
   bool execute(const State& state, WriteState& out) override {
-    LOG_INFO(GL, "b(2)");
     bool succ = true;
     concord::messages::ClientStateReply crep;
     concord::messages::deserialize(state.data, crep);
