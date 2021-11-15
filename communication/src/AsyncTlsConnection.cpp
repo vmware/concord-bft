@@ -505,5 +505,11 @@ const std::string AsyncTlsConnection::decryptPrivateKey(const boost::filesystem:
 
   return *decBuf;
 }
+void AsyncTlsConnection::close() {
+  std::lock_guard<std::mutex> lock(shutdown_lock_);
+  if (closed_) return;
+  socket_->lowest_layer().close();
+  closed_ = true;
+}
 
 }  // namespace bft::communication::tls

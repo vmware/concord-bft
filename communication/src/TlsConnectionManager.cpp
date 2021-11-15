@@ -42,7 +42,7 @@ ConnectionManager::ConnectionManager(const TlsTcpConfig& config, asio::io_contex
 
 void ConnectionManager::start() {
   LOG_INFO(logger_, "Starting connection manager for " << config_.selfId);
-
+  stopped_ = false;
   if (isReplica()) {
     listen();
     accept();
@@ -54,8 +54,8 @@ void ConnectionManager::start() {
 
 void ConnectionManager::stop() {
   LOG_INFO(logger_, "Stopping connection manager for " << config_.selfId);
+  stopped_ = true;
   status_->reset();
-
   acceptor_.close();
   for (auto& [_, sock] : connecting_) {
     (void)_;  // unused variable hack
@@ -98,18 +98,17 @@ void ConnectionManager::listen() {
 void ConnectionManager::startConnectTimer() {
   connect_timer_.expires_from_now(CONNECT_TICK);
   connect_timer_.async_wait(asio::bind_executor(strand_, [this](const asio::error_code& ec) {
+    if (stopped_) {
+      return;
+    }
     if (ec) {
-      if (ec == asio::error::operation_aborted) {
-        // We are shutting down the system. Just return.
-        return;
-      }
-      LOG_FATAL(logger_, "Connect timer wait failure: " << ec.message());
-      abort();
+      LOG_ERROR(logger_, "Connect timer wait failure: " << ec.message());
+      return;
     }
     connect();
     startConnectTimer();
   }));
-}
+}  // namespace bft::communication::tls
 
 void ConnectionManager::send(const NodeNum destination, const std::shared_ptr<OutgoingMsg>& msg) {
   auto max_size = config_.bufferLength - MSG_HEADER_SIZE;
@@ -177,18 +176,16 @@ void ConnectionManager::remoteCloseConnection(NodeNum id) {
     auto conn = std::move(connections_.at(id));
     connections_.erase(id);
     status_->num_connections = connections_.size();
-    conn->getSocket().lowest_layer().close();
+    conn->close();
   });
 }
 
 void ConnectionManager::closeConnection(std::shared_ptr<AsyncTlsConnection> conn) {
   conn->remoteDispose();
-  conn->getSocket().lowest_layer().close();
+  conn->close();
 }
 
-void ConnectionManager::syncCloseConnection(std::shared_ptr<AsyncTlsConnection>& conn) {
-  conn->getSocket().lowest_layer().close();
-}
+void ConnectionManager::syncCloseConnection(std::shared_ptr<AsyncTlsConnection>& conn) { conn->close(); }
 
 void ConnectionManager::onConnectionAuthenticated(std::shared_ptr<AsyncTlsConnection> conn) {
   // Move the connection into the accepted connections map. If there is an existing connection
@@ -258,6 +255,7 @@ void ConnectionManager::startClientSSLHandshake(asio::ip::tcp::socket&& socket, 
 
 void ConnectionManager::accept() {
   acceptor_.async_accept(asio::bind_executor(strand_, [this](asio::error_code ec, asio::ip::tcp::socket sock) {
+    if (stopped_) return;
     if (!StateControl::instance().tryLockComm()) {
       LOG_WARN(logger_, "incoming comm is blocked");
       return;
@@ -267,7 +265,10 @@ void ConnectionManager::accept() {
       // When io_service is stopped, the handlers are destroyed and when the
       // io_service dtor runs they will be invoked with operation_aborted error.
       // In this case we dont want to accept again.
-      if (ec == asio::error::operation_aborted) return;
+      if (ec == asio::error::operation_aborted) {
+        StateControl::instance().unlockComm();
+        return;
+      }
     } else {
       total_accepted_connections_++;
       status_->total_accepted_connections = total_accepted_connections_;
@@ -354,9 +355,4 @@ ConnectionStatus ConnectionManager::getCurrentConnectionStatus(const NodeNum id)
   }
   return ConnectionStatus::Disconnected;
 }
-void ConnectionManager::dispose(NodeNum i) {
-  if (connections_.find(i) == connections_.end()) return;
-  connections_.at(i)->dispose(true);
-}
-
 }  // namespace bft::communication::tls
