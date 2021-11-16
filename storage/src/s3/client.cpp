@@ -112,7 +112,6 @@ Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
     _outValue = Sliver::copy(reinterpret_cast<const char*>(cbData.data), cbData.readLength);
     return Status::OK();
   } else {
-    LOG_ERROR(logger_, "get status: " << S3_get_status_name(cbData.status) << " (" << cbData.errorMessage << ")");
     if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket ||
         cbData.status == S3Status::S3StatusErrorNoSuchKey)
       return Status::NotFound("Status: " + std::string(S3_get_status_name(cbData.status)) +

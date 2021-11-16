@@ -84,7 +84,7 @@ class TimeServiceManager {
 
   [[nodiscard]] bool hasTimeRequest(const impl::PrePrepareMsg& msg) const {
     if (msg.numberOfRequests() < 2) {
-      LOG_ERROR(TS_MNGR, "PrePrepare with Time Service on, cannot have less than 2 messages");
+      LOG_WARN(TS_MNGR, "PrePrepare with Time Service on, cannot have less than 2 messages");
       ill_formed_preprepare_++;
       metrics_component_.UpdateAggregator();
       return false;
@@ -95,7 +95,7 @@ class TimeServiceManager {
 
     ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
     if (req.flags() != MsgFlag::TIME_SERVICE_FLAG) {
-      LOG_ERROR(GL, "Time Service is on but first CR in PrePrepare is not TS request");
+      LOG_WARN(GL, "Time Service is on but first CR in PrePrepare is not TS request");
       ill_formed_preprepare_++;
       metrics_component_.UpdateAggregator();
       return false;
@@ -124,11 +124,11 @@ class TimeServiceManager {
     auto min = now - config.timeServiceHardLimitMillis;
     auto max = now + config.timeServiceHardLimitMillis;
     if (min > t || t > max) {
-      LOG_ERROR(TS_MNGR,
-                "Current primary's time reached hard limit, requests will be ignored. Please synchronize local clocks! "
-                    << "Primary's time: " << t.count() << ", local time: " << now.count()
-                    << ", difference: " << (t - now).count() << ", time limits: +/-"
-                    << config.timeServiceHardLimitMillis.count() << ". Time is presented as ms since epoch");
+      LOG_WARN(TS_MNGR,
+               "Current primary's time reached hard limit, requests will be ignored. Please synchronize local clocks! "
+                   << "Primary's time: " << t.count() << ", local time: " << now.count()
+                   << ", difference: " << (t - now).count() << ", time limits: +/-"
+                   << config.timeServiceHardLimitMillis.count() << ". Time is presented as ms since epoch");
       hard_limit_reached_counter_++;
       metrics_component_.UpdateAggregator();
       return false;
