@@ -49,6 +49,7 @@
 #include <thread>
 #include "Logger.hpp"
 #include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/concord_client_exceptions.hpp"
 
 namespace client::thin_replica_client {
 
@@ -430,25 +431,6 @@ class ThinReplicaClient final {
 
   // Register the callback to update external metrics
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
-
-  // A subscription may request a pruned update
-  class UpdateNotFound : public std::runtime_error {
-   public:
-    UpdateNotFound() : std::runtime_error("requested update does not exist yet"){};
-  };
-
-  // A new subscription may request an out of range update
-  class OutOfRangeSubscriptionRequest : public std::runtime_error {
-   public:
-    OutOfRangeSubscriptionRequest() : std::runtime_error("out of range subscription request"){};
-  };
-
-  // An internal error can be thrown for e.g., when atleast 2f+1 replicas generate hash, and no f+1 replicas agree on a
-  // hash value
-  class InternalError : public std::runtime_error {
-   public:
-    InternalError() : std::runtime_error("an internal error occurred"){};
-  };
 };
 
 }  // namespace client::thin_replica_client

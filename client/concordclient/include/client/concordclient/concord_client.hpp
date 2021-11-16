@@ -25,6 +25,7 @@
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
 #include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/concord_client_exceptions.hpp"
 #include "Metrics.hpp"
 
 namespace concord::client::concordclient {
@@ -145,31 +146,6 @@ class ConcordClient {
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
   void unsubscribe();
-
-  // At the moment, we only allow one subscriber at a time. This exception is thrown if the caller subscribes while an
-  // active subscription is in progress already.
-  class SubscriptionExists : public std::runtime_error {
-   public:
-    SubscriptionExists() : std::runtime_error("subscription exists already"){};
-  };
-
-  // An ongoing subscription may request an update that has not yet been added to the blockchain
-  class UpdateNotFound : public std::runtime_error {
-   public:
-    UpdateNotFound() : std::runtime_error("requested update does not exist yet"){};
-  };
-
-  // A new subscription may request an out of range update
-  class OutOfRangeSubscriptionRequest : public std::runtime_error {
-   public:
-    OutOfRangeSubscriptionRequest() : std::runtime_error("out of range subscription request"){};
-  };
-
-  // An internal error may occur, for example when max_agreeing
-  class InternalError : public std::runtime_error {
-   public:
-    InternalError() : std::runtime_error("an internal error occurred"){};
-  };
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
