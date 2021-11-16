@@ -123,7 +123,7 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                 merkleUpdates);
     }
 
-    if (!res) LOG_ERROR(m_logger, "Command execution failed!");
+    if (!res) LOG_WARN(m_logger, "Command execution failed!");
     req.outExecutionStatus = res ? 0 : -1;
   }
 
@@ -427,7 +427,7 @@ bool InternalCommandsHandler::executeGetBlockDataCommand(const SKVBCGetBlockData
   auto block_id = request.block_id;
   const auto updates = getBlockUpdates(block_id);
   if (!updates) {
-    LOG_ERROR(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
+    LOG_WARN(m_logger, "GetBlockData: Failed to retrieve block ID " << block_id);
     return false;
   }
 
@@ -554,7 +554,7 @@ bool InternalCommandsHandler::executeReadOnlyCommand(uint32_t requestSize,
         std::get<SKVBCGetBlockDataRequest>(deserialized_request.request), maxReplySize, outReply, outReplySize);
   } else {
     outReplySize = 0;
-    LOG_ERROR(m_logger, "Received read-only request of unrecognized message type.");
+    LOG_WARN(m_logger, "Received read-only request of unrecognized message type.");
     return false;
   }
 }

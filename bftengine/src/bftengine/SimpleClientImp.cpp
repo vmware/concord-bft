@@ -390,12 +390,12 @@ OperationResult SimpleClientImp::sendRequest(uint8_t flags,
 OperationResult SimpleClientImp::isBatchRequestValid(const ClientRequest& req) {
   OperationResult res = SUCCESS;
   if (req.flags & READ_ONLY_REQ) {
-    LOG_ERROR(logger_, "Read-only requests cannot be sent in a batch" << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    LOG_WARN(logger_, "Read-only requests cannot be sent in a batch" << KVLOG(req.reqSeqNum, clientId_, req.cid));
     res = INVALID_REQUEST;
   } else if (!(req.flags & PRE_PROCESS_REQ)) {
-    LOG_ERROR(logger_,
-              "Requests batching is supported only for requests intended for pre-processing"
-                  << KVLOG(req.reqSeqNum, clientId_, req.cid));
+    LOG_WARN(logger_,
+             "Requests batching is supported only for requests intended for pre-processing"
+                 << KVLOG(req.reqSeqNum, clientId_, req.cid));
     res = INVALID_REQUEST;
   }
   if (res != SUCCESS) reset();
