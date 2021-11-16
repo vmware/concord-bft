@@ -35,6 +35,10 @@
 #include "memorydb/client.h"
 #include "storage/direct_kv_key_manipulator.h"
 
+#include "ReservedPagesMock.hpp"
+#include "EpochManager.hpp"
+#include "messages/PrePrepareMsg.hpp"
+
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
 #include "rocksdb/key_comparator.h"
@@ -69,6 +73,7 @@ Config targetConfig() {
       2048,               // maxNumOfReservedPages
       4096,               // sizeOfReservedPage
       600,                // gettingMissingBlocksSummaryWindowSize
+      10,                 // minPrePrepareMsgsForPrimaryAwarness
       300,                // refreshTimerMs
       2500,               // checkpointSummariesRetransmissionTimeoutMs
       60000,              // maxAcceptableMsgDelayMs
@@ -81,6 +86,19 @@ Config targetConfig() {
       true                // enableSourceBlocksPreFetch
   };
 }
+
+// TBD BC-14432
+class MsgGenerator {
+ private:
+  static constexpr ViewNum view_num_ = 1u;
+  static constexpr SeqNum seq_num_ = 2u;
+  static constexpr CommitPath commit_path_ = CommitPath::OPTIMISTIC_FAST;
+
+ public:
+  std::unique_ptr<MessageBase> generatePrePrepareMsg(ReplicaId sender_id) {
+    return make_unique<PrePrepareMsg>(sender_id, view_num_, seq_num_, commit_path_, 0);
+  }
+};
 
 /////////////////////////////////////////////////////////
 // TestConfig
@@ -536,6 +554,8 @@ class BcStTest : public ::testing::Test {
   TestConfig testConfig_;
   TestState test_state_;
   bool initialized_ = false;
+  MsgGenerator msg_generator_;
+  bftEngine::test::ReservedPagesMock<EpochManager> res_pages_mock_;
 };  // class BcStTest
 
 /////////////////////////////////////////////////////////
@@ -617,6 +637,7 @@ void BcStTest::initialize() {
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
   ASSERT_LE(testConfig_.minNumberOfUpdatedReservedPages, testConfig_.maxNumberOfUpdatedReservedPages);
   ASSERT_LE(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum);
+  bftEngine::ReservedPagesClientBase::setReservedPages(&res_pages_mock_);
   initialized_ = true;
 }
 
@@ -789,6 +810,79 @@ TEST_F(BcStTest, validatePeriodicSourceReplacement) {
   ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
   bool doneSending = false;
   while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
+// TBD BC-14432
+TEST_F(BcStTest, sendPrePrepareMsgsDuringStateTransfer) {
+  initialize();
+  std::once_flag once_flag;
+  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
+  mockedSrc_->replyAskForCheckpointSummariesMsg();
+  auto ss = getSourceSelector();
+  while (true) {
+    ASSERT_NO_FATAL_FAILURE(
+        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
+    mockedSrc_->replyFetchBlocksMsg();
+    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
+    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    this_thread::sleep_for(chrono::milliseconds(20));
+    onTimerImp();
+
+    std::call_once(once_flag, [&] {
+      // Generate prePrepare messages to trigger source seletor to change the source to avoid primary.
+      auto msg = msg_generator_.generatePrePrepareMsg(ss.currentReplica());
+      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness; i++) {
+        auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
+        stateTransfer_->peekConsensusMessage(cmsg);
+      }
+    });
+  }
+  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  bool doneSending = false;
+  const auto& sources = getSourceSelector().getActualSources();
+  // TBD metric counters in source selector should be used to validate changed sources to avoid primary
+  ASSERT_EQ(sources.size(), 2);
+  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  // validate completion
+  ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
+  ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
+}
+
+TEST_F(BcStTest, preprepareFromMultipleSourcesDuringStateTransfer) {
+  initialize();
+  std::once_flag once_flag;
+  ASSERT_NO_FATAL_FAILURE(startStateTransfer());
+  mockedSrc_->replyAskForCheckpointSummariesMsg();
+  auto ss = getSourceSelector();
+  while (true) {
+    ASSERT_NO_FATAL_FAILURE(
+        assertFetchBlocksMsgSent(test_state_.expectedFirstRequiredBlockNum, test_state_.expectedLastRequiredBlockNum));
+    mockedSrc_->replyFetchBlocksMsg();
+    if (test_state_.expectedLastRequiredBlockNum <= targetConfig_.maxNumberOfChunksInBatch) break;
+    test_state_.expectedLastRequiredBlockNum -= targetConfig_.maxNumberOfChunksInBatch;
+    this_thread::sleep_for(chrono::milliseconds(20));
+    onTimerImp();
+
+    std::call_once(once_flag, [&] {
+      // Generate enough prePrepare messages but from more than one source so that source does not get changed
+      auto msg = msg_generator_.generatePrePrepareMsg(ss.currentReplica());
+      for (uint16_t i = 1; i <= targetConfig_.minPrePrepareMsgsForPrimaryAwarness - 1; i++) {
+        auto cmsg = make_shared<ConsensusMsg>(msg->type(), msg->senderId());
+        stateTransfer_->peekConsensusMessage(cmsg);
+      }
+      auto cmsg = make_shared<ConsensusMsg>(msg->type(), (msg->senderId() + 1) % targetConfig_.numReplicas);
+      stateTransfer_->peekConsensusMessage(cmsg);
+    });
+  }
+  ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
+  bool doneSending = false;
+  const auto& sources = getSourceSelector().getActualSources();
+  // TBD metric counters in source selector should be used to validate changed sources to avoid primary
+  ASSERT_EQ(sources.size(), 1);
+  while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
+  // validate completion
   ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
   ASSERT_EQ(BCStateTran::FetchingState::NotFetching, stateTransfer_->getFetchingState());
 }
