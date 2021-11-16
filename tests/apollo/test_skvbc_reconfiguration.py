@@ -525,7 +525,7 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                                 succ = False
                                 continue
 
-            for i in range(500):
+            for i in range(800):
                 await skvbc.send_write_kv_set()
             for r in bft_network.all_replicas():
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
