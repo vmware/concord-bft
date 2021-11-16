@@ -4457,7 +4457,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
         req.requestSeqNum()});
     // Decode the pre-execution block-id for the conflict detection optimization,
     // and pass it to the post-execution.
-    if (((MessageBase::Header *)requestBody)->msgType == MsgCode::PreProcessResult) {
+    if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
       setConflictDetectionBlockId(req, accumulatedRequests.back());
     }
   }
