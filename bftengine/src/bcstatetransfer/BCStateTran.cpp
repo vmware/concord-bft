@@ -139,6 +139,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       maxNumOfStoredCheckpoints_{0},
       numberOfReservedPages_{0},
       cycleCounter_(0),
+      handoff_{std::make_unique<concord::util::Handoff>(config_.myReplicaId)},
       buffer_(new char[maxItemSize_]),
       randomGen_{randomDevice_()},
       sourceSelector_{allOtherReplicas(),
@@ -262,14 +263,6 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
 
   LOG_INFO(logger_, "Creating BCStateTran object: " << config_);
 
-  if (config_.runInSeparateThread) {
-    handoff_.reset(new concord::util::Handoff(config_.myReplicaId));
-    messageHandler_ = std::bind(&BCStateTran::handoffMsg, this, _1, _2, _3);
-    timerHandler_ = std::bind(&BCStateTran::handoffTimer, this);
-  } else {
-    messageHandler_ = std::bind(&BCStateTran::handleStateTransferMessageImp, this, _1, _2, _3, _4);
-    timerHandler_ = std::bind(&BCStateTran::onTimerImp, this);
-  }
   // Make sure that the internal IReplicaForStateTransfer callback is always added, alongside any user-supplied
   // callbacks.
   addOnTransferringCompleteCallback(
@@ -690,7 +683,7 @@ void BCStateTran::onTimerImp() {
   oneShotTimerFlag_ = true;
   if (!running_) return;
   time_in_handoff_queue_rec_.end();
-  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
+  histograms_.handoff_queue_size->record(handoff_->size());
   TimeRecorder scoped_timer(*histograms_.on_timer);
 
   metrics_.on_timer_++;
@@ -789,7 +782,7 @@ void BCStateTran::handleStateTransferMessageImp(char *msg,
                                                 LocalTimePoint msgArrivalTime) {
   if (!running_) return;
   time_in_handoff_queue_rec_.end();
-  if (config_.runInSeparateThread) histograms_.handoff_queue_size->record(handoff_->size());
+  histograms_.handoff_queue_size->record(handoff_->size());
   bool invalidSender = (senderId >= (config_.numReplicas + config_.numRoReplicas));
   bool sentFromSelf = senderId == config_.myReplicaId;
   bool msgSizeTooSmall = msgLen < sizeof(BCStateTranBaseMsg);
