@@ -487,7 +487,6 @@ Replica::Replica(ICommunication *comm,
     replicaConfig_.get<uint32_t>("concord.bft.st.fetchRetransmissionTimeoutMs", 2000),
     replicaConfig_.get<uint32_t>("concord.bft.st.maxFetchRetransmissions", 2),
     replicaConfig_.get<uint32_t>("concord.bft.st.metricsDumpIntervalSec", 5),
-    replicaConfig_.get("concord.bft.st.runInSeparateThread", replicaConfig_.isReadOnly),
     replicaConfig_.get("concord.bft.st.enableReservedPages", true),
     replicaConfig_.get("concord.bft.st.enableSourceBlocksPreFetch", true)
   };

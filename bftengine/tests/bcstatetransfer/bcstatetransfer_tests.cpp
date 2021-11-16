@@ -81,7 +81,6 @@ Config targetConfig() {
       2000,               // fetchRetransmissionTimeoutMs
       2,                  // maxFetchRetransmissions
       5,                  // metricsDumpIntervalSec
-      false,              // runInSeparateThread
       true,               // enableReservedPages
       true                // enableSourceBlocksPreFetch
   };
