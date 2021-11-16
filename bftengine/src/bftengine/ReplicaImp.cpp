@@ -432,7 +432,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
     return;
   }
 
-  if ((isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) || isSeqNumToStopAt(lastExecutedSeqNum + 1)) {
+  if ((isCurrentPrimary() && isSeqNumToStopAt(primaryLastUsedSeqNum + 1)) ||
+      isSeqNumToStopAt(lastExecutedSeqNum + activeExecutions_ + 1)) {
     LOG_INFO(CNSUS,
              "Ignoring ClientRequest because system is stopped at checkpoint pending control state operation (upgrade, "
              "etc...)");
@@ -563,7 +564,7 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
 
-  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.getconcurrencyLevel()) {
+  if (primaryLastUsedSeqNum + 1 > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_) {
     LOG_INFO(GL,
              "Will not send PrePrepare since next sequence number ["
                  << primaryLastUsedSeqNum + 1 << "] exceeds concurrency threshold ["
@@ -571,9 +572,9 @@ bool ReplicaImp::checkSendPrePrepareMsgPrerequisites() {
     return false;
   }
   metric_concurrency_level_.Get().Set(primaryLastUsedSeqNum + 1 - lastExecutedSeqNum);
-  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum);
+  ConcordAssertGE(primaryLastUsedSeqNum, lastExecutedSeqNum + activeExecutions_);
   // Because maxConcurrentAgreementsByPrimary <  MaxConcurrentFastPaths
-  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths);
+  ConcordAssertLE((primaryLastUsedSeqNum + 1), lastExecutedSeqNum + MaxConcurrentFastPaths + activeExecutions_);
 
   if (requestsQueueOfPrimary.empty()) LOG_DEBUG(GL, "requestsQueueOfPrimary is empty");
 
@@ -1108,7 +1109,7 @@ void ReplicaImp::tryToStartSlowPaths() {
     return;  // TODO(GG): consider to stop the related timer when this method is not needed (to avoid useless
   // invocations)
 
-  const SeqNum minSeqNum = lastExecutedSeqNum + 1;
+  const SeqNum minSeqNum = lastExecutedSeqNum + activeExecutions_ + 1;
   SCOPED_MDC_PRIMARY(std::to_string(currentPrimary()));
 
   if (minSeqNum > lastStableSeqNum + kWorkWindowSize) {
@@ -1414,7 +1415,7 @@ void ReplicaImp::onMessage<PartialCommitProofMsg>(PartialCommitProofMsg *msg) {
   if (relevantMsgForActiveView(msg)) {
     sendAckIfNeeded(msg, msgSender, msgSeqNum);
 
-    if (msgSeqNum > lastExecutedSeqNum) {
+    if (msgSeqNum > lastExecutedSeqNum + activeExecutions_) {
       SeqNumInfo &seqNumInfo = mainLog->get(msgSeqNum);
       PartialProofsSet &pps = seqNumInfo.partialProofs();
 
@@ -1468,7 +1469,8 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
       if (msg->senderId() == config_.getreplicaId()) sendToAllOtherReplicas(msg);
 
       const bool askForMissingInfoAboutCommittedItems =
-          (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel());  // TODO(GG): check/improve this logic
+          (msgSeqNum > lastExecutedSeqNum + config_.getconcurrencyLevel() +
+                           activeExecutions_);  // TODO(GG): check/improve this logic
 
       auto execution_span = concordUtils::startChildSpan("bft_execute_committed_reqs", span);
       metric_total_committed_sn_++;
@@ -2078,7 +2080,8 @@ void ReplicaImp::onCommitCombinedSigSucceeded(SeqNum seqNumber,
 
   ConcordAssert(seqNumInfo.isCommitted__gg());
 
-  bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
+  bool askForMissingInfoAboutCommittedItems =
+      (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
@@ -2135,7 +2138,8 @@ void ReplicaImp::onCommitVerifyCombinedSigResult(SeqNum seqNumber, ViewNum view,
 
   auto span = concordUtils::startChildSpanFromContext(
       commitFull->spanContext<std::remove_pointer<decltype(commitFull)>::type>(), "bft_execute_committed_reqs");
-  bool askForMissingInfoAboutCommittedItems = (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel());
+  bool askForMissingInfoAboutCommittedItems =
+      (seqNumber > lastExecutedSeqNum + config_.getconcurrencyLevel() + activeExecutions_);
   metric_total_committed_sn_++;
   if (config_.withPostExecutionSeparation) {
     consensus_times_.end(seqNumber);
@@ -2205,8 +2209,8 @@ void ReplicaImp::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
 
   bool askForStateTransfer = false;
 
-  if (msgIsStable &&
-      ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum) || msgEpochNum > getSelfEpochNumber())) {
+  if (msgIsStable && ((msgEpochNum == getSelfEpochNumber() && msgSeqNum > lastExecutedSeqNum + activeExecutions_) ||
+                      msgEpochNum > getSelfEpochNumber())) {
     auto pos = tableOfStableCheckpoints.find(msgGenReplicaId);
     if (pos == tableOfStableCheckpoints.end() || pos->second->seqNumber() <= msgSeqNum ||
         msgEpochNum >= pos->second->epochNumber()) {
@@ -2914,7 +2918,7 @@ void ReplicaImp::GotoNextView() {
 
 bool ReplicaImp::tryToEnterView() {
   ConcordAssert(!currentViewIsActive());
-
+  ConcordAssertEQ(activeExecutions_, 0);
   std::vector<PrePrepareMsg *> prePreparesForNewView;
 
   bool enteredView =
