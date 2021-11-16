@@ -63,6 +63,14 @@ class ReadOnlyReplica : public ReplicaForStateTransfer {
   } ro_metrics_;
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, const ClientRequestMsg& m);
+  std::atomic<SeqNum> last_executed_seq_num_;
+
+ private:
+  // This function serves as an ReplicaStatusHandlers alternative for ReadOnlyReplica. The reason to use this function
+  // is that regular and read-only replcias expose differen metrics and the status handlers are not interchangable. The
+  // read-only replica also hasn't got an implementation for InternalMessages which are used by the
+  // ReplicaStatusHandler.
+  void registerStatusHandlers();
 };
 
 }  // namespace bftEngine::impl

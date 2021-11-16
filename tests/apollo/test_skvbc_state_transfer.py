@@ -92,7 +92,7 @@ class SkvbcStateTransferTest(unittest.TestCase):
         )
         bft_network.start_replica(stale_node)
         await bft_network.wait_for_state_transfer_to_start()
-        await bft_network.wait_for_state_transfer_to_stop_with_RFMD(0, stale_node)
+        await bft_network.wait_for_state_transfer_to_stop(0, stale_node)
         await skvbc.assert_successful_put_get()
         await bft_network.force_quorum_including_replica(stale_node)
         await skvbc.assert_successful_put_get()

@@ -15,6 +15,7 @@ target_link_libraries(clientservice-lib PUBLIC
   gRPC::grpc++_reflection
   logging
   yaml-cpp
+  secret_retriever
 )
 
 add_executable(clientservice "src/main.cpp")

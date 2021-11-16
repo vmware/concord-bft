@@ -74,9 +74,9 @@ void AsyncTlsConnection::readMsgSizeHeader(std::optional<size_t> bytes_already_r
             } else {
               // The message size header was read completely.
               if (getReadMsgSize() > config_.bufferLength) {
-                LOG_ERROR(logger_,
-                          "Message Size: " << getReadMsgSize() << " exceeds maximum: " << config_.bufferLength
-                                           << " for node " << peer_id_.value());
+                LOG_WARN(logger_,
+                         "Message Size: " << getReadMsgSize() << " exceeds maximum: " << config_.bufferLength
+                                          << " for node " << peer_id_.value());
                 return dispose();
               }
               if (!bytes_already_read) {
@@ -113,9 +113,9 @@ void AsyncTlsConnection::readMsg() {
           }
           // Remove the connection as it is no longer valid, and then close it, cancelling any ongoing
           // operations.
-          LOG_ERROR(logger_,
-                    "Reading message of size <<" << getReadMsgSize() << " failed for node " << peer_id_.value() << ": "
-                                                 << error_code.message());
+          LOG_WARN(logger_,
+                   "Reading message of size <<" << getReadMsgSize() << " failed for node " << peer_id_.value() << ": "
+                                                << error_code.message());
           return dispose();
         }
 
@@ -283,7 +283,7 @@ void AsyncTlsConnection::initClientSSLContext(NodeNum destination) {
 
   try {
     ssl_context_.use_certificate_chain_file((path / "client.cert").string());
-    const std::string pk = decryptPK(path);
+    const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
@@ -331,7 +331,7 @@ void AsyncTlsConnection::initServerSSLContext() {
 
   try {
     ssl_context_.use_certificate_chain_file((path / fs::path("server.cert")).string());
-    const std::string pk = decryptPK(path);
+    const std::string pk = decryptPrivateKey(path);
     ssl_context_.use_private_key(asio::const_buffer(pk.c_str(), pk.size()), asio::ssl::context::pem);
   } catch (const boost::system::system_error& e) {
     LOG_FATAL(logger_, "Failed to load certificate or private key files from path: " << path << " : " << e.what());
@@ -371,7 +371,7 @@ bool AsyncTlsConnection::verifyCertificateClient(asio::ssl::verify_context& ctx,
   std::string subject(256, 0);
   X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
   if (!cert) {
-    LOG_ERROR(logger_, "No certificate from server at node " << expected_dest_id);
+    LOG_WARN(logger_, "No certificate from server at node " << expected_dest_id);
     return false;
   }
   X509_NAME_oneline(X509_get_subject_name(cert), subject.data(), 256);
@@ -388,7 +388,7 @@ bool AsyncTlsConnection::verifyCertificateServer(asio::ssl::verify_context& ctx)
   std::string subject(SIZE, 0);
   X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
   if (!cert) {
-    LOG_ERROR(logger_, "No certificate from client");
+    LOG_WARN(logger_, "No certificate from client");
     return false;
   }
   X509_NAME_oneline(X509_get_subject_name(cert), subject.data(), SIZE);
@@ -413,13 +413,13 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
   std::smatch sm;
   regex_search(subject, sm, r);
   if (sm.length() <= peerIdPrefixLength) {
-    LOG_ERROR(logger_, "OU not found or empty: " << subject);
+    LOG_WARN(logger_, "OU not found or empty: " << subject);
     return std::make_pair(false, 0);
   }
 
   auto remPeer = sm.str().substr(peerIdPrefixLength, sm.str().length() - peerIdPrefixLength);
   if (0 == remPeer.length()) {
-    LOG_ERROR(logger_, "OU empty " << subject);
+    LOG_WARN(logger_, "OU empty " << subject);
     return std::make_pair(false, 0);
   }
 
@@ -427,17 +427,17 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
   try {
     remotePeerId = stoul(remPeer, nullptr);
   } catch (const std::invalid_argument& ia) {
-    LOG_ERROR(logger_, "cannot convert OU, " << subject << ", " << ia.what());
+    LOG_WARN(logger_, "cannot convert OU, " << subject << ", " << ia.what());
     return std::make_pair(false, 0);
   } catch (const std::out_of_range& e) {
-    LOG_ERROR(logger_, "cannot convert OU, " << subject << ", " << e.what());
+    LOG_WARN(logger_, "cannot convert OU, " << subject << ", " << e.what());
     return std::make_pair(false, 0);
   }
 
   // If the server has been verified, check that the peers match.
   if (expectedPeerId) {
     if (remotePeerId != expectedPeerId) {
-      LOG_ERROR(logger_, "Peers don't match, expected: " << expectedPeerId.value() << ", received: " << remPeer);
+      LOG_WARN(logger_, "Peers don't match, expected: " << expectedPeerId.value() << ", received: " << remPeer);
       return std::make_pair(false, remotePeerId);
     }
   }
@@ -477,15 +477,15 @@ std::pair<bool, NodeNum> AsyncTlsConnection::checkCertificate(X509* receivedCert
     // Instead we log in onXXXHandshakeComplete callbacks it TlsTcpImpl.
     return std::make_pair(true, remotePeerId);
   }
-  LOG_ERROR(logger_,
-            "X509_cmp failed at node: " << config_.selfId << ", type: " << connectionType << ", peer: " << remotePeerId
-                                        << " res=" << res);
+  LOG_WARN(logger_,
+           "X509_cmp failed at node: " << config_.selfId << ", type: " << connectionType << ", peer: " << remotePeerId
+                                       << " res=" << res);
   return std::make_pair(false, remotePeerId);
 }
 
 using namespace concord::secretsmanager;
 
-const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& path) {
+const std::string AsyncTlsConnection::decryptPrivateKey(const boost::filesystem::path& path) {
   namespace fs = boost::filesystem;
   std::string pkpath;
 
@@ -504,6 +504,12 @@ const std::string AsyncTlsConnection::decryptPK(const boost::filesystem::path& p
   }
 
   return *decBuf;
+}
+void AsyncTlsConnection::close() {
+  std::lock_guard<std::mutex> lock(shutdown_lock_);
+  if (closed_) return;
+  socket_->lowest_layer().close();
+  closed_ = true;
 }
 
 }  // namespace bft::communication::tls

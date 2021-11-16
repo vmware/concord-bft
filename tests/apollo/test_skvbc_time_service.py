@@ -92,13 +92,10 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         
         await skvbc.run_concurrent_ops(400)
 
-        # wait for replicas to go to higher view (View 1 in this case)
-        await bft_network.wait_for_replicas_to_reach_view(bft_network.all_replicas(), 1)
-
         await bft_network.wait_for_view(
             replica_id=random.choice(
             bft_network.all_replicas()),
-            expected=lambda v: v == expected_next_primary,
+            expected=lambda v: v >= expected_next_primary,
             err_msg="Make sure view change has happened"
         )
         
@@ -276,7 +273,8 @@ class SkvbcTimeServiceTest(unittest.TestCase):
             run_ops=lambda: skvbc.run_concurrent_ops(num_ops=20, write_weight=1), threshold=20)
 
     @with_trio
-    @with_bft_network(start_replica_cmd, rotate_keys=True)
+    @with_bft_network(start_replica_cmd, 
+            selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
     @verify_linearizability()
     async def test_restart_non_primary_replica(self, bft_network, tracker):
         """
@@ -311,8 +309,7 @@ class SkvbcTimeServiceTest(unittest.TestCase):
     @with_trio
     @with_bft_network(start_replica_cmd,
             selected_configs=lambda n, f, c: c == 0 and n >= 6, rotate_keys=True)
-    @verify_linearizability()
-    async def test_delay_with_soft_limit_reached_counter(self, bft_network, tracker):
+    async def test_delay_with_soft_limit_reached_counter(self, bft_network):
         """
         1. Start all replicas except a non-primary
         2. Expected result: The cluster should work in slow path
@@ -323,7 +320,7 @@ class SkvbcTimeServiceTest(unittest.TestCase):
         """
 
         initial_primary = 0
-        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network)
         non_primary_replica = random.choice(
             bft_network.all_replicas(without={initial_primary}))
 

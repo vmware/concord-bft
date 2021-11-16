@@ -48,40 +48,9 @@ void TrsConnection::createChannel() {
   args.SetMaxReceiveMessageSize(kGrpcMaxInboundMsgSizeInBytes);
 
   if (config_->use_tls) {
-    LOG_INFO(logger_,
-             "TLS for thin replica client is enabled, certificate path: " << config_->thin_replica_tls_cert_path
-                                                                          << ", server: " << address_);
+    LOG_INFO(logger_, "TLS for thin replica client is enabled for server: " << address_);
 
-    std::string cert_client_id = getClientIdFromClientCert(config_->client_cert_path);
-    // If TLS is enabled for TRC-TRS connection, the client cert must have the
-    // client ID in the OU field, because the TRS obtains the client_id
-    // from the certificate of the connecting client.
-    if (cert_client_id.empty()) {
-      LOG_FATAL(logger_, "Failed to construct thin replica client.");
-      throw std::runtime_error(
-          "The OU field in client certificate is empty. It must contain the "
-          "client ID.");
-    }
-    // cert_client_id in client cert should match the client_id_ if TLS is
-    // enabled for TRC-TRS connection. Since the TRS reads the client id from
-    // the connecting client cert, and the value of the TRID specified by the
-    // user for TRC initialization can be used by TRC's client application to
-    // generate requests, if they do not match, the TRS will filter out all the
-    // key value pairs meant for the requesting client.
-    if (cert_client_id.compare(client_id_) != 0) {
-      LOG_FATAL(logger_, "Failed to construct thin replica client.");
-      throw std::runtime_error("The client ID in the OU field of the client certificate (" + cert_client_id +
-                               ")does not match the client ID in the environment variable (" + client_id_ + ").");
-    }
-    std::string client_cert, client_key, root_cert;
-
-    readCert(config_->client_cert_path, client_cert);
-
-    // server_cert_path specifies the path to a composite cert file i.e., a
-    // concatentation of the certificates of all known servers
-    readCert(config_->server_cert_path, root_cert);
-
-    grpc::SslCredentialsOptions opts = {root_cert, config_->client_key, client_cert};
+    grpc::SslCredentialsOptions opts = {config_->server_cert, config_->client_key, config_->client_cert};
     channel_ = grpc::CreateCustomChannel(address_, grpc::SslCredentials(opts), args);
   } else {
     LOG_WARN(logger_,
@@ -368,71 +337,6 @@ TrsConnection::Result TrsConnection::readHash(Hash* hash) {
 
   ConcordAssert(status == future_status::ready);
   return result.get() ? Result::kSuccess : Result::kFailure;
-}
-
-void TrsConnection::readCert(const std::string& input_filename, std::string& out_data) {
-  std::ifstream input_file(input_filename.c_str(), std::ios::in);
-
-  if (!input_file.is_open()) {
-    LOG_FATAL(logger_, "Failed to construct thin replica client.");
-    throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": Could not open the input file (") + input_filename +
-                             std::string(") to establish TLS connection with the thin replica server."));
-  } else {
-    try {
-      std::stringstream read_buffer;
-      read_buffer << input_file.rdbuf();
-      input_file.close();
-      out_data = read_buffer.str();
-      LOG_INFO(logger_, "Successfully loaded the contents of " + input_filename);
-    } catch (std::exception& e) {
-      LOG_FATAL(logger_, "Failed to construct thin replica client.");
-      throw std::runtime_error(__PRETTY_FUNCTION__ +
-                               std::string(": An exception occurred while trying to read the input file (") +
-                               input_filename + std::string("): ") + std::string(e.what()));
-    }
-  }
-  return;
-}
-
-std::string TrsConnection::getClientIdFromClientCert(const std::string& client_cert_path) {
-  std::array<char, 128> buffer;
-  std::string client_id;
-
-  // check if client cert can be opened
-  std::ifstream input_file(client_cert_path.c_str(), std::ios::in);
-
-  if (!input_file.is_open()) {
-    throw std::runtime_error("Could not open the input file (" + client_cert_path + ") at the thin replica client.");
-  }
-
-  // The cmd string is used to get the subject in the client cert.
-  std::string cmd =
-      "openssl crl2pkcs7 -nocrl -certfile " + client_cert_path + " | openssl pkcs7 -print_certs -noout | grep .";
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-  if (!pipe) {
-    throw std::runtime_error("Failed to read subject fields from client cert - popen() failed!");
-  }
-  if (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-    // parse the OU field i.e., the client id from the subject field
-    client_id = parseClientIdFromSubject(buffer.data());
-  }
-  return client_id;
-}
-
-// Parses the value of the OU field i.e., the client id from the subject
-// string
-std::string TrsConnection::parseClientIdFromSubject(const std::string& subject_str) {
-  std::string delim = "OU = ";
-  size_t start = subject_str.find(delim) + delim.length();
-  size_t end = subject_str.find(',', start);
-  std::string raw_str = subject_str.substr(start, end - start);
-  size_t fstart = 0;
-  size_t fend = raw_str.length();
-  // remove surrounding whitespaces and newlines
-  if (raw_str.find_first_not_of(' ') != std::string::npos) fstart = raw_str.find_first_not_of(' ');
-  if (raw_str.find_last_not_of(' ') != std::string::npos) fend = raw_str.find_last_not_of(' ');
-  raw_str.erase(std::remove(raw_str.begin(), raw_str.end(), '\n'), raw_str.end());
-  return raw_str.substr(fstart, fend - fstart + 1);
 }
 
 }  // namespace client::thin_replica_client
