@@ -282,7 +282,7 @@ class PlainUDPCommunication::PlainUdpImpl {
     if (res == addr2nodes.end()) {
       // IG: if we don't know the sender we just ignore this message and
       // continue.
-      LOG_ERROR(_logger, "Unknown sender, address: " << key);
+      LOG_WARN(_logger, "Unknown sender, address: " << key);
       return NodeAddressResolveResult({0, false, key});
     }
 

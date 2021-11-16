@@ -115,6 +115,17 @@ git clone https://github.com/google/googletest.git && \
     cd ${HOME} && \
     rm -r googletest
 
+cd ${HOME}
+git clone https://github.com/google/benchmark.git && \
+   cd benchmark && \
+   git checkout f91b6b42b1b9854772a90ae9501464a161707d1e && \
+   cmake -E make_directory "build" && \
+   cmake -E chdir "build" cmake -DBENCHMARK_DOWNLOAD_DEPENDENCIES=on -DCMAKE_BUILD_TYPE=Release ../ && \
+   cmake --build "build" --config Release && \
+   cmake --build "build" --config Release --target install
+   cd ${HOME} && \
+   rm -r benchmark
+
 # Here we compile cryptopp and cryptoopp-pem in a single library libcryptopp
 # cryptopp-pem provides PEM parsing for Wei Dai's Crypto++ (cryptopp).
 cd ${HOME}

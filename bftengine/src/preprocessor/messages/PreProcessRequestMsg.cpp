@@ -84,12 +84,12 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() != expectedMsgSize) throw std::runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessRequest) {
-    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    LOG_WARN(logger(), "Message type is incorrect" << KVLOG(type()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   if (senderId() == repInfo.myId()) {
-    LOG_ERROR(logger(), "Message sender is ivalid" << KVLOG(senderId(), repInfo.myId()));
+    LOG_WARN(logger(), "Message sender is ivalid" << KVLOG(senderId(), repInfo.myId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
@@ -98,8 +98,8 @@ void PreProcessRequestMsg::validate(const ReplicasInfo& repInfo) const {
     if (!sigManager->verifySig(
             header->clientId, requestBuf(), header->requestLength, requestSignature, header->reqSignatureLength)) {
       std::stringstream msg;
-      LOG_ERROR(logger(),
-                "Signature verification failed for " << KVLOG(header->reqSeqNum, header->clientId, this->senderId()));
+      LOG_WARN(logger(),
+               "Signature verification failed for " << KVLOG(header->reqSeqNum, header->clientId, this->senderId()));
       msg << "Signature verification failed for: "
           << KVLOG(header->clientId, header->reqSeqNum, header->requestLength, header->reqSignatureLength);
       throw std::runtime_error(msg.str());
