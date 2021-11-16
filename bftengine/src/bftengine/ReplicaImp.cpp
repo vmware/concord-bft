@@ -188,29 +188,29 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
     return;
   }
   if (!isCollectingState() && validateMessage(trueTypeObj)) {
-
-  if (!isCollectingState()) {
-    // The message validation of few messages require time-consuming processes like
-    // digest calculation, signature verification etc. Such messages are identified
-    // by review. During the review we also check if asynchronous message validation
-    // is feasible or not for the given message. After identification, true returning
-    // shouldValidateAsync() member function is added to these message which indicates
-    // that Asynchronous validation is possible for these messages.
-    // In this function we check shouldValidateAsync() and decide if asynchronous
-    // validation will happen or synchronous validation will happen.
-    // prePrepareFinalizeAsyncEnabled flag will be removed in 1.7, when this entire
-    // async behaviour will be assumed to be default for the chosen messages.
-    if (getReplicaConfig().prePrepareFinalizeAsyncEnabled && trueTypeObj->shouldValidateAsync()) {
-      asyncValidateMessage<T>(trueTypeObj);
-      return;
-    } else {
-      if (validateMessage(trueTypeObj)) {
-        onMessage<T>(trueTypeObj);
+    if (!isCollectingState()) {
+      // The message validation of few messages require time-consuming processes like
+      // digest calculation, signature verification etc. Such messages are identified
+      // by review. During the review we also check if asynchronous message validation
+      // is feasible or not for the given message. After identification, true returning
+      // shouldValidateAsync() member function is added to these message which indicates
+      // that Asynchronous validation is possible for these messages.
+      // In this function we check shouldValidateAsync() and decide if asynchronous
+      // validation will happen or synchronous validation will happen.
+      // prePrepareFinalizeAsyncEnabled flag will be removed in 1.7, when this entire
+      // async behaviour will be assumed to be default for the chosen messages.
+      if (getReplicaConfig().prePrepareFinalizeAsyncEnabled && trueTypeObj->shouldValidateAsync()) {
+        asyncValidateMessage<T>(trueTypeObj);
         return;
+      } else {
+        if (validateMessage(trueTypeObj)) {
+          onMessage<T>(trueTypeObj);
+          return;
+        }
       }
     }
+    delete trueTypeObj;
   }
-  delete trueTypeObj;
 }
 
 /**
@@ -357,8 +357,8 @@ void ReplicaImp::sendAndIncrementMetric(MessageBase *m, NodeIdType id, CounterHa
 void ReplicaImp::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
   LOG_WARN(CNSUS, "Received invalid message. " << KVLOG(msg->senderId(), msg->type(), reason));
 
-  // TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem (old
-  // version,bug,malicious,...)).
+  // TODO(GG): logic that deals with invalid messages (e.g., a node that sends invalid messages may have a problem
+  // (old version,bug,malicious,...)).
 }
 
 template <>
@@ -391,7 +391,8 @@ void ReplicaImp::onMessage<ClientRequestMsg>(ClientRequestMsg *m) {
   span.setTag("seq_num", reqSeqNum);
 
   // Drop external msgs ff:
-  // -  replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the msgs.
+  // -  replica keys haven't been exchanged for all replicas and it's not a key exchange msg then don't accept the
+  // msgs.
   // -  the public keys of clients havn't been published yet.
   if (!KeyExchangeManager::instance().exchanged() || !KeyExchangeManager::instance().clientKeysPublished()) {
     if (!(flags & KEY_EXCHANGE_FLAG) && !(flags & CLIENTS_PUB_KEYS_FLAG)) {
@@ -1191,7 +1192,7 @@ void ReplicaImp::tryToAskForMissingInfo() {
   const int16_t searchWindow = 32;  // TODO(GG): TBD - read from configuration
 
   if (!recentViewChange) {
-    minSeqNum = lastExecutedSeqNum + 1;
+    minSeqNum = lastExecutedSeqNum + activeExecutions_ + 1;
     maxSeqNum = std::min(minSeqNum + searchWindow - 1, lastStableSeqNum + kWorkWindowSize);
   } else {
     minSeqNum = lastStableSeqNum + 1;
@@ -4493,8 +4494,8 @@ void ReplicaImp::setConflictDetectionBlockId(const ClientRequestMsg &clientReqMs
 // https://github.com/vmware/concord-bft/commit/2d812aa53d3821e365809774afb30468134c026d
 // TODO(GG): When the replica starts, this method should be called before we start receiving messages ( because we may
 // have some committed seq numbers)
-// TODO(GG): move the "logic related to requestMissingInfo" to the caller of this method (e.g., by returning a value to
-// the caller)
+// TODO(GG): move the "logic related to requestMissingInfo" to the caller of this method (e.g., by returning a value
+// to the caller)
 void ReplicaImp::tryToStartOrFinishExecuting(const bool requestMissingInfo) {
   ConcordAssert(!isCollectingState());
   ConcordAssert(currentViewIsActive());
@@ -4755,8 +4756,8 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
       LOG_DEBUG(GL, "Timestamp to be provided to the execution: " << outTimestamp.time_since_epoch.count() << "ms");
       numOfSpecialReqs--;
     } else if ((req.flags() & MsgFlag::KEY_EXCHANGE_FLAG) ||
-               (req.flags() &
-                MsgFlag::RECONFIG_FLAG))  // TODO(GG): check how exactly the following will work when we try to recover
+               (req.flags() & MsgFlag::RECONFIG_FLAG))  // TODO(GG): check how exactly the following will work when we
+                                                        // try to recover
     {
       NodeIdType clientId = req.clientProxyId();
 
@@ -4778,18 +4779,21 @@ void ReplicaImp::executeSpecialRequests(PrePrepareMsg *ppMsg,
   }
 
   // TODO(GG): the following code is cumbersome. We can call to execute directly in the above loop
+  IRequestsHandler::ExecutionRequestsQueue singleRequest;
   for (IRequestsHandler::ExecutionRequest &req : accumulatedRequests) {
-    IRequestsHandler::ExecutionRequestsQueue singleRequest;
-    ConcordAssert(singleRequest.empty());  // TODO(GG): remove assert
+    ConcordAssert(singleRequest.empty());
     singleRequest.push_back(req);
-    const concordUtils::SpanContext &span_context{""};
-    auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
-    span.setTag("rid", config_.getreplicaId());
-    span.setTag("cid", req.cid);
-    span.setTag("seq_num", req.requestSequenceNum);
-    bftRequestsHandler_->execute(singleRequest, outTimestamp, ppMsg->getCid(), span);
-
-    if (config_.timeServiceEnabled) outTimestamp.request_position++;
+    {
+      const concordUtils::SpanContext &span_context{""};
+      auto span = concordUtils::startChildSpanFromContext(span_context, "bft_client_request");
+      span.setTag("rid", config_.getreplicaId());
+      span.setTag("cid", req.cid);
+      span.setTag("seq_num", req.requestSequenceNum);
+      bftRequestsHandler_->execute(singleRequest, outTimestamp, ppMsg->getCid(), span);
+      if (config_.timeServiceEnabled) outTimestamp.request_position++;
+    }
+    req = singleRequest.at(0);
+    singleRequest.clear();
   }
 
   sendResponses(ppMsg, accumulatedRequests);
@@ -4808,7 +4812,10 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
     reqIdx++;
     ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
 
-    if (!requestSet.get(tmp) || req.requestLength() == 0) continue;
+    if (!requestSet.get(tmp) || req.requestLength() == 0) {
+      clientsManager->removePendingForExecutionRequest(req.clientProxyId(), req.requestSeqNum());
+      continue;
+    }
 
     //    SCOPED_MDC_CID(req.getCid());
     NodeIdType clientId = req.clientProxyId();
@@ -4824,6 +4831,10 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
         static_cast<uint32_t>(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         (char *)std::malloc(config_.getmaxReplyMessageSize() - sizeof(ClientReplyMsgHeader)),
         req.requestSeqNum()});
+
+    if (req.flags() & HAS_PRE_PROCESSED_FLAG) {
+      setConflictDetectionBlockId(req, pAccumulatedRequests->back());
+    }
   }
   if (ReplicaConfig::instance().blockAccumulation) {
     LOG_DEBUG(GL,
@@ -4838,7 +4849,7 @@ void ReplicaImp::executeRequests(PrePrepareMsg *ppMsg, Bitmap &requestSet, Times
       bftRequestsHandler_->execute(*pAccumulatedRequests, time, ppMsg->getCid(), span);
     }
   } else {
-    LOG_DEBUG(
+    LOG_INFO(
         GL,
         "Executing all the requests of preprepare message with cid: " << ppMsg->getCid() << " without accumulation");
     IRequestsHandler::ExecutionRequestsQueue singleRequest;
@@ -4927,11 +4938,13 @@ void ReplicaImp::finishExecutePrePrepareMsg(PrePrepareMsg *ppMsg,
     bftEngine::EpochManager::instance().setSelfEpochNumber(epoch);
     bftEngine::EpochManager::instance().setGlobalEpochNumber(epoch);
     Digest checkDigest;
+    Digest otherDigest;
     CheckpointMsg::State checkState;
     const uint64_t checkpointNum = lastExecutedSeqNum / checkpointWindowSize;
-    stateTransfer->getDigestOfCheckpoint(checkpointNum, sizeof(Digest), checkState, (char *)&checkDigest);
+    stateTransfer->getDigestOfCheckpoint(
+        checkpointNum, sizeof(Digest), checkState, (char *)&checkDigest, (char *)&otherDigest);
     CheckpointMsg *checkMsg =
-        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkState, checkDigest, false);
+        new CheckpointMsg(config_.getreplicaId(), lastExecutedSeqNum, checkState, checkDigest, otherDigest, false);
     checkMsg->sign();
     auto &checkInfo = checkpointsLog->get(lastExecutedSeqNum);
     checkInfo.addCheckpointMsg(checkMsg, config_.getreplicaId());
