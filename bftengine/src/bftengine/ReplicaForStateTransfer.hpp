@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <unordered_set>
+
 #include "ReplicaBase.hpp"
 #include "IStateTransfer.hpp"
 
@@ -46,6 +48,14 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   virtual void onTransferringCompleteImp(uint64_t checkpointNumberOfNewState) = 0;
 
   template <typename T>
+  void peekConsensusMessage(MessageBase* msg) {
+    if (msgs_to_peek_.find(msg->type()) != msgs_to_peek_.end()) {
+      auto cmsg = std::make_shared<ConsensusMsg>(msg->type(), msg->senderId());
+      stateTransfer->handoffConsensusMessage(cmsg);
+    }
+  }
+
+  template <typename T>
   void messageHandler(MessageBase* msg) {
     T* trueTypeObj = new T(msg);
     delete msg;
@@ -65,6 +75,7 @@ class ReplicaForStateTransfer : public IReplicaForStateTransfer, public ReplicaB
   concordMetrics::GaugeHandle metric_state_transfer_timer_;
   bool firstTime_;
   std::shared_ptr<concord::client::reconfiguration::ClientReconfigurationEngine> cre_;
+  std::unordered_set<uint16_t> msgs_to_peek_{MsgCode::PrePrepare};
 };
 
 }  // namespace bftEngine::impl

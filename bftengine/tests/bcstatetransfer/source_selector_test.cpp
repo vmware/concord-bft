@@ -25,6 +25,7 @@ using bftEngine::bcst::impl::SourceReplacementMode;
 constexpr auto kRetransmissionTimeoutMs = 100;
 constexpr auto kReplicaReplacementTimeoutMs = 300;
 constexpr auto maxFetchRetransmissions = 2;
+constexpr auto kminPrePrepareMsgsForPrimaryAwarness = 10;
 
 constexpr uint64_t kSampleCurrentTimeMs = 1000;
 constexpr auto kSmallDeltaTime = kSampleCurrentTimeMs + 1;
@@ -36,8 +37,12 @@ const auto replicas = std::set<uint16_t>{1, 2, 3};
 class SourceSelectorTestFixture : public ::testing::Test {
  public:
   SourceSelectorTestFixture()
-      : source_selector(
-            replicas, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL){};
+      : source_selector(replicas,
+                        kRetransmissionTimeoutMs,
+                        kReplicaReplacementTimeoutMs,
+                        maxFetchRetransmissions,
+                        kminPrePrepareMsgsForPrimaryAwarness,
+                        GL){};
 
  protected:
   SourceSelector source_selector;
@@ -60,7 +65,7 @@ TEST_F(SourceSelectorTestFixture, zero_preferred_replica_on_construction) {
 
 TEST_F(SourceSelectorTestFixture, no_replica_is_preferred_on_construction) {
   for (const auto& replica : replicas) {
-    ASSERT_FALSE(source_selector.isPreferred(replica));
+    ASSERT_FALSE(source_selector.isPreferredSourceId(replica));
   }
 }
 
@@ -102,9 +107,9 @@ TEST_F(SourceSelectorTestFixture, remove_current_replica_sets_the_current_replic
 TEST_F(SourceSelectorTestFixture, removing_the_current_replica_makes_it_non_preferred_as_well) {
   source_selector.updateSource(kSampleCurrentTimeMs);
   const auto current_replica = source_selector.currentReplica();
-  ASSERT_TRUE(source_selector.isPreferred(current_replica));
+  ASSERT_TRUE(source_selector.isPreferredSourceId(current_replica));
   source_selector.removeCurrentReplica();
-  ASSERT_FALSE(source_selector.isPreferred(current_replica));
+  ASSERT_FALSE(source_selector.isPreferredSourceId(current_replica));
 }
 
 // Reset tests
@@ -173,7 +178,7 @@ TEST_F(SourceSelectorTestFixture, set_all_replicas_as_preferred) {
   ASSERT_TRUE(source_selector.hasPreferredReplicas());
 
   for (const auto& replica : replicas) {
-    ASSERT_TRUE(source_selector.isPreferred(replica));
+    ASSERT_TRUE(source_selector.isPreferredSourceId(replica));
   }
 }
 
@@ -195,42 +200,116 @@ TEST_F(SourceSelectorTestFixture, select_an_unique_replica_on_each_selection) {
 
 // Operating with an empty set of replicas
 TEST_F(SourceSelectorTestFixture, cannot_select_source_without_initial_replicas) {
-  auto source_selector =
-      SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
+  auto source_selector = SourceSelector({},
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
   ASSERT_DEATH(source_selector.updateSource(kSampleCurrentTimeMs), "");
 }
 
 TEST_F(SourceSelectorTestFixture, add_preferred_replica) {
-  auto source_selector =
-      SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
+  auto source_selector = SourceSelector({},
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
   source_selector.addPreferredReplica(kSampleReplicaId);
-  ASSERT_TRUE(source_selector.isPreferred(kSampleReplicaId));
+  ASSERT_TRUE(source_selector.isPreferredSourceId(kSampleReplicaId));
 }
 
 TEST_F(SourceSelectorTestFixture, select_the_only_preferred_replica) {
-  auto source_selector =
-      SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
+  auto source_selector = SourceSelector({},
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
   source_selector.addPreferredReplica(kSampleReplicaId);
-  ASSERT_TRUE(source_selector.isPreferred(kSampleReplicaId));
+  ASSERT_TRUE(source_selector.isPreferredSourceId(kSampleReplicaId));
   source_selector.updateSource(kSampleCurrentTimeMs);
   ASSERT_EQ(source_selector.currentReplica(), kSampleReplicaId);
 }
 
 TEST_F(SourceSelectorTestFixture, select_amongst_preferred_replicas) {
-  auto source_selector =
-      SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
+  auto source_selector = SourceSelector({},
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
 
   for (const auto& r : replicas) {
     source_selector.addPreferredReplica(r);
   }
 
   source_selector.updateSource(kSampleCurrentTimeMs);
-  ASSERT_TRUE(source_selector.isPreferred(source_selector.currentReplica()));
+  ASSERT_TRUE(source_selector.isPreferredSourceId(source_selector.currentReplica()));
+}
+
+TEST_F(SourceSelectorTestFixture, unknown_primary) {
+  auto source_selector = SourceSelector(replicas,
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
+  source_selector.updateSource(kSampleCurrentTimeMs);  // would set up all preferred replicas internally.
+  ASSERT_TRUE(source_selector.isPreferredSourceId(source_selector.currentReplica()));
+  for (uint16_t i = 1; i <= source_selector.minPrePrepareMsgsForPrimaryAwarness() - 1; i++) {
+    source_selector.updateCurrentPrimary(source_selector.currentReplica());
+  }
+  ASSERT_EQ(source_selector.currentPrimary(), NO_REPLICA);
+}
+
+TEST_F(SourceSelectorTestFixture, replace_current_source_pointing_to_primary) {
+  auto source_selector = SourceSelector(replicas,
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
+  source_selector.updateSource(kSampleCurrentTimeMs);  // would set up all preferred replicas internally.
+  ASSERT_TRUE(source_selector.isPreferredSourceId(source_selector.currentReplica()));
+  for (uint16_t i = 1; i <= source_selector.minPrePrepareMsgsForPrimaryAwarness(); i++) {
+    source_selector.updateCurrentPrimary(source_selector.currentReplica());
+  }
+  ASSERT_FALSE(source_selector.isPreferredSourceId(source_selector.currentPrimary()));
+  ASSERT_NE(source_selector.currentPrimary(), NO_REPLICA);
+}
+
+TEST_F(SourceSelectorTestFixture, switch_between_primaries) {
+  auto source_selector = SourceSelector(replicas,
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
+  source_selector.updateSource(kSampleCurrentTimeMs);  // would set up all preferred replicas internally.
+  ASSERT_TRUE(source_selector.isPreferredSourceId(source_selector.currentReplica()));
+  std::once_flag once;
+  uint16_t last_known_primary = NO_REPLICA;
+  for (uint8_t i = 0; i < 2; i++) {
+    for (uint16_t j = 1; j <= source_selector.minPrePrepareMsgsForPrimaryAwarness(); j++) {
+      source_selector.updateCurrentPrimary(source_selector.currentReplica());
+    }
+    ASSERT_FALSE(source_selector.isPreferredSourceId(source_selector.currentPrimary()));
+    std::call_once(once, [&] { last_known_primary = source_selector.currentPrimary(); });
+    source_selector.updateSource(kSampleCurrentTimeMs);
+  }
+  ASSERT_TRUE(source_selector.isPreferredSourceId(last_known_primary));
+  ASSERT_NE(source_selector.currentPrimary(), NO_REPLICA);
 }
 
 TEST_F(SourceSelectorTestFixture, change_source_after_too_many_retransmissions) {
-  auto source_selector =
-      SourceSelector({}, kRetransmissionTimeoutMs, kReplicaReplacementTimeoutMs, maxFetchRetransmissions, GL);
+  auto source_selector = SourceSelector({},
+                                        kRetransmissionTimeoutMs,
+                                        kReplicaReplacementTimeoutMs,
+                                        maxFetchRetransmissions,
+                                        kminPrePrepareMsgsForPrimaryAwarness,
+                                        GL);
 
   for (const auto& r : replicas) {
     source_selector.addPreferredReplica(r);

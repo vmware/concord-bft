@@ -19,6 +19,9 @@
 
 #include "Logger.hpp"
 #include "assertUtils.hpp"
+#include "TimeUtils.hpp"
+
+using bftEngine::impl::getMonotonicTimeMilli;
 
 namespace bftEngine {
 namespace bcst {
@@ -31,11 +34,15 @@ enum class SourceReplacementMode { GRACEFUL, IMMEDIATE, DO_NOT };
 // Information about which current source is selected and which replicas are
 // preferred, as well as data that helps to select a current source replica.
 class SourceSelector {
+  // This class is strictly used for testing
+  friend class SourceSelectorTestFixture;
+
  public:
   SourceSelector(std::set<uint16_t> allOtherReplicas,
                  uint32_t retransmissionTimeoutMilli,
                  uint32_t sourceReplicaReplacementTimeoutMilli,
                  uint32_t maxFetchRetransmissions,
+                 uint16_t minPrePrepareMsgsForPrimaryAwarness,
                  logging::Logger &logger)
       : allOtherReplicas_(std::move(allOtherReplicas)),
         randomGen_(std::random_device()()),
@@ -44,6 +51,7 @@ class SourceSelector {
         retransmissionTimeoutMilli_(retransmissionTimeoutMilli),
         fetchRetransmissionOngoing_(false),
         receivedValidBlockFromSrc_(false),
+        minPrePrepareMsgsForPrimaryAwarness_(minPrePrepareMsgsForPrimaryAwarness),
         logger_(logger) {}
 
   bool hasSource() const;
@@ -77,9 +85,15 @@ class SourceSelector {
 
   void addPreferredReplica(uint16_t replicaId) { preferredReplicas_.insert(replicaId); }
 
+  uint16_t currentPrimary() { return currentPrimary_; }
+
+  void removePreferredReplica(uint16_t replicaId) { preferredReplicas_.erase(replicaId); }
+
   uint16_t numberOfPreferredReplicas() const { return static_cast<uint16_t>(preferredReplicas_.size()); }
 
-  bool isPreferred(uint16_t replicaId) const { return preferredReplicas_.count(replicaId) != 0; }
+  bool isPreferredSourceId(uint16_t replicaId) const { return preferredReplicas_.count(replicaId) != 0; }
+
+  bool isValidSourceId(uint16_t replicaId) const { return allOtherReplicas_.count(replicaId) != 0; }
 
   uint16_t currentReplica() const { return currentReplica_; }
 
@@ -87,12 +101,18 @@ class SourceSelector {
 
   const std::vector<uint16_t> &getActualSources() { return actualSources_; }
 
+  void updateCurrentPrimary(uint16_t newPrimaryReplicaId);
+
+  uint16_t minPrePrepareMsgsForPrimaryAwarness() { return minPrePrepareMsgsForPrimaryAwarness_; }
+
  private:
   uint64_t timeSinceSourceSelectedMilli(uint64_t currTimeMilli) const;
   void selectSource(uint64_t currTimeMilli);
 
   std::set<uint16_t> preferredReplicas_;
   uint16_t currentReplica_ = NO_REPLICA;
+  uint16_t currentPrimary_ = NO_REPLICA;
+
   uint64_t sourceSelectionTimeMilli_ = 0;
   std::set<uint16_t> allOtherReplicas_;
   std::mt19937 randomGen_;
@@ -110,6 +130,9 @@ class SourceSelector {
   std::vector<uint16_t> actualSources_;
   bool receivedValidBlockFromSrc_;
 
+  uint16_t nominatedPrimary_ = NO_REPLICA;
+  uint16_t nominatedPrimaryCounter_ = 0;
+  uint16_t minPrePrepareMsgsForPrimaryAwarness_ = 10;
   logging::Logger &logger_;
 };
 }  // namespace impl
