@@ -71,7 +71,6 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
     replicaConfig.timeServiceEnabled = true;
     replicaConfig.enablePostExecutionSeparation = true;
     replicaConfig.set("sourceReplicaReplacementTimeoutMilli", 6000);
-    replicaConfig.set("concord.bft.st.runInSeparateThread", true);
     replicaConfig.set("concord.bft.keyExchage.clientKeysEnabled", false);
     replicaConfig.preExecutionResultAuthEnabled = false;
     const auto persistMode = PersistencyMode::RocksDB;

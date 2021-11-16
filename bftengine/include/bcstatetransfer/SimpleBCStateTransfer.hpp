@@ -167,7 +167,6 @@ struct Config {
   uint32_t metricsDumpIntervalSec = 0;
 
   // misc
-  bool runInSeparateThread = false;
   bool enableReservedPages = true;
   bool enableSourceBlocksPreFetch = true;
 };
@@ -195,7 +194,6 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.fetchRetransmissionTimeoutMs,
               c.maxFetchRetransmissions,
               c.metricsDumpIntervalSec,
-              c.runInSeparateThread,
               c.enableReservedPages,
               c.enableSourceBlocksPreFetch);
   return os;
