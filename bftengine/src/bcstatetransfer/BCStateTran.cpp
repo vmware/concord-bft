@@ -40,11 +40,6 @@
 
 using std::tie;
 using concordUtils::toPair;
-using std::chrono::steady_clock;
-using std::chrono::duration_cast;
-using std::chrono::milliseconds;
-using std::chrono::time_point;
-using std::chrono::system_clock;
 using namespace std::placeholders;
 using namespace concord::diagnostics;
 using namespace concord::util;
@@ -93,17 +88,6 @@ IStateTransfer *create(const Config &config,
 }
 
 namespace impl {
-
-//////////////////////////////////////////////////////////////////////////////
-// Time
-//////////////////////////////////////////////////////////////////////////////
-
-uint64_t BCStateTran::getMonotonicTimeMilli() {
-  steady_clock::time_point curTimePoint = steady_clock::now();
-  auto timeSinceEpoch = curTimePoint.time_since_epoch();
-  uint64_t milli = duration_cast<milliseconds>(timeSinceEpoch).count();
-  return milli;
-}
 
 //////////////////////////////////////////////////////////////////////////////
 // Ctor & Dtor
@@ -161,6 +145,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
                       config_.fetchRetransmissionTimeoutMs,
                       config_.sourceReplicaReplacementTimeoutMs,
                       config_.maxFetchRetransmissions,
+                      config_.minPrePrepareMsgsForPrimaryAwarness,
                       ST_SRC_LOG},
       posponedSendFetchBlocksMsg_(false),
       ioPool_(
@@ -1815,7 +1800,7 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
     return false;
   }
 
-  ConcordAssert(sourceSelector_.isPreferred(replicaId));
+  ConcordAssert(sourceSelector_.isPreferredSourceId(replicaId));
   LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
   sourceSelector_.removeCurrentReplica();
   metrics_.current_source_replica_.Get().Set(NO_REPLICA);
@@ -1849,6 +1834,11 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     LOG_FATAL(logger_,
               "Expected Fetching State GettingMissingBlocks or GettingMissingResPages. Got: " << stateName(fs));
     ConcordAssert(false);
+  }
+
+  if (!sourceSelector_.isValidSourceId(replicaId)) {
+    LOG_ERROR(logger_, "Msg received from invalid source " << replicaId);
+    return false;
   }
 
   const auto MaxNumOfChunksInBlock =
@@ -1924,18 +1914,14 @@ bool BCStateTran::onMessage(const ItemDataMsg *m, uint32_t msgLen, uint16_t repl
     }
   }
 
-  ConcordAssert(sourceSelector_.isPreferred(replicaId));
-
   bool added = false;
 
   tie(std::ignore, added) = pendingItemDataMsgs.insert(const_cast<ItemDataMsg *>(m));
-  // set fetchingTimeStamp_ while ignoring added flag - source is responsive
-  // Apply correction according to the time message has arrivedto handoff queue
+  // Set fetchingTimeStamp_ while ignoring added flag - source is responsive
+  // Apply correction according to the time message has arrived to handoff queue
   auto fetchingTimeStamp = getMonotonicTimeMilli();
   if (msgArrivalTime != UNDEFINED_LOCAL_TIME_POINT) {
-    auto timeInHandoffMilli =
-        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - msgArrivalTime)
-            .count();
+    auto timeInHandoffMilli = duration_cast<milliseconds>(steady_clock::now() - msgArrivalTime).count();
     LOG_TRACE(logger_, KVLOG(fetchingTimeStamp, timeInHandoffMilli, (fetchingTimeStamp - timeInHandoffMilli)));
     fetchingTimeStamp -= timeInHandoffMilli;
   }
@@ -2478,7 +2464,6 @@ void BCStateTran::processData(bool lastInBatch) {
       }
       sourceSelector_.updateSource(currTime);
       auto currentSource = sourceSelector_.currentReplica();
-      LOG_DEBUG(logger_, "Selected new source replica: " << currentSource);
       metrics_.current_source_replica_.Get().Set(currentSource);
       metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
@@ -3076,6 +3061,29 @@ inline std::string BCStateTran::getSequenceNumber(uint16_t replicaId,
                                                   uint64_t chunkNum) {
   return std::to_string(replicaId) + "-" + std::to_string(seqNum) + "-" + std::to_string(blockNum) + "-" +
          std::to_string(chunkNum);
+}
+
+// TBD Filtering to drop too frequent messages
+void BCStateTran::handoffConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
+  if (handoff_) {
+    // bind understands only shared_ptr natively
+    handoff_->push(std::bind(&BCStateTran::peekConsensusMessage, this, std::move(msg)));
+  } else {
+    peekConsensusMessage(msg);
+  }
+}
+
+void BCStateTran::peekConsensusMessage(shared_ptr<ConsensusMsg> &msg) {
+  auto msg_type = msg->type_;
+  LOG_TRACE(logger_, KVLOG(msg_type, msg->sender_id_));
+
+  switch (msg_type) {
+    case MsgCode::PrePrepare:
+      sourceSelector_.updateCurrentPrimary(msg->sender_id_);
+      break;
+    default:
+      LOG_FATAL(logger_, "Unexpected message type" << KVLOG(msg_type));
+  }
 }
 
 }  // namespace impl
