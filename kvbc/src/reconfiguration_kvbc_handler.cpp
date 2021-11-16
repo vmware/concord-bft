@@ -204,6 +204,10 @@ bool KvbcClientReconfigurationHandler::handle(const concord::messages::ClientRec
       if (csrep.block_id == 0) continue;
       rep.states.push_back(csrep);
     }
+    for (uint16_t i = 0; i < first_client_id; i++) {
+      auto ke_csrep = buildReplicaStateReply(std::string{kvbc::keyTypes::reconfiguration_tls_exchange_key}, i);
+      if (ke_csrep.block_id > 0) rep.states.push_back(ke_csrep);
+    }
   } else {
     auto scaling_key_prefix =
         std::string{kvbc::keyTypes::reconfiguration_client_data_prefix,
