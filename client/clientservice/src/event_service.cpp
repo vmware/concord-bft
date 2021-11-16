@@ -57,13 +57,13 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
   std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::BasicUpdateQueue>();
   try {
     client_->subscribe(request, update_queue, span);
-  } catch (cc::ConcordClient::SubscriptionExists& e) {
+  } catch (cc::SubscriptionExists& e) {
     return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
-  } catch (cc::ConcordClient::UpdateNotFound& e) {
+  } catch (cc::UpdateNotFound& e) {
     return grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
-  } catch (cc::ConcordClient::OutOfRangeSubscriptionRequest& e) {
+  } catch (cc::OutOfRangeSubscriptionRequest& e) {
     return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
-  } catch (cc::ConcordClient::InternalError& e) {
+  } catch (cc::InternalError& e) {
     return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
   }
 

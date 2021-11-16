@@ -34,6 +34,9 @@ using com::vmware::concord::thin_replica::SubscriptionRequest;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::EventGroup;
 using concord::client::concordclient::Update;
+using concord::client::concordclient::UpdateNotFound;
+using concord::client::concordclient::OutOfRangeSubscriptionRequest;
+using concord::client::concordclient::InternalError;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -730,13 +733,13 @@ ThinReplicaClient::~ThinReplicaClient() {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (ThinReplicaClient::UpdateNotFound& e) {
+    } catch (UpdateNotFound& e) {
       std::string msg{"Subscription failed: Requested event group not found"};
       LOG_ERROR(logger_, msg);
-    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+    } catch (OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
-    } catch (ThinReplicaClient::InternalError& e) {
+    } catch (InternalError& e) {
       std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
     }
@@ -760,15 +763,15 @@ void ThinReplicaClient::Subscribe() {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (ThinReplicaClient::UpdateNotFound& e) {
+    } catch (UpdateNotFound& e) {
       std::string msg{"Subscription failed: Requested event group not found"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+    } catch (OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::InternalError& e) {
+    } catch (InternalError& e) {
       std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
@@ -963,15 +966,15 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (ThinReplicaClient::UpdateNotFound& e) {
+    } catch (UpdateNotFound& e) {
       std::string msg{"Subscription failed: Requested update not found"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+    } catch (OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::InternalError& e) {
+    } catch (InternalError& e) {
       std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
@@ -997,15 +1000,15 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (ThinReplicaClient::UpdateNotFound& e) {
+    } catch (UpdateNotFound& e) {
       std::string msg{"Subscription failed: Requested update not found"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+    } catch (OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::InternalError& e) {
+    } catch (InternalError& e) {
       std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
@@ -1041,15 +1044,15 @@ void ThinReplicaClient::Unsubscribe() {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (ThinReplicaClient::UpdateNotFound& e) {
+    } catch (UpdateNotFound& e) {
       std::string msg{"Subscription failed: Requested update not found"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
+    } catch (OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
       throw;
-    } catch (ThinReplicaClient::InternalError& e) {
+    } catch (InternalError& e) {
       std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
