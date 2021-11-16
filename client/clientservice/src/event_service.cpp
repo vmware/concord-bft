@@ -63,6 +63,8 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
     return grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
   } catch (cc::ConcordClient::OutOfRangeSubscriptionRequest& e) {
     return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
+  } catch (cc::ConcordClient::InternalError& e) {
+    return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
   }
 
   // TODO: Consider all gRPC return error codes as described in event.proto

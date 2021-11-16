@@ -165,6 +165,12 @@ class ConcordClient {
     OutOfRangeSubscriptionRequest() : std::runtime_error("out of range subscription request"){};
   };
 
+  // An internal error may occur, for example when max_agreeing
+  class InternalError : public std::runtime_error {
+   public:
+    InternalError() : std::runtime_error("an internal error occurred"){};
+  };
+
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);
 
