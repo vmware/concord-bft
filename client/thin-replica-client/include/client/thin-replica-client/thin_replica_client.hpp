@@ -251,7 +251,7 @@ class ThinReplicaClient final {
   // If none of the replicas return a hash update i.e., the connections to
   // all the replicas either time out or fail while waiting for an update,
   // findBlockHashAgreement returns false, otherwise returns true.
-  bool findBlockHashAgreement(std::vector<bool>& servers_tried,
+  void findBlockHashAgreement(std::vector<bool>& servers_tried,
                               HashRecordMap& agreeing_subset_members,
                               size_t& most_agreeing,
                               HashRecord& most_agreed_block,
@@ -431,7 +431,7 @@ class ThinReplicaClient final {
   // Register the callback to update external metrics
   void setMetricsCallback(const std::function<void(const ThinReplicaClientMetrics&)>& exposeAndSetMetrics);
 
-  // An ongoing subscription may request an update that has not yet been added to the blockchain
+  // A subscription may request a pruned update
   class UpdateNotFound : public std::runtime_error {
    public:
     UpdateNotFound() : std::runtime_error("requested update does not exist yet"){};
@@ -441,6 +441,13 @@ class ThinReplicaClient final {
   class OutOfRangeSubscriptionRequest : public std::runtime_error {
    public:
     OutOfRangeSubscriptionRequest() : std::runtime_error("out of range subscription request"){};
+  };
+
+  // An internal error can be thrown for e.g., when atleast 2f+1 replicas generate hash, and no f+1 replicas agree on a
+  // hash value
+  class InternalError : public std::runtime_error {
+   public:
+    InternalError() : std::runtime_error("an internal error occurred"){};
   };
 };
 

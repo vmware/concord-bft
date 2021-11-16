@@ -276,7 +276,7 @@ TrsConnection::Result ThinReplicaClient::startHashStreamWith(size_t server_index
   return config_->trs_conns[server_index]->openHashStream(request);
 }
 
-bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
+void ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
                                                HashRecordMap& agreeing_subset_members,
                                                size_t& most_agreeing,
                                                HashRecord& most_agreed_block,
@@ -305,7 +305,7 @@ bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
       continue;
     }
     if (stop_subscription_thread_) {
-      return false;
+      return;
     }
 
     if (!config_->trs_conns[server_index]->hasHashStream()) {
@@ -350,17 +350,10 @@ bool ThinReplicaClient::findBlockHashAgreement(std::vector<bool>& servers_tried,
     servers_tried[server_index] = true;
 
     if (most_agreeing >= (config_->max_faulty + 1)) {
-      return true;
+      return;
     }
   }
-  auto all_servers_tried =
-      std::all_of(servers_tried.begin(), servers_tried.end(), [](bool elem) { return elem == true; });
-  // At all times, total number of hash streams opened are `servers_tried.size() - 1` (the one stream not accounted for
-  // is the data stream)
-  if (all_servers_tried && unsuccessful_hash_stream_subset_size >= servers_tried.size() - 1) {
-    return false;
-  }
-  return true;
+  return;
 }
 
 TrsConnection::Result ThinReplicaClient::resetDataStreamTo(size_t server_index) {
@@ -534,7 +527,6 @@ void ThinReplicaClient::receiveUpdates() {
     TrsConnection::Result read_result;
     size_t most_agreeing = 0;
     bool has_data = false;
-    bool has_hash_updates = false;
     bool has_verified_data = false;
 
     // First, we collect updates from all subscription streams we have which
@@ -555,39 +547,42 @@ void ThinReplicaClient::receiveUpdates() {
     uint64_t update_id = update_in.has_event_group() ? update_in.event_group().id() : update_in.events().block_id();
     LOG_DEBUG(logger_,
               "Find hash agreement amongst all servers for update " << (has_data ? to_string(update_id) : "n/a"));
-    has_hash_updates = findBlockHashAgreement(servers_tried,
-                                              agreeing_subset_members,
-                                              most_agreeing,
-                                              most_agreed_block,
-                                              span,
-                                              servers_out_of_range,
-                                              servers_pruned);
+    findBlockHashAgreement(servers_tried,
+                           agreeing_subset_members,
+                           most_agreeing,
+                           most_agreed_block,
+                           span,
+                           servers_out_of_range,
+                           servers_pruned);
     if (stop_subscription_thread_) {
       break;
     }
 
     // At this point we need to have agreeing servers.
     if (most_agreeing < (config_->max_faulty + 1)) {
+      // let's return if f+1 replicas have mismatching hashes
+      size_t servers_with_hash = 0;
+      bool hash_has_agreement = false;
+      for (HashRecordMap::iterator it = agreeing_subset_members.begin(); it != agreeing_subset_members.end(); ++it) {
+        servers_with_hash += it->second.size();
+        if (it->second.size() > (config_->max_faulty + 1)) hash_has_agreement = true;
+      }
+      if (servers_with_hash >= (2 * config_->max_faulty + 1) && !hash_has_agreement) {
+        std::string msg{"Internal Error: Couldn't find agreement, 2f+1 replicas generated mismatching hashes"};
+        LOG_ERROR(logger_, msg);
+        throw InternalError();
+      }
       // print the warning every minute to avoid flooding with logs
-      std::string no_agreement_msg = "Couldn't find agreement amongst all servers. Try again.";
       std::string no_update_msg = "No new update from replicas";
       auto current_time = std::chrono::steady_clock::now();
       if (!last_non_agreement_time.has_value()) {
-        if (!has_data && !has_hash_updates) {
-          LOG_WARN(logger_, no_update_msg);
-        } else {
-          LOG_WARN(logger_, no_agreement_msg);
-        }
+        LOG_WARN(logger_, no_update_msg);
         last_non_agreement_time = current_time;
       } else {
         auto time_since_last_log =
             std::chrono::duration_cast<std::chrono::seconds>(current_time - last_non_agreement_time.value());
         if (time_since_last_log.count() >= config_->no_agreement_warn_duration.count()) {
-          if (!has_data && !has_hash_updates) {
-            LOG_WARN(logger_, no_update_msg);
-          } else {
-            LOG_WARN(logger_, no_agreement_msg);
-          }
+          LOG_WARN(logger_, no_update_msg);
           last_non_agreement_time = current_time;
         }
       }
@@ -741,6 +736,9 @@ ThinReplicaClient::~ThinReplicaClient() {
     } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
+    } catch (ThinReplicaClient::InternalError& e) {
+      std::string msg{"Subscription failed: Internal error"};
+      LOG_ERROR(logger_, msg);
     }
   }
 }
@@ -768,6 +766,10 @@ void ThinReplicaClient::Subscribe() {
       throw;
     } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::InternalError& e) {
+      std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
     }
@@ -969,6 +971,10 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
       std::string msg{"Subscription failed: Out of range subscription request"};
       LOG_ERROR(logger_, msg);
       throw;
+    } catch (ThinReplicaClient::InternalError& e) {
+      std::string msg{"Subscription failed: Internal error"};
+      LOG_ERROR(logger_, msg);
+      throw;
     }
     subscription_thread_.reset();
   }
@@ -997,6 +1003,10 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
       throw;
     } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::InternalError& e) {
+      std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
     }
@@ -1037,6 +1047,10 @@ void ThinReplicaClient::Unsubscribe() {
       throw;
     } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
       std::string msg{"Subscription failed: Out of range subscription request"};
+      LOG_ERROR(logger_, msg);
+      throw;
+    } catch (ThinReplicaClient::InternalError& e) {
+      std::string msg{"Subscription failed: Internal error"};
       LOG_ERROR(logger_, msg);
       throw;
     }

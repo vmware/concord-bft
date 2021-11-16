@@ -153,6 +153,8 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
       throw ConcordClient::UpdateNotFound();
     } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
       throw ConcordClient::OutOfRangeSubscriptionRequest();
+    } catch (ThinReplicaClient::InternalError& e) {
+      throw ConcordClient::InternalError();
     }
   } else if (std::holds_alternative<LegacyEventRequest>(sub_req.request)) {
     try {
@@ -161,6 +163,8 @@ void ConcordClient::subscribe(const SubscribeRequest& sub_req,
       throw ConcordClient::UpdateNotFound();
     } catch (ThinReplicaClient::OutOfRangeSubscriptionRequest& e) {
       throw ConcordClient::OutOfRangeSubscriptionRequest();
+    } catch (ThinReplicaClient::InternalError& e) {
+      throw ConcordClient::InternalError();
     }
   } else {
     ConcordAssert(false);
