@@ -524,8 +524,13 @@ class SkvbcReconfigurationTest(unittest.TestCase):
                             if lines > 0:
                                 succ = False
                                 continue
+            await bft_network.wait_for_state_transfer_to_start()
+            for r in crashed_replica:
+                await bft_network.wait_for_state_transfer_to_stop(initial_prim,
+                                                              r,
+                                                              stop_on_stable_seq_num=False)
 
-            for i in range(800):
+            for i in range(500):
                 await skvbc.send_write_kv_set()
             for r in bft_network.all_replicas():
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
