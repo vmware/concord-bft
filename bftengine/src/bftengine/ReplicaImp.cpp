@@ -9,6 +9,12 @@
 // these subcomponents is subject to the terms and conditions of the sub-component's license, as noted in the LICENSE
 // file.
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <type_traits>
+#include <bitset>
+
 #include "ReplicaImp.hpp"
 #include "Timers.hpp"
 #include "assertUtils.hpp"
@@ -45,17 +51,13 @@
 #include "messages/PreProcessResultMsg.hpp"
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
 #include "messages/PrePrepareCarrierInternalMsg.hpp"
+#include "messages/ValidatedMessageCarrierInternalMsg.hpp"
 #include "CryptoManager.hpp"
 #include "ControlHandler.hpp"
 #include "bftengine/KeyExchangeManager.hpp"
 #include "secrets_manager_plain.h"
 #include "bftengine/EpochManager.hpp"
 #include "RequestThreadPool.hpp"
-#include <memory>
-#include <optional>
-#include <string>
-#include <type_traits>
-#include <bitset>
 
 #define getName(var) #var
 
@@ -69,58 +71,86 @@ using namespace concord::diagnostics;
 namespace bftEngine::impl {
 
 void ReplicaImp::registerMsgHandlers() {
-  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint, bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::Checkpoint,
+                                   bind(&ReplicaImp::messageHandler<CheckpointMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CheckpointMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::CommitPartial,
-                                   bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<CommitPartialMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CommitPartialMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::CommitFull, bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::CommitFull,
+                                   bind(&ReplicaImp::messageHandler<CommitFullMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<CommitFullMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::FullCommitProof,
-                                   bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<FullCommitProofMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<FullCommitProofMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::NewView, bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::NewView,
+                                   bind(&ReplicaImp::messageHandler<NewViewMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<NewViewMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare, bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrePrepare,
+                                   bind(&ReplicaImp::messageHandler<PrePrepareMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PrePrepareMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PartialCommitProof,
-                                   bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<PartialCommitProofMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PartialCommitProofMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::PreparePartial,
-                                   bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<PreparePartialMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PreparePartialMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull, bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::PrepareFull,
+                                   bind(&ReplicaImp::messageHandler<PrepareFullMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<PrepareFullMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReqMissingData,
-                                   bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReqMissingDataMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReqMissingDataMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::SimpleAck, bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::SimpleAck,
+                                   bind(&ReplicaImp::messageHandler<SimpleAckMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<SimpleAckMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::StartSlowCommit,
-                                   bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<StartSlowCommitMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<StartSlowCommitMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::ViewChange, bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(MsgCode::ViewChange,
+                                   bind(&ReplicaImp::messageHandler<ViewChangeMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ViewChangeMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ClientRequest,
-                                   bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ClientRequestMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ClientRequestMsg>, this, _1));
 
-  msgHandlers_->registerMsgHandler(MsgCode::PreProcessResult,
-                                   bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1));
+  msgHandlers_->registerMsgHandler(
+      MsgCode::PreProcessResult,
+      bind(&ReplicaImp::messageHandler<preprocessor::PreProcessResultMsg>, this, _1),
+      bind(&ReplicaImp::validatedMessageHandler<preprocessor::PreProcessResultMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaStatus,
-                                   bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicaStatusMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaStatusMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::AskForCheckpoint,
-                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<AskForCheckpointMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<AskForCheckpointMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaAsksToLeaveView,
-                                   bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicaAsksToLeaveViewMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaAsksToLeaveViewMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicaRestartReady,
-                                   bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicaRestartReadyMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicaRestartReadyMsg>, this, _1));
 
   msgHandlers_->registerMsgHandler(MsgCode::ReplicasRestartReadyProof,
-                                   bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1));
+                                   bind(&ReplicaImp::messageHandler<ReplicasRestartReadyProofMsg>, this, _1),
+                                   bind(&ReplicaImp::validatedMessageHandler<ReplicasRestartReadyProofMsg>, this, _1));
 
   msgHandlers_->registerInternalMsgHandler([this](InternalMessage &&msg) { onInternalMsg(std::move(msg)); });
 }
@@ -148,13 +178,70 @@ void ReplicaImp::messageHandler(MessageBase *msg) {
       }
     }
   }
-  if (!isCollectingState() && validateMessage(trueTypeObj)) {
+
+  if (!isCollectingState()) {
+    // The message validation of few messages require time-consuming processes like
+    // digest calculation, signature verification etc. Such messages are identified
+    // by review. During the review we also check if asynchronous message validation
+    // is feasible or not for the given message. After identification, true returning
+    // shouldValidateAsync() member function is added to these message which indicates
+    // that Asynchronous validation is possible for these messages.
+    // In this function we check shouldValidateAsync() and decide if asynchronous
+    // validation will happen or synchronous validation will happen.
+    // prePrepareFinalizeAsyncEnabled flag will be removed in 1.7, when this entire
+    // async behaviour will be assumed to be default for the chosen messages.
+    if (getReplicaConfig().prePrepareFinalizeAsyncEnabled && trueTypeObj->shouldValidateAsync()) {
+      asyncValidateMessage<T>(trueTypeObj);
+      return;
+    } else {
+      if (validateMessage(trueTypeObj)) {
+        onMessage<T>(trueTypeObj);
+        return;
+      }
+    }
+  }
+  delete trueTypeObj;
+}
+
+/**
+ * validatedMessageHandler<T> This is a family of validated message callback.
+ * As validation is assumed to happen, this function calls the onMessage<T> directly.
+ *
+ * @param msg : This is the carrier message which holds some message which was originally
+ *              external and now validated.
+ * @return : returns nothing
+ */
+template <typename T>
+void ReplicaImp::validatedMessageHandler(CarrierMesssage *msg) {
+  // The Carrier message is allocated by this replica and after validation its given back
+  // to itself without going through the network stack (as an internal message).
+  // So the carrier message is quickly reinterpreted and used instead of fresh memory allocation.
+  // So this reinterpret_cast is intended.
+  ValidatedMessageCarrierInternalMsg<T> *validatedTrueTyeObj =
+      reinterpret_cast<ValidatedMessageCarrierInternalMsg<T> *>(msg);
+  T *trueTypeObj = validatedTrueTyeObj->returnMessageToOwner();
+  delete msg;
+
+  if (bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {
+    if constexpr (!std::is_same_v<T, ClientRequestMsg>) {
+      LOG_INFO(GL, "Received protocol message while pruning, ignoring the message");
+      delete trueTypeObj;
+      return;
+    }
+  }
+
+  if (!isCollectingState()) {
     onMessage<T>(trueTypeObj);
   } else {
     delete trueTypeObj;
   }
 }
-
+/**
+ * validateMessage This is synchronous validate message.
+ *
+ * @param msg : Message that can validate itself as quick as possible..
+ * @return : returns true if message validation succeeds else return false.
+ */
 bool ReplicaImp::validateMessage(MessageBase *msg) {
   if (config_.debugStatisticsEnabled) {
     DebugStatistics::onReceivedExMessage(msg->type());
@@ -166,6 +253,34 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
     onReportAboutInvalidMessage(msg, e.what());
     return false;
   }
+}
+
+/**
+ * asyncValidateMessage<T> This is a family of asynchronous message which just schedules
+ * the validation in a thread bag and returns peacefully. This will also translate the message
+ * into internal message.
+ *
+ * @param msg : This is the message whose validation is complex and should happen asynchronously.
+ *
+ * @return : returns nothing
+ */
+template <typename MSG>
+void ReplicaImp::asyncValidateMessage(MSG *msg) {
+  RequestThreadPool::getThreadPool().async(
+      [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
+        try {
+          unValidatedMsg->validate(*replicaInfo);
+          CarrierMesssage *validatedCarrierMsg = new ValidatedMessageCarrierInternalMsg<MSG>(unValidatedMsg);
+          incomingMessageQueue->pushInternalMsg(validatedCarrierMsg);
+        } catch (std::exception &e) {
+          onReportAboutInvalidMessage(unValidatedMsg, e.what());
+          delete unValidatedMsg;
+          return;
+        }
+      },
+      msg,
+      repsInfo,
+      &(getIncomingMsgsStorage()));
 }
 
 /**
@@ -1323,6 +1438,20 @@ void ReplicaImp::onMessage<FullCommitProofMsg>(FullCommitProofMsg *msg) {
   return;
 }
 
+/**
+ * onCarrierMessage : This is the Validated Message Callback dispatcher. This dispatching
+ * is happening without any queue as its already done by the IncomingMsgsStorageImp
+ *
+ * @param msg : This is the Carrier Message that will be dispatched.
+ *
+ * @return : returns nothing
+ */
+void ReplicaImp::onCarrierMessage(CarrierMesssage *msg) {
+  auto validatedMsgCallBack = msgHandlers_->getValidatedMsgCallback(msg->getMsgType());
+  ConcordAssert(validatedMsgCallBack != nullptr);
+  validatedMsgCallBack(msg);
+}
+
 void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   metric_received_internal_msgs_++;
 
@@ -1330,6 +1459,12 @@ void ReplicaImp::onInternalMsg(InternalMessage &&msg) {
   if (auto *fcp = std::get_if<FullCommitProofMsg *>(&msg)) {
     return onInternalMsg(*fcp);
   }
+
+  // Handle vaidated messages
+  if (auto *vldMsg = std::get_if<CarrierMesssage *>(&msg)) {
+    return onCarrierMessage(*vldMsg);
+  }
+
   // Handle a pre prepare sent by self
   if (auto *ppm = std::get_if<PrePrepareMsg *>(&msg)) {
     if (isCollectingState() || bftEngine::ControlStateManager::instance().getPruningProcessStatus()) {

@@ -13,6 +13,7 @@
 
 #include <string>
 #include <utility>
+
 #include "ReplicaForStateTransfer.hpp"
 #include "CollectorOfThresholdSignatures.hpp"
 #include "SeqNumInfo.hpp"
@@ -340,6 +341,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   template <typename T>
   void messageHandler(MessageBase* msg);
 
+  template <typename T>
+  void validatedMessageHandler(CarrierMesssage* msg);
+
   void send(MessageBase*, NodeIdType) override;
   void sendAndIncrementMetric(MessageBase*, NodeIdType, CounterHandle&);
 
@@ -398,6 +402,9 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMessageByBatchSize(uint32_t requiredBatchSizeInBytes);
 
   void validatePrePrepareMsg(PrePrepareMsg*& ppm);
+
+  template <typename MSG>
+  void asyncValidateMessage(MSG* msg);
 
   void removeDuplicatedRequestsFromRequestsQueue();
 
@@ -486,6 +493,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onRetransmissionsProcessingResults(SeqNum relatedLastStableSeqNum,
                                           const ViewNum relatedViewNumber,
                                           const std::forward_list<RetSuggestion>& suggestedRetransmissions);
+
+  void onCarrierMessage(CarrierMesssage* msg);
 
  private:
   void addTimers();

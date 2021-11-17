@@ -56,6 +56,8 @@ class ReplicaRestartReadyMsg : public MessageBase {
 
   void validate(const ReplicasInfo&) const override;
 
+  bool shouldValidateAsync() const override { return true; }
+
   static uint32_t sizeOfHeader() { return sizeof(Header); }
 
  protected:

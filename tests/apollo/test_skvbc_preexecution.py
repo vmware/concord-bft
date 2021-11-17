@@ -318,7 +318,7 @@ class SkvbcPreExecutionTest(unittest.TestCase):
             await bft_network.wait_for_view(replica_id=random.choice(bft_network.all_replicas(without={0})),
                                             expected=lambda v: v == expected_next_primary,
                                             err_msg="Make sure view change has been triggered.")
-            await skvbc.send_write_kv_set(client, max_set_size=2)
+            await skvbc.send_write_kv_set(client, max_set_size=2, raise_slowErrorIfAny=False)
 
     @with_trio
     @with_bft_network(start_replica_cmd)
