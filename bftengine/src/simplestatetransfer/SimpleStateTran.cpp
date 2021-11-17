@@ -62,7 +62,8 @@ class SimpleStateTran : public ISimpleInMemoryStateTransfer {
   void getDigestOfCheckpoint(uint64_t checkpointNumber,
                              uint16_t sizeOfDigestBuffer,
                              uint64_t& outBlockId,
-                             char* outDigestBuffer) override;
+                             char* outStateDigest,
+                             char* outFullStateDigest) override;
 
   void startCollectingState() override;
 
@@ -505,12 +506,14 @@ void SimpleStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
 void SimpleStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                             uint16_t sizeOfDigestBuffer,
                                             uint64_t& outBlockId,
-                                            char* outDigestBuffer) {
+                                            char* outStateDigest,
+                                            char* outFullStateDigest) {
   ConcordAssert(isInitialized());
   ConcordAssert(internalST_->isRunning());
   ConcordAssert(checkpointNumber <= lastKnownCheckpoint);
 
-  internalST_->getDigestOfCheckpoint(checkpointNumber, sizeOfDigestBuffer, outBlockId, outDigestBuffer);
+  internalST_->getDigestOfCheckpoint(
+      checkpointNumber, sizeOfDigestBuffer, outBlockId, outStateDigest, outFullStateDigest);
 }
 
 void SimpleStateTran::startCollectingState() {

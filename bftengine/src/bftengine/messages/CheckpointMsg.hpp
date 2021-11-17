@@ -25,6 +25,7 @@ class CheckpointMsg : public MessageBase {
                 SeqNum seqNum,
                 State state,
                 const Digest& stateDigest,
+                const Digest& fullStateDigest,
                 bool stateIsStable,
                 const concordUtils::SpanContext& spanContext = concordUtils::SpanContext{});
 
@@ -37,6 +38,8 @@ class CheckpointMsg : public MessageBase {
   State state() const { return b()->state; }
 
   Digest& digestOfState() const { return b()->stateDigest; }
+
+  Digest& otherDigest() const { return b()->otherDigest; }
 
   uint16_t idOfGeneratedReplica() const { return b()->genReplicaId; }
 
@@ -55,7 +58,7 @@ class CheckpointMsg : public MessageBase {
   void setSenderId(NodeIdType id) { sender_ = id; }
   static bool equivalent(CheckpointMsg* a, CheckpointMsg* b) {
     return (a->seqNumber() == b->seqNumber()) && (a->digestOfState() == b->digestOfState()) &&
-           (a->state() == b->state());
+           (a->otherDigest() == b->otherDigest()) && (a->state() == b->state());
   }
 
  protected:
@@ -69,11 +72,12 @@ class CheckpointMsg : public MessageBase {
     EpochNum epochNum;
     State state;
     Digest stateDigest;
+    Digest otherDigest;
     ReplicaId genReplicaId;  // the replica that originally generated this message
     uint8_t flags;           // followed by a signature (by genReplicaId)
   };
 #pragma pack(pop)
-  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + DIGEST_SIZE + 2 + 1), "Header is 65B");
+  static_assert(sizeof(Header) == (6 + 8 + 8 + 8 + DIGEST_SIZE + DIGEST_SIZE + 2 + 1), "Header is 97B");
 
   Header* b() const { return (Header*)msgBody_; }
 };
