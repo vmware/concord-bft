@@ -69,7 +69,7 @@ const int kGrpcMaxInboundMsgSizeInBytes = 1 << 24;
 class TrsConnection {
  public:
   // Possible results of RPC operations a TrsConnection may report.
-  enum class Result { kUnknown, kSuccess, kFailure, kTimeout };
+  enum class Result { kUnknown, kSuccess, kFailure, kTimeout, kOutOfRange, kNotFound };
 
   TrsConnection(const std::string& address,
                 const std::string& client_id,
