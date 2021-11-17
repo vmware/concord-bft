@@ -48,6 +48,10 @@ Sliver MetadataKeyManipulator::generateMetadataKey(ObjectId objectId) const {
   copyToAndAdvance(keyBuf, &offset, keySize, (char *)&objectId, sizeof(objectId));
   return Sliver(keyBuf, keySize);
 }
+Sliver S3MetadataKeyManipulator::generateMetadataKey(const concordUtils::Sliver &key) const {
+  return prefix_ + std::string("metadata/") + key.toString();
+}
+
 /*
  * Format : Key Type | Object Id
  */

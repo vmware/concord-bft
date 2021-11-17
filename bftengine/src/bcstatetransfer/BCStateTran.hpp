@@ -92,7 +92,8 @@ class BCStateTran : public IStateTransfer {
   void getDigestOfCheckpoint(uint64_t checkpointNumber,
                              uint16_t sizeOfDigestBuffer,
                              uint64_t& outBlockId,
-                             char* outDigestBuffer) override;
+                             char* outStateDigest,
+                             char* outFullStateDigest) override;
 
   static void computeDigestOfBlockImpl(const uint64_t blockNum,
                                        const char* block,
