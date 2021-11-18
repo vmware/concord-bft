@@ -22,6 +22,7 @@
 #include "hex_tools.h"
 #include "string.hpp"
 #include "assertUtils.hpp"
+#include "categorization/kv_blockchain.h"
 
 #include <string.h>
 
@@ -70,13 +71,13 @@ Key RocksKeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
 }
 
 Key S3KeyGenerator::blockKey(const BlockId &blockId) const {
-  LOG_DEBUG(logger(), prefix_ + std::to_string(blockId) + std::string("/raw_block"));
-  return prefix_ + std::to_string(blockId) + std::string("/raw_block");
+  LOG_DEBUG(logger(), prefix_ + std::string("blocks/") + std::to_string(blockId));
+  return prefix_ + std::string("blocks/") + std::to_string(blockId);
 }
 
 Key S3KeyGenerator::dataKey(const Key &key, const BlockId &blockId) const {
-  LOG_DEBUG(logger(), prefix_ + std::to_string(blockId) + std::string("/") + string2hex(key.toString()));
-  return prefix_ + std::to_string(blockId) + std::string("/") + string2hex(key.toString());
+  LOG_DEBUG(logger(), prefix_ + std::string("keys/") + string2hex(key.toString()));
+  return prefix_ + std::string("keys/") + string2hex(key.toString());
 }
 
 Key S3KeyGenerator::mdtKey(const Key &key) const {
@@ -404,8 +405,25 @@ BlockId DBAdapter::addBlock(const SetOfKeyValuePairs &kv) {
 void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool lastBlock) {
   SetOfKeyValuePairs keys;
   if (saveKvPairsSeparately_ && block.length() > 0) {
-    keys = getBlockData(block);
+    concord::kvbc::categorization::RawBlock parsedBlock;
+    std::string strBlockId = std::to_string(blockId);
+    concordUtils::Sliver slivBlockId = concordUtils::Sliver::copy(strBlockId.data(), strBlockId.length());
+    parsedBlock = concord::kvbc::categorization::RawBlock::deserialize(block);
+    for (auto &[key, value] : parsedBlock.data.updates.kv) {
+      LOG_INFO(logger_, "key: " << key);
+      std::visit(
+          [this, &keys, slivBlockId](auto &&arg) {
+            for (auto &[k, v] : arg.kv) {
+              LOG_INFO(logger_, "k: " << k);
+              concordUtils::Sliver sKey = std::string("key_to_blockid/") + k;
+              keys[sKey] = slivBlockId;
+              (void)v;
+            }
+          },
+          value);
+    }
   }
+
   if (Status s = addBlockAndUpdateMultiKey(keys, blockId, block); !s.isOK())
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": failed: blockId: ") + std::to_string(blockId) +
                              std::string(" reason: ") + s.toString());
@@ -421,19 +439,23 @@ void DBAdapter::addRawBlock(const RawBlock &block, const BlockId &blockId, bool 
   if ((lastBlock) and (blockId == getLastReachableBlockId() + 1)) setLastReachableBlockNum(getLatestBlockId());
 }
 
-Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &_kvMap,
-                                            const BlockId &_block,
-                                            const Sliver &_blockRaw) {
+Status DBAdapter::addBlockAndUpdateMultiKey(const SetOfKeyValuePairs &kvMap,
+                                            const BlockId &blockId,
+                                            const Sliver &rawBlock) {
   SetOfKeyValuePairs updatedKVMap;
   if (saveKvPairsSeparately_) {
-    for (auto &it : _kvMap) {
-      Sliver composedKey = keyGen_->dataKey(it.first, _block);
-      LOG_TRACE(logger_,
-                "Updating composed key " << composedKey << " with value " << it.second << " in block " << _block);
-      updatedKVMap[composedKey] = it.second;
+    for (auto &[key, value] : kvMap) {
+      Sliver composedKey = keyGen_->mdtKey(key);
+      Sliver prevValue;
+      if (Status s = db_->get(composedKey, prevValue);
+          (s.isNotFound() || (s.isOK() && util::to<BlockId>(prevValue.toString()) < blockId))) {
+        LOG_TRACE(logger_,
+                  "Updating composed key " << composedKey << " with value " << value << " in block " << blockId);
+        updatedKVMap[composedKey] = value;
+      }
     }
   }
-  updatedKVMap[keyGen_->blockKey(_block)] = _blockRaw;
+  updatedKVMap[keyGen_->blockKey(blockId)] = rawBlock;
   return db_->multiPut(updatedKVMap);
 }
 

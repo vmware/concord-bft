@@ -13,7 +13,7 @@
 #pragma once
 
 #include <string>
-
+#include <memory>
 #include "messages/MessageBase.hpp"
 
 namespace concord::kvbc::strategy {
