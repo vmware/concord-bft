@@ -120,15 +120,36 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   size_t NonPrimaryCombinedReqSize = 1000;
   //
   const std::thread::id MAIN_THREAD_ID;
+  // represents the number of running executions at this moment.
+  // This shoukd not be thread safe because its been changed in 3 places:
+  // 1) startPrePrepareMsgExecution - when we are getting empty PP its simbulize that we should push
+  // FinishPrePrepareExecutionInternalMsg which can happen only on the main thread. 2) executeAllPrePreparedRequests -
+  // just before we insert the job to execution thread which means we are in the main thread. 3)
+  // finishExecutePrePrepareMsg   - which can be called only when we fetch FinishPrePrepareExecutionInternalMsg from the
+  // internal messages queue which can happen only on the main thread.
   uint16_t activeExecutions_ = 0;
+  // if we have active executions and the main thread fetches RO request we will defer the message and store it in this
+  // queue, we will handle these requests after the post execution finishes.
+  // This queue should not be thread safe because we add requests only in onMessage<ClientRequestMsg> which can be
+  // called only in the main thread.
+  // fetching of requests from the queue happens when we are getting to it as part of finishExecutePrePrepareMsg which
+  // can happen only in main thread since its being called when FinishPrePrepareExecutionInternalMsg fetched m the
+  // internal msgs queue.
   std::deque<ClientRequestMsg*> deferredRORequests_;
+  // if we have active executions and the main thread fetches request we will defer the message and store it in this
+  // queue, we will handle these requests after the post execution finishes
+  // This queue should not be thread safe because we add requests only in several onMessages which can be
+  // called only in the main thread.
+  // fetching of requests from the queue happens when we are getting to it as part of finishExecutePrePrepareMsg which
+  // can happen only in main thread since its being called when FinishPrePrepareExecutionInternalMsg fetched m the
+  // internal msgs queue.
   std::deque<MessageBase*> deferredMessages_;
-  bool isTryToGoNextView_ = false;
-  bool isGoToNextView_ = false;
+  uint16_t maxQueueSize = 50;
+  bool shouldTryToGoToNextView_ = false;
+  bool shouldGoToNextView_ = false;
   bool isSendCheckpointIfNeeded_ = false;
-  bool isStartcollectingState_ = false;
-  uint64_t isOnTransferringComplete_ = 0;
-  bool startedToExecute = false;
+  bool isStartCollectingState_ = false;
+  bool startedExecution = false;
   concord::util::SimpleThreadPool postExecThread_;
 
   // bounded log used to store information about SeqNums in the range (lastStableSeqNum,lastStableSeqNum +
@@ -189,7 +210,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   shared_ptr<PersistentStorage> ps_;
 
   bool recoveringFromExecutionOfRequests = false;
-  Bitmap mapOfRequestsThatAreBeingRecovered;
+  Bitmap mapOfRecoveredRequests;
 
   shared_ptr<concord::performance::PerformanceManager> pm_;
 
@@ -222,6 +243,8 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   GaugeHandle primary_queue_size_;
   GaugeHandle consensus_avg_time_;
   GaugeHandle accumulating_batch_avg_time_;
+  GaugeHandle deferredRORequestsMetric_;
+  GaugeHandle deferredMessagesMetric_;
   // The first commit path being attempted for a new request.
   StatusHandle metric_first_commit_path_;
 
@@ -334,17 +357,35 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool tryToSendPrePrepareMsg(bool batchingLogic = false) override;
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByRequestsNum(uint32_t requiredRequestsNum) override;
   std::pair<PrePrepareMsg*, bool> buildPrePrepareMsgBatchByOverallSize(uint32_t requiredBatchSizeInBytes) override;
-  void onFinishtExecuting();
+  void handleDeferredRequests();
+  void onExecutionFinish();
+  void finalizeExecution();
+  void updateLimitsAndMetrics(PrePrepareMsg* ppMsg);
   void finishExecutePrePrepareMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests);
   void executeRequests(PrePrepareMsg* pp, Bitmap& requestSet, Timestamp time);
   void executeSpecialRequests(PrePrepareMsg* ppMsg,
                               uint16_t numOfSpecialReqs,
                               bool recoverFromErrorInRequestsExecution,
                               Timestamp& outTimestamp);
-  void startExecutePrePrepareMsg(PrePrepareMsg* ppMsg,
-                                 bool allowParallelExecution,
-                                 bool recoverFromErrorInRequestsExecution);
-  void tryToStartOrFinishExecuting(const bool requestMissingInfo = false);
+  void executeAllPrePreparedRequests(bool allowParallelExecution,
+                                     bool shouldRunRequestsInParallel,
+                                     uint16_t numOfSpecialReqs,
+                                     PrePrepareMsg* ppMsg,
+                                     Bitmap& requestSet,
+                                     bool recoverFromErrorInRequestsExecution);
+  void markSpecialRequests(RequestsIterator& reqIter,
+                           char* requestBody,
+                           uint16_t& numOfSpecialReqs,
+                           size_t& reqIdx,
+                           Bitmap& requestSet,
+                           bool allowParallelExecution,
+                           bool& shouldRunRequestsInParallel);
+  void startPrePrepareMsgExecution(PrePrepareMsg* ppMsg,
+                                   bool allowParallelExecution,
+                                   bool recoverFromErrorInRequestsExecution);
+  void tryToStartOrFinishExecution(bool requestMissingInfo = false);
+  void startExecution(SeqNum seqNumber, concordUtils::SpanWrapper& parent_span, bool requestMissingInfo);
+  void pushDeferredMessage(MessageBase*);
 
  protected:
   ReplicaImp(bool firstTime,
@@ -374,7 +415,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   bool tryToEnterView();
   void onNewView(const std::vector<PrePrepareMsg*>& prePreparesForNewView);
   void MoveToHigherView(ViewNum nextView);  // also sends the ViewChangeMsg message
-  void GotoNextView();
+  void goToNextView();
 
   void tryToSendStatusReport(bool onTimer = false);
   void tryToSendReqMissingDataMsg(SeqNum seqNumber,
@@ -444,7 +485,7 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
 
   void executeReadOnlyRequest(concordUtils::SpanWrapper& parent_span, ClientRequestMsg* m);
 
-  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, const bool requestMissingInfo = false);
+  void executeNextCommittedRequests(concordUtils::SpanWrapper& parent_span, bool requestMissingInfo = false);
 
   void executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper& parent_span,
                                       PrePrepareMsg* pp,
@@ -473,11 +514,11 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   void onReportAboutInvalidMessage(MessageBase* msg, const char* reason) override;
 
   void sendCheckpointIfNeeded();
-  void tryToMarkStableForFastPath(const SeqNum& lastCheckpointNumber,
-                                  CheckpointInfo<>& checkInfo,
-                                  CheckpointMsg* checkpointMessage);
+  void tryToMarkCheckpointStableForFastPath(const SeqNum& lastCheckpointNumber,
+                                            CheckpointInfo<>& checkInfo,
+                                            CheckpointMsg* checkpointMessage);
 
-  void tryToGotoNextView();
+  void tryToGoToNextView();
 
   IncomingMsgsStorage& getIncomingMsgsStorage() override;
 
@@ -532,6 +573,24 @@ class ReplicaImp : public InternalReplicaApi, public ReplicaForStateTransfer {
   EpochNum getSelfEpochNumber() { return static_cast<EpochNum>(EpochManager::instance().getSelfEpochNumber()); }
 
   void setConflictDetectionBlockId(const ClientRequestMsg&, IRequestsHandler::ExecutionRequest&);
+
+  class PostExecJob : public concord::util::SimpleThreadPool::Job {
+   private:
+    PrePrepareMsg* ppMsg_;
+    Bitmap requestSet_;
+    Timestamp time_;
+    ReplicaImp& parent_;
+
+   public:
+    PostExecJob(PrePrepareMsg* ppMsg, Bitmap requestSet, Timestamp time, ReplicaImp& p)
+        : ppMsg_{ppMsg}, requestSet_{std::move(requestSet)}, time_{time}, parent_{p} {}
+
+    virtual ~PostExecJob() {}
+
+    virtual void release() override { delete this; }
+
+    virtual void execute() override { parent_.executeRequests(ppMsg_, requestSet_, time_); }
+  };
 
   // 5 years
   static constexpr int64_t MAX_VALUE_SECONDS = 60 * 60 * 24 * 365 * 5;

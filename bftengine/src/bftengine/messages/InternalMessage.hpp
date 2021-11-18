@@ -17,13 +17,13 @@
 #include "messages/FullCommitProofMsg.hpp"
 #include "messages/RetranProcResultInternalMsg.hpp"
 #include "messages/TickInternalMsg.hpp"
-#include "messages/OnTransferringCompleteMsg.hpp"
+#include "messages/OnStateTransferCompleteMsg.hpp"
 #include "messages/PrePrepareMsg.hpp"
 #include "messages/SignatureInternalMsgs.hpp"
 #include "messages/ViewChangeIndicatorInternalMsg.hpp"
 #include "messages/PrePrepareCarrierInternalMsg.hpp"
 #include "messages/ValidatedMessageCarrierInternalMsg.hpp"
-#include "messages/FinishExecutePrePrepareInternalMsg.hpp"
+#include "messages/FinishPrePrepareExecutionInternalMsg.hpp"
 #include "IRequestHandler.hpp"
 
 namespace bftEngine::impl {
@@ -80,8 +80,8 @@ using InternalMessage = std::variant<FullCommitProofMsg*,
                                      TickInternalMsg,
 
                                      // post execution defer related
-                                     OnTransferringCompletelMsg,
+                                     OnStateTransferCompleteMsg,
 
-                                     FinishExecutePrePrepareInternalMsg>;
+                                     FinishPrePrepareExecutionInternalMsg>;
 
 }  // namespace bftEngine::impl

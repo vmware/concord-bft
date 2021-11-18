@@ -210,7 +210,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
   CONFIG_PARAM(waitForFullCommOnStartup, bool, false, "whether to wait for n/n communication on startup");
 
   // Post-execution separation feature flag
-  CONFIG_PARAM(withPostExecutionSeparation, bool, true, "Post-execution separation feature flag");
+  CONFIG_PARAM(enablePostExecutionSeparation, bool, true, "Post-execution separation feature flag");
 
   // Not predefined configuration parameters
   // Example of usage:
@@ -310,7 +310,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     serialize(outStream, threadbagConcurrency);
     serialize(outStream, timeoutForPrimaryOnStartupSeconds);
     serialize(outStream, waitForFullCommOnStartup);
-    serialize(outStream, withPostExecutionSeparation);
+    serialize(outStream, enablePostExecutionSeparation);
     serialize(outStream, config_params_);
   }
   void deserializeDataMembers(std::istream& inStream) {
@@ -389,7 +389,7 @@ class ReplicaConfig : public concord::serialize::SerializableFactory<ReplicaConf
     deserialize(inStream, threadbagConcurrency);
     deserialize(inStream, timeoutForPrimaryOnStartupSeconds);
     deserialize(inStream, waitForFullCommOnStartup);
-    deserialize(inStream, withPostExecutionSeparation);
+    deserialize(inStream, enablePostExecutionSeparation);
     deserialize(inStream, config_params_);
   }
 
@@ -463,7 +463,7 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.preExecutionResultAuthEnabled,
               rc.prePrepareFinalizeAsyncEnabled,
               rc.threadbagConcurrency,
-              rc.withPostExecutionSeparation);
+              rc.enablePostExecutionSeparation);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

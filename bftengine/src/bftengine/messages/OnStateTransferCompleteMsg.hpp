@@ -12,15 +12,12 @@
 #pragma once
 
 #include <cstdint>
-#include "IRequestHandler.hpp"
 
 namespace bftEngine::impl {
 
-struct FinishExecutePrePrepareInternalMsg {
-  PrePrepareMsg* prePrepareMsg = nullptr;
-  IRequestsHandler::ExecutionRequestsQueue* pAccumulatedRequests = nullptr;
-  FinishExecutePrePrepareInternalMsg(PrePrepareMsg* pp, IRequestsHandler::ExecutionRequestsQueue* q)
-      : prePrepareMsg{pp}, pAccumulatedRequests{q} {}
+struct OnStateTransferCompleteMsg {
+  const uint64_t newStateCheckpoint{0};
+  OnStateTransferCompleteMsg(std::uint64_t n) : newStateCheckpoint{n} {}
 };
 
 }  // namespace bftEngine::impl
