@@ -17,6 +17,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <exception>
 
 #include "client/concordclient/event_update.hpp"
 
@@ -73,6 +74,8 @@ class UpdateQueue {
   virtual std::unique_ptr<EventVariant> tryPop() = 0;
 
   virtual uint64_t size() = 0;
+
+  virtual void setException(std::exception_ptr e) = 0;
 };
 
 // Basic UpdateQueue implementation provided by this library. This class can be expected to adhere to the UpdateQueue
@@ -85,6 +88,7 @@ class BasicUpdateQueue : public UpdateQueue {
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
+  std::exception_ptr exception;
 
  public:
   // Construct a BasicUpdateQueue.
@@ -107,6 +111,7 @@ class BasicUpdateQueue : public UpdateQueue {
   virtual std::unique_ptr<EventVariant> pop() override;
   virtual std::unique_ptr<EventVariant> tryPop() override;
   virtual uint64_t size() override;
+  virtual void setException(std::exception_ptr e) override;
 };
 
 }  // namespace concord::client::concordclient
