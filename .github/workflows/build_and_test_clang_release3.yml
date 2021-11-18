@@ -1,4 +1,4 @@
-name: Release build (clang)
+name: Release build (clang) 3
 on: [push, pull_request]
 
 jobs:
@@ -56,7 +56,7 @@ jobs:
                               -DKEEP_APOLLO_LOGS=TRUE\
                               -DUSE_FAKE_CLOCK_IN_TIME_SERVICE=TRUE\" "\
               && script -q -e -c \
-              "make single-test TEST_NAME=\"bcstatetransfer_tests\|source_selector_test\|skvbc_chaotic_startup\|skvbc_reconfiguration\" "
+              "make single-test TEST_NAME=\"skvbc_state_transfer_tests\|skvbc_network_partitioning_tests\|skvbc_ro_replica_tests\" "
         - name: Prepare artifacts
           if: failure()
           run: |
@@ -101,4 +101,3 @@ jobs:
           run: |
             echo "Errors exist in replica logs. Please check Artifacts"
             exit 1
-
