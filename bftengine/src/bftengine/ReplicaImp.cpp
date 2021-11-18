@@ -272,7 +272,12 @@ bool ReplicaImp::validateMessage(MessageBase *msg) {
  */
 template <typename MSG>
 void ReplicaImp::asyncValidateMessage(MSG *msg) {
-  RequestThreadPool::getThreadPool().async(
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto &threadPool = RequestThreadPool::getThreadPool();
+
+  threadPool.async(
       [this](auto *unValidatedMsg, auto *replicaInfo, auto *incomingMessageQueue) {
         try {
           unValidatedMsg->validate(*replicaInfo);
@@ -298,7 +303,11 @@ void ReplicaImp::asyncValidateMessage(MSG *msg) {
  * @return : returns nothing
  */
 void ReplicaImp::validatePrePrepareMsg(PrePrepareMsg *&ppm) {
-  RequestThreadPool::getThreadPool().async(
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto &threadPool = RequestThreadPool::getThreadPool();
+  threadPool.async(
       [this](auto *prePrepareMsg, auto *replicaInfo, auto *incomingMessageQueue, auto viewNum) {
         try {
           prePrepareMsg->validate(*replicaInfo);
@@ -698,7 +707,11 @@ std::pair<PrePrepareMsg *, bool> ReplicaImp::finishAddingRequestsToPrePrepareMsg
   }
   {
     if (getReplicaConfig().prePrepareFinalizeAsyncEnabled) {
-      RequestThreadPool::getThreadPool().async(
+      // threadpool is initialized once and kept with this function.
+      // This function is called in a single thread as the queue
+      // by dispatcher will not allow multiple threads together.
+      static auto &threadPool = RequestThreadPool::getThreadPool();
+      threadPool.async(
           [](auto *ppm, auto *iq, auto *hist) {
             {
               TimeRecorder scoped_timer(*(hist->finishAddingRequestsToPrePrepareMsg));
@@ -929,11 +942,15 @@ bool ReplicaImp::validatePreProcessedResults(const PrePrepareMsg *msg, const Vie
   std::vector<std::future<void>> tasks;
   std::vector<std::optional<std::string>> errors(msg->numberOfRequests());
   size_t error_id = 0;
+  // threadpool is initialized once and kept with this function.
+  // This function is called in a single thread as the queue
+  // by dispatcher will not allow multiple threads together.
+  static auto &threadPool = RequestThreadPool::getThreadPool();
 
   while (reqIter.getAndGoToNext(requestBody)) {
     const MessageBase::Header *hdr = (MessageBase::Header *)requestBody;
     if (hdr->msgType == MsgCode::PreProcessResult) {
-      tasks.push_back(RequestThreadPool::getThreadPool().async(
+      tasks.push_back(threadPool.async(
           [&errors, requestBody, error_id](auto replicaId, auto fVal) {
             preprocessor::PreProcessResultMsg req((ClientRequestMsgHeader *)requestBody);
             errors[error_id] = req.validatePreProcessResultSignatures(replicaId, fVal);
