@@ -902,7 +902,7 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
     // exchange the private key
     std::string pk_file_name = "pk.pem";
     std::string pk_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id);
-    std::string new_pk = bftEngine::ReplicaConfig::instance().keyViewFilePath + "/pk.pem.new";
+    std::string new_pk = bftEngine::ReplicaConfig::instance().keyViewFilePath + "/pk.pem." + std::to_string(sender_id);
     std::ifstream pld_key(pk_path + "/server/" + pk_file_name);
     if (pld_key.good()) {
       fs::copy(new_pk, pk_path + "/server/" + pk_file_name, fs::copy_options::update_existing);
