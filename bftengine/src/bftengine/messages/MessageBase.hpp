@@ -63,7 +63,7 @@ class MessageBase {
 
   MsgSize size() const { return msgSize_; }
 
-  char *body() const { return (char *)msgBody_; }
+  char *body() const { return reinterpret_cast<char *>(msgBody_); }
 
   NodeIdType senderId() const { return sender_; }
 
