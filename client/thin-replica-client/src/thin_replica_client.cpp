@@ -37,6 +37,7 @@ using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
+using concord::client::concordclient::UpdateQueue;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -573,7 +574,6 @@ void ThinReplicaClient::receiveUpdates() {
       if (servers_with_hash >= (2 * config_->max_faulty + 1) && !hash_has_agreement) {
         std::string msg{"Internal Error: Couldn't find agreement, 2f+1 replicas generated mismatching hashes"};
         LOG_ERROR(logger_, msg);
-        stop_subscription_thread_ = true;
         throw InternalError();
       }
       // print the warning every minute to avoid flooding with logs
@@ -600,14 +600,12 @@ void ThinReplicaClient::receiveUpdates() {
       if (!is_subscription_successful_ && servers_out_of_range >= (config_->max_faulty + 1)) {
         std::string msg{"Out of range subscription request"};
         LOG_ERROR(logger_, msg);
-        stop_subscription_thread_ = true;
         throw OutOfRangeSubscriptionRequest();
       }
       // Throw UpdateNotFound error if requested update pruned at f+1 servers in this subscription round
       if (servers_pruned >= (config_->max_faulty + 1)) {
         std::string msg{"Requested update has been pruned"};
         LOG_ERROR(logger_, msg);
-        stop_subscription_thread_ = true;
         throw UpdateNotFound();
       }
       size_t new_data_index = (data_conn_index_ + 1) % config_->trs_conns.size();
@@ -943,7 +941,7 @@ void ThinReplicaClient::Subscribe() {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 void ThinReplicaClient::Subscribe(uint64_t block_id) {
@@ -968,7 +966,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
@@ -993,7 +991,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 // This is a placeholder implementation as the Unsubscribe gRPC call is not yet
@@ -1042,6 +1040,17 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
   size_t server_to_acknowledge_to = 0;
   ConcordAssert(config_->trs_conns.size() > server_to_acknowledge_to);
   ConcordAssertNE(config_->trs_conns[server_to_acknowledge_to], nullptr);
+}
+
+// Wrapper for receiveUpdates to forward exceptions
+void ThinReplicaClient::receiveUpdatesWrapper() {
+  try {
+    receiveUpdates();
+  } catch (...) {
+    // Set exception and quit receiveUpdates
+    config_->update_queue->setException(std::current_exception());
+    stop_subscription_thread_ = true;
+  }
 }
 
 }  // namespace client::thin_replica_client
