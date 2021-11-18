@@ -133,17 +133,8 @@ void KeyExchangeManager::exchangeTlsKeys(const SeqNum& bft_sn) {
       concord::util::crypto::KeyFormat::PemFormat, concord::util::crypto::CurveType::secp384r1);
   auto cert = concord::util::crypto::Crypto::instance().generateSelfSignedCertificate(
       keys, "node" + std::to_string(repId) + "ser", repId);
-  std::string pk_path =
-      bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(repId) + "/server/pk.pem";
-  concord::secretsmanager::SecretsManagerPlain psm_;
-  std::fstream nec_f(pk_path);
-  if (nec_f.good()) {
-    secretsMgr_->encryptFile(pk_path + ".tmp", keys.first);
-  }
-  std::fstream ec_f(pk_path + ".enc");
-  if (ec_f.good()) {
-    secretsMgr_->encryptFile(pk_path + ".enc.tmp", keys.first);
-  }
+  std::string pk_tmp_file = bftEngine::ReplicaConfig::instance().keyViewFilePath + "/pk.pem.new";
+  secretsMgr_->encryptFile(pk_tmp_file, keys.first);
 
   concord::messages::ReconfigurationRequest req;
   req.sender = repId;

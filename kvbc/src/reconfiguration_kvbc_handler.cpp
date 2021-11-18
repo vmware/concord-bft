@@ -901,32 +901,20 @@ bool InternalPostKvReconfigurationHandler::handle(const concord::messages::Repli
   if (sender_id == bftEngine::ReplicaConfig::instance().replicaId) {
     // exchange the private key
     std::string pk_file_name = "pk.pem";
-    std::string pk_tmp_file_name = pk_file_name;
     std::string pk_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" + std::to_string(sender_id);
+    std::string new_pk = bftEngine::ReplicaConfig::instance().keyViewFilePath + "/pk.pem.new";
     std::ifstream pld_key(pk_path + "/server/" + pk_file_name);
     if (pld_key.good()) {
-      pk_tmp_file_name += ".tmp";
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/server/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/client/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
+      fs::copy(new_pk, pk_path + "/server/" + pk_file_name, fs::copy_options::update_existing);
+      fs::copy(new_pk, pk_path + "/client/" + pk_file_name, fs::copy_options::update_existing);
     }
-    pk_tmp_file_name = pk_file_name;
     std::ifstream enc_pkey(pk_path + "/server/" + pk_file_name + ".enc");
     if (enc_pkey.good()) {
       pk_file_name += ".enc";
-      pk_tmp_file_name += ".enc.tmp";
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/server/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::copy(pk_path + "/server/" + pk_tmp_file_name,
-               pk_path + "/client/" + pk_file_name,
-               fs::copy_options::update_existing);
-      fs::remove(pk_path + "/server/" + pk_tmp_file_name);
+      fs::copy(new_pk, pk_path + "/server/" + pk_file_name, fs::copy_options::update_existing);
+      fs::copy(new_pk, pk_path + "/client/" + pk_file_name, fs::copy_options::update_existing);
     }
+    fs::remove(new_pk);
   }
   std::string bft_replicas_cert_path = bftEngine::ReplicaConfig::instance().certificatesRootPath + "/" +
                                        std::to_string(sender_id) + "/server/server.cert";
