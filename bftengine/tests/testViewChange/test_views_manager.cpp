@@ -298,7 +298,7 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
     ConcordAssert(!digest.isZero());
     newViewMsg->addElement(i + 1, digest);
   }
-
+  newViewMsg->finalizeMessage(replicasInfo);
   // Add the new view message to the views manager.
   viewsManager->add(newViewMsg);
 
@@ -337,6 +337,8 @@ TEST_F(ViewsManagerTest, adding_pre_prepare_messages_to_status_message) {
   viewsManager->fillPropertiesOfStatusMessage(replicaStatusMessage2, &replicasInfo, lastStableSeqNum);
   // Observe that there are no missing Pre-Prepare messages.
   ASSERT_FALSE(replicaStatusMessage2.isMissingPrePrepareMsgForViewChange(lastExecutedSeqNum));
+
+  delete[] viewChangeMsgs;
 }
 
 TEST_F(ViewsManagerTest, trigger_view_change) {
@@ -385,7 +387,7 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
     ConcordAssert(!digest.isZero());
     newViewMsg->addElement(sourceReplicaIds[i], digest);
   }
-
+  newViewMsg->finalizeMessage(replicasInfo);
   viewsManager->add(newViewMsg);
 
   std::vector<bftEngine::impl::ViewsManager::PrevViewInfo> prevView;
@@ -396,6 +398,134 @@ TEST_F(ViewsManagerTest, trigger_view_change) {
   viewsManager->tryToEnterView(nextView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs);
 
   ASSERT_EQ(viewsManager->latestActiveView(), nextView);
+}
+
+TEST_F(ViewsManagerTest, ignore_prepared_certificates_for_lower_view) {
+  // The test verifies that when the ViewsManager receives:
+  // - a View Change message with Pre-Prepare message and PreparedCertificate for lower view
+  // - at least f + 1 View Change messages with Pre-Prepare message and no PreparedCertificate for higher view
+  // It will ignore the message with PreparedCertificate and instead move to the higher view,
+  // represented by f + 1 View Change messages.
+  ASSERT_EQ(rc.numReplicas, 3 * numberOfFaultyReplicas + 1);
+  ASSERT_EQ(rc.fVal, numberOfFaultyReplicas);
+  ASSERT_EQ(rc.cVal, 0);
+
+  const uint32_t kNumberOfMessages = 2 * rc.fVal + 1;  // 2f + 1
+
+  const uint8_t preparedCertificateView = initialView, viewsManagerInitialView = 1, targetView = 2;
+  NewViewMsg* newViewMsg = new NewViewMsg(2, targetView);
+
+  // Explicitly move to higher view
+  viewsManager->setHigherView(viewsManagerInitialView);
+  ASSERT_EQ(viewsManager->getCurrentView(), viewsManagerInitialView);
+
+  uint16_t senderId = 0;
+  const uint32_t kRequestLength = 2;
+  const uint32_t expectedLastValue = 123450;
+  uint64_t requestBuffer[kRequestLength] = {(uint64_t)200, expectedLastValue};
+
+  PrePrepareMsg** prePrepareMessages = new PrePrepareMsg*[2];
+  const uint8_t kPrePrepareWithoutCertificateIdx = 0, kPrePrepareWithCertificateIdx = 1;
+
+  // Create two sample client requests and Pre-Prepare messages.
+  for (uint8_t i = 0; i < 2; ++i) {
+    senderId += i;
+    requestBuffer[1] += i;
+    auto clientRequest = new ClientRequestMsg(senderId,
+                                              bftEngine::ClientMsgFlag::EMPTY_FLAGS_REQ,
+                                              (uint64_t)1234567,
+                                              kRequestLength,
+                                              (const char*)requestBuffer,
+                                              (uint64_t)1000000);
+    // Create a Pre-Prepare message and add the client request to it.
+    prePrepareMessages[i] = new PrePrepareMsg(replicasInfo.primaryOfView(viewsManagerInitialView),
+                                              i ? preparedCertificateView : viewsManagerInitialView,
+                                              lastExecutedSeqNum,
+                                              i ? CommitPath::SLOW : CommitPath::OPTIMISTIC_FAST,
+                                              clientRequest->size());
+    prePrepareMessages[i]->addRequest(clientRequest->body(), clientRequest->size());
+    prePrepareMessages[i]->finishAddingRequests();
+  }
+
+  // Create a PrepareFullMessage. When this message is added as an element to a view change message,
+  // it will be used to create a PreparedCertificate.
+  // For this test the PreparedCertificate will be for a lower view and should be ignored.
+
+  char buff[32]{};
+  PrepareFullMsg* prepareFullMsg = PrepareFullMsg::create(preparedCertificateView,
+                                                          lastExecutedSeqNum,
+                                                          replicasInfo.primaryOfView(viewsManagerInitialView),
+                                                          buff,
+                                                          sizeof(buff));
+
+  ViewChangeMsg* viewChangeMsg = nullptr;
+  Digest digest;
+
+  // Create view change messages and add them to the views manager.
+  for (uint16_t i = 0; i < kNumberOfMessages; ++i) {
+    senderId = i + 1;
+    viewChangeMsg = new ViewChangeMsg(senderId, targetView, lastStableSeqNum);
+
+    if ((uint32_t)(i + 1) < kNumberOfMessages) {
+      // Add the digest of the Pre-Prepare message to the view change message.
+      viewChangeMsg->addElement(lastExecutedSeqNum,
+                                prePrepareMessages[kPrePrepareWithoutCertificateIdx]->digestOfRequests(),
+                                prePrepareMessages[kPrePrepareWithoutCertificateIdx]->viewNumber(),
+                                false,
+                                0,
+                                0,
+                                nullptr);
+    } else {
+      // Only the last View Change message will have a PreparedCertificate.
+
+      // Add the Pre-Prepare message's digest and the PrepareFullMsg to the view change message.
+      viewChangeMsg->addElement(lastExecutedSeqNum,
+                                prePrepareMessages[kPrePrepareWithCertificateIdx]->digestOfRequests(),
+                                prePrepareMessages[kPrePrepareWithCertificateIdx]->viewNumber(),
+                                true,
+                                prePrepareMessages[kPrePrepareWithCertificateIdx]->viewNumber(),
+                                prepareFullMsg->signatureLen(),
+                                prepareFullMsg->signatureBody());
+    }
+    viewsManager->add(viewChangeMsg);
+
+    // Add the view message's digest to the new view message.
+    viewChangeMsg->getMsgDigest(digest);
+    ConcordAssert(!digest.isZero());
+    newViewMsg->addElement(senderId, digest);
+  }
+  newViewMsg->finalizeMessage(replicasInfo);
+  // Add the new view message to the views manager.
+  viewsManager->add(newViewMsg);
+
+  std::vector<bftEngine::impl::ViewsManager::PrevViewInfo> prevView;
+  // In order to change the view manager's status from Stat::IN_VIEW, exit should be called beforehand.
+  // This permits calls of the "tryToEnterView" function to be made.
+  viewsManager->exitFromCurrentView(lastStableSeqNum, lastExecutedSeqNum, prevView);
+
+  vector<PrePrepareMsg*> outPrePrepareMsgs;
+  // Change the views manager's status to Stat::PENDING_WITH_RESTRICTIONS by attempting to enter the next view.
+  // This permits the call of "addPotentiallyMissingPP", which is needed in order for the Pre-Prepare message to be
+  // added to the views manager.
+  // This attempt to enter the next view should fail due to the missing Pre-Prepare message.
+  ASSERT_FALSE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+
+  // Add the missing Pre-Prepare message.
+  ASSERT_TRUE(
+      viewsManager->addPotentiallyMissingPP(prePrepareMessages[kPrePrepareWithoutCertificateIdx], lastExecutedSeqNum));
+
+  // Verify that the ViewsManager chose the PrePrepare message that has no PreparedCertificate.
+  ASSERT_EQ(viewsManager->getPrePrepare(lastExecutedSeqNum)->digestOfRequests(),
+            prePrepareMessages[kPrePrepareWithoutCertificateIdx]->digestOfRequests());
+
+  // After the missing Pre-Prepare message has been added there is no longer any obstacle that prevents from entering
+  // the next view.
+  ASSERT_TRUE(viewsManager->tryToEnterView(targetView, lastStableSeqNum, lastExecutedSeqNum, &outPrePrepareMsgs));
+
+  // Verify that the target view has been activated.
+  ASSERT_EQ(viewsManager->latestActiveView(), targetView);
+
+  delete[] prePrepareMessages;
 }
 
 }  // namespace
