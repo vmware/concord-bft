@@ -25,6 +25,7 @@
 #include "client/thin-replica-client/thin_replica_client.hpp"
 #include "client/client_pool/concord_client_pool.hpp"
 #include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/concord_client_exceptions.hpp"
 #include "Metrics.hpp"
 
 namespace concord::client::concordclient {
@@ -145,13 +146,6 @@ class ConcordClient {
   // Note, if the caller doesn't unsubscribe and no runtime error occurs then resources
   // will be occupied forever.
   void unsubscribe();
-
-  // At the moment, we only allow one subscriber at a time. This exception is thrown if the caller subscribes while an
-  // active subscription is in progress already.
-  class SubscriptionExists : public std::runtime_error {
-   public:
-    SubscriptionExists() : std::runtime_error("subscription exists already"){};
-  };
 
  private:
   config_pool::ConcordClientPoolConfig createClientPoolStruct(const ConcordClientConfig& config);

@@ -217,7 +217,6 @@ class SkvbcBatchPreExecutionTest(unittest.TestCase):
         try:
             with trio.move_on_after(seconds=INDEFINITE_BATCH_WRITES_TIMEOUT):
                 await skvbc.send_indefinite_batch_writes(BATCH_SIZE)
-
         except trio.TooSlowError:
             pass
         finally:

@@ -71,6 +71,8 @@ class ClientRequestMsg : public MessageBase {
 
   void validate(const ReplicasInfo& repInfo) const override { validateImp(repInfo); }
 
+  bool shouldValidateAsync() const override;
+
  protected:
   ClientRequestMsgHeader* msgBody() const { return ((ClientRequestMsgHeader*)msgBody_); }
 

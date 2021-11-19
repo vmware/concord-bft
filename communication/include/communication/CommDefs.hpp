@@ -134,7 +134,7 @@ class PlainUDPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  void dispose(NodeNum i) override{};
+  void restartCommunication(NodeNum i) override{};
   ~PlainUDPCommunication() override;
 
  private:
@@ -161,7 +161,7 @@ class PlainTCPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  void dispose(NodeNum i) override {}
+  void restartCommunication(NodeNum i) override {}
   ~PlainTCPCommunication() override;
 
  private:
@@ -190,7 +190,7 @@ class TlsTCPCommunication : public ICommunication {
 
   void setReceiver(NodeNum receiverNum, IReceiver *receiver) override;
 
-  void dispose(NodeNum i) override;
+  void restartCommunication(NodeNum i) override;
   ~TlsTCPCommunication() override;
 
  private:

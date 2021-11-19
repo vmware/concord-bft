@@ -21,6 +21,7 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
                              SeqNum seqNum,
                              std::uint64_t state,
                              const Digest& stateDigest,
+                             const Digest& otherDigest,
                              bool stateIsStable,
                              const concordUtils::SpanContext& spanContext)
     : MessageBase(genReplica,
@@ -31,6 +32,7 @@ CheckpointMsg::CheckpointMsg(ReplicaId genReplica,
   b()->epochNum = EpochManager::instance().getSelfEpochNumber();
   b()->state = state;
   b()->stateDigest = stateDigest;
+  b()->otherDigest = otherDigest;
   b()->flags = 0;
   b()->genReplicaId = genReplica;
   if (stateIsStable) b()->flags |= 0x1;
@@ -48,10 +50,11 @@ void CheckpointMsg::validate(const ReplicasInfo& repInfo) const {
 
   auto sigManager = SigManager::instance();
 
-  if (size() < sizeof(Header) + spanContextSize() || (!repInfo.isIdOfReplica(senderId())) ||
-      (!repInfo.isIdOfReplica(idOfGeneratedReplica())) || (seqNumber() % checkpointWindowSize != 0) ||
-      (digestOfState().isZero()))
+  if (size() < sizeof(Header) + spanContextSize() || !repInfo.isIdOfReplica(senderId()) ||
+      !repInfo.isIdOfReplica(idOfGeneratedReplica()) || (seqNumber() % checkpointWindowSize != 0) ||
+      (digestOfState().isZero() && otherDigest().isZero())) {
     throw std::runtime_error(__PRETTY_FUNCTION__ + std::string(": basic validations"));
+  }
 
   auto sigLen = sigManager->getSigLength(idOfGeneratedReplica());
 

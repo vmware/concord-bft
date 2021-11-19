@@ -152,6 +152,11 @@ class Replica : public IReplica,
   std::shared_ptr<cron::TicksGenerator> ticksGenerator() const { return m_replicaPtr->ticksGenerator(); }
   void registerStBasedReconfigurationHandler(std::shared_ptr<concord::client::reconfiguration::IStateHandler>);
 
+  std::shared_ptr<concord::storage::rocksdb::NativeClient> nativeDbClient() {
+    if (m_kvBlockchain) return m_kvBlockchain->db();
+    return nullptr;
+  }
+
   ~Replica() override;
 
  protected:

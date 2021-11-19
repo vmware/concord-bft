@@ -19,12 +19,11 @@
 
 namespace bftEngine::impl {
 
-void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop) {
+void DbCheckpointManager::sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum) {
   auto replica_id = bftEngine::ReplicaConfig::instance().getreplicaId();
   concord::messages::db_checkpoint::CreateDbCheckpoint req;
   req.sender = replica_id;
   req.seqNum = seqNum;
-  req.noop = noop;
   std::vector<uint8_t> data_vec;
   concord::messages::db_checkpoint::serialize(data_vec, req);
   std::string sig(SigManager::instance()->getMySigLength(), '\0');

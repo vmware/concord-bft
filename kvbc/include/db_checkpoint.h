@@ -60,7 +60,6 @@ class IDbCheckPointManager {
   virtual void removeAllCheckpoints() const = 0;
   // cleanup if db checkpoint creation is dsabled
   virtual void cleanUp() = 0;
-  virtual void setAggregator(std::shared_ptr<concordMetrics::Aggregator>) = 0;
 
   virtual ~IDbCheckPointManager() = default;
 };
@@ -69,12 +68,13 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
  public:
   RocksDbCheckPointManager(const std::shared_ptr<storage::IDBClient>& dbClient,
                            const uint32_t& maxNumOfChkPt,
-                           const std::string& dbCheckpointDir)
+                           const std::string& dbCheckpointDir,
+                           std::shared_ptr<concordMetrics::Aggregator> aggregator)
       : rocksDbClient_{dbClient},
         ps_{nullptr},
         maxNumOfCheckpoints_{maxNumOfChkPt},
         dbCheckPointDirPath_{dbCheckpointDir},
-        metrics_{concordMetrics::Component("rocksdbCheckpoint", std::make_shared<concordMetrics::Aggregator>())},
+        metrics_{concordMetrics::Component("rocksdbCheckpoint", aggregator)},
         maxDbCheckpointCreationTimeMsec_(metrics_.RegisterGauge("maxDbCheckpointCreationTimeInMsecSoFar", 0)),
         dbCheckpointCreationAverageTimeMsec_(metrics_.RegisterGauge("dbCheckpointCreationAverageTimeMsec", 0)),
         lastDbCheckpointSizeInMb_(metrics_.RegisterGauge("lastDbCheckpointSizeInMb", 0)),
@@ -101,9 +101,7 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   void setPersistentStorage(std::shared_ptr<bftEngine::impl::PersistentStorage> p) override { ps_ = p; }
   void removeAllCheckpoints() const override;
   void cleanUp() override;
-  void setAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) override {
-    metrics_.SetAggregator(aggregator);
-  }
+
   ~RocksDbCheckPointManager() {
     if (cleanupThread_.joinable()) cleanupThread_.join();
   }

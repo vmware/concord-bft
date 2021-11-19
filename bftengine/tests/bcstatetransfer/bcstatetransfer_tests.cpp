@@ -30,6 +30,7 @@
 #include "direct_kv_db_adapter.h"
 #include "memorydb/client.h"
 #include "storage/direct_kv_key_manipulator.h"
+#include "Logger.hpp"
 
 #ifdef USE_ROCKSDB
 #include "rocksdb/client.h"
@@ -138,9 +139,9 @@ class BcStTest : public ::testing::Test {
     logging::LogLevel logLevel = logging::LogLevel::info;
     // logging::Logger::getInstance("serializable").setLogLevel(logLevel);
     // logging::Logger::getInstance("concord.bft.st.dbdatastore").setLogLevel(logLevel);
-    logging::Logger::getInstance("concord.bft.st.dst").setLogLevel(logLevel);
-    logging::Logger::getInstance("concord.bft.st.src").setLogLevel(logLevel);
-    logging::Logger::getInstance("concord.util.handoff").setLogLevel(logLevel);
+    logging::getLogger("concord.bft.st.dst").setLogLevel(logLevel);
+    logging::getLogger("concord.bft.st.src").setLogLevel(logLevel);
+    logging::getLogger("concord.util.handoff").setLogLevel(logLevel);
     // logging::Logger::getInstance("rocksdb").setLogLevel(logLevel);
 #endif
     config_ = TestConfig();

@@ -94,7 +94,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       concord::messages::db_checkpoint::CreateDbCheckpoint createDbChkPtMsg;
       concord::messages::db_checkpoint::deserialize(
           std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
-      if (!createDbChkPtMsg.noop) DbCheckpointManager::Instance().onCreateDbCheckpointMsg(createDbChkPtMsg.seqNum);
+      DbCheckpointManager::Instance().onCreateDbCheckpointMsg(createDbChkPtMsg.seqNum);
       std::string resp = "Ok";
       std::copy(resp.begin(), resp.end(), req.outReply);
       req.outActualReplySize = resp.size();
@@ -110,7 +110,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outExecutionStatus = 0;
 
       if (req.flags & READ_ONLY_FLAG) {
-        LOG_ERROR(GL, "Received a read-only Tick, ignoring");
+        LOG_WARN(GL, "Received a read-only Tick, ignoring");
         req.outExecutionStatus = 1;
       } else if (cron_table_registry_) {
         using namespace concord::cron;
@@ -120,7 +120,7 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
         const auto tick = Tick{payload.component_id, req.executionSequenceNum};
         (*cron_table_registry_)[payload.component_id].evaluate(tick);
       } else {
-        LOG_ERROR(GL, "Received a Tick, but the cron table registry is not initialized");
+        LOG_WARN(GL, "Received a Tick, but the cron table registry is not initialized");
         req.outExecutionStatus = 2;
       }
     }

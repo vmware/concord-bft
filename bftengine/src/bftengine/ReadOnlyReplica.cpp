@@ -18,13 +18,13 @@
 #include "messages/AskForCheckpointMsg.hpp"
 #include "messages/ClientRequestMsg.hpp"
 #include "messages/ClientReplyMsg.hpp"
-#include "CheckpointInfo.hpp"
 #include "Logger.hpp"
 #include "kvstream.h"
 #include "PersistentStorage.hpp"
 #include "MsgsCommunicator.hpp"
 #include "SigManager.hpp"
 #include "ReconfigurationCmd.hpp"
+#include "json_output.hpp"
 
 using concordUtil::Timers;
 
@@ -35,12 +35,14 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                                  IStateTransfer *stateTransfer,
                                  std::shared_ptr<MsgsCommunicator> msgComm,
                                  std::shared_ptr<MsgHandlersRegistrator> msgHandlerReg,
-                                 concordUtil::Timers &timers)
+                                 concordUtil::Timers &timers,
+                                 MetadataStorage *metadataStorage)
     : ReplicaForStateTransfer(config, requestsHandler, stateTransfer, msgComm, msgHandlerReg, true, timers),
       ro_metrics_{metrics_.RegisterCounter("receivedCheckpointMsgs"),
                   metrics_.RegisterCounter("sentAskForCheckpointMsgs"),
                   metrics_.RegisterCounter("receivedInvalidMsgs"),
-                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)} {
+                  metrics_.RegisterGauge("lastExecutedSeqNum", lastExecutedSeqNum)},
+      metadataStorage_{metadataStorage} {
   LOG_INFO(GL, "Initialising ReadOnly Replica");
   repsInfo = new ReplicasInfo(config, dynamicCollectorForPartialProofs, dynamicCollectorForExecutionProofs);
   msgHandlers_->registerMsgHandler(
@@ -57,6 +59,9 @@ ReadOnlyReplica::ReadOnlyReplica(const ReplicaConfig &config,
                    config_.clientTransactionSigningEnabled ? &config_.publicKeysOfClients : nullptr,
                    concord::util::crypto::KeyFormat::PemFormat,
                    *repsInfo);
+
+  // Register status handler for Read-Only replica
+  registerStatusHandlers();
 }
 
 void ReadOnlyReplica::start() {
@@ -78,6 +83,7 @@ void ReadOnlyReplica::onTransferringCompleteImp(uint64_t newStateCheckpoint) {
   lastExecutedSeqNum = newStateCheckpoint * checkpointWindowSize;
 
   ro_metrics_.last_executed_seq_num_.Get().Set(lastExecutedSeqNum);
+  last_executed_seq_num_ = lastExecutedSeqNum;
 }
 
 void ReadOnlyReplica::onReportAboutInvalidMessage(MessageBase *msg, const char *reason) {
@@ -107,8 +113,9 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
                  msg->epochNumber(),
                  msg->size(),
                  msg->isStableState(),
-                 msg->state())
-               << ", state digest: " << msg->digestOfState().toString());
+                 msg->state(),
+                 msg->digestOfState(),
+                 msg->otherDigest()));
 
   // Reconfiguration cmd block is synced to RO replica via reserved pages
   EpochNum replicasLastKnownEpochVal = 0;
@@ -126,10 +133,33 @@ void ReadOnlyReplica::onMessage<CheckpointMsg>(CheckpointMsg *msg) {
   checkpointsInfo[msg->seqNumber()].addCheckpointMsg(msg, msg->idOfGeneratedReplica());
   // if enough - invoke state transfer
   if (checkpointsInfo[msg->seqNumber()].isCheckpointCertificateComplete()) {
+    persistCheckpointDescriptor(msg->seqNumber(), checkpointsInfo[msg->seqNumber()]);
     checkpointsInfo.clear();
     LOG_INFO(GL, "call to startCollectingState()");
     stateTransfer->startCollectingState();
   }
+}
+
+void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const CheckpointInfo<false> &chckpinfo) {
+  std::vector<CheckpointMsg *> msgs;
+  msgs.reserve(chckpinfo.getAllCheckpointMsgs().size());
+  for (const auto &m : chckpinfo.getAllCheckpointMsgs()) msgs.push_back(m.second);
+  DescriptorOfLastStableCheckpoint desc(ReplicaConfig::instance().getnumReplicas(), msgs);
+  const size_t bufLen = DescriptorOfLastStableCheckpoint::maxSize(ReplicaConfig::instance().getnumReplicas());
+  concord::serialize::UniquePtrToChar descBuf(new char[bufLen]);
+  char *descBufPtr = descBuf.get();
+  size_t actualSize = 0;
+  desc.serialize(descBufPtr, bufLen, actualSize);
+  ConcordAssertNE(actualSize, 0);
+
+  // TODO [TK] S3KeyGenerator
+  // checkpoints/<SeqNum>/<BlockId>/<RepId>
+  std::ostringstream oss;
+  oss << "checkpoints/" << seqnum << "/" << msgs[0]->state() << "/" << config_.replicaId;
+  metadataStorage_->atomicWriteArbitraryObject(oss.str(), descBuf.get(), actualSize);
+  metadataStorage_->atomicWriteArbitraryObject("digests/" + std::to_string(msgs[0]->state()),
+                                               msgs[0]->otherDigest().toString().data(),
+                                               msgs[0]->otherDigest().toString().length());
 }
 
 template <>
@@ -204,12 +234,28 @@ void ReadOnlyReplica::executeReadOnlyRequest(concordUtils::SpanWrapper &parent_s
       reply.setReplicaSpecificInfoLength(actualReplicaSpecificInfoLength);
       send(&reply, clientId);
     } else {
-      LOG_ERROR(GL, "Received zero size response. " << KVLOG(clientId));
+      LOG_WARN(GL, "Received zero size response. " << KVLOG(clientId));
     }
 
   } else {
     LOG_ERROR(GL, "Received error while executing RO request. " << KVLOG(clientId, status));
   }
+}
+
+void ReadOnlyReplica::registerStatusHandlers() {
+  auto h = concord::diagnostics::StatusHandler(
+      "replica", "Last executed sequence number of the read-only replica", [this]() {
+        std::ostringstream oss;
+        std::unordered_map<std::string, std::string> result, nested_data;
+
+        nested_data.insert(concordUtils::toPair("lastExecutedSeqNum", last_executed_seq_num_));
+        result.insert(concordUtils::toPair(
+            "sequenceNumbers ", concordUtils::kvContainerToJson(nested_data, [](const auto &arg) { return arg; })));
+
+        oss << concordUtils::kContainerToJson(result);
+        return oss.str();
+      });
+  concord::diagnostics::RegistrarSingleton::getInstance().status.registerHandler(h);
 }
 
 }  // namespace bftEngine::impl

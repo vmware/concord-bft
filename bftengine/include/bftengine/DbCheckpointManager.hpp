@@ -25,7 +25,7 @@ using SeqNum = bftEngine::impl::SeqNum;
 using InternalBftClient = bftEngine::impl::InternalBFTClient;
 class DbCheckpointManager {
  public:
-  void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
+  void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum);
   void enableDbCheckpoint(bool enable) { enableDbCheckpoint_ = enable; }
   bool isDbCheckpointEnabled() const { return enableDbCheckpoint_; }
 
@@ -37,6 +37,10 @@ class DbCheckpointManager {
   }
   void setNextSeqNumToCreateCheckpoint(const SeqNum& s) { nextSeqNumToCreateCheckpoint_ = s; }
   SeqNum getNextSeqNumToCreateCheckpoint() const { return nextSeqNumToCreateCheckpoint_; }
+  void onStableCheckPoint(SeqNum& seqNum) const {
+    if (onSatbleCheckpointCb_) onSatbleCheckpointCb_(seqNum);
+  }
+  void addOnStableSeqNum(std::function<void(const SeqNum&)> cb) { onSatbleCheckpointCb_ = cb; }
 
  public:
   static DbCheckpointManager& Instance(InternalBftClient* client_ = nullptr) {
@@ -50,6 +54,7 @@ class DbCheckpointManager {
   SeqNum nextSeqNumToCreateCheckpoint_{0};
   InternalBftClient* client_;
   std::function<void(SeqNum)> createDbChecheckpointCb_;
+  std::function<void(SeqNum)> onSatbleCheckpointCb_;
 };
 
 }  // namespace bftEngine::impl

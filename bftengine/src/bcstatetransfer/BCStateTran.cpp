@@ -73,7 +73,7 @@ IStateTransfer *create(const Config &config,
 
   impl::DataStore *ds = nullptr;
 
-  if (dynamic_cast<concord::storage::memorydb::Client *>(dbc.get()))
+  if (dynamic_cast<concord::storage::memorydb::Client *>(dbc.get()) || config.isReadOnly)
     ds = new impl::InMemoryDataStore(config.sizeOfReservedPage);
   else
     ds = new impl::DBDataStore(dbc, config.sizeOfReservedPage, stKeyManipulator, config.enableReservedPages);
@@ -572,7 +572,8 @@ void BCStateTran::markCheckpointAsStable(uint64_t checkpointNumber) {
 void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
                                         uint16_t sizeOfDigestBuffer,
                                         uint64_t &outBlockId,
-                                        char *outDigestBuffer) {
+                                        char *outStateDigest,
+                                        char *outOtherDigest) {
   ConcordAssert(running_);
   ConcordAssertGE(sizeOfDigestBuffer, sizeof(STDigest));
   ConcordAssertGT(checkpointNumber, 0);
@@ -581,18 +582,16 @@ void BCStateTran::getDigestOfCheckpoint(uint64_t checkpointNumber,
   ConcordAssert(psd_->hasCheckpointDesc(checkpointNumber));
 
   DataStore::CheckpointDesc desc = psd_->getCheckpointDesc(checkpointNumber);
-  STDigest checkpointDigest;
-  DigestContext c;
-  c.update(reinterpret_cast<char *>(&desc), sizeof(desc));
-  c.writeDigest(checkpointDigest.getForUpdate());
-
-  LOG_INFO(logger_,
-           KVLOG(desc.checkpointNum, desc.digestOfLastBlock, desc.digestOfResPagesDescriptor, checkpointDigest));
+  LOG_INFO(logger_, KVLOG(desc.checkpointNum, desc.lastBlock, desc.digestOfLastBlock, desc.digestOfResPagesDescriptor));
 
   uint16_t s = std::min((uint16_t)sizeof(STDigest), sizeOfDigestBuffer);
-  memcpy(outDigestBuffer, checkpointDigest.get(), s);
+  memcpy(outStateDigest, desc.digestOfLastBlock.get(), s);
   if (s < sizeOfDigestBuffer) {
-    memset(outDigestBuffer + s, 0, sizeOfDigestBuffer - s);
+    memset(outStateDigest + s, 0, sizeOfDigestBuffer - s);
+  }
+  memcpy(outOtherDigest, desc.digestOfResPagesDescriptor.get(), s);
+  if (s < sizeOfDigestBuffer) {
+    memset(outOtherDigest + s, 0, sizeOfDigestBuffer - s);
   }
   outBlockId = desc.lastBlock;
 }
@@ -639,7 +638,7 @@ void BCStateTran::saveReservedPage(uint32_t reservedPageId, uint32_t copyLength,
 
     psd_->setPendingResPage(reservedPageId, inReservedPage, copyLength);
   } catch (std::out_of_range &e) {
-    LOG_ERROR(logger_, "Failed to save pending reserved page: " << e.what() << ": " << KVLOG(reservedPageId));
+    LOG_FATAL(logger_, "Failed to save pending reserved page: " << e.what() << ": " << KVLOG(reservedPageId));
     throw;
   }
 }

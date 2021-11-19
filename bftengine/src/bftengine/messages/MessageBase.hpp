@@ -50,6 +50,9 @@ class MessageBase {
 
   virtual void validate(const ReplicasInfo &) const;
 
+  // This function will tell whether async validation of a message is enabled or not.
+  virtual bool shouldValidateAsync() const;
+
   bool equals(const MessageBase &other) const;
 
   static size_t serializeMsg(char *&buf, const MessageBase *msg);

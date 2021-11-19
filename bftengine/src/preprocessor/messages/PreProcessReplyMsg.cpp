@@ -58,13 +58,13 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   if (size() < headerSize || size() < headerSize + msgBody()->replyLength) throw runtime_error(__PRETTY_FUNCTION__);
 
   if (type() != MsgCode::PreProcessReply) {
-    LOG_ERROR(logger(), "Message type is incorrect" << KVLOG(type()));
+    LOG_WARN(logger(), "Message type is incorrect" << KVLOG(type()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
   auto& msgHeader = *msgBody();
   if (msgHeader.senderId == repInfo.myId()) {
-    LOG_ERROR(logger(), "Message sender is invalid" << KVLOG(senderId()));
+    LOG_WARN(logger(), "Message sender is invalid" << KVLOG(senderId()));
     throw std::runtime_error(__PRETTY_FUNCTION__);
   }
 
@@ -72,9 +72,9 @@ void PreProcessReplyMsg::validate(const ReplicasInfo& repInfo) const {
   uint16_t sigLen = sigManager->getSigLength(msgHeader.senderId);
   if (msgHeader.status == STATUS_GOOD) {
     if (size() < (sizeof(Header) + sigLen)) {
-      LOG_ERROR(logger(),
-                "Message size is too small" << KVLOG(
-                    msgHeader.senderId, msgHeader.clientId, msgHeader.reqSeqNum, size(), sizeof(Header) + sigLen));
+      LOG_WARN(logger(),
+               "Message size is too small" << KVLOG(
+                   msgHeader.senderId, msgHeader.clientId, msgHeader.reqSeqNum, size(), sizeof(Header) + sigLen));
       throw runtime_error(__PRETTY_FUNCTION__ + string(": Message size is too small"));
     }
     concord::diagnostics::TimeRecorder scoped_timer(*preProcessorHistograms_->verifyPreProcessReplySig);

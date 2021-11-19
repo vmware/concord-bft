@@ -65,7 +65,8 @@ Status Replica::initInternals() {
     LOG_INFO(logger, "ReadOnly mode");
     auto requestHandler = bftEngine::IRequestsHandler::createRequestsHandler(m_cmdHandler, cronTableRegistry_);
     requestHandler->setReconfigurationHandler(std::make_shared<pruning::ReadOnlyReplicaPruningHandler>(*this));
-    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm);
+    m_replicaPtr = bftEngine::IReplica::createNewRoReplica(
+        replicaConfig_, requestHandler, m_stateTransfer, m_ptrComm, m_metadataStorage);
     m_stateTransfer->addOnTransferringCompleteCallback([this](std::uint64_t) {
       std::vector<concord::client::reconfiguration::State> stateFromReservedPages;
       uint64_t wedgePt{0};
@@ -324,7 +325,6 @@ void Replica::createReplicaAndSyncState() {
     dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
     if (replicaConfig_.maxNumberOfDbCheckpoints) {
       dbCheckpointMgr_->init();
-      dbCheckpointMgr_->setAggregator(aggregator_);
       bftEngine::impl::DbCheckpointManager::Instance().enableDbCheckpoint(true);
       bftEngine::impl::DbCheckpointManager::Instance().addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
         const auto &lastBlockid = getLastBlockId();
@@ -461,20 +461,8 @@ Replica::Replica(ICommunication *comm,
       secretsManager_{secretsManager},
       blocksIOWorkersPool_((replicaConfig.numWorkerThreadsForBlockIO > 0) ? replicaConfig.numWorkerThreadsForBlockIO
                                                                           : std::thread::hardware_concurrency()) {
-  bft::communication::StateControl::instance().setCommRestartCallBack([this](uint32_t i) {
-    m_ptrComm->dispose(i);
-    // Now wait for a live quorum before continue running
-    uint32_t live_replicas = 1;
-    uint32_t minQuorumSize = 2 * replicaConfig_.fVal + replicaConfig_.cVal + 1;
-    while (live_replicas < minQuorumSize) {
-      live_replicas = 1;
-      for (uint32_t r = 0; r < replicaConfig_.numReplicas; r++) {
-        if (r == replicaConfig_.replicaId) continue;
-        live_replicas += (m_ptrComm->getCurrentConnectionStatus(r) == bft::communication::ConnectionStatus::Connected);
-      }
-    }
-    LOG_INFO(GL, "post communication restart: resuming running after getting " << live_replicas << " connected");
-  });
+  bft::communication::StateControl::instance().setCommRestartCallBack(
+      [this](uint32_t i) { m_ptrComm->restartCommunication(i); });
   // Populate ST configuration
   bftEngine::bcst::Config stConfig = {
     replicaConfig_.replicaId,
@@ -556,12 +544,15 @@ Replica::Replica(ICommunication *comm,
   m_dbSet.metadataDBClient->setAggregator(aggregator);
   auto stKeyManipulator = std::shared_ptr<storage::ISTKeyManipulator>{storageFactory->newSTKeyManipulator()};
   m_stateTransfer = bftEngine::bcst::create(stConfig, this, m_metadataDBClient, stKeyManipulator, aggregator_);
-  m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   if (!replicaConfig.isReadOnly) {
     stReconfigurationSM_ = std::make_unique<concord::kvbc::StReconfigurationHandler>(*m_stateTransfer, *this);
+    m_metadataStorage = new DBMetadataStorage(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
+  } else {
+    m_metadataStorage =
+        new storage::DBMetadataStorageUnbounded(m_metadataDBClient.get(), storageFactory->newMetadataKeyManipulator());
   }
   dbCheckpointMgr_ = std::make_unique<concord::kvbc::RocksDbCheckPointManager>(
-      m_dbSet.dataDBClient, replicaConfig_.maxNumberOfDbCheckpoints, replicaConfig_.dbCheckpointDirPath);
+      m_dbSet.dataDBClient, replicaConfig_.maxNumberOfDbCheckpoints, replicaConfig_.dbCheckpointDirPath, aggregator_);
   // Instantiate IControlHandler.
   // If an application instantiation has already taken a place this will have no effect.
   bftEngine::IControlHandler::instance(new bftEngine::ControlHandler());

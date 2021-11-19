@@ -93,7 +93,7 @@ Status Client::del(const Sliver& key) {
 
 Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
   ConcordAssert(init_);
-  LOG_DEBUG(logger_, "get key: " << _key.toString());
+  LOG_DEBUG(logger_, "key: " << _key.toString());
   GetObjectResponseData cbData(kInitialGetBufferSize_);
   S3GetObjectHandler getObjectHandler;
   getObjectHandler.responseHandler = responseHandler;
@@ -112,7 +112,6 @@ Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
     _outValue = Sliver::copy(reinterpret_cast<const char*>(cbData.data), cbData.readLength);
     return Status::OK();
   } else {
-    LOG_ERROR(logger_, "get status: " << S3_get_status_name(cbData.status) << " (" << cbData.errorMessage << ")");
     if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket ||
         cbData.status == S3Status::S3StatusErrorNoSuchKey)
       return Status::NotFound("Status: " + std::string(S3_get_status_name(cbData.status)) +
@@ -125,6 +124,7 @@ Status Client::get_internal(const Sliver& _key, OUT Sliver& _outValue) const {
 
 Status Client::put_internal(const Sliver& _key, const Sliver& _value) {
   ConcordAssert(init_);
+  LOG_DEBUG(logger_, "key: " << _key.toString());
   PutObjectResponseData cbData(_value.data(), _value.length());
   S3PutObjectHandler putObjectHandler;
   putObjectHandler.responseHandler = responseHandler;
@@ -148,11 +148,13 @@ Status Client::put_internal(const Sliver& _key, const Sliver& _value) {
   if (cbData.status == S3Status::S3StatusOK) {
     metrics_.num_keys_transferred++;
     metrics_.bytes_transferred += (_key.length() + _value.length());
-    metrics_.updateLastSavedBlockId(_key);
+    // metrics_.updateLastSavedBlockId(_key);
     metrics_.metrics_component.UpdateAggregator();
     return Status::OK();
   } else {
-    LOG_ERROR(logger_, "put status: " << S3_get_status_name(cbData.status) << " (" << cbData.errorMessage << ")");
+    LOG_ERROR(logger_,
+              "key: " << _key.toString() << " status: " << S3_get_status_name(cbData.status) << " ("
+                      << cbData.errorMessage << ")");
     if (cbData.status == S3Status::S3StatusHttpErrorNotFound || cbData.status == S3Status::S3StatusErrorNoSuchBucket)
       return Status::NotFound("Status: " + to_string(cbData.status) + "msg: " + cbData.errorMessage);
 

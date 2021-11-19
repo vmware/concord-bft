@@ -85,6 +85,19 @@ ClientRequestMsg::ClientRequestMsg(ClientRequestMsgHeader* body)
 
 bool ClientRequestMsg::isReadOnly() const { return (msgBody()->flags & READ_ONLY_REQ) != 0; }
 
+bool ClientRequestMsg::shouldValidateAsync() const {
+  // Reconfiguration messages are validated in their own handler
+  // so we should not do its validtion in asynchronous manner
+  // as that will lead to overhead.
+  // Similarly key exchanges should happen rarely and thus we
+  // should validate as quick as possible, in sync.
+  const auto* header = msgBody();
+  if (((header->flags & RECONFIG_FLAG) != 0) || ((header->flags & KEY_EXCHANGE_FLAG) != 0)) {
+    return false;
+  }
+  return true;
+}
+
 void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   const auto* header = msgBody();
   PrincipalId clientId = header->idOfClientProxy;
@@ -106,12 +119,12 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
   }
   if (!repInfo.isValidPrincipalId(clientId)) {
     msg << "Invalid clientId " << clientId;
-    LOG_ERROR(CNSUS, msg.str());
+    LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   if (!repInfo.isValidPrincipalId(this->senderId())) {
     msg << "Invalid senderId " << this->senderId();
-    LOG_ERROR(CNSUS, msg.str());
+    LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   if (isIdOfExternalClient && isClientTransactionSigningEnabled) {
@@ -147,7 +160,7 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
                  header->reqSignatureLength,
                  isIdOfExternalClient,
                  isClientTransactionSigningEnabled);
-    LOG_ERROR(CNSUS, msg.str());
+    LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   auto expectedMsgSize = sizeof(ClientRequestMsgHeader) + header->requestLength + header->cidLength +
@@ -155,14 +168,14 @@ void ClientRequestMsg::validateImp(const ReplicasInfo& repInfo) const {
 
   if ((msgSize < minMsgSize) || (msgSize != expectedMsgSize)) {
     msg << "Invalid msgSize: " << KVLOG(msgSize, minMsgSize, expectedMsgSize);
-    LOG_ERROR(CNSUS, msg.str());
+    LOG_WARN(CNSUS, msg.str());
     throw std::runtime_error(msg.str());
   }
   if (doSigVerify) {
     if (!sigManager->verifySig(
             clientId, requestBuf(), header->requestLength, requestSignature(), header->reqSignatureLength)) {
       std::stringstream msg;
-      LOG_ERROR(CNSUS, "Signature verification failed for " << KVLOG(header->reqSeqNum, this->senderId(), clientId));
+      LOG_WARN(CNSUS, "Signature verification failed for " << KVLOG(header->reqSeqNum, this->senderId(), clientId));
       msg << "Signature verification failed for: "
           << KVLOG(clientId,
                    this->senderId(),

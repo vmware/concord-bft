@@ -36,7 +36,7 @@ concord::messages::ReconfigurationResponse PollBasedStateClient::sendReconfigura
     }
     concord::messages::deserialize(rep.matched_data, rres);
   } catch (std::exception& e) {
-    LOG_ERROR(getLogger(), "error while initiating bft request " << e.what());
+    LOG_WARN(getLogger(), "error while initiating bft request " << e.what());
     rres.success = false;
     return rres;
   }

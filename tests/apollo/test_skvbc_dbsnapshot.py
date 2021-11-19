@@ -57,6 +57,33 @@ def start_replica_cmd(builddir, replica_id):
             "-q", batch_size,
             "-h", "3"]
 
+def start_replica_cmd_db_snapshot_disabled(builddir, replica_id):
+    """
+    Return a command that starts an skvbc replica when passed to
+    subprocess.Popen.
+
+    Note each arguments is an element in a list.
+    """
+    statusTimerMilli = "500"
+    viewChangeTimeoutMilli = "10000"
+    path = os.path.join(builddir, "tests", "simpleKVBC", "TesterReplica", "skvbc_replica")
+    if os.environ.get('TIME_SERVICE_ENABLED', default="FALSE").lower() == "true" :
+        batch_size = "2"
+        time_service_enabled = "1"
+    else :
+        batch_size = "1"
+        time_service_enabled = "0"
+    return [path,
+            "-k", KEY_FILE_PREFIX,
+            "-i", str(replica_id),
+            "-s", statusTimerMilli,
+            "-v", viewChangeTimeoutMilli,
+            "-l", os.path.join(builddir, "tests", "simpleKVBC", "scripts", "logging.properties"),
+            "-f", time_service_enabled,
+            "-b", "2",
+            "-q", batch_size,
+            "-h", "0"]
+
 class SkvbcDbSnapshotTest(unittest.TestCase):
     __test__ = False  # so that PyTest ignores this test scenario
 
@@ -71,6 +98,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for i in range(150): 
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 150)
+        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
+        assert num_of_db_snapshots == 1
         last_blockId =  await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
         self.verify_snapshot_is_available(bft_network, 0, last_blockId)
     
@@ -84,6 +113,8 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
         for i in range(150): 
             await skvbc.send_write_kv_set()
         await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 150)
+        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
+        assert num_of_db_snapshots == 1
         snapshot_id = await bft_network.get_metric(0, bft_network, "Gauges", "lastDbCheckpointBlockId", component="rocksdbCheckpoint")
         self.verify_snapshot_is_available(bft_network, 0, snapshot_id)
         fast_paths = {}
@@ -109,8 +140,18 @@ class SkvbcDbSnapshotTest(unittest.TestCase):
                 nb_fast_path = await bft_network.get_metric(r, bft_network, "Counters", "totalFastPaths")
                 self.assertGreater(nb_fast_path, fast_paths[r])
 
-        
-
+    @with_trio
+    @with_bft_network(start_replica_cmd_db_snapshot_disabled, selected_configs=lambda n, f, c: n == 7)
+    @verify_linearizability()
+    async def test_db_checkpoint_disabled(self, bft_network, tracker):
+        bft_network.start_all_replicas()
+        client = bft_network.random_client()
+        skvbc = kvbc.SimpleKVBCProtocol(bft_network, tracker)
+        for i in range(300): 
+            await skvbc.send_write_kv_set()
+        await self.wait_for_stable_checkpoint(bft_network, bft_network.all_replicas(), 300)
+        num_of_db_snapshots =  await bft_network.get_metric(0, bft_network, "Counters", "numOfDbCheckpointsCreated", component="rocksdbCheckpoint")
+        assert num_of_db_snapshots == 0
 
 
     def verify_snapshot_is_available(self, bft_network, replicaId, shapshotId):

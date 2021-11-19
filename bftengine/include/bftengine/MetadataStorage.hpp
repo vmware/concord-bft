@@ -51,6 +51,9 @@ class MetadataStorage {
 
   // In some cases, we would like to load a new metadata after a crash (for example, on reconfiguration actions).
   virtual void eraseData() = 0;
+
+  //
+  virtual void atomicWriteArbitraryObject(const std::string &key, const char *data, uint32_t dataLength) = 0;
 };
 
 }  // namespace bftEngine

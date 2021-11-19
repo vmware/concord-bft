@@ -105,7 +105,8 @@ class IReplica {
   static IReplicaPtr createNewRoReplica(const ReplicaConfig &,
                                         std::shared_ptr<IRequestsHandler>,
                                         IStateTransfer *,
-                                        bft::communication::ICommunication *);
+                                        bft::communication::ICommunication *,
+                                        MetadataStorage *);
 
   virtual ~IReplica() = default;
 

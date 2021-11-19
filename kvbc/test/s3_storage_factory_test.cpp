@@ -25,10 +25,10 @@ TEST(s3, key_generation) {
   auto keygen = std::make_unique<concord::kvbc::v1DirectKeyValue::S3KeyGenerator>(pathPrefix);
 
   auto blockKey = keygen->blockKey(blockId);
-  ASSERT_EQ(blockKey.toString(), pathPrefix + delim + std::to_string(blockId) + std::string{"/raw_block"});
+  ASSERT_EQ(blockKey.toString(), pathPrefix + delim + std::string("blocks") + delim + std::to_string(blockId));
 
   auto dataKey = keygen->dataKey(concord::kvbc::Key{keyName}, blockId);
-  ASSERT_EQ(dataKey.toString(), pathPrefix + delim + std::to_string(blockId) + delim + keyHex);
+  ASSERT_EQ(dataKey.toString(), pathPrefix + delim + std::string("keys") + delim + keyHex);
 
   auto mdtKey = keygen->mdtKey(concord::kvbc::Key{keyName});
   ASSERT_EQ(mdtKey.toString(), pathPrefix + std::string{"/metadata/"} + keyName);
@@ -43,10 +43,10 @@ TEST(s3, empty_prefix_keygen) {
   auto keygen = std::make_unique<concord::kvbc::v1DirectKeyValue::S3KeyGenerator>("");
 
   auto blockKey = keygen->blockKey(blockId);
-  ASSERT_EQ(blockKey.toString(), std::to_string(blockId) + std::string{"/raw_block"});
+  ASSERT_EQ(blockKey.toString(), std::string("blocks") + delim + std::to_string(blockId));
 
   auto dataKey = keygen->dataKey(concord::kvbc::Key{keyName}, blockId);
-  ASSERT_EQ(dataKey.toString(), std::to_string(blockId) + delim + keyHex);
+  ASSERT_EQ(dataKey.toString(), std::string("keys") + delim + keyHex);
 
   auto mdtKey = keygen->mdtKey(concord::kvbc::Key{keyName});
   ASSERT_EQ(mdtKey.toString(), std::string{"metadata/"} + keyName);

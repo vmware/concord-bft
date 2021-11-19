@@ -129,6 +129,7 @@ void MessageBase::validate(const ReplicasInfo &) const {
   LOG_DEBUG(GL, "Calling MessageBase::validate on a message of type " << type());
 }
 
+bool MessageBase::shouldValidateAsync() const { return false; }
 void MessageBase::setMsgSize(MsgSize size) {
   ConcordAssert((msgBody_ != nullptr));
   ConcordAssert(size <= storageSize_);
