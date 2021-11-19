@@ -37,6 +37,7 @@ using concord::client::concordclient::Update;
 using concord::client::concordclient::UpdateNotFound;
 using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 using concord::client::concordclient::InternalError;
+using concord::client::concordclient::UpdateQueue;
 using std::atomic_bool;
 using std::list;
 using std::logic_error;
@@ -733,15 +734,8 @@ ThinReplicaClient::~ThinReplicaClient() {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (UpdateNotFound& e) {
-      std::string msg{"Subscription failed: Requested event group not found"};
-      LOG_ERROR(logger_, msg);
-    } catch (OutOfRangeSubscriptionRequest& e) {
-      std::string msg{"Subscription failed: Out of range subscription request"};
-      LOG_ERROR(logger_, msg);
-    } catch (InternalError& e) {
-      std::string msg{"Subscription failed: Internal error"};
-      LOG_ERROR(logger_, msg);
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
     }
   }
 }
@@ -763,17 +757,8 @@ void ThinReplicaClient::Subscribe() {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (UpdateNotFound& e) {
-      std::string msg{"Subscription failed: Requested event group not found"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (OutOfRangeSubscriptionRequest& e) {
-      std::string msg{"Subscription failed: Out of range subscription request"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (InternalError& e) {
-      std::string msg{"Subscription failed: Internal error"};
-      LOG_ERROR(logger_, msg);
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
       throw;
     }
     subscription_thread_.reset();
@@ -956,7 +941,7 @@ void ThinReplicaClient::Subscribe() {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 void ThinReplicaClient::Subscribe(uint64_t block_id) {
@@ -966,17 +951,8 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (UpdateNotFound& e) {
-      std::string msg{"Subscription failed: Requested update not found"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (OutOfRangeSubscriptionRequest& e) {
-      std::string msg{"Subscription failed: Out of range subscription request"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (InternalError& e) {
-      std::string msg{"Subscription failed: Internal error"};
-      LOG_ERROR(logger_, msg);
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
       throw;
     }
     subscription_thread_.reset();
@@ -990,7 +966,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
@@ -1000,17 +976,8 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (UpdateNotFound& e) {
-      std::string msg{"Subscription failed: Requested update not found"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (OutOfRangeSubscriptionRequest& e) {
-      std::string msg{"Subscription failed: Out of range subscription request"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (InternalError& e) {
-      std::string msg{"Subscription failed: Internal error"};
-      LOG_ERROR(logger_, msg);
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
       throw;
     }
     subscription_thread_.reset();
@@ -1024,7 +991,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
   // Create and launch thread to stream updates from the servers and push them
   // into the queue.
   stop_subscription_thread_ = false;
-  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdates, this));
+  subscription_thread_.reset(new thread(&ThinReplicaClient::receiveUpdatesWrapper, this));
 }
 
 // This is a placeholder implementation as the Unsubscribe gRPC call is not yet
@@ -1044,17 +1011,8 @@ void ThinReplicaClient::Unsubscribe() {
     ConcordAssert(subscription_thread_->joinable());
     try {
       subscription_thread_->join();
-    } catch (UpdateNotFound& e) {
-      std::string msg{"Subscription failed: Requested update not found"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (OutOfRangeSubscriptionRequest& e) {
-      std::string msg{"Subscription failed: Out of range subscription request"};
-      LOG_ERROR(logger_, msg);
-      throw;
-    } catch (InternalError& e) {
-      std::string msg{"Subscription failed: Internal error"};
-      LOG_ERROR(logger_, msg);
+    } catch (const std::exception& e) {
+      LOG_ERROR(logger_, e.what());
       throw;
     }
     subscription_thread_.reset();
@@ -1082,6 +1040,17 @@ void ThinReplicaClient::AcknowledgeBlockID(uint64_t block_id) {
   size_t server_to_acknowledge_to = 0;
   ConcordAssert(config_->trs_conns.size() > server_to_acknowledge_to);
   ConcordAssertNE(config_->trs_conns[server_to_acknowledge_to], nullptr);
+}
+
+// Wrapper for receiveUpdates to forward exceptions
+void ThinReplicaClient::receiveUpdatesWrapper() {
+  try {
+    receiveUpdates();
+  } catch (...) {
+    // Set exception and quit receiveUpdates
+    config_->update_queue->setException(std::current_exception());
+    stop_subscription_thread_ = true;
+  }
 }
 
 }  // namespace client::thin_replica_client

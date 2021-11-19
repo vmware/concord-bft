@@ -200,6 +200,9 @@ class ThinReplicaClient final {
   // Thread function to start subscription_thread_ with.
   void receiveUpdates();
 
+  // wrapper around receiveUpdates to set exceptions_ptr in update_queue
+  void receiveUpdatesWrapper();
+
   // Store call to the function that exposes and updates internal TRC metrics
   // to the user of the TRC library
   std::function<void(const ThinReplicaClientMetrics&)> onSetMetricsCallbackFunc;

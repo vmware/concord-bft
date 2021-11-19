@@ -26,6 +26,11 @@ using vmware::concord::client::event::v1::SubscribeResponse;
 using vmware::concord::client::event::v1::Event;
 using vmware::concord::client::event::v1::EventGroup;
 using vmware::concord::client::event::v1::Events;
+using concord::client::concordclient::EventVariant;
+using concord::client::concordclient::UpdateNotFound;
+using concord::client::concordclient::OutOfRangeSubscriptionRequest;
+using concord::client::concordclient::SubscriptionExists;
+using concord::client::concordclient::InternalError;
 
 using namespace std::chrono_literals;
 
@@ -55,22 +60,26 @@ Status EventServiceImpl::Subscribe(ServerContext* context,
 
   auto span = opentracing::Tracer::Global()->StartSpan("subscribe", {});
   std::shared_ptr<cc::UpdateQueue> update_queue = std::make_shared<cc::BasicUpdateQueue>();
-  try {
-    client_->subscribe(request, update_queue, span);
-  } catch (cc::SubscriptionExists& e) {
-    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
-  } catch (cc::UpdateNotFound& e) {
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
-  } catch (cc::OutOfRangeSubscriptionRequest& e) {
-    return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
-  } catch (cc::InternalError& e) {
-    return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
-  }
+  client_->subscribe(request, update_queue, span);
 
   // TODO: Consider all gRPC return error codes as described in event.proto
   while (!context->IsCancelled()) {
     SubscribeResponse response;
-    auto update = update_queue->tryPop();
+    std::unique_ptr<EventVariant> update;
+    try {
+      update = update_queue->tryPop();
+    } catch (const UpdateNotFound& e) {
+      return grpc::Status(grpc::StatusCode::NOT_FOUND, e.what());
+    } catch (const OutOfRangeSubscriptionRequest& e) {
+      return grpc::Status(grpc::StatusCode::OUT_OF_RANGE, e.what());
+    } catch (const InternalError& e) {
+      return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    } catch (const SubscriptionExists& e) {
+      return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, e.what());
+    } catch (...) {
+      return grpc::Status(grpc::StatusCode::UNKNOWN, "Unknown error");
+    }
+
     if (not update) {
       // We need to check if the client cancelled the subscription.
       // Therefore, we cannot block via pop(). Can we do bettern than sleep?
