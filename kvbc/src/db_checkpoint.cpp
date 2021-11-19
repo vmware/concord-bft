@@ -47,6 +47,7 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
     }
     auto end = Clock::now();
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    lastDbCheckpointBlockId_.Get().Set(lastBlockId);
     numOfDbCheckpointsCreated_++;
     auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
     maxDbCheckpointCreationTimeMsec_.Get().Set(std::max(maxSoFar, static_cast<uint64_t>(duration_ms.count())));
@@ -120,6 +121,8 @@ void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
     }
     if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
       lastCheckpointSeqNum_ = it->second.lastDbCheckpointSeqNum_;
+      lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
+      metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), KVLOG(lastCheckpointSeqNum_));
     }
   }

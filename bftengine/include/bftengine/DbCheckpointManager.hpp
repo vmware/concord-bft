@@ -27,7 +27,7 @@ class DbCheckpointManager {
  public:
   void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum, bool noop);
   void enableDbCheckpoint(bool enable) { enableDbCheckpoint_ = enable; }
-  bool isDbCheckpointEnabled() { return enableDbCheckpoint_; }
+  bool isDbCheckpointEnabled() const { return enableDbCheckpoint_; }
 
   void addCreateDbCheckpointCb(const std::function<void(SeqNum)>& cb) {
     if (cb) createDbChecheckpointCb_ = cb;
@@ -35,7 +35,7 @@ class DbCheckpointManager {
   void onCreateDbCheckpointMsg(const SeqNum& seqNum) {
     if (createDbChecheckpointCb_) createDbChecheckpointCb_(seqNum);
   }
-  void setNextSeqNumToCreateCheckpoint(SeqNum s) { nextSeqNumToCreateCheckpoint_ = s; }
+  void setNextSeqNumToCreateCheckpoint(const SeqNum& s) { nextSeqNumToCreateCheckpoint_ = s; }
   SeqNum getNextSeqNumToCreateCheckpoint() const { return nextSeqNumToCreateCheckpoint_; }
 
  public:

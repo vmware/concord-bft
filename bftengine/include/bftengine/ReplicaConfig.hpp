@@ -469,6 +469,8 @@ inline std::ostream& operator<<(std::ostream& os, const ReplicaConfig& rc) {
               rc.preExecutionResultAuthEnabled,
               rc.prePrepareFinalizeAsyncEnabled,
               rc.threadbagConcurrency);
+  os << ",";
+  os << KVLOG(rc.maxNumberOfDbCheckpoints, rc.dbCheckPointWindowSize, rc.dbCheckpointDirPath);
 
   for (auto& [param, value] : rc.config_params_) os << param << ": " << value << "\n";
   return os;

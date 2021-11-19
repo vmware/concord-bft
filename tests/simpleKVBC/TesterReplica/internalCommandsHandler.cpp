@@ -83,6 +83,8 @@ void InternalCommandsHandler::execute(InternalCommandsHandler::ExecutionRequests
                                       concordUtils::SpanWrapper &parent_span) {
   if (requests.empty()) return;
 
+  if (requests.back().flags & bftEngine::DB_CHECKPOINT_FLAG) return;
+
   // To handle block accumulation if enabled
   VersionedUpdates verUpdates;
   BlockMerkleUpdates merkleUpdates;

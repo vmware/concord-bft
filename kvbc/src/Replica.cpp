@@ -324,6 +324,7 @@ void Replica::createReplicaAndSyncState() {
     dbCheckpointMgr_->setPersistentStorage(m_replicaPtr->persistentStorage());
     if (replicaConfig_.maxNumberOfDbCheckpoints) {
       dbCheckpointMgr_->init();
+      dbCheckpointMgr_->setAggregator(aggregator_);
       bftEngine::impl::DbCheckpointManager::Instance().enableDbCheckpoint(true);
       bftEngine::impl::DbCheckpointManager::Instance().addCreateDbCheckpointCb([this](const uint64_t &seqNum) {
         const auto &lastBlockid = getLastBlockId();
