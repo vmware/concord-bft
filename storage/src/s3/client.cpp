@@ -148,7 +148,7 @@ Status Client::put_internal(const Sliver& _key, const Sliver& _value) {
   if (cbData.status == S3Status::S3StatusOK) {
     metrics_.num_keys_transferred++;
     metrics_.bytes_transferred += (_key.length() + _value.length());
-    metrics_.updateLastSavedBlockId(_key);
+    // metrics_.updateLastSavedBlockId(_key);
     metrics_.metrics_component.UpdateAggregator();
     return Status::OK();
   } else {
