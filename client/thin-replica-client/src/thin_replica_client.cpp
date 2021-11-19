@@ -958,6 +958,7 @@ void ThinReplicaClient::Subscribe(uint64_t block_id) {
     subscription_thread_.reset();
   }
 
+  LOG_INFO(logger_, "Subscribing to block ID: " << block_id);
   config_->update_queue->clear();
   latest_verified_block_id_ = block_id > 0 ? block_id - 1 : block_id;
   latest_verified_event_group_id_ = 0;
@@ -983,6 +984,7 @@ void ThinReplicaClient::Subscribe(const SubscribeRequest& req) {
     subscription_thread_.reset();
   }
 
+  LOG_INFO(logger_, "Subscribing to update ID: " << req.event_group_id);
   config_->update_queue->clear();
   // We assume that the latest known event group for the caller is the event group prior to the requested one.
   latest_verified_event_group_id_ = req.event_group_id > 0 ? req.event_group_id - 1 : req.event_group_id;
