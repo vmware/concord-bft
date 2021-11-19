@@ -157,6 +157,9 @@ void ReadOnlyReplica::persistCheckpointDescriptor(const SeqNum &seqnum, const Ch
   std::ostringstream oss;
   oss << "checkpoints/" << seqnum << "/" << msgs[0]->state() << "/" << config_.replicaId;
   metadataStorage_->atomicWriteArbitraryObject(oss.str(), descBuf.get(), actualSize);
+  metadataStorage_->atomicWriteArbitraryObject("digests/" + std::to_string(msgs[0]->state()),
+                                               msgs[0]->otherDigest().toString().data(),
+                                               msgs[0]->otherDigest().toString().length());
 }
 
 template <>

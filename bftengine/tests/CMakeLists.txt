@@ -2,7 +2,9 @@ add_subdirectory(simpleStorage)
 add_subdirectory(bcstatetransfer)
 add_subdirectory(testSerialization)
 add_subdirectory(metadataStorage)
-add_subdirectory(s3)
+#add_subdirectory(s3) 
+#TODO [TK] shouldn't be in bftengine. 
+#Should be fixed as it assumes relation between the key and the blockId
 add_subdirectory(testViewChange)
 add_subdirectory(testMsgsCertificate)
 add_subdirectory(controllerWithSimpleHistory)
