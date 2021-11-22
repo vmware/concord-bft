@@ -5,15 +5,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-18.04
+    outputs:
+      err_output: ${{ steps.prepare_err_artifacts.outputs.test}}
     strategy:
         fail-fast: false
         matrix:
             compiler:
                 - "CONCORD_BFT_CONTAINER_CC=gcc CONCORD_BFT_CONTAINER_CXX=g++"
             ci_build_type:
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v1direct -DBUILD_COMM_TCP_TLS=FALSE"
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle -DBUILD_COMM_TCP_TLS=FALSE"
-                - "-DCMAKE_BUILD_TYPE=RELEASE -DCI_TEST_STORAGE_TYPE=v2merkle -DBUILD_COMM_TCP_TLS=TRUE"
+                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=FALSE"
+                - "-DCMAKE_BUILD_TYPE=RELEASE -DBUILD_COMM_TCP_TLS=TRUE"
             use_s3_obj_store:
                 - "-DUSE_S3_OBJECT_STORE=ON"
                 - "-DUSE_S3_OBJECT_STORE=OFF"
