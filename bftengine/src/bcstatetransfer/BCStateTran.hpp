@@ -320,7 +320,6 @@ class BCStateTran : public IStateTransfer {
   set<ItemDataMsg*, compareItemDataMsg> pendingItemDataMsgs;
   uint32_t totalSizeOfPendingItemDataMsgs = 0;
 
-  string preferredReplicasToString();
   void clearAllPendingItemsData();
   void clearPendingItemsData(uint64_t untilBlock);
   bool getNextFullBlock(uint64_t requiredBlock,
@@ -450,9 +449,7 @@ class BCStateTran : public IStateTransfer {
   concordMetrics::Component metrics_component_;
   struct Metrics {
     StatusHandle fetching_state_;
-    StatusHandle preferred_replicas_;
 
-    GaugeHandle current_source_replica_;
     GaugeHandle checkpoint_being_fetched_;
     GaugeHandle last_stored_checkpoint_;
     GaugeHandle number_of_reserved_pages_;
