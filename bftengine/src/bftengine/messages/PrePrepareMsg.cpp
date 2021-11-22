@@ -47,7 +47,7 @@ void PrePrepareMsg::calculateDigestOfRequests(Digest& digest) const {
   static auto& threadPool = RequestThreadPool::getThreadPool();
 
   while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
     char* sig = req.requestSignature();
     if (sig != nullptr) {
       sigOrDigestOfRequest[local_id].first = sig;
@@ -286,7 +286,7 @@ const std::string PrePrepareMsg::getBatchCorrelationIdAsString() const {
   auto it = RequestsIterator(this);
   char* requestBody = nullptr;
   while (it.getAndGoToNext(requestBody)) {
-    ClientRequestMsg req((ClientRequestMsgHeader*)requestBody);
+    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader*>(requestBody));
     ret += req.getCid() + ";";
   }
   return ret;

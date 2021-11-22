@@ -1037,7 +1037,7 @@ void ReplicaImp::onMessage<PrePrepareMsg>(PrePrepareMsg *msg) {
       RequestsIterator reqIter(msg);
       char *requestBody = nullptr;
       while (reqIter.getAndGoToNext(requestBody)) {
-        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
         if (config_.timeServiceEnabled && req.flags() & MsgFlag::TIME_SERVICE_FLAG) continue;
         if (!clientsManager->isValidClient(req.clientProxyId())) continue;
         clientsManager->removeRequestsOutOfBatchBounds(req.clientProxyId(), req.requestSeqNum());
@@ -4417,7 +4417,7 @@ void ReplicaImp::executeRequestsInPrePrepareMsg(concordUtils::SpanWrapper &paren
     //////////////////////////////////////////////////////////////////////
     if (!recoverFromErrorInRequestsExecution) {
       while (reqIter.getAndGoToNext(requestBody)) {
-        ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+        ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
         SCOPED_MDC_CID(req.getCid());
         NodeIdType clientId = req.clientProxyId();
 
@@ -4592,7 +4592,7 @@ void ReplicaImp::executeRequestsAndSendResponses(PrePrepareMsg *ppMsg,
   while (reqIter.getAndGoToNext(requestBody)) {
     size_t tmp = reqIdx;
     reqIdx++;
-    ClientRequestMsg req((ClientRequestMsgHeader *)requestBody);
+    ClientRequestMsg req(reinterpret_cast<ClientRequestMsgHeader *>(requestBody));
     if (config_.timeServiceEnabled) {
       if (req.flags() & MsgFlag::TIME_SERVICE_FLAG) {
         timestamp->time_since_epoch =
