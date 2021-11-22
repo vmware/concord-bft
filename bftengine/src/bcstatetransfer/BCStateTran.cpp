@@ -175,9 +175,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
       // We must make sure that we actually initialize all these metrics in the
       // same order as defined in the header file.
       metrics_{metrics_component_.RegisterStatus("fetching_state", stateName(FetchingState::NotFetching)),
-               metrics_component_.RegisterStatus("preferred_replicas", ""),
 
-               metrics_component_.RegisterGauge("current_source_replica", NO_REPLICA),
                metrics_component_.RegisterGauge("checkpoint_being_fetched", 0),
                metrics_component_.RegisterGauge("last_stored_checkpoint", 0),
                metrics_component_.RegisterGauge("number_of_reserved_pages", 0),
@@ -688,6 +686,7 @@ void BCStateTran::onTimerImp() {
   metrics_.on_timer_++;
   // Send all metrics to the aggregator
   metrics_component_.UpdateAggregator();
+  sourceSelector_.updateMetricToAggregator();
 
   // Dump metrics to log
   FetchingState fs = getFetchingState();
@@ -695,6 +694,7 @@ void BCStateTran::onTimerImp() {
   if (currTimeForDumping - last_metrics_dump_time_ >= metrics_dump_interval_in_sec_) {
     last_metrics_dump_time_ = currTimeForDumping;
     LOG_INFO(logger_, "--BCStateTransfer metrics dump--" + metrics_component_.ToJson());
+    LOG_INFO(logger_, "--SourceSelector metrics dump--" + sourceSelector_.getMetricComponent().ToJson());
   }
 
   // take a snapshot and log after time passed is approx x2 of fetchRetransmissionTimeoutMs
@@ -1331,8 +1331,7 @@ bool BCStateTran::onMessage(const CheckpointSummaryMsg *m, uint32_t msgLen, uint
     }
   }
 
-  metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
-
+  sourceSelector_.updatePreferredReplicasMetric();
   ConcordAssertGE(sourceSelector_.numberOfPreferredReplicas(), config_.fVal + 1);
 
   // set new checkpoint
@@ -1796,8 +1795,6 @@ bool BCStateTran::onMessage(const RejectFetchingMsg *m, uint32_t msgLen, uint16_
   ConcordAssert(sourceSelector_.isPreferredSourceId(replicaId));
   LOG_WARN(logger_, "Removing replica from preferred replicas: " << KVLOG(replicaId));
   sourceSelector_.removeCurrentReplica();
-  metrics_.current_source_replica_.Get().Set(NO_REPLICA);
-  metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
   clearAllPendingItemsData();
 
   if (sourceSelector_.hasPreferredReplicas()) {
@@ -2263,16 +2260,12 @@ set<uint16_t> BCStateTran::allOtherReplicas() {
   return others;
 }
 
-void BCStateTran::SetAllReplicasAsPreferred() {
-  sourceSelector_.setAllReplicasAsPreferred();
-  metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
-}
+void BCStateTran::SetAllReplicasAsPreferred() { sourceSelector_.setAllReplicasAsPreferred(); }
 
 void BCStateTran::EnterGettingCheckpointSummariesState() {
   LOG_DEBUG(logger_, "");
   ConcordAssert(sourceSelector_.noPreferredReplicas());
   sourceSelector_.reset();
-  metrics_.current_source_replica_.Get().Set(sourceSelector_.currentReplica());
 
   finalizePutblockAsync(false, PutBlockWaitPolicy::WAIT_ALL_JOBS);
   nextRequiredBlock_ = 0;
@@ -2456,9 +2449,6 @@ void BCStateTran::processData(bool lastInBatch) {
         return;
       }
       sourceSelector_.updateSource(currTime);
-      auto currentSource = sourceSelector_.currentReplica();
-      metrics_.current_source_replica_.Get().Set(currentSource);
-      metrics_.preferred_replicas_.Get().Set(sourceSelector_.preferredReplicasToString());
       badDataFromCurrentSourceReplica = false;
       if (srcReplacementMode == SourceReplacementMode::IMMEDIATE) clearAllPendingItemsData();
     }
@@ -2663,16 +2653,15 @@ void BCStateTran::processData(bool lastInBatch) {
       g.txn()->setCheckpointDesc(cp.checkpointNum, cp);
       g.txn()->deleteCheckpointBeingFetched();
       deleteOldCheckpoints(cp.checkpointNum, g.txn());
-      metrics_.preferred_replicas_.Get().Set("");
-      metrics_.current_source_replica_.Get().Set(NO_REPLICA);
       nextRequiredBlock_ = 0;
       digestOfNextRequiredBlock.makeZero();
       clearAllPendingItemsData();
 
       // Metrics set at the end of the block to prevent transaction abort from
       // leaving inconsistencies.
-      metrics_.preferred_replicas_.Get().Set("");
-      metrics_.current_source_replica_.Get().Set(sourceSelector_.currentReplica());
+
+      sourceSelector_.updatePreferredReplicasMetric("");
+      sourceSelector_.updateCurrentReplicaMetric();
       metrics_.last_stored_checkpoint_.Get().Set(cp.checkpointNum);
       metrics_.checkpoint_being_fetched_.Get().Set(0);
 
@@ -3045,6 +3034,7 @@ STDigest BCStateTran::getBlockAndComputeDigest(uint64_t currBlock) {
 }
 
 void BCStateTran::SetAggregator(std::shared_ptr<concordMetrics::Aggregator> aggregator) {
+  sourceSelector_.setAggregator(aggregator);
   metrics_component_.SetAggregator(aggregator);
 }
 
