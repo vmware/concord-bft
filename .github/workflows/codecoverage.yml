@@ -1,0 +1,16 @@
+name: Code Coverage (Apollo tests)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 20 * * 6" # Every Saturday at 8PM UTC
+
+jobs:
+  build:
+    name: Code coverage for Apollo Tests
+    runs-on: ubuntu-18.04
+    strategy:
+        fail-fast: false
+    steps:
+        - name: Cleanup pre-installed tools
+          run: |
+            echo "done"
