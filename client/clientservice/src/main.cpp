@@ -127,8 +127,10 @@ int main(int argc, char** argv) {
   try {
     auto yaml = YAML::LoadFile(opts["config"].as<std::string>());
     parseConfigFile(config, yaml);
-    const std::optional<std::string>& secrets_url =
-        opts.count("secrets-url") ? opts["secrets-url"].as<std::optional<std::string>>() : std::nullopt;
+    std::optional<std::string> secrets_url = std::nullopt;
+    if (opts.count("secrets-url")) {
+      secrets_url = {opts["secrets-url"].as<std::string>()};
+    }
     configureSubscription(config,
                           opts["tr-id"].as<std::string>(),
                           opts["tr-insecure"].as<bool>(),
