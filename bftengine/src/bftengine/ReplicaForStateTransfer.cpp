@@ -43,9 +43,6 @@ ReplicaForStateTransfer::ReplicaForStateTransfer(const ReplicaConfig &config,
   bftEngine::ControlStateManager::instance().setRemoveMetadataFunc([&](bool include_st) {
     if (include_st) this->stateTransfer->setEraseMetadataFlag();
   });
-  msgHandlers_->registerMsgHandler(
-      MsgCode::StateTransfer,
-      std::bind(&ReplicaForStateTransfer::messageHandler<StateTransferMsg>, this, std::placeholders::_1));
   if (config_.debugStatisticsEnabled) DebugStatistics::initDebugStatisticsData();
 
   // Reserved Pages and State Transfer initialization

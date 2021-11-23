@@ -44,7 +44,7 @@ def start_replica_cmd(builddir, replica_id):
 class SkvbcNetworkPartitioningTest(unittest.TestCase):
 
     from os import environ
-    @skip_for_tls
+    @unittest.skip("Not stable")
     @with_trio
     @with_bft_network(start_replica_cmd)
     @verify_linearizability()
