@@ -521,6 +521,8 @@ void MockedSources::replyResPagesMsg(bool& outDoneSending) {
 // BcStTest - Test fixture for blockchain state transfer tests
 /////////////////////////////////////////////////////////
 class BcStTest : public ::testing::Test {
+  using MetricKeyValPairs = std::vector<std::pair<std::string, uint64_t>>;
+
  protected:
   // Initializers and finalizers
   void SetUp() override;
@@ -536,6 +538,10 @@ class BcStTest : public ::testing::Test {
   void assertAskForCheckpointSummariesSent(uint64_t checkpoint_num);
   void assertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
   void assertFetchResPagesMsgSent();
+
+  // Source Selector metric
+  void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
+  void validateSourceSelectorMetricCounters(const MetricKeyValPairs& metric_counters);
 
  private:
   void printConfiguration();
@@ -688,6 +694,30 @@ void BcStTest::printConfiguration() {
   LOG_INFO(GL, "targetConfig_:" << std::boolalpha << targetConfig_);
 }
 
+void BcStTest::assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val) {
+  if (key == "total_replacements_") {
+    ASSERT_EQ(getSourceSelector().metrics_.total_replacements_.Get().Get(), val);
+  } else if (key == "replacement_due_to_no_source_") {
+    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_no_source_.Get().Get(), val);
+  } else if (key == "replacement_due_to_bad_data_") {
+    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_bad_data_.Get().Get(), val);
+  } else if (key == "replacement_due_to_retransmission_timeout_") {
+    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_retransmission_timeout_.Get().Get(), val);
+  } else if (key == "replacement_due_to_periodic_change_") {
+    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_periodic_change_.Get().Get(), val);
+  } else if (key == "replacement_due_to_source_same_as_primary_") {
+    ASSERT_EQ(getSourceSelector().metrics_.replacement_due_to_source_same_as_primary_.Get().Get(), val);
+  } else {
+    FAIL() << "Unexpected key!";
+  }
+}
+
+void BcStTest::validateSourceSelectorMetricCounters(const MetricKeyValPairs& metric_counters) {
+  for (auto& [key, val] : metric_counters) {
+    assertSourceSelectorMetricKeyVal(key, val);
+  }
+}
+
 /////////////////////////////////////////////////////////
 //
 //                BcStTest Test Cases
@@ -806,6 +836,11 @@ TEST_F(BcStTest, validatePeriodicSourceReplacement) {
   }
   const auto& sources_ = getSourceSelector().getActualSources();
   ASSERT_EQ(sources_.size(), 3);
+  validateSourceSelectorMetricCounters({{"total_replacements_", 3},
+                                        {"replacement_due_to_periodic_change_", 2},
+                                        {"replacement_due_to_retransmission_timeout_", 0},
+                                        {"replacement_due_to_bad_data_", 0}});
+
   ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
   bool doneSending = false;
   while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
@@ -841,8 +876,13 @@ TEST_F(BcStTest, sendPrePrepareMsgsDuringStateTransfer) {
   ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
   bool doneSending = false;
   const auto& sources = getSourceSelector().getActualSources();
-  // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 2);
+  validateSourceSelectorMetricCounters({{"total_replacements_", 2},
+                                        {"replacement_due_to_source_same_as_primary_", 1},
+                                        {"replacement_due_to_periodic_change_", 0},
+                                        {"replacement_due_to_retransmission_timeout_", 0},
+                                        {"replacement_due_to_bad_data_", 0}});
+
   while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
   // validate completion
   ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
@@ -878,8 +918,12 @@ TEST_F(BcStTest, preprepareFromMultipleSourcesDuringStateTransfer) {
   ASSERT_NO_FATAL_FAILURE(assertFetchResPagesMsgSent());
   bool doneSending = false;
   const auto& sources = getSourceSelector().getActualSources();
-  // TBD metric counters in source selector should be used to validate changed sources to avoid primary
   ASSERT_EQ(sources.size(), 1);
+  validateSourceSelectorMetricCounters({{"total_replacements_", 1},
+                                        {"replacement_due_to_periodic_change_", 0},
+                                        {"replacement_due_to_retransmission_timeout_", 0},
+                                        {"replacement_due_to_bad_data_", 0}});
+
   while (!doneSending) mockedSrc_->replyResPagesMsg(doneSending);
   // validate completion
   ASSERT_TRUE(replica_.onTransferringCompleteCalled_);
