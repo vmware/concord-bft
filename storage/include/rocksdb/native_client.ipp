@@ -231,6 +231,17 @@ inline void NativeClient::createColumnFamily(const std::string &cFamily,
   client_->cf_handles_[cFamily] = std::move(handle);
 }
 
+inline void NativeClient::createColumnFamilyWithImport(const std::string &cFamily,
+                                                       const ::rocksdb::ImportColumnFamilyOptions &importOpts,
+                                                       const ::rocksdb::ExportImportFilesMetaData &metadata,
+                                                       const ::rocksdb::ColumnFamilyOptions &cfOpts) {
+  ::rocksdb::ColumnFamilyHandle *handlePtr{nullptr};
+  auto s = rawDB().CreateColumnFamilyWithImport(cfOpts, cFamily, importOpts, metadata, &handlePtr);
+  auto handleUniquePtr = Client::CfUniquePtr{handlePtr, Client::CfDeleter{client_.get()}};
+  detail::throwOnError("failed to import column family"sv, cFamily, std::move(s));
+  client_->cf_handles_[cFamily] = std::move(handleUniquePtr);
+}
+
 inline ::rocksdb::ColumnFamilyOptions NativeClient::columnFamilyOptions(const std::string &cFamily) const {
   auto family = columnFamilyHandle(cFamily);
   auto descriptor = ::rocksdb::ColumnFamilyDescriptor{};
