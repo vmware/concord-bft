@@ -51,7 +51,6 @@ class BlockMerkleCategory {
   // Returns the latest *block* version of a key.
   // Returns std::nullopt if the key doesn't exist.
   std::optional<TaggedVersion> getLatestVersion(const std::string& key) const;
-  std::optional<TaggedVersion> getLatestVersion(const Hash& key) const;
 
   // Get values for keys at specific versions.
   // `keys` and `versions` must be the same size.
@@ -68,7 +67,6 @@ class BlockMerkleCategory {
   // If a key is missing, std::nullopt is returned for its version.
   void multiGetLatestVersion(const std::vector<std::string>& keys,
                              std::vector<std::optional<TaggedVersion>>& versions) const;
-  void multiGetLatestVersion(const std::vector<Hash>& keys, std::vector<std::optional<TaggedVersion>>& versions) const;
 
   std::vector<std::string> getBlockStaleKeys(BlockId, const BlockMerkleOutput&) const;
   // Delete the given block ID as a genesis one.
@@ -172,8 +170,9 @@ class BlockMerkleCategory {
   // 3. Atomically write the batch to the database.
   void deleteStaleBatch(uint64_t start, uint64_t end);
 
-  // Retrieve the latest versions for all raw keys in a block and return them along with the hashed keys.
-  std::pair<std::vector<Hash>, std::vector<std::optional<TaggedVersion>>> getLatestVersions(
+  // Retrieve the latest versions for all raw keys in a block and return them along with the keys and the hashed keys.
+  // Returned tuple contains (list_of_key_hashes, list_of_keys, list_of_versions).
+  std::tuple<std::vector<Hash>, std::vector<std::string>, std::vector<std::optional<TaggedVersion>>> getLatestVersions(
       const BlockMerkleOutput& out) const;
 
   // Return a map from block id to all hashed keys that were still active in previously pruned blocks.

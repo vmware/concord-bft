@@ -154,6 +154,11 @@ class NativeClient : public std::enable_shared_from_this<NativeClient> {
   // Throws if the column family already exists.
   void createColumnFamily(const std::string &cFamily,
                           const ::rocksdb::ColumnFamilyOptions &options = ::rocksdb::ColumnFamilyOptions{});
+  // Create a column family by importing previously exported SST files.
+  void createColumnFamilyWithImport(const std::string &cFamily,
+                                    const ::rocksdb::ImportColumnFamilyOptions &importOpts,
+                                    const ::rocksdb::ExportImportFilesMetaData &metadata,
+                                    const ::rocksdb::ColumnFamilyOptions &cfOpts = ::rocksdb::ColumnFamilyOptions{});
   // Return the column family options for an existing column family in this client.
   ::rocksdb::ColumnFamilyOptions columnFamilyOptions(const std::string &cFamily) const;
   // Drops a column family and its data. It is not an error if the column family doesn't exist or if the client is not

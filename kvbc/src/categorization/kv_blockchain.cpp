@@ -20,6 +20,7 @@
 #include "kvbc_key_types.hpp"
 #include "categorization/db_categories.h"
 #include "endianness.hpp"
+#include "migrations/block_merkle_latest_ver_cf_migration.h"
 
 #include <stdexcept>
 
@@ -71,6 +72,11 @@ KeyValueBlockchain::KeyValueBlockchain(const std::shared_ptr<concord::storage::r
   linkSTChainFrom(getLastReachableBlockId() + 1);
   delete_metrics_comp_.Register();
   add_metrics_comp_.Register();
+
+  // When we use this version of the code that uses the migrated DB format (or a completely fresh blockchain), we no
+  // longer need migration. That assumes we never run this version of the code on an old DB format (before migrating).
+  native_client_->put(migrations::BlockMerkleLatestVerCfMigration::migrationKey(),
+                      migrations::BlockMerkleLatestVerCfMigration::kStateMigrationNotNeededOrCompleted);
 }
 
 void KeyValueBlockchain::initNewBlockchainCategories(
