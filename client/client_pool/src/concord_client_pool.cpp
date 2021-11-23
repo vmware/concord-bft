@@ -515,7 +515,7 @@ void ConcordClientPool::InsertClientToQueue(
           client->setStartWaitingTime();
         }
         LOG_TRACE(logger_, "Return client with pending jobs to the queue" << KVLOG(client_id));
-        clients_.push_back(client);
+        clients_.push_front(client);
       }
     } else {
       if (!external_requests_queue_.empty()) {
@@ -533,7 +533,7 @@ void ConcordClientPool::InsertClientToQueue(
                           req.span_context,
                           nullptr);
       } else {
-        clients_.push_back(client);
+        clients_.push_front(client);
       }
     }
   }
