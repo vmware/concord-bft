@@ -40,11 +40,7 @@ namespace v2MerkleTree::detail {
 // Top-level DB key types used when saving the blockchain in the form of a merkle tree.
 // Key types might have subtypes so that the top-level enum is not quickly exhausted and keys are structured in
 // a clearer way. A note is that there is an overhead of 1 byte in the key length when using subtypes.
-enum class EDBKeyType : std::uint8_t {
-  Block,
-  BFT,
-  Key,
-};
+enum class EDBKeyType : std::uint8_t { Block, BFT, Key, Migration };
 
 // Key subtypes. Internal and ProvableStale are used internally by the merkle tree implementation. The Leaf type is the
 // one containing actual application data.
@@ -66,6 +62,11 @@ enum class EBFTSubtype : std::uint8_t {
   STCheckpointDescriptor,
   STTempBlock,
 };
+
+enum class EMigrationSubType : std::uint8_t {
+  BlockMerkleLatestVerCfState,
+};
+
 }  // namespace v2MerkleTree::detail
 
 typedef std::uint32_t ObjectId;
