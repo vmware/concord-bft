@@ -12,6 +12,7 @@
 // file.
 
 #include "client/concordclient/event_update_queue.hpp"
+#include "client/concordclient/concord_client_exceptions.hpp"
 
 #include <thread>
 #include <chrono>
@@ -37,6 +38,7 @@ using namespace std::chrono_literals;
 using concord::client::concordclient::BasicUpdateQueue;
 using concord::client::concordclient::EventVariant;
 using concord::client::concordclient::Update;
+using concord::client::concordclient::OutOfRangeSubscriptionRequest;
 
 const milliseconds kBriefDelayDuration = 10ms;
 const uint64_t kNumUpdatesToTest = (uint64_t)1 << 18;
@@ -79,6 +81,28 @@ TEST(trc_basic_update_queue_test, test_release_consumers) {
                                                 "consumers waiting.";
   consumer0.join();
   consumer1.join();
+}
+
+TEST(trc_basic_update_queue_test, test_pop_with_exception) {
+  auto queue = make_unique<BasicUpdateQueue>();
+  auto test_exception = std::make_exception_ptr(OutOfRangeSubscriptionRequest());
+  queue->push(MakeUniqueUpdate(1, vector<pair<string, string>>{{"key1", "value1"}}));
+  queue->push(MakeUniqueUpdate(2, vector<pair<string, string>>{{"key2", "value2"}}));
+  queue->pop();
+  EXPECT_NO_THROW(queue->setException(test_exception));
+  EXPECT_THROW(queue->pop();, OutOfRangeSubscriptionRequest);
+  EXPECT_NO_THROW(queue->pop()) << "BasicUpdateQueue::pop call failed with an exception.";
+}
+
+TEST(trc_basic_update_queue_test, test_try_pop_with_exception) {
+  auto queue = make_unique<BasicUpdateQueue>();
+  auto test_exception = std::make_exception_ptr(OutOfRangeSubscriptionRequest());
+  queue->push(MakeUniqueUpdate(1, vector<pair<string, string>>{{"key1", "value1"}}));
+  queue->push(MakeUniqueUpdate(2, vector<pair<string, string>>{{"key2", "value2"}}));
+  queue->tryPop();
+  EXPECT_NO_THROW(queue->setException(test_exception));
+  EXPECT_THROW(queue->tryPop();, OutOfRangeSubscriptionRequest);
+  EXPECT_NO_THROW(queue->tryPop()) << "BasicUpdateQueue::tryPop call failed with an exception.";
 }
 
 TEST(trc_basic_update_queue_test, test_clear) {
