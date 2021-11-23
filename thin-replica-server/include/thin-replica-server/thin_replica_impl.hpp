@@ -1053,36 +1053,6 @@ class ThinReplicaImpl {
       LOG_ERROR(logger_, msg.str());
       return {grpc::Status(grpc::StatusCode::INTERNAL, msg.str()), live_updates};
     }
-    if (request->has_events()) {
-      LOG_DEBUG(logger_, "subscribeToLiveUpdates events (client id " << client_id << ")");
-      auto last_block_id = (config_->rostorage)->getLastBlockId();
-      if (request->events().block_id() > last_block_id) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllUpdates();
-        std::stringstream msg;
-        msg << "Block " << request->events().block_id() << " doesn't exist yet "
-            << " latest block is " << last_block_id;
-        LOG_DEBUG(logger_, msg.str());
-        return {grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str()), live_updates};
-      }
-    } else {
-      LOG_DEBUG(logger_, "subscribeToLiveUpdates event groups (client id " << client_id << ")");
-
-      auto last_eg_id = kvb_filter->newestTagSpecificPublicEventGroupId();
-      LOG_DEBUG(
-          logger_,
-          "subscribeToLiveUpdates (eg vs last) " << request->event_groups().event_group_id() << " > " << last_eg_id);
-      if (request->event_groups().event_group_id() > last_eg_id) {
-        config_->subscriber_list.removeBuffer(live_updates);
-        live_updates->removeAllEventGroupUpdates();
-        std::stringstream msg;
-        msg << "Event group ID " << request->event_groups().event_group_id() << " doesn't exist yet "
-            << " latest event_group_id is " << last_eg_id;
-        LOG_DEBUG(logger_, msg.str());
-        return {grpc::Status(grpc::StatusCode::OUT_OF_RANGE, msg.str()), live_updates};
-      }
-    }
-
     return {grpc::Status::OK, live_updates};
   }
 
