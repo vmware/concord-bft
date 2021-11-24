@@ -45,10 +45,12 @@
 using concord::storage::rocksdb::Client;
 using concord::storage::rocksdb::KeyComparator;
 #endif
-using std::chrono::milliseconds;
+
 using namespace std;
-using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 using namespace bftEngine::bcst;
+
+using std::chrono::milliseconds;
+using random_bytes_engine = std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned char>;
 
 #define ASSERT_NFF ASSERT_NO_FATAL_FAILURE
 #define ASSERT_DEST_UNDER_TEST ASSERT_TRUE(testConfig_.testTarget == TestConfig::TestTarget::DESTINATION)
@@ -197,8 +199,8 @@ static inline std::ostream& operator<<(std::ostream& os, const TestState& c) {
               c.maxRequiredBlockId,
               c.toCheckpoint,
               c.fromCheckpoint,
-              c.lastCheckpointKnownToRequester,
-              c.numBlocksToCollect);
+              c.numBlocksToCollect,
+              c.lastCheckpointKnownToRequester);
   return os;
 }
 
@@ -267,9 +269,206 @@ class DataGenerator {
 };
 
 /////////////////////////////////////////////////////////
+// BcStTestDelegator
+//
+// To be able to call into ST non-public function, include this class and use it as an interface
+/////////////////////////////////////////////////////////
+class BcStTestDelegator {
+ public:
+  BcStTestDelegator(const std::shared_ptr<BCStateTran>& stateTransfer) : stateTransfer_(stateTransfer) {}
+
+  // State Transfer
+  static constexpr size_t sizeOfElementOfVirtualBlock = sizeof(BCStateTran::ElementOfVirtualBlock);
+  static constexpr size_t sizeOfHeaderOfVirtualBlock = sizeof(BCStateTran::HeaderOfVirtualBlock);
+  static constexpr uint64_t ID_OF_VBLOCK_RES_PAGES = BCStateTran::ID_OF_VBLOCK_RES_PAGES;
+
+  void onTimerImp() { stateTransfer_->onTimerImp(); }
+  uint64_t uniqueMsgSeqNum() { return stateTransfer_->uniqueMsgSeqNum(); }
+  template <typename T>
+  bool onMessage(const T* m, uint32_t msgLen, uint16_t replicaId) {
+    return stateTransfer_->onMessage(m, msgLen, replicaId);
+  }
+  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, time_point<steady_clock> msgArrivalTime) {
+    return stateTransfer_->onMessage(m, msgLen, replicaId, msgArrivalTime);
+  }
+  void fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
+                                uint32_t numberOfUpdatedPages,
+                                uint64_t lastCheckpointKnownToRequester);
+  void fillElementOfVirtualBlock(DataStore* datastore,
+                                 char* position,
+                                 uint32_t pageId,
+                                 uint64_t checkpointNumber,
+                                 const STDigest& pageDigest,
+                                 uint32_t sizeOfReservedPage);
+  uint32_t getSizeOfVirtualBlock(char* virtualBlock, uint32_t pageSize) {
+    return stateTransfer_->getSizeOfVirtualBlock(virtualBlock, pageSize);
+  }
+  bool checkStructureOfVirtualBlock(char* virtualBlock,
+                                    uint32_t virtualBlockSize,
+                                    uint32_t pageSize,
+                                    logging::Logger& logger) {
+    return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
+  }
+
+  // Source Selector
+  void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
+  SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
+
+ private:
+  const std::shared_ptr<BCStateTran> stateTransfer_;
+};
+
+/////////////////////////////////////////////////////////
+// FakeReplicaBase
+//
+// Base class for a fake replica
+/////////////////////////////////////////////////////////
+class FakeReplicaBase {
+ public:
+  FakeReplicaBase(const Config& targetConfig,
+                  const TestConfig& testConfig,
+                  const TestState& testState,
+                  TestReplica& testedReplicaIf,
+                  const std::shared_ptr<DataGenerator>& dataGen,
+                  std::shared_ptr<BcStTestDelegator>& testAtapter);
+  virtual ~FakeReplicaBase();
+
+  // Helper functions
+  size_t clearSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, false); }
+  size_t keepSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, true); }
+
+ private:
+  size_t filterSentMessagesByMessageType(uint16_t type, bool keep);
+
+ protected:
+  const Config& targetConfig_;
+  const TestConfig& testConfig_;
+  const TestState& testState_;
+  DataStore* datastore_ = nullptr;
+  TestAppState appState_;
+  TestReplica& testedReplicaIf_;
+  const std::shared_ptr<DataGenerator> dataGen_;
+  const std::shared_ptr<BcStTestDelegator> stDelegator_;
+};
+
+/////////////////////////////////////////////////////////
+// FakeDestination
+//
+// Fake one or more destination replicas.
+// Supposed to work against real ST product source.
+/////////////////////////////////////////////////////////Fake a source or multiple sources.
+class FakeDestination : public FakeReplicaBase {
+ public:
+  FakeDestination(const Config& targetConfig,
+                  const TestConfig& testConfig,
+                  const TestState& testState,
+                  TestReplica& testedReplicaIf,
+                  const std::shared_ptr<DataGenerator>& dataGen,
+                  std::shared_ptr<BcStTestDelegator>& stAdapter)
+      : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
+  ~FakeDestination() {}
+  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum);
+  void sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
+  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum);
+  uint64_t getLastMsgSeqNum() { return lastMsgSeqNum_; }
+
+ protected:
+  uint64_t lastMsgSeqNum_;
+};
+
+/////////////////////////////////////////////////////////
+// FakeSources
+//
+// Fake a source or multiple sources.
+// Supposed to work against real ST product destination.
+/////////////////////////////////////////////////////////
+class FakeSources : public FakeReplicaBase {
+ public:
+  FakeSources(const Config& targetConfig,
+              const TestConfig& testConfig,
+              const TestState& testState,
+              TestReplica& testedReplicaIf,
+              const std::shared_ptr<DataGenerator>& dataGen,
+              std::shared_ptr<BcStTestDelegator>& stAdapter);
+
+  // Source (fake) Replies
+  void replyAskForCheckpointSummariesMsg();
+  void replyFetchBlocksMsg();
+  void replyResPagesMsg(bool& outDoneSending);
+
+ protected:
+  std::unique_ptr<char[]> rawVBlock_;
+  std::optional<FetchResPagesMsg> lastReceivedFetchResPagesMsg_;
+};
+
+/////////////////////////////////////////////////////////
+// BcStTest
+//
+// Test fixture for blockchain state transfer tests
+/////////////////////////////////////////////////////////
+class BcStTest : public ::testing::Test {
+  /**
+   * We are testing destination or source ST replica.
+   * To simplify code, and to avoid having another hierarchy of production dest/source "replicas" which wrap ST
+   * module in test, we include in this fixture 2 types of members:
+   * 1) Test infrastructure-related members
+   * 2) State Transfer building blocks, which represent an ST replica in test, with ST being tested.
+   */
+ protected:
+  // Infra - Initializers and finalizers
+  void SetUp() override{};
+  void TearDown() override;
+  void initialize();
+
+  // Infra configuration and initialization
+  Config targetConfig_ = targetConfig();
+  TestConfig testConfig_;
+  TestState testState_;
+
+  // Infra Fake replicas
+  std::unique_ptr<FakeSources> fakeSrcReplica_;
+  std::unique_ptr<FakeDestination> fakeDstReplica_;
+
+  // Infra services
+  std::shared_ptr<DataGenerator> dataGen_;
+  std::shared_ptr<BcStTestDelegator> stDelegator_;
+
+ private:
+  // Infra initialize helpers
+  void printConfiguration();
+  void configureLog(const string& logLevel);
+  bool initialized_ = false;
+
+ protected:
+  // Target/Product ST - destination API & assertions
+  void dstStartRunningAndCollecting();
+  void dstStartCollecting();
+  void dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num);
+  void dstAssertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
+  void dstAssertFetchResPagesMsgSent();
+
+  // Target/Product ST - source API & assertions// This should be the same as TestConfig
+  void srcAssertCheckpointSummariesSent(uint64_t fromCheckpoint, uint64_t toCheckpoint);
+  void srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlockId, uint64_t maxExpectedBlockId);
+  void srcAssertItemDataMsgBatchSentWithResPages(uint32_t expectedChunksSent, uint64_t requiredCheckpointNum);
+
+  // Target/Product ST - common (as source/destination) API & assertions
+  void cmnStartRunning();
+
+  // Target/Product ST - Source Selector
+  using MetricKeyValPairs = std::vector<std::pair<std::string, uint64_t>>;
+  void validateSourceSelectorMetricCounters(const MetricKeyValPairs& metricCounters);
+
+  // These members are used to construct stateTransfer_
+  TestAppState appState_;
+  DataStore* datastore_ = nullptr;
+  TestReplica testedReplicaIf_;
+  std::shared_ptr<BCStateTran> stateTransfer_;
+};  // class BcStTest
+
+/////////////////////////////////////////////////////////
 // DataGenerator - definition
 /////////////////////////////////////////////////////////
-
 DataGenerator::DataGenerator(const Config& targetConfig, const TestConfig& testConfig)
     : targetConfig_(targetConfig), testConfig_(testConfig) {
   bftEngine::ReservedPagesClientBase::setReservedPages(&fakeReservedPages_);
@@ -372,56 +571,6 @@ std::unique_ptr<MessageBase> DataGenerator::generatePrePrepareMsg(ReplicaId send
 }
 
 /////////////////////////////////////////////////////////
-// BcStTestDelegator
-//
-// To be able to call into ST non-public function, include this class and use it as an interface
-/////////////////////////////////////////////////////////
-class BcStTestDelegator {
- public:
-  BcStTestDelegator(const std::shared_ptr<BCStateTran>& stateTransfer) : stateTransfer_(stateTransfer) {}
-
-  // State Transfer
-  static constexpr size_t sizeOfElementOfVirtualBlock = sizeof(BCStateTran::ElementOfVirtualBlock);
-  static constexpr size_t sizeOfHeaderOfVirtualBlock = sizeof(BCStateTran::HeaderOfVirtualBlock);
-  static constexpr uint64_t ID_OF_VBLOCK_RES_PAGES = BCStateTran::ID_OF_VBLOCK_RES_PAGES;
-
-  void onTimerImp() { stateTransfer_->onTimerImp(); }
-  uint64_t uniqueMsgSeqNum() { return stateTransfer_->uniqueMsgSeqNum(); }
-  template <typename T>
-  bool onMessage(const T* m, uint32_t msgLen, uint16_t replicaId) {
-    return stateTransfer_->onMessage(m, msgLen, replicaId);
-  }
-  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, time_point<steady_clock> msgArrivalTime) {
-    return stateTransfer_->onMessage(m, msgLen, replicaId, msgArrivalTime);
-  }
-  void fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
-                                uint32_t numberOfUpdatedPages,
-                                uint64_t lastCheckpointKnownToRequester);
-  void fillElementOfVirtualBlock(DataStore* datastore,
-                                 char* position,
-                                 uint32_t pageId,
-                                 uint64_t checkpointNumber,
-                                 const STDigest& pageDigest,
-                                 uint32_t sizeOfReservedPage);
-  uint32_t getSizeOfVirtualBlock(char* virtualBlock, uint32_t pageSize) {
-    return stateTransfer_->getSizeOfVirtualBlock(virtualBlock, pageSize);
-  }
-  bool checkStructureOfVirtualBlock(char* virtualBlock,
-                                    uint32_t virtualBlockSize,
-                                    uint32_t pageSize,
-                                    logging::Logger& logger) {
-    return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
-  }
-
-  // Source Selector
-  void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
-  SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
-
- private:
-  const std::shared_ptr<BCStateTran> stateTransfer_;
-};
-
-/////////////////////////////////////////////////////////
 // BcStTestDelegator - definition
 /////////////////////////////////////////////////////////
 void BcStTestDelegator::fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
@@ -465,39 +614,6 @@ void BcStTestDelegator::assertSourceSelectorMetricKeyVal(const std::string& key,
     FAIL() << "Unexpected key!";
   }
 }
-
-/////////////////////////////////////////////////////////
-// FakeReplicaBase
-//
-// Base class for a fake replica
-/////////////////////////////////////////////////////////
-class FakeReplicaBase {
- public:
-  FakeReplicaBase(const Config& targetConfig,
-                  const TestConfig& testConfig,
-                  const TestState& testState,
-                  TestReplica& testedReplicaIf,
-                  const std::shared_ptr<DataGenerator>& dataGen,
-                  std::shared_ptr<BcStTestDelegator>& testAtapter);
-  virtual ~FakeReplicaBase();
-
-  // Helper functions
-  size_t clearSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, false); }
-  size_t keepSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, true); }
-
- private:
-  size_t filterSentMessagesByMessageType(uint16_t type, bool keep);
-
- protected:
-  const Config& targetConfig_;
-  const TestConfig& testConfig_;
-  const TestState& testState_;
-  DataStore* datastore_ = nullptr;
-  TestAppState appState_;
-  TestReplica& testedReplicaIf_;
-  const std::shared_ptr<DataGenerator> dataGen_;
-  const std::shared_ptr<BcStTestDelegator> stDelegator_;
-};
 
 /////////////////////////////////////////////////////////
 // FakeReplicaBase - definition
@@ -552,30 +668,6 @@ size_t FakeReplicaBase::filterSentMessagesByMessageType(uint16_t type, bool keep
   }  // for
   return n;
 }
-/////////////////////////////////////////////////////////
-// FakeDestination
-//
-// Fake one or more destination replicas.
-// Supposed to work against real ST product source.
-/////////////////////////////////////////////////////////
-class FakeDestination : public FakeReplicaBase {
- public:
-  FakeDestination(const Config& targetConfig,
-                  const TestConfig& testConfig,
-                  const TestState& testState,
-                  TestReplica& testedReplicaIf,
-                  const std::shared_ptr<DataGenerator>& dataGen,
-                  std::shared_ptr<BcStTestDelegator>& stAdapter)
-      : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
-  ~FakeDestination() {}
-  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum);
-  void sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
-  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum);
-  uint64_t getLastMsgSeqNum() { return lastMsgSeqNum_; }
-
- protected:
-  uint64_t lastMsgSeqNum_;
-};
 
 /////////////////////////////////////////////////////////
 // FakeDestination - definition
@@ -612,31 +704,6 @@ void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequest
   msg.lastKnownChunk = 0;  // for now, chunking is not supported
   stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
 }
-
-/////////////////////////////////////////////////////////
-// FakeSources
-//
-// Fake a source or multiple sources.
-// Supposed to work against real ST product destination.
-/////////////////////////////////////////////////////////
-class FakeSources : public FakeReplicaBase {
- public:
-  FakeSources(const Config& targetConfig,
-              const TestConfig& testConfig,
-              const TestState& testState,
-              TestReplica& testedReplicaIf,
-              const std::shared_ptr<DataGenerator>& dataGen,
-              std::shared_ptr<BcStTestDelegator>& stAdapter);
-
-  // Source (fake) Replies
-  void replyAskForCheckpointSummariesMsg();
-  void replyFetchBlocksMsg();
-  void replyResPagesMsg(bool& outDoneSending);
-
- protected:
-  std::unique_ptr<char[]> rawVBlock_;
-  std::optional<FetchResPagesMsg> lastReceivedFetchResPagesMsg_;
-};  // class FakeSources
 
 /////////////////////////////////////////////////////////
 // FakeSources - definition
@@ -817,71 +884,6 @@ void FakeSources::replyResPagesMsg(bool& outDoneSending) {
   }  // while
   testedReplicaIf_.sent_messages_.pop_front();
 }
-
-/////////////////////////////////////////////////////////
-// BcStTest
-//
-// Test fixture for blockchain state transfer tests
-/////////////////////////////////////////////////////////
-class BcStTest : public ::testing::Test {
-  /**
-   * We are testing destination or source ST replica.
-   * To simplify code, and to avoid having another hierarchy of production dest/source "replicas" which wrap ST
-   * module in test, we include in this fixture 2 types of members:
-   * 1) Test infrastructure-related members
-   * 2) State Transfer building blocks, which represent an ST replica in test, with ST being tested.
-   */
- protected:
-  // Infra - Initializers and finalizers
-  void SetUp() override{};
-  void TearDown() override;
-  void initialize();
-
-  // Infra configuration and initialization
-  Config targetConfig_ = targetConfig();
-  TestConfig testConfig_;
-  TestState testState_;
-
-  // Infra Fake replicas
-  std::unique_ptr<FakeSources> fakeSrcReplica_;
-  std::unique_ptr<FakeDestination> fakeDstReplica_;
-
-  // Infra services
-  std::shared_ptr<DataGenerator> dataGen_;
-  std::shared_ptr<BcStTestDelegator> stDelegator_;
-
- private:
-  // Infra initialize helpers
-  void printConfiguration();
-  void configureLog(const string& logLevel);
-  bool initialized_ = false;
-
- protected:
-  // Target/Product ST - destination API & assertions
-  void dstStartRunningAndCollecting();
-  void dstStartCollecting();
-  void dstAssertAskForCheckpointSummariesSent(uint64_t checkpoint_num);
-  void dstAssertFetchBlocksMsgSent(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
-  void dstAssertFetchResPagesMsgSent();
-
-  // Target/Product ST - source API & assertions// This should be the same as TestConfig
-  void srcAssertCheckpointSummariesSent(uint64_t fromCheckpoint, uint64_t toCheckpoint);
-  void srcAssertItemDataMsgBatchSentWithBlocks(uint64_t minExpectedBlockId, uint64_t maxExpectedBlockId);
-  void srcAssertItemDataMsgBatchSentWithResPages(uint32_t expectedChunksSent, uint64_t requiredCheckpointNum);
-
-  // Target/Product ST - common (as source/destination) API & assertions
-  void cmnStartRunning();
-
-  // Target/Product ST - Source Selector
-  using MetricKeyValPairs = std::vector<std::pair<std::string, uint64_t>>;
-  void validateSourceSelectorMetricCounters(const MetricKeyValPairs& metricCounters);
-
-  // These members are used to construct stateTransfer_
-  TestAppState appState_;
-  DataStore* datastore_ = nullptr;
-  TestReplica testedReplicaIf_;
-  std::shared_ptr<BCStateTran> stateTransfer_;
-};  // class BcStTest
 
 /////////////////////////////////////////////////////////
 // BcStTest - definition
