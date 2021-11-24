@@ -38,11 +38,12 @@ namespace _fs = std::experimental::filesystem;
 #error "Missing filesystem support"
 #endif
 namespace concord::kvbc {
-
+using std::chrono::duration_cast;
 using CheckpointId = bftEngine::impl::CheckpointId;
 using DbCheckpointMetadata = bftEngine::impl::DbCheckpointMetadata;
 using Status = concordUtils::Status;
-
+using SystemClock = std::chrono::system_clock;
+using Seconds = std::chrono::seconds;
 class IDbCheckPointManager {
  public:
   // create checkpoint
@@ -58,6 +59,8 @@ class IDbCheckPointManager {
   virtual void removeCheckpoint(const uint64_t& checkPointId) = 0;
   // remove all existing checkpoints
   virtual void removeAllCheckpoints() const = 0;
+  // get last checkpoint creation time
+  virtual std::chrono::seconds getLastCheckpointCreationTime() const = 0;
   // cleanup if db checkpoint creation is dsabled
   virtual void cleanUp() = 0;
 
@@ -105,6 +108,8 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   ~RocksDbCheckPointManager() {
     if (cleanupThread_.joinable()) cleanupThread_.join();
   }
+  // get last checkpoint creation time
+  std::chrono::seconds getLastCheckpointCreationTime() const override { return lastCheckpointCreationTime_; }
 
  private:
   logging::Logger getLogger() {
@@ -125,6 +130,7 @@ class RocksDbCheckPointManager : public IDbCheckPointManager {
   std::mutex lock_;
   uint32_t maxNumOfCheckpoints_{0};  // 0-disabled
   uint64_t lastCheckpointSeqNum_{0};
+  std::chrono::seconds lastCheckpointCreationTime_{duration_cast<Seconds>(SystemClock::now().time_since_epoch())};
   std::string dbCheckPointDirPath_;
   concordMetrics::Component metrics_;
   concordMetrics::GaugeHandle maxDbCheckpointCreationTimeMsec_;

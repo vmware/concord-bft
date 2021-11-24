@@ -18,43 +18,35 @@
 #include <vector>
 #include <chrono>
 #include <PrimitiveTypes.hpp>
-#include "InternalBFTClient.hpp"
 
 namespace bftEngine::impl {
 using SeqNum = bftEngine::impl::SeqNum;
-using InternalBftClient = bftEngine::impl::InternalBFTClient;
 class DbCheckpointManager {
  public:
-  void sendInternalCreateDbCheckpointMsg(const SeqNum& seqNum);
-  void enableDbCheckpoint(bool enable) { enableDbCheckpoint_ = enable; }
-  bool isDbCheckpointEnabled() const { return enableDbCheckpoint_; }
-
   void addCreateDbCheckpointCb(const std::function<void(SeqNum)>& cb) {
     if (cb) createDbChecheckpointCb_ = cb;
   }
-  void onCreateDbCheckpointMsg(const SeqNum& seqNum) {
+  void onCreateDbCheckpoint(const SeqNum& seqNum) {
     if (createDbChecheckpointCb_) createDbChecheckpointCb_(seqNum);
   }
-  void setNextSeqNumToCreateCheckpoint(const SeqNum& s) { nextSeqNumToCreateCheckpoint_ = s; }
-  SeqNum getNextSeqNumToCreateCheckpoint() const { return nextSeqNumToCreateCheckpoint_; }
-  void onStableCheckPoint(SeqNum& seqNum) const {
+  void onStableCheckPoint(const SeqNum& seqNum) const {
     if (onSatbleCheckpointCb_) onSatbleCheckpointCb_(seqNum);
   }
   void addOnStableSeqNum(std::function<void(const SeqNum&)> cb) { onSatbleCheckpointCb_ = cb; }
+  void setLastCheckpointCreationTime(const std::chrono::seconds& lastTime) { lastCheckpointCreationTime_ = lastTime; }
+  std::chrono::seconds getLastCheckpointCreationTime() const { return lastCheckpointCreationTime_; }
 
  public:
-  static DbCheckpointManager& Instance(InternalBftClient* client_ = nullptr) {
-    static DbCheckpointManager instance_(client_);
+  static DbCheckpointManager& Instance() {
+    static DbCheckpointManager instance_;
     return instance_;
   }
 
  private:
-  DbCheckpointManager(InternalBftClient* client) : client_(client) {}
-  bool enableDbCheckpoint_{false};
-  SeqNum nextSeqNumToCreateCheckpoint_{0};
-  InternalBftClient* client_;
+  DbCheckpointManager() = default;
   std::function<void(SeqNum)> createDbChecheckpointCb_;
   std::function<void(SeqNum)> onSatbleCheckpointCb_;
+  std::chrono::seconds lastCheckpointCreationTime_{0};
 };
 
 }  // namespace bftEngine::impl

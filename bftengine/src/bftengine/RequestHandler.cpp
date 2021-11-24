@@ -19,12 +19,9 @@
 
 #include <ccron/cron_table_registry.hpp>
 #include "ccron_msgs.cmf.hpp"
-#include "db_checkpoint.cmf.hpp"
-#include "DbCheckpointManager.hpp"
 
 using concord::messages::ReconfigurationRequest;
 using concord::messages::ReconfigurationResponse;
-using concord::messages::db_checkpoint::CreateDbCheckpoint;
 
 namespace bftEngine {
 
@@ -90,15 +87,6 @@ void RequestHandler::execute(IRequestsHandler::ExecutionRequestsQueue& requests,
       req.outExecutionStatus = 0;  // stop further processing of this request
       // Don't continue to process requests after pruning (in case we run in async pruning mode)
       if (std::holds_alternative<concord::messages::PruneRequest>(rreq.command)) return;
-    } else if (req.flags & MsgFlag::DB_CHECKPOINT_FLAG) {
-      concord::messages::db_checkpoint::CreateDbCheckpoint createDbChkPtMsg;
-      concord::messages::db_checkpoint::deserialize(
-          std::vector<std::uint8_t>(req.request, req.request + req.requestSize), createDbChkPtMsg);
-      DbCheckpointManager::Instance().onCreateDbCheckpointMsg(createDbChkPtMsg.seqNum);
-      std::string resp = "Ok";
-      std::copy(resp.begin(), resp.end(), req.outReply);
-      req.outActualReplySize = resp.size();
-      LOG_INFO(GL, "onCreateDbCheckpointMsg - " << KVLOG(createDbChkPtMsg.seqNum));
     } else if (req.flags & TICK_FLAG) {
       // Make sure the reply always contains one dummy 0 byte. Needed as empty replies are not supported at that stage.
       // Also, set replica specific information size to 0.

@@ -226,6 +226,7 @@ std::unique_ptr<TestSetup> TestSetup::ParseArgs(int argc, char** argv) {
         case 'h': {
           // enable rocksdb checkpoint with some defaults
           replicaConfig.dbCheckPointWindowSize = 150;
+          replicaConfig.dbSnapshotIntervalSeconds = std::chrono::seconds{0};
           replicaConfig.maxNumberOfDbCheckpoints = concord::util::to<std::uint32_t>(std::string(optarg));
           std::stringstream dbSnapshotPath;
           dbSnapshotPath << BasicRandomTests::DB_FILE_PREFIX << "sanpshot_" << replicaConfig.replicaId;

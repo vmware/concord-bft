@@ -49,8 +49,7 @@ enum MsgFlag : uint64_t {
   RECONFIG_FLAG = 0x20,
   TIME_SERVICE_FLAG = 0x40,
   PUBLISH_ON_CHAIN_OBJECT_FLAG = 0x80,
-  CLIENTS_PUB_KEYS_FLAG = 0x100,
-  DB_CHECKPOINT_FLAG = 0x200
+  CLIENTS_PUB_KEYS_FLAG = 0x100
 };
 
 // The IControlHandler is a group of methods that enables the userRequestHandler to perform infrastructure

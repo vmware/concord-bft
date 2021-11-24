@@ -10,7 +10,6 @@
 // notices and license terms. Your use of these subcomponents is subject to the
 // terms and conditions of the subcomponent's license, as noted in the LICENSE
 // file.
-#include "assertUtils.hpp"
 #include "db_checkpoint.h"
 #include <utility>
 #include <cmath>
@@ -46,7 +45,11 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
       return status;
     }
     auto end = Clock::now();
+    lastCheckpointCreationTime_ =
+        std::chrono::duration_cast<std::chrono::seconds>(SystemClock::now().time_since_epoch());
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    // update metrics
     lastDbCheckpointBlockId_.Get().Set(lastBlockId);
     numOfDbCheckpointsCreated_++;
     auto maxSoFar = maxDbCheckpointCreationTimeMsec_.Get().Get();
@@ -58,13 +61,10 @@ Status RocksDbCheckPointManager::createDbCheckpoint(const CheckpointId& checkPoi
     dbCheckpointCreationAverageTimeMsec_.Get().Set(averageSoFar);
     metrics_.UpdateAggregator();
     LOG_INFO(getLogger(), "rocksdb checkpoint created: " << KVLOG(checkPointId, duration_ms.count()));
+
     lastCheckpointSeqNum_ = seqNum;
     dbCheckptMetadata_.dbCheckPoints_.insert(
-        {checkPointId,
-         {checkPointId,
-          std::chrono::duration_cast<std::chrono::seconds>(SystemClock::now().time_since_epoch()),
-          lastBlockId,
-          lastCheckpointSeqNum_}});
+        {checkPointId, {checkPointId, lastCheckpointCreationTime_, lastBlockId, lastCheckpointSeqNum_}});
     while (dbCheckptMetadata_.dbCheckPoints_.size() > maxNumOfCheckpoints_) {
       auto it = dbCheckptMetadata_.dbCheckPoints_.begin();
       {
@@ -122,6 +122,7 @@ void RocksDbCheckPointManager::loadCheckpointDataFromPersistence() {
     if (auto it = dbCheckptMetadata_.dbCheckPoints_.rbegin(); it != dbCheckptMetadata_.dbCheckPoints_.rend()) {
       lastCheckpointSeqNum_ = it->second.lastDbCheckpointSeqNum_;
       lastDbCheckpointBlockId_.Get().Set(it->second.lastBlockId_);
+      lastCheckpointCreationTime_ = it->second.creationTimeSinceEpoch_;
       metrics_.UpdateAggregator();
       LOG_INFO(getLogger(), KVLOG(lastCheckpointSeqNum_));
     }

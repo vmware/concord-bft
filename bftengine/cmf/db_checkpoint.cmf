@@ -1,5 +1,0 @@
-Msg CreateDbCheckpoint 1 {
-    uint64 sender
-    uint64 seqNum
-    bytes signature
-}
