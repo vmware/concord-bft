@@ -233,79 +233,115 @@ static void deleteBcStateTransferDbFolder(const string& path) {
 }
 
 /////////////////////////////////////////////////////////
-// MockedSources
+// DataGenerator
 //
-// Mock a source or multiple sources. Supposed to work against real St product destination.
+// Generates blocks, reserved pages, blocks, digests and
+// whatever other data needed for the test to run.
+// The data generated is random, but the cryptography applied is valid
 /////////////////////////////////////////////////////////
-// TODO(GL) - consider transforming to gMock? + the mocked interfaces (replica, app)
-class MockedSources {
+class DataGenerator {
  public:
-  MockedSources(Config& targetConfig,
-                TestConfig& testConfig,
-                TestReplica& replica,
-                const std::shared_ptr<BCStateTran>& stateTransfer);
-  ~MockedSources();
-
-  // Source (Mock) Replies
-  void replyAskForCheckpointSummariesMsg();
-  void replyFetchBlocksMsg();
-  void replyResPagesMsg(bool& outDoneSending);
-
-  // Helper functions
-  void generateReservedPages(uint64_t checkpointNumber);
-  void generateBlocks(uint64_t fromBlockId, uint64_t toBlockId);
-  size_t clearSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, false); }
-  size_t keepSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, true); }
-
- private:
-  size_t filterSentMessagesByMessageType(uint16_t type, bool keep);
+  DataGenerator(const Config& targetConfig, const TestConfig& testConfig);
+  void generateBlocks(TestAppState& appState, uint64_t fromBlockId, uint64_t toBlockId);
+  void generateCheckpointDescriptors(const TestAppState& appstate,
+                                     DataStore* datastore,
+                                     uint64_t fromCheckpoint,
+                                     uint64_t toCheckpoint);
+  std::unique_ptr<MessageBase> generatePrePrepareMsg(ReplicaId sender_id);
 
  protected:
-  static constexpr char MOCKED_BCST_DB[] = "./mocked_bcst_db";
-  DataStore* mockedDatastore_ = nullptr;
-  std::unique_ptr<char[]> rawVBlock_;
-  std::map<uint64_t, std::shared_ptr<Block>> generatedBlocks_;  // map: blockId -> Block
-  std::optional<FetchResPagesMsg> lastReceivedFetchResPagesMsg_;
-  Config& targetConfig_;
-  TestConfig& testConfig_;
-  TestAppState appState_;
-  TestReplica& replica_;
-  const std::shared_ptr<BCStateTran>& stateTransfer_;
-};  // class MockedSources
+  void generateReservedPages(DataStore* datastore, uint64_t checkpointNumber);
+
+  const Config& targetConfig_;
+  const TestConfig& testConfig_;
+  // needed by generatePrePrepareMsg()
+  bftEngine::test::ReservedPagesMock<EpochManager> fakeReservedPages_;
+};
 
 /////////////////////////////////////////////////////////
-// MockedSources - definition
+// DataGenerator - definition
 /////////////////////////////////////////////////////////
 
-MockedSources::MockedSources(Config& targetConfig,
-                             TestConfig& testConfig,
-                             TestReplica& replica,
-                             const std::shared_ptr<BCStateTran>& stateTransfer)
-    : targetConfig_(targetConfig), testConfig_(testConfig), replica_(replica), stateTransfer_(stateTransfer) {
-  if (testConfig_.mockDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.MOCKED_BCST_DB);
-#ifdef USE_ROCKSDB
-  // create a mocked data store
-  auto* mocked_db_key_comparator = new concord::kvbc::v1DirectKeyValue::DBKeyComparator();
-  concord::storage::IDBClient::ptr mockedDbc(new concord::storage::rocksdb::Client(
-      string(MOCKED_BCST_DB), make_unique<KeyComparator>(mocked_db_key_comparator)));
-  mockedDbc->init();
-  mockedDatastore_ = new DBDataStore(mockedDbc,
-                                     targetConfig_.sizeOfReservedPage,
-                                     make_shared<concord::storage::v1DirectKeyValue::STKeyManipulator>(),
-                                     targetConfig_.enableReservedPages);
-  mockedDatastore_->setNumberOfReservedPages(testConfig_.numberOfRequiredReservedPages);
-#else
-  concord::storage::IDBClient::ptr dbc2(new concord::storage::memorydb::Client(comparator));
-  mockedDatastore_ = new InMemoryDataStore(targetConfig_.sizeOfReservedPage);
-#endif
+DataGenerator::DataGenerator(const Config& targetConfig, const TestConfig& testConfig)
+    : targetConfig_(targetConfig), testConfig_(testConfig) {
+  bftEngine::ReservedPagesClientBase::setReservedPages(&fakeReservedPages_);
 }
 
-MockedSources::~MockedSources() {
-  delete mockedDatastore_;
-  if (testConfig_.mockDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.MOCKED_BCST_DB);
+/**
+ * toBlockId is assumed to be a checkpoint block, we also assume
+ * generatedBlocks_ is empty
+ */
+void DataGenerator::generateBlocks(TestAppState& appState, uint64_t fromBlockId, uint64_t toBlockId) {
+  std::unique_ptr<char[]> buff = std::make_unique<char[]>(Block::getMaxTotalBlockSize());
+  ConcordAssertEQ(toBlockId % testConfig_.checkpointWindowSize, 0);
+  ConcordAssertGT(fromBlockId, 1);
+
+  auto maxBlockDataSize = Block::calcMaxDataSize();
+  std::shared_ptr<Block> prevBlk;
+  for (size_t i = fromBlockId; i <= toBlockId; ++i) {
+    ConcordAssert(false == appState.hasBlock(i));
+    uint32_t dataSize = static_cast<uint32_t>(rand()) % (maxBlockDataSize - testConfig_.minBlockDataSize + 1) +
+                        testConfig_.minBlockDataSize;
+    ConcordAssertLE(dataSize, maxBlockDataSize);
+    fillRandomBytes(buff.get(), dataSize);
+    std::shared_ptr<Block> blk;
+    StateTransferDigest prevBlkDigest{1};
+    if (i == fromBlockId) {
+      blk = Block::createFromData(dataSize, buff.get(), i, prevBlkDigest);
+    } else {
+      computeBlockDigest(
+          prevBlk->blockId, reinterpret_cast<const char*>(prevBlk.get()), prevBlk->totalBlockSize, &prevBlkDigest);
+      blk = Block::createFromData(dataSize, buff.get(), i, prevBlkDigest);
+    }
+    // we assume that last parameter is ignored
+    ASSERT_TRUE(appState.putBlock(i, reinterpret_cast<const char*>(blk.get()), blk->totalBlockSize, false));
+    prevBlk = blk;
+  }
 }
 
-void MockedSources::generateReservedPages(uint64_t checkpointNumber) {
+void DataGenerator::generateCheckpointDescriptors(const TestAppState& appState,
+                                                  DataStore* datastore,
+                                                  uint64_t fromCheckpoint,
+                                                  uint64_t toCheckpoint) {
+  ASSERT_LE(fromCheckpoint, toCheckpoint);
+
+  // Compute digest of last block
+  uint64_t lastBlockId = (toCheckpoint + 1) * testConfig_.checkpointWindowSize;
+  auto lastBlk = appState.peekBlock(lastBlockId);
+  ASSERT_TRUE(lastBlk);
+  StateTransferDigest lastBlockDigest;
+  computeBlockDigest(
+      lastBlockId, reinterpret_cast<const char*>(lastBlk.get()), lastBlk->totalBlockSize, &lastBlockDigest);
+
+  for (uint64_t i = toCheckpoint; i >= fromCheckpoint; i--) {
+    // for now, we do not support (expect) setting into an already set descriptor
+    ASSERT_FALSE(datastore->hasCheckpointDesc(i));
+    DataStore::CheckpointDesc desc;
+    desc.checkpointNum = i;
+    desc.lastBlock = (i + 1) * testConfig_.checkpointWindowSize;
+    auto digestBytes = desc.digestOfLastBlock.getForUpdate();
+    if (i == toCheckpoint)
+      memcpy(digestBytes, &lastBlockDigest, sizeof(lastBlockDigest));
+    else {
+      auto blk = appState.peekBlock(desc.lastBlock + 1);
+      ASSERT_TRUE(blk);
+      memcpy(digestBytes, &blk->digestPrev, sizeof(blk->digestPrev));
+    }
+
+    ASSERT_NFF(generateReservedPages(datastore, i));
+    DataStore::ResPagesDescriptor* resPagesDesc = datastore->getResPagesDescriptor(i);
+    STDigest digestOfResPagesDescriptor;
+    BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
+
+    desc.digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+    datastore->setCheckpointDesc(i, desc);
+  }
+
+  datastore->setFirstStoredCheckpoint(fromCheckpoint);
+  datastore->setLastStoredCheckpoint(toCheckpoint);
+}
+
+void DataGenerator::generateReservedPages(DataStore* datastore, uint64_t checkpointNumber) {
   uint32_t idx = 0;
   std::unique_ptr<char[]> buffer(new char[targetConfig_.sizeOfReservedPage]);
   for (uint32_t pageId{0}; pageId < testConfig_.maxNumberOfUpdatedReservedPages; ++pageId) {
@@ -315,40 +351,169 @@ void MockedSources::generateReservedPages(uint64_t checkpointNumber) {
     BCStateTran::computeDigestOfPage(
         pageId, checkpointNumber, buffer.get(), targetConfig_.sizeOfReservedPage, pageDigest);
     ASSERT_TRUE(!pageDigest.isZero());
-    mockedDatastore_->setResPage(pageId, checkpointNumber, pageDigest, buffer.get());
+    datastore->setResPage(pageId, checkpointNumber, pageDigest, buffer.get());
     idx++;
   }
 }
 
-/**
- * toBlockId is assumed to be a checkpoint block, we also assume
- * generatedBlocks_ is empty
- */
-void MockedSources::generateBlocks(uint64_t fromBlockId, uint64_t toBlockId) {
-  char buff[kMaxBlockSize];
+std::unique_ptr<MessageBase> DataGenerator::generatePrePrepareMsg(ReplicaId sender_id) {
+  static constexpr ViewNum view_num_ = 1u;
+  static constexpr SeqNum seq_num_ = 2u;
+  static constexpr CommitPath commit_path_ = CommitPath::OPTIMISTIC_FAST;
+  return make_unique<PrePrepareMsg>(sender_id, view_num_, seq_num_, commit_path_, 0);
+}
 
-  ConcordAssertEQ(toBlockId % testConfig_.checkpointWindowSize, 0);
-  ConcordAssert(generatedBlocks_.empty());
-  ConcordAssertGT(fromBlockId, 1);
+/////////////////////////////////////////////////////////
+// BcStTestDelegator
+//
+// To be able to call into ST non-public function, include this class and use it as an interface
+/////////////////////////////////////////////////////////
+class BcStTestDelegator {
+ public:
+  BcStTestDelegator(const std::shared_ptr<BCStateTran>& stateTransfer) : stateTransfer_(stateTransfer) {}
 
-  auto maxBlockDataSize = Block::calcMaxDataSize();
-  for (size_t i = fromBlockId; i <= toBlockId; ++i) {
-    uint32_t dataSize = static_cast<uint32_t>(rand()) % (maxBlockDataSize - testConfig_.minBlockDataSize + 1) +
-                        testConfig_.minBlockDataSize;
-    ConcordAssertLE(dataSize, maxBlockDataSize);
-    fillRandomBytes(buff, dataSize);
-    std::shared_ptr<Block> blk;
-    StateTransferDigest prevBlkDigest{1};
-    if (i == fromBlockId) {
-      blk = Block::createFromData(dataSize, buff, i, prevBlkDigest);
-    } else {
-      auto prevBlk = generatedBlocks_[i - 1];
-      computeBlockDigest(
-          prevBlk->blockId, reinterpret_cast<const char*>(prevBlk.get()), prevBlk->totalBlockSize, &prevBlkDigest);
-      blk = Block::createFromData(dataSize, buff, i, prevBlkDigest);
-    }
-    generatedBlocks_[i] = blk;
+  // State Transfer
+  static constexpr size_t sizeOfElementOfVirtualBlock = sizeof(BCStateTran::ElementOfVirtualBlock);
+  static constexpr size_t sizeOfHeaderOfVirtualBlock = sizeof(BCStateTran::HeaderOfVirtualBlock);
+  static constexpr uint64_t ID_OF_VBLOCK_RES_PAGES = BCStateTran::ID_OF_VBLOCK_RES_PAGES;
+
+  void onTimerImp() { stateTransfer_->onTimerImp(); }
+  uint64_t uniqueMsgSeqNum() { return stateTransfer_->uniqueMsgSeqNum(); }
+  template <typename T>
+  bool onMessage(const T* m, uint32_t msgLen, uint16_t replicaId) {
+    return stateTransfer_->onMessage(m, msgLen, replicaId);
   }
+  bool onMessage(const ItemDataMsg* m, uint32_t msgLen, uint16_t replicaId, time_point<steady_clock> msgArrivalTime) {
+    return stateTransfer_->onMessage(m, msgLen, replicaId, msgArrivalTime);
+  }
+  void fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
+                                uint32_t numberOfUpdatedPages,
+                                uint64_t lastCheckpointKnownToRequester);
+  void fillElementOfVirtualBlock(DataStore* datastore,
+                                 char* position,
+                                 uint32_t pageId,
+                                 uint64_t checkpointNumber,
+                                 const STDigest& pageDigest,
+                                 uint32_t sizeOfReservedPage);
+  uint32_t getSizeOfVirtualBlock(char* virtualBlock, uint32_t pageSize) {
+    return stateTransfer_->getSizeOfVirtualBlock(virtualBlock, pageSize);
+  }
+  bool checkStructureOfVirtualBlock(char* virtualBlock,
+                                    uint32_t virtualBlockSize,
+                                    uint32_t pageSize,
+                                    logging::Logger& logger) {
+    return stateTransfer_->checkStructureOfVirtualBlock(virtualBlock, virtualBlockSize, pageSize, logger);
+  }
+
+  // Source Selector
+  void assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val);
+  SourceSelector& getSourceSelector() { return stateTransfer_->sourceSelector_; }
+
+ private:
+  const std::shared_ptr<BCStateTran> stateTransfer_;
+};
+
+/////////////////////////////////////////////////////////
+// BcStTestDelegator - definition
+/////////////////////////////////////////////////////////
+void BcStTestDelegator::fillHeaderOfVirtualBlock(std::unique_ptr<char[]>& rawVBlock,
+                                                 uint32_t numberOfUpdatedPages,
+                                                 uint64_t lastCheckpointKnownToRequester) {
+  BCStateTran::HeaderOfVirtualBlock* header = reinterpret_cast<BCStateTran::HeaderOfVirtualBlock*>(rawVBlock.get());
+  header->lastCheckpointKnownToRequester = lastCheckpointKnownToRequester;
+  header->numberOfUpdatedPages = numberOfUpdatedPages;
+}
+
+void BcStTestDelegator::fillElementOfVirtualBlock(DataStore* datastore,
+                                                  char* position,
+                                                  uint32_t pageId,
+                                                  uint64_t checkpointNumber,
+                                                  const STDigest& pageDigest,
+                                                  uint32_t sizeOfReservedPage) {
+  BCStateTran::ElementOfVirtualBlock* currElement = reinterpret_cast<BCStateTran::ElementOfVirtualBlock*>(position);
+  currElement->pageId = pageId;
+  currElement->checkpointNumber = checkpointNumber;
+  currElement->pageDigest = pageDigest;
+  ASSERT_TRUE(!currElement->pageDigest.isZero());
+  datastore->getResPage(pageId, checkpointNumber, nullptr, currElement->page, sizeOfReservedPage);
+  ASSERT_TRUE(!pageDigest.isZero());
+}
+
+void BcStTestDelegator::assertSourceSelectorMetricKeyVal(const std::string& key, uint64_t val) {
+  auto& ssMetrics_ = stateTransfer_->sourceSelector_.metrics_;
+  if (key == "total_replacements_") {
+    ASSERT_EQ(ssMetrics_.total_replacements_.Get().Get(), val);
+  } else if (key == "replacement_due_to_no_source_") {
+    ASSERT_EQ(ssMetrics_.replacement_due_to_no_source_.Get().Get(), val);
+  } else if (key == "replacement_due_to_bad_data_") {
+    ASSERT_EQ(ssMetrics_.replacement_due_to_bad_data_.Get().Get(), val);
+  } else if (key == "replacement_due_to_retransmission_timeout_") {
+    ASSERT_EQ(ssMetrics_.replacement_due_to_retransmission_timeout_.Get().Get(), val);
+  } else if (key == "replacement_due_to_periodic_change_") {
+    ASSERT_EQ(ssMetrics_.replacement_due_to_periodic_change_.Get().Get(), val);
+  } else if (key == "replacement_due_to_source_same_as_primary_") {
+    ASSERT_EQ(ssMetrics_.replacement_due_to_source_same_as_primary_.Get().Get(), val);
+  } else {
+    FAIL() << "Unexpected key!";
+  }
+}
+
+/////////////////////////////////////////////////////////
+// FakeReplicaBase
+//
+// Base class for a fake replica
+/////////////////////////////////////////////////////////
+class FakeReplicaBase {
+ public:
+  FakeReplicaBase(const Config& targetConfig,
+                  const TestConfig& testConfig,
+                  const TestState& testState,
+                  TestReplica& testedReplicaIf,
+                  const std::shared_ptr<DataGenerator>& dataGen,
+                  std::shared_ptr<BcStTestDelegator>& testAtapter);
+  virtual ~FakeReplicaBase();
+
+  // Helper functions
+  size_t clearSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, false); }
+  size_t keepSentMessagesByMessageType(uint16_t type) { return filterSentMessagesByMessageType(type, true); }
+
+ private:
+  size_t filterSentMessagesByMessageType(uint16_t type, bool keep);
+
+ protected:
+  const Config& targetConfig_;
+  const TestConfig& testConfig_;
+  const TestState& testState_;
+  DataStore* datastore_ = nullptr;
+  TestAppState appState_;
+  TestReplica& testedReplicaIf_;
+  const std::shared_ptr<DataGenerator> dataGen_;
+  const std::shared_ptr<BcStTestDelegator> stDelegator_;
+};
+
+/////////////////////////////////////////////////////////
+// FakeReplicaBase - definition
+/////////////////////////////////////////////////////////
+FakeReplicaBase::FakeReplicaBase(const Config& targetConfig,
+                                 const TestConfig& testConfig,
+                                 const TestState& testState,
+                                 TestReplica& testedReplicaIf,
+                                 const std::shared_ptr<DataGenerator>& dataGen,
+                                 std::shared_ptr<BcStTestDelegator>& stAdapter)
+    : targetConfig_(targetConfig),
+      testConfig_(testConfig),
+      testState_(testState),
+      testedReplicaIf_(testedReplicaIf),
+      dataGen_(dataGen),
+      stDelegator_(stAdapter) {
+  if (testConfig_.fakeDbDeleteOnStart) deleteBcStateTransferDbFolder(testConfig_.FAKE_BCST_DB);
+  datastore_ = createDataStore(testConfig_.FAKE_BCST_DB, targetConfig_);
+  datastore_->setNumberOfReservedPages(testConfig_.numberOfRequiredReservedPages);
+}
+
+FakeReplicaBase::~FakeReplicaBase() {
+  delete datastore_;
+  if (testConfig_.fakeDbDeleteOnEnd) deleteBcStateTransferDbFolder(testConfig_.FAKE_BCST_DB);
 }
 
 /**
@@ -356,12 +521,12 @@ void MockedSources::generateBlocks(uint64_t fromBlockId, uint64_t toBlockId) {
  * keep is false: keep all message with msg->type != type
  * return number of messages deleted
  */
-size_t MockedSources::filterSentMessagesByMessageType(uint16_t type, bool keep) {
-  auto& sent_messages_ = replica_.sent_messages_;
+size_t FakeReplicaBase::filterSentMessagesByMessageType(uint16_t type, bool keep) {
+  auto& sent_messages_ = testedReplicaIf_.sent_messages_;
   size_t n{0};
   for (auto it = sent_messages_.begin(); it != sent_messages_.end();) {
     auto header = reinterpret_cast<BCStateTranBaseMsg*>((*it).data_.get());
-    // This block can be much shorter. For better readibility, keep it like that
+    // This block can be much shorter. For better readability, keep it like that
     if (keep) {
       if (header->type != type) {
         it = sent_messages_.erase(it);
@@ -379,63 +544,147 @@ size_t MockedSources::filterSentMessagesByMessageType(uint16_t type, bool keep) 
   }  // for
   return n;
 }
+/////////////////////////////////////////////////////////
+// FakeDestination
+//
+// Fake one or more destination replicas.
+// Supposed to work against real ST product source.
+/////////////////////////////////////////////////////////
+class FakeDestination : public FakeReplicaBase {
+ public:
+  FakeDestination(const Config& targetConfig,
+                  const TestConfig& testConfig,
+                  const TestState& testState,
+                  TestReplica& testedReplicaIf,
+                  const std::shared_ptr<DataGenerator>& dataGen,
+                  std::shared_ptr<BcStTestDelegator>& stAdapter)
+      : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
+  ~FakeDestination() {}
+  void sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum);
+  void sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock);
+  void sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum);
+  uint64_t getLastMsgSeqNum() { return lastMsgSeqNum_; }
 
-void MockedSources::replyAskForCheckpointSummariesMsg() {
-  const uint64_t toCheckpoint = testConfig_.lastReachedcheckpointNum;
-  const uint64_t fromCheckpoint =
-      testConfig_.lastReachedcheckpointNum - testConfig_.maxNumOfRequiredStoredCheckpoints + 1;
+ protected:
+  uint64_t lastMsgSeqNum_;
+};
+
+/////////////////////////////////////////////////////////
+// FakeDestination - definition
+/////////////////////////////////////////////////////////
+void FakeDestination::sendAskForCheckpointSummariesMsg(uint64_t minRelevantCheckpointNum) {
+  ASSERT_SRC_UNDER_TEST;
+  AskForCheckpointSummariesMsg msg;
+  lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
+  msg.msgSeqNum = lastMsgSeqNum_;
+  msg.minRelevantCheckpointNum = minRelevantCheckpointNum;
+  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+}
+
+void FakeDestination::sendFetchBlocksMsg(uint64_t firstRequiredBlock, uint64_t lastRequiredBlock) {
+  ASSERT_SRC_UNDER_TEST;
+  // Remove this line if we would like to make negative tests
+  ASSERT_GE(lastRequiredBlock, firstRequiredBlock);
+  FetchBlocksMsg msg;
+  lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
+  msg.msgSeqNum = lastMsgSeqNum_;
+  msg.firstRequiredBlock = firstRequiredBlock;
+  msg.lastRequiredBlock = lastRequiredBlock;
+  msg.lastKnownChunkInLastRequiredBlock = 0;  // for now, chunking is not supported
+  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+}
+
+void FakeDestination::sendFetchResPagesMsg(uint64_t lastCheckpointKnownToRequester, uint64_t requiredCheckpointNum) {
+  ASSERT_SRC_UNDER_TEST;
+  FetchResPagesMsg msg;
+  lastMsgSeqNum_ = stDelegator_->uniqueMsgSeqNum();
+  msg.msgSeqNum = lastMsgSeqNum_;
+  msg.lastCheckpointKnownToRequester = lastCheckpointKnownToRequester;
+  msg.requiredCheckpointNum = requiredCheckpointNum;
+  msg.lastKnownChunk = 0;  // for now, chunking is not supported
+  stDelegator_->onMessage(&msg, sizeof(msg), (targetConfig_.myReplicaId + 1) % targetConfig_.numReplicas);
+}
+
+/////////////////////////////////////////////////////////
+// FakeSources
+//
+// Fake a source or multiple sources.
+// Supposed to work against real ST product destination.
+/////////////////////////////////////////////////////////
+class FakeSources : public FakeReplicaBase {
+ public:
+  FakeSources(const Config& targetConfig,
+              const TestConfig& testConfig,
+              const TestState& testState,
+              TestReplica& testedReplicaIf,
+              const std::shared_ptr<DataGenerator>& dataGen,
+              std::shared_ptr<BcStTestDelegator>& stAdapter);
+
+  // Source (fake) Replies
+  void replyAskForCheckpointSummariesMsg();
+  void replyFetchBlocksMsg();
+  void replyResPagesMsg(bool& outDoneSending);
+
+ protected:
+  std::unique_ptr<char[]> rawVBlock_;
+  std::optional<FetchResPagesMsg> lastReceivedFetchResPagesMsg_;
+};  // class FakeSources
+
+/////////////////////////////////////////////////////////
+// FakeSources - definition
+/////////////////////////////////////////////////////////
+FakeSources::FakeSources(const Config& targetConfig,
+                         const TestConfig& testConfig,
+                         const TestState& testState,
+                         TestReplica& testedReplicaIf,
+                         const std::shared_ptr<DataGenerator>& dataGen,
+                         std::shared_ptr<BcStTestDelegator>& stAdapter)
+    : FakeReplicaBase(targetConfig, testConfig, testState, testedReplicaIf, dataGen, stAdapter) {}
+
+void FakeSources::replyAskForCheckpointSummariesMsg() {
+  // We expect a source not fetching. Sending a reject message is not yet supported
+  ASSERT_FALSE(datastore_->getIsFetchingState());
   vector<unique_ptr<CheckpointSummaryMsg>> checkpointSummaryReplies;
 
-  // Generate all the blocks until lastBlock of the last checkpoint
-  auto lastBlockId = (toCheckpoint + 1) * testConfig_.checkpointWindowSize;
-  generateBlocks(appState_.getGenesisBlockNum() + 1, lastBlockId);
+  // Generate all the blocks until lastBlock of the last checkpoint - set into appState_
+  uint64_t lastBlockId = (testState_.toCheckpoint + 1) * testConfig_.checkpointWindowSize;
+  ASSERT_NFF(dataGen_->generateBlocks(appState_, appState_.getGenesisBlockNum() + 1, lastBlockId));
 
-  // Compute digest of last block
-  StateTransferDigest lastBlockDigest;
-  const auto& lastBlk = generatedBlocks_[lastBlockId];
-  computeBlockDigest(
-      lastBlockId, reinterpret_cast<const char*>(lastBlk.get()), lastBlk->totalBlockSize, &lastBlockDigest);
+  // Generate checkpoint descriptors - - set into datastore_
+  ASSERT_NFF(dataGen_->generateCheckpointDescriptors(
+      appState_, datastore_, testState_.fromCheckpoint, testState_.toCheckpoint));
 
   // build a single copy of all replied messages, push to a vector
-  const auto& firstMsg = replica_.sent_messages_.front();
+  const auto& firstMsg = testedReplicaIf_.sent_messages_.front();
   auto firstAskForCheckpointSummariesMsg = reinterpret_cast<AskForCheckpointSummariesMsg*>(firstMsg.data_.get());
-  for (uint64_t i = toCheckpoint; i >= fromCheckpoint; i--) {
+  for (uint64_t i = testState_.toCheckpoint; i >= testState_.fromCheckpoint; i--) {
     unique_ptr<CheckpointSummaryMsg> reply = make_unique<CheckpointSummaryMsg>();
-    reply->checkpointNum = i;
-    reply->lastBlock = (i + 1) * testConfig_.checkpointWindowSize;
-    auto digestBytes = reply->digestOfLastBlock.getForUpdate();
-    if (i == toCheckpoint)
-      memcpy(digestBytes, &lastBlockDigest, sizeof(lastBlockDigest));
-    else {
-      auto blk = generatedBlocks_[reply->lastBlock + 1];
-      memcpy(digestBytes, &blk->digestPrev, sizeof(blk->digestPrev));
-    }
-    generateReservedPages(i);
-    DataStore::ResPagesDescriptor* resPagesDesc = mockedDatastore_->getResPagesDescriptor(i);
-    STDigest digestOfResPagesDescriptor;
-    BCStateTran::computeDigestOfPagesDescriptor(resPagesDesc, digestOfResPagesDescriptor);
-
-    reply->digestOfResPagesDescriptor = digestOfResPagesDescriptor;
+    ASSERT_TRUE(datastore_->hasCheckpointDesc(i));
+    DataStore::CheckpointDesc desc = datastore_->getCheckpointDesc(i);
+    reply->checkpointNum = desc.checkpointNum;
+    reply->lastBlock = desc.lastBlock;
+    reply->digestOfLastBlock = desc.digestOfLastBlock;
+    reply->digestOfResPagesDescriptor = desc.digestOfResPagesDescriptor;
     reply->requestMsgSeqNum = firstAskForCheckpointSummariesMsg->msgSeqNum;
     checkpointSummaryReplies.push_back(move(reply));
   }
 
   // send replies from all replicas (shuffle the requests to get a random reply order)
   auto rng = std::default_random_engine{};
-  std::shuffle(std::begin(replica_.sent_messages_), std::end(replica_.sent_messages_), rng);
+  std::shuffle(std::begin(testedReplicaIf_.sent_messages_), std::end(testedReplicaIf_.sent_messages_), rng);
   for (const auto& reply : checkpointSummaryReplies) {
-    for (auto& request : replica_.sent_messages_) {
+    for (auto& request : testedReplicaIf_.sent_messages_) {
       CheckpointSummaryMsg* uniqueReply = new CheckpointSummaryMsg();
       *uniqueReply = *reply.get();
-      stateTransfer_->onMessage(uniqueReply, sizeof(CheckpointSummaryMsg), request.to_);
+      stDelegator_->onMessage(uniqueReply, sizeof(CheckpointSummaryMsg), request.to_);
     }
   }
   ASSERT_EQ(clearSentMessagesByMessageType(MsgType::AskForCheckpointSummaries), targetConfig_.numReplicas - 1);
 }
 
-void MockedSources::replyFetchBlocksMsg() {
-  ASSERT_EQ(replica_.sent_messages_.size(), 1);
-  const auto& msg = replica_.sent_messages_.front();
+void FakeSources::replyFetchBlocksMsg() {
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+  const auto& msg = testedReplicaIf_.sent_messages_.front();
   assertMsgType(msg, MsgType::FetchBlocks);
   auto fetchBlocksMsg = reinterpret_cast<FetchBlocksMsg*>(msg.data_.get());
   uint64_t nextBlockId = fetchBlocksMsg->lastRequiredBlock;
@@ -446,7 +695,7 @@ void MockedSources::replyFetchBlocksMsg() {
   ConcordAssertLE(fetchBlocksMsg->firstRequiredBlock, fetchBlocksMsg->lastRequiredBlock);
 
   while (true) {
-    const auto& blk = generatedBlocks_[nextBlockId];
+    auto blk = appState_.peekBlock(nextBlockId);
     ItemDataMsg* itemDataMsg = ItemDataMsg::alloc(blk->totalBlockSize);
     bool lastInBatch = ((numOfSentChunks + 1) >= targetConfig_.maxNumberOfChunksInBatch) ||
                        ((nextBlockId - 1) < fetchBlocksMsg->firstRequiredBlock);
@@ -457,20 +706,20 @@ void MockedSources::replyFetchBlocksMsg() {
     itemDataMsg->requestMsgSeqNum = fetchBlocksMsg->msgSeqNum;
     itemDataMsg->dataSize = blk->totalBlockSize;
     memcpy(itemDataMsg->data, blk.get(), blk->totalBlockSize);
-    stateTransfer_->onMessage(itemDataMsg, itemDataMsg->size(), msg.to_, std::chrono::steady_clock::now());
+    stDelegator_->onMessage(itemDataMsg, itemDataMsg->size(), msg.to_, std::chrono::steady_clock::now());
     if (lastInBatch) {
       break;
     }
     --nextBlockId;
     ++numOfSentChunks;
   }
-  replica_.sent_messages_.pop_front();
+  testedReplicaIf_.sent_messages_.pop_front();
 }
 
 // To ASSERT_ / EXPECT_  inside this function, we must pass output as a parameter
-void MockedSources::replyResPagesMsg(bool& outDoneSending) {
-  ASSERT_EQ(replica_.sent_messages_.size(), 1);
-  const auto& msg = replica_.sent_messages_.front();
+void FakeSources::replyResPagesMsg(bool& outDoneSending) {
+  ASSERT_EQ(testedReplicaIf_.sent_messages_.size(), 1);
+  const auto& msg = testedReplicaIf_.sent_messages_.front();
   assertMsgType(msg, MsgType::FetchResPages);
   auto fetchResPagesMsg = reinterpret_cast<FetchResPagesMsg*>(msg.data_.get());
 
@@ -481,41 +730,37 @@ void MockedSources::replyResPagesMsg(bool& outDoneSending) {
       lastReceivedFetchResPagesMsg_.value().requiredCheckpointNum != fetchResPagesMsg->requiredCheckpointNum) {
     // need to generate pages - for now, lets assume all pages need to be updated
     uint32_t numberOfUpdatedPages = testConfig_.maxNumberOfUpdatedReservedPages;
-    const uint32_t elementSize = sizeof(BCStateTran::ElementOfVirtualBlock) + targetConfig_.sizeOfReservedPage - 1;
-    const uint32_t size = sizeof(BCStateTran::HeaderOfVirtualBlock) + numberOfUpdatedPages * elementSize;
+    const uint32_t elementSize = BcStTestDelegator::sizeOfElementOfVirtualBlock + targetConfig_.sizeOfReservedPage - 1;
+    const uint32_t size = BcStTestDelegator::sizeOfHeaderOfVirtualBlock + numberOfUpdatedPages * elementSize;
     lastReceivedFetchResPagesMsg_ = *fetchResPagesMsg;
 
     // allocate and fill vBlock
-    rawVBlock_.reset(new char[size]);
+    rawVBlock_ = make_unique<char[]>(size);
     std::fill(rawVBlock_.get(), rawVBlock_.get() + size, 0);
-    BCStateTran::HeaderOfVirtualBlock* header = reinterpret_cast<BCStateTran::HeaderOfVirtualBlock*>(rawVBlock_.get());
-    header->lastCheckpointKnownToRequester = fetchResPagesMsg->lastCheckpointKnownToRequester;
-    header->numberOfUpdatedPages = numberOfUpdatedPages;
-    char* elements = rawVBlock_.get() + sizeof(BCStateTran::HeaderOfVirtualBlock);
+    stDelegator_->fillHeaderOfVirtualBlock(
+        rawVBlock_, numberOfUpdatedPages, fetchResPagesMsg->lastCheckpointKnownToRequester);
+    char* elements = rawVBlock_.get() + BcStTestDelegator::sizeOfHeaderOfVirtualBlock;
     uint32_t idx = 0;
 
     DataStore::ResPagesDescriptor* resPagesDesc =
-        mockedDatastore_->getResPagesDescriptor(fetchResPagesMsg->requiredCheckpointNum);
+        datastore_->getResPagesDescriptor(fetchResPagesMsg->requiredCheckpointNum);
 
     for (uint32_t pageId{0}; pageId < numberOfUpdatedPages; ++pageId) {
       ConcordAssertLT(idx, numberOfUpdatedPages);
-      BCStateTran::ElementOfVirtualBlock* currElement =
-          reinterpret_cast<BCStateTran::ElementOfVirtualBlock*>(elements + idx * elementSize);
-      currElement->pageId = pageId;
-      currElement->checkpointNumber = fetchResPagesMsg->requiredCheckpointNum;
-      currElement->pageDigest = resPagesDesc->d[pageId].pageDigest;
-      ASSERT_TRUE(!currElement->pageDigest.isZero());
-      mockedDatastore_->getResPage(
-          pageId, currElement->checkpointNumber, nullptr, currElement->page, targetConfig_.sizeOfReservedPage);
-      ASSERT_TRUE(!currElement->pageDigest.isZero());
+      stDelegator_->fillElementOfVirtualBlock(datastore_,
+                                              elements + idx * elementSize,
+                                              pageId,
+                                              fetchResPagesMsg->requiredCheckpointNum,
+                                              resPagesDesc->d[pageId].pageDigest,
+                                              targetConfig_.sizeOfReservedPage);
       idx++;
     }
   }
   ASSERT_TRUE(rawVBlock_.get());
-  uint32_t vblockSize = BCStateTran::getSizeOfVirtualBlock(rawVBlock_.get(), targetConfig_.sizeOfReservedPage);
-  ASSERT_GE(vblockSize, sizeof(BCStateTran::HeaderOfVirtualBlock));
-  ASSERT_TRUE(BCStateTran::checkStructureOfVirtualBlock(
-      rawVBlock_.get(), vblockSize, targetConfig_.sizeOfReservedPage, stateTransfer_->logger_));
+  uint32_t vblockSize = stDelegator_->getSizeOfVirtualBlock(rawVBlock_.get(), targetConfig_.sizeOfReservedPage);
+  ASSERT_GE(vblockSize, BcStTestDelegator::sizeOfHeaderOfVirtualBlock);
+  ASSERT_TRUE(
+      stDelegator_->checkStructureOfVirtualBlock(rawVBlock_.get(), vblockSize, targetConfig_.sizeOfReservedPage, GL));
 
   // compute information about next chunk
   uint32_t sizeOfLastChunk = targetConfig_.maxChunkSize;
@@ -538,7 +783,7 @@ void MockedSources::replyResPagesMsg(bool& outDoneSending) {
     ItemDataMsg* outMsg = ItemDataMsg::alloc(chunkSize);
 
     outMsg->requestMsgSeqNum = fetchResPagesMsg->msgSeqNum;
-    outMsg->blockNumber = BCStateTran::ID_OF_VBLOCK_RES_PAGES;
+    outMsg->blockNumber = BcStTestDelegator::ID_OF_VBLOCK_RES_PAGES;
     outMsg->totalNumberOfChunksInBlock = numOfChunksInVBlock;
     outMsg->chunkNumber = nextChunk;
     outMsg->dataSize = chunkSize;
@@ -546,7 +791,7 @@ void MockedSources::replyResPagesMsg(bool& outDoneSending) {
         ((numOfSentChunks + 1) >= targetConfig_.maxNumberOfChunksInBatch || (nextChunk == numOfChunksInVBlock));
     memcpy(outMsg->data, pRawChunk, chunkSize);
 
-    stateTransfer_->onMessage(outMsg, outMsg->size(), msg.to_, std::chrono::steady_clock::now());
+    stDelegator_->onMessage(outMsg, outMsg->size(), msg.to_, std::chrono::steady_clock::now());
     numOfSentChunks++;
 
     // if we've already sent enough chunks
@@ -562,7 +807,7 @@ void MockedSources::replyResPagesMsg(bool& outDoneSending) {
       break;
     }
   }  // while
-  replica_.sent_messages_.pop_front();
+  testedReplicaIf_.sent_messages_.pop_front();
 }
 
 /////////////////////////////////////////////////////////
