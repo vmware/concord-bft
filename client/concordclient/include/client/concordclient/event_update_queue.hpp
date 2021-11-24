@@ -88,7 +88,7 @@ class BasicUpdateQueue : public UpdateQueue {
   std::mutex mutex_;
   std::condition_variable condition_;
   bool release_consumers_;
-  std::exception_ptr exception;
+  std::exception_ptr exception_;
 
  public:
   // Construct a BasicUpdateQueue.

@@ -49,11 +49,13 @@ void BasicUpdateQueue::push(unique_ptr<EventVariant> update) {
 
 unique_ptr<EventVariant> BasicUpdateQueue::pop() {
   unique_lock<mutex> lock(mutex_);
-  while (!(exception || release_consumers_ || (queue_data_.size() > 0))) {
+  while (!(exception_ || release_consumers_ || (queue_data_.size() > 0))) {
     condition_.wait(lock);
   }
-  if (exception) {
-    std::rethrow_exception(exception);
+  if (exception_) {
+    auto e = exception_;
+    exception_ = nullptr;
+    std::rethrow_exception(e);
   }
   if (release_consumers_) {
     return unique_ptr<EventVariant>(nullptr);
@@ -66,8 +68,10 @@ unique_ptr<EventVariant> BasicUpdateQueue::pop() {
 
 unique_ptr<EventVariant> BasicUpdateQueue::tryPop() {
   lock_guard<mutex> lock(mutex_);
-  if (exception) {
-    std::rethrow_exception(exception);
+  if (exception_) {
+    auto e = exception_;
+    exception_ = nullptr;
+    std::rethrow_exception(e);
   }
   if (queue_data_.size() > 0) {
     unique_ptr<EventVariant> ret = move(queue_data_.front());
@@ -86,7 +90,7 @@ uint64_t BasicUpdateQueue::size() {
 void BasicUpdateQueue::setException(std::exception_ptr e) {
   {
     lock_guard<mutex> lock(mutex_);
-    exception = e;
+    exception_ = e;
   }
   condition_.notify_all();
 }
