@@ -40,8 +40,7 @@ enum class SourceReplacementMode { GRACEFUL, IMMEDIATE, DO_NOT };
 // preferred, as well as data that helps to select a current source replica.
 class SourceSelector {
   // This class is strictly used for testing
-  friend class SourceSelectorTestFixture;
-  friend class BcStTest;
+  friend class BcStTestDelegator;
 
  public:
   SourceSelector(std::set<uint16_t> allOtherReplicas,
