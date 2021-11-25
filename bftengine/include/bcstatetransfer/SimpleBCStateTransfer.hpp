@@ -154,8 +154,9 @@ struct Config {
   uint32_t maxPendingDataFromSourceReplica = 0;  // Maximal internal buffer size for all ST data, bytes
   uint32_t maxNumOfReservedPages = 0;
   uint32_t sizeOfReservedPage = 0;  // bytes
-  uint32_t gettingMissingBlocksSummaryWindowSize = 600;
-  uint16_t minPrePrepareMsgsForPrimaryAwarness = 10;
+  uint32_t gettingMissingBlocksSummaryWindowSize = 0;
+  uint16_t minPrePrepareMsgsForPrimaryAwarness = 0;
+  uint32_t fetchRangeSize = 0;
 
   // timeouts
   uint32_t refreshTimerMs = 0;
@@ -186,10 +187,12 @@ inline std::ostream &operator<<(std::ostream &os, const Config &c) {
               c.maxNumOfReservedPages,
               c.sizeOfReservedPage,
               c.gettingMissingBlocksSummaryWindowSize,
-              c.refreshTimerMs,
-              c.checkpointSummariesRetransmissionTimeoutMs);
+              c.minPrePrepareMsgsForPrimaryAwarness,
+              c.fetchRangeSize);
   os << ",";
-  os << KVLOG(c.maxAcceptableMsgDelayMs,
+  os << KVLOG(c.refreshTimerMs,
+              c.checkpointSummariesRetransmissionTimeoutMs,
+              c.maxAcceptableMsgDelayMs,
               c.sourceReplicaReplacementTimeoutMs,
               c.fetchRetransmissionTimeoutMs,
               c.maxFetchRetransmissions,
