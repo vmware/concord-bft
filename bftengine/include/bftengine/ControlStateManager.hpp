@@ -30,7 +30,9 @@ class ControlStateManager {
   }
   void setStopAtNextCheckpoint(int64_t currentSeqNum);
   std::optional<int64_t> getCheckpointToStopAt();
-
+  bool isWedged() { return wedged; }
+  void wedge() { wedged = true; }
+  void unwedge() { wedged = false; }
   void markRemoveMetadata(bool include_st = true) { removeMetadataCbRegistry_.invokeAll(include_st); }
   void setPruningProcess(bool onPruningProcess) { onPruningProcess_ = onPruningProcess; }
   bool getPruningProcessStatus() const { return onPruningProcess_; }
@@ -60,6 +62,7 @@ class ControlStateManager {
   ControlStateManager(const ControlStateManager&) = delete;
 
   uint64_t wedgePoint{0};
+  uint64_t wedged = false;
   std::atomic_bool restartBftEnabled_ = false;
   std::unordered_map<uint8_t, SeqNum> hasRestartProofAtSeqNum_;  // reason for restart is the key
   std::atomic_bool onPruningProcess_ = false;
