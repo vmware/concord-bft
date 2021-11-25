@@ -30,26 +30,25 @@ namespace bftEngine {
 
 namespace bcst {
 
-// This should be the same as TestConfig
-const uint32_t kMaxBlockSize = 1024;
-
 #pragma pack(push, 1)
 class Block {
  public:
-  static uint32_t calcMaxDataSize() { return kMaxBlockSize - (sizeof(Block) - 1); }
+  static uint32_t calcMaxDataSize() { return kMaxBlockSize_ - (sizeof(Block) - 1); }
+  static uint32_t getMaxTotalBlockSize() { return kMaxBlockSize_; }
+  static void setMaxTotalBlockSize(uint32_t size) { kMaxBlockSize_ = size; }
 
   static std::shared_ptr<Block> createFromData(uint32_t dataSize,
                                                const char* data,
                                                uint64_t blockId,
                                                StateTransferDigest& digestPrev) {
     auto totalBlockSize = calcTotalBlockSize(dataSize);
-    ConcordAssertLE(totalBlockSize, kMaxBlockSize);
+    ConcordAssertLE(totalBlockSize, kMaxBlockSize_);
     Block* blk = reinterpret_cast<Block*>(std::malloc(totalBlockSize));
     return std::shared_ptr<Block>(blk->initBlock(data, dataSize, totalBlockSize, blockId, digestPrev));
   }
 
   static std::shared_ptr<Block> createFromBlock(const char* blk, uint32_t blkSize) {
-    ConcordAssertLE(blkSize, kMaxBlockSize);
+    ConcordAssertLE(blkSize, kMaxBlockSize_);
     char* buff = static_cast<char*>(std::malloc(blkSize));
     memcpy(buff, blk, blkSize);
     return std::shared_ptr<Block>(reinterpret_cast<Block*>(buff));
@@ -66,6 +65,7 @@ class Block {
  private:
   static uint32_t calcTotalBlockSize(uint32_t dataSize) { return sizeof(Block) + dataSize - 1; }
   static uint32_t calcDataSize(uint32_t totalSize) { return totalSize - sizeof(Block) + 1; }
+  static uint32_t kMaxBlockSize_;
 
   Block* initBlock(
       const char* data, uint32_t dataSize, uint32_t totalBlockSize, uint64_t blockId, StateTransferDigest& digestPrev) {
@@ -77,6 +77,8 @@ class Block {
     return this;
   }
 };
+
+uint32_t Block::kMaxBlockSize_ = 0;
 #pragma pack(pop)
 
 class TestAppState : public IAppState {
@@ -95,21 +97,33 @@ class TestAppState : public IAppState {
   bool getBlock(uint64_t blockId, char* outBlock, uint32_t outBlockMaxSize, uint32_t* outBlockActualSize) override {
     std::lock_guard<std::mutex> lg(mtx);
     auto it = blocks_.find(blockId);
-    if (it == blocks_.end()) return false;
+    if (it == blocks_.end()) {
+      return false;
+    }
     ConcordAssert(outBlockMaxSize >= it->second->totalBlockSize);
     std::memcpy(outBlock, it->second.get(), it->second->totalBlockSize);
     *outBlockActualSize = it->second->totalBlockSize;
     return true;
   };
 
+  const std::shared_ptr<Block> peekBlock(uint64_t blockId) const {
+    std::lock_guard<std::mutex> lg(mtx);
+    auto it = blocks_.find(blockId);
+    if (it == blocks_.end()) {
+      return nullptr;
+    }
+    return it->second;
+  };
+
   std::future<bool> getBlockAsync(uint64_t blockId,
                                   char* outBlock,
                                   uint32_t outBlockMaxSize,
                                   uint32_t* outBlockActualSize) override {
-    std::future<bool> future = std::async(std::launch::async, [&]() {
+    bool res = getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
+    std::future<bool> future = std::async(std::launch::async, [&, res]() {
       // simulate processing time
       sleepForRandomtime(blockIoMinLatencyMs, blockIoMaxLatencyMs);
-      return getBlock(blockId, outBlock, outBlockMaxSize, outBlockActualSize);
+      return res;
     });
     return future;
   }
@@ -133,7 +147,7 @@ class TestAppState : public IAppState {
 
   bool putBlock(const uint64_t blockId, const char* block, const uint32_t blockSize, bool lastBlock) override {
     std::lock_guard<std::mutex> lg(mtx);
-    ConcordAssertLE(blockSize, kMaxBlockSize);
+    ConcordAssertLE(blockSize, Block::getMaxTotalBlockSize());
     const auto blk = Block::createFromBlock(block, blockSize);
     if (blockId > last_block_) last_block_ = blockId;
     blocks_.emplace(blockId, std::move(blk));
@@ -147,7 +161,7 @@ class TestAppState : public IAppState {
     // TODO(GL) - At this stage we put the blocks in the main thread context. Doing so in child thread context
     // complicates the main test logic, since we have to trigger ST for multiple checks.
     // Try to do this in the future to simulate un-ordered completions.
-    ConcordAssertLE(blockSize, kMaxBlockSize);
+    ConcordAssertLE(blockSize, Block::getMaxTotalBlockSize());
     putBlock(blockId, block, blockSize, lastBlock);
     std::future<bool> future = std::async(std::launch::async, []() {
       // simulate processing time
