@@ -323,6 +323,7 @@ SimpleStateTran::SimpleStateTran(
       4096,                                 // sizeOfReservedPage
       600,                                  // gettingMissingBlocksSummaryWindowSize
       10,                                   // minPrePrepareMsgsForPrimaryAwarness
+      1024,                                 // fetchRangeSize
       300,                                  // refreshTimerMs
       2500,                                 // checkpointSummariesRetransmissionTimeoutMs
       60000,                                // maxAcceptableMsgDelayMs
