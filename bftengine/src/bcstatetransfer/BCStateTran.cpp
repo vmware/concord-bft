@@ -255,6 +255,7 @@ BCStateTran::BCStateTran(const Config &config, IAppState *const stateApi, DataSt
   ConcordAssert(replicas_.count(config_.myReplicaId) == 1 || config.isReadOnly);
   ConcordAssertGE(config_.maxNumOfReservedPages, 2);
   ConcordAssertLT(finalizePutblockTimeoutMilli_, config_.refreshTimerMs);
+  ConcordAssertGT(config_.fetchRangeSize, 1);
 
   // Register metrics component with the default aggregator.
   metrics_component_.Register();
@@ -1164,7 +1165,7 @@ void BCStateTran::sendFetchResPagesMsg(int16_t lastKnownChunkInLastRequiredBlock
   FetchResPagesMsg msg;
   msg.msgSeqNum = lastMsgSeqNum_;
   msg.lastCheckpointKnownToRequester = lastStoredCheckpoint;
-  msg.requiredCheckpointNum = cp.checkpointNum;
+  msg.requiredCheckpointNum = targetCheckpointDesc_.checkpointNum;
   msg.lastKnownChunk = lastKnownChunkInLastRequiredBlock;
 
   LOG_DEBUG(logger_,
@@ -2346,8 +2347,8 @@ std::string BCStateTran::logsForCollectingStatus(const uint64_t firstRequiredBlo
   }
 
   nested_data.insert(toPair("lastStored", psd_->getLastStoredCheckpoint()));
-  nested_nested_data.insert(toPair("checkpointNum", fetched_cp.checkpointNum));
-  nested_nested_data.insert(toPair("lastBlock", fetched_cp.lastBlock));
+  nested_nested_data.insert(toPair("checkpointNum", targetCheckpointDesc_.checkpointNum));
+  nested_nested_data.insert(toPair("maxBlockId", targetCheckpointDesc_.maxBlockId));
   nested_data.insert(
       toPair("beingFetched", concordUtils::kvContainerToJson(nested_nested_data, [](const auto &arg) { return arg; })));
   result.insert(
