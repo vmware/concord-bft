@@ -870,6 +870,7 @@ void ReplicaImp::startConsensusProcess(PrePrepareMsg *pp, bool isCreatedEarlier)
 
 bool ReplicaImp::isSeqNumToStopAt(SeqNum seq_num) {
   if (ControlStateManager::instance().getPruningProcessStatus()) return true;
+  if (ControlStateManager::instance().isWedged()) return true;
   auto seq_num_to_stop_at = ControlStateManager::instance().getCheckpointToStopAt();
   if (seq_num_to_stop_at.has_value()) {
     if (seq_num_to_stop_at < seq_num) return true;
@@ -3156,6 +3157,7 @@ void ReplicaImp::onSeqNumIsSuperStable(SeqNum superStableSeqNum) {
 
     metric_on_call_back_of_super_stable_cp_.Get().Set(1);
     IControlHandler::instance()->onSuperStableCheckpoint();
+    ControlStateManager::instance().wedge();
   }
 }
 
@@ -3275,6 +3277,7 @@ void ReplicaImp::onSeqNumIsStable(SeqNum newStableSeqNum, bool hasStateInformati
              "Informing control state manager that consensus should be stopped (with n-f/n replicas): " << KVLOG(
                  newStableSeqNum, metric_last_stable_seq_num_.Get().Get()));
     IControlHandler::instance()->onStableCheckpoint();
+    ControlStateManager::instance().wedge();
   }
 }
 void ReplicaImp::sendRepilcaRestartReady(uint8_t reason, const std::string &extraData) {
@@ -4709,6 +4712,10 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
   while (lastExecutedSeqNum < lastStableSeqNum + kWorkWindowSize) {
     SeqNum nextExecutedSeqNum = lastExecutedSeqNum + 1;
     SCOPED_MDC_SEQ_NUM(std::to_string(nextExecutedSeqNum));
+    if (ControlStateManager::instance().isWedged()) {
+      LOG_INFO(CNSUS, "system is wedged, no new prePrepare requests will be executed until its unwedged");
+      break;
+    }
     SeqNumInfo &seqNumInfo = mainLog->get(nextExecutedSeqNum);
 
     PrePrepareMsg *prePrepareMsg = seqNumInfo.getPrePrepareMsg();
@@ -4743,36 +4750,39 @@ void ReplicaImp::executeNextCommittedRequests(concordUtils::SpanWrapper &parent_
         metric_total_fastPath_requests_ += numOfRequests;
       }
     }
-  }
-  auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
-  if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > seqNumber && isCurrentPrimary()) {
-    // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
-    // messages queue.
-    LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
-    concord::messages::ReconfigurationRequest req;
-    req.sender = config_.replicaId;
-    req.command = concord::messages::WedgeCommand{config_.replicaId, true};
-    // Mark this request as an internal one
-    std::vector<uint8_t> data_vec;
-    concord::messages::serialize(data_vec, req);
-    std::string sig(SigManager::instance()->getMySigLength(), '\0');
-    uint16_t sig_length{0};
-    SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
-    req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
-    data_vec.clear();
-    concord::messages::serialize(data_vec, req);
-    std::string strMsg(data_vec.begin(), data_vec.end());
-    auto sn = std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
-    auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
-                                    RECONFIG_FLAG,
-                                    sn,
-                                    strMsg.size(),
-                                    strMsg.c_str(),
-                                    60000,
-                                    "wedge-noop-command-" + std::to_string(seqNumber));
-    // Now, try to send a new prepreare immediately, without waiting to a new batch
-    onMessage(crm);
-    tryToSendPrePrepareMsg(false);
+
+    auto seqNumToStopAt = ControlStateManager::instance().getCheckpointToStopAt();
+    if (seqNumToStopAt.value_or(0) == lastExecutedSeqNum) ControlStateManager::instance().wedge();
+    if (seqNumToStopAt.has_value() && seqNumToStopAt.value() > lastExecutedSeqNum && isCurrentPrimary()) {
+      // If after execution, we discover that we need to wedge at some futuer point, push a noop command to the incoming
+      // messages queue.
+      LOG_INFO(GL, "sending noop command to bring the system into wedge checkpoint");
+      concord::messages::ReconfigurationRequest req;
+      req.sender = config_.replicaId;
+      req.command = concord::messages::WedgeCommand{config_.replicaId, true};
+      // Mark this request as an internal one
+      std::vector<uint8_t> data_vec;
+      concord::messages::serialize(data_vec, req);
+      std::string sig(SigManager::instance()->getMySigLength(), '\0');
+      uint16_t sig_length{0};
+      SigManager::instance()->sign(reinterpret_cast<char *>(data_vec.data()), data_vec.size(), sig.data(), sig_length);
+      req.signature = std::vector<uint8_t>(sig.begin(), sig.end());
+      data_vec.clear();
+      concord::messages::serialize(data_vec, req);
+      std::string strMsg(data_vec.begin(), data_vec.end());
+      auto requestSeqNum =
+          std::chrono::duration_cast<std::chrono::microseconds>(getMonotonicTime().time_since_epoch()).count();
+      auto crm = new ClientRequestMsg(internalBFTClient_->getClientId(),
+                                      RECONFIG_FLAG,
+                                      requestSeqNum,
+                                      strMsg.size(),
+                                      strMsg.c_str(),
+                                      60000,
+                                      "wedge-noop-command-" + std::to_string(lastExecutedSeqNum + 1));
+      // Now, try to send a new prepreare immediately, without waiting to a new batch
+      onMessage(crm);
+      tryToSendPrePrepareMsg(false);
+    }
   }
 
   if (ControlStateManager::instance().getCheckpointToStopAt().has_value() &&
